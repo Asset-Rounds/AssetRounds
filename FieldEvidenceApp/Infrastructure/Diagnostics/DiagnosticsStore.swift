@@ -136,7 +136,7 @@ actor DiagnosticsStore {
 
     func snapshot() -> DiagnosticsV1 {
         prepare()
-        counters
+        return counters
     }
 
     func increment(_ counter: Counter) {
