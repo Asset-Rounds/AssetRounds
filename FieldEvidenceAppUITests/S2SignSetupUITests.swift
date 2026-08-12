@@ -54,10 +54,9 @@ final class S2SignSetupUITests: XCTestCase {
             "Enter a customer or site name.",
             in: validation
         )
-        XCTAssertTrue(siteField.wait(for: \.hasFocus, toEqual: true, timeout: 5))
-        XCTAssertFalse(signField.hasFocus)
-
         siteField.typeText("North Campus")
+        XCTAssertEqual(siteField.value as? String, "North Campus")
+        XCTAssertNotEqual(signField.value as? String, "North Campus")
         signField.tap()
         signField.typeText("Monument Sign")
         dismissKeyboard(in: app)
@@ -92,10 +91,10 @@ final class S2SignSetupUITests: XCTestCase {
                 .matching(identifier: "s2.new-sign.error").count,
             1
         )
-        XCTAssertTrue(timeZoneField.wait(for: \.hasFocus, toEqual: true, timeout: 5))
-        XCTAssertFalse(siteField.hasFocus)
-        XCTAssertFalse(signField.hasFocus)
         replaceText(in: timeZoneField, with: "America/New_York")
+        XCTAssertEqual(timeZoneField.value as? String, "America/New_York")
+        XCTAssertEqual(siteField.value as? String, "North Campus")
+        XCTAssertEqual(signField.value as? String, "Monument Sign")
         dismissKeyboard(in: app)
 
         let confirmation = element(
@@ -210,7 +209,6 @@ final class S2SignSetupUITests: XCTestCase {
 
     @MainActor
     private func replaceText(in element: XCUIElement, with replacement: String) {
-        element.tap()
         let existingCount = (element.value as? String)?.count ?? 0
         if existingCount > 0 {
             element.typeText(
