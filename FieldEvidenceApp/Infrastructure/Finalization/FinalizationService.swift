@@ -32,6 +32,29 @@ struct FinalizationServiceOutcome: Equatable, Sendable {
     let createdAuthority: Bool
 }
 
+enum FinalizationServiceFailurePoint: Equatable, Sendable {
+    case modelSave
+}
+
+@MainActor
+final class FinalizationServiceFailureInjection {
+    private var failurePoint: FinalizationServiceFailurePoint?
+
+    init(failOnceAt failurePoint: FinalizationServiceFailurePoint) {
+        self.failurePoint = failurePoint
+    }
+
+    func removeFailure() {
+        failurePoint = nil
+    }
+
+    fileprivate func consume(_ point: FinalizationServiceFailurePoint) -> Bool {
+        guard failurePoint == point else { return false }
+        failurePoint = nil
+        return true
+    }
+}
+
 @MainActor
 final class FinalizationService {
     private let modelContext: ModelContext
@@ -39,11 +62,14 @@ final class FinalizationService {
     private let generationRootURL: URL
     private let generationID: UUID
     private let intentStore: FinalizationIntentStore
+    private let failureInjection: FinalizationServiceFailureInjection?
 
     init(
         modelContext: ModelContext,
         signPack: SignPack,
-        generationRootURL: URL
+        generationRootURL: URL,
+        intentStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
+        failureInjection: FinalizationServiceFailureInjection? = nil
     ) throws {
         let root = generationRootURL.standardizedFileURL
         guard root.deletingLastPathComponent().lastPathComponent == "generations",
@@ -57,7 +83,11 @@ final class FinalizationService {
         self.signPack = signPack
         self.generationRootURL = root
         self.generationID = generationID
-        self.intentStore = FinalizationIntentStore(generationRootURL: root)
+        self.intentStore = FinalizationIntentStore(
+            generationRootURL: root,
+            failureInjection: intentStoreFailureInjection
+        )
+        self.failureInjection = failureInjection
     }
 
     func finalize(_ input: FinalizationServiceInput) async throws -> FinalizationServiceOutcome {
@@ -112,6 +142,9 @@ final class FinalizationService {
                 throw FinalizationServiceError.preconditionFailed
             }
             applyDatabaseMutation(input, frozen: frozen)
+            if failureInjection?.consume(.modelSave) == true {
+                throw FinalizationServiceError.saveFailed
+            }
             try modelContext.save()
         } catch {
             modelContext.rollback()

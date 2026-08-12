@@ -55,16 +55,47 @@ enum EvidenceBundleStoreError: Error, Equatable {
     case fileOperationFailed
 }
 
+enum EvidenceBundleStoreFailurePoint: Equatable, Sendable {
+    case stagingWrite
+    case atomicPromotionMove
+}
+
+final class EvidenceBundleStoreFailureInjection: @unchecked Sendable {
+    private let lock = NSLock()
+    private var pendingFailure: EvidenceBundleStoreFailurePoint?
+
+    init(failOnceAt failurePoint: EvidenceBundleStoreFailurePoint) {
+        pendingFailure = failurePoint
+    }
+
+    func removeFailure() {
+        lock.lock()
+        pendingFailure = nil
+        lock.unlock()
+    }
+
+    fileprivate func consume(_ failurePoint: EvidenceBundleStoreFailurePoint) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard pendingFailure == failurePoint else { return false }
+        pendingFailure = nil
+        return true
+    }
+}
+
 actor EvidenceBundleStore {
     private let generationRootURL: URL
     private let fileManager: FileManager
+    private let failureInjection: EvidenceBundleStoreFailureInjection?
 
     init(
         generationRootURL: URL,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        failureInjection: EvidenceBundleStoreFailureInjection? = nil
     ) {
         self.generationRootURL = generationRootURL.standardizedFileURL
         self.fileManager = fileManager
+        self.failureInjection = failureInjection
     }
 
     func stage(
@@ -91,6 +122,9 @@ actor EvidenceBundleStore {
                 at: paths.stagingDirectoryURL,
                 withIntermediateDirectories: false
             )
+            guard failureInjection?.consume(.stagingWrite) != true else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
             try input.originalJPEG.write(
                 to: paths.stagingOriginalURL,
                 options: .atomic
@@ -166,6 +200,13 @@ actor EvidenceBundleStore {
 
         var didPromote = false
         do {
+            if failureInjection?.consume(.atomicPromotionMove) == true {
+                // Staged facts were proven immediately above, so this cleanup
+                // is bounded to the exact active mutation and cannot touch a
+                // previously promoted bundle.
+                try removeExactStagingDirectoryIfPresent(paths.stagingDirectoryURL)
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
             // Both directories are in the same immutable generation, so this is
             // one atomic publication of the verified original+thumbnail pair.
             try fileManager.moveItem(

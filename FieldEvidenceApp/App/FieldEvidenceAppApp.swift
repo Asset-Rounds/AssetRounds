@@ -10,6 +10,8 @@ struct FieldEvidenceAppApp: App {
     private static let darkModeLaunchArgument = "--s1-ui-test-dark-mode"
     private static let importedCaptureFixturesLaunchArgument =
         "--s3-2-ui-test-imported-fixtures"
+    private static let lowStorageOnceLaunchArgument =
+        "--s3-5-ui-test-low-storage-once"
 
     @StateObject private var startupRouter: StartupRouter
 
@@ -17,6 +19,7 @@ struct FieldEvidenceAppApp: App {
     private let preferredColorScheme: ColorScheme?
     private let exposesColorSchemeForUITest: Bool
     private let usesImportedCaptureFixturesForUITest: Bool
+    private let injectsLowStorageFailureOnceForUITest: Bool
 
     init() {
         let applicationSupportURL = FileManager.default.urls(
@@ -32,6 +35,9 @@ struct FieldEvidenceAppApp: App {
         let arguments = ProcessInfo.processInfo.arguments
         usesImportedCaptureFixturesForUITest = arguments.contains(
             Self.importedCaptureFixturesLaunchArgument
+        )
+        injectsLowStorageFailureOnceForUITest = arguments.contains(
+            Self.lowStorageOnceLaunchArgument
         )
 
         if arguments.contains(Self.invalidPackLaunchArgument) {
@@ -59,7 +65,9 @@ struct FieldEvidenceAppApp: App {
                 router: startupRouter,
                 packLoadResult: packLoadResult,
                 exposesColorSchemeForUITest: exposesColorSchemeForUITest,
-                usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest
+                usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
+                injectsLowStorageFailureOnceForUITest:
+                    injectsLowStorageFailureOnceForUITest
             )
             .preferredColorScheme(preferredColorScheme)
         }
@@ -72,6 +80,7 @@ private struct StartupRootView: View {
     let packLoadResult: SignPackLoadResult
     let exposesColorSchemeForUITest: Bool
     let usesImportedCaptureFixturesForUITest: Bool
+    let injectsLowStorageFailureOnceForUITest: Bool
 
     var body: some View {
         Group {
@@ -96,7 +105,9 @@ private struct StartupRootView: View {
                     diagnosticsStore: diagnosticsStore,
                     packLoadResult: packLoadResult,
                     exposesColorSchemeForUITest: exposesColorSchemeForUITest,
-                    usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest
+                    usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
+                    injectsLowStorageFailureOnceForUITest:
+                        injectsLowStorageFailureOnceForUITest
                 )
             }
         }
@@ -113,6 +124,7 @@ private struct ReadyAppView: View {
     let packLoadResult: SignPackLoadResult
     let exposesColorSchemeForUITest: Bool
     let usesImportedCaptureFixturesForUITest: Bool
+    let injectsLowStorageFailureOnceForUITest: Bool
 
     var body: some View {
         AppShellView(
@@ -121,7 +133,9 @@ private struct ReadyAppView: View {
             modelContext: coordinator.modelContext,
             diagnosticsStore: diagnosticsStore,
             generationRootURL: coordinator.generationRootURL,
-            usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest
+            usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
+            injectsLowStorageFailureOnceForUITest:
+                injectsLowStorageFailureOnceForUITest
         )
         .id(coordinator.uiGenerationToken)
         .modelContext(coordinator.modelContext)

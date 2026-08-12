@@ -105,6 +105,29 @@ struct CaptureCandidate: Equatable, Sendable {
     let stagedBundle: StagedEvidenceBundle
 }
 
+enum CheckRunnerCoordinatorFailurePoint: Equatable, Sendable {
+    case evidenceModelSave
+}
+
+@MainActor
+final class CheckRunnerCoordinatorFailureInjection {
+    private var failurePoint: CheckRunnerCoordinatorFailurePoint?
+
+    init(failOnceAt failurePoint: CheckRunnerCoordinatorFailurePoint) {
+        self.failurePoint = failurePoint
+    }
+
+    func removeFailure() {
+        failurePoint = nil
+    }
+
+    fileprivate func consume(_ point: CheckRunnerCoordinatorFailurePoint) -> Bool {
+        guard failurePoint == point else { return false }
+        failurePoint = nil
+        return true
+    }
+}
+
 @MainActor
 final class CheckRunnerCoordinator {
     private static let pdfTemplateID = "field.evidence.pdf.worklight.v1"
@@ -119,12 +142,18 @@ final class CheckRunnerCoordinator {
     private let modelContext: ModelContext
     private let signPack: SignPack
     private let diagnosticsStore: DiagnosticsStore?
+    private let storagePreflight: StoragePreflightService
+    private let evidenceStoreFailureInjection: EvidenceBundleStoreFailureInjection?
+    private let evidenceSaveFailureInjection: CheckRunnerCoordinatorFailureInjection?
+    private let finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection?
+    private let finalizationServiceFailureInjection: FinalizationServiceFailureInjection?
     private var captureGenerationRootURL: URL?
     private var evidenceBundleStore: EvidenceBundleStore?
     private var finalizationAttempt: FinalizationAttempt?
 
     private struct FinalizationAttempt {
         let assetID: UUID
+        let draftID: UUID?
         let selection: CheckOutcomeSelection
         let completedAt: Date
         let snapshotCreatedAt: Date
@@ -135,11 +164,33 @@ final class CheckRunnerCoordinator {
     init(
         modelContext: ModelContext,
         signPack: SignPack,
-        diagnosticsStore: DiagnosticsStore? = nil
+        diagnosticsStore: DiagnosticsStore? = nil,
+        storagePreflight: StoragePreflightService = StoragePreflightService(),
+        evidenceStoreFailureInjection: EvidenceBundleStoreFailureInjection? = nil,
+        evidenceSaveFailureInjection: CheckRunnerCoordinatorFailureInjection? = nil,
+        finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
+        finalizationServiceFailureInjection: FinalizationServiceFailureInjection? = nil,
+        injectsLowStorageFailureOnceForUITest: Bool = false
     ) {
         self.modelContext = modelContext
         self.signPack = signPack
         self.diagnosticsStore = diagnosticsStore
+        self.evidenceStoreFailureInjection = evidenceStoreFailureInjection
+        self.evidenceSaveFailureInjection = evidenceSaveFailureInjection
+        self.finalizationStoreFailureInjection = finalizationStoreFailureInjection
+        self.finalizationServiceFailureInjection = finalizationServiceFailureInjection
+        if injectsLowStorageFailureOnceForUITest {
+            var shouldFail = true
+            self.storagePreflight = StoragePreflightService { _ in
+                if shouldFail {
+                    shouldFail = false
+                    return 0
+                }
+                return StoragePreflightService.evidenceAcceptanceRequiredBytes
+            }
+        } else {
+            self.storagePreflight = storagePreflight
+        }
     }
 
     var signPackIssueLabels: [SignPack.RegistryEntry] {
@@ -176,7 +227,8 @@ final class CheckRunnerCoordinator {
         guard captureGenerationRootURL != standardizedURL else { return }
         captureGenerationRootURL = standardizedURL
         evidenceBundleStore = EvidenceBundleStore(
-            generationRootURL: standardizedURL
+            generationRootURL: standardizedURL,
+            failureInjection: evidenceStoreFailureInjection
         )
     }
 
@@ -250,14 +302,15 @@ final class CheckRunnerCoordinator {
             throw CheckRunnerCoordinatorError.finalizationNotConfigured
         }
         let outcome = try resolvedOutcome(selection)
-        let identifiers: FinalizationIdentifiers
+        let currentDraftID = try existingDraft(assetID: assetID)?.id
+        let activeAttempt: FinalizationAttempt
         if let suppliedIdentifiers {
             guard (outcome.issueLabel != nil) == (suppliedIdentifiers.issueID != nil) else {
                 throw CheckRunnerCoordinatorError.issueLabelInvalid
             }
-            identifiers = suppliedIdentifiers
-            finalizationAttempt = FinalizationAttempt(
+            activeAttempt = FinalizationAttempt(
                 assetID: assetID,
+                draftID: currentDraftID,
                 selection: selection,
                 completedAt: completedAt,
                 snapshotCreatedAt: snapshotCreatedAt,
@@ -267,27 +320,28 @@ final class CheckRunnerCoordinator {
         } else if let attempt = finalizationAttempt,
                   attempt.assetID == assetID,
                   attempt.selection == selection,
-                  attempt.completedAt == completedAt,
-                  attempt.snapshotCreatedAt == snapshotCreatedAt,
-                  attempt.sourceApp == sourceApp {
-            identifiers = attempt.identifiers
+                  attempt.sourceApp == sourceApp,
+                  currentDraftID == nil || attempt.draftID == currentDraftID {
+            activeAttempt = attempt
         } else {
-            identifiers = FinalizationIdentifiers(
-                mutationID: UUID(),
-                packetID: UUID(),
-                stableRootID: UUID(),
-                reportID: UUID(),
-                issueID: outcome.issueLabel == nil ? nil : UUID()
-            )
-            finalizationAttempt = FinalizationAttempt(
+            activeAttempt = FinalizationAttempt(
                 assetID: assetID,
+                draftID: currentDraftID,
                 selection: selection,
                 completedAt: completedAt,
                 snapshotCreatedAt: snapshotCreatedAt,
                 sourceApp: sourceApp,
-                identifiers: identifiers
+                identifiers: FinalizationIdentifiers(
+                    mutationID: UUID(),
+                    packetID: UUID(),
+                    stableRootID: UUID(),
+                    reportID: UUID(),
+                    issueID: outcome.issueLabel == nil ? nil : UUID()
+                )
             )
         }
+        finalizationAttempt = activeAttempt
+        let identifiers = activeAttempt.identifiers
         let asset = try requiredAsset(id: assetID)
         let site = try requiredSite(id: asset.siteID)
         let mutationID = identifiers.mutationID
@@ -322,7 +376,9 @@ final class CheckRunnerCoordinator {
             service = try FinalizationService(
                 modelContext: modelContext,
                 signPack: signPack,
-                generationRootURL: generationRootURL
+                generationRootURL: generationRootURL,
+                intentStoreFailureInjection: finalizationStoreFailureInjection,
+                failureInjection: finalizationServiceFailureInjection
             )
         } catch {
             throw CheckRunnerCoordinatorError.finalizationNotConfigured
@@ -338,9 +394,9 @@ final class CheckRunnerCoordinator {
                     outcomeKey: outcome.key,
                     outcomeDisplay: outcome.display,
                     issueLabel: outcome.issueLabel,
-                    completedAt: completedAt,
-                    snapshotCreatedAt: snapshotCreatedAt,
-                    sourceApp: sourceApp,
+                    completedAt: activeAttempt.completedAt,
+                    snapshotCreatedAt: activeAttempt.snapshotCreatedAt,
+                    sourceApp: activeAttempt.sourceApp,
                     identifiers: identifiers
                 )
             )
@@ -442,7 +498,7 @@ final class CheckRunnerCoordinator {
         }
 
         do {
-            try StoragePreflightService().checkEvidenceAcceptance(
+            try storagePreflight.checkEvidenceAcceptance(
                 onVolumeContaining: generationRootURL
             )
         } catch {
@@ -559,6 +615,9 @@ final class CheckRunnerCoordinator {
             draft.draftStepKey = preparation.step == .wide
                 ? WorkflowDraftStep.close.rawValue
                 : WorkflowDraftStep.outcome.rawValue
+            if evidenceSaveFailureInjection?.consume(.evidenceModelSave) == true {
+                throw CheckRunnerCoordinatorError.saveFailed
+            }
             try modelContext.save()
             return evidence
         } catch {

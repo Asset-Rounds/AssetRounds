@@ -35,7 +35,8 @@ struct SignsRootView: View {
         diagnosticsStore: DiagnosticsStore,
         pack: SignPack,
         generationRootURL: URL,
-        usesImportedCaptureFixturesForUITest: Bool = false
+        usesImportedCaptureFixturesForUITest: Bool = false,
+        injectsLowStorageFailureOnceForUITest: Bool = false
     ) {
         self.pack = pack
         self.generationRootURL = generationRootURL
@@ -50,7 +51,9 @@ struct SignsRootView: View {
         checkRunnerCoordinator = CheckRunnerCoordinator(
             modelContext: modelContext,
             signPack: pack,
-            diagnosticsStore: diagnosticsStore
+            diagnosticsStore: diagnosticsStore,
+            injectsLowStorageFailureOnceForUITest:
+                injectsLowStorageFailureOnceForUITest
         )
     }
 

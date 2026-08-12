@@ -24,6 +24,7 @@ struct AppShellView: View {
     let diagnosticsStore: DiagnosticsStore
     let generationRootURL: URL
     let usesImportedCaptureFixturesForUITest: Bool
+    let injectsLowStorageFailureOnceForUITest: Bool
 
     @State private var selectedTab: Tab = .signs
 
@@ -33,7 +34,8 @@ struct AppShellView: View {
         modelContext: ModelContext,
         diagnosticsStore: DiagnosticsStore,
         generationRootURL: URL,
-        usesImportedCaptureFixturesForUITest: Bool = false
+        usesImportedCaptureFixturesForUITest: Bool = false,
+        injectsLowStorageFailureOnceForUITest: Bool = false
     ) {
         self.packLoadResult = packLoadResult
         self.exposesColorSchemeForUITest = exposesColorSchemeForUITest
@@ -41,6 +43,8 @@ struct AppShellView: View {
         self.diagnosticsStore = diagnosticsStore
         self.generationRootURL = generationRootURL
         self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
+        self.injectsLowStorageFailureOnceForUITest =
+            injectsLowStorageFailureOnceForUITest
     }
 
     var body: some View {
@@ -60,7 +64,9 @@ struct AppShellView: View {
                 diagnosticsStore: diagnosticsStore,
                 pack: pack,
                 generationRootURL: generationRootURL,
-                usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest
+                usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
+                injectsLowStorageFailureOnceForUITest:
+                    injectsLowStorageFailureOnceForUITest
             )
             .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
             .accessibilityValue(

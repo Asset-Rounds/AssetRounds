@@ -43,16 +43,50 @@ enum FinalizationIntentStoreError: Error, Equatable {
     case fileOperationFailed
 }
 
+enum FinalizationIntentStoreFailurePoint: Equatable, Sendable {
+    case snapshotStagingWrite
+    case snapshotPromotionMove
+    case intentPhaseWrite(FinalizationPhaseV1)
+}
+
+final class FinalizationIntentStoreFailureInjection: @unchecked Sendable {
+    private let lock = NSLock()
+    private var pendingFailure: FinalizationIntentStoreFailurePoint?
+
+    init(failOnceAt failurePoint: FinalizationIntentStoreFailurePoint) {
+        pendingFailure = failurePoint
+    }
+
+    func removeFailure() {
+        lock.lock()
+        pendingFailure = nil
+        lock.unlock()
+    }
+
+    fileprivate func consume(
+        _ failurePoint: FinalizationIntentStoreFailurePoint
+    ) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard pendingFailure == failurePoint else { return false }
+        pendingFailure = nil
+        return true
+    }
+}
+
 actor FinalizationIntentStore {
     private let generationRootURL: URL
     private let fileManager: FileManager
+    private let failureInjection: FinalizationIntentStoreFailureInjection?
 
     init(
         generationRootURL: URL,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        failureInjection: FinalizationIntentStoreFailureInjection? = nil
     ) {
         self.generationRootURL = generationRootURL.standardizedFileURL
         self.fileManager = fileManager
+        self.failureInjection = failureInjection
     }
 
     func discoverRecoverableFinalizations() throws -> [RecoverableFinalization] {
@@ -273,6 +307,9 @@ actor FinalizationIntentStore {
         try ensureDirectory(paths.stagingSnapshotsRootURL, within: generationRootURL)
 
         do {
+            guard failureInjection?.consume(.snapshotStagingWrite) != true else {
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
             try snapshot.data.write(to: paths.stagingSnapshotURL, options: .atomic)
             try verifyRegularFile(
                 at: paths.stagingSnapshotURL,
@@ -316,6 +353,23 @@ actor FinalizationIntentStore {
 
         var didPromote = false
         do {
+            if failureInjection?.consume(.snapshotPromotionMove) == true {
+                // The prepared handle proves both files are this mutation's
+                // exact canonical bytes. An injected pre-move interruption is
+                // therefore retryable only after bounded removal of both.
+                try removeOwnedFileIfMatching(
+                    at: paths.stagingSnapshotURL,
+                    expectedByteCount: prepared.snapshotByteCount,
+                    expectedSHA256: prepared.snapshotSHA256,
+                    within: generationRootURL
+                )
+                try removeIntentIfMatching(
+                    prepared.intent,
+                    at: paths.intentURL,
+                    roots: roots
+                )
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
             try fileManager.moveItem(
                 at: paths.stagingSnapshotURL,
                 to: paths.finalSnapshotURL
@@ -369,6 +423,13 @@ actor FinalizationIntentStore {
             throw FinalizationIntentStoreError.phaseInvalid
         }
         let advanced = promoted.intent.withPhase(phase)
+        if phase == .snapshotPromoted,
+           failureInjection?.consume(.intentPhaseWrite(phase)) == true {
+            // The database has not been touched. Roll back only the exact
+            // promoted snapshot and prepared journal proven by this handle.
+            try rollbackUncommitted(promoted)
+            throw FinalizationIntentStoreError.fileOperationFailed
+        }
         try writeAndVerifyIntent(advanced, at: paths.intentURL, roots: roots)
         return PromotedFinalization(
             intent: advanced,
@@ -629,6 +690,9 @@ actor FinalizationIntentStore {
             encoded = try FinalizationContractEncoderV1().encodeIntent(intent)
         } catch {
             throw FinalizationIntentStoreError.intentInvalid
+        }
+        guard failureInjection?.consume(.intentPhaseWrite(intent.phase)) != true else {
+            throw FinalizationIntentStoreError.fileOperationFailed
         }
         do {
             try encoded.data.write(to: url, options: .atomic)
