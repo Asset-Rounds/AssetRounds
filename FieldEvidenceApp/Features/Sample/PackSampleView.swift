@@ -8,7 +8,7 @@ struct PackSampleView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                 identityCard
                 nounsCard
                 evidenceCard

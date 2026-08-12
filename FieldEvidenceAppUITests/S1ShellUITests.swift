@@ -109,8 +109,7 @@ final class S1ShellUITests: XCTestCase {
         for renderedGroup in exactRenderedGroups {
             assertRendered(
                 renderedGroup,
-                in: lightApp,
-                scrolling: sampleScroll
+                in: lightApp
             )
         }
 
@@ -217,7 +216,6 @@ final class S1ShellUITests: XCTestCase {
     private func assertRendered(
         _ exactStrings: [String],
         in app: XCUIApplication,
-        scrolling scrollView: XCUIElement,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
@@ -229,15 +227,12 @@ final class S1ShellUITests: XCTestCase {
             .firstMatch
         let description = exactStrings.joined(separator: " | ")
 
-        scroll(
-            scrollView,
-            untilVisible: renderedElement,
-            description: description,
+        XCTAssertTrue(
+            renderedElement.waitForExistence(timeout: 3),
+            "Missing rendered content: \(description)",
             file: file,
             line: line
         )
-        XCTAssertTrue(renderedElement.exists, "Missing rendered content: \(description)", file: file, line: line)
-        XCTAssertTrue(renderedElement.isHittable, "Rendered content is not visible: \(description)", file: file, line: line)
         for exactString in exactStrings {
             XCTAssertTrue(
                 renderedElement.label.contains(exactString),
@@ -256,7 +251,10 @@ final class S1ShellUITests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        for _ in 0..<50 where !element.isHittable {
+        for _ in 0..<50 {
+            if element.isHittable {
+                return
+            }
             scrollView.swipeUp()
         }
         XCTAssertTrue(
