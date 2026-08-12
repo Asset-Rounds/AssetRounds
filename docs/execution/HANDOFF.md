@@ -667,3 +667,59 @@ The accepted run's `head_sha` exactly equals `I=E=a728f8fe50e016e190074b6a5f4faf
 
 - Task ID only; it was not started: `S3.4`
 - Next gate: same-phase autopilot may commit and non-force push exactly this append plus immediate-next S3.4 `CURRENT_TASK.md` after re-proving remote phase=`E` and remote main=`P`; then run fresh S3.4 G0. Do not mutate main.
+
+## `S3.4` — `complete` — `2026-08-12T23:35:18Z`
+
+- Phase ID / phase branch / card position / phase-boundary card (`yes | no`): `S3` / `phase/s3-check-runner` / `4 of 7` / `no`
+- Program-autopilot state / final owner-only boundary: enabled through accepted exact-main `S9.1`; S9.2 signing/TestFlight and S9.3 App Store submission remain owner-only
+- Phase-autopilot state / exact authorized same-phase span: `enabled` / `S3.1,S3.2,S3.3,S3.4,S3.5,S3.6,S3.7`
+- Immutable phase-main base: `P=7d135aaddd0bdc50168552b0610f04adc1703506`; remote `main` remained exactly P
+- Integrated/card base and predecessor evidence: `M=E=I=a728f8fe50e016e190074b6a5f4faf104f10c278`; accepted S3.3 run `31646855404`
+- Observed task-start authority: `A=8f2a0e881162070869f462a2c264b222946ea6ff`, a direct child of M changing exactly the append-only S3.3 HANDOFF plus immediate-next S3.4 CURRENT_TASK
+- Implementation sequence: initial `I=759bb851dd6934b0c459d11e6dbb55f4abb595b7`; accepted `E=I2=54aee71a6d824b8550af739ff538172dbf2d0a05`; no distinct infrastructure verification head K
+- Outcome: original-check begin, evidence acceptance, finalization, and relaunch are replay-safe; startup reconciles the complete frozen finalization phase/presence/row matrix before bounded current-generation media reconciliation, returning a resumable draft, one exact completed transaction, or fail-closed maintenance without guessing or duplicate authority
+- Exact build plan / SHA-256: `docs/product/BUILD_PLAN_V4.md` / `23DAAB390AF917CBE91C3044E4906F3FBF8D67D2FDFC6BC9BDE985D984F37BBD`
+- Exact runbook / SHA-256 / selected card: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / `S3.4 — Resume, mutation idempotency, and finalization recovery`
+- Workflow / trigger / ref / accepted head: `.github/workflows/ios-ci.yml` / `workflow_dispatch` / `phase/s3-check-runner` / `54aee71a6d824b8550af739ff538172dbf2d0a05`
+- Selector: `S3.4` / `P12` / `runUISmoke=true`; unit `FieldEvidenceAppTests/S3_4ResumeRecoveryTests`; UI `FieldEvidenceAppUITests/S3_4ResumeUITests`; exact `300/600/900/900/3300`; LF SHA-256 `38EE4F0A75FD81EF6468907034757DEBD65ADA2B39A582CF46A52397DD1601CC`
+- Accepted run / job / URLs / conclusion: `31650769537` / `94294400031` / `https://github.com/palatis3/AssetRounds/actions/runs/31650769537` / `https://github.com/palatis3/AssetRounds/actions/runs/31650769537/job/94294400031` / `success`; exact `head_sha=54aee71a6d824b8550af739ff538172dbf2d0a05`
+- Runner/toolchain/destination: `macos26`, image `20260728.0273.1`; Xcode 26.6 build `17F113`; `/Applications/Xcode_26.6.app/Contents/Developer`; iPhone 17 / iOS 26.5 / UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; iOS deployment target 18.0
+- Budgets: setup `48/300` s; Simulator readiness `321/900` s; total `631/3300` s; every watchdog passed
+- Artifact: `ios-ci-31650769537-1`, ID `9162697485`, size `1711727`, API/raw ZIP digest `sha256:1910e53b6a5dbf49d81957a6b3d238a0f7861021f4358aa748ff299167e484db`; `SHA256SUMS.txt` SHA-256 `348498572CF66CA26AC25FF6AE96A9DF1D8C391F863EFFE6134578DDFE0EF638`; all `103/103` payloads independently matched; `ui-final.png` SHA-256 `BDB2BF7772666D60CEC5C35B4AE4C40E856CEA1F77FEF43630EC45058A92142C`
+- Exact verification results: unsigned exact-destination build passed; all 6 targeted unit tests passed in 3.877 s; the sole targeted UI test passed in 94.834 s; required Build, UnitTests, and UISmoke result bundles, logs, selector evidence, and terminal screenshot were present and checksummed
+- Failed-candidate provenance: exact-I run `31650093202`, job `94292304179`, failed only the targeted recovery test because the malformed-original fixture changed live draft authority and the collision helper produced a noncanonical second intent; artifact `ios-ci-31650093202-1`, ID `9162338044`, digest `sha256:ae18250b6d119982841c34128bc385852b496866d575e84e9cca24895490e404`
+- I2 correction: changed only `FieldEvidenceAppTests/S3_4ResumeRecoveryTests.swift`; the malformed-original case now corrupts the canonically re-encoded frozen payload, the failed-precondition case changes the live draft after a valid freeze, and the cross-intent case creates a separately canonical colliding intent; product behavior and acceptance oracles were unchanged
+- Project/persistent-schema delta: none; exact seven-model schema and synchronized project remained unchanged
+
+### Changed paths
+
+- `FieldEvidenceApp/Domain/Workflow/FinalizationContracts.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift`
+- `FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift`
+- `FieldEvidenceAppTests/S3_4ResumeRecoveryTests.swift`
+- `FieldEvidenceAppUITests/S3_4ResumeUITests.swift`
+- `Scripts/ci-selection.json`
+
+### Acceptance results
+
+- GOLDEN `PASS`: force-quit after accepted wide evidence resumed at close with identical evidence ID/path/count/hash authority; exact begin/evidence/finalization replay returned prior authority; double Save produced one completed mutation and identical record/Packet/report/root/snapshot facts without duplicate rows, files, Issue, or diagnostics authority
+- ALT-1 `PASS`: the parameterized `prepared|snapshot_promoted|database_committed` matrix covered stage/final/row presence, mismatch, corruption, partial rows, failed frozen preconditions, crash-after-save-before-phase-write, malformed/noncanonical intent, cross-intent collision, and visible-Issue authority; each case yielded only a retryable draft, one complete transaction, or `finalization_inconsistent`
+- Media/startup `PASS`: finalization reconciliation precedes bounded current-generation evidence cleanup; exact valid bundles are preserved, owned abandoned files are removed only after whole-set validation, and missing/mismatched/symlink/collision states fail closed without a broad scan
+- Security/scope `PASS`: no PDF, camera, permission, CNV, work, recheck, correction, deletion, backup/restore/erase, commerce, new schema/model/project/package/capability, generic recovery registry, or generalized fault framework was added
+
+### Known bugs or limitations
+
+- `NONE`; `docs/execution/KNOWN_BUGS.md` contains no qualifying S3.4 defect
+
+### Blockers
+
+- `NONE`
+
+### Next unstarted task
+
+- Task ID only; it was not started: `S3.5`
+- Next gate: same-phase autopilot may commit and non-force push exactly this append plus immediate-next S3.5 `CURRENT_TASK.md` after re-proving remote phase=`I2` and remote main=`P`; then run fresh S3.5 G0. Do not mutate main.
