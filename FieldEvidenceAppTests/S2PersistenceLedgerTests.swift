@@ -461,12 +461,12 @@ final class S2PersistenceLedgerTests: XCTestCase {
     @MainActor
     func testInvalidPointerAndMissingGenerationRouteToExactMaintenanceReasons() async throws {
         let cases: [(name: String, expectedReason: StartupMaintenanceReason, mutate: (URL, UUID) throws -> Void)] = [
-            ("invalid pointer", .dataPointerInvalid) { root, _ in
+            ("invalid pointer", .dataPointerInvalid, { root, _ in
                 try self.fileManager.removeItem(at: self.currentPointerURL(in: root))
-            },
-            ("missing generation", .dataGenerationMissing) { root, generationID in
+            }),
+            ("missing generation", .dataGenerationMissing, { root, generationID in
                 try self.fileManager.removeItem(at: self.generationURL(generationID, in: root))
-            },
+            }),
         ]
 
         for testCase in cases {
