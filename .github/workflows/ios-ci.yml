@@ -211,6 +211,19 @@ jobs:
           printf 'CI_DESTINATION=platform=iOS Simulator,id=%s\nCI_SIMULATOR_UDID=%s\n' \
             "$simulator_udid" "$simulator_udid" >> "$GITHUB_ENV"
 
+      - name: Verify setup budget before build
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CI_BUDGET_START_EPOCH:-}"
+          test -n "${CI_SETUP_ARTIFACT_TIMEOUT_SECONDS:-}"
+          setup_elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
+          printf 'setup_elapsed_seconds=%s\nsetup_budget_seconds=%s\n' \
+            "$setup_elapsed_seconds" "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS" \
+            | tee "$CI_ARTIFACT_DIR/setup-budget.txt"
+          test "$setup_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
+          printf 'CI_SETUP_ELAPSED_SECONDS=%s\n' "$setup_elapsed_seconds" >> "$GITHUB_ENV"
+
       - name: Build unsigned simulator app
         shell: bash
         run: |
@@ -232,6 +245,14 @@ jobs:
           set -euo pipefail
           bash Scripts/run-with-timeout.sh "$CI_UI_TIMEOUT_SECONDS" \
             bash Scripts/ui-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/ui-smoke.log"
+
+      - name: Begin evidence-finalization budget
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          CI_ARTIFACT_START_EPOCH="$(date +%s)"
+          printf 'CI_ARTIFACT_START_EPOCH=%s\n' "$CI_ARTIFACT_START_EPOCH" >> "$GITHUB_ENV"
 
       - name: Validate required build and test evidence
         if: always()
@@ -350,6 +371,16 @@ jobs:
           mkdir -p "$CI_ARTIFACT_DIR"
           checksum_file="$RUNNER_TEMP/FieldEvidenceCI-checksums.txt"
           rm -f "$CI_ARTIFACT_DIR/SHA256SUMS.txt"
+          test -n "${CI_ARTIFACT_START_EPOCH:-}"
+          test -n "${CI_SETUP_ARTIFACT_TIMEOUT_SECONDS:-}"
+          test -n "${CI_SETUP_ELAPSED_SECONDS:-}"
+          artifact_elapsed_seconds="$(( $(date +%s) - CI_ARTIFACT_START_EPOCH ))"
+          setup_artifact_elapsed_seconds="$(( CI_SETUP_ELAPSED_SECONDS + artifact_elapsed_seconds ))"
+          printf 'setup_elapsed_seconds=%s\nartifact_elapsed_seconds=%s\nsetup_artifact_elapsed_seconds=%s\nsetup_artifact_budget_seconds=%s\n' \
+            "$CI_SETUP_ELAPSED_SECONDS" "$artifact_elapsed_seconds" \
+            "$setup_artifact_elapsed_seconds" "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS" \
+            > "$CI_ARTIFACT_DIR/artifact-budget.txt"
+          test "$setup_artifact_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
           (
             cd "$CI_ARTIFACT_DIR"
             find . -type f -print | LC_ALL=C sort | while IFS= read -r file; do
@@ -361,6 +392,18 @@ jobs:
             cd "$CI_ARTIFACT_DIR"
             shasum -a 256 -c SHA256SUMS.txt
           )
+
+      - name: Recheck evidence-finalization budget
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CI_ARTIFACT_START_EPOCH:-}"
+          test -n "${CI_SETUP_ARTIFACT_TIMEOUT_SECONDS:-}"
+          test -n "${CI_SETUP_ELAPSED_SECONDS:-}"
+          artifact_elapsed_seconds="$(( $(date +%s) - CI_ARTIFACT_START_EPOCH ))"
+          setup_artifact_elapsed_seconds="$(( CI_SETUP_ELAPSED_SECONDS + artifact_elapsed_seconds ))"
+          test "$setup_artifact_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
 
       - name: Verify selected total budget before upload
         if: always()

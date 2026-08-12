@@ -7,6 +7,7 @@ Never edit or replace an earlier entry. The block between the explicit BEGIN/END
 ## `<Task ID>` — `<complete | blocked | stopped — CI NOT RUN>` — `<UTC timestamp>`
 
 - Phase ID / phase branch / card position / phase-boundary card (`yes | no`):
+- Program-autopilot state / exact phase-and-branch map / final owner-only boundary:
 - Phase-autopilot state / exact authorized same-phase span:
 - Predecessor IDs and evidence:
 - Outcome:
@@ -14,7 +15,8 @@ Never edit or replace an earlier entry. The block between the explicit BEGIN/END
 - Exact implementation-runbook path / SHA-256 / selected card:
 - Authoring host OS/build:
 - GitHub repository / visibility and private-solo branch-control posture / base branch / phase branch:
-- Integrated/base SHA `M` and evidence (within phase: prior green implementation; phase start: green `main`; `S0.1`: bootstrap `B` and predecessor iOS run N/A):
+- Immutable phase-main base SHA `P` and evidence (`S0`: bootstrap `B`; later: prior accepted exact-main phase-close SHA):
+- Integrated/card-base SHA `M` and evidence (within phase: prior green implementation; phase start: `P`; `S0.1`: predecessor iOS run N/A):
 - Observed task-start authority SHA `A` and `M..A` authority-only diff result:
 - Implementation commit SHA (the CI `head_sha`):
 - Pre-existing dirty paths and owner/disposition:
@@ -27,6 +29,7 @@ Never edit or replace an earlier entry. The block between the explicit BEGIN/END
 - Allowed GitHub/MCP tool methods and exact repository/ref/workflow arguments/operations from task:
 - Owner-required posture from task and G0-observed effective sandbox / approval / command-network / trusted-config / GitHub-tool state:
 - Card-owned implementation commit / phase-branch push / dispatch / inspection authorizations and actions actually performed:
+- Boundary recovery state observed, when applicable (`HANDOFF pending | C on phase only | main=C no run | matching run in progress | main green | next A created`):
 - Owned launch-smoke IDs:
 - Project/persistent-schema delta actually used:
 
@@ -40,7 +43,7 @@ Never edit or replace an earlier entry. The block between the explicit BEGIN/END
 |---|---|---:|---:|---:|---|---|
 | | | | | | | |
 
-Confirm that the successful run's `head_sha` exactly equals the implementation commit SHA. A stale or different-revision run is not evidence. This entry is not part of that implementation commit. With enabled phase autopilot and transition flag `yes`, Codex may later commit it together with only the immediate next same-phase CURRENT_TASK; at a boundary it commits the entry alone only when the boundary flag is `yes`, then stops. Immediately before either non-force bookkeeping push, the remote phase ref must still equal accepted `I`/`I2`; immediately afterward it must equal the new bookkeeping commit. A mismatch stops. Otherwise it leaves the entry uncommitted and stops. This entry never records the future commit SHA that contains itself: the next G0 observes transition authority, while git history records phase-close bookkeeping.
+Confirm that the successful run's `head_sha` exactly equals the implementation commit SHA. A stale or different-revision run is not evidence. This entry is not part of that implementation commit. Same-phase autopilot may commit it with only immediate-next CURRENT_TASK. At an authorized boundary it is committed alone before verified fast-forward main integration. The entry never self-records its containing commit or the later main run; the next phase's CURRENT_TASK records the accepted main SHA/run as predecessor evidence.
 
 ### Acceptance results
 
@@ -63,6 +66,6 @@ Confirm that the successful run's `head_sha` exactly equals the implementation c
 - Task ID only; it was not started:
 - Next gate:
   - Within phase, autopilot enabled and transition flag `yes`: if the immediate next card is inside the exact span and uniquely resolvable, Codex commits/pushes only this HANDOFF append plus that next CURRENT_TASK, then runs fresh G0; a false flag or ambiguity leaves the append uncommitted and stops.
-  - Phase boundary: when the boundary flag is `yes`, Codex commits/pushes this HANDOFF append alone and stops; otherwise it leaves the append uncommitted and stops. Owner merges the phase branch; under the private-solo rule, owner alone verifies `refs/heads/main` points to the expected merge SHA, permits no intervening push/history rewrite, dispatches `main` with `run_ui_smoke=true`, and requires a green matching `head_sha`; unexpected movement stops; owner prepares the next phase.
+  - Phase boundary: when program autopilot and integration are `yes`, Codex commits/pushes this HANDOFF as C. `main=P` may fast-forward once; `main=C` resumes; any other value stops. Reuse matching C CI before dispatch; after green, create only an absent mapped next branch or resume an exact valid A, then fresh G0. After S9.1, report C/run in the goal final response and stop for owner S9.2/S9.3.
 
 <!-- END HANDOFF ENTRY TEMPLATE -->

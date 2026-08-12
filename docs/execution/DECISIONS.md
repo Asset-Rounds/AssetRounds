@@ -53,3 +53,44 @@ Append decisions. Never rewrite completed gate evidence.
 - Budget/schedule effect: No added implementation CI; one bookkeeping transition per within-phase edge; still one merge and exact-main CI per phase.
 - Owner decision: Approved.
 - Revised task/build-plan version: V4 product scope unchanged; execution amendment `D-003`; the owner explicitly authorizes this one-time static-authority/config installation on `main` as the replacement bootstrap before autopilot becomes active; recompute and pin changed plan/runbook hashes.
+
+## D-004 — 2026-08-11 — Owner-selected Full access posture
+
+- ID/date: `D-004` / `2026-08-11`
+- Trigger: The owner wants AssetRounds Codex goals to honor the current GUI Full access posture and proceed without sandbox, network, connector, or approval-profile blockers.
+- Requested delta: Permit and expect `sandbox_mode=danger-full-access`, `approval_policy=never`, unrestricted command network, and the owner's enabled GUI tools/connectors. Project `.codex/config.toml` no longer downgrades the GUI/session permission profile. G0 must not stop because filesystem, network, plugin, connector, credential, or external-write capability is broader than the active card. Full access grants capability only: CURRENT_TASK remains the sole authority for product scope, exact paths, GitHub repository/ref/workflow arguments, branch writes, CI, deployment, signing, TestFlight, App Store, and every external mutation.
+- Reason: Remove repetitive permission questions and false permission-posture stops while preserving the already approved concrete card, branch, and exact-head CI workflow.
+- Smallest alternative considered: Keep `workspace-write` plus `on-request` and approve Git/GitHub access repeatedly. The owner rejected that interaction model.
+- Affected paths/contracts/tests/gates: `.codex/config.toml`, `AGENTS.md`, execution contract, runbook authority lifecycle, CURRENT_TASK posture and cumulative authority diff, and this decision log. Product behavior, S0 paths, CI workflow, selectors, test budget, owner-only `main`, and release gates do not change.
+- Risk and rollback: Full access can reach files, credentials, network services, and external systems without approval prompts. Scope rules therefore constrain use rather than capability. Roll back by restoring the restricted project posture and revising CURRENT_TASK before the next G0.
+- Budget/schedule effect: No new card or CI run; removes permission approval pauses.
+- Owner decision: Approved explicitly in chat.
+- Revised task/build-plan version: V4 product scope and build-plan bytes unchanged; execution amendment `D-004`; repin the changed runbook hash in the active task.
+
+## D-005 — 2026-08-11 — Cross-phase program autopilot
+
+- ID/date: `D-005` / `2026-08-11`
+- Trigger: The owner wants Codex to integrate each completed phase automatically and immediately continue into the next coding phase without a new prompt or routine owner checkpoint.
+- Requested delta: One persistent goal may execute S0.1 through S9.1 sequentially. After every phase's final card has green exact-implementation-head CI, Codex commits/pushes final HANDOFF, verifies the phase and unchanged `main` refs, performs only a non-force fast-forward of `main` to the exact phase-close commit, requires UI-enabled exact-main CI, creates only the next branch in the frozen phase map from that green SHA, hydrates only its first runbook card with exact predecessor evidence, runs fresh G0, and continues. Any non-fast-forward, unexpected ref movement, CI mismatch/failure, hydration ambiguity, or missing required owner input stops without force or speculative repair. S9.2 signing/TestFlight and S9.3 App Store submission remain owner-only.
+- Supersession: For this closed S0–S9.1 lifecycle only, D-005 supersedes D-001's owner-only-`main` clause, D-003's stop-at-every-phase clause, and D-004's statement that owner-only `main` remains unchanged. All no-force, exact-ref, exact-head-CI, one-card, no-sign/upload/submit, and owner-only S9.2/S9.3 controls remain active.
+- Frozen phase branches: `S0=phase/s0-foundation`; `S1=phase/s1-shell-design`; `S2=phase/s2-persistence-signs`; `S3=phase/s3-check-runner`; `S4=phase/s4-reports`; `S5=phase/s5-work-recheck`; `S6=phase/s6-data-rights`; `S7=phase/s7-commerce`; `S8=phase/s8-quality`; `S9=phase/s9-release`.
+- Reason: Remove repeated phase-launch and manual-main-integration steps while preserving one-card scope, exact-head evidence, linear history, and recoverability.
+- Smallest alternative considered: Owner merges and starts each phase manually. The owner rejected that routine interaction model.
+- Affected paths/contracts/tests/gates: `AGENTS.md`, build plan, execution contract, runbook lifecycle/goal, CURRENT_TASK program fields/remote authority, HANDOFF continuation text, and this decision. Product scope, card count, per-card CI, one-fix limit, signing, TestFlight, and App Store release gates remain unchanged.
+- Risk and rollback: Full-access Codex can write `main`; the closed non-force fast-forward/ref-equality checks are the control. Any divergence stops. Roll back by disabling program autopilot in owner-prepared CURRENT_TASK; completed linear commits and CI evidence remain valid.
+- Budget/schedule effect: Removes ten routine owner main integrations and nine next-phase launches; retains one branch CI per card and one main CI per phase.
+- Owner decision: Approved explicitly in chat.
+- Revised task/build-plan version: V4 product behavior unchanged; execution amendment `D-005`; recompute and pin changed plan/runbook hashes.
+
+## D-006 — 2026-08-11 — Enforce frozen CI evidence budgets
+
+- ID/date: `D-006` / `2026-08-11`
+- Trigger: Pre-S0 audit found the workflow validated the setup/evidence ceiling but did not enforce it and the S0 task confused the runner staging directory with the uploaded GitHub artifact name.
+- Requested delta: Add fail-closed elapsed-time checks for setup and evidence-finalization using the already frozen selector value, preserve the total/job limits, and name the uploaded artifact exactly as `ios-ci-<run_id>-<run_attempt>` with `FieldEvidenceCI` only as its content root.
+- Reason: Prevent the first S0 run from stopping or falsely passing against its existing P12 contract.
+- Smallest alternative considered: Weaken the plan/task wording. Rejected because the workflow already exposes the frozen budget field and can enforce it with a bounded change.
+- Affected paths/contracts/tests/gates: `.github/workflows/ios-ci.yml`, CURRENT_TASK workflow hash/evidence wording, D-004/D-005 cumulative pre-S0 authority path set. No product code or card scope changes.
+- Risk and rollback: Timing is based on runner wall clock; a genuinely slow setup/evidence phase fails as designed. Revert only with a new authority decision and repinned workflow/task.
+- Budget/schedule effect: No new run; two small validation steps inside the existing 30-minute job.
+- Owner decision: Approved as part of the requested pre-S0 blocker removal.
+- Revised task/build-plan version: V4 product behavior unchanged; CI enforcement amendment `D-006`; repin workflow hash.

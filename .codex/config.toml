@@ -1,13 +1,9 @@
-# AssetRounds project posture. Task-specific repository, branch, workflow,
-# and GitHub tool permissions are narrowed further by CURRENT_TASK.md.
-approval_policy = "on-request"
-sandbox_mode = "workspace-write"
+# AssetRounds inherits the owner's selected Codex GUI/session permission profile.
+# D-004 explicitly permits Full access, network access, and no approval prompts.
+# CURRENT_TASK.md still limits product scope, paths, branches, and external actions.
 
 [features]
 goals = true
-
-[sandbox_workspace_write]
-network_access = false
 
 [plugins."github@openai-curated"]
 enabled = true

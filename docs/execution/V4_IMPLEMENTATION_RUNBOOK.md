@@ -2,18 +2,18 @@
 
 Status: canonical execution catalog for the device-local V4 iPhone app.
 
-Install this exact file as `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md`. It contains **36 strictly ordered Codex coding cards plus two owner-only release gates**. One bounded `/goal` may complete one phase, while every card remains separately scoped, committed, and CI-verified. The owner merges and runs exact-`main` CI once at the end of each phase.
+Install this exact file as `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md`. It contains **36 strictly ordered Codex coding cards plus two owner-only release gates**. One persistent `/goal` may complete the coding program through S9.1 while every card remains separately scoped, committed, and CI-verified. Program autopilot performs one verified fast-forward `main` integration and exact-main CI at each phase boundary.
 
 ## 1. Authority and use
 
 Repository authority, highest first:
 
-1. `docs/execution/CURRENT_TASK.md` for one active card, owner-completed at phase start and eligible only for the closed post-green same-phase transition when phase autopilot is enabled.
+1. `docs/execution/CURRENT_TASK.md` for one active card, owner-completed at S0 start or program-autopilot-completed at a later phase start, and eligible only for the closed same-phase or boundary transition after accepted evidence.
 2. Exact SHA-256-pinned `docs/product/BUILD_PLAN_V4.md` for product truth.
 3. This exact SHA-256-pinned runbook and its selected card for implementation order, files, acceptance, and tests.
 4. Existing code and tests as baseline evidence only.
 
-The catalog is not blanket authority. `CURRENT_TASK.md` must name exactly one current card ID, pin this file, state the exact authorized same-phase card span, and explicitly set transition/boundary bookkeeping flags. Codex may not combine cards, skip a predecessor, repair or pre-implement a later feature, cross a phase boundary, merge, sign, upload, deploy, or submit. Phase autopilot grants only flagged transition-bookkeeping authority to the immediate next same-phase card after accepted exact-head CI. One implementation checkout and one current card are active at a time.
+The catalog is not blanket authority. `CURRENT_TASK.md` names exactly one current card, pins this file, freezes the exact program phase/branch map and same-phase span, and sets transition/integration flags. Codex may not combine cards, skip a predecessor, repair or pre-implement a later feature, force-push, sign, upload, deploy, or submit. Phase autopilot grants immediate-next-card bookkeeping after accepted exact-head CI. Program autopilot grants only verified phase-close fast-forward integration, exact-main CI, and the frozen next phase's first-card authority. One implementation checkout and one current card are active at a time.
 
 The build plan remains product truth and its phase-summary table is aligned to this catalog. S7.1 installs the nonpurchasable commerce processor and shared local fixture; S7.2 is the first purchase UI. Neither card changes the frozen offer or release gates.
 
@@ -30,29 +30,29 @@ The build plan remains product truth and its phase-summary table is aligned to t
 - Apple Billing Grace is fixed at 16 days for paid-to-paid renewals; Family Sharing is off. These are confirmations, not owner-selectable alternatives.
 - Build only the card-named launch checks. Do not add a generic framework, adversarial matrix, speculative abstraction, unrelated cleanup, or future capability.
 
-## 3. Phase-start and autopilot hydration
+## 3. Card, phase, and program-autopilot hydration
 
-Before each phase, the owner fills every applicable first-card `CURRENT_TASK.md` field, enables or disables phase autopilot, and freezes the exact ordered same-phase card span. For a post-green autopilot transition, Codex may hydrate only the immediate next card and must use this closed rule:
+At S0 phase start, the owner fills every applicable first-card `CURRENT_TASK.md` field and freezes program autopilot, the exact phase/branch map, phase autopilot, and the ordered S0 span. Later phase starts may be hydrated by program autopilot only after the preceding phase's accepted exact-main CI. For any transition, Codex may hydrate only the immediate next runbook card and must use this closed rule:
 
-- Carry forward byte-for-byte the phase ID; complete repository/visibility/private-solo branch-control/base-branch/phase-branch identity; plan/runbook/workflow path+hash+trigger identity; runner/Xcode/minimum-deployment/project/target/scheme/configuration; Simulator selector; owner-required tool posture; allowed GitHub method set and prohibitions; enabled phase-autopilot state; exact authorized ordered same-phase span; same-phase transition authorization flag; and phase-boundary HANDOFF-only authorization flag. Only owner-prepared phase-start authority may set those four autopilot/span/authorization fields; Codex may never shrink, expand, reorder, toggle, or otherwise change them during a transition.
-- Set current card ID/order/position/boundary/tier and selectors from the immediate runbook index/card. Set integrated/base SHA `M` to the accepted prior `I`/`I2`; keep `A` as `OBSERVE AT G0`; set expected `M..A` to exactly the prior HANDOFF append plus `CURRENT_TASK.md`; source predecessor/run evidence from that HANDOFF. Card-specific `run_ui_smoke`, UI mode, selector object, tier, timeouts, exact command argument, paths, delta, acceptance, and next-card values must change to exactly that immediate card's frozen values; the manual workflow input must equal the new selector's `runUISmoke`.
+- Carry forward byte-for-byte the repository/visibility/base identity; immutable program-autopilot state and exact S0–S9 phase/branch map; plan/runbook/workflow identity; runner/Xcode/deployment/project/scheme/configuration; Simulator selector; Full access posture; allowed method set/prohibitions; and final S9.2/S9.3 owner boundary. Freeze phase-main base `P` for every card in a phase: `P=B` for S0 and the prior accepted exact-main phase-close SHA thereafter. Inside a phase also carry phase ID/branch, phase-autopilot state/span, and flags. At an exact boundary, change only phase ID/branch/span/flags and `P` to the next frozen values. Codex may never alter the program map.
+- Set current card ID/order/position/boundary/tier/selectors from the immediate runbook card. Within a phase set `M` to prior accepted `I`/`I2` and expected `M..A` to HANDOFF plus CURRENT_TASK. At phase start set `M=P` and expected `M..A` to CURRENT_TASK alone; include predecessor main run evidence. Keep `A` as `OBSERVE AT G0`. Card-specific UI mode, selector, tier, timeouts, commands, paths, delta, acceptance, and exact current/ref arguments change only to frozen immediate-card values.
 - Copy the card's exact outcome, delta, GOLDEN, ALT-1, terminal, next card, and named exclusions. Enumerate the smallest concrete fully expanded individual repository-relative file paths inside the card's named categories and cap, reusing existing paths when possible. Globs, directory roots, brace/set expressions, and `/**` are forbidden in hydrated tasks. A cap may exceed the default only when this frozen selected runbook card explicitly states the override; CURRENT_TASK cannot self-raise it. Optional/speculative paths remain forbidden.
 - Never invent a package, permission, schema field, product decision, selector, fixture, owner input, public copy, or release value. If more than one materially different path/file shape is plausible, a required field is absent, or an owner decision is needed, stop the whole phase goal rather than hydrating.
-- S0.1 alone uses bootstrap SHA `B` because no iOS project CI exists yet. At phase start, owner-prepared `A` changes only CURRENT_TASK. A later autopilot `A` must parent the prior green implementation and contain exactly HANDOFF plus CURRENT_TASK; it receives no separate CI and is observed by the next G0. That G0 compares the prior and next CURRENT_TASK blobs and proves every byte-for-byte carry-forward field above is unchanged; only the enumerated card-specific fields may differ. It validates the new expected selector object/tier against this runbook and the workflow schema while allowing checked-in `Scripts/ci-selection.json` to be absent for S0.1 or still equal the accepted predecessor card. After G0 passes, creating/replacing that file with the new exact object is the first implementation-support mutation and it must match before commit or dispatch.
+- S0.1 alone uses bootstrap SHA `B` because no iOS project CI exists yet. At phase start, owner- or program-autopilot-prepared `A` normally changes only CURRENT_TASK. Before implementation or CI, approved D-004/D-005/D-006 may install the declared finite authority/config/workflow amendment when CURRENT_TASK names exact cumulative `M..A` paths and repins changed hashes. A later same-phase `A` must parent prior green implementation and contain exactly HANDOFF plus CURRENT_TASK; a next-phase `A` must parent C and contain CURRENT_TASK only. Neither receives card CI. Fresh G0 proves immutable carry-forward fields and allows only frozen immediate-card fields to differ. It validates expected selector/tier while allowing `ci-selection.json` absent for S0.1 or still equal predecessor; after G0, replacing it is the first implementation-support mutation and it must match before commit/dispatch.
 
 Never place passwords, 2FA codes, bank/tax details, `.p8`, `.p12`, provisioning profiles, private customer data, or release secrets in source, chat, ordinary CI, logs, screenshots, or artifacts.
 
 ## 4. Card and phase lifecycle
 
-1. The first card of a phase starts on an owner-prepared phase branch from green exact-`main`; later cards continue the same branch from the prior green implementation plus one allowed transition commit.
-2. Owner installs phase-start authority `A` containing CURRENT_TASK alone. For each card, Codex performs fresh read-only G0: verify ancestry, exact permitted `M..A`, selected hashes/card, authorized phase span, immutable-field comparison for an autopilot transition, dirty paths, envelope, permissions, pins, selectors, total tier budget, and absence of an already-committed complete HANDOFF closing the still-selected boundary card.
+1. The first card of S0 starts on the owner-prepared branch. Each later phase starts on its frozen branch created by program autopilot from accepted green exact-`main`; later cards continue the same phase branch from prior green implementation plus one transition commit.
+2. Owner or authorized program autopilot installs phase-start `A` containing CURRENT_TASK alone, except the one pre-S0 authority/config/workflow amendment declared by CURRENT_TASK and approved decisions. For each card, Codex performs fresh read-only G0: verify `P`, ancestry, exact `M..A`, selected hashes/card, program/phase map, dirty paths, envelope, Full access posture, pins, selectors, and budget. A committed boundary HANDOFF forbids rerunning the card but may resume Step 7's exact idempotent state machine.
 3. If G0 passes, Codex implements only the card, creates implementation commit `I`, and—only when separately authorized—pushes and dispatches unsigned CI.
 4. Success requires a green run with `head_sha == I`. One diagnosed card-scoped fix `I2` and one rerun are allowed. A second non-green run stops.
 5. On a non-boundary card after green evidence, Codex appends HANDOFF. Only when phase autopilot is enabled, the same-phase transition flag is `yes`, and the immediate next runbook card is inside the exact authorized span may Codex apply Section 3's closed rule and create one transition commit containing exactly that HANDOFF append plus the next CURRENT_TASK. Immediately before its non-force push, the remote phase ref must still equal accepted `I`/`I2`; immediately afterward it must equal the transition commit. Any mismatch stops. Then run fresh G0. This commit is never implementation evidence and may not move while card CI is pending.
 6. On a non-boundary card, if phase autopilot is disabled, the next card is outside the span, hydration is ambiguous, owner input is required, or any stop condition occurs, Codex stops without starting another card. One diagnosed fix/rerun allowance resets for each new card only after its fresh G0.
-7. On the phase's final card after green evidence, Codex appends HANDOFF and commits only that final append when explicitly authorized. Immediately before its non-force push, the remote phase ref must still equal accepted `I`/`I2`; immediately afterward it must equal the phase-close commit. Any mismatch stops. Codex then stops. A committed complete HANDOFF for the still-selected boundary card means the phase is closed; stale card authority cannot be rerun. The owner reviews, merges once, verifies `refs/heads/main` points to the intended merge SHA, dispatches `main` with `run_ui_smoke=true`, permits no intervening push/history rewrite, and accepts only matching green CI before preparing the next phase. Codex never writes `main` or starts the next phase.
+7. On a final card after green evidence, Codex appends HANDOFF and commits/pushes only that append as phase-close `C` when boundary integration is authorized. Prove phase ref `C`. Remote `main=P` permits one non-force fast-forward to `C`; `main=C` resumes; any other value stops. Any named workflow-dispatch run with `ref=main` and `head_sha=C` is the existing candidate: accept success, wait/inspect queued/in-progress, dispatch once only when none exists, and stop on every terminal non-success (the workflow itself enforces UI-input equality). Reprove remote phase and main refs both `C`. Unless S9.1, valid next-branch recovery is local absent or at C/exact A and remote absent or exact A; hydrate CURRENT_TASK-only A from C, non-force create remote when local A/remote absent, or resume exact remote A; every other state stops. Run fresh G0. After S9.1, report C/run in the goal final response and stop for owner-only S9.2/S9.3.
 
-Every card gets one implementation-head CI decision; every phase gets at most one `/goal`, one owner merge, and one exact-main CI decision. No two cards write the checkout concurrently.
+Every card gets one implementation-head CI decision; every phase gets one fast-forward integration and one exact-main CI decision. One persistent program goal runs sequentially; no two cards write the checkout concurrently.
 
 ## 5. Stable repository map
 
@@ -297,7 +297,7 @@ Every card inherits Sections 1–7. `HANDOFF.md` and `Scripts/ci-selection.json`
 - GOLDEN: pinned CI builds, installs, launches one neutral screen, and remains responsive.
 - ALT-1: none; unavailable pinned runner/Xcode/runtime is a stop.
 - Selectors/budget: `S0LaunchTests`, `S0LaunchUITests`; P12 exact tier.
-- Terminal/next: green implementation-head evidence and phase-end merge/exact-main CI; next S1.1.
+- Terminal/next: green implementation-head evidence and phase-end fast-forward/exact-main CI; next S1.1.
 
 ### S1.1 — Shell, Worklight Precision, and exact pack
 
@@ -308,7 +308,7 @@ Every card inherits Sections 1–7. `HANDOFF.md` and `Scripts/ci-selection.json`
 - GOLDEN: exact nouns/prompts/issue/CNV/evidence registries render; shell survives largest text and Light/Dark.
 - ALT-1: invalid pack shows one local unavailable state and guesses nothing.
 - Selectors/budget: `S1PackTokenTests`, `S1ShellUITests`; P12.
-- Terminal/next: fixture shell only; phase-end merge/exact-main CI; next S2.1.
+- Terminal/next: fixture shell only; phase-end fast-forward/exact-main CI; next S2.1.
 
 ### S2.1 — Persistence roots, generation seam, and diagnostics
 
@@ -330,7 +330,7 @@ Every card inherits Sections 1–7. `HANDOFF.md` and `Scripts/ci-selection.json`
 - GOLDEN: save first sign, relaunch, reopen exact labels and optional address/zone; Start Check is explicitly next-task unavailable.
 - ALT-1: invalid labels/zone focus one accessible validation state and write nothing.
 - Selectors/budget: `S2SignSetupTests`, `S2SignSetupUITests`; P12.
-- Terminal/next: phase-end merge/exact-main CI; next S3.1.
+- Terminal/next: phase-end fast-forward/exact-main CI; next S3.1.
 
 ### S3.1 — Frozen workflow schema, preflight, and one active draft
 
@@ -407,7 +407,7 @@ Every card inherits Sections 1–7. `HANDOFF.md` and `Scripts/ci-selection.json`
 - GOLDEN: one wide + `required_view_obstructed` creates one incomplete snapshot/Report/root.
 - ALT-1: zero-photo `capture_unavailable` creates the same honest incomplete shape.
 - Selectors/budget: `S3_7CouldNotVerifyTests`, `S3_7CouldNotVerifyUITests`; P12.
-- Terminal/next: phase-end merge/exact-main CI; next S4.1.
+- Terminal/next: phase-end fast-forward/exact-main CI; next S4.1.
 
 ### S4.1 — Byte-deterministic snapshot-to-PDF renderer
 
@@ -462,7 +462,7 @@ Every card inherits Sections 1–7. `HANDOFF.md` and `Scripts/ci-selection.json`
 - GOLDEN: one correction points to original evidence, replaces prior Report forward-only, preserves frozen labels/issue cutoff/history/evidence, and opens both PDFs.
 - ALT-1: second correction revises the prior correction but still points evidence directly to the original without duplication.
 - Selectors/budget: `S4_5CorrectionTests`, `S4_5CorrectionUITests`; P12.
-- Terminal/next: phase-end merge/exact-main CI; next S5.1.
+- Terminal/next: phase-end fast-forward/exact-main CI; next S5.1.
 
 ### S5.1 — Record work without resolution
 
@@ -506,7 +506,7 @@ Every card inherits Sections 1–7. `HANDOFF.md` and `Scripts/ci-selection.json`
 - GOLDEN: partial evidence + `conditions_changed` preserves original Issue authority.
 - ALT-1: zero evidence + `unsafe_to_continue` has the same Issue effect.
 - Selectors/budget: `S5_4RecheckCNVTests`, `S5_4RecheckCNVUITests`; P12.
-- Terminal/next: phase-end merge/exact-main CI; next S6.1.
+- Terminal/next: phase-end fast-forward/exact-main CI; next S6.1.
 
 ### S6.1 — Whole-sign lineage deletion and tombstones
 
@@ -572,7 +572,7 @@ Every card inherits Sections 1–7. `HANDOFF.md` and `Scripts/ci-selection.json`
 - GOLDEN: interrupt before/after each pointer/phase write across `empty_generation_prepared|pointer_switched|session_activated|cleanup_complete`, relaunch before pointer maintenance, finish the exact presence matrix, verify zero live/tombstoned roots/counters, fresh active generation, only frozen old IDs removed after references drain, no marker, and no StoreKit sync/cancel call.
 - ALT-1: Cancel before marker changes no byte/row/counter.
 - Selectors/budget: `S6_6EraseRecoveryTests`, `S6_6EraseAllUITests`; P12.
-- Terminal/next: phase-end merge/exact-main CI; next S7.1 after owner authorizes the repository-local fixture for frozen product ID `com.palatis3.fieldrecord.sub.solo.monthly.v1` and confirms fixed grace/family settings; no App Store SKU yet unless commitment gate passed.
+- Terminal/next: phase-end fast-forward/exact-main CI; next S7.1 only after the required repository-local fixture input for frozen product ID `com.palatis3.fieldrecord.sub.solo.monthly.v1` and fixed grace/family settings is already resolved; otherwise program autopilot stops for owner input. No App Store SKU exists unless the commitment gate passed.
 
 ### S7.1 — StoreKit reducer and durable processor core, no purchase UI
 
@@ -627,7 +627,7 @@ Every card inherits Sections 1–7. `HANDOFF.md` and `Scripts/ci-selection.json`
 - GOLDEN: former-paid lapse reads/previews/shares/Files-exports/backs up/retries PDF/corrects/deletes and completes existing draft, while new sign/draft opens paywall.
 - ALT-1: active subscriber Erase makes no cancel/sync call; clean launch rediscovers active verified entitlement with empty local evaluation.
 - Selectors/budget: `S7_5DataRightsIntegrationTests`, `S7_5LapseRightsUITests`; F25.
-- Terminal/next: phase-end merge/exact-main CI; next S8.1.
+- Terminal/next: phase-end fast-forward/exact-main CI; next S8.1.
 
 ### S8.1 — Nonshipping exterior-light zero-fork proof
 
@@ -671,7 +671,7 @@ Every card inherits Sections 1–7. `HANDOFF.md` and `Scripts/ci-selection.json`
 - GOLDEN: user reviews exact sanitized file, chooses Attach, and editable composer receives one attachment.
 - ALT-1: Don't Attach opens the same editable feedback with zero attachments; unavailable composer never silently fails or attempts provider/mailto attachment delivery.
 - Selectors/budget: `S8_4FeedbackConsentTests`, `S8_4FeedbackUITests`; P12.
-- Terminal/next: phase-end merge/exact-main CI; next S9.1 after release inputs.
+- Terminal/next: phase-end fast-forward/exact-main CI; next S9.1 only after required release inputs are resolved, otherwise program autopilot stops for owner input.
 
 ### S9.1 — Unsigned release candidate and inactive TestFlight workflow
 
@@ -682,7 +682,7 @@ Every card inherits Sections 1–7. `HANDOFF.md` and `Scripts/ci-selection.json`
 - GOLDEN: ordinary unsigned CI builds/tests RC, validates live links/email/metadata/privacy/workflow without secrets, runs final golden smoke, and creates evidence index.
 - ALT-1: one release-preflight family fails closed for any missing/invalid config, privacy item, wrong or unexpectedly moved `main` ref, or secret boundary.
 - Selectors/budget: `S9_1ReleasePreflightTests`, `S9_1FinalRCUITests`; F25.
-- Terminal/next: phase-end merge/exact-main CI; next owner S9.2.
+- Terminal/next: phase-end fast-forward/exact-main CI; then stop for owner S9.2.
 
 ## 10. Owner-only release gates
 
@@ -699,12 +699,11 @@ Owner selects the exact tested build, completes App Privacy from actual binary/n
 ## 11. Copy-ready no-planning goal
 
 ```text
-/goal Complete every remaining coding card in the phase currently named by
-docs/execution/CURRENT_TASK.md, in strict runbook order, and stop at that phase's
-owner gate after the boundary-flag-controlled final HANDOFF action.
+/goal Complete every remaining coding card through S9.1 in strict runbook and
+frozen phase/branch-map order.
 
 The plan is approved. Do not enter /plan, redesign, combine, skip, pre-implement,
-improve adjacent code, or begin another phase. Read AGENTS.md, CURRENT_TASK.md,
+improve adjacent code, or invent phase work. Read AGENTS.md, CURRENT_TASK.md,
 its exact pinned BUILD_PLAN_V4.md, and its exact pinned runbook before acting.
 
 For every card, run a fresh read-only G0. Implement only its outcome, GOLDEN, and
@@ -718,11 +717,14 @@ hydration rule, replace CURRENT_TASK with only that contract, commit/push exactl
 HANDOFF plus CURRENT_TASK, run fresh G0, and continue. On ambiguity or required owner
 input, stop. Before any bookkeeping push, require the remote phase ref to equal the
 accepted I/I2, use non-force push only, and verify the ref equals the new commit.
-At the boundary, commit/push final HANDOFF only when the boundary flag
-is yes; otherwise leave it uncommitted. Then stop before main, merge, main CI, new
-branch, next phase, signing, upload, deployment, or submission.
+At an authorized boundary, commit/push final HANDOFF, verify refs, non-force
+fast-forward main to the exact phase-close commit, require UI-enabled exact-main
+CI, create only the frozen next branch, hydrate only its first card, run fresh G0,
+and continue. Stop on divergence, a non-green required run, ambiguity, or missing
+input. Never force-push, sign, upload, deploy, or submit. Stop after S9.1 for the
+owner-only S9.2/S9.3 gates.
 ```
 
 ## 12. Completion rule
 
-A card completes only with green exact-implementation-head CI and recorded handoff. A phase completes only after owner merge and green CI on the exact resulting `main` SHA. The program completes only after S9.1's phase gate plus recorded S9.2/S9.3 evidence. A Windows edit, stale run, unreviewed phase branch, plan-only artifact, or upload without physical verification is not completion.
+A card completes only with green exact-implementation-head CI and recorded handoff. A phase completes only after verified fast-forward integration and green CI on the exact resulting `main` SHA. Coding automation completes after S9.1's exact-main gate; product release completes only after owner-recorded S9.2/S9.3 evidence. A Windows edit, stale run, divergent branch, plan-only artifact, or upload without physical verification is not completion.

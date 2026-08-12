@@ -521,7 +521,7 @@ Restore supports `backupSchemaVersion=1` only. It rejects missing/extra members,
 
 ## 11. Build slices and release gates
 
-Each S-row is one ordered **phase train** containing the named Codex cards. One persistent `/goal` may complete the current phase, but exactly one card is active at a time. Every card still owns one observable result plus at most one bounded alternate/failure family and requires its own exact-implementation-head CI. After a green card, enabled phase autopilot with transition flag `yes` may prepare only the immediate next card in the same explicitly authorized phase span, using a bookkeeping commit containing exactly the prior HANDOFF append plus the next `CURRENT_TASK`; a fresh G0 is mandatory before the next implementation. It may not combine, skip, pre-implement, or cross a phase boundary, and any hydration ambiguity or unresolved owner input stops the phase. After the final card, Codex pushes final HANDOFF bookkeeping only when the boundary flag is `yes`, then stops; otherwise it leaves the append uncommitted and stops. The owner merges once, verifies `main` points to the expected merge SHA, dispatches by the `main` ref with UI smoke enabled and no intervening push, and requires a green run with that exact `head_sha` before the next phase. `palatis3/AssetRounds` uses the approved private-solo rule: Codex never writes `main`; the owner is its sole writer and stops on any unexpected ref movement. Server-enforced branch protection is not required while this posture remains true.
+Each S-row is one ordered **phase train** containing the named Codex cards. One persistent `/goal` may complete all authorized coding phases through S9.1, but exactly one card is active at a time. Every card still owns one observable result plus at most one bounded alternate/failure family and requires its own exact-implementation-head CI. Each phase freezes main-base SHA `P` (`B` for S0, prior accepted exact-main phase-close SHA thereafter). After a green card, phase autopilot prepares only the immediate next same-phase card using HANDOFF plus CURRENT_TASK and fresh G0. After a green boundary card, program autopilot creates phase-close `C`; only `main=P → C` non-force fast-forward or exact `main=C` resume is valid. It reuses a matching `C` main run before dispatch, requires UI-enabled exact-main CI, and creates only an absent frozen next branch or resumes its exact valid first-card authority, then runs fresh G0. It never combines, skips, pre-implements, force-pushes, resolves divergence, signs, uploads, deploys, or submits. Ambiguity, missing input, unexpected ref movement, branch collision, or required non-green CI stops. The private solo repository needs no server branch protection under this exact-ref state machine.
 
 | Phase | Ordered task-sized units and exact terminal boundary | Owned launch smokes |
 |---|---|---|
@@ -536,7 +536,7 @@ Each S-row is one ordered **phase train** containing the named Codex cards. One 
 | S8 Reuse/accessibility/learning | `S8.1` nonshipping exterior-light content-pack fixture proves frozen nouns/purpose copy reach snapshot/PDF with zero production branch. `S8.2` is verification-only complete golden-flow accessibility CI. `S8.3` privacy-safe OSLog/MetricKit plus exact owner-invoked diagnostic export. `S8.4` feedback email with review/consent plus no-mail copy/Files fallback. | 11, 12 as assigned |
 | S9 Release | `S9.1` is the final Codex coding card: unsigned-CI-verified RC/privacy/metadata package and inactive owner-only TestFlight workflow; no upload. `S9.2` owner-dispatches the reviewed exact `main` SHA, archives/signs/uploads once, and verifies the TestFlight build on iPhone. `S9.3` is owner-operated App Store Connect submission; no coding. | 12 plus owner evidence |
 
-The canonical `V4_IMPLEMENTATION_RUNBOOK.md` expands this into **36 strictly ordered Codex coding cards plus two owner-only release gates**: 1+1+2+7+5+4+6+5+4+1 cards across S0–S9. This is permission for at most one phase per `/goal`, never the whole program. Every card requires a green implementation-SHA run before the immediate next same-phase transition; owner merge/review and exact-main CI occur once per completed phase train. A failed card, ambiguous transition, unresolved owner input, or boundary stops the train.
+The canonical `V4_IMPLEMENTATION_RUNBOOK.md` expands this into **36 strictly ordered Codex coding cards plus two owner-only release gates**: 1+1+2+7+5+4+6+5+4+1 cards across S0–S9. One persistent `/goal` may execute the coding program through S9.1 under the frozen phase/branch map. Every card requires green implementation-SHA CI; every phase requires a verified fast-forward `main` update and green exact-main CI before the next phase branch. S9.2/S9.3 remain owner-only. A failed required run, ambiguous transition, unresolved owner input, unexpected ref movement, or non-fast-forward boundary stops the train.
 
 Hosted/team work is not S10. It requires a new product decision after observed cross-device/team demand.
 
@@ -633,7 +633,7 @@ Any app-account release must include complete in-app account deletion in that sa
 
 | Needed by | Owner preparation |
 |---|---|
-| S0 | Windows authoring host; private `palatis3/AssetRounds` repository with the approved solo-owner `main` rule; Actions-enabled GitHub repo/backups; named task branch/workflow; pinned hosted-macOS runner and expected stable Xcode build; fixed iOS 18.0 deployment target; project/shared scheme/configuration; Simulator model/OS selector; app bundle ID `com.palatis3.fieldrecord`, unit-test bundle ID `com.palatis3.fieldrecord.tests`, UI-test bundle ID `com.palatis3.fieldrecord.uitests`; repository-scoped Codex/GitHub policy with goals enabled; installed exact-hash V4 implementation runbook and first-card `CURRENT_TASK` with phase autopilot plus an exact ordered same-phase span; exact CI selector/timeout/evidence contract from the runbook. No owner Mac is required. |
+| S0 | Windows authoring host; private `palatis3/AssetRounds` solo repository with owner-approved Full access and program autopilot; Actions-enabled GitHub repo/backups; frozen S0–S9 phase-branch map and exact fast-forward-only `main` rule; named workflow; pinned hosted-macOS runner and expected stable Xcode build; fixed iOS 18.0 deployment target; project/shared scheme/configuration; Simulator model/OS selector; app bundle ID `com.palatis3.fieldrecord`, unit-test bundle ID `com.palatis3.fieldrecord.tests`, UI-test bundle ID `com.palatis3.fieldrecord.uitests`; goals enabled; installed exact-hash V4 implementation runbook and first-card `CURRENT_TASK`; exact CI selector/timeout/evidence contract from the runbook. No owner Mac is required. |
 | S3 | S3.6 task explicitly permits the exact camera-purpose project setting above. A physical iPhone is needed only for the later owner-run camera/low-light gate; CI Simulator work uses deterministic imported fixtures. |
 | S6 | Use frozen nonbrand exported package UTI `com.palatis3.fieldrecordbackup`; keep the `.fieldrecordbackup` extension and package conformance. No cloud storage service or encryption vendor is required. |
 | S7 | Freeze the monthly product ID/group/14-day-trial fixture, confirm the fixed 16-day paid-to-paid grace and Family Sharing off, and authorize the checked-in local `.storekit` fixture executed by CI; provide controlled HTTPS fixtures for `TermsURL`, `PrivacyURL`, and `SupportURL`. Unsigned local StoreKit implementation needs no Paid Apps Agreement, bank/tax completion, or active App Store product. Product views never hardcode price or eligibility. |
@@ -661,29 +661,28 @@ Do not add features merely to increase a plan score. Every achieved evidence-sen
 
 ## 18. Codex execution authority
 
-The mandatory installed companions are `../execution/CODEX_EXECUTION_CONTRACT_V4.md` and `../execution/V4_IMPLEMENTATION_RUNBOOK.md`. The repository receives its short root `AGENTS.md`, one current-card `CURRENT_TASK.md`, a known-bug register, the supplied unsigned CI workflow, and small smoke scripts. The runbook is a catalog, not blanket product authority: `CURRENT_TASK.md` must pin its exact path, SHA-256, one selected card ID, phase-autopilot state, exact ordered same-phase span, and explicit transition/boundary bookkeeping flags. Codex implements only that current card and stops on any **unnamed** package, entitlement, backend, auth, payment behavior, migration, external action, adjacent feature, or ambiguous next-card contract. A task-named phase-branch push, CI trigger, run inspection, artifact download, and explicitly flagged post-green same-phase transition are ordinary execution only when authorized. PR merge, `main` writes, TestFlight upload, deployment, and App Store mutation remain owner-only. After the phase's final card, Codex pushes final HANDOFF bookkeeping only when the boundary flag is `yes`, then stops; otherwise it leaves the append uncommitted and stops. The owner merges once and requires green CI on the exact resulting `main` SHA before the next phase.
+The mandatory installed companions are `../execution/CODEX_EXECUTION_CONTRACT_V4.md` and `../execution/V4_IMPLEMENTATION_RUNBOOK.md`. The repository receives its short root `AGENTS.md`, one current-card `CURRENT_TASK.md`, a known-bug register, the supplied unsigned CI workflow, and small smoke scripts. The runbook is a catalog, not blanket product authority: `CURRENT_TASK.md` pins one selected card plus the immutable program/phase map and exact transition/integration flags. Codex implements only that current card and stops on any **unnamed** package, entitlement, backend, auth, payment behavior, migration, external action, adjacent feature, or ambiguous next-card contract. Authorized execution includes exact phase-branch work, CI/evidence, same-phase transition, fast-forward-only `main` integration, exact-main CI, and creation/hydration of only the frozen next phase branch. Full access never expands product scope. Signing, TestFlight upload, deployment, and App Store mutation remain owner-only S9.2/S9.3 actions.
 
 Recommended opening in the new Codex task:
 
 ```text
-/goal Complete every remaining coding card in the phase currently named by
-docs/execution/CURRENT_TASK.md, in strict runbook order, and stop at that phase's
-owner gate. The plan is approved: do not enter /plan, redesign, combine, skip,
-pre-implement, improve adjacent code, or begin another phase. Read AGENTS.md,
+/goal Complete every remaining coding card through S9.1 in strict runbook and
+frozen phase-map order. The plan is approved: do not enter /plan, redesign,
+combine, skip, pre-implement, or improve adjacent code. Read AGENTS.md,
 CURRENT_TASK.md, its exact pinned BUILD_PLAN_V4.md, and its exact pinned runbook.
 For every card, run a fresh read-only G0; implement only its outcome, GOLDEN, and
 ALT-1; commit/push only its authorized paths to the named phase branch; dispatch
 the named unsigned macOS workflow; and accept only green CI whose head_sha equals
 I or the one allowed diagnosed-fix I2. A second non-green run stops the phase.
-After green CI, append HANDOFF. If autopilot is enabled, the transition flag is yes,
-the immediate next runbook card is inside the authorized same-phase span, and every next-card field resolves uniquely from frozen
-authority and current code, replace CURRENT_TASK with only that contract, commit
-and push exactly HANDOFF plus CURRENT_TASK, then run a fresh G0 and continue. On
-ambiguity or owner input, stop. At the boundary, commit/push final HANDOFF only when
-the boundary flag is yes; otherwise leave it uncommitted. Then name the next phase's
-first card and stop before main/merge/main CI/release work.
-Never use local Xcode/Simulator or XcodeBuildMCP; never write main, merge, sign,
-upload, deploy, or submit.
+After green CI, append HANDOFF. Inside a phase, hydrate/commit only the immediate
+next authorized card, run fresh G0, and continue. At a boundary, use the frozen
+program-autopilot rule: commit/push final HANDOFF, prove refs, non-force fast-forward
+main, require UI-enabled exact-main CI, create the one frozen next phase branch,
+hydrate only its first card with that predecessor evidence, run fresh G0, and
+continue. Stop on a non-fast-forward, unexpected ref movement, non-green required
+run, ambiguity, or unresolved input. Never use local Xcode/Simulator or
+XcodeBuildMCP; never force-push, sign, upload, deploy, or submit. Stop after S9.1;
+S9.2 and S9.3 are owner-only.
 ```
 
 ## 19. Final V4 decision
