@@ -15,9 +15,10 @@
 - Accepted S2.1 product implementation and S2.2 card base: `E=M=I4=92005aadbaa75c2234a44c091322db9c58a82a5a`.
 - Accepted S2.1 verification evidence: run `31622291782`, job `94199863326`, succeeded at exact `phase/s2-persistence-signs@M` with N8 and `run_ui_smoke=false`; artifact `ios-ci-31622291782-1`, ID `9151934510`, API digest `sha256:ac59e8fe8248f66035808981eb42b4bd81e48dc8eb1cba9ceaf786ea1d4a2b52`; `SHA256SUMS.txt` SHA-256 `21805E7F09DD24409C345C86A55B143729C6E7CA3EFB27F9BC32C97A448D941F`; all 75 listed payload files independently matched with no missing, unlisted, duplicate, or mismatched file; exact selector resolved and all 11 non-skipped unit tests passed. Runner `macos26` image `20260728.0273.1`, Xcode 26.6 `17F113`, iPhone 17/iOS 26.5, UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; setup 29/300 s, Simulator readiness 274/900 s, build 152/600 s, test 83/900 s, setup+artifact 33/300 s, total 401/2400 s.
 - Prior S2.1 failure provenance: I run `31619809012` failed on the missing DiagnosticsV1 return; I2 run `31620710289` failed on malformed parameterized-test tuple syntax; I3 run `31621397396` built and ran 11 tests but failed 6 assertions because absent `FieldEvidenceData` was not recognized as fresh bootstrap. Each direct-child correction addressed only its diagnosed cause; none of those runs is accepted.
-- Task-start authority head `A`: `OBSERVE AT POST-COMMIT G0; never self-record its SHA here`.
-- Required `M..A`: one direct-child same-phase transition commit changing exactly the append-only accepted S2.1 entry in `docs/execution/HANDOFF.md` plus `docs/execution/CURRENT_TASK.md`.
-- Construction state: immediately before transition, remote `phase/s2-persistence-signs` must equal M and remote `main` must remain P. Push only the exact transition non-force and require remote phase A plus clean index/worktree/untracked state at fresh G0.
+- Same-phase transition authority head `A1=41e48a74e1a1f772b5710f0b418787753cee8a51`, a direct child of M. `M..A1` is exactly one commit changing the append-only accepted S2.1 entry in `docs/execution/HANDOFF.md` plus the immediate-next S2.2 `docs/execution/CURRENT_TASK.md`.
+- Owner-authorized forward-only visibility-correction head `A2`: `OBSERVE AT POST-COMMIT G0; never self-record its SHA here`. The owner explicitly authorized this correction in the active thread on 2026-08-12 after live GitHub reported the named repository as public while A1 recorded private.
+- Required `A1..A2`: one direct-child authority correction commit changing exactly `docs/execution/CURRENT_TASK.md`; its only factual environment correction is repository visibility `private` → `public`, with the minimum authority-chain/G0 evidence needed to preserve A1 without rewriting history. `M..A2` must contain exactly two commits and only `docs/execution/HANDOFF.md` plus `docs/execution/CURRENT_TASK.md`; the HANDOFF delta remains solely the accepted append in `M..A1`.
+- Construction state: immediately before correction, remote `phase/s2-persistence-signs` must equal A1 and remote `main` must remain P. Push only the exact A2 correction non-force and require remote phase A2 plus clean index/worktree/untracked state at fresh G0.
 
 ## Pinned authority
 
@@ -44,7 +45,7 @@
 
 - Route / host: Windows authoring → GitHub Actions macOS verification; never run or claim local Windows Xcode/Simulator results.
 - Required tool posture: `sandbox_mode=danger-full-access / approval_policy=never / command network enabled`; trusted repository configuration is active; XcodeBuildMCP and an owner-operated Mac are unnecessary.
-- Repository / visibility / default / phase: `palatis3/AssetRounds / private / main / phase/s2-persistence-signs`.
+- Repository / visibility / default / phase: `palatis3/AssetRounds / public / main / phase/s2-persistence-signs`.
 - Runner / Xcode / developer dir: `macos-26 / Xcode 26.6 Build version 17F113 / /Applications/Xcode_26.6.app/Contents/Developer`.
 - Project / scheme / configuration / deployment: `FieldEvidenceApp.xcodeproj / FieldEvidenceApp / Debug / iOS 18.0`.
 - Simulator selector: `iPhone 17 / iOS 26.5`; resolve exactly one ephemeral-job UDID.
@@ -84,8 +85,8 @@ Standing support exception:
 
 ## Execution
 
-1. Commit exactly the accepted S2.1 HANDOFF append plus this immediate-next `CURRENT_TASK.md`, push non-force only after proving remote phase=M and main=P, then run fresh S2.2 G0.
-2. G0 proves A^=M; exactly one commit and exactly HANDOFF plus CURRENT_TASK in M..A; the HANDOFF delta is one append-only complete S2.1 entry; P, program map, S2 branch/span/integration flags, pins/environment/method posture are unchanged; every immediate-card field equals frozen S2.2; selector remains the accepted S2.1 object; and no other path is dirty.
+1. Preserve A1 and its accepted S2.1 HANDOFF/S2.2 transition. Commit exactly this owner-authorized forward-only visibility correction as A2, push non-force only after proving remote phase=A1 and main=P, then run fresh S2.2 G0.
+2. G0 proves A2^=A1; `A1..A2` is exactly one CURRENT_TASK-only correction commit; `M..A2` is exactly two commits changing only HANDOFF plus CURRENT_TASK; the HANDOFF delta remains one append-only complete S2.1 entry in `M..A1`; P, program map, S2 branch/span/integration flags, pins, runner/Xcode/project/Simulator/tool/method posture are unchanged; live and recorded repository visibility are public; every immediate-card field equals frozen S2.2; selector remains the accepted S2.1 object; and no other path is dirty.
 3. Replace the selector first, implement only the allowed paths, run structural/static checks available on Windows, explicitly stage only task paths, and commit direct-child implementation I.
 4. Push the exact phase ref non-force and run the one-at-a-time persistent P12 verification loop. Accept only green exact-head CI with complete checksummed evidence. Hosted variance gets a fresh run ID; diagnosed product or harness failures get one direct-child correction per commit with no numeric ceiling.
 5. Do not preemptively edit `Scripts/ui-smoke.sh`. If terminal exact-product-head evidence diagnoses its inherited S1-specific export as the sole harness failure, create only the minimal nonproduct K permitted by the recovery policy and verify that exact K.
