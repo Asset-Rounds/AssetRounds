@@ -20,7 +20,7 @@
 - Product mode: `single-user, device-local V4`
 - Starting fixture/state: replacement bootstrap `B` contains only frozen authority/templates, `.codex/config.toml`, `.gitattributes`, and the manual unsigned CI workflow; there is no Xcode project, app source, test target, `Scripts/` directory, persistence, product fixture, or prior iOS CI run
 - Execution route: `Windows authoring → GitHub Actions macOS verification`
-- Authoring host OS/build: `Windows 10 Home 64-bit, WindowsVersion 2009, OS build 26200`
+- Authoring host OS/build: `Microsoft Windows 11 Home, 64-bit, version 10.0.26200, build 26200`
 - GitHub repository / visibility and branch-control posture / base branch / phase branch: `palatis3/AssetRounds` / `private solo repository; no server-enforced main protection required; Codex push/merge/force-push/write to main forbidden; owner-only main writes and exact-ref checks` / `main` / `phase/s0-foundation`
 - CI workflow path / workflow file SHA-256 / trigger / branch ref: `.github/workflows/ios-ci.yml` / `421DDE01B6B034D3C9E87F3D62430A922F4FB987E04140E5A78173E24C03F4FD` / `workflow_dispatch` with `run_ui_smoke=true` / `phase/s0-foundation`
 - Dispatch-head rule: immediately before dispatch, verify `refs/heads/phase/s0-foundation` points to implementation commit `I` or the one allowed `I2`, permit no intervening push, and require returned `head_sha` equality; record the actual expected/ref-head SHA only in HANDOFF after it exists
