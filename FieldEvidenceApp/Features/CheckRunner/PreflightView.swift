@@ -77,6 +77,7 @@ struct PreflightView: View {
                     }
                     .padding(DesignTokens.Spacing.medium)
                 }
+                .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
             }
         }
         .navigationTitle(
@@ -88,7 +89,6 @@ struct PreflightView: View {
         .navigationBarBackButtonHidden(true)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
-        .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .task {
             guard !didCheckForDraft else { return }
             didCheckForDraft = true
