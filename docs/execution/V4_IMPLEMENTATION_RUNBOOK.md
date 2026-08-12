@@ -292,7 +292,7 @@ Every card inherits Sections 1–7. `HANDOFF.md` and `Scripts/ci-selection.json`
 
 - Anchors/start: plan §§11, 16, 18; owner bootstrap workflow exists on default branch, but no Xcode project/scripts.
 - Outcome: checked-in project, shared scheme, synchronized groups, launch-only app, unit/UI targets, four bounded scripts, validated selector file, and fail-closed CI evidence.
-- Allowed/forbidden: project, minimal App entry/assets/test roots, `build-smoke.sh`, `test-smoke.sh`, `ui-smoke.sh`, `run-with-timeout.sh`, and selector JSON; no tabs, domain, persistence, pack, camera, report, commerce, or signing.
+- Allowed/forbidden: project, minimal App entry/assets/test roots, `build-smoke.sh`, `test-smoke.sh`, `ui-smoke.sh`, `run-with-timeout.sh`, and selector JSON; no tabs, domain, persistence, pack, camera, report, commerce, or signing. Exact envelope override: five production/project paths and six test/support paths; selector and HANDOFF remain standing exceptions.
 - Exact delta: create iOS 18.0 targets/settings and unsigned Simulator route with app bundle ID `com.palatis3.fieldrecord`, unit-test bundle ID `com.palatis3.fieldrecord.tests`, and UI-test bundle ID `com.palatis3.fieldrecord.uitests`; no schema.
 - GOLDEN: pinned CI builds, installs, launches one neutral screen, and remains responsive.
 - ALT-1: none; unavailable pinned runner/Xcode/runtime is a stop.
@@ -701,7 +701,7 @@ Owner selects the exact tested build, completes App Privacy from actual binary/n
 ```text
 /goal Complete every remaining coding card in the phase currently named by
 docs/execution/CURRENT_TASK.md, in strict runbook order, and stop at that phase's
-owner gate with final HANDOFF bookkeeping committed only to the phase branch.
+owner gate after the boundary-flag-controlled final HANDOFF action.
 
 The plan is approved. Do not enter /plan, redesign, combine, skip, pre-implement,
 improve adjacent code, or begin another phase. Read AGENTS.md, CURRENT_TASK.md,
