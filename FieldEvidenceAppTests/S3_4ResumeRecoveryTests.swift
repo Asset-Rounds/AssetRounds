@@ -212,11 +212,14 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
                 evidence.sha256 = String(repeating: "0", count: 64)
                 try seeded.session.modelContext.save()
             case .originalShapeMismatch:
-                let record = try XCTUnwrap(
-                    seeded.session.modelContext.fetch(FetchDescriptor<WorkflowRecord>()).first
+                let malformed = try rebuiltIntent(
+                    seeded.intent,
+                    mutationID: seeded.intent.finalizationMutationID,
+                    parentRecordID: UUID()
                 )
-                record.parentRecordID = UUID()
-                try seeded.session.modelContext.save()
+                let bytes = try FinalizationContractEncoderV1()
+                    .encodeIntent(malformed).data
+                try bytes.write(to: seeded.intentURL, options: .atomic)
             case .crossIntentCollision:
                 let colliding = try intentByReplacingMutationID(
                     seeded.intent,
@@ -809,32 +812,89 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         _ intent: FinalizationIntentV1,
         with mutationID: UUID
     ) throws -> FinalizationIntentV1 {
-        let oldValue = intent.finalizationMutationID.uuidString.lowercased()
-        let newValue = mutationID.uuidString.lowercased()
-        let encoded = try FinalizationContractEncoderV1().encodeIntent(intent).data
-        let source = try XCTUnwrap(String(data: encoded, encoding: .utf8))
-        let replaced = source.replacingOccurrences(of: oldValue, with: newValue)
-        let provisional = try FinalizationContractDecoderV1().decodeIntent(
-            Data(replaced.utf8)
+        try rebuiltIntent(
+            intent,
+            mutationID: mutationID,
+            parentRecordID: intent.finalizationPayload.workflowRecordAfter.parentRecordID
+        )
+    }
+
+    private func rebuiltIntent(
+        _ intent: FinalizationIntentV1,
+        mutationID: UUID,
+        parentRecordID: UUID?
+    ) throws -> FinalizationIntentV1 {
+        let old = intent.finalizationPayload.workflowRecordAfter
+        let record = WorkflowRecordPayloadV1(
+            id: old.id,
+            schemaVersion: old.schemaVersion,
+            assetID: old.assetID,
+            packetID: old.packetID,
+            issueID: old.issueID,
+            parentRecordID: parentRecordID,
+            recordRevisionRootID: old.recordRevisionRootID,
+            revisesRecordID: old.revisesRecordID,
+            evidenceSourceRecordID: old.evidenceSourceRecordID,
+            revisionKind: old.revisionKind,
+            stage: old.stage,
+            state: old.state,
+            draftStepKey: old.draftStepKey,
+            startedAt: old.startedAt,
+            completedAt: old.completedAt,
+            observedAtUTC: old.observedAtUTC,
+            timeZoneID: old.timeZoneID,
+            utcOffsetMinutes: old.utcOffsetMinutes,
+            localDate: old.localDate,
+            localTime: old.localTime,
+            afterDarkAcknowledgementKey: old.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: old.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: old.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: old.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: old.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: old.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: old.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: old.safePositionAcknowledgementAccepted,
+            packID: old.packID,
+            packSchemaVersion: old.packSchemaVersion,
+            packContentVersion: old.packContentVersion,
+            pdfTemplateID: old.pdfTemplateID,
+            pdfTemplateVersion: old.pdfTemplateVersion,
+            outcomeKey: old.outcomeKey,
+            couldNotVerifyKey: old.couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: old.couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: old.couldNotVerifyRegistryVersion,
+            workPerformedLocalDate: old.workPerformedLocalDate,
+            workDescription: old.workDescription,
+            note: old.note,
+            finalizationMutationID: mutationID
+        )
+        let oldPayload = intent.finalizationPayload
+        let payload = FinalizationPayloadV1(
+            issueInsert: oldPayload.issueInsert,
+            issueTransition: oldPayload.issueTransition,
+            packetAfter: oldPayload.packetAfter,
+            packetBefore: oldPayload.packetBefore,
+            reportInsert: oldPayload.reportInsert,
+            workflowRecordAfter: record
         )
         let payloadHash = try FinalizationContractEncoderV1()
-            .encodePayload(provisional.finalizationPayload).sha256
+            .encodePayload(payload).sha256
         return FinalizationIntentV1(
-            completedAt: provisional.completedAt,
+            completedAt: intent.completedAt,
             finalizationMutationID: mutationID,
-            finalizationPayload: provisional.finalizationPayload,
+            finalizationPayload: payload,
             finalizationPayloadSHA256: payloadHash,
-            generationID: provisional.generationID,
-            packetID: provisional.packetID,
-            phase: provisional.phase,
-            recordID: provisional.recordID,
-            reportID: provisional.reportID,
-            schemaVersion: provisional.schemaVersion,
-            snapshotCreatedAt: provisional.snapshotCreatedAt,
-            snapshotFinalRelativePath: provisional.snapshotFinalRelativePath,
-            snapshotSHA256: provisional.snapshotSHA256,
-            snapshotStagingRelativePath: provisional.snapshotStagingRelativePath,
-            stableRootID: provisional.stableRootID
+            generationID: intent.generationID,
+            packetID: intent.packetID,
+            phase: intent.phase,
+            recordID: intent.recordID,
+            reportID: intent.reportID,
+            schemaVersion: intent.schemaVersion,
+            snapshotCreatedAt: intent.snapshotCreatedAt,
+            snapshotFinalRelativePath: intent.snapshotFinalRelativePath,
+            snapshotSHA256: intent.snapshotSHA256,
+            snapshotStagingRelativePath: intent.snapshotStagingRelativePath,
+            stableRootID: intent.stableRootID
         )
     }
 
