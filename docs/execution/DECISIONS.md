@@ -40,3 +40,16 @@ Append decisions. Never rewrite completed gate evidence.
 - Budget/schedule effect: No added product scope or card; removes placeholders from later hydration.
 - Owner decision: Approved.
 - Revised task/build-plan version: V4 product scope unchanged; identifier amendment `D-002`; changed plan/runbook hashes must be pinned by each hydrated task.
+
+## D-003 — 2026-08-11 — Same-phase Codex autopilot
+
+- ID/date: `D-003` / `2026-08-11`
+- Trigger: The owner wants one persistent Codex `/goal` per phase instead of relaunching one task for every coding card.
+- Requested delta: Phase autopilot is a sequencing exception, not multi-card implementation authority. CURRENT_TASK always selects exactly one current card and names the exact ordered cards allowed in the current phase. Its enabled state, ordered span, transition-authorization flag, and boundary-authorization flag are owner-set at phase start and immutable during Codex transitions. After that card has accepted green exact-`I`/`I2`-head CI, Codex may append HANDOFF and, only for the runbook's immediate next card inside the same authorized phase span, replace CURRENT_TASK and create one transition commit containing exactly HANDOFF plus CURRENT_TASK. Immediately before any transition/boundary bookkeeping push, remote phase ref must still equal accepted `I`/`I2`; the push is non-force and the ref must equal the new commit afterward. The next card starts only after fresh G0 proves `M` is the prior green implementation and `M..A` is exactly those two authority paths. Codex may not skip, reorder, combine, pre-implement, or cross a phase boundary. At a boundary Codex commits final HANDOFF bookkeeping only when explicitly authorized and stops before every `main` write, merge, main CI, new branch, next-phase hydration, signing, upload, deployment, or submission. Any second non-green card run, hydration ambiguity, unresolved owner input, or unexpected/intervening ref movement outside the exact just-authorized push stops the phase goal.
+- Reason: Remove repetitive owner launches while preserving isolated card scope, exact-head CI, and an owner gate at every phase.
+- Smallest alternative considered: Keep 36 owner-prepared launches. Rejected as unnecessary ceremony.
+- Affected paths/contracts/tests/gates: `AGENTS.md`, build-plan §§11/16/18, runbook authority/hydration/lifecycle/prompt, execution contract, CURRENT_TASK, HANDOFF, and project goals setting. Product behavior, card count, workflow, test scope, and D-001's owner-only `main` rule do not change.
+- Risk and rollback: Codex prepares its immediate next same-phase contract. If any path, selector, fixture, owner input, or acceptance field cannot be resolved uniquely from frozen authority/current code, it must stop. Roll back by setting phase autopilot disabled; completed implementation commits and evidence remain valid.
+- Budget/schedule effect: No added implementation CI; one bookkeeping transition per within-phase edge; still one merge and exact-main CI per phase.
+- Owner decision: Approved.
+- Revised task/build-plan version: V4 product scope unchanged; execution amendment `D-003`; the owner explicitly authorizes this one-time static-authority/config installation on `main` as the replacement bootstrap before autopilot becomes active; recompute and pin changed plan/runbook hashes.

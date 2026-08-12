@@ -7,6 +7,7 @@ Never edit or replace an earlier entry. The block between the explicit BEGIN/END
 ## `<Task ID>` — `<complete | blocked | stopped — CI NOT RUN>` — `<UTC timestamp>`
 
 - Phase ID / phase branch / card position / phase-boundary card (`yes | no`):
+- Phase-autopilot state / exact authorized same-phase span:
 - Predecessor IDs and evidence:
 - Outcome:
 - Exact build-plan path / SHA-256:
@@ -39,7 +40,7 @@ Never edit or replace an earlier entry. The block between the explicit BEGIN/END
 |---|---|---:|---:|---:|---|---|
 | | | | | | | |
 
-Confirm that the successful run's `head_sha` exactly equals the implementation commit SHA. A stale or different-revision run is not evidence. This appended entry is not part of that implementation commit. Within a phase, the owner later commits this entry together with the next hydrated CURRENT_TASK as the next authority-preparation commit; at a phase boundary, the owner commits it alone as phase-close bookkeeping before merge. This entry never tries to record the future commit SHA that will contain itself: the next G0 observes its authority SHA, while git history records a phase-close SHA.
+Confirm that the successful run's `head_sha` exactly equals the implementation commit SHA. A stale or different-revision run is not evidence. This entry is not part of that implementation commit. With enabled phase autopilot and transition flag `yes`, Codex may later commit it together with only the immediate next same-phase CURRENT_TASK; at a boundary it commits the entry alone only when the boundary flag is `yes`, then stops. Immediately before either non-force bookkeeping push, the remote phase ref must still equal accepted `I`/`I2`; immediately afterward it must equal the new bookkeeping commit. A mismatch stops. Otherwise it leaves the entry uncommitted and stops. This entry never records the future commit SHA that contains itself: the next G0 observes transition authority, while git history records phase-close bookkeeping.
 
 ### Acceptance results
 
@@ -60,8 +61,8 @@ Confirm that the successful run's `head_sha` exactly equals the implementation c
 ### Next unstarted task
 
 - Task ID only; it was not started:
-- Owner next gate:
-  - Within phase: review; commit only this prior HANDOFF append plus the next hydrated CURRENT_TASK on the same phase branch; no main merge or iOS rerun; next card uses this card's green implementation SHA as `M`.
-  - Phase boundary: commit this HANDOFF append alone; owner merges the phase branch; under the private-solo rule, owner alone verifies `refs/heads/main` points to the expected merge SHA, permits no intervening push/history rewrite, dispatches the `main` ref with `run_ui_smoke=true`, and requires a green matching `head_sha`; unexpected ref movement stops; start the next phase branch from that SHA.
+- Next gate:
+  - Within phase, autopilot enabled and transition flag `yes`: if the immediate next card is inside the exact span and uniquely resolvable, Codex commits/pushes only this HANDOFF append plus that next CURRENT_TASK, then runs fresh G0; a false flag or ambiguity leaves the append uncommitted and stops.
+  - Phase boundary: when the boundary flag is `yes`, Codex commits/pushes this HANDOFF append alone and stops; otherwise it leaves the append uncommitted and stops. Owner merges the phase branch; under the private-solo rule, owner alone verifies `refs/heads/main` points to the expected merge SHA, permits no intervening push/history rewrite, dispatches `main` with `run_ui_smoke=true`, and requires a green matching `head_sha`; unexpected movement stops; owner prepares the next phase.
 
 <!-- END HANDOFF ENTRY TEMPLATE -->

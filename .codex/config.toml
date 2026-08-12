@@ -3,6 +3,9 @@
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 
+[features]
+goals = true
+
 [sandbox_workspace_write]
 network_access = false
 

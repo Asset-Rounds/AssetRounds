@@ -1,6 +1,8 @@
 # Current Task
 
 - Phase / card ID and global order: `UNSET`
+- Phase autopilot enabled / exact ordered authorized same-phase card span: `yes | no` → `UNSET` / `UNSET`
+- Autopilot transition rule: only after accepted exact-head CI; only the immediate next runbook card inside the span; commit exactly prior HANDOFF append plus next CURRENT_TASK; fresh G0 before implementation; ambiguity or owner input stops; boundary commits final HANDOFF only when explicitly authorized, then stops. Immediately before either bookkeeping push, prove the remote phase ref still equals accepted `I`/`I2`; use non-force push only and then prove the remote ref equals the new bookkeeping commit. The enabled state, ordered span, transition-authorization flag, and boundary-authorization flag are owner-set at phase start and must be carried forward byte-for-byte; Codex may never toggle, shrink, expand, reorder, or otherwise change them.
 - Card position in phase / runbook-marked phase boundary: `UNSET` / `yes | no` → `UNSET`
 - Predecessor card IDs: `UNSET`
 - Required predecessor evidence: `UNSET` (within phase: prior card HANDOFF plus exact green implementation SHA/run; phase start: prior phase exact green `main` SHA/run; `S0.1`: exactly `N/A—first implementation; project/scripts do not exist yet`)
@@ -30,10 +32,13 @@
 - Allowed GitHub/MCP tool methods and exact repository/ref/workflow arguments/operations: `UNSET` (`XcodeBuildMCP = disabled`; visible or installed tools are not authority)
 - Owner-required sandbox / approval / command-network / trusted-config / GitHub-tool posture: `UNSET`
 - G0 observation rule: Codex records the actual effective posture in HANDOFF. Stop if a required operation is unavailable, the effective project posture contradicts the owner-required posture, or an unlisted external write tool is explicitly approved/enabled for this task. Mere visibility, installation, or broader credential capability is not authority; never use an unnamed tool or argument.
+- G0 selector-transition rule: validate this task's expected selector object/tier against the frozen runbook/workflow schema. `Scripts/ci-selection.json` may be absent for S0.1 or still equal the accepted predecessor card; after G0 passes, creating/replacing it with this task's exact object is the first implementation-support mutation and it must match before I/I2 or dispatch.
 - Task-owned implementation commit authorized: `yes | no` → `UNSET`
 - Exact phase-branch push authorized: `yes | no` → `UNSET` (authorization never includes a push or write to `main`)
 - Named CI workflow dispatch authorized: `yes | no` → `UNSET`
 - Named run inspection + artifact download authorized: `yes | no` → `UNSET`
+- Same-phase post-green transition commit/push authorized: `yes | no` → `UNSET` (when yes, only exact HANDOFF plus immediate next-card CURRENT_TASK; never an implementation commit or CI target)
+- Phase-boundary HANDOFF-only commit/push authorized: `yes | no` → `UNSET` (then stop before `main`, merge, main CI, new branch, or next phase)
 - PR creation/merge, any Codex write to `main`, deployment, signing, TestFlight upload, App Store, and other external mutation: `forbidden unless this owner-release gate names the exact operation`; the private-solo rule never authorizes Codex to write `main`
 - Required verification tier: `N8 | P12 | F25` → `UNSET`
 
@@ -77,7 +82,7 @@ If this task needs a second alternate/failure family, split it into another task
 
 ## Change envelope
 
-- Maximum 10 production files and 5 test/support files unless this task says otherwise.
+- Maximum 10 production files and 5 test/support files. An override is valid only when the exact selected frozen runbook card explicitly states it; CURRENT_TASK cannot self-raise the cap. Every allowed path must be one exact individual repository-relative file—no glob, directory root, brace/set expression, or `/**`.
 
 ## Verification
 
@@ -94,7 +99,7 @@ If this task needs a second alternate/failure family, split it into another task
 
 ## Stop and ask
 
-- Source conflict, plan/runbook hash or selected-card mismatch, unresolved placeholder, unclear state authority, or non-authority path in `M..A`.
+- Source conflict, plan/runbook hash or selected-card/span mismatch, unresolved placeholder, unclear state authority, non-authority path in `M..A`, changed autopilot carry-forward field, glob/directory/`/**` allowed path, ambiguous next-card path/selector/fixture/acceptance, required owner input, or a complete committed HANDOFF already closing the still-selected boundary card.
 - Scope/file envelope exceeded.
 - New package, target, entitlement, permission, migration, backend, auth, payment, analytics, signing, external service, deployment, or submission is required but unnamed.
 - Missing GitHub authorization, named branch/workflow, runner/Xcode/runtime/fixture, or—only for an S9.2 release task—approved signing secret/identity.
@@ -110,8 +115,8 @@ If this task needs a second alternate/failure family, split it into another task
 - Touched primary actions have useful accessibility labels, traits, and order.
 - Every owned launch-smoke ID passes; no broader regression claim is made.
 - Diff remains within allowed paths/envelope.
-- `HANDOFF.md` records exact implementation SHA, run identity, artifacts, evidence, every known defect, phase-boundary state, and next card. It is appended after exact-head CI and is not included in the implementation commit.
+- `HANDOFF.md` records exact implementation SHA, run identity, artifacts, evidence, every known defect, autopilot/span/boundary state, and next card. It is appended after exact-head CI and is not included in the implementation commit.
 - If commit/push/CI was not authorized or did not run, status is `stopped — CI NOT RUN`, never `complete`.
-- Post-card owner gate, outside this Codex `/goal`: if this is not a phase-boundary card, the owner reviews the result and creates the next authority-preparation commit on the same phase branch containing only this prior HANDOFF append plus the next hydrated `CURRENT_TASK.md`. The next card uses this card's green implementation SHA as `M`, observes that authority commit as `A`, and requires no intervening main merge or iOS rerun.
-- Post-card owner gate, outside this Codex `/goal`: if this is a runbook-marked phase-boundary card, the owner commits the final HANDOFF append as phase-close bookkeeping and merges the phase branch. Under the approved private-solo rule, the owner alone verifies `refs/heads/main` points to the expected merge SHA, permits no intervening push or history rewrite, dispatches that ref with `run_ui_smoke=true`, and requires a green run whose `head_sha` is exact before creating the next phase branch and its CURRENT_TASK-only `A` commit. Any unexpected ref movement stops.
+- Post-card autopilot gate: when enabled, the same-phase transition flag is `yes`, this is not the boundary, and the next card is uniquely resolvable inside the span, hydrate only that immediate next card, commit/push exactly this HANDOFF append plus CURRENT_TASK, and run fresh G0. If this is not a boundary and any transition gate is false or cannot resolve exactly, stop with the append uncommitted.
+- Phase-boundary gate: when the boundary HANDOFF-only flag is `yes`, commit/push the final HANDOFF append only and stop; otherwise leave it uncommitted and stop. Outside this `/goal`, the owner reviews and merges the phase branch, verifies `refs/heads/main` equals the intended result under the private-solo rule, permits no intervening push/history rewrite, dispatches `main` with `run_ui_smoke=true`, and requires exact matching green CI before preparing the next phase. Any unexpected movement stops.
 - Next planned task is named but remains unstarted: `UNSET`.
