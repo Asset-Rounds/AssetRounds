@@ -1,0 +1,10 @@
+# AssetRounds project posture. Task-specific repository, branch, workflow,
+# and GitHub tool permissions are narrowed further by CURRENT_TASK.md.
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+network_access = false
+
+[plugins."github@openai-curated"]
+enabled = true

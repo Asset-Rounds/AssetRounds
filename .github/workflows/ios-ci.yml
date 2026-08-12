@@ -1,0 +1,387 @@
+name: iOS CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_ui_smoke:
+        description: Run the task-authorized XCUITest smoke after build and unit tests
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      EXPECTED_XCODE_VERSION: "Xcode 26.6"
+      EXPECTED_XCODE_BUILD: "Build version 17F113"
+      EXPECTED_MINIMUM_IOS: "18.0"
+      PROJECT_PATH: FieldEvidenceApp.xcodeproj
+      SCHEME: FieldEvidenceApp
+      CONFIGURATION: Debug
+      SIMULATOR_RUNTIME: iOS 26.5
+      SIMULATOR_NAME: iPhone 17
+      CODE_SIGNING_ALLOWED: "NO"
+      NSUnbufferedIO: "YES"
+
+    steps:
+      - name: Prepare evidence directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          CI_BUDGET_START_EPOCH="$(date +%s)"
+          CI_ARTIFACT_DIR="$RUNNER_TEMP/FieldEvidenceCI"
+          mkdir -p "$CI_ARTIFACT_DIR"
+          printf 'CI_BUDGET_START_EPOCH=%s\nCI_ARTIFACT_DIR=%s\n' \
+            "$CI_BUDGET_START_EPOCH" "$CI_ARTIFACT_DIR" >> "$GITHUB_ENV"
+
+      - name: Check out the exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate task selection and timeout tier
+        shell: bash
+        env:
+          DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}
+        run: |
+          set -euo pipefail
+          test -f Scripts/ci-selection.json
+          test -f Scripts/run-with-timeout.sh
+          test -f Scripts/build-smoke.sh
+          test -f Scripts/test-smoke.sh
+          test -f Scripts/ui-smoke.sh
+
+          jq -e '
+            def exact_keys:
+              ([
+                "schemaVersion",
+                "taskID",
+                "tier",
+                "runUISmoke",
+                "setupArtifactTimeoutSeconds",
+                "buildTimeoutSeconds",
+                "testTimeoutSeconds",
+                "uiTimeoutSeconds",
+                "totalBudgetSeconds",
+                "unitTestSelectors",
+                "uiTestSelectors"
+              ] | sort) == (keys | sort);
+            def nonempty_string:
+              type == "string" and test("\\S");
+            def selectors($prefix; $minimum):
+              . as $values
+              | ($values | type == "array")
+                and (($values | length) >= $minimum)
+                and (all($values[];
+                  type == "string"
+                  and startswith($prefix)
+                  and (length > ($prefix | length))))
+                and (($values | unique | length) == ($values | length));
+            def tier_values_match:
+              if .tier == "N8" then
+                [
+                  .setupArtifactTimeoutSeconds,
+                  .buildTimeoutSeconds,
+                  .testTimeoutSeconds,
+                  .uiTimeoutSeconds,
+                  .totalBudgetSeconds
+                ] == [90, 150, 240, 0, 480]
+              elif .tier == "P12" then
+                [
+                  .setupArtifactTimeoutSeconds,
+                  .buildTimeoutSeconds,
+                  .testTimeoutSeconds,
+                  .uiTimeoutSeconds,
+                  .totalBudgetSeconds
+                ] == [120, 180, 180, 240, 720]
+              elif .tier == "F25" then
+                [
+                  .setupArtifactTimeoutSeconds,
+                  .buildTimeoutSeconds,
+                  .testTimeoutSeconds,
+                  .uiTimeoutSeconds,
+                  .totalBudgetSeconds
+                ] == [180, 240, 300, 780, 1500]
+              else false
+              end;
+            exact_keys
+            and (.schemaVersion == 1)
+            and (.taskID | nonempty_string)
+            and (.tier | type == "string" and IN("N8", "P12", "F25"))
+            and (.runUISmoke | type == "boolean")
+            and tier_values_match
+            and (.unitTestSelectors | selectors("FieldEvidenceAppTests/"; 1))
+            and (
+              if .tier == "N8" then
+                (.runUISmoke == false)
+                and (.uiTestSelectors | type == "array" and length == 0)
+              else
+                (.runUISmoke == true)
+                and (.uiTestSelectors | selectors("FieldEvidenceAppUITests/"; 1) and length == 1)
+              end
+            )
+          ' Scripts/ci-selection.json > /dev/null
+
+          selection_run_ui="$(jq -r '.runUISmoke | tostring' Scripts/ci-selection.json)"
+          test "$DISPATCH_RUN_UI_SMOKE" = "$selection_run_ui"
+
+          CI_TASK_ID="$(jq -r '.taskID' Scripts/ci-selection.json)"
+          CI_TIER="$(jq -r '.tier' Scripts/ci-selection.json)"
+          CI_RUN_UI_SMOKE="$selection_run_ui"
+          CI_SETUP_ARTIFACT_TIMEOUT_SECONDS="$(jq -r '.setupArtifactTimeoutSeconds' Scripts/ci-selection.json)"
+          CI_BUILD_TIMEOUT_SECONDS="$(jq -r '.buildTimeoutSeconds' Scripts/ci-selection.json)"
+          CI_TEST_TIMEOUT_SECONDS="$(jq -r '.testTimeoutSeconds' Scripts/ci-selection.json)"
+          CI_UI_TIMEOUT_SECONDS="$(jq -r '.uiTimeoutSeconds' Scripts/ci-selection.json)"
+          CI_TOTAL_BUDGET_SECONDS="$(jq -r '.totalBudgetSeconds' Scripts/ci-selection.json)"
+
+          printf '%s\n' \
+            "CI_TASK_ID=$CI_TASK_ID" \
+            "CI_TIER=$CI_TIER" \
+            "CI_RUN_UI_SMOKE=$CI_RUN_UI_SMOKE" \
+            "CI_SETUP_ARTIFACT_TIMEOUT_SECONDS=$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS" \
+            "CI_BUILD_TIMEOUT_SECONDS=$CI_BUILD_TIMEOUT_SECONDS" \
+            "CI_TEST_TIMEOUT_SECONDS=$CI_TEST_TIMEOUT_SECONDS" \
+            "CI_UI_TIMEOUT_SECONDS=$CI_UI_TIMEOUT_SECONDS" \
+            "CI_TOTAL_BUDGET_SECONDS=$CI_TOTAL_BUDGET_SECONDS" \
+            >> "$GITHUB_ENV"
+          cp Scripts/ci-selection.json "$CI_ARTIFACT_DIR/ci-selection.json"
+          printf 'task_id=%s\ntier=%s\ndispatch_run_ui_smoke=%s\n' \
+            "$CI_TASK_ID" "$CI_TIER" "$DISPATCH_RUN_UI_SMOKE" \
+            | tee "$CI_ARTIFACT_DIR/ci-selection-validation.txt"
+
+      - name: Verify pinned toolchain, shared scheme, and simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CI_ARTIFACT_DIR"
+          printf 'ImageOS=%s\nImageVersion=%s\nImageArch=%s\n' \
+            "${ImageOS:-unknown}" "${ImageVersion:-unknown}" "${ImageArch:-unknown}" \
+            | tee "$CI_ARTIFACT_DIR/runner-image.txt"
+          printf 'repository=%s\nref=%s\nsha=%s\nrun_id=%s\nrun_attempt=%s\n' \
+            "$GITHUB_REPOSITORY" "$GITHUB_REF" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
+            | tee "$CI_ARTIFACT_DIR/github-run.txt"
+          test -d "$DEVELOPER_DIR"
+          test -f "$PROJECT_PATH/project.pbxproj"
+          test -f "$PROJECT_PATH/xcshareddata/xcschemes/$SCHEME.xcscheme"
+          test -f Scripts/ci-selection.json
+          test -f Scripts/run-with-timeout.sh
+          test -f Scripts/build-smoke.sh
+          test -f Scripts/test-smoke.sh
+          test -f Scripts/ui-smoke.sh
+          test "$EXPECTED_MINIMUM_IOS" != "UNSET"
+          xcodebuild -version | tee "$CI_ARTIFACT_DIR/xcode-version.txt"
+          grep -Fxq "$EXPECTED_XCODE_VERSION" "$CI_ARTIFACT_DIR/xcode-version.txt"
+          grep -Fxq "$EXPECTED_XCODE_BUILD" "$CI_ARTIFACT_DIR/xcode-version.txt"
+          xcodebuild -list -json -project "$PROJECT_PATH" \
+            | tee "$CI_ARTIFACT_DIR/xcode-list.json"
+          jq -e --arg scheme "$SCHEME" \
+            '.project.schemes | index($scheme) != null' \
+            "$CI_ARTIFACT_DIR/xcode-list.json" > /dev/null
+          xcodebuild -showBuildSettings -project "$PROJECT_PATH" -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" | tee "$CI_ARTIFACT_DIR/build-settings.txt"
+          deployment_targets="$(awk -F'= ' \
+            '/^[[:space:]]*IPHONEOS_DEPLOYMENT_TARGET = / {print $2}' \
+            "$CI_ARTIFACT_DIR/build-settings.txt" | LC_ALL=C sort -u)"
+          target_count="$(printf '%s\n' "$deployment_targets" | sed '/^$/d' | wc -l | tr -d ' ')"
+          test "$target_count" -eq 1
+          test "$deployment_targets" = "$EXPECTED_MINIMUM_IOS"
+          xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
+          xcrun simctl list devices available -j > "$CI_ARTIFACT_DIR/simulator-devices.json"
+          runtime_id="$(jq -r --arg name "$SIMULATOR_RUNTIME" \
+            '.runtimes[] | select(.name == $name and .isAvailable == true) | .identifier' \
+            "$CI_ARTIFACT_DIR/simulator-runtimes.json" | head -n 1)"
+          test -n "$runtime_id"
+          simulator_udid="$(jq -r --arg runtime "$runtime_id" --arg name "$SIMULATOR_NAME" \
+            '.devices[$runtime][] | select(.name == $name and .isAvailable == true) | .udid' \
+            "$CI_ARTIFACT_DIR/simulator-devices.json" | head -n 1)"
+          test -n "$simulator_udid"
+          printf 'runtime=%s\nname=%s\nudid=%s\n' \
+            "$SIMULATOR_RUNTIME" "$SIMULATOR_NAME" "$simulator_udid" \
+            | tee "$CI_ARTIFACT_DIR/simulator-selection.txt"
+          printf 'CI_DESTINATION=platform=iOS Simulator,id=%s\nCI_SIMULATOR_UDID=%s\n' \
+            "$simulator_udid" "$simulator_udid" >> "$GITHUB_ENV"
+
+      - name: Build unsigned simulator app
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Scripts/run-with-timeout.sh "$CI_BUILD_TIMEOUT_SECONDS" \
+            bash Scripts/build-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/build-smoke.log"
+
+      - name: Run targeted tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Scripts/run-with-timeout.sh "$CI_TEST_TIMEOUT_SECONDS" \
+            bash Scripts/test-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/test-smoke.log"
+
+      - name: Run task-authorized UI smoke
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_ui_smoke == true }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Scripts/run-with-timeout.sh "$CI_UI_TIMEOUT_SECONDS" \
+            bash Scripts/ui-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/ui-smoke.log"
+
+      - name: Validate required build and test evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          require_nonempty_directory() {
+            test -d "$1"
+            test -n "$(find "$1" -mindepth 1 -print -quit)"
+          }
+
+          verify_executed_selectors() {
+            local result_bundle="$1"
+            local selectors_key="$2"
+            local bundle_type="$3"
+            local output_stem="$4"
+            local test_results="$CI_ARTIFACT_DIR/${output_stem}-test-results.json"
+            local executed_tests="$CI_ARTIFACT_DIR/${output_stem}-executed-tests.json"
+
+            xcrun xcresulttool get test-results tests \
+              --path "$result_bundle" --compact > "$test_results"
+            test -s "$test_results"
+
+            jq --arg bundleType "$bundle_type" '
+              def normalize_identifier:
+                sub("\\(\\)$"; "");
+              def executed_cases($bundleName; $bundleType):
+                . as $node
+                | (
+                    if $node.nodeType? == $bundleType
+                    then ($node.name? // "")
+                    else $bundleName
+                    end
+                  ) as $nextBundle
+                | if (
+                    $node.nodeType? == "Test Case"
+                    and ($nextBundle | type == "string" and length > 0)
+                    and ($node.nodeIdentifier? | type == "string" and length > 0)
+                    and (
+                      ($node.result? == "Passed")
+                      or ($node.result? == "Failed")
+                      or ($node.result? == "Expected Failure")
+                    )
+                  )
+                  then
+                    ($node.nodeIdentifier | normalize_identifier) as $identifier
+                    | {
+                        identifier: (
+                          if ($identifier | startswith($nextBundle + "/"))
+                          then $identifier
+                          else ($nextBundle + "/" + $identifier)
+                          end
+                        ),
+                        result: $node.result
+                      }
+                  else
+                    ($node.children[]? | executed_cases($nextBundle; $bundleType))
+                  end;
+              [
+                .testNodes[]?
+                | executed_cases(null; $bundleType)
+              ]
+              | sort_by(.identifier)
+              | unique_by(.identifier)
+            ' "$test_results" > "$executed_tests"
+            test -s "$executed_tests"
+
+            jq -e --arg key "$selectors_key" --slurpfile executed "$executed_tests" '
+              def normalize_identifier:
+                sub("\\(\\)$"; "");
+              .[$key] as $selectors
+              | ($executed[0] // []) as $actual
+              | (($actual | type) == "array" and ($actual | length) > 0)
+                and all(
+                  $selectors[];
+                  . as $selector
+                  | ($selector | normalize_identifier) as $wanted
+                  | any(
+                      $actual[];
+                      (.identifier | normalize_identifier) as $observed
+                      | ($observed == $wanted)
+                        or ($observed | startswith($wanted + "/"))
+                    )
+                )
+            ' Scripts/ci-selection.json > /dev/null
+          }
+
+          test -s "$CI_ARTIFACT_DIR/build-smoke.log"
+          test -s "$CI_ARTIFACT_DIR/test-smoke.log"
+          require_nonempty_directory "$CI_ARTIFACT_DIR/Build.xcresult"
+          require_nonempty_directory "$CI_ARTIFACT_DIR/UnitTests.xcresult"
+          verify_executed_selectors \
+            "$CI_ARTIFACT_DIR/UnitTests.xcresult" \
+            unitTestSelectors "Unit test bundle" unit
+
+          if test "${CI_RUN_UI_SMOKE:-}" = "true"; then
+            test -s "$CI_ARTIFACT_DIR/ui-smoke.log"
+            require_nonempty_directory "$CI_ARTIFACT_DIR/UISmoke.xcresult"
+            test -s "$CI_ARTIFACT_DIR/ui-final.png"
+            verify_executed_selectors \
+              "$CI_ARTIFACT_DIR/UISmoke.xcresult" \
+              uiTestSelectors "UI test bundle" ui
+          else
+            test "${CI_RUN_UI_SMOKE:-}" = "false"
+            test ! -e "$CI_ARTIFACT_DIR/ui-smoke.log"
+            test ! -e "$CI_ARTIFACT_DIR/UISmoke.xcresult"
+            test ! -e "$CI_ARTIFACT_DIR/ui-final.png"
+          fi
+
+      - name: Hash collected evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CI_ARTIFACT_DIR"
+          checksum_file="$RUNNER_TEMP/FieldEvidenceCI-checksums.txt"
+          rm -f "$CI_ARTIFACT_DIR/SHA256SUMS.txt"
+          (
+            cd "$CI_ARTIFACT_DIR"
+            find . -type f -print | LC_ALL=C sort | while IFS= read -r file; do
+              shasum -a 256 "$file"
+            done
+          ) > "$checksum_file"
+          mv "$checksum_file" "$CI_ARTIFACT_DIR/SHA256SUMS.txt"
+          (
+            cd "$CI_ARTIFACT_DIR"
+            shasum -a 256 -c SHA256SUMS.txt
+          )
+
+      - name: Verify selected total budget before upload
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CI_BUDGET_START_EPOCH:-}"
+          test -n "${CI_TOTAL_BUDGET_SECONDS:-}"
+          case "$CI_BUDGET_START_EPOCH:$CI_TOTAL_BUDGET_SECONDS" in
+            *[!0-9:]*) exit 1 ;;
+          esac
+          elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
+          printf 'elapsed_seconds=%s\ntotal_budget_seconds=%s\n' \
+            "$elapsed_seconds" "$CI_TOTAL_BUDGET_SECONDS"
+          test "$elapsed_seconds" -le "$CI_TOTAL_BUDGET_SECONDS"
+
+      - name: Upload build evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-ci-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/FieldEvidenceCI
+          if-no-files-found: error
+          retention-days: 14
