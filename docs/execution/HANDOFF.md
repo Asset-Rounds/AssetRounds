@@ -418,3 +418,83 @@ The accepted verification run's `head_sha` exactly equals `K1=404bc29ef784f96679
   - This is the S2 phase boundary. Immediately before the HANDOFF-only phase-close commit/push, re-prove remote phase=`K1`, remote main=`P`, no active candidate, exact append-only HANDOFF diff, and clean index/untracked state.
   - Commit and non-force push only this append as phase close `C`; accept exact phase/head P12 verification at C or a later diagnosed nonproduct verification head.
   - After green phase verification, non-force fast-forward `main` from exact P to that exact accepted phase head, require successful exact-main P12/UI evidence, then create only `phase/s3-check-runner`, hydrate only S3.1, and run fresh G0.
+
+## `S3.1` — `complete` — `2026-08-12T20:53:52Z`
+
+- Phase ID / phase branch / card position / phase-boundary card (`yes | no`): `S3` / `phase/s3-check-runner` / `1 of 7` / `no`
+- Program-autopilot state / exact phase-and-branch map / final owner-only boundary: `enabled through accepted S9.1` / exact frozen S0–S9 map in `CURRENT_TASK.md` / stop after accepted exact-main S9.1; S9.2 signing/TestFlight and S9.3 App Store submission remain owner-only
+- Phase-autopilot state / exact authorized same-phase span: `enabled` / `S3.1,S3.2,S3.3,S3.4,S3.5,S3.6,S3.7`
+- Predecessor IDs and evidence: accepted S2 phase-close/main head `M=P=7d135aaddd0bdc50168552b0610f04adc1703506`; exact S2 phase run `31632629616` and exact-main run `31633843776` both succeeded at that head with P12/UI and complete independently verified 101-entry artifacts
+- Outcome: froze the exact seven-model SwiftData schema; added exact raw workflow domains, supplied-instant IANA time freezing, sole-draft and closed Issue-lineage rules, Ready-for-night-check preflight, ordered pack acknowledgements, pre-begin Cancel/no-write, and post-begin/relaunch resume to the explicit S3.2-unavailable surface
+- Exact build-plan path / SHA-256: `docs/product/BUILD_PLAN_V4.md` / `23DAAB390AF917CBE91C3044E4906F3FBF8D67D2FDFC6BC9BDE985D984F37BBD`
+- Exact implementation-runbook path / SHA-256 / selected card: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / `S3.1 — Frozen workflow schema, preflight, and one active draft`
+- Authoring host OS/build: Microsoft Windows Home, 64-bit, version `10.0.26200`, build `26200`
+- GitHub repository / visibility and exact-ref branch-control posture / base branch / phase branch: `palatis3/AssetRounds` / public solo repository, exact-ref/non-force-only / `main` / `phase/s3-check-runner`
+- Immutable phase-main base SHA `P` and evidence: `7d135aaddd0bdc50168552b0610f04adc1703506`; accepted S2 exact-main run `31633843776`
+- Integrated/card-base SHA `M` and evidence: `M=P=7d135aaddd0bdc50168552b0610f04adc1703506`; first S3 card began from accepted S2 phase close/exact-main head
+- Observed task-start authority SHA and authority-only diff result: `A=c31736b6e47773c9ec4a9f4fd3b7c4dcca38b511`, a direct child of M changing exactly `docs/execution/CURRENT_TASK.md`
+- Implementation commit SHA: initial product/test `I=df4f184735da7f220e671c1b976d601c7e7b87d1`; accepted `E=I2=770785cbf890501b4df21cab86fafd804f00c6c6`, a direct child changing exactly the authorized S3.1 unit-test file to retain StoreGenerationSession ownership
+- Pre-existing dirty paths and owner/disposition: `NONE`; fresh G0, I2 correction preflight, and exact-head dispatch state were clean
+- Workflow path / workflow file SHA-256 / trigger / frozen branch ref / actual expected head: `.github/workflows/ios-ci.yml` / `9FFEA51ADB2620B01FE250412716487F6102DAC7E93AEA0471943AF66C1BC2AC` / `workflow_dispatch` / `phase/s3-check-runner` / `770785cbf890501b4df21cab86fafd804f00c6c6`
+- CI selector task ID / tier / `runUISmoke` / workflow input equality result: `S3.1` / `P12` / `true` / `PASS`; exact `300/600/900/900/3300`, unit selector `FieldEvidenceAppTests/S3_1DraftSchemaTests`, UI selector `FieldEvidenceAppUITests/S3_1PreflightUITests`, selector LF SHA-256 `F8C9C17EB06713BA6299F3869DC444D53E18AD41C5172CBB9EDFC961AE65237D`
+- Actions run ID / URL / `head_sha` / conclusion: `31638832689` / `https://github.com/palatis3/AssetRounds/actions/runs/31638832689` / `770785cbf890501b4df21cab86fafd804f00c6c6` / `success`
+- Actions job ID / conclusion: `94255903791` / `success`
+- Runner image / Xcode version+build / minimum iOS: `ImageOS=macos26`, `ImageVersion=20260728.0273.1`, `ImageArch=unknown` / `Xcode 26.6`, `Build version 17F113`, `DEVELOPER_DIR=/Applications/Xcode_26.6.app/Contents/Developer` / iOS `18.0`
+- Project or workspace / target / shared scheme / configuration: `FieldEvidenceApp.xcodeproj` / `FieldEvidenceApp` / `FieldEvidenceApp` / `Debug`
+- Simulator selector and actual model / OS / UDID; UI-smoke mode: `iPhone 17` + `iOS 26.5` / iPhone 17 / iOS 26.5 / `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; P12 golden XCUITest with Cancel/relaunch then Begin/relaunch
+- Allowed GitHub methods and actions actually performed: task-named read/fetch/ref/run/workflow/artifact inspection; explicit-path commits; non-force phase push; exact workflow dispatch on the phase branch with `run_ui_smoke=true`; exact-run observation/download; no main, force-push, merge, PR, repository-setting, signing, deployment, or release mutation
+- Owner-required posture from task and G0-observed effective sandbox / approval / command-network / trusted-config / GitHub-tool state: Full access observed; `sandbox_mode=danger-full-access`; `approval_policy=never`; command network enabled; trusted repository configuration active; authenticated GitHub CLI available; XcodeBuildMCP and owner-operated Mac unnecessary
+- Card-owned implementation / correction / verification actions: created and non-force pushed I and the one causal direct-child I2; dispatched one exact candidate per head; inspected terminal logs, crash reports, artifacts, checksums, and terminal UI; accepted only exact I2
+- Boundary recovery state: accepted S3.1 HANDOFF pending; remote phase=`I2`, remote `main=P`; S3.2 was unstarted before this append
+- Project/persistent-schema delta: no project-file change; schema version remains 1 and now contains exactly Site, Asset, WorkflowRecord, EvidenceFile, Issue, Packet, and Report
+
+### Changed paths
+
+- `FieldEvidenceApp/Domain/Models/WorkflowModels.swift`
+- `FieldEvidenceApp/Domain/Workflow/WorkflowContracts.swift`
+- `FieldEvidenceApp/Domain/Workflow/TimeContextRule.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift`
+- `FieldEvidenceApp/Features/CheckRunner/PreflightView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Features/Signs/SignDetailView.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift`
+- `FieldEvidenceAppTests/S3_1DraftSchemaTests.swift`
+- `FieldEvidenceAppUITests/S3_1PreflightUITests.swift`
+- `Scripts/ci-selection.json`
+- `I..I2` changed exactly `FieldEvidenceAppTests/S3_1DraftSchemaTests.swift`, retaining each `StoreGenerationSession` for the complete lifetime of its SwiftData `ModelContext`; product/schema/selector/UI bytes equal I
+
+### Verification
+
+| Command or smoke | Run/job | Timeout | Exit code | Actual duration | Result | Artifact/evidence path and checksum |
+|---|---|---:|---:|---:|---|---|
+| Fresh G0: branch/cleanliness, `A^=M`, exact one-path `M..A`, pins/map/environment/selector/live refs | local + GitHub read-only | fail closed | 0 | bounded | PASS | `A=c31736b6e47773c9ec4a9f4fd3b7c4dcca38b511`; phase created from M=P |
+| Exact A..I2 structure and task envelope | local Windows read-only | fail closed | 0 | bounded | PASS | exactly 8 production, 2 test, and selector-exception paths through I; I..I2 exactly one authorized test path; `git diff --check` passes |
+| Initial exact-I P12 candidate | `31637248403` / `94250574475` | P12 | nonzero | build 133 s; unit step 167 s; total 517 s | FAIL — build/toolchain/Simulator passed; repeated deterministic SwiftData SIGTRAPs came from extracting ModelContext from temporary StoreGenerationSession owners in the test fixture; led directly to test-only I2 | artifact `ios-ci-31637248403-1`, ID `9157705961`, API/raw ZIP digest `sha256:14abef757cb0ee7132af04c05beaece108fc79a80aff52c36d14000d4328c087`; `SHA256SUMS.txt` SHA-256 `34F600C5E6EC72D3FAE7EE2096F2F794A95C35A26582A2EE3EE144B93F6A88DA`; all 1355 entries matched |
+| `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh` | accepted `31638832689` / `94255903791` | 600 s | 0 | 132 s | PASS — exact-destination unsigned `** TEST BUILD SUCCEEDED **` | nonempty `Build.xcresult` and build log in checksum-verified artifact |
+| `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh` / exact `FieldEvidenceAppTests/S3_1DraftSchemaTests` | same | 900 s | 0 | step 165 s; observer 125.029 s | PASS — exactly 12 targeted tests passed, 0 failures or traps | nonempty `UnitTests.xcresult`, exact executed-test JSON, and unit log in artifact |
+| `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh` / exact `FieldEvidenceAppUITests/S3_1PreflightUITests` | same | 900 s | 0 | step 197 s; test 131.796 s | PASS — sole Cancel/Begin/relaunch test passed; generalized exporter selected exactly one retained nonfailure PNG | nonempty `UISmoke.xcresult`; `ui-final.png` SHA-256 `C2A8FAFB5D0D54C918953109D0EBC541534FE1AF29CD2811B8213D8BE60D5CC6` |
+| Required-evidence/checksum validation and P12 budgets | same | setup/artifact 300 s; readiness 900 s; total 3300 s | 0 | setup 30 s; readiness 354 s; artifact 2 s; setup+artifact 32 s; total 756 s | PASS | artifact `ios-ci-31638832689-1`, ID `9158415545`, API/raw ZIP digest `sha256:4d7eeaea42aba3128c1505cb196210df353a67d45571256093032ed1f440c022`; `SHA256SUMS.txt` SHA-256 `C60C1BE3953F66E2F41EC6848B5AD75F9651496460604EF9F7FB8ECF567C0414`; all 115 entries independently matched |
+
+The accepted run's `head_sha` exactly equals `E=I2=770785cbf890501b4df21cab86fafd804f00c6c6`. The I2 delta is test-fixture lifetime plumbing only; accepted product/schema/UI bytes remain I. This HANDOFF append is not implementation evidence and does not self-record its future transition commit.
+
+### Acceptance results
+
+- Golden path `PASS`: an existing two-model S2 generation reopens unchanged under the exact seven-model schema; exact supplied-instant zone/local/offset facts and both ordered acknowledgement snapshots persist; one sole check draft resumes unchanged; same-Issue and cross-Issue rooted lineage rules pass without timestamp/newest guessing; other new model rows remain absent on first Begin
+- Named alternate `PASS`: Cancel before Begin persists neither a merely entered zone nor a draft, returns to the exact saved sign with `No check was started.`, and remains draft-free after termination/relaunch; invalid preflight and malformed/forked lineage cases fail closed without a draft
+- Accessibility/UI spot check `PASS`: Start Check is active; nil-zone controls and exact ordered acknowledgement copy are accessible; Begin stays disabled until valid confirmation; Cancel is explicit; post-Begin/relaunch exposes only the S3.2-unavailable state
+- Exact terminal screen/data artifact `PASS`: accepted `ui-final.png` is byte-identical to the sole retained `S3.1 sole draft resumed` attachment for the selected UI class; independent visual inspection shows `Ready for night check` and exact `Capture is unavailable until S3.2.` with no alert, keyboard, clipping, or corruption; SHA-256 `C2A8FAFB5D0D54C918953109D0EBC541534FE1AF29CD2811B8213D8BE60D5CC6`
+- Future controls verified omitted/inert `PASS`: no capture/media/import/camera/permission, outcome/review/CNV, finalization intent/snapshot/Packet/Report operation, Issue transition creation, resume recovery matrix, storage fault framework, work/recheck UI, diagnostics/evaluation/access/commerce, package/project/capability/remote delta, or model beyond the exact frozen five was added
+
+### Known bugs or limitations
+
+- Bug ID / severity / disposition, or `NONE`: `NONE`; `docs/execution/KNOWN_BUGS.md` was read and contains no qualifying S3.1 defect
+- Nonblocking test-only diagnostic: teardown can log SQLite WAL/SHM removal while a retained temporary test session remains open; all XCTest and required evidence gates passed and no shipped product behavior is affected
+
+### Blockers
+
+- `NONE`
+
+### Next unstarted task
+
+- Task ID only; it was not started: `S3.2`
+- Next gate: same-phase autopilot may commit and non-force push exactly this append plus immediate-next S3.2 `CURRENT_TASK.md` after re-proving remote phase=`I2` and remote main=`P`; then run fresh S3.2 G0. Do not mutate main.
