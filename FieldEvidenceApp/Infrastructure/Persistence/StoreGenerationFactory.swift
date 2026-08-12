@@ -283,7 +283,8 @@ struct StoreGenerationFactory {
         do {
             let attributes = try fileManager.attributesOfItem(atPath: url.path)
             return attributes[.type] as? FileAttributeType
-        } catch let error as CocoaError where error.code == .fileNoSuchFile {
+        } catch let error as CocoaError where
+            error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile {
             return nil
         } catch {
             throw error
