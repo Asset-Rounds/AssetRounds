@@ -50,7 +50,7 @@ Never place passwords, 2FA codes, bank/tax details, `.p8`, `.p12`, provisioning 
 4. Success requires a green run with `head_sha == I`. One diagnosed card-scoped fix `I2` and one rerun are allowed. A second non-green run stops.
 5. After green evidence, Codex appends HANDOFF in the working tree, names the next card, leaves HANDOFF uncommitted, and stops. Codex never creates an authority or bookkeeping commit.
 6. Owner reviews the card. If the phase continues, the owner hydrates the next CURRENT_TASK and creates one authority commit `A` containing exactly the preceding uncommitted HANDOFF plus that CURRENT_TASK on the same branch; no merge or exact-main CI occurs yet.
-7. At the phase's final card, the owner reviews and commits the final HANDOFF alone, merges once, verifies the protected `main` branch points to the expected merge SHA, and dispatches the workflow using the `main` branch name with `run_ui_smoke=true`. No intervening push is permitted; accept only a green run whose `head_sha` is that exact merge SHA before starting the next phase.
+7. At the phase's final card, the owner reviews and commits the final HANDOFF alone, merges once, and verifies `refs/heads/main` points to the expected merge SHA. Under the approved private-solo rule, Codex never writes `main`, the owner is its sole writer, and server-enforced branch protection is not required. The owner dispatches the workflow using the `main` branch name with `run_ui_smoke=true`, permits no intervening push or history rewrite, and accepts only a green run whose `head_sha` is that exact merge SHA. Any unexpected ref movement stops the train before the next phase.
 
 Every card gets one `/goal` and one implementation-head CI decision. Every phase gets one merge and one exact-main CI decision. No two cards write the checkout concurrently.
 
@@ -205,7 +205,7 @@ PDF promotion is deterministic by Report ID. A crash after rename but before `re
 
 V4 exposes no Packet/report delete action. Whole-sign confirmation is exactly `Delete this sign, its photos, and its reports from this app? This cannot be undone. Your free-report count will not reset. Erase All removes the remaining anonymous count.` with **Cancel** and destructive **Delete sign**. `DeletionIntentV1` lives at `Application Support/FieldEvidenceOperations/deletion/<deletion-id>.json` and has exactly `assetID`, `countedPacketTombstones`, `deletionID`, `generationID`, `phase`, `relativePaths`, and `schemaVersion`; paths are unique sorted generation-relative strings and phase is `prepared|database_committed`. One SwiftData save removes the Asset's referentially closed WorkflowRecord/EvidenceFile/Issue/Report lineage, removes the Site only if empty, and replaces counted Packets with content-free tombstones retaining only anonymous IDs/evaluation flag/instants; only then are listed files removed. Recovery cancels a prepared intent while the Asset remains, recognizes a committed tombstone set, and completes exact-path cleanup. No fragment deletion may strand issue/revision lineage.
 
-`V4Backup@1` is a user-selected FileWrapper package with extension `.fieldrecordbackup`; S6.2 freezes exported UTI `<owner.reverse.domain>.fieldrecordbackup`, conforming to `com.apple.package`. Its exact members are `manifest.json`, `records.json`, `media/<evidence-uuid>.jpg`, `thumbnails/<evidence-uuid>.jpg`, `snapshots/<report-uuid>.json`, and ready-only `pdfs/<report-uuid>.pdf`. Export requires storage preflight, a destination confirmation, and the exact sensitive-content warning from the build plan; it makes no encryption claim.
+`V4Backup@1` is a user-selected FileWrapper package with extension `.fieldrecordbackup`; S6.2 uses frozen exported UTI `com.palatis3.fieldrecordbackup`, conforming to `com.apple.package`. Its exact members are `manifest.json`, `records.json`, `media/<evidence-uuid>.jpg`, `thumbnails/<evidence-uuid>.jpg`, `snapshots/<report-uuid>.json`, and ready-only `pdfs/<report-uuid>.pdf`. Export requires storage preflight, a destination confirmation, and the exact sensitive-content warning from the build plan; it makes no encryption claim.
 
 Canonical `manifest.json` has exactly `backupSchemaVersion`, `consumedEvaluationRootIDs`, `declaredPayloadByteCount`, `entries`, `exportedAt`, `packs`, `source`. Entries cover every nonmanifest member once as `{byteCount,mimeType,path,sha256}` sorted by path; packs are `{contentVersion,packID,schemaVersion}`; source is `{appBuild,appVersion,persistentSchemaVersion:1,recordsSchemaVersion:1}`. Canonical `records.json` has exactly `assets`, `evidenceFiles`, `issues`, `packets`, `recordsSchemaVersion`, `reports`, `sites`, `workflowRecords`; arrays sort by ID and use every exact seven-model DTO field/null. Consumed roots equal every `evaluationCounted=true` Packet. Paths are normalized relative nonsymlink NFC paths with no empty/`.`/`..` segment. Backup excludes commerce, diagnostics, journals, staging, temp, OS metadata, and secrets. Pending regenerates after restore; failed stays failed until Retry.
 
@@ -281,7 +281,7 @@ These counters are non-authoritative, best-effort lower-bound diagnostics. The s
 | 34 | S8.3 | Private diagnostics/export | P12 | S8.4 |
 | 35 | S8.4 | Feedback and attachment consent | P12 | S9.1 |
 | 36 | S9.1 | Unsigned RC and inactive release workflow | F25 | owner S9.2 |
-| owner | S9.2 | Protected upload and physical iPhone | owner | S9.3 |
+| owner | S9.2 | Owner-only upload and physical iPhone | owner | S9.3 |
 | owner | S9.3 | App Store Connect submission | owner | complete |
 
 ## 9. Detailed coding cards
@@ -293,7 +293,7 @@ Every card inherits Sections 1–7. `HANDOFF.md` and `Scripts/ci-selection.json`
 - Anchors/start: plan §§11, 16, 18; owner bootstrap workflow exists on default branch, but no Xcode project/scripts.
 - Outcome: checked-in project, shared scheme, synchronized groups, launch-only app, unit/UI targets, four bounded scripts, validated selector file, and fail-closed CI evidence.
 - Allowed/forbidden: project, minimal App entry/assets/test roots, `build-smoke.sh`, `test-smoke.sh`, `ui-smoke.sh`, `run-with-timeout.sh`, and selector JSON; no tabs, domain, persistence, pack, camera, report, commerce, or signing.
-- Exact delta: create iOS 18.0 targets/settings and unsigned Simulator route; no schema.
+- Exact delta: create iOS 18.0 targets/settings and unsigned Simulator route with app bundle ID `com.palatis3.fieldrecord`, unit-test bundle ID `com.palatis3.fieldrecord.tests`, and UI-test bundle ID `com.palatis3.fieldrecord.uitests`; no schema.
 - GOLDEN: pinned CI builds, installs, launches one neutral screen, and remains responsive.
 - ALT-1: none; unavailable pinned runner/Xcode/runtime is a stop.
 - Selectors/budget: `S0LaunchTests`, `S0LaunchUITests`; P12 exact tier.
@@ -572,14 +572,14 @@ Every card inherits Sections 1–7. `HANDOFF.md` and `Scripts/ci-selection.json`
 - GOLDEN: interrupt before/after each pointer/phase write across `empty_generation_prepared|pointer_switched|session_activated|cleanup_complete`, relaunch before pointer maintenance, finish the exact presence matrix, verify zero live/tombstoned roots/counters, fresh active generation, only frozen old IDs removed after references drain, no marker, and no StoreKit sync/cancel call.
 - ALT-1: Cancel before marker changes no byte/row/counter.
 - Selectors/budget: `S6_6EraseRecoveryTests`, `S6_6EraseAllUITests`; P12.
-- Terminal/next: phase-end merge/exact-main CI; next S7.1 after owner supplies the intended product ID, authorizes creation of the repository-local fixture, and confirms fixed grace/family settings; no App Store SKU yet unless commitment gate passed.
+- Terminal/next: phase-end merge/exact-main CI; next S7.1 after owner authorizes the repository-local fixture for frozen product ID `com.palatis3.fieldrecord.sub.solo.monthly.v1` and confirms fixed grace/family settings; no App Store SKU yet unless commitment gate passed.
 
 ### S7.1 — StoreKit reducer and durable processor core, no purchase UI
 
-- Anchors/start: plan purchase-state table; data phase complete; owner-frozen monthly product ID exists, but no StoreKit fixture or purchase UI exists yet.
+- Anchors/start: plan purchase-state table; data phase complete; monthly product ID `com.palatis3.fieldrecord.sub.solo.monthly.v1` is frozen, but no StoreKit fixture or purchase UI exists yet.
 - Outcome: product loader, exact entitlement facts/store, pure reducer, transaction processor/observer, offline cache interpretation; no purchasable view.
 - Allowed/forbidden: StoreKit infrastructure, fixture/scheme setting, unit tests; `SubscriptionStoreView`, purchase button, paywall route, sync, and unlock UI are forbidden.
-- Exact delta: add one shared CI/Simulator-only `TestFixtures/StoreKit/FieldEvidence.storekit` configuration plus its scheme setting; no schema or App Store Connect mutation.
+- Exact delta: add one shared CI/Simulator-only `TestFixtures/StoreKit/FieldEvidence.storekit` configuration for `com.palatis3.fieldrecord.sub.solo.monthly.v1` plus its scheme setting; no schema or App Store Connect mutation.
 - GOLDEN: parameterized verified-state table reduces active/trial/grace/auto-renew-off/billing/expired/refund/revocation/offline facts and persists-before-finish.
 - ALT-1: unverified/pending/cancelled/failed inputs never mutate paid facts or finish an unverified transaction.
 - Selectors/budget: `S7_1CommerceCoreTests`; UI selector empty; N8.
@@ -678,17 +678,17 @@ Every card inherits Sections 1–7. `HANDOFF.md` and `Scripts/ci-selection.json`
 - Anchors/start: feature-complete exact-main; owner has cleared the adopted display/App Store title `AssetRounds: Sign Inspection`, bundle/SKU/live URLs/support email/App record/version/build/privacy inputs, and recorded six-of-ten gate before App Store Connect SKU creation/activation.
 - Outcome: release config/assets, PrivacyInfo, metadata/review checklist, 12-smoke evidence index, final live config, inactive owner-only TestFlight workflow; no signing/upload.
 - Allowed/forbidden: `Release/**`, exact project/resource/version settings, privacy manifest, `.github/workflows/testflight.yml`, bounded scripts/tests; no feature, backend, analytics SDK, secret, signing, upload, or submission.
-- Exact delta: release settings only; workflow checks protected exact-main SHA, serializes, uses protected environment secrets/ephemeral keychain, SHA-pinned `actions/*`, Apple-native tools, no automatic upload retry.
+- Exact delta: release settings only; workflow checks the owner-reviewed exact `main` SHA under the private-solo ref rule, serializes, uses environment secrets/ephemeral keychain, SHA-pinned `actions/*`, Apple-native tools, no automatic upload retry.
 - GOLDEN: ordinary unsigned CI builds/tests RC, validates live links/email/metadata/privacy/workflow without secrets, runs final golden smoke, and creates evidence index.
-- ALT-1: one release-preflight family fails closed for any missing/invalid config, privacy item, unprotected ref, or secret boundary.
+- ALT-1: one release-preflight family fails closed for any missing/invalid config, privacy item, wrong or unexpectedly moved `main` ref, or secret boundary.
 - Selectors/budget: `S9_1ReleasePreflightTests`, `S9_1FinalRCUITests`; F25.
 - Terminal/next: phase-end merge/exact-main CI; next owner S9.2.
 
 ## 10. Owner-only release gates
 
-### S9.2 — Protected TestFlight upload and physical iPhone
+### S9.2 — Owner-only TestFlight upload and physical iPhone
 
-Owner manually selects the reviewed protected-main SHA and dispatches once. The job validates ref/version/build, creates an ephemeral keychain, imports approved signing material, archives, exports, uploads once, and sanitizes evidence. It never retries upload automatically.
+Owner manually selects the reviewed exact `main` SHA under the private-solo ref rule and dispatches once. The job validates ref/version/build, creates an ephemeral keychain, imports approved signing material, archives, exports, uploads once, and sanitizes evidence. It never retries upload automatically.
 
 CI `.storekit` evidence remains CI evidence. TestFlight uses App Store Connect Sandbox product data and a named Sandbox tester; local `.storekit` fixtures are not claimed on device. Owner verifies fresh install/offline report, real low-light camera/denial/import/Settings recovery, resume, PDF/Share/Files, deletion/backup/restore/Erase, feasible Sandbox purchase/trial/cancel/restore/manage behavior, VoiceOver, default/largest accessibility sizes, 44-point targets, Light/Dark, Increase Contrast, Reduce Transparency, Reduce Motion, live links, and no-sync copy. A blocker becomes a new scoped card; never patch the uploaded commit.
 

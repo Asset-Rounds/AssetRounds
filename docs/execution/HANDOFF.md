@@ -12,7 +12,7 @@ Never edit or replace an earlier entry. The block between the explicit BEGIN/END
 - Exact build-plan path / SHA-256:
 - Exact implementation-runbook path / SHA-256 / selected card:
 - Authoring host OS/build:
-- GitHub repository / protected base branch / phase branch:
+- GitHub repository / visibility and private-solo branch-control posture / base branch / phase branch:
 - Integrated/base SHA `M` and evidence (within phase: prior green implementation; phase start: green `main`; `S0.1`: bootstrap `B` and predecessor iOS run N/A):
 - Observed task-start authority SHA `A` and `M..A` authority-only diff result:
 - Implementation commit SHA (the CI `head_sha`):
@@ -62,6 +62,6 @@ Confirm that the successful run's `head_sha` exactly equals the implementation c
 - Task ID only; it was not started:
 - Owner next gate:
   - Within phase: review; commit only this prior HANDOFF append plus the next hydrated CURRENT_TASK on the same phase branch; no main merge or iOS rerun; next card uses this card's green implementation SHA as `M`.
-  - Phase boundary: commit this HANDOFF append alone; merge the phase branch; verify `main` points to the expected merge SHA; dispatch the `main` ref with `run_ui_smoke=true` and no intervening push; require a green matching `head_sha`; start the next phase branch from that SHA.
+  - Phase boundary: commit this HANDOFF append alone; owner merges the phase branch; under the private-solo rule, owner alone verifies `refs/heads/main` points to the expected merge SHA, permits no intervening push/history rewrite, dispatches the `main` ref with `run_ui_smoke=true`, and requires a green matching `head_sha`; unexpected ref movement stops; start the next phase branch from that SHA.
 
 <!-- END HANDOFF ENTRY TEMPLATE -->

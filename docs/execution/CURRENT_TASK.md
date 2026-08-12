@@ -19,7 +19,7 @@
 - Starting fixture/state: `UNSET`
 - Execution route: `Windows authoring → GitHub Actions macOS verification`
 - Authoring host OS/build: `Windows UNSET`
-- GitHub repository / protected base branch / phase branch: `UNSET`
+- GitHub repository / visibility and branch-control posture / base branch / phase branch: `UNSET` (approved posture: private solo repository; no server-enforced `main` protection required; Codex push/merge/force-push/write to `main` forbidden; owner-only `main` writes)
 - CI workflow path / workflow file SHA-256 / trigger / branch ref: `UNSET` (the branch ref is frozen at hydration/G0; manual dispatch never accepts a raw SHA as `ref`)
 - Dispatch-head rule: immediately before dispatch, verify the frozen branch ref points to the implementation commit just created by this task (`I`, or the one allowed fix `I2`), permit no intervening push, and require the run's returned `head_sha` to equal that commit. `A` never contains this future SHA; record the actual expected/ref-head SHA only in `HANDOFF.md` after the implementation commit exists.
 - Hosted-macOS runner label / expected Xcode version+build: `UNSET`
@@ -31,10 +31,10 @@
 - Owner-required sandbox / approval / command-network / trusted-config / GitHub-tool posture: `UNSET`
 - G0 observation rule: Codex records the actual effective posture in HANDOFF. Stop if a required operation is unavailable, the effective project posture contradicts the owner-required posture, or an unlisted external write tool is explicitly approved/enabled for this task. Mere visibility, installation, or broader credential capability is not authority; never use an unnamed tool or argument.
 - Task-owned implementation commit authorized: `yes | no` → `UNSET`
-- Exact phase-branch push authorized: `yes | no` → `UNSET`
+- Exact phase-branch push authorized: `yes | no` → `UNSET` (authorization never includes a push or write to `main`)
 - Named CI workflow dispatch authorized: `yes | no` → `UNSET`
 - Named run inspection + artifact download authorized: `yes | no` → `UNSET`
-- PR creation/merge, deployment, signing, TestFlight upload, App Store, and other external mutation: `forbidden unless this release task names the exact operation`
+- PR creation/merge, any Codex write to `main`, deployment, signing, TestFlight upload, App Store, and other external mutation: `forbidden unless this owner-release gate names the exact operation`; the private-solo rule never authorizes Codex to write `main`
 - Required verification tier: `N8 | P12 | F25` → `UNSET`
 
 ## Allowed paths
@@ -113,5 +113,5 @@ If this task needs a second alternate/failure family, split it into another task
 - `HANDOFF.md` records exact implementation SHA, run identity, artifacts, evidence, every known defect, phase-boundary state, and next card. It is appended after exact-head CI and is not included in the implementation commit.
 - If commit/push/CI was not authorized or did not run, status is `stopped — CI NOT RUN`, never `complete`.
 - Post-card owner gate, outside this Codex `/goal`: if this is not a phase-boundary card, the owner reviews the result and creates the next authority-preparation commit on the same phase branch containing only this prior HANDOFF append plus the next hydrated `CURRENT_TASK.md`. The next card uses this card's green implementation SHA as `M`, observes that authority commit as `A`, and requires no intervening main merge or iOS rerun.
-- Post-card owner gate, outside this Codex `/goal`: if this is a runbook-marked phase-boundary card, the owner commits the final HANDOFF append as phase-close bookkeeping and merges the phase branch. Verify the `main` branch ref points to the expected merge SHA, dispatch that ref with `run_ui_smoke=true`, permit no intervening push, and require a green run whose `head_sha` is exact before creating the next phase branch and its CURRENT_TASK-only `A` commit.
+- Post-card owner gate, outside this Codex `/goal`: if this is a runbook-marked phase-boundary card, the owner commits the final HANDOFF append as phase-close bookkeeping and merges the phase branch. Under the approved private-solo rule, the owner alone verifies `refs/heads/main` points to the expected merge SHA, permits no intervening push or history rewrite, dispatches that ref with `run_ui_smoke=true`, and requires a green run whose `head_sha` is exact before creating the next phase branch and its CURRENT_TASK-only `A` commit. Any unexpected ref movement stops.
 - Next planned task is named but remains unstarted: `UNSET`.
