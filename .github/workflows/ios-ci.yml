@@ -30,6 +30,7 @@ jobs:
       CONFIGURATION: Debug
       SIMULATOR_RUNTIME: iOS 26.5
       SIMULATOR_NAME: iPhone 17
+      CI_SIMULATOR_BOOT_TIMEOUT_SECONDS: "300"
       CODE_SIGNING_ALLOWED: "NO"
       NSUnbufferedIO: "YES"
 
@@ -224,6 +225,15 @@ jobs:
           test "$setup_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
           printf 'CI_SETUP_ELAPSED_SECONDS=%s\n' "$setup_elapsed_seconds" >> "$GITHUB_ENV"
 
+      - name: Boot selected Simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" = "300"
+          bash Scripts/run-with-timeout.sh "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
+            xcrun simctl bootstatus "$CI_SIMULATOR_UDID" -b \
+            2>&1 | tee "$CI_ARTIFACT_DIR/simulator-boot.log"
+
       - name: Build unsigned simulator app
         shell: bash
         run: |
@@ -341,6 +351,7 @@ jobs:
             ' Scripts/ci-selection.json > /dev/null
           }
 
+          test -s "$CI_ARTIFACT_DIR/simulator-boot.log"
           test -s "$CI_ARTIFACT_DIR/build-smoke.log"
           test -s "$CI_ARTIFACT_DIR/test-smoke.log"
           require_nonempty_directory "$CI_ARTIFACT_DIR/Build.xcresult"
