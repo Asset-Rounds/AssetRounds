@@ -5,6 +5,10 @@ set -euo pipefail
 derived_data_path="${RUNNER_TEMP:?}/FieldEvidenceDerivedData"
 result_bundle_path="${CI_ARTIFACT_DIR:?}/UISmoke.xcresult"
 screenshot_path="$CI_ARTIFACT_DIR/ui-final.png"
+attachment_export_path="${RUNNER_TEMP:?}/FieldEvidenceUISmokeAttachments"
+attachment_manifest_path="$attachment_export_path/manifest.json"
+expected_test_identifier="S1ShellUITests/testExactShellAtAccessibilityXXXLAndInvalidPackFailClosed()"
+expected_attachment_name="S1 Worklight shell — Dark accessibility XXXL"
 expected_destination="platform=iOS Simulator,id=${CI_SIMULATOR_UDID:?}"
 app_bundle_id="com.palatis3.fieldrecord"
 
@@ -12,6 +16,7 @@ test "${CI_DESTINATION:?}" = "$expected_destination"
 test "${CODE_SIGNING_ALLOWED:-}" = "NO"
 test ! -e "$result_bundle_path"
 test ! -e "$screenshot_path"
+test ! -e "$attachment_export_path"
 mkdir -p "$CI_ARTIFACT_DIR" "$derived_data_path"
 
 only_testing_args=()
@@ -43,5 +48,81 @@ xcodebuild \
 
 test -d "$result_bundle_path"
 test -n "$(find "$result_bundle_path" -mindepth 1 -print -quit)"
-xcrun simctl io "$CI_SIMULATOR_UDID" screenshot "$screenshot_path"
+
+mkdir -p "$attachment_export_path"
+xcrun xcresulttool export attachments \
+  --test-id "$expected_test_identifier" \
+  --path "$result_bundle_path" \
+  --output-path "$attachment_export_path"
+
+test -f "$attachment_manifest_path"
+test ! -L "$attachment_manifest_path"
+test -s "$attachment_manifest_path"
+
+if ! selected_attachment="$(
+  jq -er \
+    --arg testIdentifier "$expected_test_identifier" \
+    --arg attachmentName "$expected_attachment_name" '
+      if type != "array"
+      then error("attachment manifest root must be an array")
+      else .
+      end
+      | [
+          .[]
+          | select(
+              type == "object"
+              and .testIdentifier == $testIdentifier
+              and (.attachments | type == "array")
+            )
+          | .attachments[]
+          | select(
+              type == "object"
+              and .isAssociatedWithFailure == false
+              and (.suggestedHumanReadableName | type == "string")
+              and (
+                .suggestedHumanReadableName as $candidate
+                | ($candidate == $attachmentName)
+                  or (
+                    ($candidate | startswith($attachmentName + "_"))
+                    and (
+                      $candidate
+                      | ltrimstr($attachmentName)
+                      | test("^_[0-9]+_[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}\\.png$")
+                    )
+                  )
+              )
+              and (.exportedFileName | type == "string")
+              and (.exportedFileName | length > 4)
+              and (.exportedFileName | endswith(".png"))
+              and (.exportedFileName | contains("/") | not)
+              and (.exportedFileName | contains("\\") | not)
+              and (.exportedFileName | contains("\u0000") | not)
+              and (.exportedFileName | contains("\n") | not)
+              and (.exportedFileName | contains("\r") | not)
+              and (.exportedFileName != ".")
+              and (.exportedFileName != "..")
+            )
+        ] as $matches
+      | if ($matches | length) == 1
+        then $matches[0].exportedFileName
+        else error("expected exactly one named retained PNG attachment")
+        end
+    ' "$attachment_manifest_path"
+)"; then
+  printf 'failed to select the exact retained UI screenshot attachment\n' >&2
+  exit 65
+fi
+
+selected_attachment_path="$attachment_export_path/$selected_attachment"
+test -f "$selected_attachment_path"
+test ! -L "$selected_attachment_path"
+test -s "$selected_attachment_path"
+test "$(LC_ALL=C od -An -tx1 -N8 "$selected_attachment_path" | tr -d '[:space:]')" = \
+  "89504e470d0a1a0a"
+
+cp "$selected_attachment_path" "$screenshot_path"
+test -f "$screenshot_path"
+test ! -L "$screenshot_path"
 test -s "$screenshot_path"
+cmp -s "$selected_attachment_path" "$screenshot_path"
+printf 'selected UI screenshot attachment: %s\n' "$selected_attachment"
