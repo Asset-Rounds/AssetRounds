@@ -249,3 +249,85 @@ The accepted verification run's `head_sha` exactly equals `K=88f8b69ad9262f47e2b
 - Next gate:
   - This is the S1 phase boundary. Before the HANDOFF-only phase-close push, re-prove remote phase=`K` and remote main=`P`; commit/push only this append as `C`, then accept exact phase/head P12 verification at `C` or a later diagnosed nonproduct K.
   - After green phase verification, non-force fast-forward `main` from exact `P` to that exact green verification head, require successful exact-main P12/UI evidence, then create only `phase/s2-persistence-signs`, hydrate only S2.1, and run fresh G0.
+
+## `S2.1` — `complete` — `2026-08-12T17:30:40Z`
+
+- Phase ID / phase branch / card position / phase-boundary card (`yes | no`): `S2` / `phase/s2-persistence-signs` / `1 of 2` / `no`
+- Program-autopilot state / exact phase-and-branch map / final owner-only boundary: `enabled through accepted S9.1` / exact frozen S0–S9 map in `CURRENT_TASK.md` / stop after accepted exact-main S9.1; S9.2 signing/TestFlight and S9.3 App Store submission remain owner-only
+- Phase-autopilot state / exact authorized same-phase span: `enabled` / `S2.1,S2.2`
+- Predecessor IDs and evidence: accepted S1 verification/phase-close head `8d5b0a7a2648589586b72e31dfe5dfc70eea63bd`; exact S1 phase run `31613512833` and exact-main run `31614912784` both succeeded at that head with P12/UI and complete independently verified 99-entry artifacts
+- Outcome: added only exact Site/Asset SwiftData models, canonical immutable-generation roots/current and retired pointers, the main-actor `StoreSessionCoordinator`, exact `DiagnosticsV1` storage, frozen startup ordering, and the minimal write-blocking `StartupMaintenanceView`
+- Exact build-plan path / SHA-256: `docs/product/BUILD_PLAN_V4.md` / `23DAAB390AF917CBE91C3044E4906F3FBF8D67D2FDFC6BC9BDE985D984F37BBD`
+- Exact implementation-runbook path / SHA-256 / selected card: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / `S2.1 — Persistence roots, generation seam, and diagnostics`
+- Authoring host OS/build: Microsoft Windows Home, 64-bit, version `10.0.26200`, build `26200`
+- GitHub repository / visibility and private-solo branch-control posture / base branch / phase branch: `palatis3/AssetRounds` / private solo, exact-ref/non-force-only / `main` / `phase/s2-persistence-signs`
+- Immutable phase-main base SHA `P` and evidence: `8d5b0a7a2648589586b72e31dfe5dfc70eea63bd`; accepted S1 exact-main run `31614912784`
+- Integrated/card-base SHA `M` and evidence: initial S2.1 `M=P=8d5b0a7a2648589586b72e31dfe5dfc70eea63bd`; first S2 card began from the accepted S1 exact-main phase-close head
+- Observed task-start authority SHA `A` and `M..A` authority-only diff result: `A=1548a12f107c1d5b6a62745645734e518005b78b`, a direct child of M; `M..A` was one commit changing exactly `docs/execution/CURRENT_TASK.md`
+- Implementation commit SHA: initial `I=13b063ed3b836684d4939359e79c61c6873f2648`; `I2=d69530957fb311da337c284d2db453d95e896d77`; `I3=ec39f3eee191d6579dc0532abbf82c9b1c9d3d45`; accepted `E=I4=92005aadbaa75c2234a44c091322db9c58a82a5a`, which becomes S2.2 next-card `M`
+- Pre-existing dirty paths and owner/disposition: `NONE`; G0, each correction preflight, and accepted-head dispatch state were clean
+- Workflow path / workflow file SHA-256 / trigger / frozen branch ref / actual expected head: `.github/workflows/ios-ci.yml` / `9FFEA51ADB2620B01FE250412716487F6102DAC7E93AEA0471943AF66C1BC2AC` / `workflow_dispatch` / `phase/s2-persistence-signs` / `92005aadbaa75c2234a44c091322db9c58a82a5a`
+- CI selector task ID / tier / `runUISmoke` / workflow input equality result: `S2.1` / `N8` / `false` / `PASS`; exact object used `300/600/900/0/2400`, unit selector `FieldEvidenceAppTests/S2PersistenceLedgerTests`, and an empty UI selector
+- Actions run ID / URL / `head_sha` / conclusion: `31622291782` / `https://github.com/palatis3/AssetRounds/actions/runs/31622291782` / `92005aadbaa75c2234a44c091322db9c58a82a5a` / `success`
+- Actions job ID / conclusion: `94199863326` / `success`
+- Runner image / Xcode version+build / minimum iOS: `ImageOS=macos26`, `ImageVersion=20260728.0273.1`, `ImageArch=unknown` / `Xcode 26.6`, `Build version 17F113`, `DEVELOPER_DIR=/Applications/Xcode_26.6.app/Contents/Developer` / iOS `18.0`
+- Project or workspace / target / shared scheme / configuration: `FieldEvidenceApp.xcodeproj` / `FieldEvidenceApp` / `FieldEvidenceApp` / `Debug`
+- Simulator selector and actual model / OS / UDID; UI-smoke mode: `iPhone 17` + `iOS 26.5` / iPhone 17 / iOS 26.5 / `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; N8 with UI disabled
+- Allowed GitHub/MCP tool methods and exact repository/ref/workflow arguments/operations from task: task-named read/fetch/ref/run/workflow/artifact inspection; explicit-path add/commit; non-force phase create/push to `refs/heads/phase/s2-persistence-signs`; named `.github/workflows/ios-ci.yml` dispatch on that branch with `run_ui_smoke=false`; exact-run observation/download; no main mutation during S2.1
+- Owner-required posture from task and G0-observed effective sandbox / approval / command-network / trusted-config / GitHub-tool state: Full access observed; `sandbox_mode=danger-full-access`; `approval_policy=never`; command network enabled; trusted repository configuration active; authenticated GitHub CLI available; XcodeBuildMCP and owner-operated Mac unnecessary
+- Card-owned implementation commit / phase-branch push / dispatch / inspection actions: created and non-force pushed append-only direct children I, I2, I3, and I4; dispatched one exact candidate per head; inspected complete terminal diagnostics and artifacts; accepted only exact I4
+- Boundary recovery state: accepted S2.1 HANDOFF pending; remote phase=`I4`, remote `main=P`, and S2.2 was unstarted before this append
+- Owned identifiers: `s2.startup.checking`, `s2.maintenance.screen`, `s2.maintenance.retry`, `s2.maintenance.recovery.button`, and `s2.maintenance.recovery.text`
+- Project/persistent-schema delta: no project delta; schema version 1 adds only exact Site and Asset
+
+### Changed paths
+
+- `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
+- `FieldEvidenceApp/Domain/Models/Site.swift`
+- `FieldEvidenceApp/Domain/Models/Asset.swift`
+- `FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift`
+- `FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift`
+- `FieldEvidenceAppTests/S2PersistenceLedgerTests.swift`
+- `Scripts/ci-selection.json`
+- I→I2 changed exactly `DiagnosticsStore.swift`, adding the required explicit return from `snapshot()`
+- I2→I3 changed exactly `S2PersistenceLedgerTests.swift`, correcting four malformed parameterized-case tuples
+- I3→I4 changed exactly `StoreGenerationFactory.swift`, classifying an absent data root as fresh-install bootstrap rather than propagating Cocoa error 260
+
+### Verification
+
+| Command or smoke | Run/job | Timeout | Exit code | Actual duration | Result | Artifact/evidence path and checksum |
+|---|---|---:|---:|---:|---|---|
+| Fresh G0: branch/cleanliness, `A^=M`, exact one-path `M..A`, pins/map/environment/selector/live refs | local + GitHub read-only | fail closed | 0 | bounded | PASS | `A=1548a12f107c1d5b6a62745645734e518005b78b`; phase and main began at M=P |
+| Exact A..I4 structure and task envelope | local Windows read-only | fail closed | 0 | bounded | PASS | exactly 8 production, 1 test, and selector-exception paths; each correction is a direct child with one diagnosed delta; `git diff --check` passes |
+| Initial exact-I candidate | `31619809012` / `94191508757` | N8 | nonzero | build step 136 s | FAIL — sole compiler cause was `DiagnosticsStore.swift:139:9: error: missing return in instance method expected to return 'DiagnosticsV1'`; led directly to I2 | artifact `ios-ci-31619809012-1`, ID `9150978944`, digest `sha256:1c4c4b992ed1cb594cde5063972023ead14e26cc8e99df82d85aa3818f12f83e` |
+| Exact-I2 candidate | `31620710289` / `94194573194` | N8 | nonzero | build step 143 s | FAIL — product compiled, but `S2PersistenceLedgerTests.swift:464` had an expected-comma tuple syntax error; led directly to I3 | artifact `ios-ci-31620710289-1`, ID `9151299872`, digest `sha256:490001c82389c54cb3fb07baebce1ea5cd1b915aefbabf945f18441f286a3384` |
+| Exact-I3 candidate | `31621397396` / `94196861555` | N8 | nonzero | build 111 s; unit step 154 s | FAIL — build passed and 11 tests executed; 6 failures traced to absent `FieldEvidenceData` incorrectly escaping bootstrap as Cocoa error 260, which also truncated startup after current-open; led directly to I4 | artifact `ios-ci-31621397396-1`, ID `9151616195`, digest `sha256:c9f14d8fb8fee064a88ff9bc96827208cb5e3738a80af177c8cb7f04825d77eb` |
+| `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh` | accepted `31622291782` / `94199863326` | 600 s | 0 | 152 s | PASS — exact-destination unsigned `** TEST BUILD SUCCEEDED **` | `build-smoke.log` SHA-256 `06D5A8FA62B0D7A77337BA70D1C4040762D154E201B8C083AA1A7DC926D4C19E`; nonempty `Build.xcresult` |
+| `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh` / exact `FieldEvidenceAppTests/S2PersistenceLedgerTests` | same | 900 s | 0 | 83 s; tests 1.562 s | PASS — exactly 11 non-skipped tests, 0 failures | `test-smoke.log` SHA-256 `0F1483DFD938A18E0148C2E5C6972EFE14F3F38288F92877EF45D27592ABB4AD`; nonempty `UnitTests.xcresult` |
+| Required-evidence validation, selector resolution, checksum generation/verification, and N8 budgets | same | setup/artifact 300 s; readiness 900 s; total 2400 s | 0 | setup 29 s; readiness 274 s; artifact 4 s; setup+artifact 33 s; total 401 s | PASS | artifact `ios-ci-31622291782-1`, ID `9151934510`, API digest `sha256:ac59e8fe8248f66035808981eb42b4bd81e48dc8eb1cba9ceaf786ea1d4a2b52`; `SHA256SUMS.txt` SHA-256 `21805E7F09DD24409C345C86A55B143729C6E7CA3EFB27F9BC32C97A448D941F`; all 75 listed payload files independently matched with no missing, unlisted, duplicate, or mismatched file |
+
+The accepted run's `head_sha` exactly equals `E=M=I4=92005aadbaa75c2234a44c091322db9c58a82a5a`. This HANDOFF append is not implementation evidence and does not self-record its future transition commit.
+
+### Acceptance results
+
+- Golden path `PASS`: exact Site/Asset values persisted through the generation named by `current.json`; canonical current/retired pointers and diagnostics round-tripped; the container released/reopened; coordinator activation changed context and monotonically advanced its UI token; startup executed Erase→Restore→current-open→finalization→deletion→media→PDF before enabling writes
+- Named alternate `PASS`: parameterized malformed/missing pointer and generation cases failed closed without newest-directory guessing or mutation; pending Erase/Restore roots mapped to exact maintenance reasons; malformed diagnostics reset only diagnostics while preserving domain/pointer sentinels; all six maintenance reasons and exact fallback copy remained closed
+- Accessibility spot check: N8 intentionally rejected UI execution; unit/static contract verified the exact maintenance labels, copy, closed reasons, and accessibility identifiers
+- Exact terminal screen/data artifact `PASS`: N8 produced no UI screenshot by contract; canonical pointer/diagnostics bytes, exact executed-test JSON, and `UnitTests.xcresult` are the accepted data evidence
+- Future controls verified omitted/inert `PASS`: no sign creation UI, workflow model, evaluation ledger, repository abstraction, restore/erase implementation, raw editor, newest-directory selection, generic recovery framework, package, permission, or remote service was added
+
+### Known bugs or limitations
+
+- `NONE`; `docs/execution/KNOWN_BUGS.md` was read and contains no qualifying S2.1 defect
+
+### Blockers
+
+- `NONE`
+
+### Next unstarted task
+
+- Task ID only; it was not started: `S2.2`
+- Next gate: same-phase autopilot may commit and non-force push exactly this append plus the immediate-next S2.2 `CURRENT_TASK.md`, then must run fresh G0. Remote phase must still equal I4 and remote main must remain P immediately before the transition push.
