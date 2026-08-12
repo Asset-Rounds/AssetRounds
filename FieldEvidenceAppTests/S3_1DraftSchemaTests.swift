@@ -100,7 +100,8 @@ final class S3_1DraftSchemaTests: XCTestCase {
             session = nil
         }
 
-        let reopened = try factory.openOrBootstrapCurrent().modelContext
+        let reopenedSession = try factory.openOrBootstrapCurrent()
+        let reopened = reopenedSession.modelContext
         XCTAssertEqual(try reopened.fetchCount(FetchDescriptor<Site>()), 1)
         XCTAssertEqual(try reopened.fetchCount(FetchDescriptor<Asset>()), 1)
         XCTAssertEqual(try reopened.fetchCount(FetchDescriptor<WorkflowRecord>()), 1)
@@ -229,7 +230,7 @@ final class S3_1DraftSchemaTests: XCTestCase {
         let factory = StoreGenerationFactory(applicationSupportURL: root)
         let instant = Date(timeIntervalSince1970: 1_768_438_923)
         let ids = try seedSiteAndAsset(in: factory, timeZoneID: nil)
-        let context = try factory.openOrBootstrapCurrent().modelContext
+        let context = ids.session.modelContext
         let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
 
         let draft = try coordinator.beginOrResumeDraft(
@@ -245,7 +246,8 @@ final class S3_1DraftSchemaTests: XCTestCase {
         let savedSite = try XCTUnwrap(context.fetch(FetchDescriptor<Site>()).first)
         XCTAssertEqual(savedSite.timeZoneID, "America/New_York")
 
-        let reopenedContext = try factory.openOrBootstrapCurrent().modelContext
+        let reopenedSession = try factory.openOrBootstrapCurrent()
+        let reopenedContext = reopenedSession.modelContext
         let reopened = try XCTUnwrap(reopenedContext.fetch(FetchDescriptor<WorkflowRecord>()).first)
         XCTAssertEqual(reopened.id, draft.id)
         assertExactCheckDraft(reopened, assetID: ids.asset, instant: instant)
@@ -272,7 +274,7 @@ final class S3_1DraftSchemaTests: XCTestCase {
             defer { try? fileManager.removeItem(at: root) }
             let factory = StoreGenerationFactory(applicationSupportURL: root)
             let ids = try seedSiteAndAsset(in: factory, timeZoneID: nil)
-            let context = try factory.openOrBootstrapCurrent().modelContext
+            let context = ids.session.modelContext
             let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
             let submission = BeginDraftSubmission(assetID: ids.asset, requestedStage: .check, issueID: nil, observedAtUTC: Date(timeIntervalSince1970: 1_768_438_923), confirmedTimeZoneID: testCase.zone, afterDarkAccepted: testCase.afterDark, safePositionAccepted: testCase.safe)
 
@@ -290,7 +292,7 @@ final class S3_1DraftSchemaTests: XCTestCase {
         defer { try? fileManager.removeItem(at: root) }
         let factory = StoreGenerationFactory(applicationSupportURL: root)
         let ids = try seedSiteAndAsset(in: factory, timeZoneID: "America/New_York")
-        let context = try factory.openOrBootstrapCurrent().modelContext
+        let context = ids.session.modelContext
         let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
         let original = try coordinator.beginOrResumeDraft(BeginDraftSubmission(assetID: ids.asset, requestedStage: .check, issueID: nil, observedAtUTC: Date(timeIntervalSince1970: 1_768_438_923), confirmedTimeZoneID: nil, afterDarkAccepted: true, safePositionAccepted: true))
 
@@ -312,7 +314,7 @@ final class S3_1DraftSchemaTests: XCTestCase {
         defer { try? fileManager.removeItem(at: root) }
         let factory = StoreGenerationFactory(applicationSupportURL: root)
         let ids = try seedSiteAndAsset(in: factory, timeZoneID: "America/New_York")
-        let context = try factory.openOrBootstrapCurrent().modelContext
+        let context = ids.session.modelContext
         let first = completedRecord(id: UUID(), assetID: ids.asset, issueID: nil, parentID: nil, stage: .check)
         let second = completedRecord(id: UUID(), assetID: ids.asset, issueID: nil, parentID: nil, stage: .check)
         first.state = WorkflowState.draft.rawValue
@@ -331,7 +333,7 @@ final class S3_1DraftSchemaTests: XCTestCase {
         defer { try? fileManager.removeItem(at: root) }
         let factory = StoreGenerationFactory(applicationSupportURL: root)
         let ids = try seedSiteAndAsset(in: factory, timeZoneID: "America/New_York")
-        let context = try factory.openOrBootstrapCurrent().modelContext
+        let context = ids.session.modelContext
         let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
 
         XCTAssertThrowsError(try coordinator.beginOrResumeDraft(assetID: ids.asset, requestedStage: .check, issueID: UUID())) {
@@ -379,7 +381,7 @@ final class S3_1DraftSchemaTests: XCTestCase {
         defer { try? fileManager.removeItem(at: root) }
         let factory = StoreGenerationFactory(applicationSupportURL: root)
         let ids = try seedSiteAndAsset(in: factory, timeZoneID: "America/New_York")
-        let context = try factory.openOrBootstrapCurrent().modelContext
+        let context = ids.session.modelContext
         let opening = completedRecord(id: UUID(), assetID: ids.asset, issueID: nil, parentID: nil, stage: .check)
         let issue = Issue(id: UUID(), assetID: ids.asset, openedByRecordID: opening.id, labelKey: "dark_section", labelDisplaySnapshot: "Section appears dark", status: .recheckDue, resolvedByRecordID: nil, createdAt: opening.startedAt, updatedAt: opening.startedAt)
         opening.issueID = issue.id
@@ -410,7 +412,7 @@ final class S3_1DraftSchemaTests: XCTestCase {
         defer { try? fileManager.removeItem(at: root) }
         let factory = StoreGenerationFactory(applicationSupportURL: root)
         let ids = try seedSiteAndAsset(in: factory, timeZoneID: "America/New_York")
-        let context = try factory.openOrBootstrapCurrent().modelContext
+        let context = ids.session.modelContext
         let oldIssueID = UUID()
         let oldOpening = completedRecord(
             id: UUID(),
@@ -489,7 +491,7 @@ final class S3_1DraftSchemaTests: XCTestCase {
         defer { try? fileManager.removeItem(at: root) }
         let factory = StoreGenerationFactory(applicationSupportURL: root)
         let ids = try seedSiteAndAsset(in: factory, timeZoneID: "America/New_York")
-        let context = try factory.openOrBootstrapCurrent().modelContext
+        let context = ids.session.modelContext
         let oldIssueID = UUID()
         let oldOpening = completedRecord(id: UUID(), assetID: ids.asset, issueID: oldIssueID, parentID: nil, stage: .check)
         let oldWork = completedRecord(id: UUID(), assetID: ids.asset, issueID: oldIssueID, parentID: oldOpening.id, stage: .work)
@@ -523,12 +525,13 @@ final class S3_1DraftSchemaTests: XCTestCase {
     private var pack: SignPack { .illuminatedSignV1 }
 
     @MainActor
-    private func seedSiteAndAsset(in factory: StoreGenerationFactory, timeZoneID: String?) throws -> (site: UUID, asset: UUID) {
-        let context = try factory.openOrBootstrapCurrent().modelContext
+    private func seedSiteAndAsset(in factory: StoreGenerationFactory, timeZoneID: String?) throws -> (session: StoreGenerationSession, site: UUID, asset: UUID) {
+        let session = try factory.openOrBootstrapCurrent()
+        let context = session.modelContext
         let site = Site(label: "North Campus", timeZoneID: timeZoneID)
         let asset = Asset(siteID: site.id, packID: pack.packID, packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion, label: "Monument Sign")
         context.insert(site); context.insert(asset); try context.save()
-        return (site.id, asset.id)
+        return (session, site.id, asset.id)
     }
 
     private func assertExactCheckDraft(_ draft: WorkflowRecord, assetID: UUID, instant: Date, file: StaticString = #filePath, line: UInt = #line) {
