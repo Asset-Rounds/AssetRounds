@@ -183,6 +183,50 @@ jobs:
           xcodebuild -version | tee "$CI_ARTIFACT_DIR/xcode-version.txt"
           grep -Fxq "$EXPECTED_XCODE_VERSION" "$CI_ARTIFACT_DIR/xcode-version.txt"
           grep -Fxq "$EXPECTED_XCODE_BUILD" "$CI_ARTIFACT_DIR/xcode-version.txt"
+          xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
+          xcrun simctl list devices available -j > "$CI_ARTIFACT_DIR/simulator-devices.json"
+          runtime_id="$(jq -r --arg name "$SIMULATOR_RUNTIME" \
+            '.runtimes[] | select(.name == $name and .isAvailable == true) | .identifier' \
+            "$CI_ARTIFACT_DIR/simulator-runtimes.json" | head -n 1)"
+          test -n "$runtime_id"
+          simulator_udid="$(jq -r --arg runtime "$runtime_id" --arg name "$SIMULATOR_NAME" \
+            '.devices[$runtime][] | select(.name == $name and .isAvailable == true) | .udid' \
+            "$CI_ARTIFACT_DIR/simulator-devices.json" | head -n 1)"
+          test -n "$simulator_udid"
+          simulator_state="$(jq -er --arg runtime "$runtime_id" --arg udid "$simulator_udid" '
+            [.devices[$runtime][] | select(.udid == $udid) | .state]
+            | if length == 1 then .[0]
+              else error("expected exactly one selected Simulator state")
+              end
+          ' "$CI_ARTIFACT_DIR/simulator-devices.json")"
+          simulator_boot_start_epoch="$(date +%s)"
+          printf 'runtime=%s\nname=%s\nudid=%s\n' \
+            "$SIMULATOR_RUNTIME" "$SIMULATOR_NAME" "$simulator_udid" \
+            | tee "$CI_ARTIFACT_DIR/simulator-selection.txt"
+          printf 'start_epoch=%s\nudid=%s\ninitial_state=%s\n' \
+            "$simulator_boot_start_epoch" "$simulator_udid" "$simulator_state" \
+            | tee "$CI_ARTIFACT_DIR/simulator-boot-start.log"
+          case "$simulator_state" in
+            Shutdown)
+              printf 'action=boot\n' \
+                | tee -a "$CI_ARTIFACT_DIR/simulator-boot-start.log"
+              bash Scripts/run-with-timeout.sh "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
+                xcrun simctl boot "$simulator_udid" 2>&1 \
+                | tee -a "$CI_ARTIFACT_DIR/simulator-boot-start.log"
+              ;;
+            Booted)
+              printf 'action=already-booted\n' \
+                | tee -a "$CI_ARTIFACT_DIR/simulator-boot-start.log"
+              ;;
+            *)
+              printf 'action=reject\n' \
+                | tee -a "$CI_ARTIFACT_DIR/simulator-boot-start.log"
+              exit 1
+              ;;
+          esac
+          printf 'CI_DESTINATION=platform=iOS Simulator,id=%s\nCI_SIMULATOR_UDID=%s\nCI_SIMULATOR_BOOT_START_EPOCH=%s\n' \
+            "$simulator_udid" "$simulator_udid" "$simulator_boot_start_epoch" \
+            >> "$GITHUB_ENV"
           xcodebuild -list -json -project "$PROJECT_PATH" \
             | tee "$CI_ARTIFACT_DIR/xcode-list.json"
           jq -e --arg scheme "$SCHEME" \
@@ -196,21 +240,6 @@ jobs:
           target_count="$(printf '%s\n' "$deployment_targets" | sed '/^$/d' | wc -l | tr -d ' ')"
           test "$target_count" -eq 1
           test "$deployment_targets" = "$EXPECTED_MINIMUM_IOS"
-          xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
-          xcrun simctl list devices available -j > "$CI_ARTIFACT_DIR/simulator-devices.json"
-          runtime_id="$(jq -r --arg name "$SIMULATOR_RUNTIME" \
-            '.runtimes[] | select(.name == $name and .isAvailable == true) | .identifier' \
-            "$CI_ARTIFACT_DIR/simulator-runtimes.json" | head -n 1)"
-          test -n "$runtime_id"
-          simulator_udid="$(jq -r --arg runtime "$runtime_id" --arg name "$SIMULATOR_NAME" \
-            '.devices[$runtime][] | select(.name == $name and .isAvailable == true) | .udid' \
-            "$CI_ARTIFACT_DIR/simulator-devices.json" | head -n 1)"
-          test -n "$simulator_udid"
-          printf 'runtime=%s\nname=%s\nudid=%s\n' \
-            "$SIMULATOR_RUNTIME" "$SIMULATOR_NAME" "$simulator_udid" \
-            | tee "$CI_ARTIFACT_DIR/simulator-selection.txt"
-          printf 'CI_DESTINATION=platform=iOS Simulator,id=%s\nCI_SIMULATOR_UDID=%s\n' \
-            "$simulator_udid" "$simulator_udid" >> "$GITHUB_ENV"
 
       - name: Verify setup budget before build
         shell: bash
@@ -230,9 +259,24 @@ jobs:
         run: |
           set -euo pipefail
           test "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" = "300"
-          bash Scripts/run-with-timeout.sh "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
+          test -n "${CI_SIMULATOR_BOOT_START_EPOCH:-}"
+          simulator_boot_elapsed_before_wait="$(( $(date +%s) - CI_SIMULATOR_BOOT_START_EPOCH ))"
+          simulator_boot_remaining_seconds="$(( CI_SIMULATOR_BOOT_TIMEOUT_SECONDS - simulator_boot_elapsed_before_wait ))"
+          printf 'start_epoch=%s\nelapsed_before_wait_seconds=%s\nremaining_seconds=%s\nbudget_seconds=%s\n' \
+            "$CI_SIMULATOR_BOOT_START_EPOCH" "$simulator_boot_elapsed_before_wait" \
+            "$simulator_boot_remaining_seconds" "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
+            | tee "$CI_ARTIFACT_DIR/simulator-boot.log"
+          test "$simulator_boot_elapsed_before_wait" -ge 0
+          test "$simulator_boot_remaining_seconds" -gt 0
+          bash Scripts/run-with-timeout.sh "$simulator_boot_remaining_seconds" \
             xcrun simctl bootstatus "$CI_SIMULATOR_UDID" -b \
-            2>&1 | tee "$CI_ARTIFACT_DIR/simulator-boot.log"
+            2>&1 | tee -a "$CI_ARTIFACT_DIR/simulator-boot.log"
+          simulator_boot_ready_elapsed_seconds="$(( $(date +%s) - CI_SIMULATOR_BOOT_START_EPOCH ))"
+          printf 'ready_elapsed_seconds=%s\nbudget_seconds=%s\n' \
+            "$simulator_boot_ready_elapsed_seconds" "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
+            | tee -a "$CI_ARTIFACT_DIR/simulator-boot.log"
+          test "$simulator_boot_ready_elapsed_seconds" -ge 0
+          test "$simulator_boot_ready_elapsed_seconds" -le "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS"
 
       - name: Build unsigned simulator app
         shell: bash
@@ -351,6 +395,7 @@ jobs:
             ' Scripts/ci-selection.json > /dev/null
           }
 
+          test -s "$CI_ARTIFACT_DIR/simulator-boot-start.log"
           test -s "$CI_ARTIFACT_DIR/simulator-boot.log"
           test -s "$CI_ARTIFACT_DIR/build-smoke.log"
           test -s "$CI_ARTIFACT_DIR/test-smoke.log"
