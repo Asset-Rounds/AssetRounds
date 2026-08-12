@@ -2,108 +2,94 @@
 
 ## Program and card
 
-- Phase / branch / card / global order: `S2 / phase/s2-persistence-signs / S2.2 / 4 of 36`.
-- Card heading: `### S2.2 — Add and reopen the first site/sign`.
-- Position / boundary / immediate next card: `2 of 2 / phase boundary yes / S3.1`.
-- Program autopilot / phase autopilot / exact S2 span / boundary integration: `enabled through accepted S9.1 / enabled / S2.1,S2.2 / yes`.
+- Phase / branch / card / global order: `S3 / phase/s3-check-runner / S3.1 / 5 of 36`.
+- Card heading: `### S3.1 — Frozen workflow schema, preflight, and one active draft`.
+- Position / boundary / immediate next card: `1 of 7 / phase boundary no / S3.2`.
+- Program autopilot / phase autopilot / exact S3 span / boundary integration: `enabled through accepted S9.1 / enabled / S3.1,S3.2,S3.3,S3.4,S3.5,S3.6,S3.7 / yes at S3.7 only`.
 - Frozen phase→branch→card map: `S0→phase/s0-foundation→S0.1; S1→phase/s1-shell-design→S1.1; S2→phase/s2-persistence-signs→S2.1,S2.2; S3→phase/s3-check-runner→S3.1,S3.2,S3.3,S3.4,S3.5,S3.6,S3.7; S4→phase/s4-reports→S4.1,S4.2,S4.3,S4.4,S4.5; S5→phase/s5-work-recheck→S5.1,S5.2,S5.3,S5.4; S6→phase/s6-data-rights→S6.1,S6.2,S6.3,S6.4,S6.5,S6.6; S7→phase/s7-commerce→S7.1,S7.2,S7.3,S7.4,S7.5; S8→phase/s8-quality→S8.1,S8.2,S8.3,S8.4; S9→phase/s9-release→S9.1`.
 - End condition: accepted exact-main S9.1; S9.2 signing/TestFlight and S9.3 App Store submission remain owner-only.
 
 ## Predecessor and authority state
 
-- Immutable S2 phase-main base: `P=8d5b0a7a2648589586b72e31dfe5dfc70eea63bd`.
-- Accepted S2.1 product implementation and S2.2 card base: `E=M=I4=92005aadbaa75c2234a44c091322db9c58a82a5a`.
-- Accepted S2.1 verification evidence: run `31622291782`, job `94199863326`, succeeded at exact `phase/s2-persistence-signs@M` with N8 and `run_ui_smoke=false`; artifact `ios-ci-31622291782-1`, ID `9151934510`, API digest `sha256:ac59e8fe8248f66035808981eb42b4bd81e48dc8eb1cba9ceaf786ea1d4a2b52`; `SHA256SUMS.txt` SHA-256 `21805E7F09DD24409C345C86A55B143729C6E7CA3EFB27F9BC32C97A448D941F`; all 75 listed payload files independently matched with no missing, unlisted, duplicate, or mismatched file; exact selector resolved and all 11 non-skipped unit tests passed. Runner `macos26` image `20260728.0273.1`, Xcode 26.6 `17F113`, iPhone 17/iOS 26.5, UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; setup 29/300 s, Simulator readiness 274/900 s, build 152/600 s, test 83/900 s, setup+artifact 33/300 s, total 401/2400 s.
-- Prior S2.1 failure provenance: I run `31619809012` failed on the missing DiagnosticsV1 return; I2 run `31620710289` failed on malformed parameterized-test tuple syntax; I3 run `31621397396` built and ran 11 tests but failed 6 assertions because absent `FieldEvidenceData` was not recognized as fresh bootstrap. Each direct-child correction addressed only its diagnosed cause; none of those runs is accepted.
-- Same-phase transition authority head `A1=41e48a74e1a1f772b5710f0b418787753cee8a51`, a direct child of M. `M..A1` is exactly one commit changing the append-only accepted S2.1 entry in `docs/execution/HANDOFF.md` plus the immediate-next S2.2 `docs/execution/CURRENT_TASK.md`.
-- Owner-authorized forward-only visibility-correction head `A2`: `OBSERVE AT POST-COMMIT G0; never self-record its SHA here`. The owner explicitly authorized this correction in the active thread on 2026-08-12 after live GitHub reported the named repository as public while A1 recorded private.
-- Required `A1..A2`: one direct-child authority correction commit changing exactly `docs/execution/CURRENT_TASK.md`; its only factual environment correction is repository visibility `private` → `public`, with the minimum authority-chain/G0 evidence needed to preserve A1 without rewriting history. `M..A2` must contain exactly two commits and only `docs/execution/HANDOFF.md` plus `docs/execution/CURRENT_TASK.md`; the HANDOFF delta remains solely the accepted append in `M..A1`.
-- Construction state: immediately before correction, remote `phase/s2-persistence-signs` must equal A1 and remote `main` must remain P. Push only the exact A2 correction non-force and require remote phase A2 plus clean index/worktree/untracked state at fresh G0.
+- Accepted S2 phase-close and immutable S3 phase-main/card base: `P=M=C=7d135aaddd0bdc50168552b0610f04adc1703506`.
+- Accepted S2 product/verification lineage: S2.2 product `E=89c60edc39f3f6cbb94497629c829ea15c5d3184`; nonproduct verification `K1=404bc29ef784f96679b450585b9a02a484999334`; HANDOFF-only phase close `C`, a direct child of K1 changing exactly `docs/execution/HANDOFF.md`.
+- Predecessor phase evidence: run `31632629616`, job `94234979816`, succeeded at exact `phase/s2-persistence-signs@C` with P12/UI enabled; artifact `ios-ci-31632629616-1`, ID `9156065563`, API digest `sha256:59bfda772b230536acedfdcf271f9b6a90c4e0d9d03178f50fa500314f616066`; `SHA256SUMS.txt` SHA-256 `9C8D6FF4435CC4AF6B91B7B17540C152AC76DC3A1E70E5947575C95EAF4DEFB7`; all 101 payloads independently matched; accepted `ui-final.png` SHA-256 `4EA9FE22BC7EFC94D2D7082A80E68C70202E698B408C94545303F2AA23B5D115`.
+- Predecessor exact-main evidence: run `31633843776`, job `94239090824`, succeeded at exact `main@C` with P12/UI enabled; artifact `ios-ci-31633843776-1`, ID `9156429863`, API digest `sha256:65448f34574d0cc9244687b77972c70a59bb3ebd573b8293000cc4473ba153f5`; `SHA256SUMS.txt` SHA-256 `C9F9F1A87FD34C4B51F8DC552EDEAA71120C8B507B6F37847EE627B562FA1E68`; all 101 payloads independently matched; accepted `ui-final.png` SHA-256 `0CD2DE9064D5B5A9338224D8FEFA6E0A7EF342BAF72B0C214610EE91FF7ECAF2`. Runner `macos26` image `20260728.0273.1`, Xcode 26.6 `17F113`, iPhone 17/iOS 26.5, UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; setup `16/300` s, readiness `104/900` s, setup+artifact `17/300` s, total `540/3300` s.
+- Task-start authority head `A`: `OBSERVE AT POST-COMMIT G0; never self-record its SHA here`.
+- Required `M..A`: one direct-child authority commit changing exactly `docs/execution/CURRENT_TASK.md`.
+- Construction state: remote `main` and `phase/s2-persistence-signs` equal C; remote `phase/s3-check-runner` is absent. Create only local `phase/s3-check-runner` from C, commit this CURRENT_TASK-only A, non-force create the remote phase ref, and require clean index/worktree/untracked state at fresh G0.
 
 ## Pinned authority
 
 - Build plan: `docs/product/BUILD_PLAN_V4.md` / `23DAAB390AF917CBE91C3044E4906F3FBF8D67D2FDFC6BC9BDE985D984F37BBD`.
-- S2.2 plan anchors: `## 5. Navigation and onboarding` (`### Navigation`, `### Onboarding contract`, steps 1–2); `## 7. Free evaluation, subscriptions, and payments` (`### Free evaluation`); `## 9. Smallest reusable architecture` (`### Technology`, `### Persistent models`). Global execution anchors remain `## 11. Build slices and release gates`, `## 16. Owner preparation checklist`, and `## 18. Codex execution authority`.
+- S3.1 plan anchors: `## 5. Navigation and onboarding` (`Ready for night check`); `## 6. Core workflow and state truth`; `## 9. Smallest reusable architecture` (`Persistent models`, issue parent chain, time context, exact pack acknowledgements). Global execution anchors remain `## 11. Build slices and release gates`, `## 16. Owner preparation checklist`, and `## 18. Codex execution authority`.
 - Runbook: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79`.
 - Execution contract: `docs/execution/CODEX_EXECUTION_CONTRACT_V4.md` / `9E7F3ABD2CC6FB15F33E4E56C95474BFEAC79C7148D7D125C75FBF88DB9F8A93`.
 - Workflow: `.github/workflows/ios-ci.yml` / `9FFEA51ADB2620B01FE250412716487F6102DAC7E93AEA0471943AF66C1BC2AC` / `workflow_dispatch`.
-- Selector schema path: `Scripts/ci-selection.json`; at G0 it may still equal the accepted S2.1 object with LF-terminated SHA-256 `552480502E50CFFCCD871CEE9A42396BDE53780DCDB12B83E72C839636BA983E`. Its first support mutation must replace it with the exact S2.2 object below, LF-terminated SHA-256 `C5EAA9DD13E1262BF54187604C4E72795F8D491DE109A544E6E21C04222FBAA5`.
+- Accepted generalized UI exporter baseline: `Scripts/ui-smoke.sh` / `6304A318EE046B6B19F4FDDC43BB143F9B21E8150B9D332E449B87A0182D4CDB`.
+- Selector schema path: `Scripts/ci-selection.json`; at G0 it may still equal accepted S2.2 LF SHA-256 `C5EAA9DD13E1262BF54187604C4E72795F8D491DE109A544E6E21C04222FBAA5`. Its first support mutation must replace it with the exact S3.1 object below, LF SHA-256 `F8C9C17EB06713BA6299F3869DC444D53E18AD41C5172CBB9EDFC961AE65237D`.
 
 ## Outcome and acceptance
 
-- Outcome: add the Welcome, View sample, and Add first sign flow; save one required customer/site label and sign label, optional collapsed address, and optional confirmed-IANA time zone; show sign detail and reopen that exact sign after relaunch. Welcome exposes stable **Restore data backup** and separate accessible **Restore Purchases** anchors, but S6.4 and S7.3 respectively remain their first activation cards.
-- Exact Welcome delta: show title `Turn tonight's sign check into a clear report.`, primary **Add first sign**, secondary **View sample**, and stable separately identified **Restore data backup** and **Restore Purchases** anchors. The latter two perform no restore, commerce, remote, or navigation operation in S2.2.
-- Exact new-sign delta: require customer/site name and sign name; keep address collapsed and optional; accept only an optional explicitly confirmed exact IANA time-zone identifier, otherwise persist `Site.timeZoneID=null`; expose primary **Save and start check**. One successful model save inserts exactly one Site and one Asset using the loaded exact bundled pack ID/schema/content versions, then shows sign detail; it creates no WorkflowRecord or draft.
-- Direct persistence seam: feature code uses the coordinator-provided `ModelContext` and the existing `DiagnosticsStore` instance passed from `StartupRouter`. It retains no `ModelContainer` and creates no repository, persistence service, command bus, second diagnostics actor, or generic form engine.
-- Input and atomicity rules: trim surrounding whitespace; blank optional address becomes nil. A supplied zone must be an exact member of `TimeZone.knownTimeZoneIdentifiers` and explicitly confirmed; omitted input alone may remain nil. Validate before insert, focus one first invalid accessible state, and write no row/counter on invalid input. Require zero existing Asset rows for this first-sign-only action. Insert Site+Asset, perform one context save, and only after successful first Asset commit attempt `first_sign_created`; diagnostics failure is non-gating and has no retry/applied-ID ledger.
-- Sign detail delta: show the exact saved site/sign labels and optional address/time-zone values. **Start Check** is explicitly unavailable until S3.1 and creates no draft.
-- GOLDEN: present-optional and nil-optional first-sign cases save, release, and reopen the exact site/sign labels, address, nullable confirmed-IANA zone, Site↔Asset ID link, and exact pack ID/schema/content versions. Diagnostics has only `first_sign_created=1`. UI proves Welcome, sample/back, create, detail, inert explicitly unavailable Start Check, termination/relaunch, and identical reopened detail.
-- ALT-1: parameterized whitespace-only required labels, unknown IANA identifier, and supplied-but-unconfirmed zone focus exactly one accessible validation state and leave zero Site rows, zero Asset rows, and zero diagnostics increments.
-- Forbidden behavior: second-sign control; map, geocoder, location lookup, device-zone default/guess; Packet/root accounting implementation; draft/preflight/check runner; access policy/paywall; restore/import or StoreKit behavior; repository/persistence abstraction; extra ledger; camera/media/report code; project/package/capability/permission delta; remote service; or generic onboarding/form framework.
+- Outcome: extend the persistent schema from Site/Asset to exactly the seven frozen V4 models by adding WorkflowRecord, EvidenceFile, Issue, Packet, and Report; add closed draft-era workflow contracts, exact time-context rule, Ready-for-night-check preflight, and stage-aware sole-draft `beginOrResumeDraft(assetID:requestedStage:issueID:)`. Capture and finalization remain unavailable.
+- Exact schema delta: every new model/property/nullability/raw domain is exactly the plan. WorkflowRecord carries the complete frozen property set and invariants; EvidenceFile, Issue, Packet, and Report carry their complete exact fields; unique stable IDs/finalization mutation/stable packet root are enforced as specified. Schema remains version 1 and the model set freezes at exactly seven; no Observation or hidden answer/form model exists.
+- Closed contracts: raw values are only revision `original|clerical_correction`, stage `check|work|recheck`, state `draft|completed`, draft step `wide|close|outcome|review`, issue state `open|recheck_due|resolved`, and PDF state `pending|ready|failed`, plus bounded request/result/error types. Do not add `ReportSnapshotV1`, finalization/media DTOs, or a generic repository/service/command bus.
+- Time rule: freeze one supplied observed instant using the confirmed Site IANA time zone; resolve the offset at that instant; format Gregorian/en_US_POSIX `YYYY-MM-DD` and `HH:mm:ss`; never infer or recompute from the device/current zone.
+- Sole-draft rule: every requested route first fetches the Asset's sole existing draft and returns it unchanged regardless of the newly requested stage/Issue. More than one draft fails closed. Only with no draft may check validate nil Issue/parent; work validate an open same-Asset Issue and latest completed substantive parent; recheck validate a recheck-due same-Asset Issue and latest completed substantive parent.
+- Preflight UI: activate Sign detail **Start Check**. Ready-for-night-check asks for exact-IANA time-zone input and explicit confirmation only when the Site has no confirmed zone. Always show the exact pack acknowledgements, initially unchecked and in order: `It is dark enough to observe the sign's visible illumination.` then `I am in a safe, authorized position to take these photos.` Both plus a valid confirmed zone are required before **Begin check**. Secondary is **Cancel — no check started**.
+- Begin sequence: only after **Begin check**, first persist and verify a newly confirmed Site zone in its own save; only after that succeeds, create and save exactly one original/check/draft/wide WorkflowRecord. The draft has `id==recordRevisionRootID`; nil packet/issue/parent/revision/evidence-source/completion/outcome/CNV/work/note/finalization fields; exact supplied observed UTC/zone/offset/local values; both accepted acknowledgement key/copy/version groups; Asset pack versions; and `field.evidence.pdf.worklight.v1/1`. Create no EvidenceFile, Issue, Packet, or Report. If the later draft save fails, the confirmed zone remains a valid user-confirmed Site fact while no partial draft exists.
+- Post-begin UI: show only explicit `Capture is unavailable until S3.2.` and preserve/resume the same draft. There is no photo import, camera, outcome, review, completion, evaluation count, report, PDF, or diagnostics increment in S3.1.
+- GOLDEN: under the seven-model schema reopen the existing S2 Site/Asset unchanged; begin with a fixed instant and confirmed IANA zone; release/reopen exactly one draft with every frozen field exact; assert zero rows for the other four new models; every requested check/work/recheck route first returns the identical existing draft; in no-draft state, unit tests prove exact stage/Issue/latest-parent validation. UI proves saved sign → active Start Check → nil-zone confirmation → two acknowledgements → Begin → S3.2-unavailable state → termination/relaunch → same single draft.
+- ALT-1: Cancel before Begin writes no WorkflowRecord and does not persist a merely entered/confirmed zone; return to exact sign detail and visibly present `No check was started.` Relaunch remains draft-free.
+- Forbidden behavior: evidence bundle/media normalization/staging/import; camera/PhotosPicker/permission; capture/Retake/Use Photo; outcome/review/CNV; finalization intent/snapshot encoder/Packet/Report/Issue creation or transitions; resume-step recovery matrix; storage/fault framework; work/recheck UI; evaluation/access/paywall/StoreKit; repository/service/command bus/generic workflow/form engine; package/project/capability/permission/remote delta; any model beyond the exact five or later schema change.
 
 ## Environment and exact selector
 
 - Route / host: Windows authoring → GitHub Actions macOS verification; never run or claim local Windows Xcode/Simulator results.
 - Required tool posture: `sandbox_mode=danger-full-access / approval_policy=never / command network enabled`; trusted repository configuration is active; XcodeBuildMCP and an owner-operated Mac are unnecessary.
-- Repository / visibility / default / phase: `palatis3/AssetRounds / public / main / phase/s2-persistence-signs`.
+- Repository / visibility / default / phase: `palatis3/AssetRounds / public / main / phase/s3-check-runner`.
 - Runner / Xcode / developer dir: `macos-26 / Xcode 26.6 Build version 17F113 / /Applications/Xcode_26.6.app/Contents/Developer`.
 - Project / scheme / configuration / deployment: `FieldEvidenceApp.xcodeproj / FieldEvidenceApp / Debug / iOS 18.0`.
 - Simulator selector: `iPhone 17 / iOS 26.5`; resolve exactly one ephemeral-job UDID.
 - Tier / UI input: `P12 / run_ui_smoke=true`.
-- Exact selector: `{"schemaVersion":1,"taskID":"S2.2","tier":"P12","runUISmoke":true,"setupArtifactTimeoutSeconds":300,"buildTimeoutSeconds":600,"testTimeoutSeconds":900,"uiTimeoutSeconds":900,"totalBudgetSeconds":3300,"unitTestSelectors":["FieldEvidenceAppTests/S2SignSetupTests"],"uiTestSelectors":["FieldEvidenceAppUITests/S2SignSetupUITests"]}`.
+- Exact selector: `{"schemaVersion":1,"taskID":"S3.1","tier":"P12","runUISmoke":true,"setupArtifactTimeoutSeconds":300,"buildTimeoutSeconds":600,"testTimeoutSeconds":900,"uiTimeoutSeconds":900,"totalBudgetSeconds":3300,"unitTestSelectors":["FieldEvidenceAppTests/S3_1DraftSchemaTests"],"uiTestSelectors":["FieldEvidenceAppUITests/S3_1PreflightUITests"]}`.
 - Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`.
 - Required evidence: nonempty boot/build/unit/UI logs; Build, UnitTests, and UISmoke result bundles; terminal in-app screenshot; selection/runner/Xcode/Simulator/budget evidence; verified relative `SHA256SUMS.txt`.
-- Allowed GitHub methods: read/fetch/ref/run/workflow/artifact inspection; exact-path staging and one-purpose commits; non-force phase-branch push; named `workflow_dispatch` with exact branch ref and `run_ui_smoke=true`; run observation and artifact download; after accepted S2.2 evidence, HANDOFF-only phase close, exact phase verification, verified non-force `main` fast-forward from P, exact-main P12 verification, and creation/hydration of only `phase/s3-check-runner` at S3.1. Forbidden methods: force-push, merge commit, PR creation/merge, ref deletion/rewrite, repository/settings/secret mutation, signing, TestFlight/App Store upload, deployment, release publication, or S9.2/S9.3 action.
-
-## Known predecessor harness posture
-
-- The inherited `Scripts/ui-smoke.sh` contains S1-specific test/attachment export assumptions. This observation grants no ordinary S2.2 edit authority, and the script is excluded from the product envelope.
-- Dispatch and inspect the exact S2.2 product head first. Only terminal evidence diagnosing an S2 selector or retained-attachment harness mismatch may authorize one direct-child nonproduct K changing the smallest causal `Scripts/ui-smoke.sh` delta plus required `CURRENT_TASK.md` recovery evidence/pin under the standing recovery policy. Preserve product, project, tests, fixtures, selector semantics, exact commands, required evidence/checksum/upload enforcement, and timeout behavior.
-
-## Active nonproduct verification recovery
-
-- Accepted S2.2 product implementation and failed verification base: `E=F=I3=89c60edc39f3f6cbb94497629c829ea15c5d3184`. Its direct-child lineage is initial implementation `I=716677b849e14abe2ee234744747309044b15d9f`, focus-scheduling correction `I2=929830bbe29b5fd3242454ed59d36216243ec012`, then focus-oracle correction `I3`.
-- Exact failed candidate: run `31629079042`, job `94222931258`, `workflow_dispatch` on `phase/s2-persistence-signs@F` with the exact S2.2 P12 selector and `run_ui_smoke=true`. Build passed, all five targeted unit tests passed, and the sole selected UI test passed in `106.153` seconds after proving both invalid-field focus paths, exact first-sign save/detail, termination/relaunch, and retained attachment `S2 First sign reopened`.
-- Sole causal failure: after XCTest succeeded, the inherited exporter invoked `xcresulttool export attachments` with the absent hard-coded S1 method `S1ShellUITests/testExactShellAtAccessibilityXXXLAndInvalidPackFailClosed()`. Terminal screenshot export and downstream required-evidence validation therefore failed; product, test, selector, runner, Simulator, workflow, and watchdog behavior were not implicated.
-- Failed artifact: `ios-ci-31629079042-1`, ID `9154729352`, API digest `sha256:71f9106369a8f0d012fb6f3131bcaf3aa92a6017f75ae4c311c979c859587e91`; `SHA256SUMS.txt` SHA-256 `E87E467AC0DB05FF45DF509037FEC27728DBD83C3326C4322C4471295B748396`; all 98 listed payloads independently matched with no missing or mismatched file. Runner `macos26` image `20260728.0273.1`, Xcode 26.6 `17F113`, iPhone 17/iOS 26.5, UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; setup `31/300` s, readiness `377/900` s, total `776/3300` s.
-- Verification correction head `K1`: `OBSERVE AT POST-COMMIT G0; never self-record its SHA here`. Require `K1^=F` and `F..K1` to change exactly `docs/execution/CURRENT_TASK.md` plus `Scripts/ui-smoke.sh`; product, project, tests, fixtures, assets, selector, workflow, and HANDOFF bytes remain equal to F.
-- Exact K1 delta: derive the one bounded XCTest class from the sole configured `FieldEvidenceAppUITests/<Class>` selector; export the result bundle's attachments without an S1/S2 method or attachment-name literal; select exactly one nonfailure PNG belonging to that class; preserve safe-basename, regular-file, nonsymlink, nonempty, PNG-signature, byte-copy, timeout, evidence, checksum, and upload enforcement. The predecessor script SHA-256 is `89C0833D9E90E99BF02D5EC510EB738D2B0FDE339EF56CA8699EF5AAA215C5A9`; the required corrected script SHA-256 is `6304A318EE046B6B19F4FDDC43BB143F9B21E8150B9D332E449B87A0182D4CDB`.
-- After committing K1, run fresh post-commit G0, non-force push only if the remote phase still equals F, and dispatch exactly one S2.2 P12 candidate at the phase ref. Accept K1 only if its `head_sha` matches and complete checksum-verified evidence includes a terminal PNG byte-identical to the selected retained attachment.
+- Allowed GitHub methods: read/fetch/ref/run/workflow/artifact inspection; exact-path staging and one-purpose commits; non-force phase-branch create/push; named `workflow_dispatch` with exact branch ref and `run_ui_smoke=true`; run observation and artifact download; after accepted S3.1 evidence, HANDOFF plus immediate-next S3.2 CURRENT_TASK transition only. Forbidden methods: force-push, merge commit, main mutation before S3.7 boundary, PR creation/merge, ref deletion/rewrite, repository/settings/secret mutation, signing, TestFlight/App Store upload, deployment, release publication, or S9.2/S9.3 action.
 
 ## Exact allowed implementation paths
 
 Production paths:
 
-- `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
-- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
-- `FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift`
-- `FieldEvidenceApp/Features/Signs/FirstSignCoordinator.swift`
+- `FieldEvidenceApp/Domain/Models/WorkflowModels.swift`
+- `FieldEvidenceApp/Domain/Workflow/WorkflowContracts.swift`
+- `FieldEvidenceApp/Domain/Workflow/TimeContextRule.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift`
+- `FieldEvidenceApp/Features/CheckRunner/PreflightView.swift`
 - `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
-- `FieldEvidenceApp/Features/Signs/NewSignView.swift`
 - `FieldEvidenceApp/Features/Signs/SignDetailView.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift`
 
 Test paths:
 
-- `FieldEvidenceAppTests/S2SignSetupTests.swift`
-- `FieldEvidenceAppUITests/S2SignSetupUITests.swift`
+- `FieldEvidenceAppTests/S3_1DraftSchemaTests.swift`
+- `FieldEvidenceAppUITests/S3_1PreflightUITests.swift`
 
 Standing support exception:
 
 - `Scripts/ci-selection.json`
 
-`docs/execution/HANDOFF.md` is append-only post-green bookkeeping and is not part of the implementation commit. `Scripts/ui-smoke.sh` is not an ordinary S2.2 implementation path. No other path may change.
+`docs/execution/HANDOFF.md` is append-only post-green bookkeeping and is not part of the implementation commit. No other path may change.
 
 ## Execution
 
-1. Preserve A1 and its accepted S2.1 HANDOFF/S2.2 transition. Commit exactly this owner-authorized forward-only visibility correction as A2, push non-force only after proving remote phase=A1 and main=P, then run fresh S2.2 G0.
-2. G0 proves A2^=A1; `A1..A2` is exactly one CURRENT_TASK-only correction commit; `M..A2` is exactly two commits changing only HANDOFF plus CURRENT_TASK; the HANDOFF delta remains one append-only complete S2.1 entry in `M..A1`; P, program map, S2 branch/span/integration flags, pins, runner/Xcode/project/Simulator/tool/method posture are unchanged; live and recorded repository visibility are public; every immediate-card field equals frozen S2.2; selector remains the accepted S2.1 object; and no other path is dirty.
+1. Commit exactly this hydrated CURRENT_TASK as A on local `phase/s3-check-runner` created from M=C; non-force create only the matching remote phase ref after re-proving remote main=C, remote S2=C, and remote S3 absent.
+2. Fresh G0 proves `A^=M`; `M..A` is exactly one CURRENT_TASK-only commit; remote main/S2 remain C; remote S3=A; carried map/pins/public repository/environment/tool/method posture are exact; selector remains the accepted S2.2 object; and no other path is dirty.
 3. Replace the selector first, implement only the allowed paths, run structural/static checks available on Windows, explicitly stage only task paths, and commit direct-child implementation I.
-4. Push the exact phase ref non-force and run the one-at-a-time persistent P12 verification loop. Accept only green exact-head CI with complete checksummed evidence. Hosted variance gets a fresh run ID; diagnosed product or harness failures get one direct-child correction per commit with no numeric ceiling.
-5. Do not preemptively edit `Scripts/ui-smoke.sh`. If terminal exact-product-head evidence diagnoses its inherited S1-specific export as the sole harness failure, create only the minimal nonproduct K permitted by the recovery policy and verify that exact K.
-6. After accepted S2.2 product and verification evidence, append HANDOFF and create/push HANDOFF-only phase close C. Verify exact phase C or a diagnosed later nonproduct verification head, fast-forward main non-force from exact P to that accepted head, and require exact-main P12/UI success.
-7. Only after accepted exact-main S2 create `phase/s3-check-runner` from that head, hydrate CURRENT_TASK-only S3.1, and run fresh G0.
+4. Push the exact phase ref non-force and run the one-at-a-time persistent P12 verification loop. Accept only green exact-head CI with complete checksum-verified evidence; diagnose each terminal product or harness failure and apply only one smallest direct-child correction before verifying again.
+5. After accepted S3.1 evidence, append HANDOFF and, only if remote phase still equals the accepted verification head, transition same-phase by committing/pushing exactly that append plus immediate-next S3.2 CURRENT_TASK. Run fresh S3.2 G0. Do not mutate main.
 
 ## Definition of done
 
-- Exact green S2.2 implementation, phase-close, and exact-main P12 evidence with complete artifacts; exact first-site/sign save and relaunch reopen; optional address and nullable explicitly confirmed IANA zone; exact Welcome/sample/later-activation anchors; installation-first diagnostics attempt; invalid input writes nothing and focuses one accessible state; Start Check explicitly unavailable; no second sign, draft, evaluation ledger, restore/commerce implementation, schema, or forbidden path.
-- Handoff records all required evidence. Remote S2 phase and main equal the accepted S2 verification head. Then continue only with S3.1.
+- Exact green S3.1 implementation evidence: seven-model schema frozen; existing S2 data reopens; one exact preflight draft persists/resumes with frozen instant/zone/offset/local values and two exact acknowledgements; stage-aware existing-draft precedence and no-draft lineage validation pass; pre-begin Cancel writes nothing and reports `No check was started.`; capture/finalization and every forbidden future behavior remain absent.
+- Handoff records all required evidence. Remote S3 phase equals the accepted verification head, then continue only with S3.2.
