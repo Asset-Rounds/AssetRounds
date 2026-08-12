@@ -584,3 +584,86 @@ The accepted run's `head_sha` exactly equals `E=I3=0dae8c52dcfcbf8a2ad17c739bd0b
 
 - Task ID only; it was not started: `S3.3`
 - Next gate: same-phase autopilot may commit and non-force push exactly this append plus immediate-next S3.3 `CURRENT_TASK.md` after re-proving remote phase=`I3` and remote main=`P`; then run fresh S3.3 G0. Do not mutate main.
+
+## `S3.3` — `complete` — `2026-08-12T22:43:18Z`
+
+- Phase ID / phase branch / card position / phase-boundary card (`yes | no`): `S3` / `phase/s3-check-runner` / `3 of 7` / `no`
+- Program-autopilot state / exact phase-and-branch map / final owner-only boundary: `enabled through accepted S9.1` / exact frozen S0–S9 map in `CURRENT_TASK.md` / stop after accepted exact-main S9.1; S9.2 signing/TestFlight and S9.3 App Store submission remain owner-only
+- Phase-autopilot state / exact authorized same-phase span: `enabled` / `S3.1,S3.2,S3.3,S3.4,S3.5,S3.6,S3.7`
+- Predecessor IDs and evidence: accepted S3.2 base `M=E=I3=0dae8c52dcfcbf8a2ad17c739bd0bb2d6b7b43ce`; exact run `31643819476` succeeded with P12/UI and complete independently verified evidence
+- Outcome: added the two closed check outcomes and Review, then one recoverable journaled finalization that promotes exact canonical immutable snapshot bytes before one SwiftData save creates exactly one completed original-check record, optional current Issue, live Packet/root, pending Report, and one local Value receipt; report detail, PDF, and sharing remain unavailable
+- Exact build-plan path / SHA-256: `docs/product/BUILD_PLAN_V4.md` / `23DAAB390AF917CBE91C3044E4906F3FBF8D67D2FDFC6BC9BDE985D984F37BBD`
+- Exact implementation-runbook path / SHA-256 / selected card: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / `S3.3 — Outcome, review, recoverable finalization, and snapshot`
+- Authoring host OS/build: Microsoft Windows Home, 64-bit, version `10.0.26200`, build `26200`
+- GitHub repository / visibility and exact-ref branch-control posture / base branch / phase branch: `palatis3/AssetRounds` / public solo repository, exact-ref/non-force-only / `main` / `phase/s3-check-runner`
+- Immutable phase-main base SHA `P` and evidence: `7d135aaddd0bdc50168552b0610f04adc1703506`; accepted S2 exact-main run `31633843776`
+- Integrated/card-base SHA `M` and evidence: `0dae8c52dcfcbf8a2ad17c739bd0bb2d6b7b43ce`; accepted S3.2 exact-head run `31643819476`
+- Observed task-start authority SHA and authority-only diff result: `A=7f8d91e819de15073deb848b4fed3c5dbdd99986`, a direct child of M changing exactly the append-only S3.2 `docs/execution/HANDOFF.md` entry and immediate-next `docs/execution/CURRENT_TASK.md`
+- Implementation commit SHA: `I=E=a728f8fe50e016e190074b6a5f4faf104f10c278`; no product correction or distinct infrastructure verification head was required
+- Pre-existing dirty paths and owner/disposition: `NONE`; fresh G0, implementation preflight, and accepted-head dispatch state were clean
+- Workflow path / workflow file SHA-256 / trigger / frozen branch ref / actual expected head: `.github/workflows/ios-ci.yml` / `9FFEA51ADB2620B01FE250412716487F6102DAC7E93AEA0471943AF66C1BC2AC` / `workflow_dispatch` / `phase/s3-check-runner` / `a728f8fe50e016e190074b6a5f4faf104f10c278`
+- CI selector task ID / tier / `runUISmoke` / workflow input equality result: `S3.3` / `F25` / `true` / `PASS`; exact `300/900/1200/1800/4500`, unit selector `FieldEvidenceAppTests/S3_3FinalizationTests`, UI selector `FieldEvidenceAppUITests/S3_3GoldenCheckUITests`, selector LF SHA-256 `567B68707B18B9A9CC719CB4A176CF60B8184F94E0EF70740B03E18FDADCE7DA`
+- Actions run ID / URL / `head_sha` / conclusion: `31646855404` / `https://github.com/palatis3/AssetRounds/actions/runs/31646855404` / `a728f8fe50e016e190074b6a5f4faf104f10c278` / `success`
+- Actions job ID / URL / conclusion: `94282347565` / `https://github.com/palatis3/AssetRounds/actions/runs/31646855404/job/94282347565` / `success`
+- Runner image / Xcode version+build / minimum iOS: `ImageOS=macos26`, `ImageVersion=20260728.0273.1`, `ImageArch=unknown` / `Xcode 26.6`, `Build version 17F113`, `DEVELOPER_DIR=/Applications/Xcode_26.6.app/Contents/Developer` / iOS `18.0`
+- Project or workspace / target / shared scheme / configuration: `FieldEvidenceApp.xcodeproj` / `FieldEvidenceApp` / `FieldEvidenceApp` / `Debug`
+- Simulator selector and actual model / OS / UDID; UI-smoke mode: `iPhone 17` + `iOS 26.5` / iPhone 17 / iOS 26.5 / `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; F25 imported-fixture no-visible finalization through the sole local Value receipt
+- Allowed GitHub methods and actions actually performed: task-named read/fetch/ref/run/workflow/artifact inspection; explicit-path implementation commit; non-force phase push; exact workflow dispatch on the phase branch with `run_ui_smoke=true`; exact-run observation/download; no main, force-push, merge, PR, repository-setting, signing, deployment, or release mutation
+- Owner-required posture from task and G0-observed effective sandbox / approval / command-network / trusted-config / GitHub-tool state: Full access observed; `sandbox_mode=danger-full-access`; `approval_policy=never`; command network enabled; trusted repository configuration active; authenticated GitHub CLI available; XcodeBuildMCP and owner-operated Mac unnecessary
+- Card-owned implementation / correction / verification actions: created and non-force pushed the one direct-child implementation I; dispatched and accepted its one exact-head F25 candidate after complete logs/artifact inspection; no correction or K was needed
+- Boundary recovery state: accepted S3.3 HANDOFF pending; remote phase=`E`, remote `main=P`; S3.4 was unstarted before this append
+- Owned launch-smoke IDs: existing explicit `--s3-2-ui-test-imported-fixtures` route only; S3.3 added no production fixture route or new launch argument
+- Project/persistent-schema delta: no project or schema delta; exact seven-model schema remains unchanged
+
+### Changed paths
+
+- `FieldEvidenceApp/Domain/Workflow/FinalizationContracts.swift`
+- `FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift`
+- `FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift`
+- `FieldEvidenceAppTests/S3_3FinalizationTests.swift`
+- `FieldEvidenceAppTests/Fixtures/S3_3ReportSnapshotV1.json`
+- `FieldEvidenceAppTests/Fixtures/S3_3ReportSnapshotV1.sha256`
+- `FieldEvidenceAppUITests/S3_3GoldenCheckUITests.swift`
+- `Scripts/ci-selection.json`
+
+### Verification
+
+| Command or smoke | Run/job | Timeout | Exit code | Actual duration | Result | Artifact/evidence path and checksum |
+|---|---|---:|---:|---:|---|---|
+| Fresh G0: branch/cleanliness, `A^=M`, exact two-path `M..A`, pins/map/environment/selector/live refs | local + GitHub read-only | fail closed | 0 | bounded | PASS | `A=7f8d91e819de15073deb848b4fed3c5dbdd99986`; phase began at A and main remained P |
+| Exact A..I structure, task envelope, static contract/security audit, and golden fixture oracle | local Windows read-only | fail closed | 0 | bounded | PASS | exactly 10 production, 4 test/fixture, and selector-exception paths; `git diff --check` passed; fixture exact bytes SHA-256 `8b81589641276df9ee94dba99ac390ce8679fcc2932825e79e4178eb91377b3e` with no trailing LF |
+| `bash Scripts/run-with-timeout.sh 900 bash Scripts/build-smoke.sh` | accepted `31646855404` / `94282347565` | 900 s | 0 | 184 s | PASS — exact-destination unsigned build | nonempty `Build.xcresult`; build log SHA-256 `7D709C98ACA84DB30F278367913E90C61620AA1809C38615751866AB8AE6D60E` |
+| `bash Scripts/run-with-timeout.sh 1200 bash Scripts/test-smoke.sh` / exact `FieldEvidenceAppTests/S3_3FinalizationTests` | same | 1200 s | 0 | step 198 s; XCTest observer 137.087 s | PASS — exactly 3 targeted tests passed | nonempty `UnitTests.xcresult`; unit log SHA-256 `0D50A745E97AF0B1C45A44704871AFA6427CC1C23835E390AA3D1DBA12FA8CB2` |
+| `bash Scripts/run-with-timeout.sh 1800 bash Scripts/ui-smoke.sh` / exact `FieldEvidenceAppUITests/S3_3GoldenCheckUITests` | same | 1800 s | 0 | step 196 s; test 119.619 s | PASS — sole imported no-visible Outcome/Review/Save/receipt test passed | nonempty `UISmoke.xcresult`; UI log SHA-256 `9AB05F2D8099773114BC009D4327EC92663A66D358E0C65F63B2DA160F3EE371`; `ui-final.png` SHA-256 `31C62BAA06E31417339D0764F1D4501365BB1BA137395E20D46DD9E3F270BC0D` |
+| Required-evidence/checksum validation and F25 budgets | same | setup/artifact 300 s; readiness 900 s; total 4500 s | 0 | setup 66 s; readiness 314 s; artifact 1 s; setup+artifact 67 s; total 782 s | PASS | artifact `ios-ci-31646855404-1`, ID `9161394537`, size `1749211`, API/raw ZIP digest `sha256:4ce3bafb53ede4c306cdaa8fc0e8ad605b5747218d4024622dc9fa6256a6ae4b`; `SHA256SUMS.txt` SHA-256 `3CA6E8E9252E1D8215392BAC79686E8347478114FB00D7962766421D7C8E3A1E`; all 97 payloads matched |
+
+The accepted run's `head_sha` exactly equals `I=E=a728f8fe50e016e190074b6a5f4faf104f10c278`. There is no distinct infrastructure verification head K. This HANDOFF append is not implementation evidence and does not self-record its future transition commit.
+
+### Acceptance results
+
+- Golden path `PASS`: no-visible creates no Issue and exactly one completed original check, live Packet with immutable stable root/current record, pending Report with null PDF facts, and durable canonical snapshot promoted before the one model save; exact checked-in snapshot bytes/digest round-trip; `report_saved` is attempted only after Report existence and installation-first `onboarding_completed` only on actual receipt presentation
+- Named alternate `PASS`: invalid visible labels fail closed; one valid frozen closed label creates exactly one linked open Issue and otherwise preserves the same one-record/Packet/root/Report/snapshot guarantees
+- Atomicity/security `PASS`: exact 15-key intent and 6-key payload, ordered `prepared`→promotion→`snapshot_promoted`→one save→`database_committed`, generation/operations-root containment, regular nonsymlink snapshot validation, frozen preconditions, owned rollback, and canonical no-LF JSON/hash contract passed unit/static verification; journal phase-lag artifacts remain deliberate S3.4 recovery input rather than guessed cleanup
+- Accessibility/UI spot check `PASS`: exact Outcome choices, Continue, Review evidence/frozen facts, Save, sole receipt, Done, and disabled View Report/Share were accessible in the retained golden flow
+- Exact terminal screen/data artifact `PASS`: retained attachment `S3.3 local value receipt` (`EB47337E-4B9A-471F-B3AA-4C914F092745.png`) shows the terminal local Value receipt and exact `Report saved on this device.` copy; exported SHA-256 `31C62BAA06E31417339D0764F1D4501365BB1BA137395E20D46DD9E3F270BC0D`
+- Future controls verified omitted/inert `PASS`: View Report and Share are visibly unavailable; no PDF bytes/renderer/retry/detail/preview/share/export/delivery receipt, CNV, work, recheck, correction, recovery matrix, fault-injection framework, generic mutation bus, schema/project/package/capability/remote delta, access, commerce, backup, restore, or deletion behavior was added
+
+### Known bugs or limitations
+
+- Bug ID / severity / disposition, or `NONE`: `NONE`; `docs/execution/KNOWN_BUGS.md` was read and contains no qualifying S3.3 defect
+
+### Blockers
+
+- `NONE`
+
+### Next unstarted task
+
+- Task ID only; it was not started: `S3.4`
+- Next gate: same-phase autopilot may commit and non-force push exactly this append plus immediate-next S3.4 `CURRENT_TASK.md` after re-proving remote phase=`E` and remote main=`P`; then run fresh S3.4 G0. Do not mutate main.
