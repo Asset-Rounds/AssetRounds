@@ -37,7 +37,57 @@ enum CheckRunnerCoordinatorError: Error, Equatable {
     case mediaImportFailed
     case storageUnavailable
     case cleanupFailed
+    case outcomeRequired
+    case issueLabelRequired
+    case issueLabelInvalid
+    case reviewUnavailable
+    case finalizationNotConfigured
+    case finalizationFailed
     case saveFailed
+}
+
+enum CheckOutcomeSelection: Equatable, Sendable {
+    case noVisibleIssue
+    case visibleIssue(labelKey: String)
+}
+
+struct ReviewEvidence: Equatable, Sendable {
+    let id: UUID
+    let purposeKey: String
+    let purposeDisplay: String
+    let thumbnailRelativePath: String
+}
+
+struct FinalizationReview: Equatable, Sendable {
+    let draftID: UUID
+    let outcomeKey: String
+    let outcomeDisplay: String
+    let issueLabelDisplay: String?
+    let wideEvidence: ReviewEvidence
+    let closeEvidence: ReviewEvidence
+    let localDate: String
+    let localTime: String
+    let timeZoneID: String
+    let afterDarkAcknowledgementCopy: String
+    let safePositionAcknowledgementCopy: String
+}
+
+struct FinalizationIdentifiers: Equatable, Sendable {
+    let mutationID: UUID
+    let packetID: UUID
+    let stableRootID: UUID
+    let reportID: UUID
+    let issueID: UUID?
+}
+
+struct FinalizationResult: Equatable, Sendable {
+    let recordID: UUID
+    let packetID: UUID
+    let stableRootID: UUID
+    let reportID: UUID
+    let issueID: UUID?
+    let snapshotRelativePath: String
+    let snapshotSHA256: String
 }
 
 struct CapturePreparation: Equatable, Sendable {
@@ -68,12 +118,47 @@ final class CheckRunnerCoordinator {
 
     private let modelContext: ModelContext
     private let signPack: SignPack
+    private let diagnosticsStore: DiagnosticsStore?
     private var captureGenerationRootURL: URL?
     private var evidenceBundleStore: EvidenceBundleStore?
 
-    init(modelContext: ModelContext, signPack: SignPack) {
+    init(
+        modelContext: ModelContext,
+        signPack: SignPack,
+        diagnosticsStore: DiagnosticsStore? = nil
+    ) {
         self.modelContext = modelContext
         self.signPack = signPack
+        self.diagnosticsStore = diagnosticsStore
+    }
+
+    var signPackIssueLabels: [SignPack.RegistryEntry] {
+        signPack.issueLabels
+    }
+
+    func signPackOutcomeDisplay(key: String) -> String? {
+        let matches = signPack.outcomeDisplays.filter { $0.key == key }
+        return matches.count == 1 ? matches[0].display : nil
+    }
+
+    func reviewThumbnailData(for evidence: ReviewEvidence) throws -> Data {
+        guard let generationRootURL = captureGenerationRootURL else {
+            throw CheckRunnerCoordinatorError.captureNotConfigured
+        }
+        let root = generationRootURL.standardizedFileURL
+        let candidate = root
+            .appendingPathComponent(evidence.thumbnailRelativePath)
+            .standardizedFileURL
+        guard candidate.path.hasPrefix(root.path + "/"),
+              !evidence.thumbnailRelativePath.hasPrefix("/"),
+              !evidence.thumbnailRelativePath.contains("..") else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        do {
+            return try Data(contentsOf: candidate, options: .mappedIfSafe)
+        } catch {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
     }
 
     func configureCapture(generationRootURL: URL) {
@@ -83,6 +168,144 @@ final class CheckRunnerCoordinator {
         evidenceBundleStore = EvidenceBundleStore(
             generationRootURL: standardizedURL
         )
+    }
+
+    func prepareReview(
+        assetID: UUID,
+        selection: CheckOutcomeSelection
+    ) throws -> FinalizationReview {
+        let preparation = try prepareCapture(assetID: assetID)
+        guard preparation.step == .outcome else {
+            throw CheckRunnerCoordinatorError.reviewUnavailable
+        }
+        let draftID = preparation.draftID
+        let draftDescriptor = FetchDescriptor<WorkflowRecord>(
+            predicate: #Predicate { $0.id == draftID }
+        )
+        guard let draft = try modelContext.fetch(draftDescriptor).first,
+              let localDate = draft.localDate,
+              let localTime = draft.localTime,
+              let timeZoneID = draft.timeZoneID,
+              let afterDarkCopy = draft.afterDarkAcknowledgementCopy,
+              let safePositionCopy = draft.safePositionAcknowledgementCopy else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        let outcome = try resolvedOutcome(selection)
+        let evidenceDescriptor = FetchDescriptor<EvidenceFile>(
+            predicate: #Predicate { $0.recordID == draftID }
+        )
+        let evidence = try modelContext.fetch(evidenceDescriptor)
+        guard evidence.count == 2,
+              let wide = evidence.first(where: { $0.purposeKey == "wide_context" }),
+              let close = evidence.first(where: { $0.purposeKey == "close_detail" }) else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        return FinalizationReview(
+            draftID: draftID,
+            outcomeKey: outcome.key,
+            outcomeDisplay: outcome.display,
+            issueLabelDisplay: outcome.issueLabel?.display,
+            wideEvidence: reviewEvidence(
+                wide,
+                purposeDisplay: try capturePurpose(key: "wide_context", index: 0).display
+            ),
+            closeEvidence: reviewEvidence(
+                close,
+                purposeDisplay: try capturePurpose(key: "close_detail", index: 1).display
+            ),
+            localDate: localDate,
+            localTime: localTime,
+            timeZoneID: timeZoneID,
+            afterDarkAcknowledgementCopy: afterDarkCopy,
+            safePositionAcknowledgementCopy: safePositionCopy
+        )
+    }
+
+    func valueReceiptDidPresent() async {
+        guard let diagnosticsStore else { return }
+        let counters = await diagnosticsStore.snapshot()
+        guard counters.onboardingCompleted == 0 else { return }
+        await diagnosticsStore.increment(.onboardingCompleted)
+    }
+
+    func finalize(
+        assetID: UUID,
+        selection: CheckOutcomeSelection,
+        completedAt: Date,
+        snapshotCreatedAt: Date,
+        sourceApp: SourceAppSnapshotV1,
+        identifiers suppliedIdentifiers: FinalizationIdentifiers? = nil
+    ) async throws -> FinalizationResult {
+        _ = try prepareReview(assetID: assetID, selection: selection)
+        guard let generationRootURL = captureGenerationRootURL else {
+            throw CheckRunnerCoordinatorError.finalizationNotConfigured
+        }
+        guard let draft = try existingDraft(assetID: assetID) else {
+            throw CheckRunnerCoordinatorError.captureDraftRequired
+        }
+        let outcome = try resolvedOutcome(selection)
+        let identifiers: FinalizationIdentifiers
+        if let suppliedIdentifiers {
+            guard (outcome.issueLabel != nil) == (suppliedIdentifiers.issueID != nil) else {
+                throw CheckRunnerCoordinatorError.issueLabelInvalid
+            }
+            identifiers = suppliedIdentifiers
+        } else {
+            identifiers = FinalizationIdentifiers(
+                mutationID: UUID(),
+                packetID: UUID(),
+                stableRootID: UUID(),
+                reportID: UUID(),
+                issueID: outcome.issueLabel == nil ? nil : UUID()
+            )
+        }
+        let asset = try requiredAsset(id: assetID)
+        let site = try requiredSite(id: asset.siteID)
+        let draftID = draft.id
+        let evidenceDescriptor = FetchDescriptor<EvidenceFile>(
+            predicate: #Predicate { $0.recordID == draftID }
+        )
+        let evidence = try modelContext.fetch(evidenceDescriptor)
+        let service: FinalizationService
+        do {
+            service = try FinalizationService(
+                modelContext: modelContext,
+                signPack: signPack,
+                generationRootURL: generationRootURL
+            )
+        } catch {
+            throw CheckRunnerCoordinatorError.finalizationNotConfigured
+        }
+        let result: FinalizationResult
+        do {
+            result = try await service.finalize(
+                FinalizationServiceInput(
+                    draft: draft,
+                    asset: asset,
+                    site: site,
+                    evidence: evidence,
+                    outcomeKey: outcome.key,
+                    outcomeDisplay: outcome.display,
+                    issueLabel: outcome.issueLabel,
+                    completedAt: completedAt,
+                    snapshotCreatedAt: snapshotCreatedAt,
+                    sourceApp: sourceApp,
+                    identifiers: identifiers
+                )
+            )
+        } catch {
+            throw CheckRunnerCoordinatorError.finalizationFailed
+        }
+
+        let reportID = result.reportID
+        let reportDescriptor = FetchDescriptor<Report>(
+            predicate: #Predicate { $0.id == reportID }
+        )
+        guard try modelContext.fetch(reportDescriptor).count == 1 else {
+            throw CheckRunnerCoordinatorError.finalizationFailed
+        }
+        await diagnosticsStore?.increment(.reportSaved)
+        return result
     }
 
     func prepareCapture(assetID: UUID) throws -> CapturePreparation {
@@ -727,6 +950,55 @@ final class CheckRunnerCoordinator {
             throw CheckRunnerCoordinatorError.invalidCaptureState
         }
         return signPack.evidencePurposes[index]
+    }
+
+    private func resolvedOutcome(
+        _ selection: CheckOutcomeSelection
+    ) throws -> (
+        key: String,
+        display: String,
+        issueLabel: SignPack.RegistryEntry?
+    ) {
+        let key: String
+        let issueLabel: SignPack.RegistryEntry?
+        switch selection {
+        case .noVisibleIssue:
+            key = "no_visible_issue"
+            issueLabel = nil
+        case let .visibleIssue(labelKey):
+            let normalizedKey = labelKey.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            guard !normalizedKey.isEmpty else {
+                throw CheckRunnerCoordinatorError.issueLabelRequired
+            }
+            guard let selected = signPack.issueLabels.first(where: {
+                $0.key == normalizedKey
+            }), signPack.issueLabels.filter({ $0.key == normalizedKey }).count == 1 else {
+                throw CheckRunnerCoordinatorError.issueLabelInvalid
+            }
+            key = "visible_issue"
+            issueLabel = selected
+        }
+        guard let display = signPack.outcomeDisplays.first(where: {
+            $0.key == key
+        })?.display,
+              signPack.outcomeDisplays.filter({ $0.key == key }).count == 1 else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        return (key, display, issueLabel)
+    }
+
+    private func reviewEvidence(
+        _ evidence: EvidenceFile,
+        purposeDisplay: String
+    ) -> ReviewEvidence {
+        ReviewEvidence(
+            id: evidence.id,
+            purposeKey: evidence.purposeKey,
+            purposeDisplay: purposeDisplay,
+            thumbnailRelativePath: evidence.thumbnailRelativePath
+        )
     }
 
     private func createDraft(

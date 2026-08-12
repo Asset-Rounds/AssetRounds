@@ -1,0 +1,122 @@
+import Foundation
+
+struct ReportSnapshotV1: Codable, Equatable, Sendable {
+    let acknowledgements: [AcknowledgementSnapshotV1]
+    let asset: AssetSnapshotV1
+    let couldNotVerify: CouldNotVerifySnapshotV1?
+    let disclaimer: String
+    let display: DisplaySnapshotV1
+    let evidence: [EvidenceSnapshotV1]
+    let evidenceSourceRecordID: UUID
+    let history: [HistoryEntrySnapshotV1]
+    let issues: [IssueSnapshotV1]
+    let note: String?
+    let outcome: String
+    let pack: PackSnapshotV1
+    let packetID: UUID
+    let pdfTemplate: PDFTemplateReferenceV1
+    let reportID: UUID
+    let site: SiteSnapshotV1
+    let snapshotCreatedAt: Date
+    let snapshotSchemaVersion: Int
+    let sourceApp: SourceAppSnapshotV1
+    let sourceRecordID: UUID
+    let stableRootID: UUID
+    let stage: String
+    let timeContext: TimeContextSnapshotV1
+}
+
+struct AcknowledgementSnapshotV1: Codable, Equatable, Sendable {
+    let accepted: Bool
+    let copy: String
+    let key: String
+    let version: String
+}
+
+struct AssetSnapshotV1: Codable, Equatable, Sendable {
+    let label: String
+}
+
+struct CouldNotVerifySnapshotV1: Codable, Equatable, Sendable {
+    let display: String
+    let key: String
+    let registryVersion: String
+}
+
+struct DisplaySnapshotV1: Codable, Equatable, Sendable {
+    let assetSingular: String
+    let checkSingular: String
+    let issueSingular: String
+    let outcome: String
+    let stage: String
+}
+
+struct EvidenceSnapshotV1: Codable, Equatable, Sendable {
+    let byteCount: Int
+    let createdAt: Date
+    let evidenceID: UUID
+    let mimeType: String
+    let purposeDisplay: String
+    let purposeKey: String
+    let recordID: UUID
+    let relativePath: String
+    let sha256: String
+    let thumbnailByteCount: Int
+    let thumbnailRelativePath: String
+    let thumbnailSHA256: String
+}
+
+struct HistoryEntrySnapshotV1: Codable, Equatable, Sendable {
+    let completedAt: Date
+    let couldNotVerify: CouldNotVerifySnapshotV1?
+    let evidenceIDs: [UUID]
+    let issueIDs: [UUID]
+    let note: String?
+    let outcome: String
+    let outcomeDisplay: String
+    let recordID: UUID
+    let stage: String
+    let stageDisplay: String
+    let workDescription: String?
+    let workPerformedLocalDate: String?
+}
+
+struct IssueSnapshotV1: Codable, Equatable, Sendable {
+    let createdAt: Date
+    let display: String
+    let issueID: UUID
+    let key: String
+    let openedByRecordID: UUID
+    let resolvedByRecordID: UUID?
+    let status: String
+    let updatedAt: Date
+}
+
+struct PackSnapshotV1: Codable, Equatable, Sendable {
+    let contentVersion: Int
+    let id: String
+    let schemaVersion: Int
+}
+
+struct PDFTemplateReferenceV1: Codable, Equatable, Sendable {
+    let id: String
+    let version: Int
+}
+
+struct SiteSnapshotV1: Codable, Equatable, Sendable {
+    let address: String?
+    let label: String
+}
+
+struct SourceAppSnapshotV1: Codable, Equatable, Sendable {
+    let build: String
+    let version: String
+}
+
+struct TimeContextSnapshotV1: Codable, Equatable, Sendable {
+    let localDate: String
+    let localTime: String
+    let observedAtUTC: Date
+    let timeZoneID: String
+    let utcOffsetMinutes: Int
+}

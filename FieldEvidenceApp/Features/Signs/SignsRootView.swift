@@ -49,7 +49,8 @@ struct SignsRootView: View {
         )
         checkRunnerCoordinator = CheckRunnerCoordinator(
             modelContext: modelContext,
-            signPack: pack
+            signPack: pack,
+            diagnosticsStore: diagnosticsStore
         )
     }
 

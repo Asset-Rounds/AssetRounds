@@ -24,14 +24,31 @@ struct CaptureStepView: View {
     @State private var errorMessage: String?
 
     var body: some View {
+        Group {
+            if let preparation, preparation.step == .outcome {
+                OutcomeReviewView(
+                    assetID: assetID,
+                    coordinator: coordinator
+                )
+            } else {
+                captureScroll
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DesignTokens.Colors.canvas)
+        .task {
+            guard preparation == nil, errorMessage == nil else { return }
+            loadPreparation()
+        }
+    }
+
+    private var captureScroll: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                 if let preparation {
-                    if preparation.step == .outcome {
-                        outcomeUnavailable
-                    } else {
-                        captureContent(preparation)
-                    }
+                    captureContent(preparation)
                 } else if let errorMessage {
                     failure(message: errorMessage)
                 } else {
@@ -42,15 +59,7 @@ struct CaptureStepView: View {
             .padding(DesignTokens.Spacing.medium)
         }
         .navigationTitle("Capture")
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
-        .task {
-            guard preparation == nil, errorMessage == nil else { return }
-            loadPreparation()
-        }
     }
 
     @ViewBuilder
@@ -139,16 +148,6 @@ struct CaptureStepView: View {
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityIdentifier(Self.previewAccessibilityIdentifier)
             }
-        }
-    }
-
-    private var outcomeUnavailable: some View {
-        WorklightCard {
-            Text("Outcome is unavailable until S3.3.")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.primaryText)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier(Self.outcomeUnavailableAccessibilityIdentifier)
         }
     }
 
