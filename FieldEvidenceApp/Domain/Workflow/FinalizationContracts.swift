@@ -151,6 +151,63 @@ enum FinalizationContractEncodingErrorV1: Error, Equatable {
     case unsupportedValue
 }
 
+enum FinalizationContractDecodingErrorV1: Error, Equatable {
+    case invalidCanonicalIntent
+}
+
+struct FinalizationContractDecoderV1 {
+    func decodeIntent(_ data: Data) throws -> FinalizationIntentV1 {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard Self.isCanonicalTimestamp(string),
+                  let date = Self.timestampFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Expected canonical RFC3339 UTC milliseconds"
+                )
+            }
+            return date
+        }
+        let intent: FinalizationIntentV1
+        do {
+            intent = try decoder.decode(FinalizationIntentV1.self, from: data)
+            let canonical = try FinalizationContractEncoderV1().encodeIntent(intent).data
+            guard canonical == data else {
+                throw FinalizationContractDecodingErrorV1.invalidCanonicalIntent
+            }
+        } catch {
+            throw FinalizationContractDecodingErrorV1.invalidCanonicalIntent
+        }
+        return intent
+    }
+
+    private static func isCanonicalTimestamp(_ value: String) -> Bool {
+        let bytes = Array(value.utf8)
+        guard bytes.count == 24 else { return false }
+        let punctuation: [Int: UInt8] = [
+            4: 0x2d, 7: 0x2d, 10: 0x54, 13: 0x3a,
+            16: 0x3a, 19: 0x2e, 23: 0x5a,
+        ]
+        for (index, byte) in bytes.enumerated() {
+            if let expected = punctuation[index] {
+                guard byte == expected else { return false }
+            } else if !(0x30...0x39).contains(byte) {
+                return false
+            }
+        }
+        return true
+    }
+
+    private static let timestampFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return formatter
+    }()
+}
+
 struct FinalizationContractEncoderV1 {
     func encodePayload(_ payload: FinalizationPayloadV1) throws -> EncodedFinalizationContractV1 {
         let value = CanonicalJSONV1.finalizationPayload(payload)
@@ -364,7 +421,10 @@ enum CanonicalJSONV1 {
             return "null"
         case .object(let object):
             let members = try object.keys.sorted().map { key in
-                try quoted(key) + ":" + render(object[key]!)
+                guard let value = object[key] else {
+                    throw FinalizationContractEncodingErrorV1.unsupportedValue
+                }
+                return try quoted(key) + ":" + render(value)
             }
             return "{" + members.joined(separator: ",") + "}"
         case .string(let value):

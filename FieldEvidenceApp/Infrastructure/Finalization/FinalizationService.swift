@@ -27,6 +27,11 @@ struct FinalizationServiceInput {
     let identifiers: FinalizationIdentifiers
 }
 
+struct FinalizationServiceOutcome: Equatable, Sendable {
+    let result: FinalizationResult
+    let createdAuthority: Bool
+}
+
 @MainActor
 final class FinalizationService {
     private let modelContext: ModelContext
@@ -55,7 +60,13 @@ final class FinalizationService {
         self.intentStore = FinalizationIntentStore(generationRootURL: root)
     }
 
-    func finalize(_ input: FinalizationServiceInput) async throws -> FinalizationResult {
+    func finalize(_ input: FinalizationServiceInput) async throws -> FinalizationServiceOutcome {
+        if let replay = try replayedFinalization(input) {
+            return FinalizationServiceOutcome(
+                result: replay,
+                createdAuthority: false
+            )
+        }
         try validateFrozenInput(input)
         try validateEvidenceFiles(input.evidence)
         let frozen = try freeze(input)
@@ -126,15 +137,163 @@ final class FinalizationService {
             throw FinalizationServiceError.cleanupFailed
         }
 
-        return FinalizationResult(
-            recordID: input.draft.id,
-            packetID: input.identifiers.packetID,
-            stableRootID: input.identifiers.stableRootID,
-            reportID: input.identifiers.reportID,
-            issueID: input.identifiers.issueID,
-            snapshotRelativePath: frozen.snapshotRelativePath,
-            snapshotSHA256: frozen.encodedSnapshot.sha256
+        return FinalizationServiceOutcome(
+            result: FinalizationResult(
+                recordID: input.draft.id,
+                packetID: input.identifiers.packetID,
+                stableRootID: input.identifiers.stableRootID,
+                reportID: input.identifiers.reportID,
+                issueID: input.identifiers.issueID,
+                snapshotRelativePath: frozen.snapshotRelativePath,
+                snapshotSHA256: frozen.encodedSnapshot.sha256
+            ),
+            createdAuthority: true
         )
+    }
+
+    private func replayedFinalization(
+        _ input: FinalizationServiceInput
+    ) throws -> FinalizationResult? {
+        let mutationID = input.identifiers.mutationID
+        let mutationRecords = try modelContext.fetch(
+            FetchDescriptor<WorkflowRecord>(
+                predicate: #Predicate { $0.finalizationMutationID == mutationID }
+            )
+        )
+        guard mutationRecords.count <= 1 else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        guard let record = mutationRecords.first else { return nil }
+
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>()).filter {
+            $0.id == input.identifiers.packetID
+                || $0.stableRootID == input.identifiers.stableRootID
+                || $0.currentRecordID == record.id
+        }
+        let reports = try modelContext.fetch(FetchDescriptor<Report>()).filter {
+            $0.id == input.identifiers.reportID
+                || $0.packetID == input.identifiers.packetID
+                || $0.sourceRecordID == record.id
+        }
+        let issues = try modelContext.fetch(FetchDescriptor<Issue>()).filter { issue in
+            (input.identifiers.issueID.map { $0 == issue.id } ?? false)
+                || issue.openedByRecordID == record.id
+        }
+        guard record === input.draft,
+              packets.count == 1,
+              reports.count == 1,
+              issues.count == (input.identifiers.issueID == nil ? 0 : 1) else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let packet = packets[0]
+        let report = reports[0]
+        let issue = issues.first
+        let sortedEvidence = input.evidence.sorted(by: evidenceOrder)
+        guard record.id == input.draft.id,
+              record.assetID == input.asset.id,
+              input.asset.siteID == input.site.id,
+              record.revisionKind == WorkflowRevisionKind.original.rawValue,
+              record.stage == WorkflowStage.check.rawValue,
+              record.parentRecordID == nil,
+              record.recordRevisionRootID == record.id,
+              record.revisesRecordID == nil,
+              record.evidenceSourceRecordID == nil,
+              record.state == WorkflowState.completed.rawValue,
+              record.draftStepKey == nil,
+              record.completedAt == input.completedAt,
+              record.outcomeKey == input.outcomeKey,
+              record.packID == signPack.packID,
+              record.packSchemaVersion == signPack.schemaVersion,
+              record.packContentVersion == signPack.contentVersion,
+              record.pdfTemplateID == "field.evidence.pdf.worklight.v1",
+              record.pdfTemplateVersion == 1,
+              record.packetID == packet.id,
+              record.issueID == issue?.id,
+              sortedEvidence.count == 2,
+              sortedEvidence[0].purposeKey == "wide_context",
+              sortedEvidence[1].purposeKey == "close_detail",
+              sortedEvidence.allSatisfy({
+                  $0.recordID == record.id
+                    && $0.mimeType == MediaContractV1.durableMIMEType
+              }),
+              purposeDisplay("wide_context") != nil,
+              purposeDisplay("close_detail") != nil,
+              packet.id == input.identifiers.packetID,
+              packet.stableRootID == input.identifiers.stableRootID,
+              packet.currentRecordID == record.id,
+              packet.evaluationCounted,
+              packet.contentDeletedAt == nil,
+              packet.createdAt == input.completedAt,
+              report.id == input.identifiers.reportID,
+              report.packetID == packet.id,
+              report.sourceRecordID == record.id,
+              report.snapshotSchemaVersion == 1,
+              report.snapshotRelativePath
+                == "snapshots/\(report.id.uuidString.lowercased()).json",
+              report.pdfState == ReportPDFState.pending.rawValue,
+              report.pdfRelativePath == nil,
+              report.pdfSHA256 == nil,
+              report.createdAt == input.snapshotCreatedAt,
+              report.replacesReportID == nil,
+              replayIssueMatches(issue, input: input) else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+
+        try validateEvidenceFiles(input.evidence)
+        let expectedSnapshot = try ReportSnapshotEncoderV1().encode(
+            makeSnapshot(input, issue: issue)
+        )
+        guard expectedSnapshot.sha256 == report.snapshotSHA256,
+              try readFinalSnapshot(report.snapshotRelativePath) == expectedSnapshot.data else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        return FinalizationResult(
+            recordID: record.id,
+            packetID: packet.id,
+            stableRootID: packet.stableRootID,
+            reportID: report.id,
+            issueID: issue?.id,
+            snapshotRelativePath: report.snapshotRelativePath,
+            snapshotSHA256: report.snapshotSHA256
+        )
+    }
+
+    private func replayIssueMatches(
+        _ issue: Issue?,
+        input: FinalizationServiceInput
+    ) -> Bool {
+        guard let label = input.issueLabel else { return issue == nil }
+        guard let issue else { return false }
+        return issue.assetID == input.asset.id
+            && issue.openedByRecordID == input.draft.id
+            && issue.labelKey == label.key
+            && issue.labelDisplaySnapshot == label.display
+            && issue.status == IssueStatus.open.rawValue
+            && issue.resolvedByRecordID == nil
+            && issue.createdAt == input.completedAt
+            && issue.updatedAt == input.completedAt
+    }
+
+    private func readFinalSnapshot(_ relativePath: String) throws -> Data {
+        guard relativePath.hasPrefix("snapshots/"),
+              relativePath.split(separator: "/").count == 2 else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let snapshotsURL = generationRootURL.appendingPathComponent(
+            "snapshots",
+            isDirectory: true
+        )
+        let snapshotURL = generationRootURL.appendingPathComponent(relativePath)
+        guard try fileType(at: generationRootURL) == .typeDirectory,
+              try fileType(at: snapshotsURL) == .typeDirectory,
+              try fileType(at: snapshotURL) == .typeRegular else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        do {
+            return try Data(contentsOf: snapshotURL, options: .mappedIfSafe)
+        } catch {
+            throw FinalizationServiceError.preconditionFailed
+        }
     }
 
     private struct FrozenFinalization {

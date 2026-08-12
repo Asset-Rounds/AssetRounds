@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import SwiftUI
 
 enum StartupMaintenanceReason: String, CaseIterable, Error, Sendable {
@@ -97,11 +98,45 @@ final class StartupRouter: ObservableObject {
             didBeginStep(.currentOpen)
             let session = try openCurrentGeneration()
 
-            // These ordered checkpoints are intentionally inert until their
-            // owning cards install the corresponding reconcilers.
             didBeginStep(.finalization)
+            do {
+                _ = try await FinalizationRecoveryService(
+                    modelContext: session.modelContext,
+                    generationRootURL: session.generationRootURL
+                ).reconcile()
+            } catch {
+                throw StartupMaintenanceReason.finalizationInconsistent
+            }
+
+            // These checkpoints remain inert until their owning cards.
             didBeginStep(.deletion)
+
             didBeginStep(.media)
+            do {
+                let descriptor = FetchDescriptor<EvidenceFile>()
+                let authorities = try session.modelContext.fetch(descriptor).map {
+                    EvidenceBundleAuthority(
+                        schemaVersion: $0.schemaVersion,
+                        id: $0.id,
+                        recordID: $0.recordID,
+                        purposeKey: $0.purposeKey,
+                        relativePath: $0.relativePath,
+                        mimeType: $0.mimeType,
+                        byteCount: $0.byteCount,
+                        sha256: $0.sha256,
+                        thumbnailRelativePath: $0.thumbnailRelativePath,
+                        thumbnailByteCount: $0.thumbnailByteCount,
+                        thumbnailSHA256: $0.thumbnailSHA256
+                    )
+                }
+                try await EvidenceBundleStore(
+                    generationRootURL: session.generationRootURL,
+                    fileManager: fileManager
+                ).reconcile(authorities: authorities)
+            } catch {
+                throw StartupMaintenanceReason.mediaInconsistent
+            }
+
             didBeginStep(.pdf)
 
             await diagnosticsStore.prepare()

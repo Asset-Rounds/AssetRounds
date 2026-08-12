@@ -19,6 +19,17 @@ struct PromotedFinalization: Equatable, Sendable {
     let snapshotSHA256: String
 }
 
+struct RecoverableFinalization: Equatable, Sendable {
+    let intent: FinalizationIntentV1
+    let intentRelativePath: String
+    let snapshotStagingRelativePath: String
+    let snapshotFinalRelativePath: String
+    let snapshotByteCount: Int
+    let snapshot: ReportSnapshotV1?
+    let hasStagingSnapshot: Bool
+    let hasFinalSnapshot: Bool
+}
+
 enum FinalizationIntentStoreError: Error, Equatable {
     case generationRootInvalid
     case unsafePath
@@ -42,6 +53,200 @@ actor FinalizationIntentStore {
     ) {
         self.generationRootURL = generationRootURL.standardizedFileURL
         self.fileManager = fileManager
+    }
+
+    func discoverRecoverableFinalizations() throws -> [RecoverableFinalization] {
+        let generationID = try validatedGenerationID()
+        let roots = try validatedRoots(generationID: generationID)
+        let rootType = try itemType(
+            at: roots.operationsRootURL.appendingPathComponent("finalization", isDirectory: true),
+            within: roots.applicationSupportURL
+        )
+        guard let rootType else { return [] }
+        guard rootType == .typeDirectory else {
+            throw FinalizationIntentStoreError.itemTypeInvalid
+        }
+        let root = roots.operationsRootURL.appendingPathComponent("finalization", isDirectory: true)
+        let names: [String]
+        do {
+            names = try fileManager.contentsOfDirectory(atPath: root.path).sorted()
+        } catch {
+            throw FinalizationIntentStoreError.fileOperationFailed
+        }
+        return try names.map { name in
+            guard name.count == 41, name.hasSuffix(".json"),
+                  let mutationID = UUID(uuidString: String(name.dropLast(5))),
+                  mutationID.uuidString.lowercased() + ".json" == name else {
+                throw FinalizationIntentStoreError.intentInvalid
+            }
+            let url = root.appendingPathComponent(name)
+            guard try itemType(at: url, within: roots.applicationSupportURL) == .typeRegular else {
+                throw FinalizationIntentStoreError.itemTypeInvalid
+            }
+            let data: Data
+            do {
+                data = try Data(contentsOf: url, options: .mappedIfSafe)
+            } catch {
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
+            let intent: FinalizationIntentV1
+            do {
+                intent = try FinalizationContractDecoderV1().decodeIntent(data)
+            } catch {
+                throw FinalizationIntentStoreError.intentInvalid
+            }
+            guard intent.finalizationMutationID == mutationID,
+                  intent.generationID == generationID,
+                  intent.schemaVersion == 1 else {
+                throw FinalizationIntentStoreError.intentInvalid
+            }
+            let paths = try validatedPaths(for: intent, roots: roots)
+            let stage = try validatedSnapshotIfPresent(
+                at: paths.stagingSnapshotURL,
+                intent: intent
+            )
+            let final = try validatedSnapshotIfPresent(
+                at: paths.finalSnapshotURL,
+                intent: intent
+            )
+            if let stage, let final, stage.data != final.data {
+                throw FinalizationIntentStoreError.bytesMismatch
+            }
+            return RecoverableFinalization(
+                intent: intent,
+                intentRelativePath: paths.intentRelativePath,
+                snapshotStagingRelativePath: intent.snapshotStagingRelativePath,
+                snapshotFinalRelativePath: intent.snapshotFinalRelativePath,
+                snapshotByteCount: (final ?? stage)?.data.count ?? 0,
+                snapshot: (final ?? stage)?.snapshot,
+                hasStagingSnapshot: stage != nil,
+                hasFinalSnapshot: final != nil
+            )
+        }
+    }
+
+    func promoteForRecovery(_ recovery: RecoverableFinalization) throws -> RecoverableFinalization {
+        guard recovery.intent.phase == .prepared,
+              recovery.hasStagingSnapshot,
+              !recovery.hasFinalSnapshot else {
+            throw FinalizationIntentStoreError.phaseInvalid
+        }
+        let prepared = PreparedFinalization(
+            intent: recovery.intent,
+            intentRelativePath: recovery.intentRelativePath,
+            snapshotStagingRelativePath: recovery.snapshotStagingRelativePath,
+            snapshotFinalRelativePath: recovery.snapshotFinalRelativePath,
+            snapshotByteCount: recovery.snapshotByteCount,
+            snapshotSHA256: recovery.intent.snapshotSHA256
+        )
+        _ = try promoteSnapshot(prepared)
+        return RecoverableFinalization(
+            intent: recovery.intent,
+            intentRelativePath: recovery.intentRelativePath,
+            snapshotStagingRelativePath: recovery.snapshotStagingRelativePath,
+            snapshotFinalRelativePath: recovery.snapshotFinalRelativePath,
+            snapshotByteCount: recovery.snapshotByteCount,
+            snapshot: recovery.snapshot,
+            hasStagingSnapshot: false,
+            hasFinalSnapshot: true
+        )
+    }
+
+    func removeIdenticalStagingForRecovery(
+        _ recovery: RecoverableFinalization
+    ) throws -> RecoverableFinalization {
+        guard recovery.hasStagingSnapshot, recovery.hasFinalSnapshot else {
+            throw FinalizationIntentStoreError.itemMissing
+        }
+        let roots = try validatedRoots(generationID: recovery.intent.generationID)
+        let paths = try validatedPaths(for: recovery.intent, roots: roots)
+        try verifyRecovery(recovery, paths: paths, roots: roots)
+        try removeOwnedFileIfMatching(
+            at: paths.stagingSnapshotURL,
+            expectedByteCount: recovery.snapshotByteCount,
+            expectedSHA256: recovery.intent.snapshotSHA256,
+            within: generationRootURL
+        )
+        return RecoverableFinalization(
+            intent: recovery.intent,
+            intentRelativePath: recovery.intentRelativePath,
+            snapshotStagingRelativePath: recovery.snapshotStagingRelativePath,
+            snapshotFinalRelativePath: recovery.snapshotFinalRelativePath,
+            snapshotByteCount: recovery.snapshotByteCount,
+            snapshot: recovery.snapshot,
+            hasStagingSnapshot: false,
+            hasFinalSnapshot: true
+        )
+    }
+
+    func advanceForRecovery(
+        _ recovery: RecoverableFinalization,
+        to phase: FinalizationPhaseV1
+    ) throws -> RecoverableFinalization {
+        guard recovery.hasFinalSnapshot else {
+            throw FinalizationIntentStoreError.itemMissing
+        }
+        let promoted = PromotedFinalization(
+            intent: recovery.intent,
+            intentRelativePath: recovery.intentRelativePath,
+            snapshotStagingRelativePath: recovery.snapshotStagingRelativePath,
+            snapshotFinalRelativePath: recovery.snapshotFinalRelativePath,
+            snapshotByteCount: recovery.snapshotByteCount,
+            snapshotSHA256: recovery.intent.snapshotSHA256
+        )
+        let advanced = try advance(promoted, to: phase)
+        return RecoverableFinalization(
+            intent: advanced.intent,
+            intentRelativePath: recovery.intentRelativePath,
+            snapshotStagingRelativePath: recovery.snapshotStagingRelativePath,
+            snapshotFinalRelativePath: recovery.snapshotFinalRelativePath,
+            snapshotByteCount: recovery.snapshotByteCount,
+            snapshot: recovery.snapshot,
+            hasStagingSnapshot: recovery.hasStagingSnapshot,
+            hasFinalSnapshot: true
+        )
+    }
+
+    func abandonPreparedWithoutSnapshots(_ recovery: RecoverableFinalization) throws {
+        guard recovery.intent.phase == .prepared,
+              !recovery.hasStagingSnapshot,
+              !recovery.hasFinalSnapshot else {
+            throw FinalizationIntentStoreError.phaseInvalid
+        }
+        let roots = try validatedRoots(generationID: recovery.intent.generationID)
+        let paths = try validatedPaths(for: recovery.intent, roots: roots)
+        try verifyIntent(recovery.intent, at: paths.intentURL, roots: roots)
+        try removeIntentIfMatching(recovery.intent, at: paths.intentURL, roots: roots)
+    }
+
+    func rollbackForRecovery(_ recovery: RecoverableFinalization) throws {
+        guard recovery.hasFinalSnapshot else {
+            throw FinalizationIntentStoreError.itemMissing
+        }
+        let promoted = PromotedFinalization(
+            intent: recovery.intent,
+            intentRelativePath: recovery.intentRelativePath,
+            snapshotStagingRelativePath: recovery.snapshotStagingRelativePath,
+            snapshotFinalRelativePath: recovery.snapshotFinalRelativePath,
+            snapshotByteCount: recovery.snapshotByteCount,
+            snapshotSHA256: recovery.intent.snapshotSHA256
+        )
+        try rollbackUncommitted(promoted)
+    }
+
+    func cleanupCommittedForRecovery(_ recovery: RecoverableFinalization) throws {
+        guard recovery.hasFinalSnapshot else {
+            throw FinalizationIntentStoreError.itemMissing
+        }
+        let committed = PromotedFinalization(
+            intent: recovery.intent,
+            intentRelativePath: recovery.intentRelativePath,
+            snapshotStagingRelativePath: recovery.snapshotStagingRelativePath,
+            snapshotFinalRelativePath: recovery.snapshotFinalRelativePath,
+            snapshotByteCount: recovery.snapshotByteCount,
+            snapshotSHA256: recovery.intent.snapshotSHA256
+        )
+        try cleanupCommitted(committed)
     }
 
     func prepare(
@@ -257,6 +462,88 @@ actor FinalizationIntentStore {
         )
     }
 
+    private func validatedGenerationID() throws -> UUID {
+        guard let value = UUID(uuidString: generationRootURL.lastPathComponent),
+              value.uuidString.lowercased() == generationRootURL.lastPathComponent else {
+            throw FinalizationIntentStoreError.generationRootInvalid
+        }
+        return value
+    }
+
+    private func validatedSnapshotIfPresent(
+        at url: URL,
+        intent: FinalizationIntentV1
+    ) throws -> (data: Data, snapshot: ReportSnapshotV1)? {
+        guard let type = try itemType(at: url, within: generationRootURL) else { return nil }
+        guard type == .typeRegular else {
+            throw FinalizationIntentStoreError.itemTypeInvalid
+        }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url, options: .mappedIfSafe)
+        } catch {
+            throw FinalizationIntentStoreError.fileOperationFailed
+        }
+        guard sha256(data) == intent.snapshotSHA256 else {
+            throw FinalizationIntentStoreError.bytesMismatch
+        }
+        do {
+            let snapshot = try ReportSnapshotEncoderV1().decode(data)
+            let payload = intent.finalizationPayload
+            let expectedEvidenceSource = payload.workflowRecordAfter.evidenceSourceRecordID
+                ?? payload.workflowRecordAfter.id
+            guard try ReportSnapshotEncoderV1().encode(snapshot).data == data,
+                  snapshot.reportID == intent.reportID,
+                  snapshot.packetID == intent.packetID,
+                  snapshot.sourceRecordID == intent.recordID,
+                  snapshot.evidenceSourceRecordID == expectedEvidenceSource,
+                  snapshot.stableRootID == intent.stableRootID,
+                  snapshot.snapshotCreatedAt == intent.snapshotCreatedAt,
+                  snapshot.snapshotSchemaVersion == 1,
+                  snapshot.stage == payload.workflowRecordAfter.stage,
+                  snapshot.outcome == payload.workflowRecordAfter.outcomeKey,
+                  snapshot.pdfTemplate.id == payload.workflowRecordAfter.pdfTemplateID,
+                  snapshot.pdfTemplate.version == payload.workflowRecordAfter.pdfTemplateVersion,
+                  snapshot.pack.id == payload.workflowRecordAfter.packID,
+                  snapshot.pack.schemaVersion == payload.workflowRecordAfter.packSchemaVersion,
+                  snapshot.pack.contentVersion == payload.workflowRecordAfter.packContentVersion else {
+                throw FinalizationIntentStoreError.bytesMismatch
+            }
+            return (data, snapshot)
+        } catch {
+            throw FinalizationIntentStoreError.bytesMismatch
+        }
+    }
+
+    private func verifyRecovery(
+        _ recovery: RecoverableFinalization,
+        paths: Paths,
+        roots: ValidatedRoots
+    ) throws {
+        guard recovery.intentRelativePath == paths.intentRelativePath,
+              recovery.snapshotStagingRelativePath == recovery.intent.snapshotStagingRelativePath,
+              recovery.snapshotFinalRelativePath == recovery.intent.snapshotFinalRelativePath else {
+            throw FinalizationIntentStoreError.notOwned
+        }
+        try verifyIntent(recovery.intent, at: paths.intentURL, roots: roots)
+        if recovery.hasStagingSnapshot {
+            try verifyRegularFile(
+                at: paths.stagingSnapshotURL,
+                expectedByteCount: recovery.snapshotByteCount,
+                expectedSHA256: recovery.intent.snapshotSHA256,
+                within: generationRootURL
+            )
+        }
+        if recovery.hasFinalSnapshot {
+            try verifyRegularFile(
+                at: paths.finalSnapshotURL,
+                expectedByteCount: recovery.snapshotByteCount,
+                expectedSHA256: recovery.intent.snapshotSHA256,
+                within: generationRootURL
+            )
+        }
+    }
+
     private func validatedPaths(
         for intent: FinalizationIntentV1,
         roots: ValidatedRoots
@@ -443,7 +730,22 @@ actor FinalizationIntentStore {
         guard isInside(url, root: root) else {
             throw FinalizationIntentStoreError.unsafePath
         }
-        return try rawItemType(at: url)
+        guard try rawItemType(at: root) == .typeDirectory else {
+            throw FinalizationIntentStoreError.itemTypeInvalid
+        }
+        let relative = url.standardizedFileURL.path
+            .dropFirst(root.standardizedFileURL.path.count)
+            .split(separator: "/")
+        var current = root.standardizedFileURL
+        for (index, component) in relative.enumerated() {
+            current.appendPathComponent(String(component))
+            guard let type = try rawItemType(at: current) else { return nil }
+            if index == relative.count - 1 { return type }
+            guard type == .typeDirectory else {
+                throw FinalizationIntentStoreError.itemTypeInvalid
+            }
+        }
+        return .typeDirectory
     }
 
     private func rawItemType(at url: URL) throws -> FileAttributeType? {

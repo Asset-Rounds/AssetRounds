@@ -27,6 +27,20 @@ struct PromotedEvidenceBundle: Equatable, Sendable {
     let thumbnailSHA256: String
 }
 
+struct EvidenceBundleAuthority: Equatable, Sendable {
+    let schemaVersion: Int
+    let id: UUID
+    let recordID: UUID
+    let purposeKey: String
+    let relativePath: String
+    let mimeType: String
+    let byteCount: Int
+    let sha256: String
+    let thumbnailRelativePath: String
+    let thumbnailByteCount: Int
+    let thumbnailSHA256: String
+}
+
 enum EvidenceBundleStoreError: Error, Equatable {
     case generationRootInvalid
     case unsafePath
@@ -231,6 +245,106 @@ actor EvidenceBundleStore {
         }
     }
 
+    func verifyPromoted(
+        _ promoted: PromotedEvidenceBundle
+    ) throws -> PromotedEvidenceBundle {
+        let bundlePaths = paths(for: promoted.evidenceID)
+        try validateGenerationRoot()
+        let facts = try verifyBundle(
+            directoryURL: bundlePaths.promotedDirectoryURL,
+            evidenceID: promoted.evidenceID,
+            paths: bundlePaths
+        )
+        guard promoted.originalRelativePath == bundlePaths.originalRelativePath,
+              promoted.thumbnailRelativePath == bundlePaths.thumbnailRelativePath,
+              promoted.originalByteCount == facts.originalByteCount,
+              promoted.thumbnailByteCount == facts.thumbnailByteCount,
+              promoted.originalSHA256 == facts.originalSHA256,
+              promoted.thumbnailSHA256 == facts.thumbnailSHA256,
+              isLowercaseSHA256(promoted.originalSHA256),
+              isLowercaseSHA256(promoted.thumbnailSHA256) else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        return promoted
+    }
+
+    func reconcile(authorities: [EvidenceBundleAuthority]) throws {
+        try validateGenerationRoot()
+
+        var authorityByID: [UUID: EvidenceBundleAuthority] = [:]
+        for authority in authorities {
+            guard authorityByID.updateValue(authority, forKey: authority.id) == nil else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+        }
+
+        let stagingIDs = try bundleIDs(
+            parentComponents: [".staging"],
+            bundleDirectoryName: "evidence"
+        )
+        let promotedIDs = try bundleIDs(
+            parentComponents: [],
+            bundleDirectoryName: "evidence"
+        )
+        let allIDs = Set(authorityByID.keys)
+            .union(stagingIDs)
+            .union(promotedIDs)
+            .sorted { $0.uuidString < $1.uuidString }
+
+        var stagingCleanup: [URL] = []
+        var promotedCleanup: [URL] = []
+
+        for evidenceID in allIDs {
+            let bundlePaths = paths(for: evidenceID)
+            let hasStaging = stagingIDs.contains(evidenceID)
+            let hasPromoted = promotedIDs.contains(evidenceID)
+
+            guard let authority = authorityByID[evidenceID] else {
+                if hasStaging {
+                    stagingCleanup.append(bundlePaths.stagingDirectoryURL)
+                }
+                if hasPromoted {
+                    promotedCleanup.append(bundlePaths.promotedDirectoryURL)
+                }
+                continue
+            }
+
+            guard hasPromoted else {
+                throw EvidenceBundleStoreError.bundleMissing
+            }
+            let facts = try verifyBundle(
+                directoryURL: bundlePaths.promotedDirectoryURL,
+                evidenceID: evidenceID,
+                paths: bundlePaths
+            )
+            guard authority.schemaVersion == 1,
+                  authority.id == evidenceID,
+                  authority.mimeType == "image/jpeg",
+                  authority.relativePath == bundlePaths.originalRelativePath,
+                  authority.thumbnailRelativePath == bundlePaths.thumbnailRelativePath,
+                  authority.byteCount == facts.originalByteCount,
+                  authority.thumbnailByteCount == facts.thumbnailByteCount,
+                  authority.sha256 == facts.originalSHA256,
+                  authority.thumbnailSHA256 == facts.thumbnailSHA256,
+                  isLowercaseSHA256(authority.sha256),
+                  isLowercaseSHA256(authority.thumbnailSHA256) else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            if hasStaging {
+                stagingCleanup.append(bundlePaths.stagingDirectoryURL)
+            }
+        }
+
+        // Do not remove anything until every row and bundle is proven
+        // unambiguous. Cleanup then stays bounded to exact canonical UUID paths.
+        for url in stagingCleanup {
+            try removeExactDirectoryIfPresent(url)
+        }
+        for url in promotedCleanup {
+            try removeExactDirectoryIfPresent(url)
+        }
+    }
+
     private struct BundlePaths {
         let stagingDirectoryRelativePath: String
         let originalRelativePath: String
@@ -273,6 +387,57 @@ actor EvidenceBundleStore {
             promotedOriginalURL: promotedDirectoryURL.appendingPathComponent("original.jpg"),
             promotedThumbnailURL: promotedDirectoryURL.appendingPathComponent("thumbnail.jpg")
         )
+    }
+
+    private func bundleIDs(
+        parentComponents: [String],
+        bundleDirectoryName: String
+    ) throws -> Set<UUID> {
+        var parentURL = generationRootURL
+        for component in parentComponents {
+            parentURL.appendPathComponent(component, isDirectory: true)
+            guard let parentType = try itemType(at: parentURL) else {
+                return []
+            }
+            guard parentType == .typeDirectory else {
+                throw EvidenceBundleStoreError.bundleShapeInvalid
+            }
+        }
+
+        let bundlesURL = parentURL.appendingPathComponent(
+            bundleDirectoryName,
+            isDirectory: true
+        )
+        guard let bundlesType = try itemType(at: bundlesURL) else {
+            return []
+        }
+        guard bundlesType == .typeDirectory else {
+            throw EvidenceBundleStoreError.bundleShapeInvalid
+        }
+
+        let names: [String]
+        do {
+            names = try fileManager.contentsOfDirectory(atPath: bundlesURL.path)
+        } catch {
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
+
+        var result: Set<UUID> = []
+        for name in names {
+            guard let id = UUID(uuidString: name),
+                  id.uuidString.lowercased() == name,
+                  result.insert(id).inserted else {
+                throw EvidenceBundleStoreError.bundleShapeInvalid
+            }
+            let bundleURL = bundlesURL.appendingPathComponent(
+                name,
+                isDirectory: true
+            )
+            guard try itemType(at: bundleURL) == .typeDirectory else {
+                throw EvidenceBundleStoreError.bundleShapeInvalid
+            }
+        }
+        return result
     }
 
     private func verifyBundle(
@@ -398,6 +563,12 @@ actor EvidenceBundleStore {
         let root = generationRootURL.standardizedFileURL.path
         let candidate = url.standardizedFileURL.path
         return candidate == root || candidate.hasPrefix(root + "/")
+    }
+
+    private func isLowercaseSHA256(_ value: String) -> Bool {
+        value.utf8.count == 64 && value.utf8.allSatisfy {
+            (0x30...0x39).contains($0) || (0x61...0x66).contains($0)
+        }
     }
 
     private func removeExactStagingDirectoryIfPresent(_ url: URL) throws {

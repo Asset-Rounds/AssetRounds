@@ -121,6 +121,16 @@ final class CheckRunnerCoordinator {
     private let diagnosticsStore: DiagnosticsStore?
     private var captureGenerationRootURL: URL?
     private var evidenceBundleStore: EvidenceBundleStore?
+    private var finalizationAttempt: FinalizationAttempt?
+
+    private struct FinalizationAttempt {
+        let assetID: UUID
+        let selection: CheckOutcomeSelection
+        let completedAt: Date
+        let snapshotCreatedAt: Date
+        let sourceApp: SourceAppSnapshotV1
+        let identifiers: FinalizationIdentifiers
+    }
 
     init(
         modelContext: ModelContext,
@@ -236,12 +246,8 @@ final class CheckRunnerCoordinator {
         sourceApp: SourceAppSnapshotV1,
         identifiers suppliedIdentifiers: FinalizationIdentifiers? = nil
     ) async throws -> FinalizationResult {
-        _ = try prepareReview(assetID: assetID, selection: selection)
         guard let generationRootURL = captureGenerationRootURL else {
             throw CheckRunnerCoordinatorError.finalizationNotConfigured
-        }
-        guard let draft = try existingDraft(assetID: assetID) else {
-            throw CheckRunnerCoordinatorError.captureDraftRequired
         }
         let outcome = try resolvedOutcome(selection)
         let identifiers: FinalizationIdentifiers
@@ -250,6 +256,21 @@ final class CheckRunnerCoordinator {
                 throw CheckRunnerCoordinatorError.issueLabelInvalid
             }
             identifiers = suppliedIdentifiers
+            finalizationAttempt = FinalizationAttempt(
+                assetID: assetID,
+                selection: selection,
+                completedAt: completedAt,
+                snapshotCreatedAt: snapshotCreatedAt,
+                sourceApp: sourceApp,
+                identifiers: suppliedIdentifiers
+            )
+        } else if let attempt = finalizationAttempt,
+                  attempt.assetID == assetID,
+                  attempt.selection == selection,
+                  attempt.completedAt == completedAt,
+                  attempt.snapshotCreatedAt == snapshotCreatedAt,
+                  attempt.sourceApp == sourceApp {
+            identifiers = attempt.identifiers
         } else {
             identifiers = FinalizationIdentifiers(
                 mutationID: UUID(),
@@ -258,9 +279,39 @@ final class CheckRunnerCoordinator {
                 reportID: UUID(),
                 issueID: outcome.issueLabel == nil ? nil : UUID()
             )
+            finalizationAttempt = FinalizationAttempt(
+                assetID: assetID,
+                selection: selection,
+                completedAt: completedAt,
+                snapshotCreatedAt: snapshotCreatedAt,
+                sourceApp: sourceApp,
+                identifiers: identifiers
+            )
         }
         let asset = try requiredAsset(id: assetID)
         let site = try requiredSite(id: asset.siteID)
+        let mutationID = identifiers.mutationID
+        let mutationRecords = try modelContext.fetch(
+            FetchDescriptor<WorkflowRecord>(
+                predicate: #Predicate { $0.finalizationMutationID == mutationID }
+            )
+        )
+        guard mutationRecords.count <= 1 else {
+            throw CheckRunnerCoordinatorError.finalizationFailed
+        }
+        let draft: WorkflowRecord
+        if let completed = mutationRecords.first {
+            guard completed.assetID == assetID else {
+                throw CheckRunnerCoordinatorError.finalizationFailed
+            }
+            draft = completed
+        } else {
+            _ = try prepareReview(assetID: assetID, selection: selection)
+            guard let existing = try existingDraft(assetID: assetID) else {
+                throw CheckRunnerCoordinatorError.captureDraftRequired
+            }
+            draft = existing
+        }
         let draftID = draft.id
         let evidenceDescriptor = FetchDescriptor<EvidenceFile>(
             predicate: #Predicate { $0.recordID == draftID }
@@ -276,9 +327,9 @@ final class CheckRunnerCoordinator {
         } catch {
             throw CheckRunnerCoordinatorError.finalizationNotConfigured
         }
-        let result: FinalizationResult
+        let outcomeResult: FinalizationServiceOutcome
         do {
-            result = try await service.finalize(
+            outcomeResult = try await service.finalize(
                 FinalizationServiceInput(
                     draft: draft,
                     asset: asset,
@@ -296,6 +347,7 @@ final class CheckRunnerCoordinator {
         } catch {
             throw CheckRunnerCoordinatorError.finalizationFailed
         }
+        let result = outcomeResult.result
 
         let reportID = result.reportID
         let reportDescriptor = FetchDescriptor<Report>(
@@ -304,7 +356,9 @@ final class CheckRunnerCoordinator {
         guard try modelContext.fetch(reportDescriptor).count == 1 else {
             throw CheckRunnerCoordinatorError.finalizationFailed
         }
-        await diagnosticsStore?.increment(.reportSaved)
+        if outcomeResult.createdAuthority {
+            await diagnosticsStore?.increment(.reportSaved)
+        }
         return result
     }
 
@@ -453,6 +507,12 @@ final class CheckRunnerCoordinator {
         candidate: CaptureCandidate,
         assetID: UUID
     ) async throws -> EvidenceFile {
+        if let replay = try await replayedEvidence(
+            candidate: candidate,
+            assetID: assetID
+        ) {
+            return replay
+        }
         let preparation = try prepareCapture(assetID: assetID)
         guard preparation.draftID == candidate.recordID,
               preparation.purpose?.key == candidate.purposeKey,
@@ -514,6 +574,92 @@ final class CheckRunnerCoordinator {
             }
             throw CheckRunnerCoordinatorError.saveFailed
         }
+    }
+
+    private func replayedEvidence(
+        candidate: CaptureCandidate,
+        assetID: UUID
+    ) async throws -> EvidenceFile? {
+        guard let evidenceBundleStore else {
+            throw CheckRunnerCoordinatorError.captureNotConfigured
+        }
+        let evidenceID = candidate.id
+        let matches = try modelContext.fetch(
+            FetchDescriptor<EvidenceFile>(
+                predicate: #Predicate { $0.id == evidenceID }
+            )
+        )
+        guard matches.count <= 1 else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        guard let evidence = matches.first else { return nil }
+
+        let recordID = candidate.recordID
+        let records = try modelContext.fetch(
+            FetchDescriptor<WorkflowRecord>(
+                predicate: #Predicate { $0.id == recordID }
+            )
+        )
+        let recordEvidence = try modelContext.fetch(
+            FetchDescriptor<EvidenceFile>(
+                predicate: #Predicate { $0.recordID == recordID }
+            )
+        )
+        let expectedStep: WorkflowDraftStep
+        switch candidate.purposeKey {
+        case "wide_context": expectedStep = .close
+        case "close_detail": expectedStep = .outcome
+        default:
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        let staged = candidate.stagedBundle
+        let canonicalID = candidate.id.uuidString.lowercased()
+        guard records.count == 1,
+              let draft = records.first,
+              draft.assetID == assetID,
+              draft.state == WorkflowState.draft.rawValue,
+              draft.draftStepKey == expectedStep.rawValue,
+              evidence.recordID == candidate.recordID,
+              evidence.purposeKey == candidate.purposeKey,
+              evidence.createdAt == candidate.createdAt,
+              evidence.mimeType == MediaContractV1.durableMIMEType,
+              evidence.relativePath == staged.originalRelativePath,
+              evidence.thumbnailRelativePath == staged.thumbnailRelativePath,
+              evidence.byteCount == staged.originalByteCount,
+              evidence.thumbnailByteCount == staged.thumbnailByteCount,
+              evidence.sha256 == staged.originalSHA256,
+              evidence.thumbnailSHA256 == staged.thumbnailSHA256,
+              staged.evidenceID == candidate.id,
+              staged.stagingDirectoryRelativePath
+                == ".staging/evidence/\(canonicalID)",
+              staged.originalRelativePath
+                == "evidence/\(canonicalID)/original.jpg",
+              staged.thumbnailRelativePath
+                == "evidence/\(canonicalID)/thumbnail.jpg",
+              recordEvidence.filter({
+                  $0.purposeKey == candidate.purposeKey
+              }).count == 1 else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        let promoted = PromotedEvidenceBundle(
+            evidenceID: staged.evidenceID,
+            originalRelativePath: staged.originalRelativePath,
+            thumbnailRelativePath: staged.thumbnailRelativePath,
+            originalByteCount: staged.originalByteCount,
+            thumbnailByteCount: staged.thumbnailByteCount,
+            originalSHA256: staged.originalSHA256,
+            thumbnailSHA256: staged.thumbnailSHA256
+        )
+        do {
+            guard try await evidenceBundleStore.verifyPromoted(promoted) == promoted else {
+                throw CheckRunnerCoordinatorError.invalidCaptureState
+            }
+        } catch let error as CheckRunnerCoordinatorError {
+            throw error
+        } catch {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        return evidence
     }
 
     func prepare(assetID: UUID) throws -> CheckRunnerPreparation {
