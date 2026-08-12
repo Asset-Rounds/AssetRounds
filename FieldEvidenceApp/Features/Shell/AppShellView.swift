@@ -9,6 +9,8 @@ struct AppShellView: View {
     static let reportsPlaceholderAccessibilityIdentifier = "s1.reports.placeholder"
     static let unavailableAccessibilityIdentifier = "s1.pack.unavailable"
 
+    @Environment(\.colorScheme) private var colorScheme
+
     private enum Tab: Hashable {
         case signs
         case reports
@@ -22,8 +24,17 @@ struct AppShellView: View {
     }
 
     let packLoadResult: SignPackLoadResult
+    let exposesColorSchemeForUITest: Bool
 
     @State private var selectedTab: Tab = .signs
+
+    init(
+        packLoadResult: SignPackLoadResult,
+        exposesColorSchemeForUITest: Bool = false
+    ) {
+        self.packLoadResult = packLoadResult
+        self.exposesColorSchemeForUITest = exposesColorSchemeForUITest
+    }
 
     var body: some View {
         switch packLoadResult {
@@ -73,6 +84,11 @@ struct AppShellView: View {
             .background(DesignTokens.Colors.canvas)
         }
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+        .accessibilityValue(
+            exposesColorSchemeForUITest
+                ? (colorScheme == .dark ? "Dark" : "Light")
+                : ""
+        )
     }
 }
 

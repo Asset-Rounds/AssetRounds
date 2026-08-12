@@ -14,7 +14,8 @@ final class S1ShellUITests: XCTestCase {
     func testExactShellAtAccessibilityXXXLAndInvalidPackFailClosed() {
         XCUIDevice.shared.appearance = .light
         let lightApp = launch(
-            arguments: contentSizeArguments + ["-AppleInterfaceStyle", "Light"]
+            arguments: contentSizeArguments
+                + ["-AppleInterfaceStyle", "Light", "--s1-ui-test-light-mode"]
         )
 
         let shell = element(in: lightApp, identifier: "s1.shell.screen")
@@ -30,6 +31,7 @@ final class S1ShellUITests: XCTestCase {
 
         XCTAssertTrue(lightApp.windows.firstMatch.waitForExistence(timeout: 10))
         XCTAssertTrue(shell.waitForExistence(timeout: 10))
+        XCTAssertEqual(shell.value as? String, "Light")
         XCTAssertTrue(tabBar.waitForExistence(timeout: 10))
         XCTAssertTrue(signsTab.waitForExistence(timeout: 10))
         XCTAssertTrue(reportsTab.waitForExistence(timeout: 10))
@@ -156,7 +158,12 @@ final class S1ShellUITests: XCTestCase {
         XCUIDevice.shared.appearance = .dark
         let invalidApp = launch(
             arguments: contentSizeArguments
-                + ["-AppleInterfaceStyle", "Dark", "--s1-invalid-pack"]
+                + [
+                    "-AppleInterfaceStyle",
+                    "Dark",
+                    "--s1-ui-test-dark-mode",
+                    "--s1-invalid-pack",
+                ]
         )
         let unavailable = element(in: invalidApp, identifier: "s1.pack.unavailable")
         XCTAssertTrue(unavailable.waitForExistence(timeout: 10))
@@ -169,32 +176,47 @@ final class S1ShellUITests: XCTestCase {
         invalidApp.terminate()
 
         let darkApp = launch(
-            arguments: contentSizeArguments + ["-AppleInterfaceStyle", "Dark"]
+            arguments: contentSizeArguments
+                + ["-AppleInterfaceStyle", "Dark", "--s1-ui-test-dark-mode"]
         )
-        XCTAssertTrue(
-            element(in: darkApp, identifier: "s1.shell.screen")
-                .waitForExistence(timeout: 10)
-        )
-        XCTAssertTrue(
-            darkApp.tabBars.firstMatch.buttons["Signs"]
-                .waitForExistence(timeout: 10)
-        )
-        XCTAssertTrue(
-            darkApp.tabBars.firstMatch.buttons["Reports"]
-                .waitForExistence(timeout: 10)
-        )
-        XCTAssertEqual(darkApp.tabBars.firstMatch.buttons.count, 2)
+        let darkShell = element(in: darkApp, identifier: "s1.shell.screen")
+        let darkTabBar = darkApp.tabBars.firstMatch
+        let darkSignsTab = darkTabBar.buttons["Signs"]
+        let darkReportsTab = darkTabBar.buttons["Reports"]
+        XCTAssertTrue(darkShell.waitForExistence(timeout: 10))
+        XCTAssertEqual(darkShell.value as? String, "Dark")
+        XCTAssertTrue(darkSignsTab.waitForExistence(timeout: 10))
+        XCTAssertTrue(darkSignsTab.isHittable)
+        XCTAssertTrue(darkReportsTab.waitForExistence(timeout: 10))
+        XCTAssertTrue(darkReportsTab.isHittable)
+        XCTAssertEqual(darkTabBar.buttons.count, 2)
         XCTAssertTrue(
             darkApp.staticTexts["Illuminated sign pack"]
                 .waitForExistence(timeout: 10)
         )
-        XCTAssertTrue(darkApp.buttons["Settings"].exists)
+        let darkSettingsButton = darkApp.buttons
+            .matching(identifier: "s1.settings.button")
+            .firstMatch
+        XCTAssertTrue(darkSettingsButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(darkSettingsButton.isHittable)
+        XCTAssertGreaterThanOrEqual(darkSettingsButton.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(darkSettingsButton.frame.height, 44)
+
+        darkReportsTab.tap()
+        XCTAssertTrue(
+            element(in: darkApp, identifier: "s1.reports.placeholder")
+                .waitForExistence(timeout: 10)
+        )
+        darkSignsTab.tap()
+        XCTAssertTrue(
+            darkApp.staticTexts["Illuminated sign pack"]
+                .waitForExistence(timeout: 10)
+        )
 
         let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         screenshot.name = "S1 Worklight shell — Dark accessibility XXXL"
         screenshot.lifetime = .keepAlways
         add(screenshot)
-        // Leave the valid Dark shell foregrounded for the workflow's final screenshot.
     }
 
     @MainActor
