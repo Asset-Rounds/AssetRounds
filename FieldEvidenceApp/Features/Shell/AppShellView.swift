@@ -59,11 +59,12 @@ struct AppShellView: View {
                         SettingsPlaceholderView()
                     } label: {
                         Image(systemName: "gearshape")
-                            .frame(
-                                minWidth: DesignTokens.Control.minimumHitSize,
-                                minHeight: DesignTokens.Control.minimumHitSize
-                            )
                     }
+                    .frame(
+                        minWidth: DesignTokens.Control.minimumHitSize,
+                        minHeight: DesignTokens.Control.minimumHitSize
+                    )
+                    .contentShape(Rectangle())
                     .accessibilityLabel("Settings")
                     .accessibilityIdentifier(Self.settingsButtonAccessibilityIdentifier)
                 }
