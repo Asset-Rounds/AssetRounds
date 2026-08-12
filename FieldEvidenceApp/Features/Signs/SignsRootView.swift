@@ -14,15 +14,18 @@ struct SignsRootView: View {
     private enum Route: Hashable {
         case sample
         case newSign
+        case check
     }
 
     let pack: SignPack
 
     @StateObject private var coordinator: FirstSignCoordinator
+    private let checkRunnerCoordinator: CheckRunnerCoordinator
     @State private var snapshot: FirstSignSnapshot?
     @State private var path = NavigationPath()
     @State private var didLoad = false
     @State private var loadErrorMessage: String?
+    @State private var checkNotice: String?
 
     init(
         modelContext: ModelContext,
@@ -37,13 +40,23 @@ struct SignsRootView: View {
                 signPack: pack
             )
         )
+        checkRunnerCoordinator = CheckRunnerCoordinator(
+            modelContext: modelContext,
+            signPack: pack
+        )
     }
 
     var body: some View {
         NavigationStack(path: $path) {
             Group {
                 if let snapshot {
-                    SignDetailView(snapshot: snapshot)
+                    SignDetailView(
+                        snapshot: snapshot,
+                        checkNotice: checkNotice
+                    ) {
+                        checkNotice = nil
+                        path.append(Route.check)
+                    }
                 } else if let loadErrorMessage {
                     loadFailure(message: loadErrorMessage)
                 } else {
@@ -58,6 +71,17 @@ struct SignsRootView: View {
                     NewSignView(coordinator: coordinator) { savedSnapshot in
                         snapshot = savedSnapshot
                         path = NavigationPath()
+                    }
+                case .check:
+                    if let snapshot {
+                        PreflightView(
+                            snapshot: snapshot,
+                            pack: pack,
+                            coordinator: checkRunnerCoordinator
+                        ) {
+                            checkNotice = "No check was started."
+                            path.removeLast()
+                        }
                     }
                 }
             }
@@ -83,7 +107,13 @@ struct SignsRootView: View {
             didLoad = true
 
             do {
-                snapshot = try coordinator.load()
+                let loadedSnapshot = try coordinator.load()
+                snapshot = loadedSnapshot
+
+                if let loadedSnapshot,
+                   try checkRunnerCoordinator.existingDraft(assetID: loadedSnapshot.assetID) != nil {
+                    path.append(Route.check)
+                }
             } catch {
                 loadErrorMessage = "Saved sign data could not be opened."
             }

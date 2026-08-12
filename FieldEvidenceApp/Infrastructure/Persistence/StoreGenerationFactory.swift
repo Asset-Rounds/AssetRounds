@@ -227,7 +227,15 @@ struct StoreGenerationFactory {
     @MainActor
     private func makeContainer(at modelStoreURL: URL) throws -> ModelContainer {
         let schema = Schema(
-            [Site.self, Asset.self],
+            [
+                Site.self,
+                Asset.self,
+                WorkflowRecord.self,
+                EvidenceFile.self,
+                Issue.self,
+                Packet.self,
+                Report.self,
+            ],
             version: Schema.Version(1, 0, 0)
         )
         let configuration = ModelConfiguration(

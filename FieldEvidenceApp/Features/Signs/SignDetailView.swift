@@ -7,9 +7,11 @@ struct SignDetailView: View {
     static let addressAccessibilityIdentifier = "s2.sign-detail.address"
     static let timeZoneAccessibilityIdentifier = "s2.sign-detail.time-zone"
     static let startCheckAccessibilityIdentifier = "s2.sign-detail.start-check"
-    static let unavailableAccessibilityIdentifier = "s2.sign-detail.unavailable"
+    static let noCheckStartedAccessibilityIdentifier = "s3.sign-detail.no-check-started"
 
     let snapshot: FirstSignSnapshot
+    let checkNotice: String?
+    let startCheck: () -> Void
 
     var body: some View {
         ScrollView {
@@ -48,16 +50,19 @@ struct SignDetailView: View {
                 }
 
                 WorklightCard {
-                    Button("Start Check") {}
+                    Button("Start Check", action: startCheck)
                         .buttonStyle(WorklightPrimaryButtonStyle())
-                        .disabled(true)
                         .accessibilityIdentifier(Self.startCheckAccessibilityIdentifier)
 
-                    Text("Start Check is unavailable until the next setup step, S3.1.")
-                        .font(.subheadline)
-                        .foregroundStyle(DesignTokens.Colors.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier(Self.unavailableAccessibilityIdentifier)
+                    if let checkNotice {
+                        Label(checkNotice, systemImage: "info.circle.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(DesignTokens.Colors.informationText)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel(checkNotice)
+                            .accessibilityIdentifier(Self.noCheckStartedAccessibilityIdentifier)
+                    }
                 }
             }
             .padding(DesignTokens.Spacing.medium)
