@@ -710,7 +710,7 @@ final class S3_2MediaPipelineTests: XCTestCase {
                 reconstructed.append(segment.payload.dropFirst(signatureCount + 2))
             }
             let colorSpace = try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB))
-            let selectedICC = try XCTUnwrap(CGColorSpaceCopyICCData(colorSpace)) as Data
+            let selectedICC = try XCTUnwrap(colorSpace.copyICCData()) as Data
             XCTAssertEqual(reconstructed, selectedICC, file: file, line: line)
         } catch {
             XCTFail("Independent JPEG metadata parse failed: \(error)", file: file, line: line)

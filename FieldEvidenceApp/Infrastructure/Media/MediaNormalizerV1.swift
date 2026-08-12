@@ -156,7 +156,7 @@ struct MediaNormalizerV1 {
             nil
         ),
               let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-              let profile = CGColorSpaceCopyICCData(colorSpace) else {
+              let profile = colorSpace.copyICCData() else {
             return nil
         }
 
@@ -352,7 +352,7 @@ struct MediaNormalizerV1 {
         guard let expectedCount,
               chunks.count == expectedCount,
               let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-              let selectedProfile = CGColorSpaceCopyICCData(colorSpace) else {
+              let selectedProfile = colorSpace.copyICCData() else {
             return false
         }
         var profile = Data()
