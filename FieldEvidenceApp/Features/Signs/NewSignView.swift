@@ -196,24 +196,34 @@ struct NewSignView: View {
     }
 
     private func focus(_ field: FirstSignValidationField) {
+        let target: Field
+        let requestsKeyboardFocus: Bool
+
         switch field {
         case .siteLabel:
             errorMessage = "Enter a customer or site name."
-            focusedField = .siteLabel
-            accessibilityFocusedField = .siteLabel
+            target = .siteLabel
+            requestsKeyboardFocus = true
         case .signLabel:
             errorMessage = "Enter a sign name."
-            focusedField = .signLabel
-            accessibilityFocusedField = .signLabel
+            target = .signLabel
+            requestsKeyboardFocus = true
         case .timeZoneID:
             showsOptionalDetails = true
             errorMessage = "Enter an exact IANA time-zone identifier."
-            focusedField = .timeZoneID
-            accessibilityFocusedField = .timeZoneID
+            target = .timeZoneID
+            requestsKeyboardFocus = true
         case .timeZoneConfirmation:
             showsOptionalDetails = true
             errorMessage = "Confirm the exact time-zone identifier."
-            accessibilityFocusedField = .timeZoneConfirmation
+            target = .timeZoneConfirmation
+            requestsKeyboardFocus = false
+        }
+
+        Task { @MainActor in
+            await Task.yield()
+            focusedField = requestsKeyboardFocus ? target : nil
+            accessibilityFocusedField = target
         }
     }
 }
