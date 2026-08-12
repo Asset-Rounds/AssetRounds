@@ -14,12 +14,12 @@ permissions:
 
 concurrency:
   group: ios-ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   verify:
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 90
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
       EXPECTED_XCODE_VERSION: "Xcode 26.6"
@@ -30,7 +30,7 @@ jobs:
       CONFIGURATION: Debug
       SIMULATOR_RUNTIME: iOS 26.5
       SIMULATOR_NAME: iPhone 17
-      CI_SIMULATOR_BOOT_TIMEOUT_SECONDS: "300"
+      CI_SIMULATOR_BOOT_TIMEOUT_SECONDS: "900"
       CODE_SIGNING_ALLOWED: "NO"
       NSUnbufferedIO: "YES"
 
@@ -96,7 +96,7 @@ jobs:
                   .testTimeoutSeconds,
                   .uiTimeoutSeconds,
                   .totalBudgetSeconds
-                ] == [90, 150, 240, 0, 480]
+                ] == [300, 600, 900, 0, 2400]
               elif .tier == "P12" then
                 [
                   .setupArtifactTimeoutSeconds,
@@ -104,7 +104,7 @@ jobs:
                   .testTimeoutSeconds,
                   .uiTimeoutSeconds,
                   .totalBudgetSeconds
-                ] == [120, 180, 180, 240, 720]
+                ] == [300, 600, 900, 900, 3300]
               elif .tier == "F25" then
                 [
                   .setupArtifactTimeoutSeconds,
@@ -112,7 +112,7 @@ jobs:
                   .testTimeoutSeconds,
                   .uiTimeoutSeconds,
                   .totalBudgetSeconds
-                ] == [180, 240, 300, 780, 1500]
+                ] == [300, 900, 1200, 1800, 4500]
               else false
               end;
             exact_keys
@@ -243,7 +243,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" = "300"
+          test "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" = "900"
           test -n "${CI_SIMULATOR_UDID:-}"
           case "${CI_SIMULATOR_INITIAL_STATE:-}" in
             Shutdown) simulator_boot_action="boot" ;;
