@@ -498,3 +498,89 @@ The accepted run's `head_sha` exactly equals `E=I2=770785cbf890501b4df21cab86faf
 
 - Task ID only; it was not started: `S3.2`
 - Next gate: same-phase autopilot may commit and non-force push exactly this append plus immediate-next S3.2 `CURRENT_TASK.md` after re-proving remote phase=`I2` and remote main=`P`; then run fresh S3.2 G0. Do not mutate main.
+
+## `S3.2` — `complete` — `2026-08-12T21:56:45Z`
+
+- Phase ID / phase branch / card position / phase-boundary card (`yes | no`): `S3` / `phase/s3-check-runner` / `2 of 7` / `no`
+- Program-autopilot state / exact phase-and-branch map / final owner-only boundary: `enabled through accepted S9.1` / exact frozen S0–S9 map in `CURRENT_TASK.md` / stop after accepted exact-main S9.1; S9.2 signing/TestFlight and S9.3 App Store submission remain owner-only
+- Phase-autopilot state / exact authorized same-phase span: `enabled` / `S3.1,S3.2,S3.3,S3.4,S3.5,S3.6,S3.7`
+- Predecessor IDs and evidence: accepted S3.1 base `M=E=I2=770785cbf890501b4df21cab86fafd804f00c6c6`; exact run `31638832689` succeeded with P12/UI and complete independently verified evidence
+- Outcome: added the exact imported-fixture media pipeline and existing-draft runner: canonical wide/close original+thumbnail JPEG normalization, important-usage capacity gate, staged verification and atomic bundle promotion before one EvidenceFile/step save, precise rollback/Retake ownership, relaunch persistence, and explicit S3.3-unavailable terminal state
+- Exact build-plan path / SHA-256: `docs/product/BUILD_PLAN_V4.md` / `23DAAB390AF917CBE91C3044E4906F3FBF8D67D2FDFC6BC9BDE985D984F37BBD`
+- Exact implementation-runbook path / SHA-256 / selected card: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / `S3.2 — Imported-fixture media pipeline and runner`
+- Authoring host OS/build: Microsoft Windows Home, 64-bit, version `10.0.26200`, build `26200`
+- GitHub repository / visibility and exact-ref branch-control posture / base branch / phase branch: `palatis3/AssetRounds` / public solo repository, exact-ref/non-force-only / `main` / `phase/s3-check-runner`
+- Immutable phase-main base SHA `P` and evidence: `7d135aaddd0bdc50168552b0610f04adc1703506`; accepted S2 exact-main run `31633843776`
+- Integrated/card-base SHA `M` and evidence: `770785cbf890501b4df21cab86fafd804f00c6c6`; accepted S3.1 exact-head run `31638832689`
+- Observed task-start authority SHA and authority-only diff result: `A=5a6fdea5ace9e22e91e995b53bbd465ee5b3ad14`, a direct child of M changing exactly the append-only S3.1 `docs/execution/HANDOFF.md` entry and immediate-next `docs/execution/CURRENT_TASK.md`
+- Implementation commit SHA: initial `I=f1562c7718da6d3cb835315dbf21493ae17af086`; `I2=0cca7efd97940a06e5ecdd269b3e483b7113be3f`; accepted `E=I3=0dae8c52dcfcbf8a2ad17c739bd0bb2d6b7b43ce`
+- Pre-existing dirty paths and owner/disposition: `NONE`; fresh G0, both correction preflights, and accepted-head dispatch state were clean
+- Workflow path / workflow file SHA-256 / trigger / frozen branch ref / actual expected head: `.github/workflows/ios-ci.yml` / `9FFEA51ADB2620B01FE250412716487F6102DAC7E93AEA0471943AF66C1BC2AC` / `workflow_dispatch` / `phase/s3-check-runner` / `0dae8c52dcfcbf8a2ad17c739bd0bb2d6b7b43ce`
+- CI selector task ID / tier / `runUISmoke` / workflow input equality result: `S3.2` / `P12` / `true` / `PASS`; exact `300/600/900/900/3300`, unit selector `FieldEvidenceAppTests/S3_2MediaPipelineTests`, UI selector `FieldEvidenceAppUITests/S3_2ImportedCaptureUITests`, selector LF SHA-256 `B2C7E95F27D48E717C503AF95A128EBA9E4E986ECD6A58B619A9BB635B025296`
+- Actions run ID / URL / `head_sha` / conclusion: `31643819476` / `https://github.com/palatis3/AssetRounds/actions/runs/31643819476` / `0dae8c52dcfcbf8a2ad17c739bd0bb2d6b7b43ce` / `success`
+- Actions job ID / URL / conclusion: `94272573406` / `https://github.com/palatis3/AssetRounds/actions/runs/31643819476/job/94272573406` / `success`
+- Runner image / Xcode version+build / minimum iOS: `ImageOS=macos26`, `ImageVersion=20260728.0273.1`, `ImageArch=unknown` / `Xcode 26.6`, `Build version 17F113`, `DEVELOPER_DIR=/Applications/Xcode_26.6.app/Contents/Developer` / iOS `18.0`
+- Project or workspace / target / shared scheme / configuration: `FieldEvidenceApp.xcodeproj` / `FieldEvidenceApp` / `FieldEvidenceApp` / `Debug`
+- Simulator selector and actual model / OS / UDID; UI-smoke mode: `iPhone 17` + `iOS 26.5` / iPhone 17 / iOS 26.5 / `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; P12 imported wide→Retake→wide→close→relaunch golden XCUITest
+- Allowed GitHub methods and actions actually performed: task-named read/fetch/ref/run/workflow/artifact inspection; explicit-path commits; non-force phase push; exact workflow dispatch on the phase branch with `run_ui_smoke=true`; exact-run observation/download; no main, force-push, merge, PR, repository-setting, signing, deployment, or release mutation
+- Owner-required posture from task and G0-observed effective sandbox / approval / command-network / trusted-config / GitHub-tool state: Full access observed; `sandbox_mode=danger-full-access`; `approval_policy=never`; command network enabled; trusted repository configuration active; authenticated GitHub CLI available; XcodeBuildMCP and owner-operated Mac unnecessary
+- Card-owned implementation / correction / verification actions: created and non-force pushed I, one causal API-spelling I2, and one causal accessibility-modifier I3; dispatched one exact candidate per head; inspected complete terminal evidence and artifacts; accepted only exact I3
+- Boundary recovery state: accepted S3.2 HANDOFF pending; remote phase=`I3`, remote `main=P`; S3.3 was unstarted before this append
+- Project/persistent-schema delta: no project or schema delta; exact seven-model schema remains unchanged
+
+### Changed paths
+
+- `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
+- `FieldEvidenceApp/Domain/Media/MediaContractV1.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift`
+- `FieldEvidenceApp/Features/CheckRunner/PreflightView.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift`
+- `FieldEvidenceApp/Infrastructure/Media/MediaNormalizerV1.swift`
+- `FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift`
+- `FieldEvidenceAppTests/S3_2MediaPipelineTests.swift`
+- `FieldEvidenceAppUITests/S3_2ImportedCaptureUITests.swift`
+- `FieldEvidenceAppUITests/Fixtures/S3_2WideInput.png`
+- `FieldEvidenceAppUITests/Fixtures/S3_2CloseInput.png`
+- `Scripts/ci-selection.json`
+- `I..I2` changed exactly `FieldEvidenceApp/Infrastructure/Media/MediaNormalizerV1.swift` and `FieldEvidenceAppTests/S3_2MediaPipelineTests.swift`: three causal Xcode 26 API substitutions from `CGColorSpaceCopyICCData(...)` to instance `copyICCData()`; contract and test strength unchanged
+- `I2..I3` changed exactly `FieldEvidenceApp/Features/CheckRunner/PreflightView.swift`: moved `s3.preflight.screen` from the outer branch Group to the non-draft ScrollView so the existing `s3.capture.screen` identifier is exposed; product composition and selector unchanged
+
+### Verification
+
+| Command or smoke | Run/job | Timeout | Exit code | Actual duration | Result | Artifact/evidence path and checksum |
+|---|---|---:|---:|---:|---|---|
+| Fresh G0: branch/cleanliness, `A^=M`, exact two-path `M..A`, pins/map/environment/selector/live refs | local + GitHub read-only | fail closed | 0 | bounded | PASS | `A=5a6fdea5ace9e22e91e995b53bbd465ee5b3ad14`; phase began at A and main remained P |
+| Exact A..I3 structure and task envelope | local Windows read-only | fail closed | 0 | bounded | PASS | exactly 10 production, 4 test/fixture, and selector-exception paths through I; each correction is a direct child with one diagnosed delta; `git diff --check` passes |
+| Initial exact-I P12 candidate | `31642191871` | P12 | nonzero | build failure | FAIL — exact Xcode 26 compiler errors prescribed the instance `copyICCData()` API; led directly to I2 | artifact `ios-ci-31642191871-1`, ID `9159409368`, API/raw ZIP digest `sha256:70e6f88c59e9657047427df235e7f3f336fd89970dc5c47c92386293f42a688f` |
+| Exact-I2 P12 candidate | `31642703060` / `94268886252` | P12 | nonzero | build passed; 5 units passed; UI failed | FAIL — first post-Begin `s3.capture.screen` selector was masked by the outer preflight identifier; led directly to I3 | artifact `ios-ci-31642703060-1`, ID `9159815193`, API/raw ZIP digest `sha256:2757fcebc882b1928edea4c52ae4bc6a1ec0cbf88ea217181ab7bed79520dc29` |
+| `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh` | accepted `31643819476` / `94272573406` | 600 s | 0 | 238 s | PASS — exact-destination unsigned build | nonempty `Build.xcresult`; build log SHA-256 `167040F9E6E89564F9D05A3D246B9090A72400D82883657678BF298AE4338DAD` |
+| `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh` / exact `FieldEvidenceAppTests/S3_2MediaPipelineTests` | same | 900 s | 0 | step 71 s; XCTest 1.088 s | PASS — exactly 5 targeted tests passed | nonempty `UnitTests.xcresult`; unit log SHA-256 `7D62D7A6E49859642F602AE7558ABC70AE967A08AA8EF448A635351A15A1A919` |
+| `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh` / exact `FieldEvidenceAppUITests/S3_2ImportedCaptureUITests` | same | 900 s | 0 | step 151 s; test 100.781 s | PASS — sole imported wide/Retake/close/relaunch test passed | nonempty `UISmoke.xcresult`; UI log SHA-256 `230C43D476FD0F0C5EB5E46344EA890AC0146BD7156D174215F1969EC97E7132`; `ui-final.png` SHA-256 `0FA105A007AC7A2F9119DA827B872C59B614AED49AEACA7F163C018300A20E93` |
+| Required-evidence/checksum validation and P12 budgets | same | setup/artifact 300 s; readiness 900 s; total 3300 s | 0 | setup 48 s; readiness 128 s; artifact 2 s; setup+artifact 50 s; total 515 s | PASS | artifact `ios-ci-31643819476-1`, ID `9160153393`, size `1743816`, API/raw ZIP digest `sha256:ebf1a91d2ae0c4de18061255ea6fa43a65fdaed772d37c6a9860ce4112791660`; `SHA256SUMS.txt` SHA-256 `B89B1CCF6B93ACB621B133834E3EA0AF7B7A72587F7EA38FBABBF37A82EDF2D6`; all 101 payloads matched |
+
+The accepted run's `head_sha` exactly equals `E=I3=0dae8c52dcfcbf8a2ad17c739bd0bb2d6b7b43ce`. There is no distinct infrastructure verification head K. This HANDOFF append is not implementation evidence and does not self-record its future transition commit.
+
+### Acceptance results
+
+- Golden path `PASS`: deterministic wide and close fixtures normalize into exact canonical JPEG original+thumbnail pairs; capacity gating precedes all writes; verified staging and atomic bundle promotion precede each one-row/step save; exact paths/counts/hashes and both bundles survive relaunch; accepted wide remains byte-identical while close is processed
+- Named alternate `PASS`: Retake removes only the current unaccepted staging bundle, preserving prior accepted evidence/row/step/bundle; subsequent Use Photo succeeds
+- Atomicity/security `PASS`: invalid sources and tampered extra staging files fail closed; capacity-unavailable creates no bytes/row/step mutation; only regular nonsymlink allowlisted files promote; product rollback removes only a newly promoted unowned bundle on save failure
+- Accessibility/UI spot check `PASS`: exact wide/close progress, Retake, Use Photo, relaunch continuation, and final capture root are accessible; fixture import exists only under the explicit UI-test argument whose default is false
+- Exact terminal screen/data artifact `PASS`: sole retained attachment `S3.2 imported evidence resumed` shows Capture and exact `Outcome is unavailable until S3.3.` with no alert, keyboard, clipping, or corruption; screenshot source `13432D14-7DA7-49D1-AB54-2451BF5D9B95.png`, exported SHA-256 `0FA105A007AC7A2F9119DA827B872C59B614AED49AEACA7F163C018300A20E93`
+- Future controls verified omitted/inert `PASS`: no camera/PhotosPicker/permission, production fixture route, outcome choice/review/CNV/finalization/Packet/Report/Issue operation, recovery matrix, broad fault framework, model/schema/project/package/capability/remote delta, or diagnostics/access/commerce behavior was added
+
+### Known bugs or limitations
+
+- Bug ID / severity / disposition, or `NONE`: `NONE`; `docs/execution/KNOWN_BUGS.md` was read and contains no qualifying S3.2 defect
+
+### Blockers
+
+- `NONE`
+
+### Next unstarted task
+
+- Task ID only; it was not started: `S3.3`
+- Next gate: same-phase autopilot may commit and non-force push exactly this append plus immediate-next S3.3 `CURRENT_TASK.md` after re-proving remote phase=`I3` and remote main=`P`; then run fresh S3.3 G0. Do not mutate main.
