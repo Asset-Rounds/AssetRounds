@@ -308,6 +308,7 @@ Every card inherits Sections 1–7. `HANDOFF.md` and `Scripts/ci-selection.json`
 - Anchors/start: plan §§5, 8, 9 and `IlluminatedSignPack@1`; launch-only app.
 - Outcome: Signs/Reports tabs, Settings gear, semantic tokens/components, isolated sample, strict bundled pack loader.
 - Allowed/forbidden: `DesignSystem/**`, `Domain/Packs/**`, `Features/{Shell,Sample}/**`, pack/assets, exact App wiring/tests; no SwiftData, runner, generic engine, or remote pack.
+- Exact envelope override: up to 27 production paths and 5 test/support paths so the complete Worklight palette can be implemented literally as named asset-catalog Color Sets with Light, Dark, and increased-contrast variants while the shell, strict pack loader, bundled pack, and focused tests remain separately attributable. No other S1.1 production path is authorized by this override.
 - Exact delta: no project/schema delta; pack rejects unknown key/version and contains only closed sign nouns/instructions, evidence purpose key/display/instruction, issue labels, CNV reasons, acknowledgement/disclaimer copy, and frozen stage/outcome displays; it defines no PDF layout/order.
 - GOLDEN: exact nouns/prompts/issue/CNV/evidence registries render; shell survives largest text and Light/Dark.
 - ALT-1: invalid pack shows one local unavailable state and guesses nothing.
