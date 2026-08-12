@@ -11,6 +11,8 @@ test "${CODE_SIGNING_ALLOWED:-}" = "NO"
 test ! -e "$result_bundle_path"
 mkdir -p "$CI_ARTIFACT_DIR" "$derived_data_path"
 
+xcrun simctl bootstatus "$CI_SIMULATOR_UDID" -b
+
 xcodebuild \
   -project "${PROJECT_PATH:?}" \
   -scheme "${SCHEME:?}" \

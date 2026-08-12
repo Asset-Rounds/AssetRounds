@@ -22,8 +22,6 @@ done < <(jq -r '.unitTestSelectors[]' Scripts/ci-selection.json)
 
 test "${#only_testing_args[@]}" -gt 0
 
-xcrun simctl bootstatus "$CI_SIMULATOR_UDID" -b
-
 xcodebuild \
   -project "${PROJECT_PATH:?}" \
   -scheme "${SCHEME:?}" \
