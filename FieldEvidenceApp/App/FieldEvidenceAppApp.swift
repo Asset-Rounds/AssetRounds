@@ -82,9 +82,10 @@ private struct StartupRootView: View {
                     Task { await router.retryChecks() }
                 }
 
-            case let .ready(coordinator):
+            case let .ready(coordinator, diagnosticsStore):
                 ReadyAppView(
                     coordinator: coordinator,
+                    diagnosticsStore: diagnosticsStore,
                     packLoadResult: packLoadResult,
                     exposesColorSchemeForUITest: exposesColorSchemeForUITest
                 )
@@ -99,13 +100,16 @@ private struct StartupRootView: View {
 private struct ReadyAppView: View {
     @ObservedObject var coordinator: StoreSessionCoordinator
 
+    let diagnosticsStore: DiagnosticsStore
     let packLoadResult: SignPackLoadResult
     let exposesColorSchemeForUITest: Bool
 
     var body: some View {
         AppShellView(
             packLoadResult: packLoadResult,
-            exposesColorSchemeForUITest: exposesColorSchemeForUITest
+            exposesColorSchemeForUITest: exposesColorSchemeForUITest,
+            modelContext: coordinator.modelContext,
+            diagnosticsStore: diagnosticsStore
         )
         .id(coordinator.uiGenerationToken)
         .modelContext(coordinator.modelContext)

@@ -1,0 +1,86 @@
+import SwiftUI
+
+struct SignDetailView: View {
+    static let screenAccessibilityIdentifier = "s2.sign-detail.screen"
+    static let siteLabelAccessibilityIdentifier = "s2.sign-detail.site-label"
+    static let signLabelAccessibilityIdentifier = "s2.sign-detail.sign-label"
+    static let addressAccessibilityIdentifier = "s2.sign-detail.address"
+    static let timeZoneAccessibilityIdentifier = "s2.sign-detail.time-zone"
+    static let startCheckAccessibilityIdentifier = "s2.sign-detail.start-check"
+    static let unavailableAccessibilityIdentifier = "s2.sign-detail.unavailable"
+
+    let snapshot: FirstSignSnapshot
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
+                WorklightCard {
+                    WorklightStatusBadge(kind: .complete, text: "Sign saved")
+
+                    Text(snapshot.signLabel)
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier(Self.signLabelAccessibilityIdentifier)
+                        .accessibilityAddTraits(.isHeader)
+
+                    detailRow(
+                        title: "Customer / site",
+                        value: snapshot.siteLabel,
+                        identifier: Self.siteLabelAccessibilityIdentifier
+                    )
+
+                    if let address = snapshot.address {
+                        detailRow(
+                            title: "Address",
+                            value: address,
+                            identifier: Self.addressAccessibilityIdentifier
+                        )
+                    }
+
+                    if let timeZoneID = snapshot.timeZoneID {
+                        detailRow(
+                            title: "Time zone",
+                            value: timeZoneID,
+                            identifier: Self.timeZoneAccessibilityIdentifier
+                        )
+                    }
+                }
+
+                WorklightCard {
+                    Button("Start Check") {}
+                        .buttonStyle(WorklightPrimaryButtonStyle())
+                        .disabled(true)
+                        .accessibilityIdentifier(Self.startCheckAccessibilityIdentifier)
+
+                    Text("Start Check is unavailable until the next setup step, S3.1.")
+                        .font(.subheadline)
+                        .foregroundStyle(DesignTokens.Colors.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier(Self.unavailableAccessibilityIdentifier)
+                }
+            }
+            .padding(DesignTokens.Spacing.medium)
+        }
+        .navigationTitle("Sign detail")
+        .navigationBarBackButtonHidden(true)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DesignTokens.Colors.canvas)
+        .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+    }
+
+    private func detailRow(title: String, value: String, identifier: String) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(DesignTokens.Colors.secondaryText)
+
+            Text(value)
+                .font(.body)
+                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(identifier)
+    }
+}

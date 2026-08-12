@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 struct AppShellView: View {
@@ -14,26 +15,25 @@ struct AppShellView: View {
     private enum Tab: Hashable {
         case signs
         case reports
-
-        var title: String {
-            switch self {
-            case .signs: "Signs"
-            case .reports: "Reports"
-            }
-        }
     }
 
     let packLoadResult: SignPackLoadResult
     let exposesColorSchemeForUITest: Bool
+    let modelContext: ModelContext
+    let diagnosticsStore: DiagnosticsStore
 
     @State private var selectedTab: Tab = .signs
 
     init(
         packLoadResult: SignPackLoadResult,
-        exposesColorSchemeForUITest: Bool = false
+        exposesColorSchemeForUITest: Bool = false,
+        modelContext: ModelContext,
+        diagnosticsStore: DiagnosticsStore
     ) {
         self.packLoadResult = packLoadResult
         self.exposesColorSchemeForUITest = exposesColorSchemeForUITest
+        self.modelContext = modelContext
+        self.diagnosticsStore = diagnosticsStore
     }
 
     var body: some View {
@@ -47,48 +47,57 @@ struct AppShellView: View {
     }
 
     private func availableShell(pack: SignPack) -> some View {
-        NavigationStack {
-            TabView(selection: $selectedTab) {
-                PackSampleView(pack: pack)
-                    .tag(Tab.signs)
-                    .tabItem {
-                        Label("Signs", systemImage: "signpost.right.fill")
-                            .accessibilityIdentifier(Self.signsTabAccessibilityIdentifier)
-                    }
+        TabView(selection: $selectedTab) {
+            SignsRootView(
+                modelContext: modelContext,
+                diagnosticsStore: diagnosticsStore,
+                pack: pack
+            )
+            .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+            .accessibilityValue(
+                exposesColorSchemeForUITest
+                    ? (colorScheme == .dark ? "Dark" : "Light")
+                    : ""
+            )
+            .tag(Tab.signs)
+            .tabItem {
+                Label("Signs", systemImage: "signpost.right.fill")
+                    .accessibilityIdentifier(Self.signsTabAccessibilityIdentifier)
+            }
 
+            NavigationStack {
                 ReportsPlaceholderView()
-                    .tag(Tab.reports)
-                    .tabItem {
-                        Label("Reports", systemImage: "doc.text.fill")
-                            .accessibilityIdentifier(Self.reportsTabAccessibilityIdentifier)
+                    .navigationTitle("Reports")
+                    .toolbar {
+                        settingsToolbar
                     }
             }
-            .navigationTitle(selectedTab.title)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        SettingsPlaceholderView()
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .frame(
-                        minWidth: DesignTokens.Control.minimumHitSize,
-                        minHeight: DesignTokens.Control.minimumHitSize
-                    )
-                    .contentShape(Rectangle())
-                    .accessibilityLabel("Settings")
-                    .accessibilityIdentifier(Self.settingsButtonAccessibilityIdentifier)
-                }
+            .tag(Tab.reports)
+            .tabItem {
+                Label("Reports", systemImage: "doc.text.fill")
+                    .accessibilityIdentifier(Self.reportsTabAccessibilityIdentifier)
             }
-            .tint(DesignTokens.Colors.interactionAccent)
-            .background(DesignTokens.Colors.canvas)
         }
-        .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
-        .accessibilityValue(
-            exposesColorSchemeForUITest
-                ? (colorScheme == .dark ? "Dark" : "Light")
-                : ""
-        )
+        .tint(DesignTokens.Colors.interactionAccent)
+        .background(DesignTokens.Colors.canvas)
+    }
+
+    @ToolbarContentBuilder
+    private var settingsToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            NavigationLink {
+                SettingsPlaceholderView()
+            } label: {
+                Image(systemName: "gearshape")
+            }
+            .frame(
+                minWidth: DesignTokens.Control.minimumHitSize,
+                minHeight: DesignTokens.Control.minimumHitSize
+            )
+            .contentShape(Rectangle())
+            .accessibilityLabel("Settings")
+            .accessibilityIdentifier(Self.settingsButtonAccessibilityIdentifier)
+        }
     }
 }
 
@@ -111,7 +120,7 @@ private struct ReportsPlaceholderView: View {
     }
 }
 
-private struct SettingsPlaceholderView: View {
+struct SettingsPlaceholderView: View {
     var body: some View {
         ScrollView {
             WorklightCard {

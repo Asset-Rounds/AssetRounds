@@ -24,7 +24,7 @@ enum StartupStep: String, CaseIterable, Sendable {
 final class StartupRouter: ObservableObject {
     enum Route {
         case checking
-        case ready(StoreSessionCoordinator)
+        case ready(StoreSessionCoordinator, DiagnosticsStore)
         case maintenance(StartupMaintenanceReason)
     }
 
@@ -105,7 +105,10 @@ final class StartupRouter: ObservableObject {
             didBeginStep(.pdf)
 
             await diagnosticsStore.prepare()
-            route = .ready(StoreSessionCoordinator(session: session))
+            route = .ready(
+                StoreSessionCoordinator(session: session),
+                diagnosticsStore
+            )
         } catch let reason as StartupMaintenanceReason {
             route = .maintenance(reason)
         } catch {
