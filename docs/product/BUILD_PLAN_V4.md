@@ -525,7 +525,7 @@ Each S-row is one ordered **phase train** containing the named Codex cards. One 
 
 | Phase | Ordered task-sized units and exact terminal boundary | Owned launch smokes |
 |---|---|---|
-| S0 Contract/repo lock | `S0.1` creates the checked-in project/shared scheme, synchronized source groups, minimal app/test scaffold, build/test/UI scripts, `run-with-timeout.sh`, and exact-schema `Scripts/ci-selection.json`; CI validates the tier/input, enforces step/total ceilings, and fails closed on missing evidence. Green unsigned implementation-SHA build/install/launch is the boundary. The owner bootstraps the supplied workflow on default first; that bootstrap SHA `B` is S0's base `M`, and predecessor iOS CI is explicitly N/A because project/scripts do not exist yet. | baseline |
+| S0 Contract/repo lock | `S0.1` creates the checked-in project/shared scheme, synchronized source groups, minimal app/test scaffold, build/test/UI scripts, `run-with-timeout.sh`, and exact-schema `Scripts/ci-selection.json`; CI validates the tier/input, enforces step/total ceilings, and fails closed on missing evidence. Green unsigned implementation-SHA build/install/launch is the boundary. The owner bootstraps the supplied workflow on default first; that bootstrap SHA `B` is S0's immutable phase-main base `P` and initial card base `M`, and predecessor iOS CI is explicitly N/A because project/scripts do not exist yet. The sole §18 S0.1 recovery sets only recovery `M=I2`; it never changes `P`. | baseline |
 | S1 Shell/design system | `S1.1` creates two tabs, Settings entry, semantic tokens/components, exact sign-pack loader, and isolated fixture shell; unknown pack/version fails closed. | 12 foundation |
 | S2 Persistence/sign setup | `S2.1` creates only `Site`/`Asset`, immutable generation roots/current pointer, `StoreSessionCoordinator`, exact diagnostic-counter store, startup ordering, and the minimal maintenance surface. `S2.2` adds/reopens one site/sign with nullable-until-preflight IANA time zone; Start Check remains inert. | setup foundation |
 | S3 Check runner | `S3.1` adds the remaining five models, exact issue parent chain, stage-aware sole-draft begin/resume, and preflight time-zone/time snapshot; the seven-model schema then freezes. `S3.2` canonical atomic imported-fixture evidence bundle with original+thumbnail integrity. `S3.3` outcome/review, render-complete `ReportSnapshotV1`, exact `FinalizationIntentV1`, and pending Report. `S3.4` resume/mutation idempotency and the complete finalization presence matrix. `S3.5` storage/write/interruption reconciliation. `S3.6` exact camera permission plus denial/Photos/Settings recovery. `S3.7` post-draft Could-not-verify. | 2–6 as assigned |
@@ -663,6 +663,8 @@ Do not add features merely to increase a plan score. Every achieved evidence-sen
 
 The mandatory installed companions are `../execution/CODEX_EXECUTION_CONTRACT_V4.md` and `../execution/V4_IMPLEMENTATION_RUNBOOK.md`. The repository receives its short root `AGENTS.md`, one current-card `CURRENT_TASK.md`, a known-bug register, the supplied unsigned CI workflow, and small smoke scripts. The runbook is a catalog, not blanket product authority: `CURRENT_TASK.md` pins one selected card plus the immutable program/phase map and exact transition/integration flags. Codex implements only that current card and stops on any **unnamed** package, entitlement, backend, auth, payment behavior, migration, external action, adjacent feature, or ambiguous next-card contract. Authorized execution includes exact phase-branch work, CI/evidence, same-phase transition, fast-forward-only `main` integration, exact-main CI, and creation/hydration of only the frozen next phase branch. Full access never expands product scope. Signing, TestFlight upload, deployment, and App Store mutation remain owner-only S9.2/S9.3 actions.
 
+One bounded S0.1 recovery exception is owner-authorized after failed exact-head runs `31562160165` at `I=6dac0a660110b05643bcdaaf97113b75f54080a0` and `31562792005` at `I2=481d272ec319d3210d0e393d20130c7c1f8f0e1a`. A four-document authority-only amendment may set `M=I2` and authorize exactly one `I3` that moves exact-UDID `xcrun simctl bootstatus "$CI_SIMULATOR_UDID" -b` from `Scripts/test-smoke.sh` to `Scripts/build-smoke.sh` before `xcodebuild`, followed by exactly one final exact-head P12 dispatch. It changes no product behavior, selector, tier, timeout, workflow, branch, phase map, or prohibition. A non-green recovery run stops with no further implementation or dispatch. This exception applies only to this recorded S0.1 recovery and does not reset any other card's normal allowance.
+
 Recommended opening in the new Codex task:
 
 ```text
@@ -673,7 +675,8 @@ CURRENT_TASK.md, its exact pinned BUILD_PLAN_V4.md, and its exact pinned runbook
 For every card, run a fresh read-only G0; implement only its outcome, GOLDEN, and
 ALT-1; commit/push only its authorized paths to the named phase branch; dispatch
 the named unsigned macOS workflow; and accept only green CI whose head_sha equals
-I or the one allowed diagnosed-fix I2. A second non-green run stops the phase.
+I or the one allowed diagnosed-fix I2. A second non-green run stops the phase,
+except for the one pinned S0.1 I3 recovery above; its final non-green run stops.
 After green CI, append HANDOFF. Inside a phase, hydrate/commit only the immediate
 next authorized card, run fresh G0, and continue. At a boundary, use the frozen
 program-autopilot rule: commit/push final HANDOFF, prove refs, non-force fast-forward

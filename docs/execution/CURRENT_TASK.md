@@ -5,27 +5,27 @@
 - Phase autopilot enabled / exact ordered authorized same-phase card span: `yes` / `S0.1`
 - Autopilot transition rule: one current card at a time. Same-phase transition requires accepted exact-head CI, immediate next card inside the frozen span, exact HANDOFF-plus-CURRENT_TASK bookkeeping, and fresh G0. Boundary integration follows the exact `P/C/main-run/next-branch` state machine below. Program map, Full access posture, prohibitions, and final owner-only release boundary are immutable; ambiguity or missing owner input stops.
 - Card position in phase / runbook-marked phase boundary: `1 of 1` / `yes`
-- Predecessor card IDs: `NONE—S0.1 is the first coding card`
-- Required predecessor evidence: `N/A—first implementation; project/scripts do not exist yet`
+- Predecessor card IDs: `NONE—S0.1 remains the first coding card; this is its one owner-authorized recovery`
+- Required predecessor evidence: `Initial I=6dac0a660110b05643bcdaaf97113b75f54080a0 produced exact-head failed run 31562160165; diagnosed fix I2=481d272ec319d3210d0e393d20130c7c1f8f0e1a produced exact-head failed run 31562792005; both artifacts showed the pinned project built but cold Simulator readiness/launch exhausted the 180-second unit ceiling before a selected test completed. Owner authorized one recovery authority amendment, one exact I3 move, and one final dispatch.`
 - Immutable phase-main base SHA `P`: `c3e536a03775cc8d25f42a8e31c2f24db4390d4d` (S0 bootstrap `B`; must remain unchanged throughout S0 and equal remote `main` until phase-close integration)
-- Integrated/base SHA `M`: `c3e536a03775cc8d25f42a8e31c2f24db4390d4d` (owner replacement bootstrap `B`; local `main`, `origin/main`, and `origin/HEAD` matched at branch creation)
+- Integrated/base SHA `M`: `481d272ec319d3210d0e393d20130c7c1f8f0e1a` (exact failed S0.1 diagnosed-fix implementation `I2`; local and remote `phase/s0-foundation` matched before the owner-authorized recovery amendment; remote `main` remained immutable `P`)
 - Task-start authority HEAD `A`: `OBSERVE AT G0; record in HANDOFF, never self-record here`
-- Required `M..A` authority-only path set and expected diff: exactly `.codex/config.toml`, `.github/workflows/ios-ci.yml`, `AGENTS.md`, `docs/product/BUILD_PLAN_V4.md`, `docs/execution/CODEX_EXECUTION_CONTRACT_V4.md`, `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md`, `docs/execution/CURRENT_TASK.md`, `docs/execution/DECISIONS.md`, and `docs/execution/HANDOFF.md`; cumulative pre-S0 owner-approved D-004/D-005/D-006 authority/config/CI amendment plus hydrated S0.1, with no app/project/test/script implementation path
+- Required `M..A` authority-only path set and expected diff: exactly `AGENTS.md`, `docs/product/BUILD_PLAN_V4.md`, `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md`, and `docs/execution/CURRENT_TASK.md`; one bounded owner-authorized post-I2 recovery amendment that repins the changed plan/runbook, records the two failed exact-head runs, freezes the exact I3 delta/final dispatch, and changes no app/project/test/script implementation path
 - Pre-existing dirty paths and owner/disposition: `NONE`; stop at G0 if any uncommitted or untracked path exists
 - Build-plan path: `docs/product/BUILD_PLAN_V4.md`
-- Build-plan SHA-256 over exact bytes: `DA877E7C720BD29203B0340FA47B64AB553B98380432DDD925C4A8FE782D5C70`
+- Build-plan SHA-256 over exact bytes: `EF3C352A82F3259494DEC3D0EE68631B8B0C7385C06188D1C9184C007FC33697`
 - Exact plan heading anchors: `## 11. Build slices and release gates`; `## 16. Owner preparation checklist`; `## 18. Codex execution authority`
 - Implementation-runbook path: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md`
-- Implementation-runbook SHA-256 over exact bytes: `1D56FDCB9CB3226865E430D45BFF0247BA9F7D095279FF5070FACF4BD7453338`
+- Implementation-runbook SHA-256 over exact bytes: `191187066BCD52F1C69A08F0F9795AF7D731A5CDFAC985694573B4E47A46848C`
 - Selected runbook card ID and heading anchor: `S0.1` / `### S0.1 — Repository and unsigned CI baseline`
-- Outcome: `checked-in project, shared scheme, synchronized groups, launch-only app, unit/UI targets, four bounded scripts, validated selector file, and fail-closed CI evidence.`
+- Outcome: `preserve the complete I2 S0.1 project/app/tests/scripts/selector; move the one exact-UDID bootstatus command from the unit wrapper to the build wrapper before xcodebuild; obtain one green exact-I3 P12 CI result without any other implementation change.`
 - Product mode: `single-user, device-local V4`
-- Starting fixture/state: replacement bootstrap `B` contains only frozen authority/templates, `.codex/config.toml`, `.gitattributes`, and the manual unsigned CI workflow; there is no Xcode project, app source, test target, `Scripts/` directory, persistence, product fixture, or prior iOS CI run
+- Starting fixture/state: `I2=481d272ec319d3210d0e393d20130c7c1f8f0e1a` contains the complete structurally validated S0.1 project/app/tests/scripts and exact selector. `Scripts/test-smoke.sh` currently runs exact-UDID `xcrun simctl bootstatus "$CI_SIMULATOR_UDID" -b` inside the 180-second unit wrapper. Runs 31562160165 and 31562792005 are terminal failures with no accepted card CI; HANDOFF remains template-only; remote main remains `P`.
 - Execution route: `Windows authoring → GitHub Actions macOS verification`
 - Authoring host OS/build: `Microsoft Windows 11 Home, 64-bit, version 10.0.26200, build 26200`
 - GitHub repository / visibility and branch-control posture / base branch / phase branch: `palatis3/AssetRounds` / `private solo repository; no server-enforced main protection required; only the exact non-force program-main update below is allowed; every force push, merge commit, divergent-main repair, and other main write is forbidden` / `main` / `phase/s0-foundation`
 - CI workflow path / workflow file SHA-256 / trigger / branch ref: `.github/workflows/ios-ci.yml` / `ED3865E07A5CD25B641B75D049F4D6376EF42D8B0ABDF85570DBED6786FEF771` / `workflow_dispatch` with `run_ui_smoke=true` / `phase/s0-foundation`
-- Dispatch-head rule: immediately before dispatch, verify `refs/heads/phase/s0-foundation` points to implementation commit `I` or the one allowed `I2`, permit no intervening push, and require returned `head_sha` equality; record the actual expected/ref-head SHA only in HANDOFF after it exists
+- Dispatch-head rule: immediately before the one recovery dispatch, verify `refs/heads/phase/s0-foundation` points to exact recovery implementation commit `I3`, permit no intervening push, and require returned `head_sha` equality; record the actual expected/ref-head SHA only in HANDOFF after it exists
 - Hosted-macOS runner label / expected Xcode version+build: `macos-26` / `Xcode 26.6, Build version 17F113, DEVELOPER_DIR=/Applications/Xcode_26.6.app/Contents/Developer`
 - Minimum iOS deployment target: `18.0`
 - Project or workspace / target / shared scheme / configuration: `FieldEvidenceApp.xcodeproj` / `FieldEvidenceApp` / `FieldEvidenceApp` / `Debug`
@@ -34,11 +34,11 @@
 - Allowed GitHub/MCP tool methods and exact repository/ref/workflow arguments/operations: read-only `git status`, `git rev-parse`, `git diff`, `git show`, `git branch --show-current`, `git ls-remote`; explicit-path `git add|commit`; non-force `git push origin HEAD:refs/heads/phase/s0-foundation`; card CI `gh workflow run .github/workflows/ios-ci.yml --repo palatis3/AssetRounds --ref phase/s0-foundation -f run_ui_smoke=true`; at C only, non-force `git push origin <C>:refs/heads/main`; main CI `gh workflow run .github/workflows/ios-ci.yml --repo palatis3/AssetRounds --ref main -f run_ui_smoke=true` only when no named workflow-dispatch candidate at ref main/head C exists; matching-run-only `gh run list|view|watch|download`; boundary-only `git switch -c phase/s1-shell-design <C>` or switch to an exact valid local A, explicit CURRENT_TASK commit, then non-force `git push origin <A>:refs/heads/phase/s1-shell-design`; repo/workflow view. Later authority rotates only current/immediate-next mapped refs and selector input. `XcodeBuildMCP=disabled`; no force push, PR, issue, merge commit, release, settings, secrets, collaborator, signing, upload, deployment, or submission operation.
 - Owner-required sandbox / approval / command-network / trusted-config / GitHub-tool posture: owner GUI/session Full access; `sandbox_mode=danger-full-access`; `approval_policy=never`; command network enabled; project trusted; goals enabled; GitHub available; XcodeBuildMCP disabled. Broader enabled capability is not authority and not a G0 blocker; actual use remains limited to named paths and operations.
 - G0 observation rule: record effective posture in HANDOFF; stop only if a required operation is unavailable or an intended action exceeds this contract. Do not stop merely because other tools, connectors, credentials, filesystem locations, or network access are available.
-- G0 selector-transition rule: `Scripts/ci-selection.json` may be absent for S0.1; after G0 passes, create the exact object below as the first implementation-support mutation and require it to match before I/I2 or dispatch
-- Task-owned implementation commit authorized: `yes—one I, plus one I2 only after a diagnosed first-run failure`
-- Exact phase-branch push authorized: `yes—only the current mapped ref; non-force only`
-- Named CI workflow dispatch authorized: `yes—only the workflow/ref/input above, once normally and once after the single authorized fix`
-- Named run inspection + artifact download authorized: `yes—only the card run whose head_sha=I/I2 or the named main workflow-dispatch candidate whose ref=main and head_sha=C`
+- G0 selector-transition rule: `Scripts/ci-selection.json` must already equal the exact S0.1 object below at `M` and `A`; no selector mutation is authorized for recovery I3
+- Task-owned implementation commit authorized: `yes—exactly one recovery I3 after the four-document authority commit and fresh passing G0; no I4 or further fix`
+- Exact phase-branch push authorized: `yes—exactly one non-force push after I3, from remote M/I2 to local HEAD/I3 (including its local authority parent A); A is never pushed separately`
+- Named CI workflow dispatch authorized: `yes—exactly one final recovery dispatch, only the workflow/ref/input above at I3`
+- Named run inspection + artifact download authorized: `yes—only failed historical runs 31562160165/31562792005, the final recovery run whose head_sha=I3, or the named main workflow-dispatch candidate whose ref=main and head_sha=C after accepted I3`
 - Same-phase post-green transition commit/push authorized: `no—S0 has one card and no same-phase successor`
 - Phase-boundary HANDOFF-only commit/push authorized: `yes—after accepted exact-head CI, with exact phase-ref pre/post checks`
 - Program boundary integration / exact-main CI / immediate-next-branch creation and first-card hydration authorized: `yes / yes / yes—only the frozen state machine below; S0 next is phase/s1-shell-design`
@@ -47,7 +47,7 @@
 
 ## Boundary continuation state machine
 
-1. Before accepted card CI, no boundary action is permitted. After green `I`/`I2`, append HANDOFF, require remote phase ref=`I`/`I2`, commit only HANDOFF as `C`, non-force push, and require remote phase ref=`C`. If an exact HANDOFF-only `C` already exists, validate it and never rerun/re-edit S0.1.
+1. Before accepted card CI, no boundary action is permitted. After green recovery `I3`, append HANDOFF, require remote phase ref=`I3`, commit only HANDOFF as `C`, non-force push, and require remote phase ref=`C`. If an exact HANDOFF-only `C` already exists, validate it and never rerun/re-edit S0.1.
 2. Read remote `main` (remote is authoritative; local `main` may remain stale). `main=P` permits exactly one non-force `C:refs/heads/main` push; `main=C` resumes; any other value stops. Require remote phase ref=`C` and remote main=`C`.
 3. Any named workflow-dispatch run with `ref=main` and `head_sha=C` is the existing candidate. Matching success is accepted; queued/in-progress is watched; every terminal non-success stops with no product fix on main; dispatch exactly once only if none exists (the workflow enforces UI-input equality). Then recheck both remote phase and main refs=`C`.
 4. S0 next-ref recovery: valid local state is absent, C, or exact CURRENT_TASK-only A; valid remote state is absent or that exact A. From absent/C, hydrate S1.1 and commit A. If local is exact A and remote is absent, non-force create remote at A; if remote exact A exists, check out/resume it. Require local and remote A equality. Any other combination/content stops. Fresh S1 G0 must prove C..A exactly CURRENT_TASK.
@@ -55,41 +55,31 @@
 
 ## Allowed paths
 
-- `FieldEvidenceApp.xcodeproj/project.pbxproj`
-- `FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme`
-- `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
-- `FieldEvidenceApp/App/LaunchView.swift`
-- `FieldEvidenceApp/Resources/Assets.xcassets/Contents.json`
-- `FieldEvidenceAppTests/S0LaunchTests.swift`
-- `FieldEvidenceAppUITests/S0LaunchUITests.swift`
 - `Scripts/build-smoke.sh`
 - `Scripts/test-smoke.sh`
-- `Scripts/ui-smoke.sh`
-- `Scripts/run-with-timeout.sh`
-- `Scripts/ci-selection.json` (exact selected-card object; standing exception excluded from cap)
-- `docs/execution/HANDOFF.md` (append-only exception after exact-head CI; never in I/I2)
+- `docs/execution/HANDOFF.md` (append-only exception only after accepted exact-head I3 CI; never in I3)
 
-The eleven counted implementation paths above are exact individual file paths: five production/project and six test/support paths under the S0.1 runbook override. Selector and HANDOFF are standing exceptions. No glob, directory root, delete, rename, or additional path is authorized.
+The two counted recovery implementation paths above are exact individual test/support paths. HANDOFF remains the standing post-green exception. No selector change, glob, directory root, additional path, deletion, or rename is authorized. I3 must change both named scripts and no other path.
 
 ## Forbidden paths
 
 - `.github/workflows/ios-ci.yml`, `.codex/**`, `.gitattributes`, `AGENTS.md`, `docs/product/BUILD_PLAN_V4.md`, `docs/execution/CODEX_EXECUTION_CONTRACT_V4.md`, `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md`, `docs/execution/CURRENT_TASK.md`, `docs/execution/DECISIONS.md`, and `docs/execution/KNOWN_BUGS.md`
-- Every app, test, or script path not individually named above; all `DesignSystem`, `Domain`, `Features`, `Infrastructure`, `PreviewSupport`, `TestFixtures`, `Release`, workspace, plist/storyboard/icon, entitlement, package, dependency-lock, generator, signing/team/profile, and secret paths
+- Every app, project, test, or script path not individually named above, including `Scripts/ci-selection.json`, `Scripts/ui-smoke.sh`, and `Scripts/run-with-timeout.sh`; all `DesignSystem`, `Domain`, `Features`, `Infrastructure`, `PreviewSupport`, `TestFixtures`, `Release`, workspace, plist/storyboard/icon, entitlement, package, dependency-lock, generator, signing/team/profile, and secret paths
 - Tabs, navigation, onboarding, settings, persistence, packs, camera, reports, backup, StoreKit, backend/auth/sync, analytics, deployment, signing, and release behavior
 
 ## Project and persistence delta
 
-- Project integration mode: `S0 checked-in project/shared scheme`
-- Exact permitted project-file semantic delta: create a valid checked-in `FieldEvidenceApp.xcodeproj` without generator/workspace; PBX file-system-synchronized roots for app/unit/UI roots; exactly three iPhone targets `FieldEvidenceApp`, `FieldEvidenceAppTests`, `FieldEvidenceAppUITests`; iOS 18.0 all configurations; generated Info.plists/launch-screen settings; bundle IDs `com.palatis3.fieldrecord`, `com.palatis3.fieldrecord.tests`, `com.palatis3.fieldrecord.uitests`; display name `AssetRounds`; shared scheme builds app, tests both targets, launches app, uses Debug run/test and Release archive; no team/signing/profile/entitlement/capability/permission/package/schema. App is only `FieldEvidenceAppApp` plus system-styled `LaunchView` showing `AssetRounds` and `Sign Inspection`, with identifiers `s0.launch.screen` and `s0.launch.title`; no control/navigation.
+- Project integration mode: `existing S0 checked-in project/shared scheme; no project or app/test source change`
+- Exact permitted project-file semantic delta: `none; preserve the complete I2 project/app/test bytes`
 - Persistent-schema delta: `none`
 - Disposable dev-store reset: `UI smoke may uninstall only com.palatis3.fieldrecord from the exact resolved CI_SIMULATOR_UDID; never erase the Simulator`
-- Script contract: four LF executable `100755` scripts. Timeout wrapper accepts positive seconds+command, owns process group, TERM then ≤5s then KILL, returns child status or 124. Build uses unsigned build-for-testing and Build.xcresult; unit/UI use safe exact `-only-testing` args without eval and shared DerivedData; UI targets only resolved UDID, uninstalls only app bundle, writes UISmoke.xcresult and nonempty ui-final.png; all outputs stay in runner temp except Simulator app state.
+- Script contract: preserve four LF executable `100755` scripts and every I2 semantic except this exact move: remove `xcrun simctl bootstatus "$CI_SIMULATOR_UDID" -b` and the immediately following blank line from `Scripts/test-smoke.sh`; insert the identical command and one immediately following blank line in the existing gap directly before `Scripts/build-smoke.sh` invokes `xcodebuild`. The build wrapper then owns cold exact-UDID readiness inside its 180-second ceiling while unit retains its full 180 seconds. Do not change selector parsing, argv, timeouts, evidence paths, unsigned settings, uninstall/reset behavior, or any other line.
 
 ## Acceptance
 
 | ID | Precondition/reset | Ordered user actions | Expected checkpoints | Evidence path |
 |---|---|---|---|---|
-| GOLDEN | Clean authority `A`; no project/scripts; fresh pinned ephemeral Simulator; `run_ui_smoke=true` | Implement exact paths; create I; prove remote ref=I; dispatch; CI builds/tests/launches, inert-taps screen, captures evidence | (1) exact selector/P12 validates; (2) shared scheme resolves three targets at iOS 18.0; (3) unsigned build/app product/Build.xcresult exist; (4) S0 unit class executes non-skipped; (5) fresh app reaches foreground; (6) root/title identifiers and visible untruncated title persist after inert tap at accessibility XXXL; (7) selectors/artifacts/checksums validate within 720s | Matching exact-head run and downloaded `ios-ci-<run_id>-<run_attempt>` artifact with `FieldEvidenceCI` contents, result bundles, screenshot, runner/toolchain/selection records, and SHA256SUMS |
+| GOLDEN | Clean recovery authority `A` directly after `M=I2`; exact I2 project/app/tests/scripts/selector; fresh pinned ephemeral Simulator; `run_ui_smoke=true` | Move the one exact bootstatus command from unit to build script; create I3; prove remote ref=I3; dispatch once; CI warms the exact UDID inside build, builds/tests/launches, inert-taps screen, captures evidence | (1) exact selector/P12 validates unchanged; (2) build-step bootstatus reaches terminal readiness on only the resolved UDID; (3) shared scheme resolves three targets at iOS 18.0; (4) unsigned build/app product/Build.xcresult exist; (5) S0 unit class executes non-skipped within its full 180-second ceiling; (6) fresh app reaches foreground; (7) root/title identifiers and visible untruncated title persist after inert tap at accessibility XXXL; (8) selectors/artifacts/checksums validate within 720s | Matching exact-I3 run and downloaded `ios-ci-<run_id>-<run_attempt>` artifact with `FieldEvidenceCI` contents, result bundles, screenshot, runner/toolchain/selection records, and SHA256SUMS |
 | ALT-1 | `NONE` | `NONE` | `NONE`; unavailable or mismatched pinned runner/Xcode/runtime/device is a stop, not alternate implementation | `NONE` |
 
 ## Explicitly out of scope
@@ -101,11 +91,11 @@ The eleven counted implementation paths above are exact individual file paths: f
 
 ## Change envelope
 
-- Exact S0.1 override: five production/project paths and six test/support paths; selector and HANDOFF excluded. No additional path, deletion, or rename.
+- Exact owner-authorized recovery override: zero production/project paths and two test/support paths (`Scripts/build-smoke.sh`, `Scripts/test-smoke.sh`); HANDOFF excluded. No selector change, additional path, deletion, or rename.
 
 ## Verification
 
-- Windows structural/read-only checks: clean status; HEAD/ancestry; immutable `P`; `git diff --name-only M..A` exactly the nine declared authority/config/CI paths; plan/runbook/workflow SHA-256; exact remote refs/repo/workflow; after implementation exact allowed paths/selector/script LF+100755/project structure and no forbidden settings. Never invoke local Xcode/xcodebuild/Simulator/XcodeBuildMCP.
+- Windows structural/read-only checks: clean status; local HEAD=`A` directly parents `M=I2`; remote phase ref remains `M`; remote main remains immutable `P`; A is not separately pushed; `git diff --name-only M..A` is exactly the four declared recovery-authority paths; plan/runbook/workflow SHA-256; exact repo/workflow and historical run identities; selector unchanged. After I3, require the exact two-path implementation diff, command once in build before xcodebuild and zero times in unit, LF+100755 scripts, and all other I2 implementation bytes unchanged. Immediately before the sole non-force HEAD/I3 push, remote phase must still equal M; immediately afterward it must equal I3. Never invoke local Xcode/xcodebuild/Simulator/XcodeBuildMCP.
 - CI incremental build command: `bash Scripts/run-with-timeout.sh 180 bash Scripts/build-smoke.sh`, unsigned build-for-testing, shared DerivedData, `Build.xcresult`
 - CI targeted test command: `bash Scripts/run-with-timeout.sh 180 bash Scripts/test-smoke.sh`, exact `-only-testing:FieldEvidenceAppTests/S0LaunchTests`, `UnitTests.xcresult`
 - CI UI-smoke command/checkpoints: `bash Scripts/run-with-timeout.sh 240 bash Scripts/ui-smoke.sh`, exact `-only-testing:FieldEvidenceAppUITests/S0LaunchUITests`, `UISmoke.xcresult`, final screenshot; XCUITest launches with `-UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL`
@@ -116,12 +106,12 @@ The eleven counted implementation paths above are exact individual file paths: f
 
 ## Stop and ask
 
-- Any source/hash/card/span/branch/ref/authority/dirty-path mismatch; unavailable required operation; unexpected ref movement; non-fast-forward; invalid next-branch collision; forbidden/extra path; any unnamed package/target/workspace/generator/permission/schema/backend/auth/payment/analytics/signing/service/deployment; unresolved selector/artifact; user-work overwrite; second non-green card run; any non-green exact-main run; ambiguous hydration; or actual unlisted external write
+- Any source/hash/card/span/branch/ref/authority/dirty-path mismatch; unavailable required operation; unexpected ref movement; non-fast-forward; invalid next-branch collision; forbidden/extra path; any change beyond the exact two-script move; any unnamed package/target/workspace/generator/permission/schema/backend/auth/payment/analytics/signing/service/deployment; unresolved selector/artifact; user-work overwrite; any non-green final I3 recovery run; any non-green exact-main run; ambiguous hydration; or actual unlisted external write
 
 ## Definition of done
 
-- Every GOLDEN checkpoint passes in one exact-head P12 run; both selected classes execute non-skipped; artifacts/checksums validate within budget; diff is exact; no adjacent behavior appears; KNOWN_BUGS is read and no primary blocker is accepted
-- After exact-head green CI, append complete S0.1 HANDOFF outside I/I2; prove remote phase ref=I/I2; commit only HANDOFF as phase-close `C`; non-force push and prove phase ref=C.
+- Every GOLDEN checkpoint passes in the one final exact-I3 P12 run; both selected classes execute non-skipped; artifacts/checksums validate within budget; diff is exact; no adjacent behavior appears; KNOWN_BUGS is read and no primary blocker is accepted
+- After exact-head green I3 CI, append complete S0.1 HANDOFF outside I3; prove remote phase ref=I3; commit only HANDOFF as phase-close `C`; non-force push and prove phase ref=C.
 - Complete the exact idempotent Boundary continuation state machine above, including phase+main reproof and valid local/remote next-A recovery combinations. Do not require local `main` to move.
 - Continue the same goal through the frozen map. After S9.1, record C/main-run evidence in the goal final response for owner re-query and stop without S10 or a post-C main commit.
 - Next planned task: `S1.1`; start it automatically only after the full boundary state machine passes
