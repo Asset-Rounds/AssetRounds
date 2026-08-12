@@ -331,3 +331,90 @@ The accepted run's `head_sha` exactly equals `E=M=I4=92005aadbaa75c2234a44c09132
 
 - Task ID only; it was not started: `S2.2`
 - Next gate: same-phase autopilot may commit and non-force push exactly this append plus the immediate-next S2.2 `CURRENT_TASK.md`, then must run fresh G0. Remote phase must still equal I4 and remote main must remain P immediately before the transition push.
+
+## `S2.2` — `complete` — `2026-08-12T19:18:19Z`
+
+- Phase ID / phase branch / card position / phase-boundary card (`yes | no`): `S2` / `phase/s2-persistence-signs` / `2 of 2` / `yes`
+- Program-autopilot state / exact phase-and-branch map / final owner-only boundary: `enabled through accepted S9.1` / exact frozen S0–S9 map in `CURRENT_TASK.md` / stop after accepted exact-main S9.1; S9.2 signing/TestFlight and S9.3 App Store submission remain owner-only
+- Phase-autopilot state / exact authorized same-phase span: `enabled` / `S2.1,S2.2`
+- Predecessor IDs and evidence: accepted S2.1 implementation `M=92005aadbaa75c2234a44c091322db9c58a82a5a`; exact N8 run `31622291782` succeeded at M with all 11 targeted persistence-ledger tests and a complete independently verified 75-entry artifact
+- Outcome: added Welcome, View sample, and Add first sign; atomically saved one exact Site/Asset through the existing ModelContext, then attempted the existing DiagnosticsStore counter after commit; supported optional address and explicitly confirmed exact-IANA time zone; showed exact sign detail and reopened it after termination/relaunch; kept Restore data backup, Restore Purchases, and Start Check visible but inert for their owning future cards
+- Exact build-plan path / SHA-256: `docs/product/BUILD_PLAN_V4.md` / `23DAAB390AF917CBE91C3044E4906F3FBF8D67D2FDFC6BC9BDE985D984F37BBD`
+- Exact implementation-runbook path / SHA-256 / selected card: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / `S2.2 — Add and reopen the first site/sign`
+- Authoring host OS/build: Microsoft Windows Home, 64-bit, version `10.0.26200`, build `26200`
+- GitHub repository / visibility and exact-ref branch-control posture / base branch / phase branch: `palatis3/AssetRounds` / public solo repository, exact-ref/non-force-only / `main` / `phase/s2-persistence-signs`
+- Immutable phase-main base SHA `P` and evidence: `8d5b0a7a2648589586b72e31dfe5dfc70eea63bd`; accepted S1 exact-main run `31614912784`
+- Integrated/card-base SHA `M` and evidence: `92005aadbaa75c2234a44c091322db9c58a82a5a`; accepted S2.1 run `31622291782`
+- Observed task-start authority SHA and authority-only diff result: `A1=41e48a74e1a1f772b5710f0b418787753cee8a51`, a direct child of M changing exactly the append-only S2.1 HANDOFF plus immediate-next S2.2 CURRENT_TASK; owner-authorized visibility correction `A2=654bb481e010a07324361d8efedaffea5bba59ba`, a direct child of A1 changing exactly CURRENT_TASK from recorded private to live public repository visibility; `M..A2` is exactly those two authority commits and only HANDOFF plus CURRENT_TASK
+- Implementation commit SHA: initial `I=716677b849e14abe2ee234744747309044b15d9f`; focus-scheduling correction `I2=929830bbe29b5fd3242454ed59d36216243ec012`; accepted product implementation `E=F=I3=89c60edc39f3f6cbb94497629c829ea15c5d3184`; accepted nonproduct verification head `K1=404bc29ef784f96679b450585b9a02a484999334`, a direct child of E
+- Pre-existing dirty paths and owner/disposition: `NONE`; fresh G0, each correction preflight, and accepted-head dispatch state were clean
+- Workflow path / workflow file SHA-256 / trigger / frozen branch ref / actual expected head: `.github/workflows/ios-ci.yml` / `9FFEA51ADB2620B01FE250412716487F6102DAC7E93AEA0471943AF66C1BC2AC` / `workflow_dispatch` / `phase/s2-persistence-signs` / accepted verification head `404bc29ef784f96679b450585b9a02a484999334`
+- CI selector task ID / tier / `runUISmoke` / workflow input equality result: `S2.2` / `P12` / `true` / `PASS`; exact object used `300/600/900/900/3300`, unit selector `FieldEvidenceAppTests/S2SignSetupTests`, UI selector `FieldEvidenceAppUITests/S2SignSetupUITests`
+- Actions run ID / URL / `head_sha` / conclusion: `31631095026` / `https://github.com/palatis3/AssetRounds/actions/runs/31631095026` / `404bc29ef784f96679b450585b9a02a484999334` / `success`
+- Actions job ID / conclusion: `94229740708` / `success`
+- Runner image / Xcode version+build / minimum iOS: `ImageOS=macos26`, `ImageVersion=20260728.0273.1`, `ImageArch=unknown` / `Xcode 26.6`, `Build version 17F113`, `DEVELOPER_DIR=/Applications/Xcode_26.6.app/Contents/Developer` / iOS `18.0`
+- Project or workspace / target / shared scheme / configuration: `FieldEvidenceApp.xcodeproj` / `FieldEvidenceApp` / `FieldEvidenceApp` / `Debug`
+- Simulator selector and actual model / OS / UDID; UI-smoke mode: `iPhone 17` + `iOS 26.5` / iPhone 17 / iOS 26.5 / `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; P12 golden XCUITest with a fresh install followed by in-test termination/relaunch
+- Allowed GitHub methods and actions actually performed: task-named read/fetch/ref/run/workflow/artifact inspection; explicit-path commits; non-force phase push; exact `.github/workflows/ios-ci.yml` dispatch on the phase branch with `run_ui_smoke=true`; exact-run observation/download; no force-push, merge commit, PR, repository setting/secret, signing, TestFlight, deployment, or release mutation
+- Owner-required posture from task and G0-observed effective sandbox / approval / command-network / trusted-config / GitHub-tool state: Full access observed; `sandbox_mode=danger-full-access`; `approval_policy=never`; command network enabled; trusted repository configuration active; authenticated GitHub CLI available; XcodeBuildMCP and owner-operated Mac unnecessary
+- Card-owned implementation / correction / verification actions: created and non-force pushed I, I2, I3, and K1; dispatched one exact candidate per head; inspected complete terminal logs and artifacts; accepted E product behavior only after the full I3 UI test passed, and accepted terminal evidence only at exact green K1
+- Boundary recovery state: S2.2 HANDOFF pending; remote phase=`K1`, remote `main=P`; S3 branch remains unstarted
+- Owned accessibility IDs: `s2.welcome.screen`, `s2.welcome.title`, `s2.welcome.add-first-sign`, `s2.welcome.view-sample`, `s2.welcome.restore-data-backup`, `s2.welcome.restore-purchases`, `s2.sample.screen`, `s2.sample.back`, `s2.new-sign.screen`, `s2.new-sign.site-label`, `s2.new-sign.sign-label`, `s2.new-sign.optional-toggle`, `s2.new-sign.address`, `s2.new-sign.time-zone`, `s2.new-sign.time-zone-confirm`, `s2.new-sign.error`, `s2.new-sign.save`, `s2.sign-detail.screen`, `s2.sign-detail.site-label`, `s2.sign-detail.sign-label`, `s2.sign-detail.address`, `s2.sign-detail.time-zone`, `s2.sign-detail.start-check`, and `s2.sign-detail.unavailable`
+- Project/persistent-schema delta: `NONE`; reused S2.1 Site/Asset schema and synchronized project groups without project-file changes
+
+### Changed paths
+
+- Product/test/support `A2..E`: `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift`
+- `FieldEvidenceApp/Features/Signs/FirstSignCoordinator.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Features/Signs/NewSignView.swift`
+- `FieldEvidenceApp/Features/Signs/SignDetailView.swift`
+- `FieldEvidenceAppTests/S2SignSetupTests.swift`
+- `FieldEvidenceAppUITests/S2SignSetupUITests.swift`
+- `Scripts/ci-selection.json`
+- `I..I2` changed exactly `FieldEvidenceApp/Features/Signs/NewSignView.swift`, deferring validation focus until after view reconciliation
+- `I2..I3` changed exactly `FieldEvidenceAppUITests/S2SignSetupUITests.swift`, replacing unreliable generic `hasFocus` reads with no-tap typing that requires and proves product-established keyboard focus
+- Verification-only `E..K1`: `Scripts/ui-smoke.sh` plus required recovery evidence/pins in `docs/execution/CURRENT_TASK.md`; product/project/test/fixture/asset/selector/workflow/HANDOFF bytes equal E
+
+### Verification
+
+| Command or smoke | Run/job | Timeout | Exit code | Actual duration | Result | Artifact/evidence path and checksum |
+|---|---|---:|---:|---:|---|---|
+| Fresh G0: A1/A2 authority chain, exact diffs, pins/map/environment/selector/live refs | local + GitHub read-only | fail closed | 0 | bounded | PASS | A2 direct child of A1; M..A2 exactly HANDOFF + CURRENT_TASK; phase/public/main identity exact |
+| Exact product and K1 recovery structure | local Windows read-only | fail closed | 0 | bounded | PASS | exact 7 production + 2 test + selector paths through E; E..K1 exactly CURRENT_TASK + executable `Scripts/ui-smoke.sh`; protected bytes equal; `bash -n` and `git diff --check` pass |
+| Initial exact-I P12 candidate | `31626014750` / `94212456239` | P12 | nonzero | UI step 143 s | FAIL — build and all 5 units green; exact validation copy rendered, but generic XCUI `hasFocus` remained false; led directly to I2 | artifact `ios-ci-31626014750-1`, ID `9153464151`, digest `sha256:fa731240e55b3659c48451467bf38a7c13646b53cdad7b9244bfb38dcf6c2651`; 1377 checksums |
+| Exact-I2 P12 candidate | `31627446654` / `94217399848` | P12 | nonzero | UI step 285 s | FAIL — build and all 5 units green; one MainActor-yield focus scheduling change did not alter the generic XCUI `hasFocus` result; led directly to I3 focus-oracle correction | artifact `ios-ci-31627446654-1`, ID `9154193118`, digest `sha256:5275b1139e8b6e8939806ec97bc97a80dbb5b93230fb41c522424536c7c26262`; 1321 checksums |
+| Exact product `E=I3` P12 candidate | `31629079042` / `94222931258` | P12 | nonzero | UI test 106.153 s | PRODUCT PASS — build, 5 units, and complete UI golden passed; no-tap typing proved both invalid-field focus routes; exact sign persisted/reopened and retained `S2 First sign reopened`; afterward obsolete S1-specific exporter alone failed | artifact `ios-ci-31629079042-1`, ID `9154729352`, digest `sha256:71f9106369a8f0d012fb6f3131bcaf3aa92a6017f75ae4c311c979c859587e91`; `SHA256SUMS.txt` SHA-256 `E87E467AC0DB05FF45DF509037FEC27728DBD83C3326C4322C4471295B748396`; all 98 entries matched |
+| `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh` | accepted `31631095026` / `94229740708` | 600 s | 0 | 139 s | PASS — exact-destination unsigned `** TEST BUILD SUCCEEDED **` | `build-smoke.log` SHA-256 `8E82B40E7B4B4E9B6B629DC55A66E4A33E5ECF7CC51A6FC3A36AD52E393F64EF`; nonempty `Build.xcresult` |
+| `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh` / exact `FieldEvidenceAppTests/S2SignSetupTests` | same | 900 s | 0 | step 70 s; assertions <1 s | PASS — exactly 5 non-skipped tests, 0 failures | `test-smoke.log` SHA-256 `5E56216C185BBF9C7B28ECEA0FA48F7A48708DEF2EFD745158363EF0B231F4B7`; nonempty `UnitTests.xcresult` |
+| `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh` / exact `FieldEvidenceAppUITests/S2SignSetupUITests` | same | 900 s | 0 | step 172 s; test 82.332 s | PASS — exact UI golden, generalized class-bounded export, exactly one retained nonfailure PNG, 0 failures | `ui-smoke.log` SHA-256 `4F0BBA8139C3BD146A63D62E1C4B4FE08C1B3511A1A6527B94E97F78AC4C4B5B`; nonempty `UISmoke.xcresult`; `ui-final.png` SHA-256 `77911BADF6AF2D4186F0376CCAAB4627387631A478969B9099CE73F6D3309350` |
+| Required-evidence/checksum validation and P12 budgets | same | setup/artifact 300 s; readiness 900 s; total 3300 s | 0 | setup 19 s; readiness 359 s; artifact 0 s; setup+artifact 19 s; total 625 s | PASS | artifact `ios-ci-31631095026-1`, ID `9155419543`, API/raw ZIP digest `sha256:ce2b9b9ccef8f55e6d38b0b43bee12c92be545a9f97c71392c79dac32c76b953`; `SHA256SUMS.txt` SHA-256 `DAA40E984E825DD651FC1096CDB0DF02DE356EA7757C28596DB6D123F849F80E`; all 101 listed payload files independently matched with no missing or mismatched file |
+
+The accepted verification run's `head_sha` exactly equals `K1=404bc29ef784f96679b450585b9a02a484999334`. Product implementation remains `E=89c60edc39f3f6cbb94497629c829ea15c5d3184`; `E..K1` contains only the diagnosed exporter correction and required recovery authority evidence, so K1 is verification/integration evidence rather than replacement product implementation. This HANDOFF entry is not part of either head.
+
+### Acceptance results
+
+- Golden path `PASS`: Welcome shows exact title and Add first sign/View sample actions; Restore data backup and Restore Purchases are separately identified and inert; present/nil optional values persist exact Site↔Asset linkage and pack versions; invalid inputs write no Site/Asset/counter; one successful save increments only `first_sign_created`; detail reopens identical labels/address/confirmed zone after termination/relaunch
+- Named alternate `PASS`: whitespace required labels, unknown IANA zone, and valid-but-unconfirmed zone each yield one exact accessible validation error and no writes; no-tap typing into the identified site and time-zone fields proves the product established keyboard focus on the first invalid state
+- Accessibility spot check `PASS`: semantic identifiers resolve; restore anchors are disabled; validation exposes one error and one intended input target; detail and disabled Start Check copy remain accessible; no future action is presented as completed
+- Exact terminal screen/data artifact `PASS`: accepted `ui-final.png` is copied from the sole retained nonfailure `S2 First sign reopened` attachment selected for `S2SignSetupUITests`; independent visual inspection shows the foreground Sign detail for `Monument Sign`, customer/site `North Campus`, address `10 Main Street`, time zone `America/New_York`, and disabled Start Check with exact S3.1-unavailable copy; SHA-256 `77911BADF6AF2D4186F0376CCAAB4627387631A478969B9099CE73F6D3309350`
+- Future controls verified omitted/inert `PASS`: no second-sign action, WorkflowRecord/draft/runner, Packet/accounting, map/geocoder/location/device-zone guess, repository abstraction, restore/import, StoreKit, access/paywall, media/report, schema/project/package/capability/permission, remote service, or generic onboarding framework was added
+
+### Known bugs or limitations
+
+- Bug ID / severity / disposition, or `NONE`: `NONE`; `docs/execution/KNOWN_BUGS.md` was read and contains no qualifying S2.2 defect
+- Historical acceptance failures are fully corrected and noncurrent: I/I2 used an unreliable generic focus attribute; E's product/UI flow passed but the inherited S1-specific attachment exporter prevented terminal evidence; K1 generalizes the exporter while retaining exact-one, safe-path, PNG-signature, and byte-identity enforcement
+
+### Blockers
+
+- `NONE`
+
+### Next unstarted task
+
+- Task ID only; it was not started: `S3.1`
+- Next gate:
+  - This is the S2 phase boundary. Immediately before the HANDOFF-only phase-close commit/push, re-prove remote phase=`K1`, remote main=`P`, no active candidate, exact append-only HANDOFF diff, and clean index/untracked state.
+  - Commit and non-force push only this append as phase close `C`; accept exact phase/head P12 verification at C or a later diagnosed nonproduct verification head.
+  - After green phase verification, non-force fast-forward `main` from exact P to that exact accepted phase head, require successful exact-main P12/UI evidence, then create only `phase/s3-check-runner`, hydrate only S3.1, and run fresh G0.
