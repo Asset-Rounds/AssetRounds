@@ -8,12 +8,15 @@ struct FieldEvidenceAppApp: App {
     private static let invalidPackLaunchArgument = "--s1-invalid-pack"
     private static let lightModeLaunchArgument = "--s1-ui-test-light-mode"
     private static let darkModeLaunchArgument = "--s1-ui-test-dark-mode"
+    private static let importedCaptureFixturesLaunchArgument =
+        "--s3-2-ui-test-imported-fixtures"
 
     @StateObject private var startupRouter: StartupRouter
 
     private let packLoadResult: SignPackLoadResult
     private let preferredColorScheme: ColorScheme?
     private let exposesColorSchemeForUITest: Bool
+    private let usesImportedCaptureFixturesForUITest: Bool
 
     init() {
         let applicationSupportURL = FileManager.default.urls(
@@ -27,6 +30,9 @@ struct FieldEvidenceAppApp: App {
         )
 
         let arguments = ProcessInfo.processInfo.arguments
+        usesImportedCaptureFixturesForUITest = arguments.contains(
+            Self.importedCaptureFixturesLaunchArgument
+        )
 
         if arguments.contains(Self.invalidPackLaunchArgument) {
             let malformedPayload = Data(#"{"schemaVersion":1,"unexpected":"content"}"#.utf8)
@@ -52,7 +58,8 @@ struct FieldEvidenceAppApp: App {
             StartupRootView(
                 router: startupRouter,
                 packLoadResult: packLoadResult,
-                exposesColorSchemeForUITest: exposesColorSchemeForUITest
+                exposesColorSchemeForUITest: exposesColorSchemeForUITest,
+                usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest
             )
             .preferredColorScheme(preferredColorScheme)
         }
@@ -64,6 +71,7 @@ private struct StartupRootView: View {
 
     let packLoadResult: SignPackLoadResult
     let exposesColorSchemeForUITest: Bool
+    let usesImportedCaptureFixturesForUITest: Bool
 
     var body: some View {
         Group {
@@ -87,7 +95,8 @@ private struct StartupRootView: View {
                     coordinator: coordinator,
                     diagnosticsStore: diagnosticsStore,
                     packLoadResult: packLoadResult,
-                    exposesColorSchemeForUITest: exposesColorSchemeForUITest
+                    exposesColorSchemeForUITest: exposesColorSchemeForUITest,
+                    usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest
                 )
             }
         }
@@ -103,13 +112,16 @@ private struct ReadyAppView: View {
     let diagnosticsStore: DiagnosticsStore
     let packLoadResult: SignPackLoadResult
     let exposesColorSchemeForUITest: Bool
+    let usesImportedCaptureFixturesForUITest: Bool
 
     var body: some View {
         AppShellView(
             packLoadResult: packLoadResult,
             exposesColorSchemeForUITest: exposesColorSchemeForUITest,
             modelContext: coordinator.modelContext,
-            diagnosticsStore: diagnosticsStore
+            diagnosticsStore: diagnosticsStore,
+            generationRootURL: coordinator.generationRootURL,
+            usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest
         )
         .id(coordinator.uiGenerationToken)
         .modelContext(coordinator.modelContext)

@@ -1,3 +1,4 @@
+import Foundation
 import SwiftData
 import SwiftUI
 
@@ -18,6 +19,8 @@ struct SignsRootView: View {
     }
 
     let pack: SignPack
+    let generationRootURL: URL
+    let usesImportedCaptureFixturesForUITest: Bool
 
     @StateObject private var coordinator: FirstSignCoordinator
     private let checkRunnerCoordinator: CheckRunnerCoordinator
@@ -30,9 +33,13 @@ struct SignsRootView: View {
     init(
         modelContext: ModelContext,
         diagnosticsStore: DiagnosticsStore,
-        pack: SignPack
+        pack: SignPack,
+        generationRootURL: URL,
+        usesImportedCaptureFixturesForUITest: Bool = false
     ) {
         self.pack = pack
+        self.generationRootURL = generationRootURL
+        self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
         _coordinator = StateObject(
             wrappedValue: FirstSignCoordinator(
                 modelContext: modelContext,
@@ -77,7 +84,10 @@ struct SignsRootView: View {
                         PreflightView(
                             snapshot: snapshot,
                             pack: pack,
-                            coordinator: checkRunnerCoordinator
+                            coordinator: checkRunnerCoordinator,
+                            generationRootURL: generationRootURL,
+                            usesImportedCaptureFixturesForUITest:
+                                usesImportedCaptureFixturesForUITest
                         ) {
                             checkNotice = "No check was started."
                             path.removeLast()

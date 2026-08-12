@@ -9,11 +9,12 @@ struct PreflightView: View {
     static let safePositionAccessibilityIdentifier = "s3.preflight.safe-position"
     static let beginAccessibilityIdentifier = "s3.preflight.begin"
     static let cancelAccessibilityIdentifier = "s3.preflight.cancel"
-    static let captureUnavailableAccessibilityIdentifier = "s3.runner.capture-unavailable"
 
     let snapshot: FirstSignSnapshot
     let pack: SignPack
     let coordinator: CheckRunnerCoordinator
+    let generationRootURL: URL
+    let usesImportedCaptureFixturesForUITest: Bool
     let cancel: () -> Void
 
     @State private var timeZoneID: String
@@ -37,11 +38,16 @@ struct PreflightView: View {
         snapshot: FirstSignSnapshot,
         pack: SignPack,
         coordinator: CheckRunnerCoordinator,
+        generationRootURL: URL,
+        usesImportedCaptureFixturesForUITest: Bool = false,
         cancel: @escaping () -> Void
     ) {
         self.snapshot = snapshot
         self.pack = pack
         self.coordinator = coordinator
+        self.generationRootURL = generationRootURL
+        self.usesImportedCaptureFixturesForUITest =
+            usesImportedCaptureFixturesForUITest
         self.cancel = cancel
         _timeZoneID = State(initialValue: snapshot.timeZoneID ?? "")
         _isTimeZoneConfirmed = State(initialValue: snapshot.timeZoneID != nil)
@@ -49,22 +55,35 @@ struct PreflightView: View {
     }
 
     var body: some View {
-        ScrollView {
-            Group {
-                if isCheckingForDraft {
-                    ProgressView("Checking for an active check")
-                        .frame(maxWidth: .infinity, minHeight: 160)
-                } else if didFailDraftCheck {
-                    loadFailure
-                } else if hasDraft {
-                    captureUnavailable
-                } else {
-                    preflight
+        Group {
+            if !isCheckingForDraft, !didFailDraftCheck, hasDraft {
+                CaptureStepView(
+                    assetID: snapshot.assetID,
+                    coordinator: coordinator,
+                    usesImportedCaptureFixturesForUITest:
+                        usesImportedCaptureFixturesForUITest
+                )
+            } else {
+                ScrollView {
+                    Group {
+                        if isCheckingForDraft {
+                            ProgressView("Checking for an active check")
+                                .frame(maxWidth: .infinity, minHeight: 160)
+                        } else if didFailDraftCheck {
+                            loadFailure
+                        } else {
+                            preflight
+                        }
+                    }
+                    .padding(DesignTokens.Spacing.medium)
                 }
             }
-            .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Ready for night check")
+        .navigationTitle(
+            !isCheckingForDraft && !didFailDraftCheck && hasDraft
+                ? "Capture"
+                : "Ready for night check"
+        )
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -73,6 +92,7 @@ struct PreflightView: View {
         .task {
             guard !didCheckForDraft else { return }
             didCheckForDraft = true
+            coordinator.configureCapture(generationRootURL: generationRootURL)
 
             do {
                 let preparation = try coordinator.prepare(assetID: snapshot.assetID)
@@ -190,16 +210,6 @@ struct PreflightView: View {
                         : "Enter a valid IANA time zone first"
                 )
                 .accessibilityIdentifier(Self.timeZoneConfirmationAccessibilityIdentifier)
-        }
-    }
-
-    private var captureUnavailable: some View {
-        WorklightCard {
-            Text("Capture is unavailable until S3.2.")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.primaryText)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier(Self.captureUnavailableAccessibilityIdentifier)
         }
     }
 

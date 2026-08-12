@@ -1,3 +1,4 @@
+import Foundation
 import SwiftData
 import SwiftUI
 
@@ -21,6 +22,8 @@ struct AppShellView: View {
     let exposesColorSchemeForUITest: Bool
     let modelContext: ModelContext
     let diagnosticsStore: DiagnosticsStore
+    let generationRootURL: URL
+    let usesImportedCaptureFixturesForUITest: Bool
 
     @State private var selectedTab: Tab = .signs
 
@@ -28,12 +31,16 @@ struct AppShellView: View {
         packLoadResult: SignPackLoadResult,
         exposesColorSchemeForUITest: Bool = false,
         modelContext: ModelContext,
-        diagnosticsStore: DiagnosticsStore
+        diagnosticsStore: DiagnosticsStore,
+        generationRootURL: URL,
+        usesImportedCaptureFixturesForUITest: Bool = false
     ) {
         self.packLoadResult = packLoadResult
         self.exposesColorSchemeForUITest = exposesColorSchemeForUITest
         self.modelContext = modelContext
         self.diagnosticsStore = diagnosticsStore
+        self.generationRootURL = generationRootURL
+        self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
     }
 
     var body: some View {
@@ -51,7 +58,9 @@ struct AppShellView: View {
             SignsRootView(
                 modelContext: modelContext,
                 diagnosticsStore: diagnosticsStore,
-                pack: pack
+                pack: pack,
+                generationRootURL: generationRootURL,
+                usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest
             )
             .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
             .accessibilityValue(

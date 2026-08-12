@@ -30,7 +30,29 @@ enum CheckRunnerCoordinatorError: Error, Equatable {
     case issueStateMismatch
     case parentRecordMissing
     case invalidLineage
+    case captureNotConfigured
+    case captureDraftRequired
+    case captureUnavailable
+    case invalidCaptureState
+    case mediaImportFailed
+    case storageUnavailable
+    case cleanupFailed
     case saveFailed
+}
+
+struct CapturePreparation: Equatable, Sendable {
+    let draftID: UUID
+    let step: WorkflowDraftStep
+    let purpose: SignPack.EvidencePurpose?
+}
+
+struct CaptureCandidate: Equatable, Sendable {
+    let id: UUID
+    let recordID: UUID
+    let purposeKey: String
+    let createdAt: Date
+    let previewJPEG: Data
+    let stagedBundle: StagedEvidenceBundle
 }
 
 @MainActor
@@ -46,10 +68,229 @@ final class CheckRunnerCoordinator {
 
     private let modelContext: ModelContext
     private let signPack: SignPack
+    private var captureGenerationRootURL: URL?
+    private var evidenceBundleStore: EvidenceBundleStore?
 
     init(modelContext: ModelContext, signPack: SignPack) {
         self.modelContext = modelContext
         self.signPack = signPack
+    }
+
+    func configureCapture(generationRootURL: URL) {
+        let standardizedURL = generationRootURL.standardizedFileURL
+        guard captureGenerationRootURL != standardizedURL else { return }
+        captureGenerationRootURL = standardizedURL
+        evidenceBundleStore = EvidenceBundleStore(
+            generationRootURL: standardizedURL
+        )
+    }
+
+    func prepareCapture(assetID: UUID) throws -> CapturePreparation {
+        guard let draft = try existingDraft(assetID: assetID) else {
+            throw CheckRunnerCoordinatorError.captureDraftRequired
+        }
+        guard draft.revisionKind == WorkflowRevisionKind.original.rawValue,
+              draft.stage == WorkflowStage.check.rawValue,
+              draft.state == WorkflowState.draft.rawValue,
+              draft.packetID == nil,
+              draft.issueID == nil,
+              draft.parentRecordID == nil,
+              draft.recordRevisionRootID == draft.id,
+              draft.revisesRecordID == nil,
+              draft.evidenceSourceRecordID == nil,
+              draft.completedAt == nil,
+              draft.outcomeKey == nil,
+              draft.packID == signPack.packID,
+              draft.packSchemaVersion == signPack.schemaVersion,
+              draft.packContentVersion == signPack.contentVersion,
+              draft.finalizationMutationID == nil,
+              let stepValue = draft.draftStepKey,
+              let step = WorkflowDraftStep(rawValue: stepValue),
+              step == .wide || step == .close || step == .outcome else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+
+        let draftID = draft.id
+        let descriptor = FetchDescriptor<EvidenceFile>(
+            predicate: #Predicate { $0.recordID == draftID }
+        )
+        let evidence = try modelContext.fetch(descriptor)
+        let wide = evidence.filter { $0.purposeKey == "wide_context" }
+        let close = evidence.filter { $0.purposeKey == "close_detail" }
+        guard evidence.count == wide.count + close.count,
+              wide.count <= 1,
+              close.count <= 1 else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+
+        let purpose: SignPack.EvidencePurpose?
+        switch step {
+        case .wide:
+            guard wide.isEmpty, close.isEmpty else {
+                throw CheckRunnerCoordinatorError.invalidCaptureState
+            }
+            purpose = try capturePurpose(key: "wide_context", index: 0)
+        case .close:
+            guard wide.count == 1, close.isEmpty else {
+                throw CheckRunnerCoordinatorError.invalidCaptureState
+            }
+            purpose = try capturePurpose(key: "close_detail", index: 1)
+        case .outcome:
+            guard wide.count == 1, close.count == 1 else {
+                throw CheckRunnerCoordinatorError.invalidCaptureState
+            }
+            purpose = nil
+        case .review:
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        return CapturePreparation(
+            draftID: draft.id,
+            step: step,
+            purpose: purpose
+        )
+    }
+
+    func importCandidate(
+        assetID: UUID,
+        sourceData: Data,
+        createdAt: Date
+    ) async throws -> CaptureCandidate {
+        let preparation = try prepareCapture(assetID: assetID)
+        guard let purpose = preparation.purpose else {
+            throw CheckRunnerCoordinatorError.captureUnavailable
+        }
+        guard let generationRootURL = captureGenerationRootURL,
+              let evidenceBundleStore else {
+            throw CheckRunnerCoordinatorError.captureNotConfigured
+        }
+
+        do {
+            try StoragePreflightService().checkEvidenceAcceptance(
+                onVolumeContaining: generationRootURL
+            )
+        } catch {
+            throw CheckRunnerCoordinatorError.storageUnavailable
+        }
+
+        let normalized: NormalizedMediaV1
+        do {
+            normalized = try MediaNormalizerV1().normalize(sourceData)
+        } catch {
+            throw CheckRunnerCoordinatorError.mediaImportFailed
+        }
+
+        let evidenceID = UUID()
+        let staged: StagedEvidenceBundle
+        do {
+            staged = try await evidenceBundleStore.stage(
+                evidenceID: evidenceID,
+                normalized: normalized
+            )
+        } catch {
+            throw CheckRunnerCoordinatorError.mediaImportFailed
+        }
+        return CaptureCandidate(
+            id: evidenceID,
+            recordID: preparation.draftID,
+            purposeKey: purpose.key,
+            createdAt: createdAt,
+            previewJPEG: normalized.originalJPEG,
+            stagedBundle: staged
+        )
+    }
+
+    func retake(candidate: CaptureCandidate) async throws {
+        guard let evidenceBundleStore else {
+            throw CheckRunnerCoordinatorError.captureNotConfigured
+        }
+        let recordID = candidate.recordID
+        let descriptor = FetchDescriptor<WorkflowRecord>(
+            predicate: #Predicate { $0.id == recordID }
+        )
+        guard let draft = try modelContext.fetch(descriptor).first else {
+            throw CheckRunnerCoordinatorError.captureDraftRequired
+        }
+        let preparation = try prepareCapture(assetID: draft.assetID)
+        guard preparation.draftID == candidate.recordID,
+              preparation.purpose?.key == candidate.purposeKey,
+              candidate.stagedBundle.evidenceID == candidate.id else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        do {
+            try await evidenceBundleStore.discardStaging(
+                evidenceID: candidate.id
+            )
+        } catch {
+            throw CheckRunnerCoordinatorError.mediaImportFailed
+        }
+    }
+
+    @discardableResult
+    func accept(
+        candidate: CaptureCandidate,
+        assetID: UUID
+    ) async throws -> EvidenceFile {
+        let preparation = try prepareCapture(assetID: assetID)
+        guard preparation.draftID == candidate.recordID,
+              preparation.purpose?.key == candidate.purposeKey,
+              candidate.stagedBundle.evidenceID == candidate.id,
+              let evidenceBundleStore else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+
+        let promoted: PromotedEvidenceBundle
+        do {
+            promoted = try await evidenceBundleStore.promote(
+                candidate.stagedBundle
+            )
+        } catch {
+            throw CheckRunnerCoordinatorError.mediaImportFailed
+        }
+
+        do {
+            let currentPreparation = try prepareCapture(assetID: assetID)
+            guard currentPreparation == preparation else {
+                throw CheckRunnerCoordinatorError.invalidCaptureState
+            }
+            let draftID = currentPreparation.draftID
+            let descriptor = FetchDescriptor<WorkflowRecord>(
+                predicate: #Predicate { $0.id == draftID }
+            )
+            guard let draft = try modelContext.fetch(descriptor).first else {
+                throw CheckRunnerCoordinatorError.captureDraftRequired
+            }
+            let evidence = EvidenceFile(
+                id: candidate.id,
+                recordID: candidate.recordID,
+                purposeKey: candidate.purposeKey,
+                relativePath: promoted.originalRelativePath,
+                mimeType: "image/jpeg",
+                byteCount: promoted.originalByteCount,
+                sha256: promoted.originalSHA256,
+                createdAt: candidate.createdAt,
+                thumbnailRelativePath: promoted.thumbnailRelativePath,
+                thumbnailByteCount: promoted.thumbnailByteCount,
+                thumbnailSHA256: promoted.thumbnailSHA256
+            )
+            modelContext.insert(evidence)
+            draft.draftStepKey = preparation.step == .wide
+                ? WorkflowDraftStep.close.rawValue
+                : WorkflowDraftStep.outcome.rawValue
+            try modelContext.save()
+            return evidence
+        } catch {
+            let saveError = error
+            modelContext.rollback()
+            do {
+                try await evidenceBundleStore.removePromotedBundleIfOwned(promoted)
+            } catch {
+                throw CheckRunnerCoordinatorError.cleanupFailed
+            }
+            if let failure = saveError as? CheckRunnerCoordinatorError {
+                throw failure
+            }
+            throw CheckRunnerCoordinatorError.saveFailed
+        }
     }
 
     func prepare(assetID: UUID) throws -> CheckRunnerPreparation {
@@ -474,6 +715,18 @@ final class CheckRunnerCoordinator {
             afterDark: signPack.acknowledgements[0],
             safePosition: signPack.acknowledgements[1]
         )
+    }
+
+    private func capturePurpose(
+        key: String,
+        index: Int
+    ) throws -> SignPack.EvidencePurpose {
+        guard signPack.evidencePurposes.count == 3,
+              signPack.evidencePurposes.indices.contains(index),
+              signPack.evidencePurposes[index].key == key else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        return signPack.evidencePurposes[index]
     }
 
     private func createDraft(
