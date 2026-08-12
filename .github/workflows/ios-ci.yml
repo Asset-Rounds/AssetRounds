@@ -183,6 +183,19 @@ jobs:
           xcodebuild -version | tee "$CI_ARTIFACT_DIR/xcode-version.txt"
           grep -Fxq "$EXPECTED_XCODE_VERSION" "$CI_ARTIFACT_DIR/xcode-version.txt"
           grep -Fxq "$EXPECTED_XCODE_BUILD" "$CI_ARTIFACT_DIR/xcode-version.txt"
+          xcodebuild -list -json -project "$PROJECT_PATH" \
+            | tee "$CI_ARTIFACT_DIR/xcode-list.json"
+          jq -e --arg scheme "$SCHEME" \
+            '.project.schemes | index($scheme) != null' \
+            "$CI_ARTIFACT_DIR/xcode-list.json" > /dev/null
+          xcodebuild -showBuildSettings -project "$PROJECT_PATH" -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" | tee "$CI_ARTIFACT_DIR/build-settings.txt"
+          deployment_targets="$(awk -F'= ' \
+            '/^[[:space:]]*IPHONEOS_DEPLOYMENT_TARGET = / {print $2}' \
+            "$CI_ARTIFACT_DIR/build-settings.txt" | LC_ALL=C sort -u)"
+          target_count="$(printf '%s\n' "$deployment_targets" | sed '/^$/d' | wc -l | tr -d ' ')"
+          test "$target_count" -eq 1
+          test "$deployment_targets" = "$EXPECTED_MINIMUM_IOS"
           xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
           xcrun simctl list devices available -j > "$CI_ARTIFACT_DIR/simulator-devices.json"
           runtime_id="$(jq -r --arg name "$SIMULATOR_RUNTIME" \
@@ -199,47 +212,15 @@ jobs:
               else error("expected exactly one selected Simulator state")
               end
           ' "$CI_ARTIFACT_DIR/simulator-devices.json")"
-          simulator_boot_start_epoch="$(date +%s)"
-          printf 'runtime=%s\nname=%s\nudid=%s\n' \
-            "$SIMULATOR_RUNTIME" "$SIMULATOR_NAME" "$simulator_udid" \
-            | tee "$CI_ARTIFACT_DIR/simulator-selection.txt"
-          printf 'start_epoch=%s\nudid=%s\ninitial_state=%s\n' \
-            "$simulator_boot_start_epoch" "$simulator_udid" "$simulator_state" \
-            | tee "$CI_ARTIFACT_DIR/simulator-boot-start.log"
           case "$simulator_state" in
-            Shutdown)
-              printf 'action=boot\n' \
-                | tee -a "$CI_ARTIFACT_DIR/simulator-boot-start.log"
-              bash Scripts/run-with-timeout.sh "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
-                xcrun simctl boot "$simulator_udid" 2>&1 \
-                | tee -a "$CI_ARTIFACT_DIR/simulator-boot-start.log"
-              ;;
-            Booted)
-              printf 'action=already-booted\n' \
-                | tee -a "$CI_ARTIFACT_DIR/simulator-boot-start.log"
-              ;;
-            *)
-              printf 'action=reject\n' \
-                | tee -a "$CI_ARTIFACT_DIR/simulator-boot-start.log"
-              exit 1
-              ;;
+            Shutdown | Booted) ;;
+            *) exit 1 ;;
           esac
-          printf 'CI_DESTINATION=platform=iOS Simulator,id=%s\nCI_SIMULATOR_UDID=%s\nCI_SIMULATOR_BOOT_START_EPOCH=%s\n' \
-            "$simulator_udid" "$simulator_udid" "$simulator_boot_start_epoch" \
-            >> "$GITHUB_ENV"
-          xcodebuild -list -json -project "$PROJECT_PATH" \
-            | tee "$CI_ARTIFACT_DIR/xcode-list.json"
-          jq -e --arg scheme "$SCHEME" \
-            '.project.schemes | index($scheme) != null' \
-            "$CI_ARTIFACT_DIR/xcode-list.json" > /dev/null
-          xcodebuild -showBuildSettings -project "$PROJECT_PATH" -scheme "$SCHEME" \
-            -configuration "$CONFIGURATION" | tee "$CI_ARTIFACT_DIR/build-settings.txt"
-          deployment_targets="$(awk -F'= ' \
-            '/^[[:space:]]*IPHONEOS_DEPLOYMENT_TARGET = / {print $2}' \
-            "$CI_ARTIFACT_DIR/build-settings.txt" | LC_ALL=C sort -u)"
-          target_count="$(printf '%s\n' "$deployment_targets" | sed '/^$/d' | wc -l | tr -d ' ')"
-          test "$target_count" -eq 1
-          test "$deployment_targets" = "$EXPECTED_MINIMUM_IOS"
+          printf 'runtime=%s\nname=%s\nudid=%s\ninitial_state=%s\n' \
+            "$SIMULATOR_RUNTIME" "$SIMULATOR_NAME" "$simulator_udid" "$simulator_state" \
+            | tee "$CI_ARTIFACT_DIR/simulator-selection.txt"
+          printf 'CI_DESTINATION=platform=iOS Simulator,id=%s\nCI_SIMULATOR_UDID=%s\nCI_SIMULATOR_INITIAL_STATE=%s\n' \
+            "$simulator_udid" "$simulator_udid" "$simulator_state" >> "$GITHUB_ENV"
 
       - name: Verify setup budget before build
         shell: bash
@@ -251,32 +232,77 @@ jobs:
           printf 'setup_elapsed_seconds=%s\nsetup_budget_seconds=%s\n' \
             "$setup_elapsed_seconds" "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS" \
             | tee "$CI_ARTIFACT_DIR/setup-budget.txt"
+          printf 'CI_SETUP_ELAPSED_SECONDS=%s\n' \
+            "$setup_elapsed_seconds" >> "$GITHUB_ENV"
           test "$setup_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
-          printf 'CI_SETUP_ELAPSED_SECONDS=%s\n' "$setup_elapsed_seconds" >> "$GITHUB_ENV"
 
+      # INFRA_RECOVERY_BEGIN: simulator-readiness-scheduling
       - name: Boot selected Simulator
+        id: simulator_boot
+        background: true
         shell: bash
         run: |
           set -euo pipefail
           test "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" = "300"
-          test -n "${CI_SIMULATOR_BOOT_START_EPOCH:-}"
-          simulator_boot_elapsed_before_wait="$(( $(date +%s) - CI_SIMULATOR_BOOT_START_EPOCH ))"
-          simulator_boot_remaining_seconds="$(( CI_SIMULATOR_BOOT_TIMEOUT_SECONDS - simulator_boot_elapsed_before_wait ))"
-          printf 'start_epoch=%s\nelapsed_before_wait_seconds=%s\nremaining_seconds=%s\nbudget_seconds=%s\n' \
-            "$CI_SIMULATOR_BOOT_START_EPOCH" "$simulator_boot_elapsed_before_wait" \
-            "$simulator_boot_remaining_seconds" "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
-            | tee "$CI_ARTIFACT_DIR/simulator-boot.log"
-          test "$simulator_boot_elapsed_before_wait" -ge 0
-          test "$simulator_boot_remaining_seconds" -gt 0
-          bash Scripts/run-with-timeout.sh "$simulator_boot_remaining_seconds" \
+          test -n "${CI_SIMULATOR_UDID:-}"
+          case "${CI_SIMULATOR_INITIAL_STATE:-}" in
+            Shutdown) simulator_boot_action="boot" ;;
+            Booted) simulator_boot_action="already-booted" ;;
+            *) exit 1 ;;
+          esac
+          simulator_boot_start_epoch="$(date +%s)"
+          case "${CI_BUDGET_START_EPOCH:?}" in *[!0-9]* | "") exit 1 ;; esac
+          case "$simulator_boot_start_epoch" in *[!0-9]* | "") exit 1 ;; esac
+          test "$simulator_boot_start_epoch" -ge "$CI_BUDGET_START_EPOCH"
+          printf 'start_epoch=%s\nudid=%s\ninitial_state=%s\naction=%s\nbudget_seconds=%s\ncommand=xcrun simctl bootstatus %s -b\n' \
+            "$simulator_boot_start_epoch" "$CI_SIMULATOR_UDID" \
+            "$CI_SIMULATOR_INITIAL_STATE" "$simulator_boot_action" \
+            "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" "$CI_SIMULATOR_UDID" \
+            | tee "$CI_ARTIFACT_DIR/simulator-boot-start.log"
+          printf 'CI_SIMULATOR_BOOT_START_EPOCH=%s\n' \
+            "$simulator_boot_start_epoch" >> "$GITHUB_ENV"
+          set +e
+          bash Scripts/run-with-timeout.sh "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
             xcrun simctl bootstatus "$CI_SIMULATOR_UDID" -b \
-            2>&1 | tee -a "$CI_ARTIFACT_DIR/simulator-boot.log"
-          simulator_boot_ready_elapsed_seconds="$(( $(date +%s) - CI_SIMULATOR_BOOT_START_EPOCH ))"
-          printf 'ready_elapsed_seconds=%s\nbudget_seconds=%s\n' \
-            "$simulator_boot_ready_elapsed_seconds" "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
+            2>&1 | tee "$CI_ARTIFACT_DIR/simulator-boot.log"
+          simulator_boot_pipeline_status=( "${PIPESTATUS[@]}" )
+          if test "${#simulator_boot_pipeline_status[@]}" -ne 2; then
+            exit 1
+          fi
+          simulator_boot_end_epoch="$(date +%s)"
+          printf '\nend_epoch=%s\nbootstatus_exit=%s\ntee_exit=%s\n' \
+            "$simulator_boot_end_epoch" "${simulator_boot_pipeline_status[0]}" \
+            "${simulator_boot_pipeline_status[1]}" \
+            | tee -a "$CI_ARTIFACT_DIR/simulator-boot.log"
+          simulator_boot_status_log_pipeline_status=( "${PIPESTATUS[@]}" )
+          if test "${simulator_boot_pipeline_status[0]}" -ne 0; then
+            exit "${simulator_boot_pipeline_status[0]}"
+          fi
+          if test "${simulator_boot_pipeline_status[1]}" -ne 0; then
+            exit "${simulator_boot_pipeline_status[1]}"
+          fi
+          if test "${simulator_boot_status_log_pipeline_status[0]}" -ne 0; then
+            exit "${simulator_boot_status_log_pipeline_status[0]}"
+          fi
+          if test "${simulator_boot_status_log_pipeline_status[1]}" -ne 0; then
+            exit "${simulator_boot_status_log_pipeline_status[1]}"
+          fi
+          set -e
+          case "$simulator_boot_end_epoch" in *[!0-9]* | "") exit 1 ;; esac
+          test "$simulator_boot_end_epoch" -ge "$simulator_boot_start_epoch"
+          simulator_boot_ready_elapsed_seconds="$(( simulator_boot_end_epoch - simulator_boot_start_epoch ))"
+          printf 'ready_epoch=%s\nready_udid=%s\nready_elapsed_seconds=%s\nbudget_seconds=%s\n' \
+            "$simulator_boot_end_epoch" "$CI_SIMULATOR_UDID" \
+            "$simulator_boot_ready_elapsed_seconds" \
+            "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
             | tee -a "$CI_ARTIFACT_DIR/simulator-boot.log"
           test "$simulator_boot_ready_elapsed_seconds" -ge 0
           test "$simulator_boot_ready_elapsed_seconds" -le "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS"
+          printf '%s\n' \
+            "CI_SIMULATOR_READY_UDID=$CI_SIMULATOR_UDID" \
+            "CI_SIMULATOR_READY_EPOCH=$simulator_boot_end_epoch" \
+            "CI_SIMULATOR_READY_ELAPSED_SECONDS=$simulator_boot_ready_elapsed_seconds" \
+            >> "$GITHUB_ENV"
 
       - name: Build unsigned simulator app
         shell: bash
@@ -284,6 +310,10 @@ jobs:
           set -euo pipefail
           bash Scripts/run-with-timeout.sh "$CI_BUILD_TIMEOUT_SECONDS" \
             bash Scripts/build-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/build-smoke.log"
+
+      - name: Await selected Simulator boot
+        wait: simulator_boot
+      # INFRA_RECOVERY_END: simulator-readiness-scheduling
 
       - name: Run targeted tests
         shell: bash
@@ -436,7 +466,6 @@ jobs:
             "$CI_SETUP_ELAPSED_SECONDS" "$artifact_elapsed_seconds" \
             "$setup_artifact_elapsed_seconds" "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS" \
             > "$CI_ARTIFACT_DIR/artifact-budget.txt"
-          test "$setup_artifact_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
           (
             cd "$CI_ARTIFACT_DIR"
             find . -type f -print | LC_ALL=C sort | while IFS= read -r file; do
@@ -448,6 +477,7 @@ jobs:
             cd "$CI_ARTIFACT_DIR"
             shasum -a 256 -c SHA256SUMS.txt
           )
+          test "$setup_artifact_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
 
       - name: Recheck evidence-finalization budget
         if: always()
