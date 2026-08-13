@@ -19,7 +19,7 @@ struct SignsRootView: View {
         case report(UUID)
         case reportHistory(UUID)
         case issue(UUID)
-        case work(UUID)
+        case work(WorkDraftValue)
     }
 
     let pack: SignPack
@@ -39,7 +39,6 @@ struct SignsRootView: View {
     @State private var loadErrorMessage: String?
     @State private var checkNotice: String?
     @State private var activeIssue: WorkIssuePresentationValue?
-    @State private var activeWorkDraft: WorkDraftValue?
 
     init(
         modelContext: ModelContext,
@@ -178,18 +177,15 @@ struct SignsRootView: View {
                     } else {
                         issueUnavailable
                     }
-                case .work(let draftID):
-                    if let workCoordinator,
-                       let activeWorkDraft,
-                       activeWorkDraft.recordID == draftID {
+                case .work(let draft):
+                    if let workCoordinator {
                         RecordWorkView(
-                            draft: activeWorkDraft,
+                            draft: draft,
                             coordinator: workCoordinator,
                             usesImportedFixtureForUITest:
                                 usesImportedCaptureFixturesForUITest
                         ) { issue in
                             activeIssue = issue
-                            self.activeWorkDraft = nil
                             if !path.isEmpty {
                                 path.removeLast()
                             }
@@ -270,8 +266,7 @@ struct SignsRootView: View {
         }
         do {
             let draft = try workCoordinator.beginWork(issueID: activeIssue.id)
-            activeWorkDraft = draft
-            path.append(Route.work(draft.recordID))
+            path.append(Route.work(draft))
         } catch {
             refreshActiveIssue()
         }
