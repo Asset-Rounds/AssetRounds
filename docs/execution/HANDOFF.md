@@ -786,3 +786,65 @@ The accepted run's `head_sha` exactly equals `I=E=a728f8fe50e016e190074b6a5f4faf
 
 - Task ID only; it was not started: `S3.6`
 - Next gate: same-phase autopilot may commit and non-force push exactly this append plus immediate-next S3.6 `CURRENT_TASK.md` after re-proving remote phase=`I2` and remote main=`P`; then run fresh S3.6 G0. Do not mutate main.
+
+## `S3.6` — `complete` — `2026-08-13T00:52:37Z`
+
+- Phase ID / phase branch / card position / phase-boundary card (`yes | no`): `S3` / `phase/s3-check-runner` / `6 of 7` / `no`
+- Program/phase autopilot: enabled through accepted exact-main `S9.1` / exact same-phase span `S3.1,S3.2,S3.3,S3.4,S3.5,S3.6,S3.7`; S9.2 signing/TestFlight and S9.3 App Store submission remain owner-only
+- Immutable phase-main base: `P=7d135aaddd0bdc50168552b0610f04adc1703506`; remote `main` remained exactly P
+- Integrated/card base and predecessor evidence: `M=E=I2=3d082f530797262baf4964a349dfec0bed8c767f`; accepted S3.5 run `31653492893`
+- Observed task-start authority: `A=a624ee92be242bd15c14231bd8b2980bb183d859`, a direct child of M changing exactly the append-only S3.5 HANDOFF plus immediate-next S3.6 CURRENT_TASK
+- Implementation sequence: `I=E=86fd3a3576cd77889c15a0f6501deb55a33fb9c1`; no correction and no distinct infrastructure verification head K
+- Outcome: permission is requested only from explicit Take photo; authorized system-camera and deterministic test-adapter bytes use the existing canonical media path; denial/restriction/unavailability/cancel preserve the active draft and offer Photos, Settings, or the resumable incomplete exit
+- Exact build plan / SHA-256: `docs/product/BUILD_PLAN_V4.md` / `23DAAB390AF917CBE91C3044E4906F3FBF8D67D2FDFC6BC9BDE985D984F37BBD`
+- Exact runbook / SHA-256 / selected card: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / `S3.6 — Camera permission and denial recovery`
+- Workflow / trigger / ref / accepted head: `.github/workflows/ios-ci.yml` / `workflow_dispatch` / `phase/s3-check-runner` / `86fd3a3576cd77889c15a0f6501deb55a33fb9c1`
+- Selector: `S3.6` / `P12` / `runUISmoke=true`; unit `FieldEvidenceAppTests/S3_6CameraRecoveryTests`; UI `FieldEvidenceAppUITests/S3_6CameraRecoveryUITests`; exact `300/600/900/900/3300`; LF SHA-256 `FACE2CDEDF531B661F162DF130E9F08FBAE15F3C73B3E178727F732B45848826`
+- Accepted run/job/URLs/conclusion: `31655122900` / `94307810126` / `https://github.com/palatis3/AssetRounds/actions/runs/31655122900` / `https://github.com/palatis3/AssetRounds/actions/runs/31655122900/job/94307810126` / `success`; exact `head_sha=86fd3a3576cd77889c15a0f6501deb55a33fb9c1`
+- Runner/toolchain/destination: `macos26`, image `20260728.0273.1`; Xcode 26.6 build `17F113`; `/Applications/Xcode_26.6.app/Contents/Developer`; iPhone 17 / iOS 26.5 / UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; deployment target iOS 18.0
+- Budgets: setup `30/300` s; Simulator readiness `150/900` s; artifact `0` s and setup+artifact `30/300` s; total `498/3300` s; every watchdog passed
+- Artifact: `ios-ci-31655122900-1`, ID `9164240287`, size `1994434`, API/raw ZIP digest `sha256:0bee4c34b100eb58f8dea90c14e58403d5c1b8f4ab746a02551607558835ecbe`; `SHA256SUMS.txt` SHA-256 `DFDD1067F25C743D12D51F38992B897B0C63BE9980D3E53CD6B297622131C40B`; all `95/95` payloads independently matched; `ui-final.png` SHA-256 `184071D46E24E86CB28EF2B93FEDC70A0DD2FAE978813D2E661D8240787FAF1C`
+- Exact verification: unsigned exact-destination build passed; both targeted unit tests passed (1.263 s XCTest cases; 98.521 s test operation); the sole UI test passed (122.352 s; 133.311 s test operation); all required logs/result bundles/selector/runner/Simulator/checksum evidence and the terminal screenshot were present
+- Authoring host OS/build: Microsoft Windows Home, 64-bit, version `10.0.26200`, build `26200`; no local Xcode/Simulator result was claimed
+- Project / target / shared scheme / configuration: `FieldEvidenceApp.xcodeproj` / `FieldEvidenceApp` / `FieldEvidenceApp` / `Debug`
+- Exact product commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all returned exit 0 in the accepted run
+- Allowed GitHub actions actually performed: exact task-named read/fetch/ref/run/workflow/artifact inspection, explicit-path commit, non-force phase push, workflow dispatch on the phase branch, exact-run observation/download; no main mutation, force-push, merge, PR, settings/secret, signing, deployment, or release action
+- Effective tool posture: Full access; `sandbox_mode=danger-full-access`; `approval_policy=never`; command network enabled; trusted repository configuration active; authenticated GitHub CLI available; XcodeBuildMCP and owner-operated Mac unnecessary
+- Pre-existing dirty paths: `NONE`; fresh G0 and implementation preflight were clean
+- Boundary recovery state: accepted S3.6 HANDOFF pending; remote phase=`E=I`, remote `main=P`; S3.7 was unstarted before this append
+- Project/persistent-schema delta: the sole project delta is the exact app-target Debug+Release generated-Info.plist `NSCameraUsageDescription`; no capability, entitlement, target, dependency, or seven-model schema delta
+
+### Changed paths
+
+- `FieldEvidenceApp.xcodeproj/project.pbxproj`
+- `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CameraCaptureView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/PreflightView.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Infrastructure/Camera/CameraAdapter.swift`
+- `FieldEvidenceAppTests/S3_6CameraRecoveryTests.swift`
+- `FieldEvidenceAppUITests/S3_6CameraRecoveryUITests.swift`
+- `Scripts/ci-selection.json`
+
+### Acceptance results
+
+- GOLDEN `PASS`: the deterministic authorized adapter supplied wide and close source bytes through the existing normalizer/stage/accept pipeline and produced the same canonical original/thumbnail EvidenceFile authority as imported capture, without launch-time permission access or a second media path
+- ALT-1 `PASS`: not-determined→denied, denied, restricted, unavailable, cancellation/failure, and Settings-return behavior remained user-triggered, actionable, and nonmutating until accepted evidence; the active draft remained resumable
+- UI/accessibility `PASS`: the explicit test-only one-shot denial route proved user-triggered permission, actionable Photos/Settings/Cannot complete controls, resume, authorized wide/close fixture capture, and the sole Value receipt; production defaults expose no test state, fixture menu, or copy
+- Terminal artifact `PASS`: retained `ui-final.png` shows the completed local Value receipt after the recovered authorized flow; SHA-256 `184071D46E24E86CB28EF2B93FEDC70A0DD2FAE978813D2E661D8240787FAF1C`
+- Scope/security `PASS`: the exact camera usage string is the sole permission/project delta; no broad Photos authorization, launch/preflight prompt, CNV persistence, PDF, work/recheck, data-rights, commerce, package, remote behavior, or adjacent-phase feature was added
+
+### Known bugs or limitations
+
+- `NONE`; `docs/execution/KNOWN_BUGS.md` contains no qualifying S3.6 defect
+
+### Blockers
+
+- `NONE`
+
+### Next unstarted task
+
+- Task ID only; it was not started: `S3.7`
+- Next gate: same-phase autopilot may commit and non-force push exactly this append plus immediate-next S3.7 `CURRENT_TASK.md` after re-proving remote phase=`I` and remote main=`P`; then run fresh S3.7 G0. Do not mutate main before accepted S3.7 and its ordered phase-close/exact-main verification.
