@@ -387,7 +387,9 @@ final class S4_5CorrectionUITests: XCTestCase {
             matching: "exists == true AND enabled == true AND hittable == true",
             timeout: 10
         ))
-        control.tap()
+        control.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)
+        ).tap()
         XCTAssertTrue(waitForElement(
             control,
             matching: "value == %@",
