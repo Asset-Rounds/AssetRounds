@@ -1410,6 +1410,41 @@ actor FinalizationIntentStore {
                     )
                     _ = Darwin.fsync(parent)
                 }
+                // If the displaced temporary leaf was concurrently removed,
+                // recreate the exact previously verified journal under the
+                // private name and swap it back. This preserves recovery truth
+                // even when this replacement follows a database commit.
+                if let current = try? readRegularFile(parent: parent, name: name),
+                   current.identity == replacement.identity,
+                   current.data == replacementData {
+                    if isMissing(parent: parent, name: temporary) {
+                        try? createRegularFile(expectedData, parent: parent, name: temporary)
+                    }
+                    if let restored = try? readRegularFile(parent: parent, name: temporary),
+                       restored.data == expectedData {
+                        _ = Darwin.renameatx_np(
+                            parent,
+                            temporary,
+                            parent,
+                            name,
+                            UInt32(RENAME_SWAP)
+                        )
+                        _ = Darwin.fsync(parent)
+                    }
+                }
+                // If exact restoration was impossible, remove only our exact
+                // replacement rather than leave mutation-owned journal bytes.
+                if let current = try? readRegularFile(parent: parent, name: name),
+                   current.identity == replacement.identity,
+                   current.data == replacementData {
+                    try? quarantineAndRemove(
+                        parent: parent,
+                        name: name,
+                        expectedIdentity: replacement.identity,
+                        expectedData: replacementData,
+                        verifyCurrentAuthority: false
+                    )
+                }
                 if let temporaryFile = try? readRegularFile(parent: parent, name: temporary),
                    temporaryFile.identity == replacement.identity {
                     try? quarantineAndRemove(
