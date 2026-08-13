@@ -38,6 +38,7 @@ struct ReportDetailView: View {
     let coordinator: ReportDeliveryCoordinator
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var state: DetailState
     @State private var showsShareSheet = false
     @State private var showsFilesExporter = false
@@ -57,6 +58,10 @@ struct ReportDetailView: View {
     }
 
     private var delivery: ReportDeliveryValue { state.selectedDelivery }
+
+    private var previewMinimumHeight: CGFloat {
+        dynamicTypeSize.isAccessibilitySize ? 240 : 520
+    }
 
     var body: some View {
         ScrollView {
@@ -101,7 +106,7 @@ struct ReportDetailView: View {
                     }
 
                     ReportPDFPreview(data: delivery.pdfData)
-                        .frame(minHeight: 520)
+                        .frame(minHeight: previewMinimumHeight)
                         .background(DesignTokens.Colors.surface)
                         .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
                         .overlay {
