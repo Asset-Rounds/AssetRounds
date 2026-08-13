@@ -414,14 +414,10 @@ final class S4_5CorrectionUITests: XCTestCase {
         _ target: XCUIElement,
         in app: XCUIApplication
     ) {
-        let reportScreen = element(
-            in: app,
-            identifier: "s4.3.report-detail.screen"
-        )
-        let upperEdge = reportScreen.coordinate(
+        let upperEdge = app.coordinate(
             withNormalizedOffset: CGVector(dx: 0.98, dy: 0.25)
         )
-        let lowerEdge = reportScreen.coordinate(
+        let lowerEdge = app.coordinate(
             withNormalizedOffset: CGVector(dx: 0.98, dy: 0.75)
         )
         for _ in 0..<8 {
