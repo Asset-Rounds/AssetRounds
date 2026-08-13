@@ -85,8 +85,12 @@ struct AppShellView: View {
             }
 
             NavigationStack {
-                ReportsPlaceholderView()
-                    .navigationTitle("Reports")
+                ReportsRootView(
+                    modelContext: modelContext,
+                    generationRootURL: generationRootURL,
+                    diagnosticsStore: diagnosticsStore,
+                    signPack: pack
+                )
                     .toolbar {
                         settingsToolbar
                     }
@@ -117,25 +121,6 @@ struct AppShellView: View {
             .accessibilityLabel("Settings")
             .accessibilityIdentifier(Self.settingsButtonAccessibilityIdentifier)
         }
-    }
-}
-
-private struct ReportsPlaceholderView: View {
-    var body: some View {
-        ScrollView {
-            WorklightCard {
-                WorklightStatusBadge(kind: .information, text: "Reports")
-
-                Text("Saved reports will appear here.")
-                    .font(.body)
-                    .foregroundStyle(DesignTokens.Colors.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .accessibilityIdentifier(AppShellView.reportsPlaceholderAccessibilityIdentifier)
-            .padding(DesignTokens.Spacing.medium)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
     }
 }
 

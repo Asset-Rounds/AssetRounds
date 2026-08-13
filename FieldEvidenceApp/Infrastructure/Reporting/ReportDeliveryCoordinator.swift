@@ -14,6 +14,18 @@ struct ReportDeliveryValue: Equatable, Sendable {
     let detailLines: [String]
 }
 
+struct ValidatedReadyEvidenceValue: Equatable, Sendable {
+    let snapshot: EvidenceSnapshotV1
+    let originalData: Data
+    let thumbnailData: Data
+}
+
+struct ValidatedReadyReportValue: Equatable, Sendable {
+    let delivery: ReportDeliveryValue
+    let snapshot: ReportSnapshotV1
+    let evidence: [ValidatedReadyEvidenceValue]
+}
+
 enum ReportDeliveryPreparation: Equatable, Sendable {
     case ready(ReportDeliveryValue)
     case failed(reportID: UUID)
@@ -108,6 +120,10 @@ final class ReportDeliveryCoordinator {
     }
 
     func loadReadyReport(id reportID: UUID) throws -> ReportDeliveryValue {
+        try validatedReadyReport(id: reportID).delivery
+    }
+
+    func validatedReadyReport(id reportID: UUID) throws -> ValidatedReadyReportValue {
         guard !modelContext.hasChanges else {
             throw ReportDeliveryCoordinatorError.contextHasChanges
         }
@@ -127,11 +143,8 @@ final class ReportDeliveryCoordinator {
             throw ReportDeliveryCoordinatorError.invalidAuthority
         }
 
-        let snapshotData = try anchoredRead(relativePath: report.snapshotRelativePath)
-        guard Self.sha256(snapshotData) == report.snapshotSHA256 else {
-            throw ReportDeliveryCoordinatorError.invalidAuthority
-        }
-        let snapshot = try validateCompleteSnapshotAuthority(report: report)
+        let validated = try validateCompleteSnapshotAuthority(report: report)
+        let snapshot = validated.snapshot
 
         let pdfData = try anchoredRead(relativePath: expectedPDFPath)
         guard !pdfData.isEmpty,
@@ -143,7 +156,7 @@ final class ReportDeliveryCoordinator {
               ) else {
             throw ReportDeliveryCoordinatorError.invalidAuthority
         }
-        return ReportDeliveryValue(
+        let delivery = ReportDeliveryValue(
             reportID: reportID,
             pdfSHA256: storedPDFSHA256,
             pdfData: pdfData,
@@ -156,6 +169,11 @@ final class ReportDeliveryCoordinator {
                 snapshot.timeContext.localDate,
                 snapshot.timeContext.localTime,
             ]
+        )
+        return ValidatedReadyReportValue(
+            delivery: delivery,
+            snapshot: snapshot,
+            evidence: validated.evidence
         )
     }
 
@@ -199,7 +217,6 @@ final class ReportDeliveryCoordinator {
     private func requireUnambiguousReportAuthority(_ report: Report) throws {
         let reports = try modelContext.fetch(FetchDescriptor<Report>())
         guard reports.filter({ $0.id == report.id }).count == 1,
-              reports.filter({ $0.packetID == report.packetID }).count == 1,
               reports.filter({ $0.sourceRecordID == report.sourceRecordID }).count == 1 else {
             throw ReportDeliveryCoordinatorError.invalidAuthority
         }
@@ -207,7 +224,7 @@ final class ReportDeliveryCoordinator {
 
     private func validateCompleteSnapshotAuthority(
         report: Report
-    ) throws -> ReportSnapshotV1 {
+    ) throws -> ReadyReportAuthorityValidation {
         do {
             return try ReadyReportAuthorityValidator(
                 modelContext: modelContext,
@@ -341,6 +358,11 @@ private struct ReadyValidatedEvidenceBytes: Sendable {
     let originalJPEG: Data
     let thumbnailJPEG: Data
 }
+
+private struct ReadyReportAuthorityValidation: Sendable {
+    let snapshot: ReportSnapshotV1
+    let evidence: [ValidatedReadyEvidenceValue]
+}
 @MainActor
 private struct ReadyReportAuthorityValidator {
     private static let templateID = "field.evidence.pdf.worklight.v1"
@@ -360,7 +382,7 @@ private struct ReadyReportAuthorityValidator {
         self.anchoredRead = anchoredRead
     }
 
-    func validate(report: Report) throws -> ReportSnapshotV1 {
+    func validate(report: Report) throws -> ReadyReportAuthorityValidation {
         do {
             return try validateAuthority(report: report)
         } catch let error as SnapshotValidationErrorV1 {
@@ -370,7 +392,7 @@ private struct ReadyReportAuthorityValidator {
         }
     }
 
-    private func validateAuthority(report: Report) throws -> ReportSnapshotV1 {
+    private func validateAuthority(report: Report) throws -> ReadyReportAuthorityValidation {
         let reportID = canonicalID(report.id)
         let expectedSnapshotPath = "snapshots/\(reportID).json"
         guard report.schemaVersion == 1,
@@ -598,7 +620,20 @@ private struct ReadyReportAuthorityValidator {
             referencedByteCount = next
         }
 
-        return snapshot
+        let evidence = try snapshot.evidence.map { value in
+            guard let bytes = validatedBytes[value.evidenceID] else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            return ValidatedReadyEvidenceValue(
+                snapshot: value,
+                originalData: bytes.originalJPEG,
+                thumbnailData: bytes.thumbnailJPEG
+            )
+        }
+        return ReadyReportAuthorityValidation(
+            snapshot: snapshot,
+            evidence: evidence
+        )
     }
 
     private func validateFrozenSourceFields(

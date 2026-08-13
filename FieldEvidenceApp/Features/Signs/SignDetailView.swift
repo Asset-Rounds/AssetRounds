@@ -9,10 +9,13 @@ struct SignDetailView: View {
     static let startCheckAccessibilityIdentifier = "s2.sign-detail.start-check"
     static let noCheckStartedAccessibilityIdentifier = "s3.sign-detail.no-check-started"
     static let viewReportAccessibilityIdentifier = "s4.3.sign-detail.view-report"
+    static let reportHistoryAccessibilityIdentifier =
+        "s4.4.sign-detail.report-history"
 
     let snapshot: FirstSignSnapshot
     let checkNotice: String?
     let openReport: (() -> Void)?
+    let openReportHistory: () -> Void
     let refreshReport: () -> Void
     let startCheck: () -> Void
 
@@ -59,6 +62,11 @@ struct SignDetailView: View {
                             .accessibilityHint("Opens the saved report for this sign")
                             .accessibilityIdentifier(Self.viewReportAccessibilityIdentifier)
                     }
+
+                    Button("Report history", action: openReportHistory)
+                        .buttonStyle(WorklightSecondaryButtonStyle())
+                        .accessibilityHint("Opens report history for this sign")
+                        .accessibilityIdentifier(Self.reportHistoryAccessibilityIdentifier)
 
                     Button("Start Check", action: startCheck)
                         .buttonStyle(WorklightPrimaryButtonStyle())

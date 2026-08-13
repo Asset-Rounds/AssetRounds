@@ -17,6 +17,7 @@ struct SignsRootView: View {
         case newSign
         case check
         case report(UUID)
+        case reportHistory(UUID)
     }
 
     let pack: SignPack
@@ -27,6 +28,7 @@ struct SignsRootView: View {
     @StateObject private var coordinator: FirstSignCoordinator
     private let checkRunnerCoordinator: CheckRunnerCoordinator
     private let reportDeliveryCoordinator: ReportDeliveryCoordinator?
+    private let reportHistoryCoordinator: ReportHistoryCoordinator?
     @State private var snapshot: FirstSignSnapshot?
     @State private var readyReport: ReportDeliveryValue?
     @State private var path = NavigationPath()
@@ -61,12 +63,19 @@ struct SignsRootView: View {
             injectsLowStorageFailureOnceForUITest:
                 injectsLowStorageFailureOnceForUITest
         )
-        reportDeliveryCoordinator = try? ReportDeliveryCoordinator(
+        let deliveryCoordinator = try? ReportDeliveryCoordinator(
             modelContext: modelContext,
             generationRootURL: generationRootURL,
             diagnosticsStore: diagnosticsStore,
             signPack: pack
         )
+        reportDeliveryCoordinator = deliveryCoordinator
+        reportHistoryCoordinator = deliveryCoordinator.map {
+            ReportHistoryCoordinator(
+                modelContext: modelContext,
+                deliveryCoordinator: $0
+            )
+        }
     }
 
     var body: some View {
@@ -78,6 +87,9 @@ struct SignsRootView: View {
                         checkNotice: checkNotice,
                         openReport: readyReport.map { report in
                             { openReport(id: report.reportID) }
+                        },
+                        openReportHistory: {
+                            path.append(Route.reportHistory(snapshot.assetID))
                         },
                         refreshReport: refreshReadyReport
                     ) {
@@ -128,6 +140,17 @@ struct SignsRootView: View {
                         )
                     } else {
                         reportUnavailable
+                    }
+                case .reportHistory(let assetID):
+                    if let reportHistoryCoordinator,
+                       let reportDeliveryCoordinator {
+                        SignReportHistoryView(
+                            assetID: assetID,
+                            historyCoordinator: reportHistoryCoordinator,
+                            deliveryCoordinator: reportDeliveryCoordinator
+                        )
+                    } else {
+                        reportHistoryUnavailable
                     }
                 }
             }
@@ -192,6 +215,21 @@ struct SignsRootView: View {
             WorklightCard {
                 WorklightStatusBadge(kind: .blocked, text: "Report unavailable")
                 Text("The saved report could not be opened.")
+                    .font(.body)
+                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(DesignTokens.Spacing.medium)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DesignTokens.Colors.canvas)
+    }
+
+    private var reportHistoryUnavailable: some View {
+        ScrollView {
+            WorklightCard {
+                WorklightStatusBadge(kind: .blocked, text: "History unavailable")
+                Text("Report history could not be opened.")
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
