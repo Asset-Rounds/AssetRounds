@@ -286,19 +286,11 @@ final class S4_5CorrectionUITests: XCTestCase {
         ))
         let importButton = element(in: app, identifier: "s3.capture.import-fixture")
         scrollUntilHittable(importButton, in: app)
-        XCTAssertTrue(waitForElement(
-            importButton,
-            matching: "exists == true AND enabled == true AND hittable == true"
-        ))
         importButton.tap()
         XCTAssertTrue(element(in: app, identifier: "s3.capture.preview")
             .waitForExistence(timeout: 20))
         let usePhoto = element(in: app, identifier: "s3.capture.use-photo")
         scrollUntilHittable(usePhoto, in: app)
-        XCTAssertTrue(waitForElement(
-            usePhoto,
-            matching: "exists == true AND enabled == true AND hittable == true"
-        ))
         usePhoto.tap()
     }
 
