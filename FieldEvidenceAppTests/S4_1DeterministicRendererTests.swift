@@ -1136,8 +1136,18 @@ private func collectPDFFontResource(
     var baseFont: UnsafePointer<CChar>?
     guard "BaseFont".withCString({ CGPDFDictionaryGetName(dictionary, $0, &baseFont) }),
           let baseFont else { return }
+    let resourceName = String(cString: baseFont)
+    let parts = resourceName.split(separator: "+", maxSplits: 1, omittingEmptySubsequences: false)
+    let normalizedName: String
+    if parts.count == 2,
+       parts[0].count == 6,
+       parts[0].allSatisfy({ $0.isASCII && $0.isUppercase }) {
+        normalizedName = String(parts[1])
+    } else {
+        normalizedName = resourceName
+    }
     Unmanaged<PDFResourceFacts>.fromOpaque(info).takeUnretainedValue().fonts
-        .insert(String(cString: baseFont))
+        .insert(normalizedName)
 }
 
 private func collectPDFImageResource(
