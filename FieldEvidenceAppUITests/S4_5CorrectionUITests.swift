@@ -143,7 +143,7 @@ final class S4_5CorrectionUITests: XCTestCase {
         XCTAssertEqual(revision.label, "Complete: Current revision")
         XCTAssertFalse(element(in: app, identifier: "s4.5.correction.failure").exists)
         let correct = element(in: app, identifier: "s4.5.report-detail.correct")
-        scrollUntilHittable(correct, in: app)
+        scrollReportDetailUntilHittable(correct, in: app)
         assertControl(correct, label: "Correct report")
         XCTAssertTrue(preview.exists)
         scrollUntilHittable(revision, in: app)
@@ -158,7 +158,7 @@ final class S4_5CorrectionUITests: XCTestCase {
     @MainActor
     private func openCorrection(in app: XCUIApplication) {
         let correct = element(in: app, identifier: "s4.5.report-detail.correct")
-        scrollUntilHittable(correct, in: app)
+        scrollReportDetailUntilHittable(correct, in: app)
         assertControl(correct, label: "Correct report")
         correct.tap()
         XCTAssertTrue(element(in: app, identifier: "s4.5.correction.screen")
@@ -217,7 +217,7 @@ final class S4_5CorrectionUITests: XCTestCase {
         XCTAssertEqual(revision.label, "\(expectedRevision == "Current revision" ? "Complete" : "Information"): \(expectedRevision)")
         let correct = element(in: app, identifier: "s4.5.report-detail.correct")
         if canCorrect {
-            scrollUntilHittable(correct, in: app)
+            scrollReportDetailUntilHittable(correct, in: app)
             assertControl(correct, label: "Correct report")
         } else {
             XCTAssertFalse(correct.exists)
@@ -396,6 +396,28 @@ final class S4_5CorrectionUITests: XCTestCase {
         for _ in 0..<16 {
             if element.isHittable { return }
             app.swipeDown()
+        }
+        XCTAssertTrue(element.isHittable)
+    }
+
+    @MainActor
+    private func scrollReportDetailUntilHittable(
+        _ element: XCUIElement,
+        in app: XCUIApplication
+    ) {
+        let upperEdge = app.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.06, dy: 0.25)
+        )
+        let lowerEdge = app.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.06, dy: 0.75)
+        )
+        for _ in 0..<20 {
+            if element.isHittable { return }
+            upperEdge.press(forDuration: 0.05, thenDragTo: lowerEdge)
+        }
+        for _ in 0..<20 {
+            if element.isHittable { return }
+            lowerEdge.press(forDuration: 0.05, thenDragTo: upperEdge)
         }
         XCTAssertTrue(element.isHittable)
     }
