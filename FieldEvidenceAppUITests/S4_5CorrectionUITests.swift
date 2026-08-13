@@ -382,8 +382,18 @@ final class S4_5CorrectionUITests: XCTestCase {
     private func toggle(_ identifier: String, in app: XCUIApplication) {
         let control = element(in: app, identifier: identifier)
         scrollUntilHittable(control, in: app)
+        XCTAssertTrue(waitForElement(
+            control,
+            matching: "exists == true AND enabled == true AND hittable == true",
+            timeout: 10
+        ))
         control.tap()
-        XCTAssertEqual(control.value as? String, "1")
+        XCTAssertTrue(waitForElement(
+            control,
+            matching: "value == %@",
+            argument: "1",
+            timeout: 10
+        ))
     }
 
     @MainActor
