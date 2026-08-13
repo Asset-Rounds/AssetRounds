@@ -723,3 +723,66 @@ The accepted run's `head_sha` exactly equals `I=E=a728f8fe50e016e190074b6a5f4faf
 
 - Task ID only; it was not started: `S3.5`
 - Next gate: same-phase autopilot may commit and non-force push exactly this append plus immediate-next S3.5 `CURRENT_TASK.md` after re-proving remote phase=`I2` and remote main=`P`; then run fresh S3.5 G0. Do not mutate main.
+
+## `S3.5` — `complete` — `2026-08-13T00:24:31Z`
+
+- Phase ID / phase branch / card position / phase-boundary card (`yes | no`): `S3` / `phase/s3-check-runner` / `5 of 7` / `no`
+- Program/phase autopilot: enabled through accepted exact-main `S9.1` / exact same-phase span `S3.1,S3.2,S3.3,S3.4,S3.5,S3.6,S3.7`; S9.2 signing/TestFlight and S9.3 App Store submission remain owner-only
+- Immutable phase-main base: `P=7d135aaddd0bdc50168552b0610f04adc1703506`; remote `main` remained exactly P
+- Integrated/card base and predecessor evidence: `M=E=I2=54aee71a6d824b8550af739ff538172dbf2d0a05`; accepted S3.4 run `31650769537`
+- Observed task-start authority: `A=205dada07b7f48c3faf39c4441ef2ab24ccb5b0c`, a direct child of M changing exactly the append-only S3.4 HANDOFF plus immediate-next S3.5 CURRENT_TASK
+- Implementation sequence: initial `I=127a6aef384850a6beaf315829ac8ad11aa839de`; accepted `E=I2=3d082f530797262baf4964a349dfec0bed8c767f`; no distinct infrastructure verification head K
+- Outcome: bounded instance-scoped capacity, write/move, snapshot/intent-phase, evidence-save, and finalization-save failure seams prove that an active mutation either rolls back only its owned new authority or leaves the exact S3.4-recoverable post-save journal, while prior committed rows/files stay readable and retry succeeds once
+- Exact build plan / SHA-256: `docs/product/BUILD_PLAN_V4.md` / `23DAAB390AF917CBE91C3044E4906F3FBF8D67D2FDFC6BC9BDE985D984F37BBD`
+- Exact runbook / SHA-256 / selected card: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / `S3.5 — Low-storage and write-failure integrity`
+- Workflow / trigger / ref / accepted head: `.github/workflows/ios-ci.yml` / `workflow_dispatch` / `phase/s3-check-runner` / `3d082f530797262baf4964a349dfec0bed8c767f`
+- Selector: `S3.5` / `P12` / `runUISmoke=true`; unit `FieldEvidenceAppTests/S3_5FailureIntegrityTests`; UI `FieldEvidenceAppUITests/S3_5FailureRecoveryUITests`; exact `300/600/900/900/3300`; LF SHA-256 `6AE2565A4909BE28F616D0BA07DEEA6846E3D66D7432C48F9D3890EC6D75C0C7`
+- Accepted run/job/URLs/conclusion: `31653492893` / `94302688651` / `https://github.com/palatis3/AssetRounds/actions/runs/31653492893` / `https://github.com/palatis3/AssetRounds/actions/runs/31653492893/job/94302688651` / `success`; exact `head_sha=3d082f530797262baf4964a349dfec0bed8c767f`
+- Runner/toolchain/destination: `macos26`, image `20260728.0273.1`; Xcode 26.6 build `17F113`; `/Applications/Xcode_26.6.app/Contents/Developer`; iPhone 17 / iOS 26.5 / UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; deployment target iOS 18.0
+- Budgets: setup `52/300` s; Simulator readiness `238/900` s; artifact `2` s and setup+artifact `54/300` s; total `634/3300` s; every watchdog passed
+- Artifact: `ios-ci-31653492893-1`, ID `9163673194`, size `1854311`, API/raw ZIP digest `sha256:b067792e9648208dcfe9db8321b6f0125e6409d670b147cc4940e15baa7c867e`; `SHA256SUMS.txt` SHA-256 `57BC79E58A3660B25230CAB8C2A7BEE6B9F00EB7925C4F8DF74F74291F83D5F4`; all `99/99` payloads independently matched; `ui-final.png` SHA-256 `30D9C814FAFE13DA7D46A8793C98D8D4B2D7EDD4CC93D67CC3D0CB79F9FA2F42`
+- Exact verification: unsigned exact-destination build passed; all 4 targeted unit tests passed (2.227 s XCTest cases; 33.996 s test operation); the sole UI test passed (185.489 s; 199.170 s test operation); all required logs/result bundles/selector/runner/Simulator/checksum evidence and the terminal screenshot were present
+- Failed-candidate provenance: run `31652759185`, job `94300477945`, at exact I failed two targeted assertions because SwiftData `modelContext.rollback()` left live `WorkflowRecord` fields mutated (`outcome` instead of `close`, `completed` instead of `draft`); UI was correctly skipped after unit failure
+- I2 correction: changed only `FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift` and `FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift`; after rollback it restores exactly the pre-mutation draft step for evidence save and the seven draft fields changed by finalization, without changing successful persistence, owned cleanup, post-save journal recovery, tests, selectors, or acceptance
+- Authoring host OS/build: Microsoft Windows Home, 64-bit, version `10.0.26200`, build `26200`; no local Xcode/Simulator result was claimed
+- Project / target / shared scheme / configuration: `FieldEvidenceApp.xcodeproj` / `FieldEvidenceApp` / `FieldEvidenceApp` / `Debug`
+- Exact product commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all returned exit 0 in the accepted run
+- Allowed GitHub actions actually performed: exact task-named read/fetch/ref/run/workflow/artifact inspection, explicit-path commits, non-force phase pushes, workflow dispatches on the phase branch, exact-run observation/download; no main mutation, force-push, merge, PR, settings/secret, signing, deployment, or release action
+- Effective tool posture: Full access; `sandbox_mode=danger-full-access`; `approval_policy=never`; command network enabled; trusted repository configuration active; authenticated GitHub CLI available; XcodeBuildMCP and owner-operated Mac unnecessary
+- Pre-existing dirty paths: `NONE`; fresh G0 and both implementation/correction preflights were clean
+- Boundary recovery state: accepted S3.5 HANDOFF pending; remote phase=`E=I2`, remote `main=P`; S3.6 was unstarted before this append
+- Project/persistent-schema delta: none; exact seven-model schema and project remained unchanged
+
+### Changed paths
+
+- `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift`
+- `FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift`
+- `FieldEvidenceAppTests/S3_5FailureIntegrityTests.swift`
+- `FieldEvidenceAppUITests/S3_5FailureRecoveryUITests.swift`
+- `Scripts/ci-selection.json`
+
+### Acceptance results
+
+- GOLDEN `PASS`: capacity unavailable or below the exact 68 MiB estimate plus 64 MiB reserve writes no new row/file and leaves the same draft retryable; restoring capacity permits one successful continuation
+- ALT-1 `PASS`: bounded staging-write, promotion-move, evidence-save, snapshot-write/promotion, intent-phase, finalization-save, and post-save phase-write failures preserve prior authority; pre-save failure removes only exact owned active artifacts, post-save failure remains S3.4-recoverable, and fault removal yields one duplicate-free retry
+- UI/accessibility `PASS`: the explicit test-only one-shot low-storage route showed actionable space-recovery copy, retained the retry/import control, removed the fault on retry, and completed through the sole local Value receipt; production defaults expose no injection route or test copy
+- Terminal artifact `PASS`: retained `ui-final.png` shows `Check complete`, exact `Report saved on this device.` copy, unavailable View Report/Share, and actionable Done without clipping or corruption; SHA-256 `30D9C814FAFE13DA7D46A8793C98D8D4B2D7EDD4CC93D67CC3D0CB79F9FA2F42`
+- Scope/security `PASS`: no camera/permission/PhotosPicker, CNV, PDF, work/recheck, deletion/backup/restore, commerce, schema/project/package/capability, broad storage scan, event log, recovery registry, generalized fault framework, or remote behavior was added
+
+### Known bugs or limitations
+
+- `NONE`; `docs/execution/KNOWN_BUGS.md` contains no qualifying S3.5 defect
+
+### Blockers
+
+- `NONE`
+
+### Next unstarted task
+
+- Task ID only; it was not started: `S3.6`
+- Next gate: same-phase autopilot may commit and non-force push exactly this append plus immediate-next S3.6 `CURRENT_TASK.md` after re-proving remote phase=`I2` and remote main=`P`; then run fresh S3.6 G0. Do not mutate main.
