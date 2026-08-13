@@ -230,12 +230,7 @@ final class S5_1RecordWorkUITests: XCTestCase {
     private func acceptFixture(in app: XCUIApplication, heading: String) {
         let headingElement = element(in: app, identifier: "s3.capture.heading")
         XCTAssertTrue(headingElement.waitForExistence(timeout: 15))
-        XCTAssertTrue(waitForElement(
-            headingElement,
-            matching: "label == %@",
-            argument: heading,
-            timeout: 15
-        ))
+        XCTAssertEqual(headingElement.label, heading)
         let importButton = element(in: app, identifier: "s3.capture.import-fixture")
         scrollUntilHittable(importButton, in: app)
         importButton.tap()
