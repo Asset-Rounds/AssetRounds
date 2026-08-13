@@ -1,4 +1,5 @@
 import Foundation
+import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -11,17 +12,27 @@ struct CaptureStepView: View {
     static let previewAccessibilityIdentifier = "s3.capture.preview"
     static let retakeAccessibilityIdentifier = "s3.capture.retake"
     static let usePhotoAccessibilityIdentifier = "s3.capture.use-photo"
+    static let takePhotoAccessibilityIdentifier = "s3.capture.take-photo"
+    static let choosePhotosAccessibilityIdentifier = "s3.capture.choose-photos"
+    static let openSettingsAccessibilityIdentifier = "s3.capture.open-settings"
+    static let cannotCompleteAccessibilityIdentifier = "s3.capture.cannot-complete"
     static let outcomeUnavailableAccessibilityIdentifier =
         "s3.runner.outcome-unavailable"
 
     let assetID: UUID
     let coordinator: CheckRunnerCoordinator
     let usesImportedCaptureFixturesForUITest: Bool
+    let cameraAdapter: CameraAdapter
+    let cannotComplete: () -> Void
 
     @State private var preparation: CapturePreparation?
     @State private var candidate: CaptureCandidate?
     @State private var isWorking = false
     @State private var errorMessage: String?
+    @State private var cameraStatus: CameraAuthorizationStatus?
+    @State private var presentsCamera = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var didOpenCameraSettings = false
 
     var body: some View {
         Group {
@@ -41,6 +52,33 @@ struct CaptureStepView: View {
         .task {
             guard preparation == nil, errorMessage == nil else { return }
             loadPreparation()
+        }
+        .onChange(of: selectedPhotoItem) { _, item in
+            guard let item else { return }
+            importPhotoItem(item)
+        }
+        .sheet(isPresented: $presentsCamera) {
+            CameraCaptureView(
+                onCapture: { data in
+                    presentsCamera = false
+                    importSourceData(data)
+                },
+                onCancel: {
+                    presentsCamera = false
+                    errorMessage = nil
+                },
+                onFailure: {
+                    presentsCamera = false
+                    errorMessage = "The camera could not take a photo. Choose from Photos or try again."
+                }
+            )
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: UIApplication.didBecomeActiveNotification
+        )) { _ in
+            guard didOpenCameraSettings else { return }
+            didOpenCameraSettings = false
+            cameraStatus = cameraAdapter.authorizationStatus()
         }
     }
 
@@ -97,28 +135,8 @@ struct CaptureStepView: View {
                     .disabled(isWorking)
                     .accessibilityIdentifier(Self.usePhotoAccessibilityIdentifier)
                 }
-            } else if usesImportedCaptureFixturesForUITest {
-                Button("Import test photo") {
-                    importFixture(for: preparation.step)
-                }
-                .buttonStyle(WorklightPrimaryButtonStyle())
-                .disabled(isWorking)
-                .accessibilityIdentifier(Self.fixtureImportAccessibilityIdentifier)
             } else {
-                Text("Capture is unavailable until S3.2.")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier(
-                        Self.legacyCaptureUnavailableAccessibilityIdentifier
-                    )
-
-                WorklightCard {
-                    WorklightStatusBadge(
-                        kind: .information,
-                        text: "Imported fixture capture is available only in the S3.2 test route."
-                    )
-                }
+                captureActions(for: preparation.step)
             }
 
             if let errorMessage {
@@ -130,6 +148,57 @@ struct CaptureStepView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func captureActions(for step: WorkflowDraftStep) -> some View {
+        Button("Take photo") {
+            takePhoto(for: step)
+        }
+        .buttonStyle(WorklightPrimaryButtonStyle())
+        .disabled(isWorking)
+        .accessibilityIdentifier(Self.takePhotoAccessibilityIdentifier)
+
+        PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+            Text("Choose from Photos")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(WorklightSecondaryButtonStyle())
+        .disabled(isWorking)
+        .accessibilityIdentifier(Self.choosePhotosAccessibilityIdentifier)
+
+        if cameraStatus == .denied || cameraStatus == .restricted {
+            WorklightCard {
+                WorklightStatusBadge(kind: .blocked, text: "Camera access unavailable")
+                Text("Choose a photo, open Settings, or leave this check incomplete and return later.")
+                    .font(.body)
+                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button("Open Settings") {
+                openSettings()
+            }
+            .buttonStyle(WorklightSecondaryButtonStyle())
+            .accessibilityIdentifier(Self.openSettingsAccessibilityIdentifier)
+        }
+
+        Button("Cannot complete") {
+            cannotComplete()
+        }
+        .buttonStyle(WorklightSecondaryButtonStyle())
+        .disabled(isWorking)
+        .accessibilityHint("Leaves this check incomplete so you can resume it later")
+        .accessibilityIdentifier(Self.cannotCompleteAccessibilityIdentifier)
+
+        if usesImportedCaptureFixturesForUITest {
+            Button("Import test photo") {
+                importFixture(for: step)
+            }
+            .buttonStyle(WorklightSecondaryButtonStyle())
+            .disabled(isWorking)
+            .accessibilityIdentifier(Self.fixtureImportAccessibilityIdentifier)
         }
     }
 
@@ -184,6 +253,88 @@ struct CaptureStepView: View {
             preparation = nil
             errorMessage = "The active check could not be opened."
         }
+    }
+
+    private func takePhoto(for step: WorkflowDraftStep) {
+        guard !isWorking else { return }
+        errorMessage = nil
+        Task { @MainActor in
+            let status = cameraAdapter.authorizationStatus()
+            let resolvedStatus: CameraAuthorizationStatus
+            if status == .notDetermined {
+                isWorking = true
+                resolvedStatus = await cameraAdapter.requestAuthorization()
+                isWorking = false
+            } else {
+                resolvedStatus = status
+            }
+            cameraStatus = resolvedStatus
+            guard resolvedStatus == .authorized else { return }
+            guard cameraAdapter.isCameraAvailable() else {
+                errorMessage = "The camera is unavailable. Choose from Photos or return later."
+                return
+            }
+            if usesImportedCaptureFixturesForUITest {
+                importFixture(for: step)
+            } else {
+                presentsCamera = true
+            }
+        }
+    }
+
+    private func importPhotoItem(_ item: PhotosPickerItem) {
+        guard !isWorking else { return }
+        isWorking = true
+        errorMessage = nil
+        Task { @MainActor in
+            defer {
+                selectedPhotoItem = nil
+                isWorking = false
+            }
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    errorMessage = "The selected photo could not be read. Choose another photo."
+                    return
+                }
+                candidate = try await coordinator.importCandidate(
+                    assetID: assetID,
+                    sourceData: data,
+                    createdAt: Date()
+                )
+            } catch CheckRunnerCoordinatorError.storageUnavailable {
+                errorMessage = "Free space is too low. Free space, then try again."
+            } catch {
+                errorMessage = "The photo could not be imported. Try another photo."
+            }
+        }
+    }
+
+    private func importSourceData(_ data: Data) {
+        guard !isWorking else { return }
+        isWorking = true
+        errorMessage = nil
+        Task { @MainActor in
+            do {
+                candidate = try await coordinator.importCandidate(
+                    assetID: assetID,
+                    sourceData: data,
+                    createdAt: Date()
+                )
+            } catch CheckRunnerCoordinatorError.storageUnavailable {
+                errorMessage = "Free space is too low. Free space, then try again."
+            } catch {
+                errorMessage = "The photo could not be prepared. Choose another photo."
+            }
+            isWorking = false
+        }
+    }
+
+    private func openSettings() {
+        guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else {
+            return
+        }
+        didOpenCameraSettings = true
+        UIApplication.shared.open(settingsURL)
     }
 
     private func importFixture(for step: WorkflowDraftStep) {

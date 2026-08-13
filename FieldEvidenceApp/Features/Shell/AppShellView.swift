@@ -25,6 +25,7 @@ struct AppShellView: View {
     let generationRootURL: URL
     let usesImportedCaptureFixturesForUITest: Bool
     let injectsLowStorageFailureOnceForUITest: Bool
+    let cameraAdapter: CameraAdapter
 
     @State private var selectedTab: Tab = .signs
 
@@ -35,7 +36,8 @@ struct AppShellView: View {
         diagnosticsStore: DiagnosticsStore,
         generationRootURL: URL,
         usesImportedCaptureFixturesForUITest: Bool = false,
-        injectsLowStorageFailureOnceForUITest: Bool = false
+        injectsLowStorageFailureOnceForUITest: Bool = false,
+        cameraAdapter: CameraAdapter = .live
     ) {
         self.packLoadResult = packLoadResult
         self.exposesColorSchemeForUITest = exposesColorSchemeForUITest
@@ -45,6 +47,7 @@ struct AppShellView: View {
         self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
         self.injectsLowStorageFailureOnceForUITest =
             injectsLowStorageFailureOnceForUITest
+        self.cameraAdapter = cameraAdapter
     }
 
     var body: some View {
@@ -66,7 +69,8 @@ struct AppShellView: View {
                 generationRootURL: generationRootURL,
                 usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
                 injectsLowStorageFailureOnceForUITest:
-                    injectsLowStorageFailureOnceForUITest
+                    injectsLowStorageFailureOnceForUITest,
+                cameraAdapter: cameraAdapter
             )
             .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
             .accessibilityValue(

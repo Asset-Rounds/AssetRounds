@@ -1,0 +1,83 @@
+import AVFoundation
+import Foundation
+import UIKit
+
+enum CameraAuthorizationStatus: Equatable, Sendable {
+    case notDetermined
+    case authorized
+    case denied
+    case restricted
+}
+
+@MainActor
+struct CameraAdapter {
+    typealias AuthorizationStatusProvider = () -> CameraAuthorizationStatus
+    typealias AuthorizationRequester = () async -> CameraAuthorizationStatus
+    typealias AvailabilityProvider = () -> Bool
+
+    static let live = CameraAdapter(
+        authorizationStatus: {
+            mapAuthorizationStatus(
+                AVCaptureDevice.authorizationStatus(for: .video)
+            )
+        },
+        requestAuthorization: {
+            guard AVCaptureDevice.authorizationStatus(for: .video)
+                    == .notDetermined else {
+                return mapAuthorizationStatus(
+                    AVCaptureDevice.authorizationStatus(for: .video)
+                )
+            }
+            _ = await AVCaptureDevice.requestAccess(for: .video)
+            return mapAuthorizationStatus(
+                AVCaptureDevice.authorizationStatus(for: .video)
+            )
+        },
+        isCameraAvailable: {
+            UIImagePickerController.isSourceTypeAvailable(.camera)
+        }
+    )
+
+    private let authorizationStatusProvider: AuthorizationStatusProvider
+    private let authorizationRequester: AuthorizationRequester
+    private let availabilityProvider: AvailabilityProvider
+
+    init(
+        authorizationStatus: @escaping AuthorizationStatusProvider,
+        requestAuthorization: @escaping AuthorizationRequester,
+        isCameraAvailable: @escaping AvailabilityProvider
+    ) {
+        authorizationStatusProvider = authorizationStatus
+        authorizationRequester = requestAuthorization
+        availabilityProvider = isCameraAvailable
+    }
+
+    func authorizationStatus() -> CameraAuthorizationStatus {
+        authorizationStatusProvider()
+    }
+
+    func requestAuthorization() async -> CameraAuthorizationStatus {
+        await authorizationRequester()
+    }
+
+    func isCameraAvailable() -> Bool {
+        availabilityProvider()
+    }
+
+    private static func mapAuthorizationStatus(
+        _ status: AVAuthorizationStatus
+    ) -> CameraAuthorizationStatus {
+        switch status {
+        case .notDetermined:
+            .notDetermined
+        case .authorized:
+            .authorized
+        case .denied:
+            .denied
+        case .restricted:
+            .restricted
+        @unknown default:
+            .restricted
+        }
+    }
+}

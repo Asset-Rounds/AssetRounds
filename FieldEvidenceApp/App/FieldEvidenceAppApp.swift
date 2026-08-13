@@ -12,6 +12,8 @@ struct FieldEvidenceAppApp: App {
         "--s3-2-ui-test-imported-fixtures"
     private static let lowStorageOnceLaunchArgument =
         "--s3-5-ui-test-low-storage-once"
+    private static let cameraDeniedOnceLaunchArgument =
+        "--s3-6-ui-test-camera-denied-once"
 
     @StateObject private var startupRouter: StartupRouter
 
@@ -20,6 +22,7 @@ struct FieldEvidenceAppApp: App {
     private let exposesColorSchemeForUITest: Bool
     private let usesImportedCaptureFixturesForUITest: Bool
     private let injectsLowStorageFailureOnceForUITest: Bool
+    private let cameraAdapter: CameraAdapter
 
     init() {
         let applicationSupportURL = FileManager.default.urls(
@@ -39,6 +42,27 @@ struct FieldEvidenceAppApp: App {
         injectsLowStorageFailureOnceForUITest = arguments.contains(
             Self.lowStorageOnceLaunchArgument
         )
+        if arguments.contains(Self.cameraDeniedOnceLaunchArgument) {
+            var status = CameraAuthorizationStatus.notDetermined
+            var authorizesOnNextStatusQuery = false
+            cameraAdapter = CameraAdapter(
+                authorizationStatus: {
+                    if authorizesOnNextStatusQuery {
+                        authorizesOnNextStatusQuery = false
+                        status = .authorized
+                    }
+                    return status
+                },
+                requestAuthorization: {
+                    status = .denied
+                    authorizesOnNextStatusQuery = true
+                    return status
+                },
+                isCameraAvailable: { true }
+            )
+        } else {
+            cameraAdapter = .live
+        }
 
         if arguments.contains(Self.invalidPackLaunchArgument) {
             let malformedPayload = Data(#"{"schemaVersion":1,"unexpected":"content"}"#.utf8)
@@ -67,7 +91,8 @@ struct FieldEvidenceAppApp: App {
                 exposesColorSchemeForUITest: exposesColorSchemeForUITest,
                 usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
                 injectsLowStorageFailureOnceForUITest:
-                    injectsLowStorageFailureOnceForUITest
+                    injectsLowStorageFailureOnceForUITest,
+                cameraAdapter: cameraAdapter
             )
             .preferredColorScheme(preferredColorScheme)
         }
@@ -81,6 +106,7 @@ private struct StartupRootView: View {
     let exposesColorSchemeForUITest: Bool
     let usesImportedCaptureFixturesForUITest: Bool
     let injectsLowStorageFailureOnceForUITest: Bool
+    let cameraAdapter: CameraAdapter
 
     var body: some View {
         Group {
@@ -107,7 +133,8 @@ private struct StartupRootView: View {
                     exposesColorSchemeForUITest: exposesColorSchemeForUITest,
                     usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
                     injectsLowStorageFailureOnceForUITest:
-                        injectsLowStorageFailureOnceForUITest
+                        injectsLowStorageFailureOnceForUITest,
+                    cameraAdapter: cameraAdapter
                 )
             }
         }
@@ -125,6 +152,7 @@ private struct ReadyAppView: View {
     let exposesColorSchemeForUITest: Bool
     let usesImportedCaptureFixturesForUITest: Bool
     let injectsLowStorageFailureOnceForUITest: Bool
+    let cameraAdapter: CameraAdapter
 
     var body: some View {
         AppShellView(
@@ -135,7 +163,8 @@ private struct ReadyAppView: View {
             generationRootURL: coordinator.generationRootURL,
             usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
             injectsLowStorageFailureOnceForUITest:
-                injectsLowStorageFailureOnceForUITest
+                injectsLowStorageFailureOnceForUITest,
+            cameraAdapter: cameraAdapter
         )
         .id(coordinator.uiGenerationToken)
         .modelContext(coordinator.modelContext)

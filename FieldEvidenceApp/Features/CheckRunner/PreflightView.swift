@@ -15,6 +15,8 @@ struct PreflightView: View {
     let coordinator: CheckRunnerCoordinator
     let generationRootURL: URL
     let usesImportedCaptureFixturesForUITest: Bool
+    let cameraAdapter: CameraAdapter
+    let cannotComplete: () -> Void
     let cancel: () -> Void
 
     @State private var timeZoneID: String
@@ -40,6 +42,8 @@ struct PreflightView: View {
         coordinator: CheckRunnerCoordinator,
         generationRootURL: URL,
         usesImportedCaptureFixturesForUITest: Bool = false,
+        cameraAdapter: CameraAdapter = .live,
+        cannotComplete: @escaping () -> Void,
         cancel: @escaping () -> Void
     ) {
         self.snapshot = snapshot
@@ -48,6 +52,8 @@ struct PreflightView: View {
         self.generationRootURL = generationRootURL
         self.usesImportedCaptureFixturesForUITest =
             usesImportedCaptureFixturesForUITest
+        self.cameraAdapter = cameraAdapter
+        self.cannotComplete = cannotComplete
         self.cancel = cancel
         _timeZoneID = State(initialValue: snapshot.timeZoneID ?? "")
         _isTimeZoneConfirmed = State(initialValue: snapshot.timeZoneID != nil)
@@ -61,7 +67,9 @@ struct PreflightView: View {
                     assetID: snapshot.assetID,
                     coordinator: coordinator,
                     usesImportedCaptureFixturesForUITest:
-                        usesImportedCaptureFixturesForUITest
+                        usesImportedCaptureFixturesForUITest,
+                    cameraAdapter: cameraAdapter,
+                    cannotComplete: cannotComplete
                 )
             } else {
                 ScrollView {

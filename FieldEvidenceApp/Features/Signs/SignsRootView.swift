@@ -21,6 +21,7 @@ struct SignsRootView: View {
     let pack: SignPack
     let generationRootURL: URL
     let usesImportedCaptureFixturesForUITest: Bool
+    let cameraAdapter: CameraAdapter
 
     @StateObject private var coordinator: FirstSignCoordinator
     private let checkRunnerCoordinator: CheckRunnerCoordinator
@@ -36,11 +37,13 @@ struct SignsRootView: View {
         pack: SignPack,
         generationRootURL: URL,
         usesImportedCaptureFixturesForUITest: Bool = false,
-        injectsLowStorageFailureOnceForUITest: Bool = false
+        injectsLowStorageFailureOnceForUITest: Bool = false,
+        cameraAdapter: CameraAdapter = .live
     ) {
         self.pack = pack
         self.generationRootURL = generationRootURL
         self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
+        self.cameraAdapter = cameraAdapter
         _coordinator = StateObject(
             wrappedValue: FirstSignCoordinator(
                 modelContext: modelContext,
@@ -91,7 +94,11 @@ struct SignsRootView: View {
                             coordinator: checkRunnerCoordinator,
                             generationRootURL: generationRootURL,
                             usesImportedCaptureFixturesForUITest:
-                                usesImportedCaptureFixturesForUITest
+                                usesImportedCaptureFixturesForUITest,
+                            cameraAdapter: cameraAdapter,
+                            cannotComplete: {
+                                path.removeLast()
+                            }
                         ) {
                             checkNotice = "No check was started."
                             path.removeLast()
