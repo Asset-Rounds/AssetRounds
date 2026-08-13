@@ -5,7 +5,6 @@ import UniformTypeIdentifiers
 import UIKit
 
 struct ReportDetailView: View {
-    private static let scrollTopID = "s4.5.report-detail.top"
     static let screenAccessibilityIdentifier = "s4.3.report-detail.screen"
     static let previewAccessibilityIdentifier = "s4.3.report-detail.preview"
     static let shareAccessibilityIdentifier = "s4.3.report-detail.share"
@@ -60,9 +59,8 @@ struct ReportDetailView: View {
     private var delivery: ReportDeliveryValue { state.selectedDelivery }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                     WorklightCard {
                         WorklightStatusBadge(kind: .complete, text: "Report ready")
 
@@ -122,14 +120,10 @@ struct ReportDetailView: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityIdentifier(Self.deliveryErrorAccessibilityIdentifier)
                     }
-                }
-                .id(Self.scrollTopID)
-                .padding(DesignTokens.Spacing.medium)
             }
-            .onChange(of: state.selectedReportID) { _, _ in
-                proxy.scrollTo(Self.scrollTopID, anchor: .top)
-            }
+            .padding(DesignTokens.Spacing.medium)
         }
+        .id(state.selectedReportID)
         .navigationTitle("Report")
         .navigationBarTitleDisplayMode(.inline)
         .background(DesignTokens.Colors.canvas)
