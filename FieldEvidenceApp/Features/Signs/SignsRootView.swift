@@ -29,7 +29,6 @@ struct SignsRootView: View {
     private let reportDeliveryCoordinator: ReportDeliveryCoordinator?
     @State private var snapshot: FirstSignSnapshot?
     @State private var readyReport: ReportDeliveryValue?
-    @State private var presentedReport: ReportDeliveryValue?
     @State private var path = NavigationPath()
     @State private var didLoad = false
     @State private var loadErrorMessage: String?
@@ -119,11 +118,12 @@ struct SignsRootView: View {
                         }
                     }
                 case .report(let reportID):
-                    if let presentedReport,
-                       presentedReport.reportID == reportID,
-                       let reportDeliveryCoordinator {
+                    if let reportDeliveryCoordinator,
+                       let delivery = try? reportDeliveryCoordinator.loadReadyReport(
+                           id: reportID
+                       ) {
                         ReportDetailView(
-                            delivery: presentedReport,
+                            delivery: delivery,
                             coordinator: reportDeliveryCoordinator
                         )
                     } else {
@@ -182,10 +182,8 @@ struct SignsRootView: View {
               let delivery = try? reportDeliveryCoordinator.onlyReadyReport(assetID: assetID),
               delivery.reportID == reportID else {
             readyReport = nil
-            presentedReport = nil
             return
         }
-        presentedReport = delivery
         path.append(Route.report(reportID))
     }
 
