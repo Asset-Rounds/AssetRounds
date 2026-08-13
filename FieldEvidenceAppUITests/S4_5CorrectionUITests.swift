@@ -110,7 +110,12 @@ final class S4_5CorrectionUITests: XCTestCase {
         scrollUntilHittable(secondSave, in: app)
         secondSave.doubleTap()
         let saving = element(in: app, identifier: "s4.5.correction.saving")
-        XCTAssertTrue(saving.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForElement(
+            saving,
+            matching: "exists == true AND label CONTAINS %@",
+            argument: "Saving correction",
+            timeout: 10
+        ))
         XCTAssertFalse(secondSave.isEnabled)
         XCTAssertTrue(element(in: app, identifier: "s4.5.correction.ready")
             .waitForExistence(timeout: 35))
@@ -191,8 +196,12 @@ final class S4_5CorrectionUITests: XCTestCase {
     @MainActor
     private func assertSavingThenReady(in app: XCUIApplication) {
         let saving = element(in: app, identifier: "s4.5.correction.saving")
-        XCTAssertTrue(saving.waitForExistence(timeout: 10))
-        XCTAssertTrue(saving.label.contains("Saving correction"))
+        XCTAssertTrue(waitForElement(
+            saving,
+            matching: "exists == true AND label CONTAINS %@",
+            argument: "Saving correction",
+            timeout: 10
+        ))
         let ready = element(in: app, identifier: "s4.5.correction.ready")
         XCTAssertTrue(ready.waitForExistence(timeout: 35))
         XCTAssertTrue(app.descendants(matching: .any).matching(
