@@ -1071,3 +1071,84 @@ The accepted run's `head_sha` exactly equals `E=I3=acdb3248c8ced353cb1d706663e92
 
 - Task ID only; it was not started: `S4.3`
 - Next gate: after re-proving remote phase=`E=I3` and remote `main=P`, same-phase autopilot may commit and non-force push exactly this HANDOFF append plus immediate-next S4.3 `CURRENT_TASK.md`, then must run fresh S4.3 G0. Do not mutate main.
+
+## `S4.3` — `complete` — `2026-08-13T07:34:20Z`
+
+- Phase ID / phase branch / card position / phase-boundary card (`yes | no`): `S4` / `phase/s4-reports` / `3 of 5` / `no`
+- Program-autopilot state / exact phase-and-branch map / final owner-only boundary: `enabled through accepted exact-main S9.1` / exact frozen S0–S9 map in `CURRENT_TASK.md` / S9.2 signing/TestFlight and S9.3 App Store submission remain owner-only
+- Phase-autopilot state / exact authorized same-phase span: `enabled` / `S4.1,S4.2,S4.3,S4.4,S4.5`
+- Outcome: activated the sole CheckRunner `ValueReceiptView` so ready authority exposes `View report`, `Share PDF`, and `Done`; added a bounded coordinator and detail/PDFKit surface that consume only validated immutable cached ready-PDF bytes; and added direct cold-relaunch reopen only when exactly one validated ready Report belongs to the same sign, without activating the Reports index
+- Exact build-plan path / SHA-256: `docs/product/BUILD_PLAN_V4.md` / `23DAAB390AF917CBE91C3044E4906F3FBF8D67D2FDFC6BC9BDE985D984F37BBD`
+- Exact implementation-runbook path / SHA-256 / selected card: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / `S4.3 — Value receipt, detail, preview, Share, and Files`
+- Authoring host OS/build: Microsoft Windows 11 Home, 64-bit, version `10.0.26200`, build `26200`; no local Xcode/Simulator result was claimed
+- GitHub repository / visibility and branch-control posture / base branch / phase branch: `palatis3/AssetRounds` / public, exact-ref/non-force-only / `main` / `phase/s4-reports`
+- Immutable phase-main base SHA `P` and evidence: `P=8b33ee6a26ed4f7ccdccc8e092920b26c6e04122`; accepted S3 exact-main run `31658998104`; freshly fetched remote `main` remained exactly P immediately before this append
+- Integrated/card-base SHA `M` and predecessor evidence: `M=E=I3=acdb3248c8ced353cb1d706663e9232b5332fa9f`; accepted S4.2 exact-head run `31669480211` / job `94350970095` succeeded at M with P12/UI enabled and complete `107/107` verified evidence
+- Observed task-start authority SHA `A` and `M..A` authority-only diff result: `A=4a2a11669ac9326a518f6328dd814d844eae3db4`, a direct child of M; `M..A` changed exactly the append-only S4.2 HANDOFF plus immediate-next `docs/execution/CURRENT_TASK.md`
+- Implementation sequence: `I=6f3d6efb2c94e81a288bf0db23815a2f052262c8`; `I2=7134d13cb080524c53284768ec306adfa96f7dec`; `I3=dd076b5afc435a6038dcab7d1cd673ffeaf093fc`; `I4=d4ee41ec43b9b58fd348051eb6b0d5580eca2afc`; accepted `E=I5=2601787b1377b408568d5f07faab2bda65648e9d`; no distinct infrastructure verification head K
+- Pre-existing dirty paths and owner/disposition: `NONE`; fresh G0, implementation preflight, and post-acceptance pre-append checks were clean
+- Workflow path / workflow file SHA-256 / trigger / frozen branch ref / actual expected ref-head SHA: `.github/workflows/ios-ci.yml` / `9FFEA51ADB2620B01FE250412716487F6102DAC7E93AEA0471943AF66C1BC2AC` / `workflow_dispatch` / `phase/s4-reports` / `2601787b1377b408568d5f07faab2bda65648e9d`
+- CI selector task ID / tier / `runUISmoke` / workflow input equality result: `S4.3` / `F25` / `true` / `PASS`; exact `300/900/1200/1800/4500`, unit selector `FieldEvidenceAppTests/S4_3ReportDeliveryTests`, UI selector `FieldEvidenceAppUITests/S4_3ValueReceiptUITests`, LF SHA-256 `58363B3FDAD13A57EF0F320F0DB92F80E020877A160D1131AC28BB61698DCDEF`
+- Accepted run/job/URLs/conclusion: `31677280546` / `94374516642` / `https://github.com/palatis3/AssetRounds/actions/runs/31677280546` / `https://github.com/palatis3/AssetRounds/actions/runs/31677280546/job/94374516642` / `success`; exact `head_sha=2601787b1377b408568d5f07faab2bda65648e9d`
+- Runner/toolchain/destination: `macos26`, image `20260728.0273.1`; Xcode 26.6 build `17F113`; `/Applications/Xcode_26.6.app/Contents/Developer`; iPhone 17 / iOS 26.5 build `23F77` / UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; deployment target iOS 18.0
+- Budgets: setup `18/300` s; Simulator readiness `314/900` s; build `167/900` s; unit `154/1200` s; UI `185/1800` s; artifact `0` s and setup+artifact `18/300` s; total `677/4500` s; every watchdog passed
+- Artifact: `ios-ci-31677280546-1`, ID `9172311092`, size `3049533`, API/raw ZIP digest `sha256:854BE0F95326AAAE8A2C89E9EC369CE930CB4AF421F2007B12FF5E0BF12F18CF`; `SHA256SUMS.txt` SHA-256 `A652B37B6FAE2E11587ABC9CA998B064922C3B0283A423A8A339B89E3AEA40DE`; all `107/107` payloads independently matched with no missing or mismatched file; terminal `ui-final.png` SHA-256 `E8DBB6B2B73DDC3A28FEC37784AF08CE5A7D546CF3985D76BBDF584483C979CD`, `1206×2622`, visual PASS
+- Project / target / shared scheme / configuration: `FieldEvidenceApp.xcodeproj` / `FieldEvidenceApp` / `FieldEvidenceApp` / `Debug`
+- Exact product commands: `bash Scripts/run-with-timeout.sh 900 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 1200 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 1800 bash Scripts/ui-smoke.sh`; all returned exit 0 on the accepted run
+- Allowed GitHub methods and exact repository/ref/workflow operations: task-named read/fetch/ref/run/workflow/artifact inspection; explicit-path commits; non-force pushes to `refs/heads/phase/s4-reports`; `.github/workflows/ios-ci.yml` dispatch on `phase/s4-reports` with `run_ui_smoke=true`; exact-run observation/download; no main mutation during S4.3
+- Owner-required posture and G0-observed effective state: Full access; `sandbox_mode=danger-full-access`; `approval_policy=never`; command network enabled; trusted repository configuration active; authenticated GitHub CLI available; XcodeBuildMCP and an owner-operated Mac unnecessary
+- Card-owned actions actually performed: created append-only direct children I through accepted I5; non-force pushed exact phase heads; dispatched fresh candidates at I2 twice, I3, I4, and I5 without rerunning a failed run ID; inspected complete terminal diagnostics/artifacts; accepted only exact I5
+- Boundary recovery state: `no`; S4.3 is not the phase boundary. Freshly fetched remote `phase/s4-reports` remained exactly `E=I5` and remote `main` remained exactly `P` before this append
+- Project/persistent-schema delta: `NONE`; no project, target, dependency, capability, permission, or frozen seven-model-schema change
+
+### Changed paths
+
+- `FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift`
+- `FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift`
+- `FieldEvidenceApp/Features/Reports/ReportDetailView.swift`
+- `FieldEvidenceApp/Features/Signs/SignDetailView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift`
+- `FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift`
+- `FieldEvidenceAppUITests/S4_3ValueReceiptUITests.swift`
+- `Scripts/ci-selection.json`
+
+`I→I2` changed only `S4_3ReportDeliveryTests.swift`, first awaiting the diagnostics snapshot and then asserting its counter. `I2→I3` changed only `SignsRootView.swift`, reloading the exact ready delivery from `ReportDeliveryCoordinator` at report-route presentation instead of retaining a stale in-memory value. `I3→I4` changed only `S4_3ValueReceiptUITests.swift`, synchronizing system-sheet dismissal with the report-detail control's actual availability. `I4→I5` changed only `S4_3ValueReceiptUITests.swift`, using the remote Share-sheet header close control and bounded Files-sheet swipes. The exact A..E union is the nine paths above.
+
+### Verification
+
+| Command or smoke | Run/job | Timeout | Exit code | Actual duration | Result | Artifact/evidence path and checksum |
+|---|---|---:|---:|---:|---|---|
+| Fresh G0: branch/cleanliness, `A^=M`, exact two-path `M..A`, pins/map/environment/selector/live refs | local + GitHub read-only | fail closed | 0 | bounded | PASS | `A=4a2a11669ac9326a518f6328dd814d844eae3db4`; phase began at A and main at `P=8b33ee6a26ed4f7ccdccc8e092920b26c6e04122` |
+| Exact A..I5 structure and task envelope | local Windows read-only | fail closed | 0 | bounded | PASS | exactly 6 production, 2 test, and selector-exception paths; every correction is a direct child with one diagnosed delta; `git diff --check` passed |
+| First exact-I2 candidate | `31672818079` / `94360899015` | F25 | nonzero | UI 241 s | FAIL — build and unit tests passed; the UI test failed at `S4_3ValueReceiptUITests.swift:167` waiting for the imported-capture preview to exist | artifact `ios-ci-31672818079-1`, ID `9170583567`, size `70786235` |
+| Fresh exact-I2 candidate | `31673737324` / `94363648486` | F25 | nonzero | UI 312 s | FAIL — build and unit tests passed; the UI test failed at `S4_3ValueReceiptUITests.swift:92` waiting for the cold-reopened report detail/preview | artifact `ios-ci-31673737324-1`, ID `9170922678`, size `110889090`; led directly to I3 |
+| Exact-I3 candidate | `31674714383` / `94366671811` | F25 | nonzero | UI 276 s | FAIL — build and unit tests passed; the UI test failed at `S4_3ValueReceiptUITests.swift:49` asserting the `Save to Files` primary control after Share-sheet dismissal | artifact `ios-ci-31674714383-1`, ID `9171334940`, size `87074143`; led directly to I4 |
+| Exact-I4 candidate | `31675836560` / `94370109178` | F25 | nonzero | UI 228 s | FAIL — build and unit tests passed; the UI test reported `Share PDF system dismiss control did not become hittable` | artifact `ios-ci-31675836560-1`, ID `9171838664`, size `76495406`; led directly to I5 |
+| `bash Scripts/run-with-timeout.sh 900 bash Scripts/build-smoke.sh` | accepted `31677280546` / `94374516642` | 900 s | 0 | 167 s | PASS — exact-destination unsigned build green | nonempty `build-smoke.log`; nonempty `Build.xcresult`; accepted artifact ID `9172311092` |
+| `bash Scripts/run-with-timeout.sh 1200 bash Scripts/test-smoke.sh` / exact `FieldEvidenceAppTests/S4_3ReportDeliveryTests` | same | 1200 s | 0 | 154 s | PASS — `8/8` units green | nonempty `test-smoke.log`; nonempty `UnitTests.xcresult`; accepted artifact checksum manifest matched |
+| `bash Scripts/run-with-timeout.sh 1800 bash Scripts/ui-smoke.sh` / exact `FieldEvidenceAppUITests/S4_3ValueReceiptUITests` | same | 1800 s | 0 | 185 s | PASS — `1/1` UI test green | nonempty `ui-smoke.log`; nonempty `UISmoke.xcresult`; terminal `ui-final.png` SHA-256 `E8DBB6B2B73DDC3A28FEC37784AF08CE5A7D546CF3985D76BBDF584483C979CD`, `1206×2622`, visual PASS |
+| Required-evidence validation, selector resolution, checksum generation/verification, and F25 budgets | same | setup/artifact 300 s; readiness 900 s; total 4500 s | 0 | setup 18 s; readiness 314 s; artifact 0 s; total 677 s | PASS | artifact `ios-ci-31677280546-1`, ID `9172311092`, raw ZIP SHA-256 `854BE0F95326AAAE8A2C89E9EC369CE930CB4AF421F2007B12FF5E0BF12F18CF`; `SHA256SUMS.txt` `A652B37B6FAE2E11587ABC9CA998B064922C3B0283A423A8A339B89E3AEA40DE`; all `107/107` payloads independently matched |
+
+The accepted run's `head_sha` exactly equals `E=I5=2601787b1377b408568d5f07faab2bda65648e9d`. This HANDOFF append is not implementation evidence and does not self-record its future S4.4 transition commit.
+
+### Acceptance results
+
+- GOLDEN `PASS`: the existing fixture check reached the sole receipt and its ready Report; receipt→preview→Share→Files used byte-identical cached PDF content and hash; `Done` returned to the same sign; and cold relaunch directly reopened the same Report ID, bytes, and hash only with exactly one valid sign-owned ready candidate, without regeneration or mutation
+- ALT-1 `PASS`: system Share and Files presentations were dismissed/cancelled without a claimed destination, sent/opened/read/delivered fact, or Report/Packet/source/snapshot/evidence/PDF mutation; Share accounting follows actual presentation only
+- Ready-authority and negative family `PASS`: pending/failed, duplicate/colliding, dirty/invalid relationship, unknown schema/template, corrupt/noncanonical snapshot, noncanonical or missing/mismatched PDF, stage beside ready, unsafe directory/symlink/special file, presentation failure, and destination cancellation failed closed without exposing false delivery or touching unowned data
+- UI/accessibility `PASS`: the exact one UI test proved enabled `View report`, exact `Share PDF`, and `Done`; preview/report-truth copy, system Share presentation/dismissal, Files presentation/cancellation, Done-to-sign, and exact-one-ready relaunch reopen; primary controls retained label, button trait, logical order, non-color state, 44-point targets, and deterministic focus behavior; retained terminal in-app screenshot passed visual inspection
+- Scope/security `PASS`: no second `ValueReceiptView`, renderer/template/validator/storage-contract change, ready regeneration/demotion, immutable Report/snapshot/evidence/Packet replacement, schema/project/package/capability/permission/remote delta, hosted/delivery protocol, automatic sharing/export/background work, export ledger/bookmark, broad access, or S4.4+ index/history/comparison behavior was added
+
+### Known bugs or limitations
+
+- `NONE`; `docs/execution/KNOWN_BUGS.md` was read and contains no qualifying S4.3 defect
+
+### Blockers
+
+- `NONE`
+
+### Next unstarted task
+
+- Task ID only; it was not started: `S4.4`
+- Next gate: after re-proving remote phase=`E=I5` and remote `main=P`, same-phase autopilot may commit and non-force push exactly this HANDOFF append plus immediate-next S4.4 `CURRENT_TASK.md`, then must run fresh S4.4 G0. Do not mutate main.
