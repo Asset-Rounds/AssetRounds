@@ -189,7 +189,7 @@ struct SignsRootView: View {
                                 usesImportedCaptureFixturesForUITest
                         ) { issue in
                             activeIssue = issue
-                            activeWorkDraft = nil
+                            self.activeWorkDraft = nil
                             if !path.isEmpty {
                                 path.removeLast()
                             }
