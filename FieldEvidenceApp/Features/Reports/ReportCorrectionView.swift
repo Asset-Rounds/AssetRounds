@@ -267,9 +267,16 @@ struct ReportCorrectionView: View {
         state = .saving
         moveAccessibilityFocus(to: .saving)
         Task { @MainActor in
-            await Task.yield()
+            let minimumSavingPresentation = Task<Void, Never> {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
             do {
-                switch try await coordinator.submitCorrection(from: source, note: submittedNote) {
+                let result = try await coordinator.submitCorrection(
+                    from: source,
+                    note: submittedNote
+                )
+                await minimumSavingPresentation.value
+                switch result {
                 case .ready(let chain):
                     didProduceReady(chain)
                     state = .ready(
@@ -286,6 +293,7 @@ struct ReportCorrectionView: View {
                     moveAccessibilityFocus(to: .failure)
                 }
             } catch {
+                await minimumSavingPresentation.value
                 state = .failed
                 moveAccessibilityFocus(to: .failure)
             }
