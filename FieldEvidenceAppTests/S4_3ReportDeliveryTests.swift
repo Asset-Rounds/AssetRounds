@@ -155,7 +155,8 @@ final class S4_3ReportDeliveryTests: XCTestCase {
         controller.viewWillAppear(false)
         for _ in 0..<3 { await Task.yield() }
 
-        XCTAssertEqual((await diagnostics.snapshot()).reportShareSheetPresented, 0)
+        let afterFailedPresentation = await diagnostics.snapshot()
+        XCTAssertEqual(afterFailedPresentation.reportShareSheetPresented, 0)
         XCTAssertEqual(try immutableAuthority(in: harness), authority)
         XCTAssertEqual(try Data(contentsOf: finalURL(in: harness)), pdf)
         XCTAssertFalse(fileManager.fileExists(atPath: stageURL(in: harness).path))
