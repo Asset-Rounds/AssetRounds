@@ -39,7 +39,11 @@ final class S4_3ValueReceiptUITests: XCTestCase {
         let detailShare = element(in: app, identifier: "s4.3.report-detail.share")
         assertPrimaryControl(detailShare, label: "Share PDF")
         detailShare.tap()
-        dismissPresentedSystemSurface(in: app, purpose: "Share PDF")
+        dismissPresentedSystemSurface(
+            in: app,
+            purpose: "Share PDF",
+            returningTo: detailShare
+        )
         XCTAssertTrue(detail.waitForExistence(timeout: 10))
 
         let saveToFiles = element(
@@ -48,7 +52,11 @@ final class S4_3ValueReceiptUITests: XCTestCase {
         )
         assertPrimaryControl(saveToFiles, label: "Save to Files")
         saveToFiles.tap()
-        dismissPresentedSystemSurface(in: app, purpose: "Save to Files")
+        dismissPresentedSystemSurface(
+            in: app,
+            purpose: "Save to Files",
+            returningTo: saveToFiles
+        )
         XCTAssertTrue(detail.waitForExistence(timeout: 10))
         XCTAssertFalse(
             element(in: app, identifier: "s4.3.report-detail.delivery-error").exists,
@@ -226,22 +234,54 @@ final class S4_3ValueReceiptUITests: XCTestCase {
     private func dismissPresentedSystemSurface(
         in app: XCUIApplication,
         purpose: String,
+        returningTo returnControl: XCUIElement,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let close = app.buttons["Close"]
-        let cancel = app.buttons["Cancel"]
-        let appeared = app.sheets.firstMatch.waitForExistence(timeout: 15)
-            || close.waitForExistence(timeout: 2)
-            || cancel.waitForExistence(timeout: 2)
-        XCTAssertTrue(appeared, "\(purpose) system surface did not appear", file: file, line: line)
-        if cancel.waitForExistence(timeout: 2), cancel.isHittable {
-            cancel.tap()
-        } else if close.waitForExistence(timeout: 2), close.isHittable {
-            close.tap()
-        } else {
-            app.swipeDown()
+        let dismissControl = purpose == "Share PDF"
+            ? app.buttons.matching(identifier: "Close").firstMatch
+            : app.buttons.matching(identifier: "Cancel").firstMatch
+        guard waitForElement(
+            dismissControl,
+            matching: "exists == true AND enabled == true AND hittable == true",
+            timeout: 20
+        ) else {
+            return XCTFail(
+                "\(purpose) system dismiss control did not become hittable",
+                file: file,
+                line: line
+            )
         }
+        dismissControl.tap()
+        XCTAssertTrue(
+            waitForElement(dismissControl, matching: "exists == false", timeout: 15),
+            "\(purpose) system surface did not dismiss",
+            file: file,
+            line: line
+        )
+        XCTAssertTrue(
+            waitForElement(
+                returnControl,
+                matching: "exists == true AND enabled == true AND hittable == true",
+                timeout: 15
+            ),
+            "Report detail did not become interactive after dismissing \(purpose)",
+            file: file,
+            line: line
+        )
+    }
+
+    @MainActor
+    private func waitForElement(
+        _ element: XCUIElement,
+        matching format: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: format),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
     @MainActor
