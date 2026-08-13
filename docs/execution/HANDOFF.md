@@ -993,3 +993,81 @@ The accepted run's `head_sha` exactly equals `E=I5=2dec12bb4d1992a4c160b3b357dc9
 
 - Task ID only; it was not started: `S4.2`
 - Next gate: after re-proving remote phase=`E=I5` and remote `main=P`, same-phase autopilot may commit and non-force push exactly this HANDOFF append plus immediate-next S4.2 `CURRENT_TASK.md`, then must run fresh S4.2 G0. Do not mutate main.
+
+## `S4.2` — `complete` — `2026-08-13T05:21:49Z`
+
+- Phase ID / phase branch / card position / phase-boundary card (`yes | no`): `S4` / `phase/s4-reports` / `2 of 5` / `no`
+- Program-autopilot state / exact phase-and-branch map / final owner-only boundary: `enabled through accepted exact-main S9.1` / exact frozen S0–S9 map in `CURRENT_TASK.md` / S9.2 signing/TestFlight and S9.3 App Store submission remain owner-only
+- Phase-autopilot state / exact authorized same-phase span: `enabled` / `S4.1,S4.2,S4.3,S4.4,S4.5`
+- Outcome: activated the bounded Report PDF-recovery state machine: a render failure preserves the completed Report and immutable source/snapshot/evidence authority as failed with nil PDF fields; startup reconciles only the exact report-ID-owned stage/final paths; and one explicit, accessible `Retry report` attempt alone performs `failed→pending→ready|failed` without an automatic retry, replacement Report, or ready-state mutation
+- Exact build-plan path / SHA-256: `docs/product/BUILD_PLAN_V4.md` / `23DAAB390AF917CBE91C3044E4906F3FBF8D67D2FDFC6BC9BDE985D984F37BBD`
+- Exact implementation-runbook path / SHA-256 / selected card: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / `S4.2 — PDF failure, relaunch reconciliation, and Retry`
+- Authoring host OS/build: Microsoft Windows 11 Home, 64-bit, version `10.0.26200`, build `26200`; no local Xcode/Simulator result was claimed
+- GitHub repository / visibility and branch-control posture / base branch / phase branch: `palatis3/AssetRounds` / public, exact-ref/non-force-only / `main` / `phase/s4-reports`
+- Immutable phase-main base SHA `P` and evidence: `P=8b33ee6a26ed4f7ccdccc8e092920b26c6e04122`; accepted S3 exact-main run `31658998104`; freshly fetched remote `main` remained exactly P immediately before this append
+- Integrated/card-base SHA `M` and predecessor evidence: `M=E=I5=2dec12bb4d1992a4c160b3b357dc95d6118d4ae9`; accepted S4.1 exact-head run `31664479971` succeeded at M with N8/UI disabled and complete verified evidence
+- Observed task-start authority SHA `A` and `M..A` authority-only diff result: `A=bc936aae5e729eacf618b1a3046582492e39c0ac`, a direct child of M; `M..A` changed exactly the append-only S4.1 HANDOFF plus immediate-next `docs/execution/CURRENT_TASK.md`
+- Implementation sequence: `I=357fd3e7b527a67c1eae6e4d8534f19633ec315e`; `I2=834e3f1a7a70721524023ce250a43ff5553f48ca`; accepted `E=I3=acdb3248c8ced353cb1d706663e9232b5332fa9f`; no distinct infrastructure verification head K
+- Pre-existing dirty paths and owner/disposition: `NONE`; fresh G0 and the post-acceptance pre-append checks were clean
+- Workflow path / workflow file SHA-256 / trigger / frozen branch ref / actual expected ref-head SHA: `.github/workflows/ios-ci.yml` / `9FFEA51ADB2620B01FE250412716487F6102DAC7E93AEA0471943AF66C1BC2AC` / `workflow_dispatch` / `phase/s4-reports` / `acdb3248c8ced353cb1d706663e9232b5332fa9f`
+- CI selector task ID / tier / `runUISmoke` / workflow input equality result: `S4.2` / `P12` / `true` / `PASS`; exact `300/600/900/900/3300`, unit selector `FieldEvidenceAppTests/S4_2PDFRecoveryTests`, UI selector `FieldEvidenceAppUITests/S4_2PDFRetryUITests`, LF SHA-256 `4BF3B5D8947F11D5D248258FA9B7F63F577181CAFA325B851AECDC63C94CC2AA`
+- Accepted run/job/URLs/conclusion: `31669480211` / `94350970095` / `https://github.com/palatis3/AssetRounds/actions/runs/31669480211` / `https://github.com/palatis3/AssetRounds/actions/runs/31669480211/job/94350970095` / `success`; exact `head_sha=acdb3248c8ced353cb1d706663e9232b5332fa9f`
+- Runner/toolchain/destination: `macos26`, image `20260728.0273.1`; Xcode 26.6 build `17F113`; `/Applications/Xcode_26.6.app/Contents/Developer`; iPhone 17 / iOS 26.5 / UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; deployment target iOS 18.0
+- Budgets: setup `15/300` s; Simulator readiness `141/900` s; build `98/600` s; unit `58/900` s; UI `149/900` s; total `370/3300` s; every watchdog passed
+- Artifact: `ios-ci-31669480211-1`, ID `9169273770`, size `1820138`, API/raw ZIP digest `sha256:eee032a892f423335c16c441727aba56beff528e886fdb8ea52a1e63b89c80e3`; the verified `SHA256SUMS.txt` covered all `107/107` payloads independently with no missing or mismatched file; terminal `ui-final.png` SHA-256 `d6a1ac934c3b09bd0f95673f71103d4b9e0eae8c0e0d5c6e9531e96f29198e92`
+- Project / target / shared scheme / configuration: `FieldEvidenceApp.xcodeproj` / `FieldEvidenceApp` / `FieldEvidenceApp` / `Debug`
+- Exact product commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all returned exit 0 on the accepted run
+- Allowed GitHub methods and exact repository/ref/workflow operations: task-named read/fetch/ref/run/workflow/artifact inspection; explicit-path commits; non-force pushes to `refs/heads/phase/s4-reports`; `.github/workflows/ios-ci.yml` dispatch on `phase/s4-reports` with `run_ui_smoke=true`; exact-run observation/download; no main mutation during S4.2
+- Owner-required posture and G0-observed effective state: Full access; `sandbox_mode=danger-full-access`; `approval_policy=never`; command network enabled; trusted repository configuration active; authenticated GitHub CLI available; XcodeBuildMCP and an owner-operated Mac unnecessary
+- Card-owned actions actually performed: created append-only direct children I through accepted I3; non-force pushed exact phase heads; dispatched fresh candidates at I, I2, and I3 without rerunning a failed run ID; inspected complete terminal diagnostics/artifacts; accepted only exact I3
+- Boundary recovery state: `no`; S4.2 is not the phase boundary. Freshly fetched remote `phase/s4-reports` remained exactly `E=I3` and remote `main` remained exactly `P` before this append
+- Project/persistent-schema delta: `NONE`; no project, target, dependency, capability, permission, or frozen seven-model-schema change
+
+### Changed paths
+
+- `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
+- `FieldEvidenceApp/Features/Reports/ReportFailureView.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift`
+- `FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift`
+- `FieldEvidenceAppUITests/S4_2PDFRetryUITests.swift`
+- `Scripts/ci-selection.json`
+
+`I→I2` changed only `ReportRecoveryService.swift` to move fallback launch-attempt-registry construction into the `@MainActor` initializer body, correcting the default-argument actor-isolation compile error. `I2→I3` changed only `ReportRecoveryService.swift` to anchored-create a missing canonical quarantine destination parent before one-sided owned-artifact quarantine and removal. The exact A..E union is the eight paths above.
+
+### Verification
+
+| Command or smoke | Run/job | Timeout | Exit code | Actual duration | Result | Artifact/evidence path and checksum |
+|---|---|---:|---:|---:|---|---|
+| Fresh G0: branch/cleanliness, `A^=M`, exact two-path `M..A`, pins/map/environment/selector/live refs | local + GitHub read-only | fail closed | 0 | bounded | PASS | `A=bc936aae5e729eacf618b1a3046582492e39c0ac`; phase began at A and main at `P=8b33ee6a26ed4f7ccdccc8e092920b26c6e04122` |
+| Exact A..I3 structure and task envelope | local Windows read-only | fail closed | 0 | bounded | PASS | exactly 5 production, 2 test, and selector-exception paths; each correction is a direct child with one diagnosed delta; `git diff --check` passed |
+| Initial exact-I candidate | `31668354996` / `94347728957` | P12 | nonzero | build step failed | FAIL — compiler default-argument actor-isolation error; led directly to I2 | artifact ID `9168850166` |
+| Exact-I2 candidate | `31668694767` / `94348743164` | P12 | nonzero | targeted unit step failed | FAIL — build passed, then `7/8` units passed; crash-artifact cleanup could not remove a missing quarantine parent; led directly to I3 | artifact ID `9169043340` |
+| `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh` | accepted `31669480211` / `94350970095` | 600 s | 0 | 98 s | PASS — exact-destination unsigned build green | nonempty `build-smoke.log`; nonempty `Build.xcresult`; accepted artifact ID `9169273770` |
+| `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh` / exact `FieldEvidenceAppTests/S4_2PDFRecoveryTests` | same | 900 s | 0 | 58 s | PASS — `8/8` units green | nonempty `test-smoke.log`; nonempty `UnitTests.xcresult`; accepted artifact checksum manifest matched |
+| `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh` / exact `FieldEvidenceAppUITests/S4_2PDFRetryUITests` | same | 900 s | 0 | 149 s | PASS — `1/1` UI test green | nonempty `ui-smoke.log`; nonempty `UISmoke.xcresult`; terminal `ui-final.png` SHA-256 `d6a1ac934c3b09bd0f95673f71103d4b9e0eae8c0e0d5c6e9531e96f29198e92` |
+| Required-evidence validation, selector resolution, checksum generation/verification, and P12 budgets | same | setup/artifact 300 s; readiness 900 s; total 3300 s | 0 | setup 15 s; readiness 141 s; total 370 s | PASS | `ios-ci-31669480211-1`, ID `9169273770`, raw ZIP SHA-256 `eee032a892f423335c16c441727aba56beff528e886fdb8ea52a1e63b89c80e3`; `107/107` independently matched |
+
+The accepted run's `head_sha` exactly equals `E=I3=acdb3248c8ced353cb1d706663e9232b5332fa9f`. This HANDOFF append is not implementation evidence and does not self-record its future S4.3 transition commit.
+
+### Acceptance results
+
+- GOLDEN `PASS`: an injected one-attempt render failure produced exactly one retained failed Report with nil PDF fields and no stage/final PDF while source, snapshot, and evidence authority remained byte-identical; after the fault was removed, one explicit `Retry report` performed `failed→pending→ready` on the same Report and snapshot with the exact S4.1 canonical path, deterministic bytes, and hash, without a duplicate row, file, or counter
+- ALT-1 `PASS`: absent, expected stage-only, expected final-only, and ready-final relaunch cases reconciled only exact report-ID-owned paths; pending rerendered once to ready only after exact path/hash/byte verification, failed remained failed/retryable with no automatic rendering, and valid ready authority remained byte-identical
+- Negative family `PASS`: invalid state/nullability/path/hash, duplicate or colliding Report authority, noncanonical or unsafe/symlink/special-file path, simultaneous stage/final, missing or mismatched ready bytes, ambiguous ownership, cleanup/rollback/save failure, and invalid generation failed closed without changing source/snapshot/evidence or claiming delivery
+- UI/accessibility `PASS`: the exact UI test created one pending Report, applied the inert-by-default one-shot failure posture, observed honest retained-record/non-delivery state and the exact `Retry report` button, retried once to ready, and relaunched with no duplicate authority or automatic attempt; the terminal in-app screenshot was retained and checksummed
+- Scope/security `PASS`: no automatic/periodic/background retry, direct `failed→ready`, ready regeneration, Report/snapshot/evidence/Packet/root replacement, broad scan/age cleanup/link following/unowned deletion, generic registry, maintenance-reason expansion, schema/project/package/capability/permission/remote change, or S4.3+ behavior was added
+
+### Known bugs or limitations
+
+- `NONE`; `docs/execution/KNOWN_BUGS.md` was read and contains no qualifying S4.2 defect
+
+### Blockers
+
+- `NONE`
+
+### Next unstarted task
+
+- Task ID only; it was not started: `S4.3`
+- Next gate: after re-proving remote phase=`E=I3` and remote `main=P`, same-phase autopilot may commit and non-force push exactly this HANDOFF append plus immediate-next S4.3 `CURRENT_TASK.md`, then must run fresh S4.3 G0. Do not mutate main.
