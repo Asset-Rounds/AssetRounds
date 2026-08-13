@@ -267,6 +267,7 @@ struct ReportCorrectionView: View {
         state = .saving
         moveAccessibilityFocus(to: .saving)
         Task { @MainActor in
+            await Task.yield()
             do {
                 switch try await coordinator.submitCorrection(from: source, note: submittedNote) {
                 case .ready(let chain):
