@@ -238,27 +238,47 @@ final class S4_3ValueReceiptUITests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let dismissControl = purpose == "Share PDF"
-            ? app.buttons.matching(identifier: "Close").firstMatch
-            : app.buttons.matching(identifier: "Cancel").firstMatch
         guard waitForElement(
-            dismissControl,
-            matching: "exists == true AND enabled == true AND hittable == true",
-            timeout: 20
+            returnControl,
+            matching: "exists == true AND hittable == false",
+            timeout: 15
         ) else {
             return XCTFail(
-                "\(purpose) system dismiss control did not become hittable",
+                "\(purpose) system surface did not obscure report detail",
                 file: file,
                 line: line
             )
         }
-        dismissControl.tap()
-        XCTAssertTrue(
-            waitForElement(dismissControl, matching: "exists == false", timeout: 15),
-            "\(purpose) system surface did not dismiss",
-            file: file,
-            line: line
-        )
+
+        if purpose == "Share PDF" {
+            let close = app.buttons.matching(
+                identifier: "header.closeButton"
+            ).firstMatch
+            guard waitForElement(
+                close,
+                matching: "exists == true AND enabled == true AND hittable == true",
+                timeout: 20
+            ) else {
+                return XCTFail(
+                    "Share PDF system close control did not become hittable",
+                    file: file,
+                    line: line
+                )
+            }
+            close.tap()
+        } else {
+            for _ in 0..<4 {
+                app.swipeDown()
+                if waitForElement(
+                    returnControl,
+                    matching: "exists == true AND enabled == true AND hittable == true",
+                    timeout: 4
+                ) {
+                    return
+                }
+            }
+        }
+
         XCTAssertTrue(
             waitForElement(
                 returnControl,
