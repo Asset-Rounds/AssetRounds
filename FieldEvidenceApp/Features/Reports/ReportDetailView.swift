@@ -106,7 +106,7 @@ struct ReportDetailView: View {
                     }
 
                     ReportPDFPreview(data: delivery.pdfData)
-                        .frame(minHeight: previewMinimumHeight)
+                        .frame(height: previewMinimumHeight)
                         .background(DesignTokens.Colors.surface)
                         .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
                         .overlay {
