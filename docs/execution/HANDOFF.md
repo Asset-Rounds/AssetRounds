@@ -1152,3 +1152,94 @@ The accepted run's `head_sha` exactly equals `E=I5=2601787b1377b408568d5f07faab2
 
 - Task ID only; it was not started: `S4.4`
 - Next gate: after re-proving remote phase=`E=I5` and remote `main=P`, same-phase autopilot may commit and non-force push exactly this HANDOFF append plus immediate-next S4.4 `CURRENT_TASK.md`, then must run fresh S4.4 G0. Do not mutate main.
+
+## `S4.4` — `complete` — `2026-08-13T09:09:26Z`
+
+- Phase ID / phase branch / card position / phase-boundary card (`yes | no`): `S4` / `phase/s4-reports` / `4 of 5` / `no`
+- Program-autopilot state / exact phase-and-branch map / final owner-only boundary: `enabled through accepted exact-main S9.1` / exact frozen S0–S9 map in `CURRENT_TASK.md` / S9.2 signing/TestFlight and S9.3 App Store submission remain owner-only
+- Phase-autopilot state / exact authorized same-phase span: `enabled` / `S4.1,S4.2,S4.3,S4.4,S4.5`
+- Outcome: activated the Reports tab as a validated newest-first visit index with All/site/sign filters, added sign-scoped report history and exact ready-report detail reopen, collapsed corrections to each live Packet's one current stable-root visit, and exposed Then/Now evidence comparison only against the unique strictly earlier immediate same-sign visit; ambiguous, equal-time, invalid, or evidence-incomplete predecessor authority omits comparison without falling through to an older visit
+- Exact build-plan path / SHA-256: `docs/product/BUILD_PLAN_V4.md` / `23DAAB390AF917CBE91C3044E4906F3FBF8D67D2FDFC6BC9BDE985D984F37BBD`
+- Exact implementation-runbook path / SHA-256 / selected card: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / `S4.4 — Reports index, history, current revision, and comparison`
+- Authoring host OS/build: Microsoft Windows 11 Home, 64-bit, version `10.0.26200`, build `26200`; no local Xcode/Simulator result was claimed
+- GitHub repository / visibility and branch-control posture / base branch / phase branch: `palatis3/AssetRounds` / public, exact-ref/non-force-only / `main` / `phase/s4-reports`
+- Immutable phase-main base SHA `P` and evidence: `P=8b33ee6a26ed4f7ccdccc8e092920b26c6e04122`; freshly fetched remote `main` remained exactly P immediately before this append
+- Integrated/card-base SHA `M` and predecessor evidence: `M=E=I5=2601787b1377b408568d5f07faab2bda65648e9d`; accepted S4.3 exact-head run `31677280546` / job `94374516642` succeeded at M with F25/UI enabled and complete `107/107` verified evidence
+- Observed task-start authority SHA `A` and `M..A` authority-only diff result: `A=f77a364b890024d5dde5703b6ddd9ffbb46c7303`, a direct child of M; `M..A` changed exactly the append-only S4.3 HANDOFF plus immediate-next `docs/execution/CURRENT_TASK.md`
+- Implementation sequence: `I=eb69c672ff7f35f7db32da242411ef21f704634e`; accepted `E=I2=4a0316d03298435a33bd8bf6130470d78b8d35f5`; no distinct infrastructure verification head K
+- Diagnosed I→I2 correction: only `FieldEvidenceAppUITests/S4_4ReportsUITests.swift` changed; a named `CGFloat` geometry tolerance of `0.001` compensates for CoreGraphics/XCTest representing a nominal 44-point frame as `43.99999999999997` before retaining the exact `>=44` width and height assertions, so the 44-point acceptance was not materially weakened
+- Pre-existing dirty paths and owner/disposition: `NONE`; fresh G0, implementation preflight, and post-acceptance pre-append checks were clean
+- Workflow path / workflow file SHA-256 / trigger / frozen branch ref / actual expected ref-head SHA: `.github/workflows/ios-ci.yml` / `9FFEA51ADB2620B01FE250412716487F6102DAC7E93AEA0471943AF66C1BC2AC` / `workflow_dispatch` / `phase/s4-reports` / `4a0316d03298435a33bd8bf6130470d78b8d35f5`
+- CI selector task ID / tier / `runUISmoke` / workflow input equality result: `S4.4` / `P12` / `true` / `PASS`; exact `300/600/900/900/3300`, unit selector `FieldEvidenceAppTests/S4_4HistoryComparisonTests`, UI selector `FieldEvidenceAppUITests/S4_4ReportsUITests`, LF SHA-256 `B3F3F01BA00E88AC4405DD8EF2CD06AF83A2A1D71739F131431F78D3E8366D0E`
+- Failed exact-I run/job/URLs/conclusion: `31681888576` / `94388979667` / `https://github.com/palatis3/AssetRounds/actions/runs/31681888576` / `https://github.com/palatis3/AssetRounds/actions/runs/31681888576/job/94388979667` / `failure`; exact `head_sha=eb69c672ff7f35f7db32da242411ef21f704634e`; build, Simulator readiness, and all seven selected unit tests passed, while the sole selected UI test failed at `S4_4ReportsUITests.swift:39` because `43.99999999999997` compared less than `44.0`; artifact `ios-ci-31681888576-1`, ID `9174156400`, size `90267888`, API/raw ZIP digest `sha256:12c81ca60812fd9c7b93a198833562aa304b982c00f331f096ac558975d4a73f`; the run ID was not rerun and its diagnosis led directly to I2
+- Accepted run/job/URLs/conclusion: `31683138727` / `94392986217` / `https://github.com/palatis3/AssetRounds/actions/runs/31683138727` / `https://github.com/palatis3/AssetRounds/actions/runs/31683138727/job/94392986217` / `success`; exact `head_sha=4a0316d03298435a33bd8bf6130470d78b8d35f5`
+- Runner/toolchain/destination: `macos26`, image `20260728.0273.1`; Xcode 26.6 build `17F113`; `/Applications/Xcode_26.6.app/Contents/Developer`; iPhone 17 / iOS 26.5 build `23F77` / UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; deployment target iOS 18.0
+- Budgets: setup `19/300` s; Simulator readiness `461/900` s; build `224/600` s; unit `237/900` s; UI `565/900` s; artifact `1` s and setup+artifact `20/300` s; total `1297/3300` s; every watchdog passed
+- Artifact: `ios-ci-31683138727-1`, ID `9174943725`, size `6747140`, API/raw ZIP digest `sha256:25288fa9eefa64c7b3e6b8bb23c2a7f133b76a0ad82796ef8eb1c7b0809751dc`; `SHA256SUMS.txt` SHA-256 `8D55E0BC6B63FF060F291B7F419230672E9FD83E6002B9F8EB307D2FACB897E0`; all `105/105` payloads independently matched with no missing or mismatched file; `build-smoke.log` SHA-256 `04934B6F797BC04F398E639989DED48E3BDC6F38D18D4943B6790354F9486535`; `test-smoke.log` `0D104A8E02A7DEC2E182B5312A85388E26FDF237B976A026C83C2694CFBCB380`; `ui-smoke.log` `214C8564D08D139DDC30402FC19A23070A63F198E4920FEFB8C6CF8B80D58B37`; terminal `ui-final.png` SHA-256 `5F029C09290B1039A3C7E1F033276F0AAD1B3ADCDCE3A96BD58330BA0FBF58AC`, `1206×2622`, visual PASS showing the Accessibility XXXL Then-close/Now-heading comparison boundary
+- Project / target / shared scheme / configuration: `FieldEvidenceApp.xcodeproj` / `FieldEvidenceApp` / `FieldEvidenceApp` / `Debug`
+- Exact product commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all returned exit 0 on the accepted run
+- Allowed GitHub methods and exact repository/ref/workflow operations: task-named read/fetch/ref/run/workflow/artifact inspection; explicit-path commits; non-force pushes to `refs/heads/phase/s4-reports`; `.github/workflows/ios-ci.yml` dispatch on `phase/s4-reports` with `run_ui_smoke=true`; exact-run observation/download; no main mutation during S4.4
+- Owner-required posture and G0-observed effective state: Full access; `sandbox_mode=danger-full-access`; `approval_policy=never`; command network enabled; trusted repository configuration active; authenticated GitHub CLI available; XcodeBuildMCP and an owner-operated Mac unnecessary
+- Card-owned actions actually performed: created append-only direct children I and accepted I2; non-force pushed exact phase heads; dispatched one exact-I candidate and one fresh exact-I2 candidate without rerunning a failed run ID; inspected complete terminal diagnostics and checksummed artifacts; accepted only exact I2
+- Boundary recovery state: `no`; S4.4 is not the phase boundary. Freshly fetched remote `phase/s4-reports` remained exactly `E=I2` and remote `main` remained exactly `P` before this append
+- Project/persistent-schema delta: `NONE`; no project, target, dependency, capability, permission, or frozen seven-model-schema change
+
+### Changed paths
+
+- `FieldEvidenceApp/Features/Reports/ReportsRootView.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Features/Signs/SignDetailView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift`
+- `FieldEvidenceAppTests/S4_4HistoryComparisonTests.swift`
+- `FieldEvidenceAppUITests/S4_4ReportsUITests.swift`
+- `Scripts/ci-selection.json`
+
+`I→I2` changed only `FieldEvidenceAppUITests/S4_4ReportsUITests.swift` for the diagnosed floating geometry representation. The exact `A..E` union is the nine paths above.
+
+### Verification
+
+| Command or smoke | Run/job | Timeout | Exit code | Actual duration | Result | Artifact/evidence path and checksum |
+|---|---|---:|---:|---:|---|---|
+| Fresh G0: branch/cleanliness, `A^=M`, exact two-path `M..A`, pins/map/environment/selector/live refs | local + GitHub read-only | fail closed | 0 | bounded | PASS | `A=f77a364b890024d5dde5703b6ddd9ffbb46c7303`; phase began at A and main at `P=8b33ee6a26ed4f7ccdccc8e092920b26c6e04122` |
+| Exact `A..I2` structure and task envelope | local Windows read-only | fail closed | 0 | bounded | PASS | exactly 6 production, 2 test, and selector-exception paths; I2 is I's direct child and changes only the diagnosed UI-test assertion; `git diff --check` passed |
+| First exact-I candidate | `31681888576` / `94388979667` | P12 | nonzero | UI test 181.058 s | FAIL — seven selected units passed; sole UI test failed at the retained 44-point geometry assertion because XCTest exposed `43.99999999999997` | artifact `ios-ci-31681888576-1`, ID `9174156400`, API/raw ZIP digest `sha256:12c81ca60812fd9c7b93a198833562aa304b982c00f331f096ac558975d4a73f`; led directly to I2 |
+| `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh` | accepted `31683138727` / `94392986217` | 600 s | 0 | 224 s | PASS — exact-destination unsigned build green | nonempty `build-smoke.log` SHA-256 `04934B6F797BC04F398E639989DED48E3BDC6F38D18D4943B6790354F9486535`; nonempty `Build.xcresult` |
+| `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh` / exact `FieldEvidenceAppTests/S4_4HistoryComparisonTests` | same | 900 s | 0 | 237 s | PASS — `7/7` units, zero failures | nonempty `test-smoke.log` SHA-256 `0D104A8E02A7DEC2E182B5312A85388E26FDF237B976A026C83C2694CFBCB380`; nonempty `UnitTests.xcresult` |
+| `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh` / exact `FieldEvidenceAppUITests/S4_4ReportsUITests` | same | 900 s | 0 | 565 s | PASS — `1/1` UI test, zero failures | nonempty `ui-smoke.log` SHA-256 `214C8564D08D139DDC30402FC19A23070A63F198E4920FEFB8C6CF8B80D58B37`; nonempty `UISmoke.xcresult`; `ui-final.png` SHA-256 `5F029C09290B1039A3C7E1F033276F0AAD1B3ADCDCE3A96BD58330BA0FBF58AC`, `1206×2622`, visual PASS |
+| Required-evidence validation, selector resolution, checksum generation/verification, and P12 budgets | same | setup/artifact 300 s; readiness 900 s; total 3300 s | 0 | setup 19 s; readiness 461 s; artifact 1 s; total 1297 s | PASS | artifact `ios-ci-31683138727-1`, ID `9174943725`, raw ZIP SHA-256 `25288FA9EEFA64C7B3E6B8BB23C2A7F133B76A0AD82796EF8EB1C7B0809751DC`; `SHA256SUMS.txt` `8D55E0BC6B63FF060F291B7F419230672E9FD83E6002B9F8EB307D2FACB897E0`; all `105/105` payloads independently matched |
+
+The accepted run's `head_sha` exactly equals `E=I2=4a0316d03298435a33bd8bf6130470d78b8d35f5`. This HANDOFF append is not implementation evidence and does not self-record its future S4.5 transition commit.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`7/7`): `testAmbiguousAndBrokenImmediatePredecessorsNeverFallThroughToOlderVisit`; `testCrossPacketReverseReplacementAndTombstoneNeverBecomeBrowsable`; `testCurrentRevisionCollapsesOneStableRootAndCorrectionIsNotAnotherVisit`; `testDirtyCollisionAndUnsafeAuthorityFailClosedWithoutMutationOrUnownedTouch`; `testIndexFiltersHistoryAndStrictImmediateComparisonUseValidatedVisitTruth`; `testMissingImmediateEvidenceAndEqualChronologyOmitComparisonButKeepHistory`; `testMutableMembershipLabelsNeverRewriteFrozenReportTruth`
+- UI `PASS` (`1/1`): `testReportsFiltersHistoryDetailAndStrictPreviousVisitComparison`
+
+### Acceptance results
+
+- GOLDEN `PASS`: Reports presented validated current visits newest-first, applied exact site/sign filters, exposed frozen snapshot-derived report truth, opened the existing immutable ready-PDF detail, and offered comparison only to the unique strictly earlier immediate same-sign visit with purpose-matched Then/Now evidence
+- Current-revision and chronology `PASS`: a valid correction/replacement chain collapsed to one stable-root visit; the correction did not become a visit and the effective original completion controlled chronology; mutable live Site/Asset labels could not rewrite frozen visit/filter/history truth
+- Strict-immediate comparison `PASS`: missing purpose evidence, equal completion instants, ambiguous tied predecessors, and an invalid immediate t2 between valid t3 and t1 all omitted comparison while valid history remained usable; the coordinator never fell through to the older valid t1
+- Authority/security `PASS`: dirty context, duplicate live current-record authority, cross-packet reverse replacement, tombstoned nonlive current-record collision, and unsafe symlinked evidence failed closed or omitted the affected root as specified without domain/file mutation or touching the external symlink target
+- UI/accessibility `PASS`: the exact UI flow created a first natural could-not-verify visit with missing Close evidence and proved history remained usable while comparison was absent; created two later complete visits; reopened detail; terminated and relaunched the same persisted app at Accessibility XXXL; proved loaded Reports filters, three history rows, exact comparison eligibility, Then/Now headings, and all four evidence images reachable; the sole terminal screenshot materially shows the Then-close/Now-heading boundary
+- Scope `PASS`: no Reports search, scoring, correction authoring, alternate history index, broad store scan, ready-report regeneration, mutable truth substitution, schema/project/package/capability/permission/remote delta, or S4.5+ behavior was added
+
+### Owned UI/accessibility contract
+
+- Reports/history: exact labels `Reports`, `Filter reports`, `All sites`, `All signs`, `Report history`, `View report`, and `Compare with previous`; exact IDs `s4.4.reports.screen`, `s4.4.reports.header`, `s4.4.reports.site-filter`, `s4.4.reports.sign-filter`, `s4.4.reports.visit`, `s4.4.reports.view-report`, `s4.4.reports.compare`, `s4.4.history.screen`, `s4.4.history.header`, and `s4.4.sign-detail.report-history`
+- Comparison: exact labels `Then and Now`, `Then`, and `Now`; exact IDs `s4.4.comparison.screen`, `s4.4.comparison.unavailable`, `s4.4.comparison.then.heading`, `s4.4.comparison.then.wide`, `s4.4.comparison.then.close`, `s4.4.comparison.now.heading`, `s4.4.comparison.now.wide`, and `s4.4.comparison.now.close`
+
+### Known bugs or limitations
+
+- `NONE`; `docs/execution/KNOWN_BUGS.md` was read and contains only its empty-entry template, with no qualifying S4.4 defect
+
+### Blockers
+
+- `NONE`
+
+### Next unstarted task
+
+- Task ID only; it was not started: `S4.5`
+- Next gate: after re-proving remote phase=`E=I2` and remote `main=P`, same-phase autopilot may commit and non-force push exactly this HANDOFF append plus immediate-next S4.5 `CURRENT_TASK.md`, then must run fresh S4.5 G0. Do not mutate main.
