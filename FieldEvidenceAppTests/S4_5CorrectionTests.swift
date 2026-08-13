@@ -337,11 +337,14 @@ final class S4_5CorrectionTests: XCTestCase {
         ) {
             XCTAssertEqual($0 as? ReportCorrectionRuleError, .invalidAuthority)
         }
-        harness.originalRecord.packContentVersion = 999
+        let unknownPackRecord = recordPayload(
+            source.currentRecord,
+            packContentVersion: 999
+        )
         XCTAssertThrowsError(
             try ReportCorrectionRule().makePlan(
                 source: ReportCorrectionRuleSource(
-                    currentRecord: recordPayload(harness.originalRecord),
+                    currentRecord: unknownPackRecord,
                     packet: source.packet,
                     currentReport: source.currentReport,
                     currentSnapshot: source.currentSnapshot
@@ -351,12 +354,14 @@ final class S4_5CorrectionTests: XCTestCase {
         ) {
             XCTAssertEqual($0 as? ReportCorrectionRuleError, .invalidAuthority)
         }
-        harness.context.rollback()
-        harness.originalRecord.pdfTemplateVersion = 999
+        let unknownTemplateRecord = recordPayload(
+            source.currentRecord,
+            pdfTemplateVersion: 999
+        )
         XCTAssertThrowsError(
             try ReportCorrectionRule().makePlan(
                 source: ReportCorrectionRuleSource(
-                    currentRecord: recordPayload(harness.originalRecord),
+                    currentRecord: unknownTemplateRecord,
                     packet: source.packet,
                     currentReport: source.currentReport,
                     currentSnapshot: source.currentSnapshot
@@ -366,8 +371,11 @@ final class S4_5CorrectionTests: XCTestCase {
         ) {
             XCTAssertEqual($0 as? ReportCorrectionRuleError, .invalidAuthority)
         }
-        harness.context.rollback()
-        XCTAssertEqual(recordPayload(harness.originalRecord), source.currentRecord)
+        XCTAssertFalse(harness.context.hasChanges)
+        XCTAssertEqual(
+            recordPayload(try record(id: source.currentRecord.id, in: harness)),
+            source.currentRecord
+        )
     }
 
     @MainActor
@@ -708,6 +716,98 @@ final class S4_5CorrectionTests: XCTestCase {
             )
         )
         XCTAssertEqual(try domainSnapshot(in: harness), afterRecovery)
+    }
+
+    @MainActor
+    func testPostcommitDirtyInterleavingReturnsPersistedAuthorityWithoutSavingOrRollingBackUnrelatedEdit() async throws {
+        let harness = try await makeHarness("postcommit-dirty-interleaving")
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let originalSiteLabel = harness.site.label
+        let dirtySiteLabel = "Unsaved concurrent site label"
+        let initialCounts = try counts(in: harness)
+        let initialDiagnostics = await harness.diagnostics.snapshot()
+        var barrierHits = 0
+        let barrier = FinalizationServiceOperationBarrier { boundary in
+            XCTAssertEqual(boundary, .afterCorrectionDatabaseCommit)
+            barrierHits += 1
+            harness.site.label = dirtySiteLabel
+        }
+        let coordinator = try makeCoordinator(
+            in: harness,
+            serviceOperationBarrier: barrier
+        )
+        let source = try coordinator.correctionSource(
+            reportID: harness.originalReport.id
+        )
+        let identifiers = ReportCorrectionIdentifiers(
+            mutationID: UUID(), recordID: UUID(), reportID: UUID()
+        )
+
+        let result = try await coordinator.submitCorrection(
+            from: source,
+            note: "Postcommit dirty interleaving",
+            snapshotCreatedAt: Fixture.correctionDate.addingTimeInterval(30),
+            sourceApp: Fixture.sourceApp,
+            identifiers: identifiers
+        )
+        guard case .pdfUnavailable(let reportID, let prior) = result else {
+            return XCTFail("committed authority must not be described as a precommit failure")
+        }
+        XCTAssertEqual(reportID, identifiers.reportID)
+        XCTAssertEqual(prior.reportID, harness.originalReport.id)
+        XCTAssertEqual(barrierHits, 1)
+        XCTAssertTrue(harness.context.hasChanges)
+        XCTAssertEqual(harness.site.label, dirtySiteLabel)
+        XCTAssertEqual(try counts(in: harness).records, initialCounts.records + 1)
+        XCTAssertEqual(try counts(in: harness).reports, initialCounts.reports + 1)
+        XCTAssertEqual(try counts(in: harness).evidence, initialCounts.evidence)
+        XCTAssertEqual(try counts(in: harness).issues, initialCounts.issues)
+        XCTAssertEqual(try counts(in: harness).packets, initialCounts.packets)
+        XCTAssertEqual(harness.packet.currentRecordID, identifiers.recordID)
+        XCTAssertEqual(
+            try report(id: identifiers.reportID, in: harness).pdfState,
+            ReportPDFState.pending.rawValue
+        )
+        XCTAssertTrue(fileManager.fileExists(
+            atPath: intentURL(identifiers, in: harness).path
+        ))
+        XCTAssertTrue(fileManager.fileExists(
+            atPath: finalSnapshotURL(identifiers, in: harness).path
+        ))
+
+        // Restore the held reference explicitly before rollback; SwiftData does
+        // not promise that rollback refreshes already-held model instances.
+        harness.site.label = originalSiteLabel
+        harness.context.rollback()
+        XCTAssertFalse(harness.context.hasChanges)
+        XCTAssertEqual(harness.site.label, originalSiteLabel)
+        XCTAssertEqual(try counts(in: harness).records, initialCounts.records + 1)
+        XCTAssertEqual(try counts(in: harness).reports, initialCounts.reports + 1)
+        XCTAssertEqual(harness.packet.currentRecordID, identifiers.recordID)
+
+        let recovery = FinalizationRecoveryService(
+            modelContext: harness.context,
+            generationRootURL: harness.session.generationRootURL
+        )
+        let summary = try await recovery.reconcile()
+        XCTAssertEqual(summary.completedRecordIDs, [identifiers.recordID])
+        XCTAssertFalse(fileManager.fileExists(
+            atPath: intentURL(identifiers, in: harness).path
+        ))
+        let cold = try makeCoordinator(in: harness)
+        guard case .ready = try cold.prepareFinalizedReport(id: identifiers.reportID) else {
+            return XCTFail("recovered committed correction must use the shared renderer")
+        }
+        XCTAssertEqual(
+            try cold.readyDeliveryChain(currentReportID: identifiers.reportID)
+                .ancestors.map(\.reportID),
+            [harness.originalReport.id]
+        )
+        XCTAssertEqual(try counts(in: harness).records, initialCounts.records + 1)
+        XCTAssertEqual(try counts(in: harness).reports, initialCounts.reports + 1)
+        XCTAssertEqual(harness.site.label, originalSiteLabel)
+        let finalDiagnostics = await harness.diagnostics.snapshot()
+        XCTAssertEqual(finalDiagnostics, initialDiagnostics)
     }
 
     @MainActor
@@ -1550,7 +1650,8 @@ private extension S4_5CorrectionTests {
         in harness: CorrectionHarness,
         storeFailure: FinalizationIntentStoreFailureInjection? = nil,
         serviceFailure: FinalizationServiceFailureInjection? = nil,
-        renderFailure: ReportRenderFailureInjection? = nil
+        renderFailure: ReportRenderFailureInjection? = nil,
+        serviceOperationBarrier: FinalizationServiceOperationBarrier? = nil
     ) throws -> ReportDeliveryCoordinator {
         try ReportDeliveryCoordinator(
             modelContext: harness.context,
@@ -1558,7 +1659,8 @@ private extension S4_5CorrectionTests {
             diagnosticsStore: harness.diagnostics,
             renderFailureInjection: renderFailure,
             finalizationStoreFailureInjection: storeFailure,
-            finalizationServiceFailureInjection: serviceFailure
+            finalizationServiceFailureInjection: serviceFailure,
+            finalizationServiceOperationBarrier: serviceOperationBarrier
         )
     }
 
@@ -1775,22 +1877,48 @@ private extension S4_5CorrectionTests {
     @MainActor
     func domainSnapshot(in harness: CorrectionHarness) throws -> DomainSnapshot {
         DomainSnapshot(
-            sites: try harness.context.fetch(FetchDescriptor<Site>())
-                .map(siteFact).sorted { $0.id.uuidString < $1.id.uuidString },
-            assets: try harness.context.fetch(FetchDescriptor<Asset>())
-                .map(assetFact).sorted { $0.id.uuidString < $1.id.uuidString },
-            records: try harness.context.fetch(FetchDescriptor<WorkflowRecord>())
-                .map(recordPayload).sorted { $0.id.uuidString < $1.id.uuidString },
-            evidence: try harness.context.fetch(FetchDescriptor<EvidenceFile>())
-                .map(evidenceFact).sorted { $0.id.uuidString < $1.id.uuidString },
-            issues: try harness.context.fetch(FetchDescriptor<Issue>())
-                .map(issuePayload).sorted { $0.id.uuidString < $1.id.uuidString },
-            packets: try harness.context.fetch(FetchDescriptor<Packet>())
-                .map(packetPayload).sorted { $0.id.uuidString < $1.id.uuidString },
-            reports: try harness.context.fetch(FetchDescriptor<Report>())
-                .map(reportPayload).sorted { $0.id.uuidString < $1.id.uuidString },
+            sites: sortedByIDAndValue(
+                try harness.context.fetch(FetchDescriptor<Site>()).map(siteFact),
+                id: \.id
+            ),
+            assets: sortedByIDAndValue(
+                try harness.context.fetch(FetchDescriptor<Asset>()).map(assetFact),
+                id: \.id
+            ),
+            records: sortedByIDAndValue(
+                try harness.context.fetch(FetchDescriptor<WorkflowRecord>()).map(recordPayload),
+                id: \.id
+            ),
+            evidence: sortedByIDAndValue(
+                try harness.context.fetch(FetchDescriptor<EvidenceFile>()).map(evidenceFact),
+                id: \.id
+            ),
+            issues: sortedByIDAndValue(
+                try harness.context.fetch(FetchDescriptor<Issue>()).map(issuePayload),
+                id: \.id
+            ),
+            packets: sortedByIDAndValue(
+                try harness.context.fetch(FetchDescriptor<Packet>()).map(packetPayload),
+                id: \.id
+            ),
+            reports: sortedByIDAndValue(
+                try harness.context.fetch(FetchDescriptor<Report>()).map(reportPayload),
+                id: \.id
+            ),
             generationFiles: try generationFiles(in: harness)
         )
+    }
+
+    func sortedByIDAndValue<Value>(
+        _ values: [Value],
+        id: (Value) -> UUID
+    ) -> [Value] {
+        values.sorted { left, right in
+            let leftID = id(left).uuidString.lowercased()
+            let rightID = id(right).uuidString.lowercased()
+            if leftID != rightID { return leftID < rightID }
+            return String(reflecting: left) < String(reflecting: right)
+        }
     }
 
     @MainActor
@@ -1956,6 +2084,56 @@ private extension S4_5CorrectionTests {
             packContentVersion: value.packContentVersion,
             pdfTemplateID: value.pdfTemplateID,
             pdfTemplateVersion: value.pdfTemplateVersion,
+            outcomeKey: value.outcomeKey,
+            couldNotVerifyKey: value.couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: value.couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: value.couldNotVerifyRegistryVersion,
+            workPerformedLocalDate: value.workPerformedLocalDate,
+            workDescription: value.workDescription,
+            note: value.note,
+            finalizationMutationID: value.finalizationMutationID
+        )
+    }
+
+    func recordPayload(
+        _ value: WorkflowRecordPayloadV1,
+        packContentVersion: Int? = nil,
+        pdfTemplateVersion: Int? = nil
+    ) -> WorkflowRecordPayloadV1 {
+        WorkflowRecordPayloadV1(
+            id: value.id,
+            schemaVersion: value.schemaVersion,
+            assetID: value.assetID,
+            packetID: value.packetID,
+            issueID: value.issueID,
+            parentRecordID: value.parentRecordID,
+            recordRevisionRootID: value.recordRevisionRootID,
+            revisesRecordID: value.revisesRecordID,
+            evidenceSourceRecordID: value.evidenceSourceRecordID,
+            revisionKind: value.revisionKind,
+            stage: value.stage,
+            state: value.state,
+            draftStepKey: value.draftStepKey,
+            startedAt: value.startedAt,
+            completedAt: value.completedAt,
+            observedAtUTC: value.observedAtUTC,
+            timeZoneID: value.timeZoneID,
+            utcOffsetMinutes: value.utcOffsetMinutes,
+            localDate: value.localDate,
+            localTime: value.localTime,
+            afterDarkAcknowledgementKey: value.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: value.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: value.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: value.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: value.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: value.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: value.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: value.safePositionAcknowledgementAccepted,
+            packID: value.packID,
+            packSchemaVersion: value.packSchemaVersion,
+            packContentVersion: packContentVersion ?? value.packContentVersion,
+            pdfTemplateID: value.pdfTemplateID,
+            pdfTemplateVersion: pdfTemplateVersion ?? value.pdfTemplateVersion,
             outcomeKey: value.outcomeKey,
             couldNotVerifyKey: value.couldNotVerifyKey,
             couldNotVerifyDisplaySnapshot: value.couldNotVerifyDisplaySnapshot,

@@ -98,6 +98,10 @@ actor FinalizationIntentStore {
     private let failureInjection: FinalizationIntentStoreFailureInjection?
     private let authorityBarrier: FinalizationIntentStoreAuthorityBarrier?
 
+    private final class MutationProgress {
+        var didMutateLeaf = false
+    }
+
     init(
         generationRootURL: URL,
         fileManager: FileManager = .default,
@@ -476,12 +480,14 @@ actor FinalizationIntentStore {
             try rollbackUncommitted(promoted)
             throw FinalizationIntentStoreError.fileOperationFailed
         }
+        let mutationProgress = MutationProgress()
         do {
             try replaceAndVerifyIntent(
                 promoted.intent,
                 with: advanced,
                 name: paths.intentName,
-                authority: authority
+                authority: authority,
+                mutationProgress: mutationProgress
             )
         } catch {
             if phase == .snapshotPromoted {
@@ -508,6 +514,20 @@ actor FinalizationIntentStore {
                     name: paths.intentName,
                     authority: authority,
                     requireCurrentAuthority: false
+                )
+            } else if phase == .databaseCommitted,
+                      mutationProgress.didMutateLeaf {
+                // The database and final snapshot are already authoritative.
+                // A persistent journal-ancestry replacement can make the
+                // phase swap fail after restoring either exact owned phase in
+                // the detached pinned directory. Remove only those canonical
+                // intent bytes through the retained descriptor; recovery can
+                // validate the committed row and render the final snapshot.
+                try removeEitherIntentIfMatching(
+                    promoted.intent,
+                    advanced,
+                    name: paths.intentName,
+                    authority: authority
                 )
             }
             throw mapped(error)
@@ -723,7 +743,8 @@ actor FinalizationIntentStore {
         _ previous: FinalizationIntentV1,
         with next: FinalizationIntentV1,
         name: String,
-        authority: PinnedAuthority
+        authority: PinnedAuthority,
+        mutationProgress: MutationProgress
     ) throws {
         let old = try encodedIntent(previous)
         let new = try encodedIntent(next)
@@ -736,7 +757,8 @@ actor FinalizationIntentStore {
             name: name,
             expectedData: old.data,
             replacementData: new.data,
-            afterMutation: { [authorityBarrier] in
+            afterMutation: { [authorityBarrier, mutationProgress] in
+                mutationProgress.didMutateLeaf = true
                 authorityBarrier?.reach(.afterLeafMutation)
             }
         )
@@ -788,6 +810,37 @@ actor FinalizationIntentStore {
             expectedIdentity: file.identity,
             expectedData: expected,
             verifyCurrentAuthority: requireCurrentAuthority
+        )
+    }
+
+    private func removeEitherIntentIfMatching(
+        _ first: FinalizationIntentV1,
+        _ second: FinalizationIntentV1,
+        name: String,
+        authority: PinnedAuthority
+    ) throws {
+        guard let info = try authority.itemInfo(
+            parent: authority.finalizationDescriptor,
+            name: name
+        ) else { return }
+        guard PinnedAuthority.isRegular(info) else {
+            throw FinalizationIntentStoreError.itemTypeInvalid
+        }
+        let firstData = try encodedIntent(first).data
+        let secondData = try encodedIntent(second).data
+        let file = try authority.readRegularFile(
+            parent: authority.finalizationDescriptor,
+            name: name
+        )
+        guard file.data == firstData || file.data == secondData else {
+            throw FinalizationIntentStoreError.notOwned
+        }
+        try authority.quarantineAndRemove(
+            parent: authority.finalizationDescriptor,
+            name: name,
+            expectedIdentity: file.identity,
+            expectedData: file.data,
+            verifyCurrentAuthority: false
         )
     }
 
@@ -1377,10 +1430,10 @@ actor FinalizationIntentStore {
                     throw FinalizationIntentStoreError.fileOperationFailed
                 }
                 swapped = true
+                afterMutation()
                 guard Darwin.fsync(parent) == 0 else {
                     throw FinalizationIntentStoreError.fileOperationFailed
                 }
-                afterMutation()
                 let current = try readRegularFile(parent: parent, name: name)
                 let displaced = try readRegularFile(parent: parent, name: temporary)
                 guard current.identity == replacement.identity,
@@ -1452,6 +1505,21 @@ actor FinalizationIntentStore {
                         name: temporary,
                         expectedIdentity: replacement.identity,
                         expectedData: replacementData,
+                        verifyCurrentAuthority: false
+                    )
+                } else if let temporaryFile = try? readRegularFile(
+                    parent: parent,
+                    name: temporary
+                ), temporaryFile.identity == original.identity,
+                   temporaryFile.data == expectedData {
+                    // If a foreign leaf replaced the canonical journal after
+                    // the swap, preserve it and remove only the exact prior
+                    // mutation journal displaced to our private temp name.
+                    try? quarantineAndRemove(
+                        parent: parent,
+                        name: temporary,
+                        expectedIdentity: original.identity,
+                        expectedData: expectedData,
                         verifyCurrentAuthority: false
                     )
                 }

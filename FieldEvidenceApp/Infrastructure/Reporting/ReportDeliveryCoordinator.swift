@@ -80,6 +80,7 @@ final class ReportDeliveryCoordinator {
     private let renderService: ReportRenderService
     private let finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection?
     private let finalizationServiceFailureInjection: FinalizationServiceFailureInjection?
+    private let finalizationServiceOperationBarrier: FinalizationServiceOperationBarrier?
     private let rootIdentity: ReportPDFAnchoredFile.RootIdentity
     private var receiptAttempts: Set<UUID> = []
 
@@ -91,6 +92,7 @@ final class ReportDeliveryCoordinator {
         renderFailureInjection: ReportRenderFailureInjection? = nil,
         finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
         finalizationServiceFailureInjection: FinalizationServiceFailureInjection? = nil,
+        finalizationServiceOperationBarrier: FinalizationServiceOperationBarrier? = nil,
         expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil
     ) throws {
         let root = generationRootURL.standardizedFileURL
@@ -128,6 +130,7 @@ final class ReportDeliveryCoordinator {
         self.signPack = signPack
         self.finalizationStoreFailureInjection = finalizationStoreFailureInjection
         self.finalizationServiceFailureInjection = finalizationServiceFailureInjection
+        self.finalizationServiceOperationBarrier = finalizationServiceOperationBarrier
     }
 
     func prepareFinalizedReport(id reportID: UUID) throws -> ReportDeliveryPreparation {
@@ -478,6 +481,42 @@ final class ReportDeliveryCoordinator {
             }
             validated = try validatedReadyReport(report, requiresCurrentTip: true)
         }
+        let expectedCommittedOutcome: ReportCorrectionFinalizationOutcome?
+        if isReadyReplay {
+            // A ready exact-identifier replay performs no database commit and
+            // cannot legitimately produce the postcommit recovery result.
+            expectedCommittedOutcome = nil
+        } else {
+            let expectedPlan: ReportCorrectionRulePlan
+            do {
+                expectedPlan = try ReportCorrectionRule().makePlan(
+                    source: ReportCorrectionRuleSource(
+                        currentRecord: recordPayload(records[0]),
+                        packet: packetPayload(packets[0]),
+                        currentReport: reportPayload(report),
+                        currentSnapshot: validated.snapshot
+                    ),
+                    request: ReportCorrectionRuleRequest(
+                        note: note,
+                        snapshotCreatedAt: snapshotCreatedAt,
+                        sourceApp: sourceApp,
+                        identifiers: identifiers
+                    )
+                )
+            } catch {
+                throw ReportDeliveryCoordinatorError.invalidCorrection
+            }
+            expectedCommittedOutcome = ReportCorrectionFinalizationOutcome(
+                recordID: expectedPlan.recordAfter.id,
+                packetID: expectedPlan.packetAfter.id,
+                stableRootID: expectedPlan.packetAfter.stableRootID,
+                reportID: expectedPlan.reportInsert.id,
+                priorReportID: report.id,
+                snapshotRelativePath: expectedPlan.reportInsert.snapshotRelativePath,
+                snapshotSHA256: expectedPlan.reportInsert.snapshotSHA256,
+                createdAuthority: true
+            )
+        }
         let finalization: ReportCorrectionFinalizationOutcome
         do {
             finalization = try await FinalizationService(
@@ -486,6 +525,7 @@ final class ReportDeliveryCoordinator {
                 generationRootURL: generationRootURL,
                 intentStoreFailureInjection: finalizationStoreFailureInjection,
                 failureInjection: finalizationServiceFailureInjection,
+                operationBarrier: finalizationServiceOperationBarrier,
                 expectedRootIdentity: rootIdentity
             ).finalizeCorrection(ReportCorrectionFinalizationInput(
                 currentRecord: records[0],
@@ -501,23 +541,33 @@ final class ReportDeliveryCoordinator {
             switch error {
             case .invalidSelection:
                 throw ReportDeliveryCoordinatorError.invalidCorrection
-            case .committedRecoveryRequired(let reportID):
-                guard reportID == identifiers.reportID,
-                      let persisted = try? persistedUnavailableCorrection(
-                        source: source,
-                        note: note,
-                        snapshotCreatedAt: snapshotCreatedAt,
-                        sourceApp: sourceApp,
-                        identifiers: identifiers
-                      ) else {
+            case .committedRecoveryRequired(let committedOutcome):
+                guard let expectedCommittedOutcome,
+                      committedOutcome == expectedCommittedOutcome else {
                     throw ReportDeliveryCoordinatorError.correctionFinalizationFailed
                 }
-                return persisted
+                // This typed service result is emitted only after its SwiftData
+                // save committed. Do not inspect, save, or roll back a context
+                // another main-actor task dirtied during the journal awaits.
+                return .pdfUnavailable(
+                    reportID: committedOutcome.reportID,
+                    prior: source.chain.current
+                )
             default:
                 throw ReportDeliveryCoordinatorError.correctionFinalizationFailed
             }
         } catch {
             throw ReportDeliveryCoordinatorError.correctionFinalizationFailed
+        }
+        guard !modelContext.hasChanges else {
+            guard let expectedCommittedOutcome,
+                  finalization == expectedCommittedOutcome else {
+                throw ReportDeliveryCoordinatorError.contextHasChanges
+            }
+            return .pdfUnavailable(
+                reportID: finalization.reportID,
+                prior: source.chain.current
+            )
         }
         let newReport = try uniqueReport(id: finalization.reportID)
         if !finalization.createdAuthority {
@@ -938,6 +988,18 @@ final class ReportDeliveryCoordinator {
             pdfState: value.pdfState, pdfRelativePath: value.pdfRelativePath,
             pdfSHA256: value.pdfSHA256, createdAt: value.createdAt,
             replacesReportID: value.replacesReportID
+        )
+    }
+
+    private func packetPayload(_ value: Packet) -> PacketPayloadV1 {
+        PacketPayloadV1(
+            id: value.id,
+            schemaVersion: value.schemaVersion,
+            stableRootID: value.stableRootID,
+            currentRecordID: value.currentRecordID,
+            evaluationCounted: value.evaluationCounted,
+            contentDeletedAt: value.contentDeletedAt,
+            createdAt: value.createdAt
         )
     }
     private func anchoredRead(relativePath: String) throws -> Data {

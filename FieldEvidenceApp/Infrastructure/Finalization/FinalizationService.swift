@@ -11,10 +11,10 @@ enum FinalizationServiceError: Error, Equatable {
     case journalFailed
     case saveFailed
     case cleanupFailed
-    /// The correction database authority was committed, but journal cleanup
-    /// did not finish. Callers must recover/validate the saved report instead
-    /// of presenting this as a precommit failure.
-    case committedRecoveryRequired(reportID: UUID)
+    /// The exact correction database authority described by this frozen
+    /// outcome was committed, but delivery must wait for clean-context journal
+    /// recovery instead of being presented as a precommit failure.
+    case committedRecoveryRequired(ReportCorrectionFinalizationOutcome)
 }
 
 struct FinalizationServiceInput {
@@ -83,6 +83,27 @@ final class FinalizationServiceFailureInjection {
     }
 }
 
+/// Test-only synchronization at the correction database-commit boundary.
+/// Production callers leave this nil. The handler runs synchronously on the
+/// main actor and may be used to prove that unrelated dirty context is neither
+/// saved nor rolled back after the correction authority has committed.
+@MainActor
+final class FinalizationServiceOperationBarrier {
+    enum Boundary: Equatable, Sendable {
+        case afterCorrectionDatabaseCommit
+    }
+
+    private let handler: (Boundary) -> Void
+
+    init(_ handler: @escaping (Boundary) -> Void) {
+        self.handler = handler
+    }
+
+    fileprivate func reach(_ boundary: Boundary) {
+        handler(boundary)
+    }
+}
+
 @MainActor
 final class FinalizationService {
     private let modelContext: ModelContext
@@ -92,6 +113,7 @@ final class FinalizationService {
     private let rootIdentity: ReportPDFAnchoredFile.RootIdentity
     private let intentStore: FinalizationIntentStore
     private let failureInjection: FinalizationServiceFailureInjection?
+    private let operationBarrier: FinalizationServiceOperationBarrier?
 
     init(
         modelContext: ModelContext,
@@ -99,6 +121,7 @@ final class FinalizationService {
         generationRootURL: URL,
         intentStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
         failureInjection: FinalizationServiceFailureInjection? = nil,
+        operationBarrier: FinalizationServiceOperationBarrier? = nil,
         expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil
     ) throws {
         let root = generationRootURL.standardizedFileURL
@@ -130,6 +153,7 @@ final class FinalizationService {
             expectedGenerationRootIdentity: capturedRootIdentity
         )
         self.failureInjection = failureInjection
+        self.operationBarrier = operationBarrier
     }
 
     func finalize(_ input: FinalizationServiceInput) async throws -> FinalizationServiceOutcome {
@@ -203,8 +227,11 @@ final class FinalizationService {
             try modelContext.save()
         } catch {
             if didBeginDatabaseMutation {
-                modelContext.rollback()
+                // Restore the mutated draft while the transaction is still
+                // pending so rollback leaves both storage and held state at
+                // the exact prior authority.
                 priorDraftState.restore(input.draft)
+                modelContext.rollback()
             }
             do {
                 try requireFrozenRootIdentity()
@@ -260,6 +287,16 @@ final class FinalizationService {
             return replay
         }
         let frozen = try freezeCorrection(input)
+        let committedOutcome = ReportCorrectionFinalizationOutcome(
+            recordID: frozen.plan.recordAfter.id,
+            packetID: frozen.plan.packetAfter.id,
+            stableRootID: frozen.plan.packetAfter.stableRootID,
+            reportID: frozen.plan.reportInsert.id,
+            priorReportID: input.currentReport.id,
+            snapshotRelativePath: frozen.plan.reportInsert.snapshotRelativePath,
+            snapshotSHA256: frozen.plan.reportInsert.snapshotSHA256,
+            createdAuthority: true
+        )
 
         let prepared: PreparedFinalization
         let promoted: PromotedFinalization
@@ -312,10 +349,10 @@ final class FinalizationService {
             try modelContext.save()
         } catch {
             if didBeginDatabaseMutation {
+                // Restore the sole mutated preexisting field before rollback;
+                // SwiftData does not promise to refresh held model instances.
+                input.packet.currentRecordID = packetCurrentBefore
                 modelContext.rollback()
-                guard input.packet.currentRecordID == packetCurrentBefore else {
-                    throw FinalizationServiceError.saveFailed
-                }
             }
             do {
                 try requireFrozenRootIdentity()
@@ -328,31 +365,34 @@ final class FinalizationService {
             throw FinalizationServiceError.saveFailed
         }
 
+        operationBarrier?.reach(.afterCorrectionDatabaseCommit)
+        guard !modelContext.hasChanges else {
+            throw FinalizationServiceError.committedRecoveryRequired(committedOutcome)
+        }
         do {
             try requireFrozenRootIdentity()
             let committed = try await intentStore.advance(
                 snapshotPromoted,
                 to: .databaseCommitted
             )
+            guard !modelContext.hasChanges else {
+                throw FinalizationServiceError.committedRecoveryRequired(committedOutcome)
+            }
             try requireFrozenRootIdentity()
             try await intentStore.cleanupCommitted(committed)
+            guard !modelContext.hasChanges else {
+                throw FinalizationServiceError.committedRecoveryRequired(committedOutcome)
+            }
             try requireFrozenRootIdentity()
         } catch {
-            throw FinalizationServiceError.committedRecoveryRequired(
-                reportID: frozen.plan.reportInsert.id
-            )
+            if let serviceError = error as? FinalizationServiceError,
+               case .committedRecoveryRequired = serviceError {
+                throw serviceError
+            }
+            throw FinalizationServiceError.committedRecoveryRequired(committedOutcome)
         }
 
-        return ReportCorrectionFinalizationOutcome(
-            recordID: frozen.plan.recordAfter.id,
-            packetID: frozen.plan.packetAfter.id,
-            stableRootID: frozen.plan.packetAfter.stableRootID,
-            reportID: frozen.plan.reportInsert.id,
-            priorReportID: input.currentReport.id,
-            snapshotRelativePath: frozen.plan.reportInsert.snapshotRelativePath,
-            snapshotSHA256: frozen.plan.reportInsert.snapshotSHA256,
-            createdAuthority: true
-        )
+        return committedOutcome
     }
 
     private func replayedFinalization(
