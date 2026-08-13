@@ -11,20 +11,70 @@ struct ReportDetailView: View {
     static let saveToFilesAccessibilityIdentifier = "s4.3.report-detail.save-to-files"
     static let deliveryErrorAccessibilityIdentifier = "s4.3.report-detail.delivery-error"
     static let closeAccessibilityIdentifier = "s4.3.report-detail.close"
+    static let correctAccessibilityIdentifier = "s4.5.report-detail.correct"
+    static let revisionStateAccessibilityIdentifier =
+        "s4.5.report-detail.revision-state"
 
-    let delivery: ReportDeliveryValue
+    private struct DetailState {
+        let chain: ReportDeliveryChainValue
+        let selectedReportID: UUID
+        let correctionSource: ReportCorrectionSourceValue?
+        let unavailableCurrentReportID: UUID?
+        let isAuthorityResolved: Bool
+
+        var selectedDelivery: ReportDeliveryValue {
+            ([chain.current] + chain.ancestors).first {
+                $0.reportID == selectedReportID
+            } ?? chain.current
+        }
+
+        var isCurrentReadyRevision: Bool {
+            isAuthorityResolved
+                && unavailableCurrentReportID == nil
+                && selectedReportID == chain.current.reportID
+        }
+    }
+
     let coordinator: ReportDeliveryCoordinator
 
     @Environment(\.dismiss) private var dismiss
+    @State private var state: DetailState
     @State private var showsShareSheet = false
     @State private var showsFilesExporter = false
     @State private var exportErrorMessage: String?
+    @State private var activeCorrectionSource: ReportCorrectionSourceValue?
+    @State private var didLoadCorrectionAuthority = false
+
+    init(delivery: ReportDeliveryValue, coordinator: ReportDeliveryCoordinator) {
+        self.coordinator = coordinator
+        _state = State(initialValue: DetailState(
+            chain: ReportDeliveryChainValue(current: delivery, ancestors: []),
+            selectedReportID: delivery.reportID,
+            correctionSource: nil,
+            unavailableCurrentReportID: nil,
+            isAuthorityResolved: false
+        ))
+    }
+
+    private var delivery: ReportDeliveryValue { state.selectedDelivery }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                 WorklightCard {
                     WorklightStatusBadge(kind: .complete, text: "Report ready")
+
+                    if state.isAuthorityResolved {
+                        WorklightStatusBadge(
+                            kind: state.isCurrentReadyRevision ? .complete : .information,
+                            text: state.isCurrentReadyRevision
+                                ? "Current revision"
+                                : "Prior revision"
+                        )
+                        .accessibilityIdentifier(
+                            Self.revisionStateAccessibilityIdentifier
+                        )
+                    }
 
                     Text(delivery.title)
                         .font(.title2.weight(.bold))
@@ -40,6 +90,16 @@ struct ReportDetailView: View {
                     ForEach(Array(delivery.detailLines.enumerated()), id: \.offset) { _, line in
                         detailRow(line)
                     }
+                }
+
+                revisionActions
+
+                if state.unavailableCurrentReportID != nil {
+                    WorklightStatusBadge(
+                        kind: .attention,
+                        text: "Correction saved, but its PDF couldn’t be created. Retry from the saved report."
+                    )
+                    .accessibilityIdentifier(ReportCorrectionView.failureAccessibilityIdentifier)
                 }
 
                 ReportPDFPreview(data: delivery.pdfData)
@@ -67,6 +127,17 @@ struct ReportDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+        .navigationDestination(isPresented: correctionIsPresented) {
+            if let source = activeCorrectionSource {
+                ReportCorrectionView(
+                    source: source,
+                    coordinator: coordinator,
+                    didProduceReady: applyReadyCorrection,
+                    didSelectReport: selectReport,
+                    didPersistDeliveryFailure: applyDeliveryFailure
+                )
+            }
+        }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: DesignTokens.Spacing.small) {
                 HStack(spacing: DesignTokens.Spacing.small) {
@@ -118,6 +189,145 @@ struct ReportDetailView: View {
                 }
             }
         }
+        .task {
+            guard !didLoadCorrectionAuthority else { return }
+            didLoadCorrectionAuthority = true
+            loadCorrectionAuthority()
+        }
+    }
+
+    private var correctionIsPresented: Binding<Bool> {
+        Binding(
+            get: { activeCorrectionSource != nil },
+            set: { isPresented in
+                if !isPresented { activeCorrectionSource = nil }
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var revisionActions: some View {
+        if hasRevisionActions {
+            WorklightCard {
+                if let source = state.correctionSource, state.isCurrentReadyRevision {
+                    Button("Correct report") {
+                        activeCorrectionSource = source
+                    }
+                    .buttonStyle(WorklightPrimaryButtonStyle())
+                    .accessibilityHint("Change only the report note and keep the prior report.")
+                    .accessibilityIdentifier(Self.correctAccessibilityIdentifier)
+                }
+
+                if let prior = immediatelyPriorDelivery {
+                    Button("View prior report") {
+                        selectReport(id: prior.reportID)
+                    }
+                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .accessibilityHint("Opens the immediately prior saved report.")
+                    .accessibilityIdentifier(
+                        ReportCorrectionView.priorReportAccessibilityIdentifier
+                    )
+                }
+
+                if !state.isCurrentReadyRevision,
+                   state.unavailableCurrentReportID == nil {
+                    Button("View corrected report") {
+                        selectReport(id: state.chain.current.reportID)
+                    }
+                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .accessibilityHint("Opens the current corrected report.")
+                    .accessibilityIdentifier(
+                        ReportCorrectionView.currentReportAccessibilityIdentifier
+                    )
+                }
+            }
+        }
+    }
+
+    private var hasRevisionActions: Bool {
+        state.isAuthorityResolved && (
+            state.correctionSource != nil && state.isCurrentReadyRevision
+                || immediatelyPriorDelivery != nil
+                || !state.isCurrentReadyRevision
+                    && state.unavailableCurrentReportID == nil
+        )
+    }
+
+    private var immediatelyPriorDelivery: ReportDeliveryValue? {
+        let deliveries = [state.chain.current] + state.chain.ancestors
+        guard let selectedIndex = deliveries.firstIndex(where: {
+            $0.reportID == state.selectedReportID
+        }) else { return nil }
+        let nextIndex = deliveries.index(after: selectedIndex)
+        return deliveries.indices.contains(nextIndex) ? deliveries[nextIndex] : nil
+    }
+
+    private func loadCorrectionAuthority() {
+        do {
+            let selectedReportID = state.selectedReportID
+            let chain = try coordinator.readyDeliveryChain(
+                containingReportID: selectedReportID
+            )
+            guard ([chain.current] + chain.ancestors).contains(where: {
+                $0.reportID == selectedReportID
+            }) else {
+                return
+            }
+            let source = try? coordinator.correctionSource(
+                reportID: chain.current.reportID
+            )
+            state = DetailState(
+                chain: chain,
+                selectedReportID: selectedReportID,
+                correctionSource: source,
+                unavailableCurrentReportID: nil,
+                isAuthorityResolved: true
+            )
+        } catch {
+            state = DetailState(
+                chain: state.chain,
+                selectedReportID: state.selectedReportID,
+                correctionSource: nil,
+                unavailableCurrentReportID: nil,
+                isAuthorityResolved: false
+            )
+        }
+    }
+
+    private func applyReadyCorrection(_ chain: ReportDeliveryChainValue) {
+        let freshSource = try? coordinator.correctionSource(
+            reportID: chain.current.reportID
+        )
+        state = DetailState(
+            chain: chain,
+            selectedReportID: chain.current.reportID,
+            correctionSource: freshSource,
+            unavailableCurrentReportID: nil,
+            isAuthorityResolved: true
+        )
+    }
+
+    private func applyDeliveryFailure(
+        _ failedReportID: UUID,
+        prior: ReportDeliveryValue
+    ) {
+        state = DetailState(
+            chain: state.chain,
+            selectedReportID: prior.reportID,
+            correctionSource: nil,
+            unavailableCurrentReportID: failedReportID,
+            isAuthorityResolved: true
+        )
+    }
+
+    private func selectReport(id: UUID) {
+        state = DetailState(
+            chain: state.chain,
+            selectedReportID: id,
+            correctionSource: state.correctionSource,
+            unavailableCurrentReportID: state.unavailableCurrentReportID,
+            isAuthorityResolved: state.isAuthorityResolved
+        )
     }
 
     private func detailRow(_ value: String) -> some View {

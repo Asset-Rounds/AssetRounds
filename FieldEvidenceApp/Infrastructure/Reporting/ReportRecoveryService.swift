@@ -10,6 +10,15 @@ final class ReportLaunchAttemptRegistry {
     func begin(_ reportID: UUID) -> Bool {
         attemptedReportIDs.insert(reportID).inserted
     }
+
+    func beginAll(_ reportIDs: [UUID]) -> Bool {
+        guard Set(reportIDs).count == reportIDs.count,
+              reportIDs.allSatisfy({ !attemptedReportIDs.contains($0) }) else {
+            return false
+        }
+        attemptedReportIDs.formUnion(reportIDs)
+        return true
+    }
 }
 
 enum ReportRecoveryServiceError: Error, Equatable {
@@ -48,10 +57,12 @@ final class ReportRecoveryService: ObservableObject {
     private let modelContext: ModelContext
     private let generationRootURL: URL
     private let fileManager: FileManager
+    private let signPack: SignPack
     private let renderService: ReportRenderService
     private let launchAttemptRegistry: ReportLaunchAttemptRegistry
     private let rootIdentity: ReportPDFAnchoredFile.RootIdentity
     private let failureInjection: ReportRecoveryFailureInjection?
+    private var unavailableObserver: NSObjectProtocol?
 
     init(
         modelContext: ModelContext,
@@ -63,19 +74,21 @@ final class ReportRecoveryService: ObservableObject {
         recoveryFailureInjection: ReportRecoveryFailureInjection? = nil,
         launchAttemptRegistry: ReportLaunchAttemptRegistry? = nil
     ) throws {
-        self.modelContext = modelContext
-        self.generationRootURL = generationRootURL.standardizedFileURL
-        self.fileManager = fileManager
-        self.launchAttemptRegistry = launchAttemptRegistry
-            ?? ReportLaunchAttemptRegistry()
-        self.failureInjection = recoveryFailureInjection
+        let root = generationRootURL.standardizedFileURL
+        let capturedRootIdentity: ReportPDFAnchoredFile.RootIdentity
         do {
-            self.rootIdentity = try ReportPDFAnchoredFile.rootIdentity(
-                at: self.generationRootURL
-            )
+            capturedRootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: root)
         } catch {
             throw ReportRecoveryServiceError.invalidAuthority
         }
+        self.modelContext = modelContext
+        self.generationRootURL = root
+        self.fileManager = fileManager
+        self.signPack = signPack
+        self.launchAttemptRegistry = launchAttemptRegistry
+            ?? ReportLaunchAttemptRegistry()
+        self.failureInjection = recoveryFailureInjection
+        self.rootIdentity = capturedRootIdentity
         self.renderService = try ReportRenderService(
             modelContext: modelContext,
             generationRootURL: generationRootURL,
@@ -84,6 +97,29 @@ final class ReportRecoveryService: ObservableObject {
             failNextRenderAttempt: failNextRenderAttempt,
             failureInjection: failureInjection
         )
+        guard try ReportPDFAnchoredFile.rootIdentity(at: root)
+                == capturedRootIdentity else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        unavailableObserver = NotificationCenter.default.addObserver(
+            forName: .reportPDFBecameUnavailable,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let event = notification.object as? ReportPDFUnavailableEvent else {
+                return
+            }
+            let reportID = event.reportID
+            Task { @MainActor [weak self] in
+                self?.registerPersistedFailure(reportID)
+            }
+        }
+    }
+
+    deinit {
+        if let unavailableObserver {
+            NotificationCenter.default.removeObserver(unavailableObserver)
+        }
     }
 
     /// Validates the complete delivery-state matrix before changing any row or
@@ -94,6 +130,12 @@ final class ReportRecoveryService: ObservableObject {
             throw ReportRecoveryServiceError.contextHasChanges
         }
         let plans = try validatedPlans()
+        let pendingIDs = plans.compactMap {
+            $0.state == .pending ? $0.report.id : nil
+        }
+        guard launchAttemptRegistry.beginAll(pendingIDs) else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
         for plan in plans where plan.state != .ready {
             try removeNonReadyArtifactIfPresent(
                 plan.stageURL,
@@ -107,9 +149,6 @@ final class ReportRecoveryService: ObservableObject {
             )
         }
         for plan in plans where plan.state == .pending {
-            guard launchAttemptRegistry.begin(plan.report.id) else {
-                throw ReportRecoveryServiceError.invalidAuthority
-            }
             _ = try renderService.attemptPendingReport(id: plan.report.id)
         }
         try refreshFailedReportIDs()
@@ -195,7 +234,6 @@ final class ReportRecoveryService: ObservableObject {
         }
         try validateStorageRoots(requiresSnapshots: !reports.isEmpty)
         var ids = Set<UUID>()
-        var packetIDs = Set<UUID>()
         var sourceRecordIDs = Set<UUID>()
         var snapshotPaths = Set<String>()
         var finalPaths = Set<String>()
@@ -204,7 +242,6 @@ final class ReportRecoveryService: ObservableObject {
 
         for report in reports {
             guard ids.insert(report.id).inserted,
-                  packetIDs.insert(report.packetID).inserted,
                   sourceRecordIDs.insert(report.sourceRecordID).inserted,
                   report.schemaVersion == 1,
                   report.snapshotSchemaVersion == 1,
@@ -327,7 +364,212 @@ final class ReportRecoveryService: ObservableObject {
                 )
             )
         }
+        try validateReplacementChains(reports: reports)
+        let authorityCoordinator: ReportDeliveryCoordinator
+        do {
+            authorityCoordinator = try ReportDeliveryCoordinator(
+                modelContext: modelContext,
+                generationRootURL: generationRootURL,
+                signPack: signPack,
+                expectedRootIdentity: rootIdentity
+            )
+        } catch {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        for plan in plans {
+            do {
+                try authorityCoordinator.validateRecoveryAuthority(
+                    id: plan.report.id
+                )
+            } catch {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+        }
         return plans
+    }
+
+    private func validateReplacementChains(reports: [Report]) throws {
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>())
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
+        let evidence = try modelContext.fetch(FetchDescriptor<EvidenceFile>())
+        guard Set(reports.map(\.id)).count == reports.count,
+              Set(records.map(\.id)).count == records.count,
+              Set(reports.map(\.sourceRecordID)).count == reports.count else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        for packetID in Set(reports.map(\.packetID)) {
+            let packetMatches = packets.filter { $0.id == packetID }
+            guard packetMatches.count == 1,
+                  let packet = packetMatches.first,
+                  packet.schemaVersion == 1,
+                  packet.evaluationCounted,
+                  packet.contentDeletedAt == nil,
+                  let currentRecordID = packet.currentRecordID,
+                  packets.filter({ $0.stableRootID == packet.stableRootID }).count == 1,
+                  packets.filter({ $0.currentRecordID == currentRecordID }).count == 1 else {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+            let packetReports = reports.filter { $0.packetID == packetID }
+            let tips = packetReports.filter { $0.sourceRecordID == currentRecordID }
+            guard tips.count == 1,
+                  reports.filter({ $0.replacesReportID == tips[0].id }).isEmpty,
+                  records.filter({ $0.revisesRecordID == currentRecordID }).isEmpty else {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+            var report = tips[0]
+            var visitedReports = Set<UUID>()
+            var visitedRecords = Set<UUID>()
+            while true {
+                guard visitedReports.insert(report.id).inserted else {
+                    throw ReportRecoveryServiceError.invalidAuthority
+                }
+                let sourceMatches = records.filter { $0.id == report.sourceRecordID }
+                guard sourceMatches.count == 1,
+                      let source = sourceMatches.first,
+                      source.packetID == packetID,
+                      visitedRecords.insert(source.id).inserted else {
+                    throw ReportRecoveryServiceError.invalidAuthority
+                }
+                switch WorkflowRevisionKind(rawValue: source.revisionKind) {
+                case .original:
+                    guard source.revisesRecordID == nil,
+                          source.evidenceSourceRecordID == nil,
+                          source.recordRevisionRootID == source.id,
+                          report.replacesReportID == nil else {
+                        throw ReportRecoveryServiceError.invalidAuthority
+                    }
+                    break
+                case .clericalCorrection:
+                    guard let priorRecordID = source.revisesRecordID,
+                          let priorReportID = report.replacesReportID,
+                          source.evidenceSourceRecordID == source.recordRevisionRootID,
+                          evidence.filter({ $0.recordID == source.id }).isEmpty,
+                          records.filter({ $0.revisesRecordID == priorRecordID }).count == 1,
+                          reports.filter({ $0.replacesReportID == priorReportID }).count == 1 else {
+                        throw ReportRecoveryServiceError.invalidAuthority
+                    }
+                    let priorReports = packetReports.filter { $0.id == priorReportID }
+                    let priorRecords = records.filter { $0.id == priorRecordID }
+                    guard priorReports.count == 1,
+                          priorRecords.count == 1,
+                          priorReports[0].sourceRecordID == priorRecordID,
+                          report.createdAt >= priorReports[0].createdAt else {
+                        throw ReportRecoveryServiceError.invalidAuthority
+                    }
+                    let priorSnapshot = try canonicalSnapshot(priorReports[0])
+                    let correctionSnapshot = try canonicalSnapshot(report)
+                    do {
+                        try ReportCorrectionRule().validateEdge(
+                            prior: ReportCorrectionRuleSource(
+                                currentRecord: recordPayload(priorRecords[0]),
+                                packet: PacketPayloadV1(
+                                    id: packet.id,
+                                    schemaVersion: packet.schemaVersion,
+                                    stableRootID: packet.stableRootID,
+                                    currentRecordID: priorRecordID,
+                                    evaluationCounted: packet.evaluationCounted,
+                                    contentDeletedAt: packet.contentDeletedAt,
+                                    createdAt: packet.createdAt
+                                ),
+                                currentReport: reportPayload(priorReports[0]),
+                                currentSnapshot: priorSnapshot
+                            ),
+                            correctionRecord: recordPayload(source),
+                            correctionReport: reportPayload(report),
+                            correctionSnapshot: correctionSnapshot
+                        )
+                    } catch {
+                        throw ReportRecoveryServiceError.invalidAuthority
+                    }
+                    report = priorReports[0]
+                    continue
+                case nil:
+                    throw ReportRecoveryServiceError.invalidAuthority
+                }
+                break
+            }
+            let packetRecordIDs = Set(records.filter {
+                $0.packetID == packetID
+            }.map(\.id))
+            guard visitedReports.count == packetReports.count,
+                  packetRecordIDs == visitedRecords else {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+        }
+    }
+
+    private func canonicalSnapshot(_ report: Report) throws -> ReportSnapshotV1 {
+        let data: Data
+        do {
+            data = try ReportPDFAnchoredFile.readRegularFile(
+                at: generationRootURL.appendingPathComponent(report.snapshotRelativePath),
+                within: generationRootURL,
+                rootIdentity: rootIdentity
+            )
+        } catch {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        guard Self.sha256(data) == report.snapshotSHA256 else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        do {
+            let value = try ReportSnapshotEncoderV1().decode(data)
+            guard try ReportSnapshotEncoderV1().encode(value).data == data else {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+            return value
+        } catch {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+    }
+
+    private func recordPayload(_ value: WorkflowRecord) -> WorkflowRecordPayloadV1 {
+        WorkflowRecordPayloadV1(
+            id: value.id, schemaVersion: value.schemaVersion,
+            assetID: value.assetID, packetID: value.packetID,
+            issueID: value.issueID, parentRecordID: value.parentRecordID,
+            recordRevisionRootID: value.recordRevisionRootID,
+            revisesRecordID: value.revisesRecordID,
+            evidenceSourceRecordID: value.evidenceSourceRecordID,
+            revisionKind: value.revisionKind, stage: value.stage,
+            state: value.state, draftStepKey: value.draftStepKey,
+            startedAt: value.startedAt, completedAt: value.completedAt,
+            observedAtUTC: value.observedAtUTC, timeZoneID: value.timeZoneID,
+            utcOffsetMinutes: value.utcOffsetMinutes,
+            localDate: value.localDate, localTime: value.localTime,
+            afterDarkAcknowledgementKey: value.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: value.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: value.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: value.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: value.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: value.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: value.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: value.safePositionAcknowledgementAccepted,
+            packID: value.packID, packSchemaVersion: value.packSchemaVersion,
+            packContentVersion: value.packContentVersion,
+            pdfTemplateID: value.pdfTemplateID,
+            pdfTemplateVersion: value.pdfTemplateVersion,
+            outcomeKey: value.outcomeKey,
+            couldNotVerifyKey: value.couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: value.couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: value.couldNotVerifyRegistryVersion,
+            workPerformedLocalDate: value.workPerformedLocalDate,
+            workDescription: value.workDescription, note: value.note,
+            finalizationMutationID: value.finalizationMutationID
+        )
+    }
+
+    private func reportPayload(_ value: Report) -> ReportPayloadV1 {
+        ReportPayloadV1(
+            id: value.id, schemaVersion: value.schemaVersion,
+            packetID: value.packetID, sourceRecordID: value.sourceRecordID,
+            snapshotSchemaVersion: value.snapshotSchemaVersion,
+            snapshotRelativePath: value.snapshotRelativePath,
+            snapshotSHA256: value.snapshotSHA256,
+            pdfState: value.pdfState, pdfRelativePath: value.pdfRelativePath,
+            pdfSHA256: value.pdfSHA256, createdAt: value.createdAt,
+            replacesReportID: value.replacesReportID
+        )
     }
 
     private func validateStorageRoots(requiresSnapshots: Bool) throws {
@@ -423,6 +665,18 @@ final class ReportRecoveryService: ObservableObject {
                 return Self.canonical($0.id) < Self.canonical($1.id)
             }
             .map(\.id)
+    }
+
+    private func registerPersistedFailure(_ reportID: UUID) {
+        guard !modelContext.hasChanges,
+              (try? validatedPlans()).flatMap({ plans in
+                  plans.first(where: {
+                      $0.report.id == reportID && $0.state == .failed
+                  })
+              }) != nil else {
+            return
+        }
+        try? refreshFailedReportIDs()
     }
 
     private func itemType(at url: URL) throws -> FileAttributeType? {

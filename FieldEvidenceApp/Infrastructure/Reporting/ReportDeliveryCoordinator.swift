@@ -4,6 +4,20 @@ import Foundation
 import PDFKit
 import SwiftData
 
+extension Notification.Name {
+    static let reportPDFBecameUnavailable = Notification.Name(
+        "FieldEvidence.reportPDFBecameUnavailable"
+    )
+}
+
+final class ReportPDFUnavailableEvent: NSObject, @unchecked Sendable {
+    let reportID: UUID
+
+    init(reportID: UUID) {
+        self.reportID = reportID
+    }
+}
+
 struct ReportDeliveryValue: Equatable, Sendable {
     let reportID: UUID
     let pdfSHA256: String
@@ -26,6 +40,23 @@ struct ValidatedReadyReportValue: Equatable, Sendable {
     let evidence: [ValidatedReadyEvidenceValue]
 }
 
+struct ReportDeliveryChainValue: Equatable, Sendable {
+    let current: ReportDeliveryValue
+    let ancestors: [ReportDeliveryValue]
+}
+
+struct ReportCorrectionSourceValue: Equatable, Sendable {
+    let sourceReportID: UUID
+    let sourceRecordID: UUID
+    let currentNote: String?
+    let chain: ReportDeliveryChainValue
+}
+
+enum ReportCorrectionSubmissionResult: Equatable, Sendable {
+    case ready(ReportDeliveryChainValue)
+    case pdfUnavailable(reportID: UUID, prior: ReportDeliveryValue)
+}
+
 enum ReportDeliveryPreparation: Equatable, Sendable {
     case ready(ReportDeliveryValue)
     case failed(reportID: UUID)
@@ -36,6 +67,8 @@ enum ReportDeliveryCoordinatorError: Error, Equatable {
     case contextHasChanges
     case reportNotFound
     case invalidAuthority
+    case invalidCorrection
+    case correctionFinalizationFailed
 }
 
 @MainActor
@@ -45,6 +78,8 @@ final class ReportDeliveryCoordinator {
     private let diagnosticsStore: DiagnosticsStore?
     private let signPack: SignPack
     private let renderService: ReportRenderService
+    private let finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection?
+    private let finalizationServiceFailureInjection: FinalizationServiceFailureInjection?
     private let rootIdentity: ReportPDFAnchoredFile.RootIdentity
     private var receiptAttempts: Set<UUID> = []
 
@@ -53,7 +88,10 @@ final class ReportDeliveryCoordinator {
         generationRootURL: URL,
         diagnosticsStore: DiagnosticsStore? = nil,
         signPack: SignPack = .illuminatedSignV1,
-        renderFailureInjection: ReportRenderFailureInjection? = nil
+        renderFailureInjection: ReportRenderFailureInjection? = nil,
+        finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
+        finalizationServiceFailureInjection: FinalizationServiceFailureInjection? = nil,
+        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil
     ) throws {
         let root = generationRootURL.standardizedFileURL
         guard generationRootURL.isFileURL,
@@ -65,13 +103,22 @@ final class ReportDeliveryCoordinator {
             throw ReportDeliveryCoordinatorError.invalidGeneration
         }
         do {
-            self.rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+            let observedRootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+            guard expectedRootIdentity.map({ $0 == observedRootIdentity }) ?? true else {
+                throw ReportDeliveryCoordinatorError.invalidGeneration
+            }
+            let capturedRootIdentity = expectedRootIdentity ?? observedRootIdentity
+            self.rootIdentity = capturedRootIdentity
             self.renderService = try ReportRenderService(
                 modelContext: modelContext,
                 generationRootURL: root,
                 signPack: signPack,
                 failureInjection: renderFailureInjection
             )
+            guard try ReportPDFAnchoredFile.rootIdentity(at: root)
+                    == capturedRootIdentity else {
+                throw ReportDeliveryCoordinatorError.invalidGeneration
+            }
         } catch {
             throw ReportDeliveryCoordinatorError.invalidGeneration
         }
@@ -79,6 +126,8 @@ final class ReportDeliveryCoordinator {
         self.generationRootURL = root
         self.diagnosticsStore = diagnosticsStore
         self.signPack = signPack
+        self.finalizationStoreFailureInjection = finalizationStoreFailureInjection
+        self.finalizationServiceFailureInjection = finalizationServiceFailureInjection
     }
 
     func prepareFinalizedReport(id reportID: UUID) throws -> ReportDeliveryPreparation {
@@ -87,6 +136,16 @@ final class ReportDeliveryCoordinator {
         }
         let report = try uniqueReport(id: reportID)
         try requireUnambiguousReportAuthority(report)
+        let chain = try validatedReplacementChain(containing: report)
+        guard chain.first?.id == report.id else {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+        for ancestor in chain.dropFirst() {
+            _ = try validatedReadyReport(
+                ancestor,
+                requiresCurrentTip: false
+            )
+        }
         if receiptAttempts.contains(reportID) {
             if report.pdfState == ReportPDFState.ready.rawValue {
                 return .ready(try loadReadyReport(id: reportID))
@@ -129,6 +188,62 @@ final class ReportDeliveryCoordinator {
         }
         let report = try uniqueReport(id: reportID)
         try requireUnambiguousReportAuthority(report)
+        let chain = try validatedReplacementChain(containing: report)
+        guard chain.contains(where: { $0.id == report.id }) else {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+        return try validatedReadyReport(
+            report,
+            requiresCurrentTip: chain.first?.id == report.id
+        )
+    }
+
+    /// Startup/retry authority gate. The current tip may be pending or failed,
+    /// but its complete immutable snapshot/evidence graph must still validate;
+    /// every replaced ancestor must remain a fully readable ready delivery.
+    func validateRecoveryAuthority(id reportID: UUID) throws {
+        guard !modelContext.hasChanges else {
+            throw ReportDeliveryCoordinatorError.contextHasChanges
+        }
+        let report = try uniqueReport(id: reportID)
+        try requireUnambiguousReportAuthority(report)
+        let chain = try validatedReplacementChain(containing: report)
+        guard let current = chain.first,
+              chain.contains(where: { $0.id == report.id }) else {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+        for ancestor in chain.dropFirst() {
+            _ = try validatedReadyReport(
+                ancestor,
+                requiresCurrentTip: false
+            )
+        }
+        if report.id != current.id {
+            return
+        }
+        switch ReportPDFState(rawValue: report.pdfState) {
+        case .ready:
+            _ = try validatedReadyReport(report, requiresCurrentTip: true)
+        case .pending, .failed:
+            guard report.pdfRelativePath == nil,
+                  report.pdfSHA256 == nil else {
+                throw ReportDeliveryCoordinatorError.invalidAuthority
+            }
+            _ = try validateCompleteSnapshotAuthority(
+                report: report,
+                requiresCurrentTip: true,
+                requiresReadyDelivery: false
+            )
+        case nil:
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+    }
+
+    private func validatedReadyReport(
+        _ report: Report,
+        requiresCurrentTip: Bool
+    ) throws -> ValidatedReadyReportValue {
+        let reportID = report.id
         let canonicalID = reportID.uuidString.lowercased()
         let expectedPDFPath = "pdfs/\(canonicalID).pdf"
         guard report.schemaVersion == 1,
@@ -143,7 +258,10 @@ final class ReportDeliveryCoordinator {
             throw ReportDeliveryCoordinatorError.invalidAuthority
         }
 
-        let validated = try validateCompleteSnapshotAuthority(report: report)
+        let validated = try validateCompleteSnapshotAuthority(
+            report: report,
+            requiresCurrentTip: requiresCurrentTip
+        )
         let snapshot = validated.snapshot
 
         let pdfData = try anchoredRead(relativePath: expectedPDFPath)
@@ -183,19 +301,405 @@ final class ReportDeliveryCoordinator {
         }
         let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
         let reports = try modelContext.fetch(FetchDescriptor<Report>())
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>())
         var candidates: [Report] = []
-        for report in reports where report.pdfState == ReportPDFState.ready.rawValue {
-            let sources = records.filter { $0.id == report.sourceRecordID }
+        for packet in packets where packet.currentRecordID != nil
+            && packet.contentDeletedAt == nil {
+            guard packet.schemaVersion == 1,
+                  let currentRecordID = packet.currentRecordID,
+                  packets.filter({ $0.id == packet.id }).count == 1,
+                  packets.filter({ $0.stableRootID == packet.stableRootID }).count == 1,
+                  packets.filter({ $0.currentRecordID == currentRecordID }).count == 1 else {
+                throw ReportDeliveryCoordinatorError.invalidAuthority
+            }
+            let sources = records.filter { $0.id == currentRecordID }
             guard sources.count == 1 else {
                 throw ReportDeliveryCoordinatorError.invalidAuthority
             }
-            if sources[0].assetID == assetID {
-                candidates.append(report)
+            guard sources[0].assetID == assetID else { continue }
+            let matches = reports.filter {
+                $0.packetID == packet.id && $0.sourceRecordID == currentRecordID
+            }
+            guard matches.count == 1 else {
+                throw ReportDeliveryCoordinatorError.invalidAuthority
+            }
+            if matches[0].pdfState == ReportPDFState.ready.rawValue {
+                candidates.append(matches[0])
             }
         }
         guard candidates.count <= 1 else { return nil }
         guard let report = candidates.first else { return nil }
         return try loadReadyReport(id: report.id)
+    }
+
+    func readyDeliveryChain(
+        currentReportID: UUID
+    ) throws -> ReportDeliveryChainValue {
+        let chain = try readyDeliveryChain(containingReportID: currentReportID)
+        guard chain.current.reportID == currentReportID else {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+        return chain
+    }
+
+    /// Returns the unique complete replacement chain containing a supplied
+    /// ready report. The current tip is first even when the supplied report is
+    /// a historical ancestor reached from a stale receipt or route.
+    func readyDeliveryChain(
+        containingReportID reportID: UUID
+    ) throws -> ReportDeliveryChainValue {
+        guard !modelContext.hasChanges else {
+            throw ReportDeliveryCoordinatorError.contextHasChanges
+        }
+        let selectedReport = try uniqueReport(id: reportID)
+        let chain = try validatedReplacementChain(containing: selectedReport)
+        guard chain.contains(where: { $0.id == reportID }) else {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+        let deliveries = try chain.enumerated().map { index, report in
+            try validatedReadyReport(report, requiresCurrentTip: index == 0).delivery
+        }
+        guard let current = deliveries.first else {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+        return ReportDeliveryChainValue(
+            current: current,
+            ancestors: Array(deliveries.dropFirst())
+        )
+    }
+
+    func correctionSource(reportID: UUID) throws -> ReportCorrectionSourceValue {
+        let chain = try readyDeliveryChain(currentReportID: reportID)
+        let report = try uniqueReport(id: reportID)
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>()).filter {
+            $0.id == report.sourceRecordID
+        }
+        guard records.count == 1 else {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+        return ReportCorrectionSourceValue(
+            sourceReportID: report.id,
+            sourceRecordID: records[0].id,
+            currentNote: records[0].note,
+            chain: chain
+        )
+    }
+
+    func submitCorrection(
+        from source: ReportCorrectionSourceValue,
+        note: String?
+    ) async throws -> ReportCorrectionSubmissionResult {
+        let info = Bundle.main.infoDictionary ?? [:]
+        return try await submitCorrection(
+            from: source,
+            note: note,
+            snapshotCreatedAt: Date(),
+            sourceApp: SourceAppSnapshotV1(
+                build: info["CFBundleVersion"] as? String ?? "0",
+                version: info["CFBundleShortVersionString"] as? String ?? "0"
+            )
+        )
+    }
+
+    func submitCorrection(
+        from source: ReportCorrectionSourceValue,
+        note: String?,
+        snapshotCreatedAt: Date,
+        sourceApp: SourceAppSnapshotV1,
+        identifiers suppliedIdentifiers: ReportCorrectionIdentifiers? = nil
+    ) async throws -> ReportCorrectionSubmissionResult {
+        guard !modelContext.hasChanges else {
+            throw ReportDeliveryCoordinatorError.contextHasChanges
+        }
+        let report = try uniqueReport(id: source.sourceReportID)
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>()).filter {
+            $0.id == source.sourceRecordID
+        }
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>()).filter {
+            $0.id == report.packetID
+        }
+        guard records.count == 1, packets.count == 1 else {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+        let identifiers = suppliedIdentifiers ?? ReportCorrectionIdentifiers(
+            mutationID: UUID(),
+            recordID: UUID(),
+            reportID: UUID()
+        )
+        let existingReplayReports = try modelContext.fetch(
+            FetchDescriptor<Report>()
+        ).filter { $0.id == identifiers.reportID }
+        let isReadyReplay = existingReplayReports.count == 1
+            && existingReplayReports[0].pdfState == ReportPDFState.ready.rawValue
+        if existingReplayReports.count == 1, !isReadyReplay {
+            // A persisted pending/failed correction is never resubmitted through
+            // this command. Pending is startup-recovered; failed uses the saved
+            // report's explicit retry surface.
+            throw ReportDeliveryCoordinatorError.invalidCorrection
+        }
+        let validated: ValidatedReadyReportValue
+        if isReadyReplay {
+            let fullChain = try validatedReplacementChain(containing: report)
+            guard fullChain.contains(where: { $0.id == report.id }) else {
+                throw ReportDeliveryCoordinatorError.invalidCorrection
+            }
+            validated = try validatedReadyReport(
+                report,
+                requiresCurrentTip: fullChain.first?.id == report.id
+            )
+            guard let sourceIndex = fullChain.firstIndex(where: {
+                $0.id == report.id
+            }) else {
+                throw ReportDeliveryCoordinatorError.invalidCorrection
+            }
+            let suffix = Array(fullChain[sourceIndex...])
+            let deliveries = try suffix.map { value in
+                try validatedReadyReport(
+                    value,
+                    requiresCurrentTip: fullChain.first?.id == value.id
+                ).delivery
+            }
+            guard let historicalCurrent = deliveries.first,
+                  source == ReportCorrectionSourceValue(
+                    sourceReportID: report.id,
+                    sourceRecordID: records[0].id,
+                    currentNote: records[0].note,
+                    chain: ReportDeliveryChainValue(
+                        current: historicalCurrent,
+                        ancestors: Array(deliveries.dropFirst())
+                    )
+                  ) else {
+                throw ReportDeliveryCoordinatorError.invalidCorrection
+            }
+        } else {
+            let refreshed = try correctionSource(reportID: source.sourceReportID)
+            guard refreshed == source else {
+                throw ReportDeliveryCoordinatorError.invalidCorrection
+            }
+            validated = try validatedReadyReport(report, requiresCurrentTip: true)
+        }
+        let finalization: ReportCorrectionFinalizationOutcome
+        do {
+            finalization = try await FinalizationService(
+                modelContext: modelContext,
+                signPack: signPack,
+                generationRootURL: generationRootURL,
+                intentStoreFailureInjection: finalizationStoreFailureInjection,
+                failureInjection: finalizationServiceFailureInjection,
+                expectedRootIdentity: rootIdentity
+            ).finalizeCorrection(ReportCorrectionFinalizationInput(
+                currentRecord: records[0],
+                packet: packets[0],
+                currentReport: report,
+                currentSnapshot: validated.snapshot,
+                note: note,
+                snapshotCreatedAt: snapshotCreatedAt,
+                sourceApp: sourceApp,
+                identifiers: identifiers
+            ))
+        } catch let error as FinalizationServiceError {
+            switch error {
+            case .invalidSelection:
+                throw ReportDeliveryCoordinatorError.invalidCorrection
+            case .committedRecoveryRequired(let reportID):
+                guard reportID == identifiers.reportID,
+                      let persisted = try? persistedUnavailableCorrection(
+                        source: source,
+                        note: note,
+                        snapshotCreatedAt: snapshotCreatedAt,
+                        sourceApp: sourceApp,
+                        identifiers: identifiers
+                      ) else {
+                    throw ReportDeliveryCoordinatorError.correctionFinalizationFailed
+                }
+                return persisted
+            default:
+                throw ReportDeliveryCoordinatorError.correctionFinalizationFailed
+            }
+        } catch {
+            throw ReportDeliveryCoordinatorError.correctionFinalizationFailed
+        }
+        let newReport = try uniqueReport(id: finalization.reportID)
+        if !finalization.createdAuthority {
+            switch ReportPDFState(rawValue: newReport.pdfState) {
+            case .ready:
+                return .ready(try readyDeliveryChain(currentReportID: newReport.id))
+            case .failed, .pending:
+                return try persistedUnavailableCorrection(
+                    source: source,
+                    note: note,
+                    snapshotCreatedAt: snapshotCreatedAt,
+                    sourceApp: sourceApp,
+                    identifiers: identifiers
+                )
+            case nil:
+                throw ReportDeliveryCoordinatorError.invalidAuthority
+            }
+        }
+        switch ReportPDFState(rawValue: newReport.pdfState) {
+        case .ready:
+            return .ready(try readyDeliveryChain(currentReportID: newReport.id))
+        case .failed:
+            return try persistedUnavailableCorrection(
+                source: source,
+                note: note,
+                snapshotCreatedAt: snapshotCreatedAt,
+                sourceApp: sourceApp,
+                identifiers: identifiers
+            )
+        case .pending:
+            switch try prepareFinalizedReport(id: newReport.id) {
+            case .ready:
+                return .ready(try readyDeliveryChain(currentReportID: newReport.id))
+            case .failed(let reportID):
+                guard reportID == identifiers.reportID else {
+                    throw ReportDeliveryCoordinatorError.invalidAuthority
+                }
+                return try persistedUnavailableCorrection(
+                    source: source,
+                    note: note,
+                    snapshotCreatedAt: snapshotCreatedAt,
+                    sourceApp: sourceApp,
+                    identifiers: identifiers
+                )
+            }
+        case nil:
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+    }
+
+    /// Proves that a correction committed even though its PDF is unavailable.
+    /// This is the only path that may produce the persisted-failure UI result;
+    /// a caller-visible throw therefore continues to mean that no such complete
+    /// correction authority could be proven.
+    private func persistedUnavailableCorrection(
+        source: ReportCorrectionSourceValue,
+        note: String?,
+        snapshotCreatedAt: Date,
+        sourceApp: SourceAppSnapshotV1,
+        identifiers: ReportCorrectionIdentifiers
+    ) throws -> ReportCorrectionSubmissionResult {
+        guard !modelContext.hasChanges else {
+            throw ReportDeliveryCoordinatorError.contextHasChanges
+        }
+        let reports = try modelContext.fetch(FetchDescriptor<Report>())
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>())
+        let newReports = reports.filter { $0.id == identifiers.reportID }
+        let newRecords = records.filter {
+            $0.id == identifiers.recordID
+                || $0.finalizationMutationID == identifiers.mutationID
+        }
+        let priorReports = reports.filter { $0.id == source.sourceReportID }
+        let priorRecords = records.filter { $0.id == source.sourceRecordID }
+        guard newReports.count == 1,
+              newRecords.count == 1,
+              priorReports.count == 1,
+              priorRecords.count == 1,
+              newRecords[0].id == identifiers.recordID,
+              newRecords[0].finalizationMutationID == identifiers.mutationID,
+              let state = ReportPDFState(rawValue: newReports[0].pdfState),
+              state == .pending || state == .failed,
+              newReports[0].pdfRelativePath == nil,
+              newReports[0].pdfSHA256 == nil else {
+            throw ReportDeliveryCoordinatorError.invalidCorrection
+        }
+        let packetMatches = packets.filter { $0.id == newReports[0].packetID }
+        guard packetMatches.count == 1 else {
+            throw ReportDeliveryCoordinatorError.invalidCorrection
+        }
+        let packet = packetMatches[0]
+        let chain = try validatedReplacementChain(containing: newReports[0])
+        let expectedAncestorIDs = [source.chain.current.reportID]
+            + source.chain.ancestors.map(\.reportID)
+        guard chain.first?.id == newReports[0].id,
+              Array(chain.dropFirst()).map(\.id) == expectedAncestorIDs,
+              chain.dropFirst().first?.id == priorReports[0].id else {
+            throw ReportDeliveryCoordinatorError.invalidCorrection
+        }
+        let prior = try validatedReadyReport(
+            priorReports[0],
+            requiresCurrentTip: false
+        )
+        guard prior.delivery == source.chain.current,
+              priorReports[0].sourceRecordID == priorRecords[0].id,
+              priorRecords[0].id == source.sourceRecordID else {
+            throw ReportDeliveryCoordinatorError.invalidCorrection
+        }
+        let packetBefore = PacketPayloadV1(
+            id: packet.id,
+            schemaVersion: packet.schemaVersion,
+            stableRootID: packet.stableRootID,
+            currentRecordID: priorRecords[0].id,
+            evaluationCounted: packet.evaluationCounted,
+            contentDeletedAt: packet.contentDeletedAt,
+            createdAt: packet.createdAt
+        )
+        let expected = try ReportCorrectionRule().makePlan(
+            source: ReportCorrectionRuleSource(
+                currentRecord: recordPayload(priorRecords[0]),
+                packet: packetBefore,
+                currentReport: reportPayload(priorReports[0]),
+                currentSnapshot: prior.snapshot
+            ),
+            request: ReportCorrectionRuleRequest(
+                note: note,
+                snapshotCreatedAt: snapshotCreatedAt,
+                sourceApp: sourceApp,
+                identifiers: identifiers
+            )
+        )
+        let storedReport = newReports[0]
+        let normalizedStoredReport = ReportPayloadV1(
+            id: storedReport.id,
+            schemaVersion: storedReport.schemaVersion,
+            packetID: storedReport.packetID,
+            sourceRecordID: storedReport.sourceRecordID,
+            snapshotSchemaVersion: storedReport.snapshotSchemaVersion,
+            snapshotRelativePath: storedReport.snapshotRelativePath,
+            snapshotSHA256: storedReport.snapshotSHA256,
+            pdfState: ReportPDFState.pending.rawValue,
+            pdfRelativePath: nil,
+            pdfSHA256: nil,
+            createdAt: storedReport.createdAt,
+            replacesReportID: storedReport.replacesReportID
+        )
+        let packetAfter = PacketPayloadV1(
+            id: packet.id,
+            schemaVersion: packet.schemaVersion,
+            stableRootID: packet.stableRootID,
+            currentRecordID: packet.currentRecordID,
+            evaluationCounted: packet.evaluationCounted,
+            contentDeletedAt: packet.contentDeletedAt,
+            createdAt: packet.createdAt
+        )
+        guard recordPayload(newRecords[0]) == expected.recordAfter,
+              normalizedStoredReport == expected.reportInsert,
+              packetAfter == expected.packetAfter,
+              try readCanonicalSnapshot(for: storedReport) == expected.snapshot else {
+            throw ReportDeliveryCoordinatorError.invalidCorrection
+        }
+        try validateRecoveryAuthority(id: storedReport.id)
+        return .pdfUnavailable(
+            reportID: storedReport.id,
+            prior: source.chain.current
+        )
+    }
+
+    /// Shows the existing retry surface only after the persisted-failure result
+    /// has been consumed. This keeps the owner-approved result copy stable.
+    func acknowledgePersistedPDFUnavailable(reportID: UUID) throws {
+        let report = try uniqueReport(id: reportID)
+        guard report.pdfState == ReportPDFState.failed.rawValue,
+              report.pdfRelativePath == nil,
+              report.pdfSHA256 == nil else {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+        try validateRecoveryAuthority(id: reportID)
+        NotificationCenter.default.post(
+            name: .reportPDFBecameUnavailable,
+            object: ReportPDFUnavailableEvent(reportID: reportID)
+        )
     }
 
     func shareSheetDidPresent() async {
@@ -223,17 +727,218 @@ final class ReportDeliveryCoordinator {
     }
 
     private func validateCompleteSnapshotAuthority(
-        report: Report
+        report: Report,
+        requiresCurrentTip: Bool,
+        requiresReadyDelivery: Bool = true
     ) throws -> ReadyReportAuthorityValidation {
         do {
             return try ReadyReportAuthorityValidator(
                 modelContext: modelContext,
                 signPack: signPack,
                 anchoredRead: anchoredRead(relativePath:)
-            ).validate(report: report)
+            ).validate(
+                report: report,
+                requiresCurrentTip: requiresCurrentTip,
+                requiresReadyDelivery: requiresReadyDelivery
+            )
         } catch {
             throw ReportDeliveryCoordinatorError.invalidAuthority
         }
+    }
+
+    /// Returns the one complete Packet-local replacement chain, current first.
+    /// Each report edge must mirror the record revision edge exactly; no stray
+    /// report or revision beneath the same Packet/root is accepted.
+    private func validatedReplacementChain(
+        containing selected: Report
+    ) throws -> [Report] {
+        let reports = try modelContext.fetch(FetchDescriptor<Report>())
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
+        let evidence = try modelContext.fetch(FetchDescriptor<EvidenceFile>())
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>())
+        let packetMatches = packets.filter { $0.id == selected.packetID }
+        guard packetMatches.count == 1,
+              let packet = packetMatches.first,
+              packet.schemaVersion == 1,
+              packet.contentDeletedAt == nil,
+              packet.evaluationCounted,
+              let currentRecordID = packet.currentRecordID,
+              packets.filter({ $0.stableRootID == packet.stableRootID }).count == 1,
+              packets.filter({ $0.currentRecordID == currentRecordID }).count == 1 else {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+        let packetReports = reports.filter { $0.packetID == packet.id }
+        guard !packetReports.isEmpty,
+              Set(reports.map(\.id)).count == reports.count,
+              Set(reports.map(\.sourceRecordID)).count == reports.count,
+              Set(records.map(\.id)).count == records.count,
+              Set(packetReports.map(\.id)).count == packetReports.count,
+              Set(packetReports.map(\.sourceRecordID)).count == packetReports.count,
+              packetReports.contains(where: { $0.id == selected.id }) else {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+        let currentReports = packetReports.filter {
+            $0.sourceRecordID == currentRecordID
+        }
+        guard currentReports.count == 1,
+              reports.filter({ $0.replacesReportID == currentReports[0].id }).isEmpty,
+              records.filter({ $0.revisesRecordID == currentRecordID }).isEmpty else {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+
+        var result: [Report] = []
+        var report = currentReports[0]
+        var visitedReports = Set<UUID>()
+        var visitedRecords = Set<UUID>()
+        while true {
+            guard visitedReports.insert(report.id).inserted else {
+                throw ReportDeliveryCoordinatorError.invalidAuthority
+            }
+            let sourceMatches = records.filter { $0.id == report.sourceRecordID }
+            guard sourceMatches.count == 1,
+                  let source = sourceMatches.first,
+                  source.packetID == packet.id,
+                  visitedRecords.insert(source.id).inserted else {
+                throw ReportDeliveryCoordinatorError.invalidAuthority
+            }
+            result.append(report)
+            switch WorkflowRevisionKind(rawValue: source.revisionKind) {
+            case .original:
+                guard source.recordRevisionRootID == source.id,
+                      source.revisesRecordID == nil,
+                      source.evidenceSourceRecordID == nil,
+                      report.replacesReportID == nil else {
+                    throw ReportDeliveryCoordinatorError.invalidAuthority
+                }
+                break
+            case .clericalCorrection:
+                guard let priorRecordID = source.revisesRecordID,
+                      let priorReportID = report.replacesReportID,
+                      source.evidenceSourceRecordID == source.recordRevisionRootID,
+                      records.filter({ $0.revisesRecordID == priorRecordID }).count == 1,
+                      evidence.filter({ $0.recordID == source.id }).isEmpty else {
+                    throw ReportDeliveryCoordinatorError.invalidAuthority
+                }
+                let priorReports = packetReports.filter { $0.id == priorReportID }
+                guard priorReports.count == 1,
+                      priorReports[0].sourceRecordID == priorRecordID,
+                      reports.filter({ $0.replacesReportID == priorReportID }).count == 1 else {
+                    throw ReportDeliveryCoordinatorError.invalidAuthority
+                }
+                report = priorReports[0]
+                continue
+            case nil:
+                throw ReportDeliveryCoordinatorError.invalidAuthority
+            }
+            break
+        }
+        let packetRecordIDs = Set(records.filter {
+            $0.packetID == packet.id
+        }.map(\.id))
+        guard result.count == packetReports.count,
+              packetRecordIDs == visitedRecords else {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+        for index in result.indices.dropLast() {
+            let newer = result[index]
+            let prior = result[result.index(after: index)]
+            let newerSnapshot = try readCanonicalSnapshot(for: newer)
+            let priorSnapshot = try readCanonicalSnapshot(for: prior)
+            let newerRecords = records.filter { $0.id == newer.sourceRecordID }
+            let priorRecords = records.filter { $0.id == prior.sourceRecordID }
+            guard newerRecords.count == 1, priorRecords.count == 1 else {
+                throw ReportDeliveryCoordinatorError.invalidAuthority
+            }
+            do {
+                try ReportCorrectionRule().validateEdge(
+                    prior: ReportCorrectionRuleSource(
+                        currentRecord: recordPayload(priorRecords[0]),
+                        packet: PacketPayloadV1(
+                            id: packet.id,
+                            schemaVersion: packet.schemaVersion,
+                            stableRootID: packet.stableRootID,
+                            currentRecordID: priorRecords[0].id,
+                            evaluationCounted: packet.evaluationCounted,
+                            contentDeletedAt: packet.contentDeletedAt,
+                            createdAt: packet.createdAt
+                        ),
+                        currentReport: reportPayload(prior),
+                        currentSnapshot: priorSnapshot
+                    ),
+                    correctionRecord: recordPayload(newerRecords[0]),
+                    correctionReport: reportPayload(newer),
+                    correctionSnapshot: newerSnapshot
+                )
+            } catch {
+                throw ReportDeliveryCoordinatorError.invalidAuthority
+            }
+        }
+        return result
+    }
+
+    private func readCanonicalSnapshot(for report: Report) throws -> ReportSnapshotV1 {
+        let data = try anchoredRead(relativePath: report.snapshotRelativePath)
+        guard Self.sha256(data) == report.snapshotSHA256 else {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+        do {
+            let value = try ReportSnapshotEncoderV1().decode(data)
+            guard try ReportSnapshotEncoderV1().encode(value).data == data else {
+                throw ReportDeliveryCoordinatorError.invalidAuthority
+            }
+            return value
+        } catch {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+    }
+
+    private func recordPayload(_ value: WorkflowRecord) -> WorkflowRecordPayloadV1 {
+        WorkflowRecordPayloadV1(
+            id: value.id, schemaVersion: value.schemaVersion,
+            assetID: value.assetID, packetID: value.packetID,
+            issueID: value.issueID, parentRecordID: value.parentRecordID,
+            recordRevisionRootID: value.recordRevisionRootID,
+            revisesRecordID: value.revisesRecordID,
+            evidenceSourceRecordID: value.evidenceSourceRecordID,
+            revisionKind: value.revisionKind, stage: value.stage,
+            state: value.state, draftStepKey: value.draftStepKey,
+            startedAt: value.startedAt, completedAt: value.completedAt,
+            observedAtUTC: value.observedAtUTC, timeZoneID: value.timeZoneID,
+            utcOffsetMinutes: value.utcOffsetMinutes,
+            localDate: value.localDate, localTime: value.localTime,
+            afterDarkAcknowledgementKey: value.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: value.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: value.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: value.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: value.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: value.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: value.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: value.safePositionAcknowledgementAccepted,
+            packID: value.packID, packSchemaVersion: value.packSchemaVersion,
+            packContentVersion: value.packContentVersion,
+            pdfTemplateID: value.pdfTemplateID,
+            pdfTemplateVersion: value.pdfTemplateVersion,
+            outcomeKey: value.outcomeKey,
+            couldNotVerifyKey: value.couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: value.couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: value.couldNotVerifyRegistryVersion,
+            workPerformedLocalDate: value.workPerformedLocalDate,
+            workDescription: value.workDescription, note: value.note,
+            finalizationMutationID: value.finalizationMutationID
+        )
+    }
+
+    private func reportPayload(_ value: Report) -> ReportPayloadV1 {
+        ReportPayloadV1(
+            id: value.id, schemaVersion: value.schemaVersion,
+            packetID: value.packetID, sourceRecordID: value.sourceRecordID,
+            snapshotSchemaVersion: value.snapshotSchemaVersion,
+            snapshotRelativePath: value.snapshotRelativePath,
+            snapshotSHA256: value.snapshotSHA256,
+            pdfState: value.pdfState, pdfRelativePath: value.pdfRelativePath,
+            pdfSHA256: value.pdfSHA256, createdAt: value.createdAt,
+            replacesReportID: value.replacesReportID
+        )
     }
     private func anchoredRead(relativePath: String) throws -> Data {
         guard Self.isCanonicalRelativePath(relativePath) else {
@@ -382,9 +1087,17 @@ private struct ReadyReportAuthorityValidator {
         self.anchoredRead = anchoredRead
     }
 
-    func validate(report: Report) throws -> ReadyReportAuthorityValidation {
+    func validate(
+        report: Report,
+        requiresCurrentTip: Bool,
+        requiresReadyDelivery: Bool
+    ) throws -> ReadyReportAuthorityValidation {
         do {
-            return try validateAuthority(report: report)
+            return try validateAuthority(
+                report: report,
+                requiresCurrentTip: requiresCurrentTip,
+                requiresReadyDelivery: requiresReadyDelivery
+            )
         } catch let error as SnapshotValidationErrorV1 {
             throw error
         } catch {
@@ -392,16 +1105,29 @@ private struct ReadyReportAuthorityValidator {
         }
     }
 
-    private func validateAuthority(report: Report) throws -> ReadyReportAuthorityValidation {
+    private func validateAuthority(
+        report: Report,
+        requiresCurrentTip: Bool,
+        requiresReadyDelivery: Bool
+    ) throws -> ReadyReportAuthorityValidation {
         let reportID = canonicalID(report.id)
         let expectedSnapshotPath = "snapshots/\(reportID).json"
+        let hasLegalDeliveryState: Bool
+        if requiresReadyDelivery {
+            hasLegalDeliveryState = report.pdfState == ReportPDFState.ready.rawValue
+                && report.pdfRelativePath == "pdfs/\(reportID).pdf"
+                && report.pdfSHA256.map(isLowercaseSHA256) == true
+        } else {
+            hasLegalDeliveryState = (report.pdfState == ReportPDFState.pending.rawValue
+                || report.pdfState == ReportPDFState.failed.rawValue)
+                && report.pdfRelativePath == nil
+                && report.pdfSHA256 == nil
+        }
         guard report.schemaVersion == 1,
               report.snapshotSchemaVersion == 1,
               report.snapshotRelativePath == expectedSnapshotPath,
               isLowercaseSHA256(report.snapshotSHA256),
-              report.pdfState == ReportPDFState.ready.rawValue,
-              report.pdfRelativePath == "pdfs/\(reportID).pdf",
-              report.pdfSHA256.map(isLowercaseSHA256) == true else {
+              hasLegalDeliveryState else {
             throw SnapshotValidationErrorV1.invalidAuthority
         }
 
@@ -452,11 +1178,13 @@ private struct ReadyReportAuthorityValidator {
         guard let packet = unique(packets.filter { $0.id == report.packetID }),
               packet.schemaVersion == 1,
               packet.stableRootID == snapshot.stableRootID,
-              packet.currentRecordID == report.sourceRecordID,
+              (!requiresCurrentTip
+                || packet.currentRecordID == report.sourceRecordID),
+              packet.currentRecordID != nil,
               packet.evaluationCounted,
               packet.contentDeletedAt == nil,
               packets.filter({ $0.stableRootID == packet.stableRootID }).count == 1,
-              packets.filter({ $0.currentRecordID == report.sourceRecordID }).count == 1 else {
+              packets.filter({ $0.currentRecordID == packet.currentRecordID }).count == 1 else {
             throw SnapshotValidationErrorV1.invalidAuthority
         }
 

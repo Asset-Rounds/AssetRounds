@@ -11,6 +11,10 @@ enum FinalizationServiceError: Error, Equatable {
     case journalFailed
     case saveFailed
     case cleanupFailed
+    /// The correction database authority was committed, but journal cleanup
+    /// did not finish. Callers must recover/validate the saved report instead
+    /// of presenting this as a precommit failure.
+    case committedRecoveryRequired(reportID: UUID)
 }
 
 struct FinalizationServiceInput {
@@ -31,6 +35,28 @@ struct FinalizationServiceInput {
 
 struct FinalizationServiceOutcome: Equatable, Sendable {
     let result: FinalizationResult
+    let createdAuthority: Bool
+}
+
+struct ReportCorrectionFinalizationInput {
+    let currentRecord: WorkflowRecord
+    let packet: Packet
+    let currentReport: Report
+    let currentSnapshot: ReportSnapshotV1
+    let note: String?
+    let snapshotCreatedAt: Date
+    let sourceApp: SourceAppSnapshotV1
+    let identifiers: ReportCorrectionIdentifiers
+}
+
+struct ReportCorrectionFinalizationOutcome: Equatable, Sendable {
+    let recordID: UUID
+    let packetID: UUID
+    let stableRootID: UUID
+    let reportID: UUID
+    let priorReportID: UUID
+    let snapshotRelativePath: String
+    let snapshotSHA256: String
     let createdAuthority: Bool
 }
 
@@ -63,6 +89,7 @@ final class FinalizationService {
     private let signPack: SignPack
     private let generationRootURL: URL
     private let generationID: UUID
+    private let rootIdentity: ReportPDFAnchoredFile.RootIdentity
     private let intentStore: FinalizationIntentStore
     private let failureInjection: FinalizationServiceFailureInjection?
 
@@ -71,7 +98,8 @@ final class FinalizationService {
         signPack: SignPack,
         generationRootURL: URL,
         intentStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
-        failureInjection: FinalizationServiceFailureInjection? = nil
+        failureInjection: FinalizationServiceFailureInjection? = nil,
+        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil
     ) throws {
         let root = generationRootURL.standardizedFileURL
         guard root.deletingLastPathComponent().lastPathComponent == "generations",
@@ -85,14 +113,29 @@ final class FinalizationService {
         self.signPack = signPack
         self.generationRootURL = root
         self.generationID = generationID
+        let capturedRootIdentity: ReportPDFAnchoredFile.RootIdentity
+        do {
+            let observedRootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+            guard expectedRootIdentity.map({ $0 == observedRootIdentity }) ?? true else {
+                throw FinalizationServiceError.invalidGeneration
+            }
+            capturedRootIdentity = expectedRootIdentity ?? observedRootIdentity
+            self.rootIdentity = capturedRootIdentity
+        } catch {
+            throw FinalizationServiceError.invalidGeneration
+        }
         self.intentStore = FinalizationIntentStore(
             generationRootURL: root,
-            failureInjection: intentStoreFailureInjection
+            failureInjection: intentStoreFailureInjection,
+            expectedGenerationRootIdentity: capturedRootIdentity
         )
         self.failureInjection = failureInjection
     }
 
     func finalize(_ input: FinalizationServiceInput) async throws -> FinalizationServiceOutcome {
+        guard !modelContext.hasChanges else {
+            throw FinalizationServiceError.preconditionFailed
+        }
         if let replay = try replayedFinalization(input) {
             return FinalizationServiceOutcome(
                 result: replay,
@@ -108,20 +151,28 @@ final class FinalizationService {
         let snapshotPromoted: PromotedFinalization
         let priorDraftState = DraftMutationState(input.draft)
         do {
+            try requireFrozenRootIdentity()
             prepared = try await intentStore.prepare(
                 intent: frozen.intent,
                 snapshot: frozen.encodedSnapshot
             )
+            try requireFrozenRootIdentity()
             promoted = try await intentStore.promoteSnapshot(prepared)
+            try requireFrozenRootIdentity()
             snapshotPromoted = try await intentStore.advance(
                 promoted,
                 to: .snapshotPromoted
             )
+            try requireFrozenRootIdentity()
         } catch {
             throw FinalizationServiceError.journalFailed
         }
 
+        var didBeginDatabaseMutation = false
         do {
+            guard !modelContext.hasChanges else {
+                throw FinalizationServiceError.preconditionFailed
+            }
             try validateFrozenInput(input)
             try validateEvidenceFiles(input.evidence)
             try validateDatabasePreconditions(input)
@@ -144,16 +195,21 @@ final class FinalizationService {
             guard currentEncodedSnapshot == frozen.encodedSnapshot else {
                 throw FinalizationServiceError.preconditionFailed
             }
+            didBeginDatabaseMutation = true
             applyDatabaseMutation(input, frozen: frozen)
             if failureInjection?.consume(.modelSave) == true {
                 throw FinalizationServiceError.saveFailed
             }
             try modelContext.save()
         } catch {
-            modelContext.rollback()
-            priorDraftState.restore(input.draft)
+            if didBeginDatabaseMutation {
+                modelContext.rollback()
+                priorDraftState.restore(input.draft)
+            }
             do {
+                try requireFrozenRootIdentity()
                 try await intentStore.rollbackUncommitted(snapshotPromoted)
+                try requireFrozenRootIdentity()
             } catch {
                 throw FinalizationServiceError.cleanupFailed
             }
@@ -165,11 +221,14 @@ final class FinalizationService {
 
         let committed: PromotedFinalization
         do {
+            try requireFrozenRootIdentity()
             committed = try await intentStore.advance(
                 snapshotPromoted,
                 to: .databaseCommitted
             )
+            try requireFrozenRootIdentity()
             try await intentStore.cleanupCommitted(committed)
+            try requireFrozenRootIdentity()
         } catch {
             throw FinalizationServiceError.cleanupFailed
         }
@@ -184,6 +243,114 @@ final class FinalizationService {
                 snapshotRelativePath: frozen.snapshotRelativePath,
                 snapshotSHA256: frozen.encodedSnapshot.sha256
             ),
+            createdAuthority: true
+        )
+    }
+
+    /// Atomically appends a note-only correction beneath the existing Packet.
+    /// The immediately prior record/report remain immutable; only the Packet's
+    /// current-record pointer advances before the pending replacement renders.
+    func finalizeCorrection(
+        _ input: ReportCorrectionFinalizationInput
+    ) async throws -> ReportCorrectionFinalizationOutcome {
+        guard !modelContext.hasChanges else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        if let replay = try replayedCorrection(input) {
+            return replay
+        }
+        let frozen = try freezeCorrection(input)
+
+        let prepared: PreparedFinalization
+        let promoted: PromotedFinalization
+        let snapshotPromoted: PromotedFinalization
+        do {
+            try requireFrozenRootIdentity()
+            prepared = try await intentStore.prepare(
+                intent: frozen.intent,
+                snapshot: frozen.encodedSnapshot
+            )
+            try requireFrozenRootIdentity()
+            promoted = try await intentStore.promoteSnapshot(prepared)
+            try requireFrozenRootIdentity()
+            snapshotPromoted = try await intentStore.advance(
+                promoted,
+                to: .snapshotPromoted
+            )
+            try requireFrozenRootIdentity()
+        } catch {
+            throw FinalizationServiceError.journalFailed
+        }
+
+        let packetCurrentBefore = input.packet.currentRecordID
+        var didBeginDatabaseMutation = false
+        do {
+            guard !modelContext.hasChanges else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            let current = try freezeCorrection(input)
+            let revalidatedSource = try ReportDeliveryCoordinator(
+                modelContext: modelContext,
+                generationRootURL: generationRootURL,
+                signPack: signPack,
+                expectedRootIdentity: rootIdentity
+            ).validatedReadyReport(id: input.currentReport.id)
+            guard current.intent == frozen.intent,
+                  current.encodedSnapshot == frozen.encodedSnapshot,
+                  revalidatedSource.snapshot == input.currentSnapshot,
+                  try anchoredSnapshotData(
+                    frozen.plan.reportInsert.snapshotRelativePath
+                  ) == frozen.encodedSnapshot.data else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            try validateCorrectionDatabasePreconditions(input, plan: frozen.plan)
+            didBeginDatabaseMutation = true
+            try applyCorrection(frozen.plan, packet: input.packet)
+            if failureInjection?.consume(.modelSave) == true {
+                throw FinalizationServiceError.saveFailed
+            }
+            try modelContext.save()
+        } catch {
+            if didBeginDatabaseMutation {
+                modelContext.rollback()
+                guard input.packet.currentRecordID == packetCurrentBefore else {
+                    throw FinalizationServiceError.saveFailed
+                }
+            }
+            do {
+                try requireFrozenRootIdentity()
+                try await intentStore.rollbackUncommitted(snapshotPromoted)
+                try requireFrozenRootIdentity()
+            } catch {
+                throw FinalizationServiceError.cleanupFailed
+            }
+            if error is FinalizationServiceError { throw error }
+            throw FinalizationServiceError.saveFailed
+        }
+
+        do {
+            try requireFrozenRootIdentity()
+            let committed = try await intentStore.advance(
+                snapshotPromoted,
+                to: .databaseCommitted
+            )
+            try requireFrozenRootIdentity()
+            try await intentStore.cleanupCommitted(committed)
+            try requireFrozenRootIdentity()
+        } catch {
+            throw FinalizationServiceError.committedRecoveryRequired(
+                reportID: frozen.plan.reportInsert.id
+            )
+        }
+
+        return ReportCorrectionFinalizationOutcome(
+            recordID: frozen.plan.recordAfter.id,
+            packetID: frozen.plan.packetAfter.id,
+            stableRootID: frozen.plan.packetAfter.stableRootID,
+            reportID: frozen.plan.reportInsert.id,
+            priorReportID: input.currentReport.id,
+            snapshotRelativePath: frozen.plan.reportInsert.snapshotRelativePath,
+            snapshotSHA256: frozen.plan.reportInsert.snapshotSHA256,
             createdAuthority: true
         )
     }
@@ -288,7 +455,7 @@ final class FinalizationService {
             makeSnapshot(input, issue: issue)
         )
         guard expectedSnapshot.sha256 == report.snapshotSHA256,
-              try readFinalSnapshot(report.snapshotRelativePath) == expectedSnapshot.data else {
+              try anchoredSnapshotData(report.snapshotRelativePath) == expectedSnapshot.data else {
             throw FinalizationServiceError.preconditionFailed
         }
         return FinalizationResult(
@@ -319,25 +486,406 @@ final class FinalizationService {
     }
 
     private func readFinalSnapshot(_ relativePath: String) throws -> Data {
+        try anchoredSnapshotData(relativePath)
+    }
+
+    private func anchoredSnapshotData(_ relativePath: String) throws -> Data {
         guard relativePath.hasPrefix("snapshots/"),
               relativePath.split(separator: "/").count == 2 else {
             throw FinalizationServiceError.preconditionFailed
         }
-        let snapshotsURL = generationRootURL.appendingPathComponent(
-            "snapshots",
-            isDirectory: true
-        )
-        let snapshotURL = generationRootURL.appendingPathComponent(relativePath)
-        guard try fileType(at: generationRootURL) == .typeDirectory,
-              try fileType(at: snapshotsURL) == .typeDirectory,
-              try fileType(at: snapshotURL) == .typeRegular else {
-            throw FinalizationServiceError.preconditionFailed
-        }
         do {
-            return try Data(contentsOf: snapshotURL, options: .mappedIfSafe)
+            return try ReportPDFAnchoredFile.readRegularFile(
+                at: generationRootURL.appendingPathComponent(relativePath),
+                within: generationRootURL,
+                rootIdentity: rootIdentity
+            )
         } catch {
             throw FinalizationServiceError.preconditionFailed
         }
+    }
+
+    private func requireFrozenRootIdentity() throws {
+        do {
+            guard try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
+                    == rootIdentity else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+        } catch {
+            throw FinalizationServiceError.preconditionFailed
+        }
+    }
+
+    private struct FrozenCorrection {
+        let encodedSnapshot: EncodedReportSnapshotV1
+        let intent: FinalizationIntentV1
+        let plan: ReportCorrectionRulePlan
+    }
+
+    private func freezeCorrection(
+        _ input: ReportCorrectionFinalizationInput,
+        packetCurrentRecordID: UUID? = nil
+    ) throws -> FrozenCorrection {
+        let packetValue = PacketPayloadV1(
+            id: input.packet.id,
+            schemaVersion: input.packet.schemaVersion,
+            stableRootID: input.packet.stableRootID,
+            currentRecordID: packetCurrentRecordID ?? input.packet.currentRecordID,
+            evaluationCounted: input.packet.evaluationCounted,
+            contentDeletedAt: input.packet.contentDeletedAt,
+            createdAt: input.packet.createdAt
+        )
+        let plan: ReportCorrectionRulePlan
+        do {
+            plan = try ReportCorrectionRule().makePlan(
+                source: ReportCorrectionRuleSource(
+                    currentRecord: recordPayload(input.currentRecord),
+                    packet: packetValue,
+                    currentReport: reportPayload(input.currentReport),
+                    currentSnapshot: input.currentSnapshot
+                ),
+                request: ReportCorrectionRuleRequest(
+                    note: input.note,
+                    snapshotCreatedAt: input.snapshotCreatedAt,
+                    sourceApp: input.sourceApp,
+                    identifiers: input.identifiers
+                )
+            )
+        } catch let error as ReportCorrectionRuleError {
+            switch error {
+            case .invalidAuthority:
+                throw FinalizationServiceError.preconditionFailed
+            case .invalidNote:
+                throw FinalizationServiceError.invalidSelection
+            }
+        }
+        let encodedSnapshot: EncodedReportSnapshotV1
+        do {
+            encodedSnapshot = try ReportSnapshotEncoderV1().encode(plan.snapshot)
+        } catch {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        guard encodedSnapshot.sha256 == plan.reportInsert.snapshotSHA256,
+              let completedAt = plan.recordAfter.completedAt else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let payload = FinalizationPayloadV1(
+            issueInsert: nil,
+            issueTransition: nil,
+            packetAfter: plan.packetAfter,
+            packetBefore: plan.packetBefore,
+            reportInsert: plan.reportInsert,
+            workflowRecordAfter: plan.recordAfter
+        )
+        let encodedPayload: EncodedFinalizationContractV1
+        do {
+            encodedPayload = try FinalizationContractEncoderV1().encodePayload(payload)
+        } catch {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let intent = FinalizationIntentV1(
+            completedAt: completedAt,
+            finalizationMutationID: input.identifiers.mutationID,
+            finalizationPayload: payload,
+            finalizationPayloadSHA256: encodedPayload.sha256,
+            generationID: generationID,
+            packetID: plan.packetAfter.id,
+            phase: .prepared,
+            recordID: plan.recordAfter.id,
+            reportID: plan.reportInsert.id,
+            schemaVersion: 1,
+            snapshotCreatedAt: plan.reportInsert.createdAt,
+            snapshotFinalRelativePath: plan.reportInsert.snapshotRelativePath,
+            snapshotSHA256: encodedSnapshot.sha256,
+            snapshotStagingRelativePath: ".staging/\(plan.reportInsert.snapshotRelativePath)",
+            stableRootID: plan.packetAfter.stableRootID
+        )
+        return FrozenCorrection(
+            encodedSnapshot: encodedSnapshot,
+            intent: intent,
+            plan: plan
+        )
+    }
+
+    private func replayedCorrection(
+        _ input: ReportCorrectionFinalizationInput
+    ) throws -> ReportCorrectionFinalizationOutcome? {
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>()).filter {
+            $0.finalizationMutationID == input.identifiers.mutationID
+        }
+        guard records.count <= 1 else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        guard let record = records.first else { return nil }
+        let frozen = try freezeCorrection(
+            input,
+            packetCurrentRecordID: input.currentRecord.id
+        )
+        let reports = try modelContext.fetch(FetchDescriptor<Report>()).filter {
+            $0.id == input.identifiers.reportID
+                || $0.sourceRecordID == record.id
+        }
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>()).filter {
+            $0.id == frozen.plan.packetAfter.id
+                || $0.stableRootID == frozen.plan.packetAfter.stableRootID
+        }
+        guard recordPayload(record) == frozen.plan.recordAfter,
+              reports.count == 1,
+              immutableReportPayload(reports[0], matches: frozen.plan.reportInsert),
+              validDeliveredState(reports[0]),
+              packets.count == 1,
+              packetPayload(packets[0]) == frozen.plan.packetAfter,
+                try anchoredSnapshotData(frozen.plan.reportInsert.snapshotRelativePath)
+                == frozen.encodedSnapshot.data else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        return ReportCorrectionFinalizationOutcome(
+            recordID: record.id,
+            packetID: packets[0].id,
+            stableRootID: packets[0].stableRootID,
+            reportID: reports[0].id,
+            priorReportID: input.currentReport.id,
+            snapshotRelativePath: reports[0].snapshotRelativePath,
+            snapshotSHA256: reports[0].snapshotSHA256,
+            createdAuthority: false
+        )
+    }
+
+    private func immutableReportPayload(
+        _ value: Report,
+        matches expected: ReportPayloadV1
+    ) -> Bool {
+        value.id == expected.id
+            && value.schemaVersion == expected.schemaVersion
+            && value.packetID == expected.packetID
+            && value.sourceRecordID == expected.sourceRecordID
+            && value.snapshotSchemaVersion == expected.snapshotSchemaVersion
+            && value.snapshotRelativePath == expected.snapshotRelativePath
+            && value.snapshotSHA256 == expected.snapshotSHA256
+            && value.createdAt == expected.createdAt
+            && value.replacesReportID == expected.replacesReportID
+    }
+
+    private func validDeliveredState(_ value: Report) -> Bool {
+        let path = "pdfs/\(value.id.uuidString.lowercased()).pdf"
+        switch ReportPDFState(rawValue: value.pdfState) {
+        case .pending, .failed:
+            return value.pdfRelativePath == nil && value.pdfSHA256 == nil
+        case .ready:
+            return value.pdfRelativePath == path
+                && value.pdfSHA256.map(isLowercaseSHA256) == true
+        case nil:
+            return false
+        }
+    }
+
+    private func validateCorrectionDatabasePreconditions(
+        _ input: ReportCorrectionFinalizationInput,
+        plan: ReportCorrectionRulePlan
+    ) throws {
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>())
+        let reports = try modelContext.fetch(FetchDescriptor<Report>())
+        let evidence = try modelContext.fetch(FetchDescriptor<EvidenceFile>())
+        let issues = try modelContext.fetch(FetchDescriptor<Issue>())
+        guard records.filter({ $0.id == input.currentRecord.id }).count == 1,
+              Set(records.map(\.id)).count == records.count,
+              records.filter({ $0.id == plan.recordAfter.id }).isEmpty,
+              records.filter({ $0.finalizationMutationID == input.identifiers.mutationID }).isEmpty,
+              packets.filter({ $0.id == input.packet.id }).count == 1,
+              packets.filter({ $0.stableRootID == input.packet.stableRootID }).count == 1,
+              reports.filter({ $0.id == input.currentReport.id }).count == 1,
+              reports.filter({ $0.id == plan.reportInsert.id }).isEmpty,
+              reports.filter({ $0.sourceRecordID == plan.recordAfter.id }).isEmpty,
+              reports.filter({ $0.replacesReportID == input.currentReport.id }).isEmpty,
+              records.filter({ $0.revisesRecordID == input.currentRecord.id }).isEmpty,
+              evidence.filter({ $0.recordID == plan.recordAfter.id }).isEmpty,
+              issues.filter({
+                $0.openedByRecordID == plan.recordAfter.id
+                    || $0.resolvedByRecordID == plan.recordAfter.id
+              }).isEmpty,
+              packetPayload(input.packet) == plan.packetBefore,
+              try validCompleteCorrectionChain(
+                currentRecord: input.currentRecord,
+                currentReport: input.currentReport,
+                packet: input.packet,
+                records: records,
+                reports: reports
+              ) else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+    }
+
+    private func validCompleteCorrectionChain(
+        currentRecord: WorkflowRecord,
+        currentReport: Report,
+        packet: Packet,
+        records: [WorkflowRecord],
+        reports: [Report]
+    ) throws -> Bool {
+        let packetReports = reports.filter { $0.packetID == packet.id }
+        guard packet.currentRecordID == currentRecord.id,
+              currentReport.sourceRecordID == currentRecord.id,
+              Set(records.map(\.id)).count == records.count,
+              Set(reports.map(\.id)).count == reports.count,
+              Set(reports.map(\.sourceRecordID)).count == reports.count,
+              packetReports.filter({ $0.sourceRecordID == currentRecord.id }).count == 1,
+              reports.filter({ $0.replacesReportID == currentReport.id }).isEmpty,
+              records.filter({ $0.revisesRecordID == currentRecord.id }).isEmpty,
+              Set(packetReports.map(\.id)).count == packetReports.count,
+              Set(packetReports.map(\.sourceRecordID)).count == packetReports.count else {
+            return false
+        }
+        var reportIDs = Set<UUID>()
+        var recordIDs = Set<UUID>()
+        var report: Report? = currentReport
+        var record: WorkflowRecord? = currentRecord
+        while let reportValue = report, let recordValue = record {
+            guard reportIDs.insert(reportValue.id).inserted,
+                  recordIDs.insert(recordValue.id).inserted,
+                  reportValue.sourceRecordID == recordValue.id,
+                  recordValue.packetID == packet.id else { return false }
+            switch WorkflowRevisionKind(rawValue: recordValue.revisionKind) {
+            case .original:
+                guard recordValue.revisesRecordID == nil,
+                      recordValue.evidenceSourceRecordID == nil,
+                      recordValue.recordRevisionRootID == recordValue.id,
+                      reportValue.replacesReportID == nil else { return false }
+                report = nil
+                record = nil
+            case .clericalCorrection:
+                guard let priorReportID = reportValue.replacesReportID,
+                      let priorRecordID = recordValue.revisesRecordID,
+                      recordValue.evidenceSourceRecordID != nil else { return false }
+                let priorReports = packetReports.filter { $0.id == priorReportID }
+                let priorRecords = records.filter { $0.id == priorRecordID }
+                guard priorReports.count == 1, priorRecords.count == 1,
+                      records.filter({ $0.revisesRecordID == priorRecordID }).count == 1,
+                      reports.filter({ $0.replacesReportID == priorReportID }).count == 1,
+                      priorReports[0].sourceRecordID == priorRecords[0].id,
+                      recordValue.recordRevisionRootID == priorRecords[0].recordRevisionRootID,
+                      recordValue.evidenceSourceRecordID
+                        == (priorRecords[0].evidenceSourceRecordID ?? priorRecords[0].id) else {
+                    return false
+                }
+                report = priorReports[0]
+                record = priorRecords[0]
+            case nil:
+                return false
+            }
+        }
+        return reportIDs.count == packetReports.count
+            && Set(records.filter { $0.packetID == packet.id }.map(\.id)) == recordIDs
+    }
+
+    private func applyCorrection(
+        _ plan: ReportCorrectionRulePlan,
+        packet: Packet
+    ) throws {
+        guard let revisionKind = WorkflowRevisionKind(rawValue: plan.recordAfter.revisionKind),
+              let stage = WorkflowStage(rawValue: plan.recordAfter.stage),
+              let state = WorkflowState(rawValue: plan.recordAfter.state),
+              let reportState = ReportPDFState(rawValue: plan.reportInsert.pdfState),
+              revisionKind == .clericalCorrection,
+              plan.recordAfter.revisesRecordID == plan.packetBefore.currentRecordID,
+              plan.recordAfter.evidenceSourceRecordID
+                == plan.recordAfter.recordRevisionRootID else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let value = plan.recordAfter
+        modelContext.insert(WorkflowRecord(
+            id: value.id,
+            assetID: value.assetID,
+            packetID: value.packetID,
+            issueID: value.issueID,
+            parentRecordID: value.parentRecordID,
+            recordRevisionRootID: value.recordRevisionRootID,
+            revisesRecordID: value.revisesRecordID,
+            evidenceSourceRecordID: value.evidenceSourceRecordID,
+            revisionKind: revisionKind,
+            stage: stage,
+            state: state,
+            draftStepKey: value.draftStepKey.flatMap(WorkflowDraftStep.init(rawValue:)),
+            startedAt: value.startedAt,
+            completedAt: value.completedAt,
+            observedAtUTC: value.observedAtUTC,
+            timeZoneID: value.timeZoneID,
+            utcOffsetMinutes: value.utcOffsetMinutes,
+            localDate: value.localDate,
+            localTime: value.localTime,
+            afterDarkAcknowledgementKey: value.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: value.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: value.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: value.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: value.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: value.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: value.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: value.safePositionAcknowledgementAccepted,
+            packID: value.packID,
+            packSchemaVersion: value.packSchemaVersion,
+            packContentVersion: value.packContentVersion,
+            pdfTemplateID: value.pdfTemplateID,
+            pdfTemplateVersion: value.pdfTemplateVersion,
+            outcomeKey: value.outcomeKey,
+            couldNotVerifyKey: value.couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: value.couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: value.couldNotVerifyRegistryVersion,
+            workPerformedLocalDate: value.workPerformedLocalDate,
+            workDescription: value.workDescription,
+            note: value.note,
+            finalizationMutationID: value.finalizationMutationID
+        ))
+        packet.currentRecordID = plan.packetAfter.currentRecordID
+        let report = plan.reportInsert
+        modelContext.insert(Report(
+            id: report.id,
+            packetID: report.packetID,
+            sourceRecordID: report.sourceRecordID,
+            snapshotSchemaVersion: report.snapshotSchemaVersion,
+            snapshotRelativePath: report.snapshotRelativePath,
+            snapshotSHA256: report.snapshotSHA256,
+            pdfState: reportState,
+            pdfRelativePath: report.pdfRelativePath,
+            pdfSHA256: report.pdfSHA256,
+            createdAt: report.createdAt,
+            replacesReportID: report.replacesReportID
+        ))
+    }
+
+    private func recordPayload(_ value: WorkflowRecord) -> WorkflowRecordPayloadV1 {
+        WorkflowRecordPayloadV1(
+            id: value.id, schemaVersion: value.schemaVersion,
+            assetID: value.assetID, packetID: value.packetID,
+            issueID: value.issueID, parentRecordID: value.parentRecordID,
+            recordRevisionRootID: value.recordRevisionRootID,
+            revisesRecordID: value.revisesRecordID,
+            evidenceSourceRecordID: value.evidenceSourceRecordID,
+            revisionKind: value.revisionKind, stage: value.stage,
+            state: value.state, draftStepKey: value.draftStepKey,
+            startedAt: value.startedAt, completedAt: value.completedAt,
+            observedAtUTC: value.observedAtUTC, timeZoneID: value.timeZoneID,
+            utcOffsetMinutes: value.utcOffsetMinutes,
+            localDate: value.localDate, localTime: value.localTime,
+            afterDarkAcknowledgementKey: value.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: value.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: value.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: value.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: value.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: value.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: value.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: value.safePositionAcknowledgementAccepted,
+            packID: value.packID, packSchemaVersion: value.packSchemaVersion,
+            packContentVersion: value.packContentVersion,
+            pdfTemplateID: value.pdfTemplateID,
+            pdfTemplateVersion: value.pdfTemplateVersion,
+            outcomeKey: value.outcomeKey,
+            couldNotVerifyKey: value.couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: value.couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: value.couldNotVerifyRegistryVersion,
+            workPerformedLocalDate: value.workPerformedLocalDate,
+            workDescription: value.workDescription, note: value.note,
+            finalizationMutationID: value.finalizationMutationID
+        )
     }
 
     private struct FrozenFinalization {

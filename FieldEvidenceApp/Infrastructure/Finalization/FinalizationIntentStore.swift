@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 
 struct PreparedFinalization: Equatable, Sendable {
@@ -63,9 +64,7 @@ final class FinalizationIntentStoreFailureInjection: @unchecked Sendable {
         lock.unlock()
     }
 
-    fileprivate func consume(
-        _ failurePoint: FinalizationIntentStoreFailurePoint
-    ) -> Bool {
+    fileprivate func consume(_ failurePoint: FinalizationIntentStoreFailurePoint) -> Bool {
         lock.lock()
         defer { lock.unlock() }
         guard pendingFailure == failurePoint else { return false }
@@ -74,55 +73,68 @@ final class FinalizationIntentStoreFailureInjection: @unchecked Sendable {
     }
 }
 
+/// Test-only synchronization at a verified authority boundary. Production
+/// callers leave this nil; it neither changes storage names nor product state.
+final class FinalizationIntentStoreAuthorityBarrier: @unchecked Sendable {
+    enum Boundary: Equatable, Sendable {
+        case authorityVerified
+        case beforeLeafMutation
+        case afterLeafMutation
+    }
+
+    private let handler: @Sendable (Boundary) -> Void
+
+    init(_ handler: @escaping @Sendable (Boundary) -> Void) {
+        self.handler = handler
+    }
+
+    fileprivate func reach(_ boundary: Boundary) {
+        handler(boundary)
+    }
+}
+
 actor FinalizationIntentStore {
-    private let generationRootURL: URL
-    private let fileManager: FileManager
+    private let authorityResult: Result<PinnedAuthority, FinalizationIntentStoreError>
     private let failureInjection: FinalizationIntentStoreFailureInjection?
+    private let authorityBarrier: FinalizationIntentStoreAuthorityBarrier?
 
     init(
         generationRootURL: URL,
         fileManager: FileManager = .default,
-        failureInjection: FinalizationIntentStoreFailureInjection? = nil
+        failureInjection: FinalizationIntentStoreFailureInjection? = nil,
+        expectedGenerationRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil,
+        authorityBarrier: FinalizationIntentStoreAuthorityBarrier? = nil
     ) {
-        self.generationRootURL = generationRootURL.standardizedFileURL
-        self.fileManager = fileManager
+        let root = generationRootURL.standardizedFileURL
         self.failureInjection = failureInjection
+        self.authorityBarrier = authorityBarrier
+        _ = fileManager // Kept only for source compatibility; never storage authority.
+        do {
+            authorityResult = .success(
+                try PinnedAuthority(
+                    generationRootURL: root,
+                    expectedGenerationRootIdentity: expectedGenerationRootIdentity
+                )
+            )
+        } catch let error as FinalizationIntentStoreError {
+            authorityResult = .failure(error)
+        } catch {
+            authorityResult = .failure(.generationRootInvalid)
+        }
     }
 
     func discoverRecoverableFinalizations() throws -> [RecoverableFinalization] {
-        let generationID = try validatedGenerationID()
-        let roots = try validatedRoots(generationID: generationID)
-        let rootType = try itemType(
-            at: roots.operationsRootURL.appendingPathComponent("finalization", isDirectory: true),
-            within: roots.applicationSupportURL
-        )
-        guard let rootType else { return [] }
-        guard rootType == .typeDirectory else {
-            throw FinalizationIntentStoreError.itemTypeInvalid
-        }
-        let root = roots.operationsRootURL.appendingPathComponent("finalization", isDirectory: true)
-        let names: [String]
-        do {
-            names = try fileManager.contentsOfDirectory(atPath: root.path).sorted()
-        } catch {
-            throw FinalizationIntentStoreError.fileOperationFailed
-        }
-        return try names.map { name in
+        let authority = try requireAuthority()
+        return try authority.enumeratedIntentNames().map { name in
             guard name.count == 41, name.hasSuffix(".json"),
                   let mutationID = UUID(uuidString: String(name.dropLast(5))),
                   mutationID.uuidString.lowercased() + ".json" == name else {
                 throw FinalizationIntentStoreError.intentInvalid
             }
-            let url = root.appendingPathComponent(name)
-            guard try itemType(at: url, within: roots.applicationSupportURL) == .typeRegular else {
-                throw FinalizationIntentStoreError.itemTypeInvalid
-            }
-            let data: Data
-            do {
-                data = try Data(contentsOf: url, options: .mappedIfSafe)
-            } catch {
-                throw FinalizationIntentStoreError.fileOperationFailed
-            }
+            let data = try authority.readRegularFile(
+                parent: authority.finalizationDescriptor,
+                name: name
+            ).data
             let intent: FinalizationIntentV1
             do {
                 intent = try FinalizationContractDecoderV1().decodeIntent(data)
@@ -130,20 +142,22 @@ actor FinalizationIntentStore {
                 throw FinalizationIntentStoreError.intentInvalid
             }
             guard intent.finalizationMutationID == mutationID,
-                  intent.generationID == generationID,
+                  intent.generationID == authority.generationID,
                   intent.schemaVersion == 1 else {
                 throw FinalizationIntentStoreError.intentInvalid
             }
-            let paths = try validatedPaths(for: intent, roots: roots)
-            let stage = try validatedSnapshotIfPresent(
-                at: paths.stagingSnapshotURL,
-                intent: intent
+            let paths = try validatedPaths(for: intent)
+            let staging = try validatedSnapshotIfPresent(
+                components: paths.stagingComponents,
+                intent: intent,
+                authority: authority
             )
             let final = try validatedSnapshotIfPresent(
-                at: paths.finalSnapshotURL,
-                intent: intent
+                components: paths.finalComponents,
+                intent: intent,
+                authority: authority
             )
-            if let stage, let final, stage.data != final.data {
+            if let staging, let final, staging.data != final.data {
                 throw FinalizationIntentStoreError.bytesMismatch
             }
             return RecoverableFinalization(
@@ -151,9 +165,9 @@ actor FinalizationIntentStore {
                 intentRelativePath: paths.intentRelativePath,
                 snapshotStagingRelativePath: intent.snapshotStagingRelativePath,
                 snapshotFinalRelativePath: intent.snapshotFinalRelativePath,
-                snapshotByteCount: (final ?? stage)?.data.count ?? 0,
-                snapshot: (final ?? stage)?.snapshot,
-                hasStagingSnapshot: stage != nil,
+                snapshotByteCount: (final ?? staging)?.data.count ?? 0,
+                snapshot: (final ?? staging)?.snapshot,
+                hasStagingSnapshot: staging != nil,
                 hasFinalSnapshot: final != nil
             )
         }
@@ -165,17 +179,18 @@ actor FinalizationIntentStore {
               !recovery.hasFinalSnapshot else {
             throw FinalizationIntentStoreError.phaseInvalid
         }
-        let prepared = PreparedFinalization(
-            intent: recovery.intent,
-            intentRelativePath: recovery.intentRelativePath,
-            snapshotStagingRelativePath: recovery.snapshotStagingRelativePath,
-            snapshotFinalRelativePath: recovery.snapshotFinalRelativePath,
-            snapshotByteCount: recovery.snapshotByteCount,
-            snapshotSHA256: recovery.intent.snapshotSHA256
+        let promoted = try promoteSnapshot(
+            PreparedFinalization(
+                intent: recovery.intent,
+                intentRelativePath: recovery.intentRelativePath,
+                snapshotStagingRelativePath: recovery.snapshotStagingRelativePath,
+                snapshotFinalRelativePath: recovery.snapshotFinalRelativePath,
+                snapshotByteCount: recovery.snapshotByteCount,
+                snapshotSHA256: recovery.intent.snapshotSHA256
+            )
         )
-        _ = try promoteSnapshot(prepared)
         return RecoverableFinalization(
-            intent: recovery.intent,
+            intent: promoted.intent,
             intentRelativePath: recovery.intentRelativePath,
             snapshotStagingRelativePath: recovery.snapshotStagingRelativePath,
             snapshotFinalRelativePath: recovery.snapshotFinalRelativePath,
@@ -192,14 +207,14 @@ actor FinalizationIntentStore {
         guard recovery.hasStagingSnapshot, recovery.hasFinalSnapshot else {
             throw FinalizationIntentStoreError.itemMissing
         }
-        let roots = try validatedRoots(generationID: recovery.intent.generationID)
-        let paths = try validatedPaths(for: recovery.intent, roots: roots)
-        try verifyRecovery(recovery, paths: paths, roots: roots)
+        let authority = try requireAuthority()
+        let paths = try validatedPaths(for: recovery.intent)
+        try verifyRecovery(recovery, paths: paths, authority: authority)
         try removeOwnedFileIfMatching(
-            at: paths.stagingSnapshotURL,
+            components: paths.stagingComponents,
             expectedByteCount: recovery.snapshotByteCount,
             expectedSHA256: recovery.intent.snapshotSHA256,
-            within: generationRootURL
+            authority: authority
         )
         return RecoverableFinalization(
             intent: recovery.intent,
@@ -220,15 +235,17 @@ actor FinalizationIntentStore {
         guard recovery.hasFinalSnapshot else {
             throw FinalizationIntentStoreError.itemMissing
         }
-        let promoted = PromotedFinalization(
-            intent: recovery.intent,
-            intentRelativePath: recovery.intentRelativePath,
-            snapshotStagingRelativePath: recovery.snapshotStagingRelativePath,
-            snapshotFinalRelativePath: recovery.snapshotFinalRelativePath,
-            snapshotByteCount: recovery.snapshotByteCount,
-            snapshotSHA256: recovery.intent.snapshotSHA256
+        let advanced = try advance(
+            PromotedFinalization(
+                intent: recovery.intent,
+                intentRelativePath: recovery.intentRelativePath,
+                snapshotStagingRelativePath: recovery.snapshotStagingRelativePath,
+                snapshotFinalRelativePath: recovery.snapshotFinalRelativePath,
+                snapshotByteCount: recovery.snapshotByteCount,
+                snapshotSHA256: recovery.intent.snapshotSHA256
+            ),
+            to: phase
         )
-        let advanced = try advance(promoted, to: phase)
         return RecoverableFinalization(
             intent: advanced.intent,
             intentRelativePath: recovery.intentRelativePath,
@@ -247,85 +264,104 @@ actor FinalizationIntentStore {
               !recovery.hasFinalSnapshot else {
             throw FinalizationIntentStoreError.phaseInvalid
         }
-        let roots = try validatedRoots(generationID: recovery.intent.generationID)
-        let paths = try validatedPaths(for: recovery.intent, roots: roots)
-        try verifyIntent(recovery.intent, at: paths.intentURL, roots: roots)
-        try removeIntentIfMatching(recovery.intent, at: paths.intentURL, roots: roots)
+        let authority = try requireAuthority()
+        let paths = try validatedPaths(for: recovery.intent)
+        try verifyIntent(recovery.intent, name: paths.intentName, authority: authority)
+        try removeIntentIfMatching(recovery.intent, name: paths.intentName, authority: authority)
     }
 
     func rollbackForRecovery(_ recovery: RecoverableFinalization) throws {
         guard recovery.hasFinalSnapshot else {
             throw FinalizationIntentStoreError.itemMissing
         }
-        let promoted = PromotedFinalization(
-            intent: recovery.intent,
-            intentRelativePath: recovery.intentRelativePath,
-            snapshotStagingRelativePath: recovery.snapshotStagingRelativePath,
-            snapshotFinalRelativePath: recovery.snapshotFinalRelativePath,
-            snapshotByteCount: recovery.snapshotByteCount,
-            snapshotSHA256: recovery.intent.snapshotSHA256
+        try rollbackUncommitted(
+            PromotedFinalization(
+                intent: recovery.intent,
+                intentRelativePath: recovery.intentRelativePath,
+                snapshotStagingRelativePath: recovery.snapshotStagingRelativePath,
+                snapshotFinalRelativePath: recovery.snapshotFinalRelativePath,
+                snapshotByteCount: recovery.snapshotByteCount,
+                snapshotSHA256: recovery.intent.snapshotSHA256
+            )
         )
-        try rollbackUncommitted(promoted)
     }
 
     func cleanupCommittedForRecovery(_ recovery: RecoverableFinalization) throws {
         guard recovery.hasFinalSnapshot else {
             throw FinalizationIntentStoreError.itemMissing
         }
-        let committed = PromotedFinalization(
-            intent: recovery.intent,
-            intentRelativePath: recovery.intentRelativePath,
-            snapshotStagingRelativePath: recovery.snapshotStagingRelativePath,
-            snapshotFinalRelativePath: recovery.snapshotFinalRelativePath,
-            snapshotByteCount: recovery.snapshotByteCount,
-            snapshotSHA256: recovery.intent.snapshotSHA256
+        try cleanupCommitted(
+            PromotedFinalization(
+                intent: recovery.intent,
+                intentRelativePath: recovery.intentRelativePath,
+                snapshotStagingRelativePath: recovery.snapshotStagingRelativePath,
+                snapshotFinalRelativePath: recovery.snapshotFinalRelativePath,
+                snapshotByteCount: recovery.snapshotByteCount,
+                snapshotSHA256: recovery.intent.snapshotSHA256
+            )
         )
-        try cleanupCommitted(committed)
     }
 
     func prepare(
         intent: FinalizationIntentV1,
         snapshot: EncodedReportSnapshotV1
     ) throws -> PreparedFinalization {
-        let roots = try validatedRoots(generationID: intent.generationID)
-        let paths = try validatedPaths(for: intent, roots: roots)
+        let authority = try requireAuthority()
+        guard intent.generationID == authority.generationID else {
+            throw FinalizationIntentStoreError.intentInvalid
+        }
+        let paths = try validatedPaths(for: intent)
         guard intent.phase == .prepared,
               intent.schemaVersion == 1,
               intent.snapshotSHA256 == snapshot.sha256,
               sha256(snapshot.data) == snapshot.sha256 else {
             throw FinalizationIntentStoreError.intentInvalid
         }
-        guard try itemType(at: paths.intentURL, within: roots.applicationSupportURL) == nil,
-              try itemType(at: paths.stagingSnapshotURL, within: generationRootURL) == nil,
-              try itemType(at: paths.finalSnapshotURL, within: generationRootURL) == nil else {
+        guard case nil = try authority.itemInfo(
+            parent: authority.finalizationDescriptor,
+            name: paths.intentName
+        ), case nil = try itemInfo(
+            components: paths.stagingComponents,
+            authority: authority
+        ), case nil = try itemInfo(
+            components: paths.finalComponents,
+            authority: authority
+        ) else {
             throw FinalizationIntentStoreError.itemAlreadyExists
         }
-
-        try ensureDirectory(paths.operationsRootURL, within: roots.applicationSupportURL)
-        try ensureDirectory(paths.finalizationRootURL, within: roots.applicationSupportURL)
-        try ensureDirectory(paths.stagingRootURL, within: generationRootURL)
-        try ensureDirectory(paths.stagingSnapshotsRootURL, within: generationRootURL)
+        try authority.ensureGenerationDirectory(components: [".staging", "snapshots"])
 
         do {
             guard failureInjection?.consume(.snapshotStagingWrite) != true else {
                 throw FinalizationIntentStoreError.fileOperationFailed
             }
-            try snapshot.data.write(to: paths.stagingSnapshotURL, options: .atomic)
+            try createRegularFile(
+                snapshot.data,
+                components: paths.stagingComponents,
+                authority: authority
+            )
             try verifyRegularFile(
-                at: paths.stagingSnapshotURL,
+                components: paths.stagingComponents,
                 expectedData: snapshot.data,
                 expectedSHA256: snapshot.sha256,
-                within: generationRootURL
+                authority: authority
             )
-            try writeAndVerifyIntent(intent, at: paths.intentURL, roots: roots)
+            try createAndVerifyIntent(intent, name: paths.intentName, authority: authority)
+            try authority.verify()
         } catch {
             try? removeOwnedFileIfMatching(
-                at: paths.stagingSnapshotURL,
+                components: paths.stagingComponents,
                 expectedByteCount: snapshot.data.count,
                 expectedSHA256: snapshot.sha256,
-                within: generationRootURL
+                authority: authority,
+                requireCurrentAuthority: false
             )
-            try? removeIntentIfMatching(intent, at: paths.intentURL, roots: roots)
+            try? removeIntentIfMatching(
+                intent,
+                name: paths.intentName,
+                authority: authority,
+                requireCurrentAuthority: false
+            )
             throw mapped(error)
         }
 
@@ -340,56 +376,68 @@ actor FinalizationIntentStore {
     }
 
     func promoteSnapshot(_ prepared: PreparedFinalization) throws -> PromotedFinalization {
-        let roots = try validatedRoots(generationID: prepared.intent.generationID)
-        let paths = try validatedPaths(for: prepared.intent, roots: roots)
-        try verifyHandle(prepared, paths: paths, roots: roots)
+        let authority = try requireAuthority()
+        let paths = try validatedPaths(for: prepared.intent)
+        try verifyHandle(prepared, paths: paths, authority: authority)
         guard prepared.intent.phase == .prepared else {
             throw FinalizationIntentStoreError.phaseInvalid
         }
-        guard try itemType(at: paths.finalSnapshotURL, within: generationRootURL) == nil else {
+        guard case nil = try itemInfo(
+            components: paths.finalComponents,
+            authority: authority
+        ) else {
             throw FinalizationIntentStoreError.itemAlreadyExists
         }
-        try ensureDirectory(paths.snapshotsRootURL, within: generationRootURL)
+        try authority.ensureGenerationDirectory(components: ["snapshots"])
 
-        var didPromote = false
-        do {
-            if failureInjection?.consume(.snapshotPromotionMove) == true {
-                // The prepared handle proves both files are this mutation's
-                // exact canonical bytes. An injected pre-move interruption is
-                // therefore retryable only after bounded removal of both.
-                try removeOwnedFileIfMatching(
-                    at: paths.stagingSnapshotURL,
-                    expectedByteCount: prepared.snapshotByteCount,
-                    expectedSHA256: prepared.snapshotSHA256,
-                    within: generationRootURL
-                )
-                try removeIntentIfMatching(
-                    prepared.intent,
-                    at: paths.intentURL,
-                    roots: roots
-                )
-                throw FinalizationIntentStoreError.fileOperationFailed
-            }
-            try fileManager.moveItem(
-                at: paths.stagingSnapshotURL,
-                to: paths.finalSnapshotURL
-            )
-            didPromote = true
-            try verifyRegularFile(
-                at: paths.finalSnapshotURL,
+        if failureInjection?.consume(.snapshotPromotionMove) == true {
+            try removeOwnedFileIfMatching(
+                components: paths.stagingComponents,
                 expectedByteCount: prepared.snapshotByteCount,
                 expectedSHA256: prepared.snapshotSHA256,
-                within: generationRootURL
+                authority: authority
             )
+            try removeIntentIfMatching(
+                prepared.intent,
+                name: paths.intentName,
+                authority: authority
+            )
+            throw FinalizationIntentStoreError.fileOperationFailed
+        }
+
+        do {
+            try beforeLeafMutation(authority)
+            try authority.promoteNoReplace(
+                sourceComponents: paths.stagingComponents,
+                destinationComponents: paths.finalComponents,
+                expectedByteCount: prepared.snapshotByteCount,
+                expectedSHA256: prepared.snapshotSHA256,
+                afterMutation: { [authorityBarrier] in
+                    authorityBarrier?.reach(.afterLeafMutation)
+                }
+            )
+            try authority.verify()
         } catch {
-            if didPromote {
-                try? removeOwnedFileIfMatching(
-                    at: paths.finalSnapshotURL,
-                    expectedByteCount: prepared.snapshotByteCount,
-                    expectedSHA256: prepared.snapshotSHA256,
-                    within: generationRootURL
-                )
-            }
+            try? removeOwnedFileIfMatching(
+                components: paths.finalComponents,
+                expectedByteCount: prepared.snapshotByteCount,
+                expectedSHA256: prepared.snapshotSHA256,
+                authority: authority,
+                requireCurrentAuthority: false
+            )
+            try? removeOwnedFileIfMatching(
+                components: paths.stagingComponents,
+                expectedByteCount: prepared.snapshotByteCount,
+                expectedSHA256: prepared.snapshotSHA256,
+                authority: authority,
+                requireCurrentAuthority: false
+            )
+            try? removeIntentIfMatching(
+                prepared.intent,
+                name: paths.intentName,
+                authority: authority,
+                requireCurrentAuthority: false
+            )
             throw mapped(error)
         }
 
@@ -407,9 +455,9 @@ actor FinalizationIntentStore {
         _ promoted: PromotedFinalization,
         to phase: FinalizationPhaseV1
     ) throws -> PromotedFinalization {
-        let roots = try validatedRoots(generationID: promoted.intent.generationID)
-        let paths = try validatedPaths(for: promoted.intent, roots: roots)
-        try verifyPromotedHandle(promoted, paths: paths, roots: roots)
+        let authority = try requireAuthority()
+        let paths = try validatedPaths(for: promoted.intent)
+        try verifyPromotedHandle(promoted, paths: paths, authority: authority)
         let expectedPhase: FinalizationPhaseV1
         switch promoted.intent.phase {
         case .prepared:
@@ -425,12 +473,45 @@ actor FinalizationIntentStore {
         let advanced = promoted.intent.withPhase(phase)
         if phase == .snapshotPromoted,
            failureInjection?.consume(.intentPhaseWrite(phase)) == true {
-            // The database has not been touched. Roll back only the exact
-            // promoted snapshot and prepared journal proven by this handle.
             try rollbackUncommitted(promoted)
             throw FinalizationIntentStoreError.fileOperationFailed
         }
-        try writeAndVerifyIntent(advanced, at: paths.intentURL, roots: roots)
+        do {
+            try replaceAndVerifyIntent(
+                promoted.intent,
+                with: advanced,
+                name: paths.intentName,
+                authority: authority
+            )
+        } catch {
+            if phase == .snapshotPromoted {
+                // No database mutation exists yet. Even if the canonical root
+                // or journal ancestry was persistently replaced after the
+                // leaf swap, retained descriptors still identify the exact
+                // mutation-owned snapshot and prepared journal to remove.
+                try removeOwnedFileIfMatching(
+                    components: paths.finalComponents,
+                    expectedByteCount: promoted.snapshotByteCount,
+                    expectedSHA256: promoted.snapshotSHA256,
+                    authority: authority,
+                    requireCurrentAuthority: false
+                )
+                try removeOwnedFileIfMatching(
+                    components: paths.stagingComponents,
+                    expectedByteCount: promoted.snapshotByteCount,
+                    expectedSHA256: promoted.snapshotSHA256,
+                    authority: authority,
+                    requireCurrentAuthority: false
+                )
+                try removeIntentIfMatching(
+                    promoted.intent,
+                    name: paths.intentName,
+                    authority: authority,
+                    requireCurrentAuthority: false
+                )
+            }
+            throw mapped(error)
+        }
         return PromotedFinalization(
             intent: advanced,
             intentRelativePath: promoted.intentRelativePath,
@@ -445,106 +526,80 @@ actor FinalizationIntentStore {
         guard committed.intent.phase == .databaseCommitted else {
             throw FinalizationIntentStoreError.phaseInvalid
         }
-        let roots = try validatedRoots(generationID: committed.intent.generationID)
-        let paths = try validatedPaths(for: committed.intent, roots: roots)
-        try verifyPromotedHandle(committed, paths: paths, roots: roots)
+        let authority = try requireAuthority()
+        let paths = try validatedPaths(for: committed.intent)
+        try verifyPromotedHandle(committed, paths: paths, authority: authority)
         try removeOwnedFileIfMatching(
-            at: paths.stagingSnapshotURL,
+            components: paths.stagingComponents,
             expectedByteCount: committed.snapshotByteCount,
             expectedSHA256: committed.snapshotSHA256,
-            within: generationRootURL
+            authority: authority
         )
-        try removeIntentIfMatching(committed.intent, at: paths.intentURL, roots: roots)
+        try removeIntentIfMatching(committed.intent, name: paths.intentName, authority: authority)
     }
 
     func rollbackUncommitted(_ promoted: PromotedFinalization) throws {
         guard promoted.intent.phase != .databaseCommitted else {
             throw FinalizationIntentStoreError.phaseInvalid
         }
-        let roots = try validatedRoots(generationID: promoted.intent.generationID)
-        let paths = try validatedPaths(for: promoted.intent, roots: roots)
-        try verifyIntent(promoted.intent, at: paths.intentURL, roots: roots)
+        let authority = try requireAuthority()
+        let paths = try validatedPaths(for: promoted.intent)
+        try verifyPromotedHandle(promoted, paths: paths, authority: authority)
         try removeOwnedFileIfMatching(
-            at: paths.finalSnapshotURL,
+            components: paths.finalComponents,
             expectedByteCount: promoted.snapshotByteCount,
             expectedSHA256: promoted.snapshotSHA256,
-            within: generationRootURL
+            authority: authority
         )
         try removeOwnedFileIfMatching(
-            at: paths.stagingSnapshotURL,
+            components: paths.stagingComponents,
             expectedByteCount: promoted.snapshotByteCount,
             expectedSHA256: promoted.snapshotSHA256,
-            within: generationRootURL
+            authority: authority
         )
-        try removeIntentIfMatching(promoted.intent, at: paths.intentURL, roots: roots)
-    }
-
-    private struct ValidatedRoots {
-        let applicationSupportURL: URL
-        let operationsRootURL: URL
+        try removeIntentIfMatching(promoted.intent, name: paths.intentName, authority: authority)
     }
 
     private struct Paths {
+        let intentName: String
         let intentRelativePath: String
-        let operationsRootURL: URL
-        let finalizationRootURL: URL
-        let intentURL: URL
-        let stagingRootURL: URL
-        let stagingSnapshotsRootURL: URL
-        let stagingSnapshotURL: URL
-        let snapshotsRootURL: URL
-        let finalSnapshotURL: URL
+        let stagingComponents: [String]
+        let finalComponents: [String]
     }
 
-    private func validatedRoots(generationID: UUID) throws -> ValidatedRoots {
-        guard try rawItemType(at: generationRootURL) == .typeDirectory else {
-            throw FinalizationIntentStoreError.generationRootInvalid
+    private func validatedPaths(for intent: FinalizationIntentV1) throws -> Paths {
+        let mutation = intent.finalizationMutationID.uuidString.lowercased()
+        let report = intent.reportID.uuidString.lowercased()
+        let expectedStaging = ".staging/snapshots/\(report).json"
+        let expectedFinal = "snapshots/\(report).json"
+        guard intent.snapshotStagingRelativePath == expectedStaging,
+              intent.snapshotFinalRelativePath == expectedFinal,
+              intent.finalizationPayloadSHA256.count == 64,
+              intent.snapshotSHA256.count == 64,
+              isLowercaseSHA256(intent.finalizationPayloadSHA256),
+              isLowercaseSHA256(intent.snapshotSHA256) else {
+            throw FinalizationIntentStoreError.intentInvalid
         }
-        let canonicalID = generationID.uuidString.lowercased()
-        guard generationRootURL.lastPathComponent == canonicalID,
-              generationRootURL.deletingLastPathComponent().lastPathComponent == "generations",
-              generationRootURL.deletingLastPathComponent()
-                .deletingLastPathComponent().lastPathComponent == "FieldEvidenceData" else {
-            throw FinalizationIntentStoreError.generationRootInvalid
-        }
-        let dataRootURL = generationRootURL.deletingLastPathComponent().deletingLastPathComponent()
-        let applicationSupportURL = dataRootURL.deletingLastPathComponent().standardizedFileURL
-        guard !applicationSupportURL.path.isEmpty,
-              try rawItemType(at: applicationSupportURL) == .typeDirectory,
-              isInside(generationRootURL, root: applicationSupportURL) else {
-            throw FinalizationIntentStoreError.generationRootInvalid
-        }
-        return ValidatedRoots(
-            applicationSupportURL: applicationSupportURL,
-            operationsRootURL: applicationSupportURL.appendingPathComponent(
-                "FieldEvidenceOperations",
-                isDirectory: true
-            )
+        return Paths(
+            intentName: "\(mutation).json",
+            intentRelativePath: "FieldEvidenceOperations/finalization/\(mutation).json",
+            stagingComponents: [".staging", "snapshots", "\(report).json"],
+            finalComponents: ["snapshots", "\(report).json"]
         )
     }
 
-    private func validatedGenerationID() throws -> UUID {
-        guard let value = UUID(uuidString: generationRootURL.lastPathComponent),
-              value.uuidString.lowercased() == generationRootURL.lastPathComponent else {
-            throw FinalizationIntentStoreError.generationRootInvalid
-        }
-        return value
-    }
-
     private func validatedSnapshotIfPresent(
-        at url: URL,
-        intent: FinalizationIntentV1
+        components: [String],
+        intent: FinalizationIntentV1,
+        authority: PinnedAuthority
     ) throws -> (data: Data, snapshot: ReportSnapshotV1)? {
-        guard let type = try itemType(at: url, within: generationRootURL) else { return nil }
-        guard type == .typeRegular else {
+        guard let info = try itemInfo(components: components, authority: authority) else {
+            return nil
+        }
+        guard PinnedAuthority.isRegular(info) else {
             throw FinalizationIntentStoreError.itemTypeInvalid
         }
-        let data: Data
-        do {
-            data = try Data(contentsOf: url, options: .mappedIfSafe)
-        } catch {
-            throw FinalizationIntentStoreError.fileOperationFailed
-        }
+        let data = try authority.readGenerationRegularFile(components: components).data
         guard sha256(data) == intent.snapshotSHA256 else {
             throw FinalizationIntentStoreError.bytesMismatch
         }
@@ -579,71 +634,36 @@ actor FinalizationIntentStore {
     private func verifyRecovery(
         _ recovery: RecoverableFinalization,
         paths: Paths,
-        roots: ValidatedRoots
+        authority: PinnedAuthority
     ) throws {
         guard recovery.intentRelativePath == paths.intentRelativePath,
               recovery.snapshotStagingRelativePath == recovery.intent.snapshotStagingRelativePath,
               recovery.snapshotFinalRelativePath == recovery.intent.snapshotFinalRelativePath else {
             throw FinalizationIntentStoreError.notOwned
         }
-        try verifyIntent(recovery.intent, at: paths.intentURL, roots: roots)
+        try verifyIntent(recovery.intent, name: paths.intentName, authority: authority)
         if recovery.hasStagingSnapshot {
             try verifyRegularFile(
-                at: paths.stagingSnapshotURL,
+                components: paths.stagingComponents,
                 expectedByteCount: recovery.snapshotByteCount,
                 expectedSHA256: recovery.intent.snapshotSHA256,
-                within: generationRootURL
+                authority: authority
             )
         }
         if recovery.hasFinalSnapshot {
             try verifyRegularFile(
-                at: paths.finalSnapshotURL,
+                components: paths.finalComponents,
                 expectedByteCount: recovery.snapshotByteCount,
                 expectedSHA256: recovery.intent.snapshotSHA256,
-                within: generationRootURL
+                authority: authority
             )
         }
-    }
-
-    private func validatedPaths(
-        for intent: FinalizationIntentV1,
-        roots: ValidatedRoots
-    ) throws -> Paths {
-        let mutation = intent.finalizationMutationID.uuidString.lowercased()
-        let report = intent.reportID.uuidString.lowercased()
-        let expectedStaging = ".staging/snapshots/\(report).json"
-        let expectedFinal = "snapshots/\(report).json"
-        guard intent.snapshotStagingRelativePath == expectedStaging,
-              intent.snapshotFinalRelativePath == expectedFinal,
-              intent.finalizationPayloadSHA256.count == 64,
-              intent.snapshotSHA256.count == 64,
-              isLowercaseSHA256(intent.finalizationPayloadSHA256),
-              isLowercaseSHA256(intent.snapshotSHA256) else {
-            throw FinalizationIntentStoreError.intentInvalid
-        }
-        let finalizationRoot = roots.operationsRootURL.appendingPathComponent(
-            "finalization",
-            isDirectory: true
-        )
-        return Paths(
-            intentRelativePath: "FieldEvidenceOperations/finalization/\(mutation).json",
-            operationsRootURL: roots.operationsRootURL,
-            finalizationRootURL: finalizationRoot,
-            intentURL: finalizationRoot.appendingPathComponent("\(mutation).json"),
-            stagingRootURL: generationRootURL.appendingPathComponent(".staging", isDirectory: true),
-            stagingSnapshotsRootURL: generationRootURL
-                .appendingPathComponent(".staging", isDirectory: true)
-                .appendingPathComponent("snapshots", isDirectory: true),
-            stagingSnapshotURL: generationRootURL.appendingPathComponent(expectedStaging),
-            snapshotsRootURL: generationRootURL.appendingPathComponent("snapshots", isDirectory: true),
-            finalSnapshotURL: generationRootURL.appendingPathComponent(expectedFinal)
-        )
     }
 
     private func verifyHandle(
         _ prepared: PreparedFinalization,
         paths: Paths,
-        roots: ValidatedRoots
+        authority: PinnedAuthority
     ) throws {
         guard prepared.intentRelativePath == paths.intentRelativePath,
               prepared.snapshotStagingRelativePath == prepared.intent.snapshotStagingRelativePath,
@@ -651,19 +671,19 @@ actor FinalizationIntentStore {
               prepared.snapshotSHA256 == prepared.intent.snapshotSHA256 else {
             throw FinalizationIntentStoreError.notOwned
         }
-        try verifyIntent(prepared.intent, at: paths.intentURL, roots: roots)
+        try verifyIntent(prepared.intent, name: paths.intentName, authority: authority)
         try verifyRegularFile(
-            at: paths.stagingSnapshotURL,
+            components: paths.stagingComponents,
             expectedByteCount: prepared.snapshotByteCount,
             expectedSHA256: prepared.snapshotSHA256,
-            within: generationRootURL
+            authority: authority
         )
     }
 
     private func verifyPromotedHandle(
         _ promoted: PromotedFinalization,
         paths: Paths,
-        roots: ValidatedRoots
+        authority: PinnedAuthority
     ) throws {
         guard promoted.intentRelativePath == paths.intentRelativePath,
               promoted.snapshotStagingRelativePath == promoted.intent.snapshotStagingRelativePath,
@@ -671,171 +691,204 @@ actor FinalizationIntentStore {
               promoted.snapshotSHA256 == promoted.intent.snapshotSHA256 else {
             throw FinalizationIntentStoreError.notOwned
         }
-        try verifyIntent(promoted.intent, at: paths.intentURL, roots: roots)
+        try verifyIntent(promoted.intent, name: paths.intentName, authority: authority)
         try verifyRegularFile(
-            at: paths.finalSnapshotURL,
+            components: paths.finalComponents,
             expectedByteCount: promoted.snapshotByteCount,
             expectedSHA256: promoted.snapshotSHA256,
-            within: generationRootURL
+            authority: authority
         )
     }
 
-    private func writeAndVerifyIntent(
+    private func createAndVerifyIntent(
         _ intent: FinalizationIntentV1,
-        at url: URL,
-        roots: ValidatedRoots
+        name: String,
+        authority: PinnedAuthority
     ) throws {
-        let encoded: EncodedFinalizationContractV1
-        do {
-            encoded = try FinalizationContractEncoderV1().encodeIntent(intent)
-        } catch {
-            throw FinalizationIntentStoreError.intentInvalid
-        }
+        let encoded = try encodedIntent(intent)
         guard failureInjection?.consume(.intentPhaseWrite(intent.phase)) != true else {
             throw FinalizationIntentStoreError.fileOperationFailed
         }
-        do {
-            try encoded.data.write(to: url, options: .atomic)
-        } catch {
+        try beforeLeafMutation(authority)
+        try authority.createRegularFile(
+            encoded.data,
+            parent: authority.finalizationDescriptor,
+            name: name
+        )
+        authorityBarrier?.reach(.afterLeafMutation)
+        try verifyIntent(intent, name: name, authority: authority)
+    }
+
+    private func replaceAndVerifyIntent(
+        _ previous: FinalizationIntentV1,
+        with next: FinalizationIntentV1,
+        name: String,
+        authority: PinnedAuthority
+    ) throws {
+        let old = try encodedIntent(previous)
+        let new = try encodedIntent(next)
+        guard failureInjection?.consume(.intentPhaseWrite(next.phase)) != true else {
             throw FinalizationIntentStoreError.fileOperationFailed
         }
-        try verifyRegularFile(
-            at: url,
-            expectedData: encoded.data,
-            expectedSHA256: encoded.sha256,
-            within: roots.applicationSupportURL
+        try beforeLeafMutation(authority)
+        try authority.replaceExactRegularFile(
+            parent: authority.finalizationDescriptor,
+            name: name,
+            expectedData: old.data,
+            replacementData: new.data,
+            afterMutation: { [authorityBarrier] in
+                authorityBarrier?.reach(.afterLeafMutation)
+            }
         )
+        try verifyIntent(next, name: name, authority: authority)
     }
 
     private func verifyIntent(
         _ intent: FinalizationIntentV1,
-        at url: URL,
-        roots: ValidatedRoots
+        name: String,
+        authority: PinnedAuthority
     ) throws {
-        let encoded: EncodedFinalizationContractV1
-        do {
-            encoded = try FinalizationContractEncoderV1().encodeIntent(intent)
-        } catch {
-            throw FinalizationIntentStoreError.intentInvalid
-        }
-        try verifyRegularFile(
-            at: url,
-            expectedData: encoded.data,
-            expectedSHA256: encoded.sha256,
-            within: roots.applicationSupportURL
-        )
-    }
-
-    private func removeIntentIfMatching(
-        _ intent: FinalizationIntentV1,
-        at url: URL,
-        roots: ValidatedRoots
-    ) throws {
-        guard try itemType(at: url, within: roots.applicationSupportURL) != nil else { return }
-        try verifyIntent(intent, at: url, roots: roots)
-        try removeFile(url)
-    }
-
-    private func removeOwnedFileIfMatching(
-        at url: URL,
-        expectedByteCount: Int,
-        expectedSHA256: String,
-        within root: URL
-    ) throws {
-        guard try itemType(at: url, within: root) != nil else { return }
-        try verifyRegularFile(
-            at: url,
-            expectedByteCount: expectedByteCount,
-            expectedSHA256: expectedSHA256,
-            within: root
-        )
-        try removeFile(url)
-    }
-
-    private func verifyRegularFile(
-        at url: URL,
-        expectedData: Data? = nil,
-        expectedByteCount: Int? = nil,
-        expectedSHA256: String,
-        within root: URL
-    ) throws {
-        guard try itemType(at: url, within: root) == .typeRegular else {
-            throw FinalizationIntentStoreError.itemTypeInvalid
-        }
-        let data: Data
-        do {
-            data = try Data(contentsOf: url, options: .mappedIfSafe)
-        } catch {
-            throw FinalizationIntentStoreError.fileOperationFailed
-        }
-        guard expectedData.map({ $0 == data }) ?? true,
-              expectedByteCount.map({ $0 == data.count }) ?? true,
-              sha256(data) == expectedSHA256 else {
+        let encoded = try encodedIntent(intent)
+        let read = try authority.readRegularFile(
+            parent: authority.finalizationDescriptor,
+            name: name
+        ).data
+        guard read == encoded.data, sha256(read) == encoded.sha256 else {
             throw FinalizationIntentStoreError.bytesMismatch
         }
     }
 
-    private func ensureDirectory(_ url: URL, within root: URL) throws {
-        switch try itemType(at: url, within: root) {
-        case nil:
-            do {
-                try fileManager.createDirectory(at: url, withIntermediateDirectories: false)
-            } catch {
-                throw FinalizationIntentStoreError.fileOperationFailed
-            }
-        case .some(.typeDirectory):
-            break
-        case .some:
+    private func removeIntentIfMatching(
+        _ intent: FinalizationIntentV1,
+        name: String,
+        authority: PinnedAuthority,
+        requireCurrentAuthority: Bool = true
+    ) throws {
+        guard let info = try authority.itemInfo(
+            parent: authority.finalizationDescriptor,
+            name: name
+        ) else { return }
+        guard PinnedAuthority.isRegular(info) else {
             throw FinalizationIntentStoreError.itemTypeInvalid
         }
+        let expected = try encodedIntent(intent).data
+        let file = try authority.readRegularFile(
+            parent: authority.finalizationDescriptor,
+            name: name
+        )
+        guard file.data == expected else {
+            throw FinalizationIntentStoreError.notOwned
+        }
+        if requireCurrentAuthority {
+            try beforeLeafMutation(authority)
+        }
+        try authority.quarantineAndRemove(
+            parent: authority.finalizationDescriptor,
+            name: name,
+            expectedIdentity: file.identity,
+            expectedData: expected,
+            verifyCurrentAuthority: requireCurrentAuthority
+        )
     }
 
-    private func itemType(at url: URL, within root: URL) throws -> FileAttributeType? {
-        guard isInside(url, root: root) else {
-            throw FinalizationIntentStoreError.unsafePath
-        }
-        guard try rawItemType(at: root) == .typeDirectory else {
-            throw FinalizationIntentStoreError.itemTypeInvalid
-        }
-        let relative = url.standardizedFileURL.path
-            .dropFirst(root.standardizedFileURL.path.count)
-            .split(separator: "/")
-        var current = root.standardizedFileURL
-        for (index, component) in relative.enumerated() {
-            current.appendPathComponent(String(component))
-            guard let type = try rawItemType(at: current) else { return nil }
-            if index == relative.count - 1 { return type }
-            guard type == .typeDirectory else {
+    private func removeOwnedFileIfMatching(
+        components: [String],
+        expectedByteCount: Int,
+        expectedSHA256: String,
+        authority: PinnedAuthority,
+        requireCurrentAuthority: Bool = true
+    ) throws {
+        try authority.withGenerationParent(components: components) { parent, name in
+            guard let info = try authority.itemInfo(parent: parent, name: name) else { return }
+            guard PinnedAuthority.isRegular(info) else {
                 throw FinalizationIntentStoreError.itemTypeInvalid
             }
+            let file = try authority.readRegularFile(parent: parent, name: name)
+            guard file.data.count == expectedByteCount,
+                  sha256(file.data) == expectedSHA256 else {
+                throw FinalizationIntentStoreError.notOwned
+            }
+            if requireCurrentAuthority {
+                try beforeLeafMutation(authority)
+            }
+            try authority.quarantineAndRemove(
+                parent: parent,
+                name: name,
+                expectedIdentity: file.identity,
+                expectedData: file.data,
+                verifyCurrentAuthority: requireCurrentAuthority
+            )
         }
-        return .typeDirectory
     }
 
-    private func rawItemType(at url: URL) throws -> FileAttributeType? {
+    private func verifyRegularFile(
+        components: [String],
+        expectedData: Data? = nil,
+        expectedByteCount: Int? = nil,
+        expectedSHA256: String,
+        authority: PinnedAuthority
+    ) throws {
+        let read = try authority.readGenerationRegularFile(components: components).data
+        guard expectedData.map({ $0 == read }) ?? true,
+              expectedByteCount.map({ $0 == read.count }) ?? true,
+              sha256(read) == expectedSHA256 else {
+            throw FinalizationIntentStoreError.bytesMismatch
+        }
+    }
+
+    private func createRegularFile(
+        _ data: Data,
+        components: [String],
+        authority: PinnedAuthority
+    ) throws {
+        try authority.withGenerationParent(components: components) { parent, name in
+            try beforeLeafMutation(authority)
+            try authority.createRegularFile(data, parent: parent, name: name)
+            authorityBarrier?.reach(.afterLeafMutation)
+        }
+    }
+
+    private func itemInfo(
+        components: [String],
+        authority: PinnedAuthority
+    ) throws -> stat? {
         do {
-            let attributes = try fileManager.attributesOfItem(atPath: url.path)
-            return attributes[.type] as? FileAttributeType
-        } catch let error as CocoaError where
-            error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile {
+            return try authority.withGenerationParent(components: components) { parent, name in
+                try authority.itemInfo(parent: parent, name: name)
+            }
+        } catch where errno == ENOENT {
             return nil
-        } catch {
-            throw FinalizationIntentStoreError.fileOperationFailed
         }
     }
 
-    private func removeFile(_ url: URL) throws {
+    private func encodedIntent(
+        _ intent: FinalizationIntentV1
+    ) throws -> EncodedFinalizationContractV1 {
         do {
-            try fileManager.removeItem(at: url)
+            return try FinalizationContractEncoderV1().encodeIntent(intent)
         } catch {
-            throw FinalizationIntentStoreError.fileOperationFailed
+            throw FinalizationIntentStoreError.intentInvalid
         }
     }
 
-    private func isInside(_ candidate: URL, root: URL) -> Bool {
-        let rootPath = root.standardizedFileURL.path
-        let candidatePath = candidate.standardizedFileURL.path
-        return candidatePath == rootPath || candidatePath.hasPrefix(rootPath + "/")
+    private func requireAuthority() throws -> PinnedAuthority {
+        let authority: PinnedAuthority
+        switch authorityResult {
+        case .success(let value):
+            authority = value
+        case .failure(let error):
+            throw error
+        }
+        try authority.verify()
+        authorityBarrier?.reach(.authorityVerified)
+        try authority.verify()
+        return authority
+    }
+
+    private func beforeLeafMutation(_ authority: PinnedAuthority) throws {
+        try authority.verify()
+        authorityBarrier?.reach(.beforeLeafMutation)
+        try authority.verify()
     }
 
     private func isLowercaseSHA256(_ value: String) -> Bool {
@@ -850,5 +903,767 @@ actor FinalizationIntentStore {
 
     private func mapped(_ error: Error) -> FinalizationIntentStoreError {
         (error as? FinalizationIntentStoreError) ?? .fileOperationFailed
+    }
+
+    private final class PinnedAuthority: @unchecked Sendable {
+        typealias Identity = ReportPDFAnchoredFile.RootIdentity
+
+        let generationID: UUID
+        let applicationSupportURL: URL
+        let generationName: String
+        let applicationSupportDescriptor: Int32
+        let generationDescriptor: Int32
+        let operationsDescriptor: Int32
+        let finalizationDescriptor: Int32
+        let stagingDescriptor: Int32
+        let stagingSnapshotsDescriptor: Int32
+        let snapshotsDescriptor: Int32
+
+        private let applicationSupportIdentity: Identity
+        private let generationIdentity: Identity
+        private let operationsIdentity: Identity
+        private let finalizationIdentity: Identity
+        private let stagingIdentity: Identity
+        private let stagingSnapshotsIdentity: Identity
+        private let snapshotsIdentity: Identity
+
+        init(
+            generationRootURL: URL,
+            expectedGenerationRootIdentity: Identity?
+        ) throws {
+            let root = generationRootURL.standardizedFileURL
+            let generations = root.deletingLastPathComponent()
+            let dataRoot = generations.deletingLastPathComponent()
+            let applicationSupport = dataRoot.deletingLastPathComponent().standardizedFileURL
+            guard generations.lastPathComponent == "generations",
+                  dataRoot.lastPathComponent == "FieldEvidenceData",
+                  let generationID = UUID(uuidString: root.lastPathComponent),
+                  generationID.uuidString.lowercased() == root.lastPathComponent,
+                  !applicationSupport.path.isEmpty else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+
+            var retained: [Int32] = []
+            var succeeded = false
+            defer {
+                if !succeeded {
+                    retained.forEach { _ = Darwin.close($0) }
+                }
+            }
+
+            let applicationSupportDescriptor = Darwin.open(
+                applicationSupport.path,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard applicationSupportDescriptor >= 0 else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+            retained.append(applicationSupportDescriptor)
+
+            let dataDescriptor = Darwin.openat(
+                applicationSupportDescriptor,
+                "FieldEvidenceData",
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard dataDescriptor >= 0 else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+            defer { _ = Darwin.close(dataDescriptor) }
+
+            let generationsDescriptor = Darwin.openat(
+                dataDescriptor,
+                "generations",
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard generationsDescriptor >= 0 else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+            defer { _ = Darwin.close(generationsDescriptor) }
+
+            let generationDescriptor = Darwin.openat(
+                generationsDescriptor,
+                root.lastPathComponent,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard generationDescriptor >= 0 else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+            retained.append(generationDescriptor)
+            let generationIdentity = try Self.directoryIdentity(generationDescriptor)
+            guard expectedGenerationRootIdentity.map({ $0 == generationIdentity }) ?? true else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+
+            // Reprove the live canonical generation before creating or opening
+            // any store-owned descendant through the retained descriptors.
+            try Self.requireCanonicalGeneration(
+                applicationSupportURL: applicationSupport,
+                applicationSupportIdentity: try Self.directoryIdentity(
+                    applicationSupportDescriptor
+                ),
+                generationName: root.lastPathComponent,
+                generationIdentity: generationIdentity
+            )
+
+            let operationsDescriptor = try Self.openOrCreateDirectory(
+                parent: applicationSupportDescriptor,
+                name: "FieldEvidenceOperations"
+            )
+            retained.append(operationsDescriptor)
+            let finalizationDescriptor = try Self.openOrCreateDirectory(
+                parent: operationsDescriptor,
+                name: "finalization"
+            )
+            retained.append(finalizationDescriptor)
+            let stagingDescriptor = try Self.openOrCreateDirectory(
+                parent: generationDescriptor,
+                name: ".staging"
+            )
+            retained.append(stagingDescriptor)
+            let stagingSnapshotsDescriptor = try Self.openOrCreateDirectory(
+                parent: stagingDescriptor,
+                name: "snapshots"
+            )
+            retained.append(stagingSnapshotsDescriptor)
+            let snapshotsDescriptor = try Self.openOrCreateDirectory(
+                parent: generationDescriptor,
+                name: "snapshots"
+            )
+            retained.append(snapshotsDescriptor)
+
+            let applicationSupportIdentity = try Self.directoryIdentity(
+                applicationSupportDescriptor
+            )
+            let operationsIdentity = try Self.directoryIdentity(operationsDescriptor)
+            let finalizationIdentity = try Self.directoryIdentity(finalizationDescriptor)
+            let stagingIdentity = try Self.directoryIdentity(stagingDescriptor)
+            let stagingSnapshotsIdentity = try Self.directoryIdentity(
+                stagingSnapshotsDescriptor
+            )
+            let snapshotsIdentity = try Self.directoryIdentity(snapshotsDescriptor)
+            try Self.requireCanonicalGeneration(
+                applicationSupportURL: applicationSupport,
+                applicationSupportIdentity: applicationSupportIdentity,
+                generationName: root.lastPathComponent,
+                generationIdentity: generationIdentity
+            )
+
+            self.generationID = generationID
+            self.applicationSupportURL = applicationSupport
+            self.generationName = root.lastPathComponent
+            self.applicationSupportDescriptor = applicationSupportDescriptor
+            self.generationDescriptor = generationDescriptor
+            self.operationsDescriptor = operationsDescriptor
+            self.finalizationDescriptor = finalizationDescriptor
+            self.stagingDescriptor = stagingDescriptor
+            self.stagingSnapshotsDescriptor = stagingSnapshotsDescriptor
+            self.snapshotsDescriptor = snapshotsDescriptor
+            self.applicationSupportIdentity = applicationSupportIdentity
+            self.generationIdentity = generationIdentity
+            self.operationsIdentity = operationsIdentity
+            self.finalizationIdentity = finalizationIdentity
+            self.stagingIdentity = stagingIdentity
+            self.stagingSnapshotsIdentity = stagingSnapshotsIdentity
+            self.snapshotsIdentity = snapshotsIdentity
+            succeeded = true
+        }
+
+        deinit {
+            _ = Darwin.close(snapshotsDescriptor)
+            _ = Darwin.close(stagingSnapshotsDescriptor)
+            _ = Darwin.close(stagingDescriptor)
+            _ = Darwin.close(finalizationDescriptor)
+            _ = Darwin.close(operationsDescriptor)
+            _ = Darwin.close(generationDescriptor)
+            _ = Darwin.close(applicationSupportDescriptor)
+        }
+
+        func verify() throws {
+            try Self.requireDirectory(
+                applicationSupportDescriptor,
+                identity: applicationSupportIdentity
+            )
+            try Self.requireDirectory(generationDescriptor, identity: generationIdentity)
+            try Self.requireDirectory(operationsDescriptor, identity: operationsIdentity)
+            try Self.requireDirectory(finalizationDescriptor, identity: finalizationIdentity)
+            try Self.requireDirectory(stagingDescriptor, identity: stagingIdentity)
+            try Self.requireDirectory(
+                stagingSnapshotsDescriptor,
+                identity: stagingSnapshotsIdentity
+            )
+            try Self.requireDirectory(snapshotsDescriptor, identity: snapshotsIdentity)
+
+            let currentApplicationSupport = Darwin.open(
+                applicationSupportURL.path,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard currentApplicationSupport >= 0 else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+            defer { _ = Darwin.close(currentApplicationSupport) }
+            try Self.requireDirectory(
+                currentApplicationSupport,
+                identity: applicationSupportIdentity
+            )
+
+            let data = try Self.openDirectory(
+                parent: currentApplicationSupport,
+                name: "FieldEvidenceData"
+            )
+            defer { _ = Darwin.close(data) }
+            let generations = try Self.openDirectory(parent: data, name: "generations")
+            defer { _ = Darwin.close(generations) }
+            let currentGeneration = try Self.openDirectory(
+                parent: generations,
+                name: generationName
+            )
+            defer { _ = Darwin.close(currentGeneration) }
+            try Self.requireDirectory(currentGeneration, identity: generationIdentity)
+            let currentStaging = try Self.openDirectory(
+                parent: currentGeneration,
+                name: ".staging"
+            )
+            defer { _ = Darwin.close(currentStaging) }
+            try Self.requireDirectory(currentStaging, identity: stagingIdentity)
+            let currentStagingSnapshots = try Self.openDirectory(
+                parent: currentStaging,
+                name: "snapshots"
+            )
+            defer { _ = Darwin.close(currentStagingSnapshots) }
+            try Self.requireDirectory(
+                currentStagingSnapshots,
+                identity: stagingSnapshotsIdentity
+            )
+            let currentSnapshots = try Self.openDirectory(
+                parent: currentGeneration,
+                name: "snapshots"
+            )
+            defer { _ = Darwin.close(currentSnapshots) }
+            try Self.requireDirectory(currentSnapshots, identity: snapshotsIdentity)
+
+            let currentOperations = try Self.openDirectory(
+                parent: currentApplicationSupport,
+                name: "FieldEvidenceOperations"
+            )
+            defer { _ = Darwin.close(currentOperations) }
+            try Self.requireDirectory(currentOperations, identity: operationsIdentity)
+            let currentFinalization = try Self.openDirectory(
+                parent: currentOperations,
+                name: "finalization"
+            )
+            defer { _ = Darwin.close(currentFinalization) }
+            try Self.requireDirectory(currentFinalization, identity: finalizationIdentity)
+        }
+
+        func enumeratedIntentNames() throws -> [String] {
+            let duplicate = Darwin.openat(
+                finalizationDescriptor,
+                ".",
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard duplicate >= 0, let directory = Darwin.fdopendir(duplicate) else {
+                if duplicate >= 0 { _ = Darwin.close(duplicate) }
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
+            defer { _ = Darwin.closedir(directory) }
+            var result: [String] = []
+            errno = 0
+            while let entry = Darwin.readdir(directory) {
+                var tuple = entry.pointee.d_name
+                let capacity = MemoryLayout.size(ofValue: tuple)
+                let name = withUnsafePointer(to: &tuple) { pointer in
+                    pointer.withMemoryRebound(
+                        to: CChar.self,
+                        capacity: capacity
+                    ) { String(cString: $0) }
+                }
+                if name != "." && name != ".." {
+                    result.append(name)
+                }
+                errno = 0
+            }
+            guard errno == 0 else {
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
+            return result.sorted()
+        }
+
+        func itemInfo(parent: Int32, name: String) throws -> stat? {
+            guard Self.validComponent(name) else {
+                throw FinalizationIntentStoreError.unsafePath
+            }
+            var info = stat()
+            if Darwin.fstatat(parent, name, &info, AT_SYMLINK_NOFOLLOW) == 0 {
+                return info
+            }
+            if errno == ENOENT { return nil }
+            throw FinalizationIntentStoreError.fileOperationFailed
+        }
+
+        func readGenerationRegularFile(
+            components: [String]
+        ) throws -> (data: Data, identity: Identity) {
+            try withGenerationParent(components: components) { parent, name in
+                try readRegularFile(parent: parent, name: name)
+            }
+        }
+
+        func readRegularFile(
+            parent: Int32,
+            name: String
+        ) throws -> (data: Data, identity: Identity) {
+            guard Self.validComponent(name) else {
+                throw FinalizationIntentStoreError.unsafePath
+            }
+            let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
+            guard descriptor >= 0 else {
+                if errno == ENOENT { throw FinalizationIntentStoreError.itemMissing }
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
+            defer { _ = Darwin.close(descriptor) }
+            var before = stat()
+            guard Darwin.fstat(descriptor, &before) == 0, Self.isRegular(before) else {
+                throw FinalizationIntentStoreError.itemTypeInvalid
+            }
+            let identity = Identity(device: before.st_dev, inode: before.st_ino)
+            var data = Data()
+            var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+            while true {
+                let count = buffer.withUnsafeMutableBytes { raw in
+                    Darwin.read(descriptor, raw.baseAddress, raw.count)
+                }
+                if count > 0 {
+                    data.append(contentsOf: buffer.prefix(count))
+                } else if count == 0 {
+                    break
+                } else if errno != EINTR {
+                    throw FinalizationIntentStoreError.fileOperationFailed
+                }
+            }
+            var after = stat()
+            guard Darwin.fstat(descriptor, &after) == 0,
+                  Self.isRegular(after),
+                  Identity(device: after.st_dev, inode: after.st_ino) == identity,
+                  before.st_size == after.st_size,
+                  data.count == Int(after.st_size) else {
+                throw FinalizationIntentStoreError.bytesMismatch
+            }
+            return (data, identity)
+        }
+
+        func ensureGenerationDirectory(components: [String]) throws {
+            switch components {
+            case [".staging", "snapshots"]:
+                try Self.requireDirectory(stagingDescriptor, identity: stagingIdentity)
+                try Self.requireDirectory(
+                    stagingSnapshotsDescriptor,
+                    identity: stagingSnapshotsIdentity
+                )
+            case ["snapshots"]:
+                try Self.requireDirectory(snapshotsDescriptor, identity: snapshotsIdentity)
+            default:
+                throw FinalizationIntentStoreError.unsafePath
+            }
+            try verify()
+        }
+
+        func withGenerationParent<T>(
+            components: [String],
+            _ body: (Int32, String) throws -> T
+        ) throws -> T {
+            guard !components.isEmpty, components.allSatisfy(Self.validComponent),
+                  let name = components.last else {
+                throw FinalizationIntentStoreError.unsafePath
+            }
+            let parent: Int32
+            switch Array(components.dropLast()) {
+            case [".staging", "snapshots"]:
+                parent = stagingSnapshotsDescriptor
+            case ["snapshots"]:
+                parent = snapshotsDescriptor
+            default:
+                throw FinalizationIntentStoreError.unsafePath
+            }
+            return try body(parent, name)
+        }
+
+        func createRegularFile(_ data: Data, parent: Int32, name: String) throws {
+            guard Self.validComponent(name) else {
+                throw FinalizationIntentStoreError.unsafePath
+            }
+            let descriptor = Darwin.openat(
+                parent,
+                name,
+                O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
+                mode_t(0o600)
+            )
+            guard descriptor >= 0 else {
+                if errno == EEXIST { throw FinalizationIntentStoreError.itemAlreadyExists }
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
+            let identity: Identity
+            do {
+                identity = try Self.regularIdentity(descriptor)
+            } catch {
+                _ = Darwin.close(descriptor)
+                throw error
+            }
+            var descriptorIsOpen = true
+            do {
+                try data.withUnsafeBytes { raw in
+                    guard let base = raw.baseAddress else { return }
+                    var offset = 0
+                    while offset < raw.count {
+                        let written = Darwin.write(
+                            descriptor,
+                            base.advanced(by: offset),
+                            raw.count - offset
+                        )
+                        if written > 0 {
+                            offset += written
+                        } else if written < 0, errno == EINTR {
+                            continue
+                        } else {
+                            throw FinalizationIntentStoreError.fileOperationFailed
+                        }
+                    }
+                }
+                guard Darwin.fsync(descriptor) == 0 else {
+                    throw FinalizationIntentStoreError.fileOperationFailed
+                }
+                let closeResult = Darwin.close(descriptor)
+                descriptorIsOpen = false
+                guard closeResult == 0, Darwin.fsync(parent) == 0 else {
+                    throw FinalizationIntentStoreError.fileOperationFailed
+                }
+            } catch {
+                if descriptorIsOpen {
+                    _ = Darwin.close(descriptor)
+                }
+                try? quarantineAndRemove(
+                    parent: parent,
+                    name: name,
+                    expectedIdentity: identity,
+                    expectedData: nil,
+                    verifyCurrentAuthority: false
+                )
+                throw error
+            }
+        }
+
+        func replaceExactRegularFile(
+            parent: Int32,
+            name: String,
+            expectedData: Data,
+            replacementData: Data,
+            afterMutation: () -> Void
+        ) throws {
+            let original = try readRegularFile(parent: parent, name: name)
+            guard original.data == expectedData else {
+                throw FinalizationIntentStoreError.notOwned
+            }
+            let temporary = ".replace-\(UUID().uuidString.lowercased())"
+            try createRegularFile(replacementData, parent: parent, name: temporary)
+            let replacement = try readRegularFile(parent: parent, name: temporary)
+            var swapped = false
+            do {
+                guard Darwin.renameatx_np(
+                    parent,
+                    temporary,
+                    parent,
+                    name,
+                    UInt32(RENAME_SWAP)
+                ) == 0 else {
+                    throw FinalizationIntentStoreError.fileOperationFailed
+                }
+                swapped = true
+                guard Darwin.fsync(parent) == 0 else {
+                    throw FinalizationIntentStoreError.fileOperationFailed
+                }
+                afterMutation()
+                let current = try readRegularFile(parent: parent, name: name)
+                let displaced = try readRegularFile(parent: parent, name: temporary)
+                guard current.identity == replacement.identity,
+                      current.data == replacementData,
+                      displaced.identity == original.identity,
+                      displaced.data == expectedData else {
+                    throw FinalizationIntentStoreError.notOwned
+                }
+                try verify()
+                try quarantineAndRemove(
+                    parent: parent,
+                    name: temporary,
+                    expectedIdentity: original.identity,
+                    expectedData: expectedData,
+                    verifyCurrentAuthority: false
+                )
+            } catch {
+                if swapped,
+                   let current = try? readRegularFile(parent: parent, name: name),
+                   current.identity == replacement.identity {
+                    _ = Darwin.renameatx_np(
+                        parent,
+                        temporary,
+                        parent,
+                        name,
+                        UInt32(RENAME_SWAP)
+                    )
+                    _ = Darwin.fsync(parent)
+                }
+                if let temporaryFile = try? readRegularFile(parent: parent, name: temporary),
+                   temporaryFile.identity == replacement.identity {
+                    try? quarantineAndRemove(
+                        parent: parent,
+                        name: temporary,
+                        expectedIdentity: replacement.identity,
+                        expectedData: replacementData,
+                        verifyCurrentAuthority: false
+                    )
+                }
+                throw error
+            }
+        }
+
+        func promoteNoReplace(
+            sourceComponents: [String],
+            destinationComponents: [String],
+            expectedByteCount: Int,
+            expectedSHA256: String,
+            afterMutation: () -> Void
+        ) throws {
+            try withGenerationParent(components: sourceComponents) { sourceParent, sourceName in
+                try withGenerationParent(
+                    components: destinationComponents
+                ) { destinationParent, destinationName in
+                    let source = try readRegularFile(parent: sourceParent, name: sourceName)
+                    guard source.data.count == expectedByteCount,
+                          Self.sha256(source.data) == expectedSHA256 else {
+                        throw FinalizationIntentStoreError.notOwned
+                    }
+                    guard case nil = try itemInfo(
+                        parent: destinationParent,
+                        name: destinationName
+                    ) else {
+                        throw FinalizationIntentStoreError.itemAlreadyExists
+                    }
+                    guard Darwin.renameatx_np(
+                        sourceParent,
+                        sourceName,
+                        destinationParent,
+                        destinationName,
+                        UInt32(RENAME_EXCL)
+                    ) == 0 else {
+                        throw FinalizationIntentStoreError.fileOperationFailed
+                    }
+                    do {
+                        guard Darwin.fsync(sourceParent) == 0,
+                              Darwin.fsync(destinationParent) == 0 else {
+                            throw FinalizationIntentStoreError.fileOperationFailed
+                        }
+                        afterMutation()
+                        let destination = try readRegularFile(
+                            parent: destinationParent,
+                            name: destinationName
+                        )
+                        guard destination.identity == source.identity,
+                              destination.data == source.data else {
+                            throw FinalizationIntentStoreError.notOwned
+                        }
+                        try verify()
+                    } catch {
+                        if let destination = try? readRegularFile(
+                            parent: destinationParent,
+                            name: destinationName
+                        ), destination.identity == source.identity,
+                           isMissing(parent: sourceParent, name: sourceName) {
+                            _ = Darwin.renameatx_np(
+                                destinationParent,
+                                destinationName,
+                                sourceParent,
+                                sourceName,
+                                UInt32(RENAME_EXCL)
+                            )
+                            _ = Darwin.fsync(destinationParent)
+                            _ = Darwin.fsync(sourceParent)
+                        }
+                        throw error
+                    }
+                }
+            }
+        }
+
+        func quarantineAndRemove(
+            parent: Int32,
+            name: String,
+            expectedIdentity: Identity,
+            expectedData: Data?,
+            verifyCurrentAuthority: Bool = true
+        ) throws {
+            let current = try readRegularFile(parent: parent, name: name)
+            guard current.identity == expectedIdentity,
+                  expectedData.map({ $0 == current.data }) ?? true else {
+                throw FinalizationIntentStoreError.notOwned
+            }
+            let quarantine = ".remove-\(UUID().uuidString.lowercased())"
+            guard Darwin.renameatx_np(
+                parent,
+                name,
+                parent,
+                quarantine,
+                UInt32(RENAME_EXCL)
+            ) == 0 else {
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
+            let moved: (data: Data, identity: Identity)
+            do {
+                moved = try readRegularFile(parent: parent, name: quarantine)
+                guard moved.identity == expectedIdentity,
+                      expectedData.map({ $0 == moved.data }) ?? true else {
+                    throw FinalizationIntentStoreError.notOwned
+                }
+                if verifyCurrentAuthority {
+                    try verify()
+                }
+            } catch {
+                _ = Darwin.renameatx_np(
+                    parent,
+                    quarantine,
+                    parent,
+                    name,
+                    UInt32(RENAME_EXCL)
+                )
+                throw error
+            }
+            guard Darwin.unlinkat(parent, quarantine, 0) == 0,
+                  Darwin.fsync(parent) == 0 else {
+                _ = Darwin.renameatx_np(
+                    parent,
+                    quarantine,
+                    parent,
+                    name,
+                    UInt32(RENAME_EXCL)
+                )
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
+            var after = stat()
+            guard Darwin.fstatat(
+                parent,
+                quarantine,
+                &after,
+                AT_SYMLINK_NOFOLLOW
+            ) == -1, errno == ENOENT else {
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
+        }
+
+        static func isRegular(_ info: stat) -> Bool {
+            (info.st_mode & S_IFMT) == S_IFREG
+        }
+
+        private static func isDirectory(_ info: stat) -> Bool {
+            (info.st_mode & S_IFMT) == S_IFDIR
+        }
+
+        private static func validComponent(_ value: String) -> Bool {
+            !value.isEmpty && value != "." && value != ".." && !value.contains("/")
+        }
+
+        private static func directoryIdentity(_ descriptor: Int32) throws -> Identity {
+            var info = stat()
+            guard Darwin.fstat(descriptor, &info) == 0, isDirectory(info) else {
+                throw FinalizationIntentStoreError.itemTypeInvalid
+            }
+            return Identity(device: info.st_dev, inode: info.st_ino)
+        }
+
+        private static func regularIdentity(_ descriptor: Int32) throws -> Identity {
+            var info = stat()
+            guard Darwin.fstat(descriptor, &info) == 0, isRegular(info) else {
+                throw FinalizationIntentStoreError.itemTypeInvalid
+            }
+            return Identity(device: info.st_dev, inode: info.st_ino)
+        }
+
+        private static func requireDirectory(
+            _ descriptor: Int32,
+            identity: Identity
+        ) throws {
+            guard try directoryIdentity(descriptor) == identity else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+        }
+
+        private static func requireCanonicalGeneration(
+            applicationSupportURL: URL,
+            applicationSupportIdentity: Identity,
+            generationName: String,
+            generationIdentity: Identity
+        ) throws {
+            let applicationSupport = Darwin.open(
+                applicationSupportURL.path,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard applicationSupport >= 0 else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+            defer { _ = Darwin.close(applicationSupport) }
+            try requireDirectory(applicationSupport, identity: applicationSupportIdentity)
+            let data = try openDirectory(parent: applicationSupport, name: "FieldEvidenceData")
+            defer { _ = Darwin.close(data) }
+            let generations = try openDirectory(parent: data, name: "generations")
+            defer { _ = Darwin.close(generations) }
+            let generation = try openDirectory(parent: generations, name: generationName)
+            defer { _ = Darwin.close(generation) }
+            try requireDirectory(generation, identity: generationIdentity)
+        }
+
+        private static func openDirectory(parent: Int32, name: String) throws -> Int32 {
+            guard validComponent(name) else {
+                throw FinalizationIntentStoreError.unsafePath
+            }
+            let descriptor = Darwin.openat(
+                parent,
+                name,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard descriptor >= 0 else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+            return descriptor
+        }
+
+        private static func openOrCreateDirectory(parent: Int32, name: String) throws -> Int32 {
+            do {
+                return try openDirectory(parent: parent, name: name)
+            } catch {
+                guard errno == ENOENT else {
+                    throw FinalizationIntentStoreError.generationRootInvalid
+                }
+                let creationResult = Darwin.mkdirat(parent, name, mode_t(0o700))
+                if creationResult == 0 {
+                    guard Darwin.fsync(parent) == 0 else {
+                        throw FinalizationIntentStoreError.generationRootInvalid
+                    }
+                } else if errno != EEXIST {
+                    throw FinalizationIntentStoreError.generationRootInvalid
+                }
+                return try openDirectory(parent: parent, name: name)
+            }
+        }
+
+        private static func sha256(_ data: Data) -> String {
+            SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        }
+
+        private func isMissing(parent: Int32, name: String) -> Bool {
+            do {
+                if case nil = try itemInfo(parent: parent, name: name) {
+                    return true
+                }
+                return false
+            } catch {
+                return false
+            }
+        }
     }
 }

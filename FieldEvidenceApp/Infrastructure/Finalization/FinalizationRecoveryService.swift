@@ -14,19 +14,32 @@ enum FinalizationRecoveryServiceError: Error, Equatable {
 final class FinalizationRecoveryService {
     private let modelContext: ModelContext
     private let store: FinalizationIntentStore
+    private let generationRootURL: URL
+    private let rootIdentity: ReportPDFAnchoredFile.RootIdentity?
 
     init(modelContext: ModelContext, generationRootURL: URL) {
         self.modelContext = modelContext
-        self.store = FinalizationIntentStore(generationRootURL: generationRootURL)
+        self.generationRootURL = generationRootURL.standardizedFileURL
+        let capturedRootIdentity = try? ReportPDFAnchoredFile.rootIdentity(
+            at: generationRootURL.standardizedFileURL
+        )
+        self.rootIdentity = capturedRootIdentity
+        self.store = FinalizationIntentStore(
+            generationRootURL: generationRootURL,
+            expectedGenerationRootIdentity: capturedRootIdentity
+        )
     }
 
     func reconcile() async throws -> FinalizationRecoverySummary {
+        try requireCleanContext()
         let recoveries: [RecoverableFinalization]
         do {
+            try requireCleanContext()
             recoveries = try await store.discoverRecoverableFinalizations()
         } catch {
             throw FinalizationRecoveryServiceError.inconsistent
         }
+        try requireCleanContext()
         try validateRecoverySet(recoveries)
         var draftIDs: [UUID] = []
         var completedIDs: [UUID] = []
@@ -36,6 +49,7 @@ final class FinalizationRecoveryService {
                 switch result {
                 case .draft(let id): draftIDs.append(id)
                 case .completed(let id): completedIDs.append(id)
+                case .abandoned: break
                 }
             } catch {
                 throw FinalizationRecoveryServiceError.inconsistent
@@ -50,6 +64,7 @@ final class FinalizationRecoveryService {
     private enum Result {
         case draft(UUID)
         case completed(UUID)
+        case abandoned
     }
 
     private enum DatabaseState: Equatable {
@@ -110,6 +125,7 @@ final class FinalizationRecoveryService {
     }
 
     private func reconcile(_ initial: RecoverableFinalization) async throws -> Result {
+        try requireCleanContext()
         try validateContract(initial.intent)
         if let snapshot = initial.snapshot {
             try validateSnapshotAuthority(snapshot, payload: initial.intent.finalizationPayload)
@@ -121,20 +137,30 @@ final class FinalizationRecoveryService {
         case .prepared:
             switch (recovery.hasStagingSnapshot, recovery.hasFinalSnapshot) {
             case (true, false):
+                try requireCleanContext()
                 recovery = try await store.promoteForRecovery(recovery)
+                try requireCleanContext()
             case (false, true):
                 break
             case (true, true):
+                try requireCleanContext()
                 recovery = try await store.removeIdenticalStagingForRecovery(recovery)
+                try requireCleanContext()
             case (false, false):
                 let state = databaseState(for: recovery.intent)
                 guard state == .absent || state == .preconditionFailed else {
                     throw FinalizationRecoveryServiceError.inconsistent
                 }
+                try requireCleanContext()
                 try await store.abandonPreparedWithoutSnapshots(recovery)
-                return .draft(recovery.intent.recordID)
+                try requireCleanContext()
+                return recovery.intent.finalizationPayload.packetBefore == nil
+                    ? .draft(recovery.intent.recordID)
+                    : .abandoned
             }
+            try requireCleanContext()
             recovery = try await store.advanceForRecovery(recovery, to: .snapshotPromoted)
+            try requireCleanContext()
             return try await reconcileSnapshotPromoted(recovery)
 
         case .snapshotPromoted:
@@ -145,12 +171,16 @@ final class FinalizationRecoveryService {
                 throw FinalizationRecoveryServiceError.inconsistent
             }
             if recovery.hasStagingSnapshot {
+                try requireCleanContext()
                 recovery = try await store.removeIdenticalStagingForRecovery(recovery)
+                try requireCleanContext()
             }
             guard databaseState(for: recovery.intent) == .matching else {
                 throw FinalizationRecoveryServiceError.inconsistent
             }
+            try requireCleanContext()
             try await store.cleanupCommittedForRecovery(recovery)
+            try requireCleanContext()
             return .completed(recovery.intent.recordID)
         }
     }
@@ -158,19 +188,26 @@ final class FinalizationRecoveryService {
     private func reconcileSnapshotPromoted(
         _ initial: RecoverableFinalization
     ) async throws -> Result {
+        try requireCleanContext()
         guard initial.hasFinalSnapshot else {
             throw FinalizationRecoveryServiceError.inconsistent
         }
         var recovery = initial
         if recovery.hasStagingSnapshot {
+            try requireCleanContext()
             recovery = try await store.removeIdenticalStagingForRecovery(recovery)
+            try requireCleanContext()
         }
         switch databaseState(for: recovery.intent) {
         case .matching:
+            try requireCleanContext()
             let committed = try await store.advanceForRecovery(recovery, to: .databaseCommitted)
+            try requireCleanContext()
             try await store.cleanupCommittedForRecovery(committed)
+            try requireCleanContext()
             return .completed(recovery.intent.recordID)
         case .absent:
+            try requireCleanContext()
             try apply(recovery.intent.finalizationPayload)
             do {
                 try modelContext.save()
@@ -181,13 +218,29 @@ final class FinalizationRecoveryService {
             guard databaseState(for: recovery.intent) == .matching else {
                 throw FinalizationRecoveryServiceError.inconsistent
             }
+            try requireCleanContext()
             let committed = try await store.advanceForRecovery(recovery, to: .databaseCommitted)
+            try requireCleanContext()
             try await store.cleanupCommittedForRecovery(committed)
+            try requireCleanContext()
             return .completed(recovery.intent.recordID)
         case .preconditionFailed:
+            try requireCleanContext()
             try await store.rollbackForRecovery(recovery)
-            return .draft(recovery.intent.recordID)
+            try requireCleanContext()
+            return recovery.intent.finalizationPayload.packetBefore == nil
+                ? .draft(recovery.intent.recordID)
+                : .abandoned
         case .inconsistent:
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+    }
+
+    private func requireCleanContext() throws {
+        guard !modelContext.hasChanges,
+              let rootIdentity,
+              (try? ReportPDFAnchoredFile.rootIdentity(at: generationRootURL))
+                == rootIdentity else {
             throw FinalizationRecoveryServiceError.inconsistent
         }
     }
@@ -211,23 +264,17 @@ final class FinalizationRecoveryService {
               report.createdAt == intent.snapshotCreatedAt,
               report.snapshotRelativePath == intent.snapshotFinalRelativePath,
               report.snapshotSHA256 == intent.snapshotSHA256,
-              payload.packetBefore == nil,
               payload.issueTransition == nil,
               payload.packetAfter.evaluationCounted,
               payload.packetAfter.contentDeletedAt == nil,
               payload.packetAfter.currentRecordID == intent.recordID,
               payload.workflowRecordAfter.state == WorkflowState.completed.rawValue,
-              payload.workflowRecordAfter.revisionKind == WorkflowRevisionKind.original.rawValue,
-              payload.workflowRecordAfter.stage == WorkflowStage.check.rawValue,
-              payload.workflowRecordAfter.parentRecordID == nil,
-              payload.workflowRecordAfter.recordRevisionRootID
-                == payload.workflowRecordAfter.id,
-              payload.workflowRecordAfter.revisesRecordID == nil,
-              payload.workflowRecordAfter.evidenceSourceRecordID == nil,
               payload.workflowRecordAfter.draftStepKey == nil,
               payload.workflowRecordAfter.completedAt == intent.completedAt,
               intent.completedAt >= payload.workflowRecordAfter.startedAt,
-              intent.snapshotCreatedAt >= intent.completedAt,
+              (payload.packetBefore == nil
+                ? intent.snapshotCreatedAt >= intent.completedAt
+                : intent.snapshotCreatedAt >= report.createdAt),
               payload.workflowRecordAfter.observedAtUTC != nil,
               payload.workflowRecordAfter.timeZoneID != nil,
               payload.workflowRecordAfter.utcOffsetMinutes != nil,
@@ -247,12 +294,13 @@ final class FinalizationRecoveryService {
               payload.workflowRecordAfter.pdfTemplateVersion == 1,
               payload.workflowRecordAfter.workPerformedLocalDate == nil,
               payload.workflowRecordAfter.workDescription == nil,
-              payload.packetAfter.createdAt == intent.completedAt,
-              validOriginalOutcome(payload),
+              validPayloadKind(payload),
               report.pdfState == ReportPDFState.pending.rawValue,
               report.pdfRelativePath == nil,
               report.pdfSHA256 == nil,
-              report.replacesReportID == nil,
+              (payload.packetBefore == nil
+                ? report.replacesReportID == nil
+                : report.replacesReportID != nil),
               (payload.issueInsert?.schemaVersion ?? 1) == 1,
               (payload.issueInsert?.status ?? IssueStatus.open.rawValue) == IssueStatus.open.rawValue,
               payload.issueInsert?.resolvedByRecordID == nil,
@@ -266,7 +314,9 @@ final class FinalizationRecoveryService {
               (payload.issueInsert.map {
                   $0.openedByRecordID == payload.workflowRecordAfter.id
               } ?? true),
-              payload.issueInsert?.id == payload.workflowRecordAfter.issueID else {
+              (payload.packetBefore == nil
+                ? payload.issueInsert?.id == payload.workflowRecordAfter.issueID
+                : payload.issueInsert == nil) else {
             throw FinalizationRecoveryServiceError.inconsistent
         }
     }
@@ -300,6 +350,42 @@ final class FinalizationRecoveryService {
         }
     }
 
+    private func validPayloadKind(_ payload: FinalizationPayloadV1) -> Bool {
+        let record = payload.workflowRecordAfter
+        if let before = payload.packetBefore {
+            guard payload.issueInsert == nil,
+                  payload.issueTransition == nil,
+                  record.revisionKind == WorkflowRevisionKind.clericalCorrection.rawValue,
+                  record.stage == WorkflowStage.check.rawValue
+                    || record.stage == WorkflowStage.recheck.rawValue,
+                  record.revisesRecordID == before.currentRecordID,
+                  record.recordRevisionRootID != record.id,
+                  record.evidenceSourceRecordID == record.recordRevisionRootID,
+                  before.id == payload.packetAfter.id,
+                  before.schemaVersion == payload.packetAfter.schemaVersion,
+                  before.stableRootID == payload.packetAfter.stableRootID,
+                  before.evaluationCounted == payload.packetAfter.evaluationCounted,
+                  before.contentDeletedAt == payload.packetAfter.contentDeletedAt,
+                  before.createdAt == payload.packetAfter.createdAt,
+                  payload.packetAfter.currentRecordID == record.id,
+                   let completedAt = record.completedAt,
+                   record.startedAt <= completedAt,
+                  record.note.map({
+                      $0 == $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                        && (1...1000).contains($0.count)
+                  }) ?? true else { return false }
+            return true
+        }
+        return payload.packetAfter.createdAt == record.completedAt
+            && record.revisionKind == WorkflowRevisionKind.original.rawValue
+            && record.stage == WorkflowStage.check.rawValue
+            && record.parentRecordID == nil
+            && record.recordRevisionRootID == record.id
+            && record.revisesRecordID == nil
+            && record.evidenceSourceRecordID == nil
+            && validOriginalOutcome(payload)
+    }
+
     private var couldNotVerifyEntries: [SignPack.RegistryEntry] {
         SignPack.illuminatedSignV1.couldNotVerifyReasons.entries
     }
@@ -311,10 +397,63 @@ final class FinalizationRecoveryService {
             && record.note == nil
     }
 
+    private func recordPayload(_ value: WorkflowRecord) -> WorkflowRecordPayloadV1 {
+        WorkflowRecordPayloadV1(
+            id: value.id, schemaVersion: value.schemaVersion,
+            assetID: value.assetID, packetID: value.packetID,
+            issueID: value.issueID, parentRecordID: value.parentRecordID,
+            recordRevisionRootID: value.recordRevisionRootID,
+            revisesRecordID: value.revisesRecordID,
+            evidenceSourceRecordID: value.evidenceSourceRecordID,
+            revisionKind: value.revisionKind, stage: value.stage,
+            state: value.state, draftStepKey: value.draftStepKey,
+            startedAt: value.startedAt, completedAt: value.completedAt,
+            observedAtUTC: value.observedAtUTC, timeZoneID: value.timeZoneID,
+            utcOffsetMinutes: value.utcOffsetMinutes,
+            localDate: value.localDate, localTime: value.localTime,
+            afterDarkAcknowledgementKey: value.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: value.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: value.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: value.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: value.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: value.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: value.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: value.safePositionAcknowledgementAccepted,
+            packID: value.packID, packSchemaVersion: value.packSchemaVersion,
+            packContentVersion: value.packContentVersion,
+            pdfTemplateID: value.pdfTemplateID,
+            pdfTemplateVersion: value.pdfTemplateVersion,
+            outcomeKey: value.outcomeKey,
+            couldNotVerifyKey: value.couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: value.couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: value.couldNotVerifyRegistryVersion,
+            workPerformedLocalDate: value.workPerformedLocalDate,
+            workDescription: value.workDescription, note: value.note,
+            finalizationMutationID: value.finalizationMutationID
+        )
+    }
+
+    private func reportPayload(_ value: Report) -> ReportPayloadV1 {
+        ReportPayloadV1(
+            id: value.id, schemaVersion: value.schemaVersion,
+            packetID: value.packetID, sourceRecordID: value.sourceRecordID,
+            snapshotSchemaVersion: value.snapshotSchemaVersion,
+            snapshotRelativePath: value.snapshotRelativePath,
+            snapshotSHA256: value.snapshotSHA256,
+            pdfState: value.pdfState, pdfRelativePath: value.pdfRelativePath,
+            pdfSHA256: value.pdfSHA256, createdAt: value.createdAt,
+            replacesReportID: value.replacesReportID
+        )
+    }
+
     private func validateSnapshotAuthority(
         _ snapshot: ReportSnapshotV1,
         payload: FinalizationPayloadV1
     ) throws {
+        if payload.packetBefore != nil {
+            try validateCorrectionSnapshotAuthority(snapshot, payload: payload)
+            return
+        }
         let assetID = payload.workflowRecordAfter.assetID
         let assets = try modelContext.fetch(FetchDescriptor<Asset>()).filter {
             $0.id == assetID
@@ -441,6 +580,93 @@ final class FinalizationRecoveryService {
         }
     }
 
+    private func validateCorrectionSnapshotAuthority(
+        _ snapshot: ReportSnapshotV1,
+        payload: FinalizationPayloadV1
+    ) throws {
+        guard let packetBefore = payload.packetBefore,
+              let report = payload.reportInsert,
+              let priorReportID = report.replacesReportID else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        let priorReports = try modelContext.fetch(FetchDescriptor<Report>()).filter {
+            $0.id == priorReportID
+        }
+        let priorRecords = try modelContext.fetch(FetchDescriptor<WorkflowRecord>()).filter {
+            $0.id == packetBefore.currentRecordID
+        }
+        let correctionEvidence = try modelContext.fetch(FetchDescriptor<EvidenceFile>()).filter {
+            $0.recordID == payload.workflowRecordAfter.id
+        }
+        let issueMutations = try modelContext.fetch(FetchDescriptor<Issue>()).filter {
+            $0.openedByRecordID == payload.workflowRecordAfter.id
+                || $0.resolvedByRecordID == payload.workflowRecordAfter.id
+        }
+        guard priorReports.count == 1, priorRecords.count == 1,
+              priorReports[0].sourceRecordID == priorRecords[0].id,
+              priorReports[0].packetID == packetBefore.id,
+              priorReports[0].pdfState == ReportPDFState.ready.rawValue,
+              correctionEvidence.isEmpty, issueMutations.isEmpty else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        guard let rootIdentity else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        let priorBytes: Data
+        do {
+            priorBytes = try ReportPDFAnchoredFile.readRegularFile(
+                at: generationRootURL.appendingPathComponent(
+                    priorReports[0].snapshotRelativePath
+                ),
+                within: generationRootURL,
+                rootIdentity: rootIdentity
+            )
+        } catch {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        guard CanonicalJSONV1.sha256(priorBytes) == priorReports[0].snapshotSHA256 else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        let priorSnapshot: ReportSnapshotV1
+        do {
+            priorSnapshot = try ReportSnapshotEncoderV1().decode(priorBytes)
+            guard try ReportSnapshotEncoderV1().encode(priorSnapshot).data == priorBytes else {
+                throw FinalizationRecoveryServiceError.inconsistent
+            }
+        } catch {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        let fullyValidatedPrior: ValidatedReadyReportValue
+        do {
+            fullyValidatedPrior = try ReportDeliveryCoordinator(
+                modelContext: modelContext,
+                generationRootURL: generationRootURL,
+                expectedRootIdentity: rootIdentity
+            ).validatedReadyReport(id: priorReportID)
+        } catch {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        guard fullyValidatedPrior.snapshot == priorSnapshot else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        do {
+            try ReportCorrectionRule().validateEdge(
+                prior: ReportCorrectionRuleSource(
+                    currentRecord: recordPayload(priorRecords[0]),
+                    packet: packetBefore,
+                    currentReport: reportPayload(priorReports[0]),
+                    currentSnapshot: priorSnapshot
+                ),
+                correctionRecord: payload.workflowRecordAfter,
+                correctionReport: report,
+                correctionSnapshot: snapshot,
+                canonicalizeSerializedRecordDates: true
+            )
+        } catch {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+    }
+
     private func validateLiveAuthority(_ payload: FinalizationPayloadV1) throws {
         let assetID = payload.workflowRecordAfter.assetID
         let assets = try modelContext.fetch(FetchDescriptor<Asset>()).filter {
@@ -527,6 +753,14 @@ final class FinalizationRecoveryService {
                 return .inconsistent
             }
             let records = try fetch(WorkflowRecord.self, id: intent.recordID)
+            if payload.packetBefore != nil {
+                return try correctionDatabaseState(
+                    intent: intent,
+                    records: records,
+                    mutationRecords: mutationRecords,
+                    reportPayload: reportPayload
+                )
+            }
             let packets = try modelContext.fetch(FetchDescriptor<Packet>()).filter {
                 $0.id == intent.packetID
                     || $0.stableRootID == intent.stableRootID
@@ -581,7 +815,71 @@ final class FinalizationRecoveryService {
         }
     }
 
+    private func correctionDatabaseState(
+        intent: FinalizationIntentV1,
+        records: [WorkflowRecord],
+        mutationRecords: [WorkflowRecord],
+        reportPayload: ReportPayloadV1
+    ) throws -> DatabaseState {
+        let payload = intent.finalizationPayload
+        guard let packetBefore = payload.packetBefore else { return .inconsistent }
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>()).filter {
+            $0.id == intent.packetID || $0.stableRootID == intent.stableRootID
+        }
+        let reports = try modelContext.fetch(FetchDescriptor<Report>())
+        let allRecords = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
+        let insertedReports = reports.filter {
+            $0.id == intent.reportID || $0.sourceRecordID == intent.recordID
+        }
+        let evidence = try modelContext.fetch(FetchDescriptor<EvidenceFile>()).filter {
+            $0.recordID == intent.recordID
+        }
+        let issues = try modelContext.fetch(FetchDescriptor<Issue>()).filter {
+            $0.openedByRecordID == intent.recordID || $0.resolvedByRecordID == intent.recordID
+        }
+        guard packets.count == 1, evidence.isEmpty, issues.isEmpty else {
+            return .inconsistent
+        }
+        if let mutationRecord = mutationRecords.first {
+            guard records.count == 1, records.first === mutationRecord,
+                  insertedReports.count == 1,
+                  allRecords.filter({
+                      $0.revisesRecordID == packetBefore.currentRecordID
+                  }).count == 1,
+                  reports.filter({
+                      $0.replacesReportID == reportPayload.replacesReportID
+                  }).count == 1,
+                  allRecords.filter({
+                      $0.revisesRecordID == payload.workflowRecordAfter.id
+                  }).isEmpty,
+                  reports.filter({
+                      $0.replacesReportID == reportPayload.id
+                  }).isEmpty,
+                  record(mutationRecord, matches: payload.workflowRecordAfter),
+                  packet(packets[0], matches: payload.packetAfter),
+                  report(insertedReports[0], matches: reportPayload) else {
+                return .inconsistent
+            }
+            return .matching
+        }
+        guard records.isEmpty, insertedReports.isEmpty,
+              packet(packets[0], matches: packetBefore),
+              reports.filter({ $0.id == reportPayload.replacesReportID }).count == 1,
+              reports.filter({ $0.replacesReportID == reportPayload.replacesReportID }).isEmpty,
+              allRecords.filter({ $0.id == packetBefore.currentRecordID }).count == 1,
+              allRecords.filter({
+                  $0.revisesRecordID == packetBefore.currentRecordID
+              }).isEmpty else {
+            return .preconditionFailed
+        }
+        return .absent
+    }
+
     private func apply(_ payload: FinalizationPayloadV1) throws {
+        if payload.packetBefore != nil {
+            try applyCorrection(payload)
+            return
+        }
         let records = try fetch(WorkflowRecord.self, id: payload.workflowRecordAfter.id)
         guard records.count == 1,
               draft(records[0], matchesBefore: payload.workflowRecordAfter),
@@ -624,6 +922,75 @@ final class FinalizationRecoveryService {
             pdfSHA256: reportPayload.pdfSHA256,
             createdAt: reportPayload.createdAt,
             replacesReportID: reportPayload.replacesReportID
+        ))
+    }
+
+    private func applyCorrection(_ payload: FinalizationPayloadV1) throws {
+        guard let packetBefore = payload.packetBefore,
+              let report = payload.reportInsert,
+              let revisionKind = WorkflowRevisionKind(
+                rawValue: payload.workflowRecordAfter.revisionKind
+              ),
+              let stage = WorkflowStage(rawValue: payload.workflowRecordAfter.stage),
+              let state = WorkflowState(rawValue: payload.workflowRecordAfter.state),
+              let reportState = ReportPDFState(rawValue: report.pdfState) else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>()).filter {
+            $0.id == packetBefore.id
+        }
+        let priorRecords = try modelContext.fetch(FetchDescriptor<WorkflowRecord>()).filter {
+            $0.id == packetBefore.currentRecordID
+        }
+        guard packets.count == 1,
+              priorRecords.count == 1,
+              packet(packets[0], matches: packetBefore) else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        let priorRecord = priorRecords[0]
+        let value = payload.workflowRecordAfter
+        modelContext.insert(WorkflowRecord(
+            id: value.id, assetID: value.assetID, packetID: value.packetID,
+            issueID: value.issueID, parentRecordID: value.parentRecordID,
+            recordRevisionRootID: value.recordRevisionRootID,
+            revisesRecordID: value.revisesRecordID,
+            evidenceSourceRecordID: value.evidenceSourceRecordID,
+            revisionKind: revisionKind, stage: stage, state: state,
+            draftStepKey: value.draftStepKey.flatMap(WorkflowDraftStep.init(rawValue:)),
+            startedAt: priorRecord.startedAt, completedAt: priorRecord.completedAt,
+            observedAtUTC: priorRecord.observedAtUTC, timeZoneID: value.timeZoneID,
+            utcOffsetMinutes: value.utcOffsetMinutes,
+            localDate: value.localDate, localTime: value.localTime,
+            afterDarkAcknowledgementKey: value.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: value.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: value.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: value.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: value.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: value.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: value.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: value.safePositionAcknowledgementAccepted,
+            packID: value.packID, packSchemaVersion: value.packSchemaVersion,
+            packContentVersion: value.packContentVersion,
+            pdfTemplateID: value.pdfTemplateID,
+            pdfTemplateVersion: value.pdfTemplateVersion,
+            outcomeKey: value.outcomeKey,
+            couldNotVerifyKey: value.couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: value.couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: value.couldNotVerifyRegistryVersion,
+            workPerformedLocalDate: value.workPerformedLocalDate,
+            workDescription: value.workDescription,
+            note: value.note, finalizationMutationID: value.finalizationMutationID
+        ))
+        packets[0].currentRecordID = payload.packetAfter.currentRecordID
+        modelContext.insert(Report(
+            id: report.id, packetID: report.packetID,
+            sourceRecordID: report.sourceRecordID,
+            snapshotSchemaVersion: report.snapshotSchemaVersion,
+            snapshotRelativePath: report.snapshotRelativePath,
+            snapshotSHA256: report.snapshotSHA256,
+            pdfState: reportState, pdfRelativePath: report.pdfRelativePath,
+            pdfSHA256: report.pdfSHA256, createdAt: report.createdAt,
+            replacesReportID: report.replacesReportID
         ))
     }
 
@@ -713,8 +1080,10 @@ final class FinalizationRecoveryService {
             && r.revisionKind == v.revisionKind && r.stage == v.stage
             && r.state == state
             && r.draftStepKey == draftStepKey
-            && r.startedAt == v.startedAt && r.completedAt == completedAt
-            && r.observedAtUTC == v.observedAtUTC && r.timeZoneID == v.timeZoneID
+            && canonicalDateEqual(r.startedAt, v.startedAt)
+            && canonicalOptionalDateEqual(r.completedAt, completedAt)
+            && canonicalOptionalDateEqual(r.observedAtUTC, v.observedAtUTC)
+            && r.timeZoneID == v.timeZoneID
             && r.utcOffsetMinutes == v.utcOffsetMinutes && r.localDate == v.localDate && r.localTime == v.localTime
             && r.afterDarkAcknowledgementKey == v.afterDarkAcknowledgementKey
             && r.afterDarkAcknowledgementCopy == v.afterDarkAcknowledgementCopy
@@ -739,7 +1108,8 @@ final class FinalizationRecoveryService {
     private func packet(_ r: Packet, matches v: PacketPayloadV1) -> Bool {
         r.id == v.id && r.schemaVersion == v.schemaVersion && r.stableRootID == v.stableRootID
             && r.currentRecordID == v.currentRecordID && r.evaluationCounted == v.evaluationCounted
-            && r.contentDeletedAt == v.contentDeletedAt && r.createdAt == v.createdAt
+            && canonicalOptionalDateEqual(r.contentDeletedAt, v.contentDeletedAt)
+            && canonicalDateEqual(r.createdAt, v.createdAt)
     }
 
     private func report(_ r: Report, matches v: ReportPayloadV1) -> Bool {
@@ -747,7 +1117,8 @@ final class FinalizationRecoveryService {
             && r.sourceRecordID == v.sourceRecordID && r.snapshotSchemaVersion == v.snapshotSchemaVersion
             && r.snapshotRelativePath == v.snapshotRelativePath && r.snapshotSHA256 == v.snapshotSHA256
             && r.pdfState == v.pdfState && r.pdfRelativePath == v.pdfRelativePath
-            && r.pdfSHA256 == v.pdfSHA256 && r.createdAt == v.createdAt
+            && r.pdfSHA256 == v.pdfSHA256
+            && canonicalDateEqual(r.createdAt, v.createdAt)
             && r.replacesReportID == v.replacesReportID
     }
 
@@ -759,8 +1130,33 @@ final class FinalizationRecoveryService {
             && r.assetID == payload.assetID && r.openedByRecordID == payload.openedByRecordID
             && r.labelKey == payload.labelKey && r.labelDisplaySnapshot == payload.labelDisplaySnapshot
             && r.status == payload.status && r.resolvedByRecordID == payload.resolvedByRecordID
-            && r.createdAt == payload.createdAt && r.updatedAt == payload.updatedAt
+            && canonicalDateEqual(r.createdAt, payload.createdAt)
+            && canonicalDateEqual(r.updatedAt, payload.updatedAt)
     }
+
+    private func canonicalDateEqual(_ lhs: Date, _ rhs: Date) -> Bool {
+        canonicalTimestamp(lhs) == canonicalTimestamp(rhs)
+    }
+
+    private func canonicalOptionalDateEqual(_ lhs: Date?, _ rhs: Date?) -> Bool {
+        switch (lhs, rhs) {
+        case (.none, .none): return true
+        case let (.some(left), .some(right)):
+            return canonicalDateEqual(left, right)
+        default: return false
+        }
+    }
+
+    private func canonicalTimestamp(_ value: Date) -> String {
+        Self.timestampFormatter.string(from: value)
+    }
+
+    private static let timestampFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return formatter
+    }()
 
     private func apply(_ v: WorkflowRecordPayloadV1, to r: WorkflowRecord) {
         r.packetID = v.packetID; r.issueID = v.issueID; r.parentRecordID = v.parentRecordID
