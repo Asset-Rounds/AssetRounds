@@ -910,3 +910,86 @@ The accepted run's `head_sha` exactly equals `I=E=a728f8fe50e016e190074b6a5f4faf
 
 - Task ID only; it was not started: `S4.1`
 - Next gate: commit and non-force push exactly this append as the S3 phase-close HANDOFF-only head C, with product bytes equal to accepted E=I2; run and accept UI-enabled exact-head phase-close CI at C. Only after that green evidence, prove `origin/main=P`, non-force fast-forward main to the exact accepted phase-close/verification head, and accept UI-enabled exact-main CI. Only then create `phase/s4-reports` from that exact green main head and hydrate immediate-next S4.1; no main mutation or S4.1 work is part of this append.
+
+## `S4.1` — `complete` — `2026-08-13T03:44:43Z`
+
+- Phase ID / phase branch / card position / phase-boundary card (`yes | no`): `S4` / `phase/s4-reports` / `1 of 5` / `no`
+- Program-autopilot state / exact phase-and-branch map / final owner-only boundary: `enabled through accepted exact-main S9.1` / exact frozen S0–S9 map in `CURRENT_TASK.md` / S9.2 signing/TestFlight and S9.3 App Store submission remain owner-only
+- Phase-autopilot state / exact authorized same-phase span: `enabled` / `S4.1,S4.2,S4.3,S4.4,S4.5`
+- Predecessor IDs and evidence: accepted S3 phase-close/integration head `8b33ee6a26ed4f7ccdccc8e092920b26c6e04122`; exact phase run `31658250052` and exact-main run `31658998104` both succeeded at that head with P12/UI and complete independently verified 99-payload artifacts
+- Outcome: added the closed validated-snapshot → exact two-pass Worklight PDF renderer → pending-to-ready render-service boundary, including canonical current-original/history-thumbnail authority, deterministic metadata/footer/pagination, overflow-safe PDF preflight, report-owned staging/promotion, reread/hash verification, and one ready-row save
+- Exact build-plan path / SHA-256: `docs/product/BUILD_PLAN_V4.md` / `23DAAB390AF917CBE91C3044E4906F3FBF8D67D2FDFC6BC9BDE985D984F37BBD`
+- Exact implementation-runbook path / SHA-256 / selected card: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / `S4.1 — Byte-deterministic snapshot-to-PDF renderer`
+- Authoring host OS/build: Microsoft Windows 11 Home, 64-bit, version `10.0.26200`, build `26200`; no local Xcode/Simulator result was claimed
+- GitHub repository / visibility and branch-control posture / base branch / phase branch: `palatis3/AssetRounds` / public, exact-ref/non-force-only / `main` / `phase/s4-reports`
+- Immutable phase-main base SHA `P` and evidence: `P=8b33ee6a26ed4f7ccdccc8e092920b26c6e04122`; accepted S3 exact-main run `31658998104`
+- Integrated/card-base SHA `M` and evidence: `M=P=8b33ee6a26ed4f7ccdccc8e092920b26c6e04122`; the first S4 card began from the accepted S3 exact-main phase-close head
+- Observed task-start authority SHA `A` and `M..A` authority-only diff result: `A=2f2b9f64b5e1f22b92b62fb87ad1c5dfc1f7a37d`, a direct child of M; `M..A` changed exactly `docs/execution/CURRENT_TASK.md`, while `docs/execution/HANDOFF.md` remained byte-identical
+- Implementation sequence: `I=6486abdf9bad8b6be4edde5147461e030384cdb1`; `I2=0c3ff1db26ca207df7a91fc266d43fc0763ae8ed`; `I3=c0b41e8fdcee2140a1c3b27fddcbcb82dc3b1553`; `I4=f4da51b305af6c822649534b24a1fad81773120d`; accepted `E=I5=2dec12bb4d1992a4c160b3b357dc95d6118d4ae9`; no distinct infrastructure verification head K
+- Pre-existing dirty paths and owner/disposition: `NONE`; fresh G0, implementation preflight, and each correction/dispatch preflight were clean
+- Workflow path / workflow file SHA-256 / trigger / frozen branch ref / actual expected ref-head SHA: `.github/workflows/ios-ci.yml` / `9FFEA51ADB2620B01FE250412716487F6102DAC7E93AEA0471943AF66C1BC2AC` / `workflow_dispatch` / `phase/s4-reports` / `2dec12bb4d1992a4c160b3b357dc95d6118d4ae9`
+- CI selector task ID / tier / `runUISmoke` / workflow input equality result: `S4.1` / `N8` / `false` / `PASS`; exact `300/600/900/0/2400`, unit selector `FieldEvidenceAppTests/S4_1DeterministicRendererTests`, empty UI selectors, LF SHA-256 `0637239D84BE60B3D7B158ED21B1B2CA0D1C198160B8405B246CB143838A5C5D`
+- Accepted run/job/URLs/conclusion: `31664479971` / `94335997292` / `https://github.com/palatis3/AssetRounds/actions/runs/31664479971` / `https://github.com/palatis3/AssetRounds/actions/runs/31664479971/job/94335997292` / `success`; exact `head_sha=2dec12bb4d1992a4c160b3b357dc95d6118d4ae9`
+- Runner/toolchain/destination: `macos26`, image `20260728.0273.1`; Xcode 26.6 build `17F113`; `/Applications/Xcode_26.6.app/Contents/Developer`; iPhone 17 / iOS 26.5 build `23F77` / UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; deployment target iOS 18.0
+- Budgets: setup `22/300` s; Simulator readiness `193/900` s; build `101/600` s; unit `51/900` s; UI correctly absent; artifact `4` s and setup+artifact `26/300` s; total `274/2400` s; every watchdog passed
+- Artifact: `ios-ci-31664479971-1`, ID `9167473413`, size `265138`, API/raw ZIP digest `sha256:8902cace16f6dacc4fb691a9ef8d6e3d3eb37f7863850b3c285e9b8a334895c4`; `SHA256SUMS.txt` SHA-256 `DD5394938069822C426D3B8EAD07A92F03FCFAD7BF48842BC4D74D1DE41B0B6F`; all `61/61` payloads independently matched with no missing or mismatched file
+- Exact verification: unsigned exact-destination build passed; all three targeted unit tests passed with zero failures in 3.047 s (`1.730`, `0.869`, and `0.447` s); required Build and UnitTests result bundles, nonempty logs, selector/runner/Xcode/Simulator/budget evidence, and checksums were present; UISmoke bundle, UI log/selectors, and screenshot were correctly absent under N8
+- Project / target / shared scheme / configuration: `FieldEvidenceApp.xcodeproj` / `FieldEvidenceApp` / `FieldEvidenceApp` / `Debug`
+- Exact product commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; both returned exit 0; no UI command ran
+- Allowed GitHub methods and exact repository/ref/workflow operations: task-named read/fetch/ref/run/workflow/artifact inspection; explicit-path commits; non-force pushes to `refs/heads/phase/s4-reports`; `.github/workflows/ios-ci.yml` dispatch on `phase/s4-reports` with `run_ui_smoke=false`; exact-run observation/download; no main mutation during S4.1
+- Owner-required posture and G0-observed effective state: Full access; `sandbox_mode=danger-full-access`; `approval_policy=never`; command network enabled; trusted repository configuration active; authenticated GitHub CLI available; XcodeBuildMCP and an owner-operated Mac unnecessary
+- Card-owned actions actually performed: created append-only direct children I through accepted I5; non-force pushed exact phase heads; dispatched fresh candidates at I, I3, I4, and I5 without rerunning a failed run ID; inspected complete terminal diagnostics/artifacts; accepted only exact I5
+- Boundary recovery state: accepted S4.1 HANDOFF pending; after fresh fetch remote phase=`E=I5`, remote `main=P`, and S4.2 remained unstarted before this append
+- Owned launch-smoke/accessibility IDs: `NONE`; S4.1 N8 added no launch argument, user-facing control, or accessibility identifier
+- Project/persistent-schema delta: `NONE`; no project, target, dependency, capability, permission, or frozen seven-model-schema change
+
+### Changed paths
+
+- `FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift`
+- `FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift`
+- `FieldEvidenceAppTests/S4_1DeterministicRendererTests.swift`
+- `Scripts/ci-selection.json`
+- I→I2 changed only `WorklightPDFRendererV1.swift`, replacing unavailable Core Graphics symbols with the Swift `CGContext(consumer:mediaBox:_:)` API and literal metadata keys
+- I2→I3 changed only `WorklightPDFRendererV1.swift`, freezing metadata through the exact `CGPDFContextDate` key
+- I3→I4 changed only `ReportRenderService.swift`, removing the incompatible `.atomic` option while retaining create-only `.withoutOverwriting` staging
+- I4→I5 changed only `S4_1DeterministicRendererTests.swift`, normalizing only a valid six-uppercase-character PDF subset prefix before independently asserting the frozen built-in font names
+
+### Verification
+
+| Command or smoke | Run/job | Timeout | Exit code | Actual duration | Result | Artifact/evidence path and checksum |
+|---|---|---:|---:|---:|---|---|
+| Fresh G0: branch/cleanliness, `A^=M`, exact one-path `M..A`, pins/map/environment/selector/live refs | local + GitHub read-only | fail closed | 0 | bounded | PASS | `A=2f2b9f64b5e1f22b92b62fb87ad1c5dfc1f7a37d`; phase and main began at `M=P` |
+| Exact A..I5 structure and task envelope | local Windows read-only | fail closed | 0 | bounded | PASS | exactly 4 production, 1 test, and selector-exception paths; every correction is a direct child with one diagnosed delta; `git diff --check` passed |
+| Initial exact-I candidate | `31662588369` / `94330331977` | N8 | nonzero | build 115 s | FAIL — three compiler errors were unavailable creation/modification constants and replaced `CGPDFContextCreate`; led directly to I2 and the separately audited I3 metadata key correction | artifact `ios-ci-31662588369-1`, ID `9166786204`, size `58816`, digest `sha256:eff92ff48e077a0885bb5bb7d10f96870190c33424c38db62e308b44b87f48d3`; `SHA256SUMS.txt` `F20C722848139D96D8029F6F2588F16B9D2199AFE17C5AA5188305F6EDE83306`; all 22 payloads matched |
+| Exact-I3 candidate | `31663046832` / `94331716397` | N8 | nonzero | build 198 s; unit 148 s | FAIL — build passed; capacity/authority and validator tests passed, but the deterministic service test trapped because Foundation forbids `.atomic` combined with `.withoutOverwriting`; led directly to I4 | artifact `ios-ci-31663046832-1`, ID `9167018462`, size `55690442`, digest `sha256:77c1da83136d803f5c9498c8b173afff5b9d3c034c9164f373f711302267f0af`; `SHA256SUMS.txt` `1BFB8284682F63EC2305B80AE8D74D4F175A60D39576B87A685CD549A9BC31D5`; all 1353 payloads matched |
+| Exact-I4 candidate | `31663523966` / `94333181814` | N8 | nonzero | build 190 s; unit 241 s; tests 8.425 s | FAIL — all three tests executed; capacity/authority and validator tests passed; deterministic PDF inspection reached its final resource checks but compared legal subset-prefixed BaseFont names literally, producing exactly three test-only assertions; led directly to I5 | artifact `ios-ci-31663523966-1`, ID `9167250927`, size `65332541`, digest `sha256:34ca8a18ca4199b9fc48de71bc2b7df3ea706277c26ccec6f97be8b9b93d61cb`; `SHA256SUMS.txt` `478446B8F1096FE9787F00C2581FFF06EAAC06E63FCC4D4C675114D4998E498D`; all 1399 payloads matched |
+| `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh` | accepted `31664479971` / `94335997292` | 600 s | 0 | 101 s | PASS — exact-destination unsigned `** TEST BUILD SUCCEEDED **` | `build-smoke.log` SHA-256 `24648D88A5677AEC63164D3C4BB6422BA20FD67DD09C7B08C320BBBF1A70B82F`; nonempty `Build.xcresult` |
+| `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh` / exact `FieldEvidenceAppTests/S4_1DeterministicRendererTests` | same | 900 s | 0 | 51 s; tests 3.047 s | PASS — exactly 3 non-skipped tests, 0 failures | `test-smoke.log` SHA-256 `3C57D9577B1EB6D431D2C9CA628E7439B1ACA37DDA6A17965D8F7B7C4F2553B7`; nonempty `UnitTests.xcresult` |
+| Required-evidence validation, selector resolution, checksum generation/verification, and N8 budgets | same | setup/artifact 300 s; readiness 900 s; total 2400 s | 0 | setup 22 s; readiness 193 s; artifact 4 s; setup+artifact 26 s; total 274 s | PASS | artifact `ios-ci-31664479971-1`, ID `9167473413`, digest `sha256:8902cace16f6dacc4fb691a9ef8d6e3d3eb37f7863850b3c285e9b8a334895c4`; `SHA256SUMS.txt` `DD5394938069822C426D3B8EAD07A92F03FCFAD7BF48842BC4D74D1DE41B0B6F`; all 61 payloads independently matched |
+
+The accepted run's `head_sha` exactly equals `E=I5=2dec12bb4d1992a4c160b3b357dc95d6118d4ae9`. This HANDOFF append is not implementation evidence and does not self-record its future S4.2 transition commit.
+
+### Acceptance results
+
+- GOLDEN `PASS`: the same fully validated fixture rendered through the independent renderer and service in two clean generation roots produced byte-identical PDF bytes and hashes, the exact ready path/rows, and no surviving stage; the retained `S4.1 deterministic PDF root A` and `S4.1 deterministic PDF root B` attachments map to the same checksummed xcresult payload (`2DB595E391975882935B27B8D4A3426D08D82AAE63CB83D67201404458F11D33`)
+- Exact PDF contract `PASS`: two-page Letter media/content/footer geometry, frozen order, Helvetica/Helvetica-Bold/Courier sizes and line heights, title/section/body/image gaps, keep rules, current-original aspect-fit/no-upscale, history-thumbnail bounds/rows, exact sole `Not captured — Could not verify` label, footer truth/page numbering, fixed creator and snapshot-time creation/modification metadata, absent author/subject/keywords, and absent volatile `/ID` all passed both renderer inspection and independent PDFKit/CGPDF checks
+- ALT-1 `PASS`: changing the device default zone between `America/New_York` and `Pacific/Auckland` left snapshot interpretation, layout, PDF bytes, and hash identical
+- Negative family `PASS`: noncanonical snapshot bytes, path escape, unknown template/version, broken Packet/current-record/history relations, wrong MIME/source/count/hash, duplicate evidence, missing/corrupt original or thumbnail, symlink authority, unavailable/insufficient/overflowed capacity, and unexpected stage/final authority failed closed without a ready mutation or unowned PDF
+- Accessibility spot check: `N/A—N8 changed no user-facing control`; the selector and workflow correctly rejected UI execution
+- Exact terminal screen/data artifact `PASS`: N8 correctly produced no UI screenshot; exact executed-test JSON, the checksummed UnitTests result bundle, and the two retained deterministic-PDF attachments are the accepted data evidence
+- Future controls verified omitted/inert `PASS`: no S4.2 failure/Retry/startup reconciliation, S4.3 preview/share/export, S4.4 index/filter/history comparison UI, S4.5 correction, alternate template engine, schema/project/package/capability/permission, remote, or later-phase behavior was added
+
+### Known bugs or limitations
+
+- `NONE`; `docs/execution/KNOWN_BUGS.md` was read and contains no qualifying S4.1 defect
+
+### Blockers
+
+- `NONE`
+
+### Next unstarted task
+
+- Task ID only; it was not started: `S4.2`
+- Next gate: after re-proving remote phase=`E=I5` and remote `main=P`, same-phase autopilot may commit and non-force push exactly this HANDOFF append plus immediate-next S4.2 `CURRENT_TASK.md`, then must run fresh S4.2 G0. Do not mutate main.
