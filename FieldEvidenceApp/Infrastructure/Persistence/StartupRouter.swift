@@ -25,7 +25,11 @@ enum StartupStep: String, CaseIterable, Sendable {
 final class StartupRouter: ObservableObject {
     enum Route {
         case checking
-        case ready(StoreSessionCoordinator, DiagnosticsStore)
+        case ready(
+            StoreSessionCoordinator,
+            DiagnosticsStore,
+            ReportRecoveryService
+        )
         case maintenance(StartupMaintenanceReason)
     }
 
@@ -36,6 +40,8 @@ final class StartupRouter: ObservableObject {
     private let diagnosticsStore: DiagnosticsStore
     private let fileManager: FileManager
     private let didBeginStep: (StartupStep) -> Void
+    private var injectsReportRenderFailureOnce: Bool
+    private let reportLaunchAttemptRegistry = ReportLaunchAttemptRegistry()
 
     private var hasStarted = false
     private var isRunning = false
@@ -43,6 +49,7 @@ final class StartupRouter: ObservableObject {
     init(
         applicationSupportURL: URL,
         fileManager: FileManager = .default,
+        injectsReportRenderFailureOnce: Bool = false,
         didBeginStep: @escaping (StartupStep) -> Void = { _ in }
     ) {
         self.applicationSupportURL = applicationSupportURL
@@ -55,6 +62,7 @@ final class StartupRouter: ObservableObject {
             fileManager: fileManager
         )
         self.fileManager = fileManager
+        self.injectsReportRenderFailureOnce = injectsReportRenderFailureOnce
         self.didBeginStep = didBeginStep
     }
 
@@ -138,17 +146,39 @@ final class StartupRouter: ObservableObject {
             }
 
             didBeginStep(.pdf)
+            let reportRecoveryService: ReportRecoveryService
+            do {
+                let failNextRenderAttempt = injectsReportRenderFailureOnce
+                injectsReportRenderFailureOnce = false
+                reportRecoveryService = try ReportRecoveryService(
+                    modelContext: session.modelContext,
+                    generationRootURL: session.generationRootURL,
+                    fileManager: fileManager,
+                    failNextRenderAttempt: failNextRenderAttempt,
+                    launchAttemptRegistry: reportLaunchAttemptRegistry
+                )
+                try reportRecoveryService.reconcileAtStartup()
+            } catch {
+                throw StartupMaintenanceReason.finalizationInconsistent
+            }
 
             await diagnosticsStore.prepare()
             route = .ready(
                 StoreSessionCoordinator(session: session),
-                diagnosticsStore
+                diagnosticsStore,
+                reportRecoveryService
             )
         } catch let reason as StartupMaintenanceReason {
             route = .maintenance(reason)
         } catch {
             route = .maintenance(.dataPointerInvalid)
         }
+    }
+
+    /// Unsafe explicit PDF recovery failures are not retryable delivery
+    /// failures. They enter the existing closed maintenance surface directly.
+    func failClosedPDFRecovery() {
+        route = .maintenance(.finalizationInconsistent)
     }
 
     private func openCurrentGeneration() throws -> StoreGenerationSession {

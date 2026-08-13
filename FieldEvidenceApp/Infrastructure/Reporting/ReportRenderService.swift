@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 import SwiftData
 
@@ -12,6 +13,443 @@ enum ReportRenderServiceError: Error, Equatable {
     case bytesMismatch
     case saveFailed
     case cleanupFailed
+    case injectedFailure
+    case failedStateSaveFailed
+}
+
+/// Uses no-follow directory descriptors and non-recursive `unlinkat` for
+/// report-owned PDF descendants. Ancestor replacement cannot redirect a read
+/// or deletion outside the opened generation tree.
+enum ReportPDFAnchoredFile {
+    enum Failure: Error {
+        case invalidAuthority
+        case cleanupFailed
+    }
+
+    struct RootIdentity: Equatable {
+        let device: dev_t
+        let inode: ino_t
+    }
+
+    static func rootIdentity(at rootURL: URL) throws -> RootIdentity {
+        let descriptor = try openGenerationRootDescriptor(rootURL)
+        defer { Darwin.close(descriptor) }
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFDIR else {
+            throw Failure.invalidAuthority
+        }
+        return RootIdentity(device: info.st_dev, inode: info.st_ino)
+    }
+
+    static func readRegularFile(
+        at url: URL,
+        within rootURL: URL,
+        rootIdentity: RootIdentity
+    ) throws -> Data {
+        try withParentDescriptor(
+            of: url,
+            within: rootURL,
+            rootIdentity: rootIdentity
+        ) { parent, leaf in
+            let descriptor = Darwin.openat(parent, leaf, O_RDONLY | O_NOFOLLOW)
+            guard descriptor >= 0 else { throw Failure.invalidAuthority }
+            let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+            var info = stat()
+            guard Darwin.fstat(descriptor, &info) == 0,
+                  (info.st_mode & S_IFMT) == S_IFREG else {
+                try? handle.close()
+                throw Failure.invalidAuthority
+            }
+            do {
+                return try handle.readToEnd() ?? Data()
+            } catch {
+                throw Failure.invalidAuthority
+            }
+        }
+    }
+
+    static func removeRegularFile(
+        at url: URL,
+        quarantineAt quarantineURL: URL,
+        within rootURL: URL,
+        rootIdentity: RootIdentity
+    ) throws {
+        try withParentDescriptor(
+            of: url,
+            within: rootURL,
+            rootIdentity: rootIdentity
+        ) { parent, leaf in
+            let descriptor = Darwin.openat(parent, leaf, O_RDONLY | O_NOFOLLOW)
+            guard descriptor >= 0 else { throw Failure.invalidAuthority }
+            defer { Darwin.close(descriptor) }
+            let identity = try regularFileIdentity(descriptor)
+            try withParentDescriptor(
+                of: quarantineURL,
+                within: rootURL,
+                rootIdentity: rootIdentity
+            ) { quarantineParent, quarantineLeaf in
+                try quarantineAndRemove(
+                    sourceParent: parent,
+                    sourceLeaf: leaf,
+                    quarantineParent: quarantineParent,
+                    quarantineLeaf: quarantineLeaf,
+                    expectedIdentity: identity
+                )
+            }
+        }
+    }
+
+    static func removeMatchingRegularFile(
+        at url: URL,
+        expectedData: Data,
+        quarantineAt quarantineURL: URL,
+        within rootURL: URL,
+        rootIdentity: RootIdentity
+    ) throws {
+        try withParentDescriptor(
+            of: url,
+            within: rootURL,
+            rootIdentity: rootIdentity
+        ) { parent, leaf in
+            let descriptor = Darwin.openat(parent, leaf, O_RDONLY | O_NOFOLLOW)
+            guard descriptor >= 0 else { throw Failure.cleanupFailed }
+            let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+            let identity: RootIdentity
+            do {
+                identity = try regularFileIdentity(descriptor)
+            } catch {
+                try? handle.close()
+                throw Failure.cleanupFailed
+            }
+            let bytes: Data
+            do {
+                bytes = try handle.readToEnd() ?? Data()
+            } catch {
+                throw Failure.cleanupFailed
+            }
+            guard bytes == expectedData else { throw Failure.cleanupFailed }
+            try withParentDescriptor(
+                of: quarantineURL,
+                within: rootURL,
+                rootIdentity: rootIdentity
+            ) { quarantineParent, quarantineLeaf in
+                try quarantineAndRemove(
+                    sourceParent: parent,
+                    sourceLeaf: leaf,
+                    quarantineParent: quarantineParent,
+                    quarantineLeaf: quarantineLeaf,
+                    expectedIdentity: identity
+                )
+            }
+        }
+    }
+
+    static func ensureDirectory(
+        relativePath: String,
+        within rootURL: URL,
+        rootIdentity: RootIdentity
+    ) throws {
+        let components = try validatedComponents(relativePath)
+        try withRootDescriptor(rootURL, identity: rootIdentity) { root in
+            var current = Darwin.dup(root)
+            guard current >= 0 else { throw Failure.invalidAuthority }
+            defer { Darwin.close(current) }
+            for component in components {
+                var next = Darwin.openat(
+                    current,
+                    component,
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+                )
+                if next < 0, errno == ENOENT {
+                    guard Darwin.mkdirat(current, component, 0o700) == 0 else {
+                        throw Failure.invalidAuthority
+                    }
+                    next = Darwin.openat(
+                        current,
+                        component,
+                        O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+                    )
+                }
+                guard next >= 0 else { throw Failure.invalidAuthority }
+                Darwin.close(current)
+                current = next
+            }
+        }
+    }
+
+    static func createRegularFile(
+        _ data: Data,
+        at url: URL,
+        cleanupAt cleanupURL: URL,
+        within rootURL: URL,
+        rootIdentity: RootIdentity
+    ) throws {
+        try withParentDescriptor(
+            of: url,
+            within: rootURL,
+            rootIdentity: rootIdentity
+        ) { parent, leaf in
+            let descriptor = Darwin.openat(
+                parent,
+                leaf,
+                O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
+                0o600
+            )
+            guard descriptor >= 0 else { throw Failure.invalidAuthority }
+            let createdIdentity: RootIdentity
+            do {
+                createdIdentity = try regularFileIdentity(descriptor)
+            } catch {
+                _ = Darwin.close(descriptor)
+                throw Failure.cleanupFailed
+            }
+            do {
+                try data.withUnsafeBytes { raw in
+                    guard let base = raw.baseAddress else { return }
+                    var offset = 0
+                    while offset < raw.count {
+                        let count = Darwin.write(
+                            descriptor,
+                            base.advanced(by: offset),
+                            raw.count - offset
+                        )
+                        guard count > 0 else { throw Failure.invalidAuthority }
+                        offset += count
+                    }
+                }
+                guard Darwin.fsync(descriptor) == 0 else {
+                    throw Failure.invalidAuthority
+                }
+            } catch {
+                do {
+                    try withParentDescriptor(
+                        of: cleanupURL,
+                        within: rootURL,
+                        rootIdentity: rootIdentity
+                    ) { cleanupParent, cleanupLeaf in
+                        try quarantineAndRemove(
+                            sourceParent: parent,
+                            sourceLeaf: leaf,
+                            quarantineParent: cleanupParent,
+                            quarantineLeaf: cleanupLeaf,
+                            expectedIdentity: createdIdentity
+                        )
+                    }
+                } catch {
+                    _ = Darwin.close(descriptor)
+                    throw Failure.cleanupFailed
+                }
+                _ = Darwin.close(descriptor)
+                throw Failure.invalidAuthority
+            }
+            guard Darwin.close(descriptor) == 0 else {
+                throw Failure.cleanupFailed
+            }
+        }
+    }
+
+    static func promoteNoReplace(
+        from sourceURL: URL,
+        to destinationURL: URL,
+        within rootURL: URL,
+        rootIdentity: RootIdentity
+    ) throws {
+        try withParentDescriptor(
+            of: sourceURL,
+            within: rootURL,
+            rootIdentity: rootIdentity
+        ) { sourceParent, sourceLeaf in
+            try withParentDescriptor(
+                of: destinationURL,
+                within: rootURL,
+                rootIdentity: rootIdentity
+            ) { destinationParent, destinationLeaf in
+                guard Darwin.renameatx_np(
+                    sourceParent,
+                    sourceLeaf,
+                    destinationParent,
+                    destinationLeaf,
+                    UInt32(RENAME_EXCL)
+                ) == 0 else {
+                    throw Failure.invalidAuthority
+                }
+            }
+        }
+    }
+
+    private static func withParentDescriptor<T>(
+        of url: URL,
+        within rootURL: URL,
+        rootIdentity: RootIdentity,
+        _ body: (Int32, String) throws -> T
+    ) throws -> T {
+        let root = rootURL.standardizedFileURL
+        let target = url.standardizedFileURL
+        let prefix = root.path.hasSuffix("/") ? root.path : root.path + "/"
+        guard target.path.hasPrefix(prefix) else { throw Failure.invalidAuthority }
+        let relative = String(target.path.dropFirst(prefix.count))
+        let components = try validatedComponents(relative)
+        return try withRootDescriptor(root, identity: rootIdentity) { rootDescriptor in
+            var descriptor = Darwin.dup(rootDescriptor)
+            guard descriptor >= 0 else { throw Failure.invalidAuthority }
+            defer { Darwin.close(descriptor) }
+            for component in components.dropLast() {
+            let next = Darwin.openat(
+                descriptor,
+                component,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard next >= 0 else { throw Failure.invalidAuthority }
+            Darwin.close(descriptor)
+            descriptor = next
+            }
+            guard let leaf = components.last else { throw Failure.invalidAuthority }
+            return try body(descriptor, leaf)
+        }
+    }
+
+    private static func withRootDescriptor<T>(
+        _ rootURL: URL,
+        identity: RootIdentity,
+        _ body: (Int32) throws -> T
+    ) throws -> T {
+        let descriptor = try openGenerationRootDescriptor(rootURL)
+        defer { Darwin.close(descriptor) }
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              RootIdentity(device: info.st_dev, inode: info.st_ino) == identity else {
+            throw Failure.invalidAuthority
+        }
+        return try body(descriptor)
+    }
+
+    /// Trust the OS-provided application-support ancestry, then no-follow every
+    /// app-owned storage component. This permits Darwin's legitimate
+    /// `/var` -> `/private/var` indirection without accepting a linked
+    /// `FieldEvidenceData`, `generations`, or generation UUID directory.
+    private static func openGenerationRootDescriptor(_ rootURL: URL) throws -> Int32 {
+        let root = rootURL.standardizedFileURL
+        let generations = root.deletingLastPathComponent()
+        let dataRoot = generations.deletingLastPathComponent()
+        guard generations.lastPathComponent == "generations",
+              dataRoot.lastPathComponent == "FieldEvidenceData",
+              let generationID = UUID(uuidString: root.lastPathComponent),
+              generationID.uuidString.lowercased() == root.lastPathComponent else {
+            throw Failure.invalidAuthority
+        }
+
+        let dataDescriptor = Darwin.open(
+            dataRoot.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard dataDescriptor >= 0 else { throw Failure.invalidAuthority }
+        defer { Darwin.close(dataDescriptor) }
+
+        let generationsDescriptor = Darwin.openat(
+            dataDescriptor,
+            "generations",
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard generationsDescriptor >= 0 else { throw Failure.invalidAuthority }
+        defer { Darwin.close(generationsDescriptor) }
+
+        let rootDescriptor = Darwin.openat(
+            generationsDescriptor,
+            root.lastPathComponent,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard rootDescriptor >= 0 else { throw Failure.invalidAuthority }
+        return rootDescriptor
+    }
+
+    private static func regularFileIdentity(_ descriptor: Int32) throws -> RootIdentity {
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFREG else {
+            throw Failure.invalidAuthority
+        }
+        return RootIdentity(device: info.st_dev, inode: info.st_ino)
+    }
+
+    /// Move the exact opened inode to the report's other canonical crash-window
+    /// path before unlinking it. A process death therefore leaves stage-only or
+    /// final-only authority that the bounded startup matrix already reconciles.
+    /// A replacement at the source path is never removed; a raced object is
+    /// restored when possible and otherwise leaves both canonical paths for
+    /// fail-closed maintenance.
+    private static func quarantineAndRemove(
+        sourceParent: Int32,
+        sourceLeaf: String,
+        quarantineParent: Int32,
+        quarantineLeaf: String,
+        expectedIdentity: RootIdentity
+    ) throws {
+        guard Darwin.renameatx_np(
+            sourceParent,
+            sourceLeaf,
+            quarantineParent,
+            quarantineLeaf,
+            UInt32(RENAME_EXCL)
+        ) == 0 else {
+            throw Failure.cleanupFailed
+        }
+
+        var quarantined = stat()
+        guard Darwin.fstatat(
+            quarantineParent,
+            quarantineLeaf,
+            &quarantined,
+            AT_SYMLINK_NOFOLLOW
+        ) == 0,
+              (quarantined.st_mode & S_IFMT) == S_IFREG,
+              RootIdentity(
+                  device: quarantined.st_dev,
+                  inode: quarantined.st_ino
+              ) == expectedIdentity else {
+            _ = Darwin.renameatx_np(
+                quarantineParent,
+                quarantineLeaf,
+                sourceParent,
+                sourceLeaf,
+                UInt32(RENAME_EXCL)
+            )
+            throw Failure.cleanupFailed
+        }
+
+        guard Darwin.unlinkat(quarantineParent, quarantineLeaf, 0) == 0 else {
+            _ = Darwin.renameatx_np(
+                quarantineParent,
+                quarantineLeaf,
+                sourceParent,
+                sourceLeaf,
+                UInt32(RENAME_EXCL)
+            )
+            throw Failure.cleanupFailed
+        }
+        var after = stat()
+        guard Darwin.fstatat(
+            quarantineParent,
+            quarantineLeaf,
+            &after,
+            AT_SYMLINK_NOFOLLOW
+        ) == -1,
+              errno == ENOENT else {
+            throw Failure.cleanupFailed
+        }
+    }
+
+    private static func validatedComponents(_ relativePath: String) throws -> [String] {
+        let components = relativePath.split(
+            separator: "/",
+            omittingEmptySubsequences: false
+        ).map(String.init)
+        guard !components.isEmpty,
+              components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
+            throw Failure.invalidAuthority
+        }
+        return components
+    }
 }
 
 struct ReportRenderResult: Equatable, Sendable {
@@ -19,6 +457,35 @@ struct ReportRenderResult: Equatable, Sendable {
     let pdfRelativePath: String
     let pdfSHA256: String
     let pageCount: Int
+}
+
+enum ReportRenderAttemptResult: Equatable, Sendable {
+    case ready(ReportRenderResult)
+    case failed(reportID: UUID)
+}
+
+enum ReportRenderFailurePoint: Equatable, Sendable {
+    case render
+    case stageWrite
+    case promotion
+    case reread
+    case readySave
+    case failedStateSave
+}
+
+@MainActor
+final class ReportRenderFailureInjection {
+    private var pending: ReportRenderFailurePoint?
+
+    init(failOnceAt point: ReportRenderFailurePoint) {
+        pending = point
+    }
+
+    func consume(_ point: ReportRenderFailurePoint) -> Bool {
+        guard pending == point else { return false }
+        pending = nil
+        return true
+    }
 }
 
 @MainActor
@@ -29,13 +496,18 @@ final class ReportRenderService {
     private let fileManager: FileManager
     private let validator: SnapshotValidatorV1
     private let renderer: WorklightPDFRendererV1
+    private let rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    private var failNextRenderAttempt: Bool
+    private let failureInjection: ReportRenderFailureInjection?
 
     init(
         modelContext: ModelContext,
         generationRootURL: URL,
         storagePreflight: StoragePreflightService = StoragePreflightService(),
         fileManager: FileManager = .default,
-        signPack: SignPack = .illuminatedSignV1
+        signPack: SignPack = .illuminatedSignV1,
+        failNextRenderAttempt: Bool = false,
+        failureInjection: ReportRenderFailureInjection? = nil
     ) throws {
         let root = generationRootURL.standardizedFileURL
         guard root.deletingLastPathComponent().lastPathComponent == "generations",
@@ -49,6 +521,11 @@ final class ReportRenderService {
         }
         self.modelContext = modelContext
         self.generationRootURL = root
+        do {
+            self.rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+        } catch {
+            throw ReportRenderServiceError.invalidGeneration
+        }
         self.storagePreflight = storagePreflight
         self.fileManager = fileManager
         self.validator = try SnapshotValidatorV1(
@@ -58,6 +535,20 @@ final class ReportRenderService {
             signPack: signPack
         )
         self.renderer = WorklightPDFRendererV1()
+        self.failNextRenderAttempt = failNextRenderAttempt
+        self.failureInjection = failureInjection
+    }
+
+    /// Performs one bounded pending delivery attempt. Ordinary generation failures
+    /// preserve the immutable report authority and durably leave only `failed`.
+    func attemptPendingReport(id reportID: UUID) throws -> ReportRenderAttemptResult {
+        do {
+            return .ready(try renderPendingReport(id: reportID))
+        } catch {
+            guard Self.isRetryableRenderFailure(error) else { throw error }
+            try persistFailed(reportID: reportID)
+            return .failed(reportID: reportID)
+        }
     }
 
     func renderPendingReport(id reportID: UUID) throws -> ReportRenderResult {
@@ -78,12 +569,17 @@ final class ReportRenderService {
               report.pdfSHA256 == nil else {
             throw ReportRenderServiceError.reportNotPending
         }
+        try requireAttemptPathsAbsent(for: reportID)
 
         let validated = try validator.validate(report: report)
         try storagePreflight.checkPDFGeneration(
             referencedImageByteCount: validated.referencedImageByteCount,
             onVolumeContaining: generationRootURL
         )
+        if failNextRenderAttempt || failureInjection?.consume(.render) == true {
+            failNextRenderAttempt = false
+            throw ReportRenderServiceError.injectedFailure
+        }
         let rendered = try renderer.render(validated)
         guard !rendered.data.isEmpty,
               rendered.pageCount > 0,
@@ -96,26 +592,45 @@ final class ReportRenderService {
         var ownsFinal = false
         do {
             do {
-                try rendered.data.write(
-                    to: paths.stageURL,
-                    options: .withoutOverwriting
+                try ReportPDFAnchoredFile.createRegularFile(
+                    rendered.data,
+                    at: paths.stageURL,
+                    cleanupAt: paths.finalURL,
+                    within: generationRootURL,
+                    rootIdentity: rootIdentity
                 )
+            } catch ReportPDFAnchoredFile.Failure.cleanupFailed {
+                throw ReportRenderServiceError.cleanupFailed
             } catch {
                 throw ReportRenderServiceError.writeFailed
             }
             ownsStage = true
+            if failureInjection?.consume(.stageWrite) == true {
+                throw ReportRenderServiceError.writeFailed
+            }
             try verify(
                 paths.stageURL,
                 expectedData: rendered.data,
                 expectedSHA256: rendered.sha256
             )
             do {
-                try fileManager.moveItem(at: paths.stageURL, to: paths.finalURL)
+                if failureInjection?.consume(.promotion) == true {
+                    throw ReportRenderServiceError.writeFailed
+                }
+                try ReportPDFAnchoredFile.promoteNoReplace(
+                    from: paths.stageURL,
+                    to: paths.finalURL,
+                    within: generationRootURL,
+                    rootIdentity: rootIdentity
+                )
             } catch {
                 throw ReportRenderServiceError.writeFailed
             }
             ownsStage = false
             ownsFinal = true
+            if failureInjection?.consume(.reread) == true {
+                throw ReportRenderServiceError.bytesMismatch
+            }
             try verify(
                 paths.finalURL,
                 expectedData: rendered.data,
@@ -126,19 +641,21 @@ final class ReportRenderService {
             report.pdfRelativePath = paths.finalRelativePath
             report.pdfSHA256 = rendered.sha256
             do {
+                if failureInjection?.consume(.readySave) == true {
+                    throw ReportRenderServiceError.saveFailed
+                }
                 try modelContext.save()
             } catch {
                 modelContext.rollback()
+                report.pdfState = ReportPDFState.pending.rawValue
+                report.pdfRelativePath = nil
+                report.pdfSHA256 = nil
                 do {
-                    try removeOwned(
-                        paths.finalURL,
-                        expectedData: rendered.data,
-                        expectedSHA256: rendered.sha256
-                    )
+                    try modelContext.save()
                 } catch {
-                    throw ReportRenderServiceError.cleanupFailed
+                    modelContext.rollback()
+                    throw ReportRenderServiceError.failedStateSaveFailed
                 }
-                ownsFinal = false
                 throw ReportRenderServiceError.saveFailed
             }
             ownsFinal = false
@@ -151,23 +668,146 @@ final class ReportRenderService {
         } catch {
             do {
                 if ownsStage {
-                    try removeOwned(
-                        paths.stageURL,
-                        expectedData: rendered.data,
-                        expectedSHA256: rendered.sha256
+                    let stageType = try Self.itemType(
+                        at: paths.stageURL,
+                        fileManager: fileManager
                     )
+                    let finalType = try Self.itemType(
+                        at: paths.finalURL,
+                        fileManager: fileManager
+                    )
+                    guard !(stageType != nil && finalType != nil) else {
+                        throw ReportRenderServiceError.cleanupFailed
+                    }
+                    if stageType != nil {
+                        try removeAttemptOwned(
+                            paths.stageURL,
+                            quarantineAt: paths.finalURL,
+                            expectedData: rendered.data
+                        )
+                    } else if finalType != nil {
+                        try removeAttemptOwned(
+                            paths.finalURL,
+                            quarantineAt: paths.stageURL,
+                            expectedData: rendered.data
+                        )
+                    }
                 }
                 if ownsFinal {
-                    try removeOwned(
-                        paths.finalURL,
-                        expectedData: rendered.data,
-                        expectedSHA256: rendered.sha256
-                    )
+                    guard try Self.itemType(
+                        at: paths.stageURL,
+                        fileManager: fileManager
+                    ) == nil else {
+                        throw ReportRenderServiceError.cleanupFailed
+                    }
+                    if try Self.itemType(
+                        at: paths.finalURL,
+                        fileManager: fileManager
+                    ) != nil {
+                        try removeAttemptOwned(
+                            paths.finalURL,
+                            quarantineAt: paths.stageURL,
+                            expectedData: rendered.data
+                        )
+                    }
                 }
             } catch {
                 throw ReportRenderServiceError.cleanupFailed
             }
             throw error
+        }
+    }
+
+    private func removeAttemptOwned(
+        _ url: URL,
+        quarantineAt quarantineURL: URL,
+        expectedData: Data
+    ) throws {
+        do {
+            try ReportPDFAnchoredFile.removeMatchingRegularFile(
+                at: url,
+                expectedData: expectedData,
+                quarantineAt: quarantineURL,
+                within: generationRootURL,
+                rootIdentity: rootIdentity
+            )
+        } catch {
+            throw ReportRenderServiceError.cleanupFailed
+        }
+        guard try Self.itemType(at: url, fileManager: fileManager) == nil else {
+            throw ReportRenderServiceError.cleanupFailed
+        }
+    }
+
+    private func persistFailed(reportID: UUID) throws {
+        guard !modelContext.hasChanges else {
+            throw ReportRenderServiceError.contextHasChanges
+        }
+        let matches = try modelContext.fetch(FetchDescriptor<Report>()).filter {
+            $0.id == reportID
+        }
+        guard matches.count == 1 else {
+            throw matches.isEmpty
+                ? ReportRenderServiceError.reportNotFound
+                : ReportRenderServiceError.invalidStorageAuthority
+        }
+        let report = matches[0]
+        guard report.pdfState == ReportPDFState.pending.rawValue,
+              report.pdfRelativePath == nil,
+              report.pdfSHA256 == nil else {
+            throw ReportRenderServiceError.reportNotPending
+        }
+        report.pdfState = ReportPDFState.failed.rawValue
+        do {
+            if failureInjection?.consume(.failedStateSave) == true {
+                throw ReportRenderServiceError.failedStateSaveFailed
+            }
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            report.pdfState = ReportPDFState.pending.rawValue
+            report.pdfRelativePath = nil
+            report.pdfSHA256 = nil
+            do {
+                try modelContext.save()
+            } catch {
+                modelContext.rollback()
+            }
+            throw ReportRenderServiceError.failedStateSaveFailed
+        }
+    }
+
+    private func requireAttemptPathsAbsent(for reportID: UUID) throws {
+        let id = reportID.uuidString.lowercased()
+        let stage = generationRootURL.appendingPathComponent(
+            ".staging/pdfs/\(id).pdf",
+            isDirectory: false
+        )
+        let final = generationRootURL.appendingPathComponent(
+            "pdfs/\(id).pdf",
+            isDirectory: false
+        )
+        let stageType = try Self.itemType(at: stage, fileManager: fileManager)
+        let finalType = try Self.itemType(at: final, fileManager: fileManager)
+        guard stageType == nil, finalType == nil else {
+            throw ReportRenderServiceError.invalidStorageAuthority
+        }
+    }
+
+    private static func isRetryableRenderFailure(_ error: Error) -> Bool {
+        if error is SnapshotValidationErrorV1
+            || error is StoragePreflightError
+            || error is WorklightPDFRendererErrorV1 {
+            return true
+        }
+        guard let error = error as? ReportRenderServiceError else { return false }
+        switch error {
+        case .writeFailed, .bytesMismatch, .saveFailed, .injectedFailure:
+            return true
+        case .invalidGeneration, .reportNotFound, .reportNotPending,
+             .contextHasChanges, .invalidStorageAuthority, .cleanupFailed,
+             .failedStateSaveFailed:
+            return false
         }
     }
 
@@ -187,13 +827,25 @@ final class ReportRenderService {
             "pdfs",
             isDirectory: true
         )
-        let pdfsRoot = generationRootURL.appendingPathComponent(
-            "pdfs",
-            isDirectory: true
-        )
-        try ensureDirectory(stagingRoot)
-        try ensureDirectory(stagingPDFsRoot)
-        try ensureDirectory(pdfsRoot)
+        do {
+            try ReportPDFAnchoredFile.ensureDirectory(
+                relativePath: ".staging",
+                within: generationRootURL,
+                rootIdentity: rootIdentity
+            )
+            try ReportPDFAnchoredFile.ensureDirectory(
+                relativePath: ".staging/pdfs",
+                within: generationRootURL,
+                rootIdentity: rootIdentity
+            )
+            try ReportPDFAnchoredFile.ensureDirectory(
+                relativePath: "pdfs",
+                within: generationRootURL,
+                rootIdentity: rootIdentity
+            )
+        } catch {
+            throw ReportRenderServiceError.invalidStorageAuthority
+        }
 
         let stageURL = stagingPDFsRoot.appendingPathComponent(
             "\(canonicalID).pdf",
@@ -212,62 +864,24 @@ final class ReportRenderService {
         )
     }
 
-    private func ensureDirectory(_ url: URL) throws {
-        switch try Self.itemType(at: url, fileManager: fileManager) {
-        case nil:
-            do {
-                try fileManager.createDirectory(
-                    at: url,
-                    withIntermediateDirectories: false
-                )
-            } catch {
-                throw ReportRenderServiceError.writeFailed
-            }
-        case .some(.typeDirectory):
-            guard !Self.isSymbolicLink(url, fileManager: fileManager) else {
-                throw ReportRenderServiceError.invalidStorageAuthority
-            }
-        case .some:
-            throw ReportRenderServiceError.invalidStorageAuthority
-        }
-    }
-
     private func verify(
         _ url: URL,
         expectedData: Data,
         expectedSHA256: String
     ) throws {
-        guard try Self.itemType(at: url, fileManager: fileManager) == .typeRegular,
-              !Self.isSymbolicLink(url, fileManager: fileManager) else {
-            throw ReportRenderServiceError.invalidStorageAuthority
-        }
         let bytes: Data
         do {
-            bytes = try Data(contentsOf: url, options: .mappedIfSafe)
+            bytes = try ReportPDFAnchoredFile.readRegularFile(
+                at: url,
+                within: generationRootURL,
+                rootIdentity: rootIdentity
+            )
         } catch {
-            throw ReportRenderServiceError.writeFailed
+            throw ReportRenderServiceError.invalidStorageAuthority
         }
         guard bytes == expectedData,
               Self.sha256(bytes) == expectedSHA256 else {
             throw ReportRenderServiceError.bytesMismatch
-        }
-    }
-
-    private func removeOwned(
-        _ url: URL,
-        expectedData: Data,
-        expectedSHA256: String
-    ) throws {
-        guard try Self.itemType(at: url, fileManager: fileManager) != nil else { return }
-        try verify(
-            url,
-            expectedData: expectedData,
-            expectedSHA256: expectedSHA256
-        )
-        do {
-            try fileManager.removeItem(at: url)
-        } catch {
-            throw ReportRenderServiceError.writeFailed
         }
     }
 

@@ -14,6 +14,8 @@ struct FieldEvidenceAppApp: App {
         "--s3-5-ui-test-low-storage-once"
     private static let cameraDeniedOnceLaunchArgument =
         "--s3-6-ui-test-camera-denied-once"
+    private static let reportRenderFailureOnceLaunchArgument =
+        "--s4-2-ui-test-render-failure-once"
 
     @StateObject private var startupRouter: StartupRouter
 
@@ -25,17 +27,20 @@ struct FieldEvidenceAppApp: App {
     private let cameraAdapter: CameraAdapter
 
     init() {
+        let arguments = ProcessInfo.processInfo.arguments
         let applicationSupportURL = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
         )[0]
         _startupRouter = StateObject(
             wrappedValue: StartupRouter(
-                applicationSupportURL: applicationSupportURL
+                applicationSupportURL: applicationSupportURL,
+                injectsReportRenderFailureOnce: arguments.contains(
+                    Self.reportRenderFailureOnceLaunchArgument
+                )
             )
         )
 
-        let arguments = ProcessInfo.processInfo.arguments
         usesImportedCaptureFixturesForUITest = arguments.contains(
             Self.importedCaptureFixturesLaunchArgument
         )
@@ -125,10 +130,14 @@ private struct StartupRootView: View {
                     Task { await router.retryChecks() }
                 }
 
-            case let .ready(coordinator, diagnosticsStore):
+            case let .ready(coordinator, diagnosticsStore, reportRecoveryService):
                 ReadyAppView(
                     coordinator: coordinator,
                     diagnosticsStore: diagnosticsStore,
+                    reportRecoveryService: reportRecoveryService,
+                    onUnsafePDFRecovery: {
+                        router.failClosedPDFRecovery()
+                    },
                     packLoadResult: packLoadResult,
                     exposesColorSchemeForUITest: exposesColorSchemeForUITest,
                     usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
@@ -148,6 +157,8 @@ private struct ReadyAppView: View {
     @ObservedObject var coordinator: StoreSessionCoordinator
 
     let diagnosticsStore: DiagnosticsStore
+    @ObservedObject var reportRecoveryService: ReportRecoveryService
+    let onUnsafePDFRecovery: @MainActor () -> Void
     let packLoadResult: SignPackLoadResult
     let exposesColorSchemeForUITest: Bool
     let usesImportedCaptureFixturesForUITest: Bool
@@ -155,17 +166,26 @@ private struct ReadyAppView: View {
     let cameraAdapter: CameraAdapter
 
     var body: some View {
-        AppShellView(
-            packLoadResult: packLoadResult,
-            exposesColorSchemeForUITest: exposesColorSchemeForUITest,
-            modelContext: coordinator.modelContext,
-            diagnosticsStore: diagnosticsStore,
-            generationRootURL: coordinator.generationRootURL,
-            usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
-            injectsLowStorageFailureOnceForUITest:
-                injectsLowStorageFailureOnceForUITest,
-            cameraAdapter: cameraAdapter
-        )
+        Group {
+            if reportRecoveryService.failedReportIDs.isEmpty {
+            AppShellView(
+                packLoadResult: packLoadResult,
+                exposesColorSchemeForUITest: exposesColorSchemeForUITest,
+                modelContext: coordinator.modelContext,
+                diagnosticsStore: diagnosticsStore,
+                generationRootURL: coordinator.generationRootURL,
+                usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
+                injectsLowStorageFailureOnceForUITest:
+                    injectsLowStorageFailureOnceForUITest,
+                cameraAdapter: cameraAdapter
+            )
+            } else {
+                ReportFailureView(
+                    recovery: reportRecoveryService,
+                    onUnsafeRecovery: onUnsafePDFRecovery
+                )
+            }
+        }
         .id(coordinator.uiGenerationToken)
         .modelContext(coordinator.modelContext)
     }
