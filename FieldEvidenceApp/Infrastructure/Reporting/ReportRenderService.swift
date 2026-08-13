@@ -98,7 +98,7 @@ final class ReportRenderService {
             do {
                 try rendered.data.write(
                     to: paths.stageURL,
-                    options: [.atomic, .withoutOverwriting]
+                    options: .withoutOverwriting
                 )
             } catch {
                 throw ReportRenderServiceError.writeFailed
