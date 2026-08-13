@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 import UIKit
 
 struct ReportDetailView: View {
+    private static let scrollTopID = "s4.5.report-detail.top"
     static let screenAccessibilityIdentifier = "s4.3.report-detail.screen"
     static let previewAccessibilityIdentifier = "s4.3.report-detail.preview"
     static let shareAccessibilityIdentifier = "s4.3.report-detail.share"
@@ -59,69 +60,75 @@ struct ReportDetailView: View {
     private var delivery: ReportDeliveryValue { state.selectedDelivery }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-                WorklightCard {
-                    WorklightStatusBadge(kind: .complete, text: "Report ready")
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
+                    WorklightCard {
+                        WorklightStatusBadge(kind: .complete, text: "Report ready")
 
-                    if state.isAuthorityResolved {
+                        if state.isAuthorityResolved {
+                            WorklightStatusBadge(
+                                kind: state.isCurrentReadyRevision ? .complete : .information,
+                                text: state.isCurrentReadyRevision
+                                    ? "Current revision"
+                                    : "Prior revision"
+                            )
+                            .accessibilityIdentifier(
+                                Self.revisionStateAccessibilityIdentifier
+                            )
+                        }
+
+                        Text(delivery.title)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(DesignTokens.Colors.primaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityAddTraits(.isHeader)
+
+                        Text(delivery.subtitle)
+                            .font(.body)
+                            .foregroundStyle(DesignTokens.Colors.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        ForEach(Array(delivery.detailLines.enumerated()), id: \.offset) { _, line in
+                            detailRow(line)
+                        }
+                    }
+
+                    revisionActions
+
+                    if state.unavailableCurrentReportID != nil {
                         WorklightStatusBadge(
-                            kind: state.isCurrentReadyRevision ? .complete : .information,
-                            text: state.isCurrentReadyRevision
-                                ? "Current revision"
-                                : "Prior revision"
+                            kind: .attention,
+                            text: "Correction saved, but its PDF couldn’t be created. Retry from the saved report."
                         )
-                        .accessibilityIdentifier(
-                            Self.revisionStateAccessibilityIdentifier
-                        )
+                        .accessibilityIdentifier(ReportCorrectionView.failureAccessibilityIdentifier)
                     }
 
-                    Text(delivery.title)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityAddTraits(.isHeader)
+                    ReportPDFPreview(data: delivery.pdfData)
+                        .frame(minHeight: 520)
+                        .background(DesignTokens.Colors.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
+                                .stroke(DesignTokens.Colors.essentialControlStroke, lineWidth: 1)
+                        }
+                        .accessibilityLabel("Report PDF preview")
+                        .accessibilityIdentifier(Self.previewAccessibilityIdentifier)
 
-                    Text(delivery.subtitle)
-                        .font(.body)
-                        .foregroundStyle(DesignTokens.Colors.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    ForEach(Array(delivery.detailLines.enumerated()), id: \.offset) { _, line in
-                        detailRow(line)
+                    if let exportErrorMessage {
+                        Label(exportErrorMessage, systemImage: "exclamationmark.triangle.fill")
+                            .font(.body)
+                            .foregroundStyle(DesignTokens.Colors.blockedText)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier(Self.deliveryErrorAccessibilityIdentifier)
                     }
                 }
-
-                revisionActions
-
-                if state.unavailableCurrentReportID != nil {
-                    WorklightStatusBadge(
-                        kind: .attention,
-                        text: "Correction saved, but its PDF couldn’t be created. Retry from the saved report."
-                    )
-                    .accessibilityIdentifier(ReportCorrectionView.failureAccessibilityIdentifier)
-                }
-
-                ReportPDFPreview(data: delivery.pdfData)
-                    .frame(minHeight: 520)
-                    .background(DesignTokens.Colors.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
-                            .stroke(DesignTokens.Colors.essentialControlStroke, lineWidth: 1)
-                    }
-                    .accessibilityLabel("Report PDF preview")
-                    .accessibilityIdentifier(Self.previewAccessibilityIdentifier)
-
-                if let exportErrorMessage {
-                    Label(exportErrorMessage, systemImage: "exclamationmark.triangle.fill")
-                        .font(.body)
-                        .foregroundStyle(DesignTokens.Colors.blockedText)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier(Self.deliveryErrorAccessibilityIdentifier)
-                }
+                .id(Self.scrollTopID)
+                .padding(DesignTokens.Spacing.medium)
             }
-            .padding(DesignTokens.Spacing.medium)
+            .onChange(of: state.selectedReportID) { _, _ in
+                proxy.scrollTo(Self.scrollTopID, anchor: .top)
+            }
         }
         .navigationTitle("Report")
         .navigationBarTitleDisplayMode(.inline)
