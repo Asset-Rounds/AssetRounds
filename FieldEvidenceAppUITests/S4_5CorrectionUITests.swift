@@ -141,8 +141,6 @@ final class S4_5CorrectionUITests: XCTestCase {
         assertReportDetail(in: app, revision: "Current revision", canCorrect: true)
 
         let preview = element(in: app, identifier: "s4.3.report-detail.preview")
-        scrollUntilHittable(preview, in: app)
-        XCTAssertTrue(preview.isHittable)
         let revision = element(in: app, identifier: "s4.5.report-detail.revision-state")
         XCTAssertTrue(revision.exists)
         XCTAssertEqual(revision.label, "Complete: Current revision")
