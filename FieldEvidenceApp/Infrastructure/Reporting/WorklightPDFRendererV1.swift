@@ -366,8 +366,7 @@ private extension WorklightPDFRendererV1 {
         var mediaBox = Self.pageRect
         let metadata: [CFString: Any] = [
             kCGPDFContextCreator: "FieldEvidenceApp PDFTemplateV1",
-            "CreationDate" as CFString: snapshot.snapshotCreatedAt as CFDate,
-            "ModDate" as CFString: snapshot.snapshotCreatedAt as CFDate,
+            "CGPDFContextDate" as CFString: snapshot.snapshotCreatedAt as CFDate,
         ]
         guard let consumer = CGDataConsumer(data: output as CFMutableData),
               let context = CGContext(
