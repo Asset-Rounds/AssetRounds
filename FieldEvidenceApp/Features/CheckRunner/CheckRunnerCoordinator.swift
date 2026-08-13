@@ -586,6 +586,7 @@ final class CheckRunnerCoordinator {
             throw CheckRunnerCoordinatorError.mediaImportFailed
         }
 
+        var draftMutation: (draft: WorkflowRecord, priorStepKey: String?)?
         do {
             let currentPreparation = try prepareCapture(assetID: assetID)
             guard currentPreparation == preparation else {
@@ -598,6 +599,7 @@ final class CheckRunnerCoordinator {
             guard let draft = try modelContext.fetch(descriptor).first else {
                 throw CheckRunnerCoordinatorError.captureDraftRequired
             }
+            draftMutation = (draft, draft.draftStepKey)
             let evidence = EvidenceFile(
                 id: candidate.id,
                 recordID: candidate.recordID,
@@ -623,6 +625,9 @@ final class CheckRunnerCoordinator {
         } catch {
             let saveError = error
             modelContext.rollback()
+            if let draftMutation {
+                draftMutation.draft.draftStepKey = draftMutation.priorStepKey
+            }
             do {
                 try await evidenceBundleStore.removePromotedBundleIfOwned(promoted)
             } catch {

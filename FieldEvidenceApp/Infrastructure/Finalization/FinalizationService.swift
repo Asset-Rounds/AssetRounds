@@ -104,6 +104,7 @@ final class FinalizationService {
         let prepared: PreparedFinalization
         let promoted: PromotedFinalization
         let snapshotPromoted: PromotedFinalization
+        let priorDraftState = DraftMutationState(input.draft)
         do {
             prepared = try await intentStore.prepare(
                 intent: frozen.intent,
@@ -148,6 +149,7 @@ final class FinalizationService {
             try modelContext.save()
         } catch {
             modelContext.rollback()
+            priorDraftState.restore(input.draft)
             do {
                 try await intentStore.rollbackUncommitted(snapshotPromoted)
             } catch {
@@ -336,6 +338,36 @@ final class FinalizationService {
         let packet: Packet
         let report: Report
         let snapshotRelativePath: String
+    }
+
+    private struct DraftMutationState {
+        let packetID: UUID?
+        let issueID: UUID?
+        let state: String
+        let draftStepKey: String?
+        let completedAt: Date?
+        let outcomeKey: String?
+        let finalizationMutationID: UUID?
+
+        init(_ draft: WorkflowRecord) {
+            packetID = draft.packetID
+            issueID = draft.issueID
+            state = draft.state
+            draftStepKey = draft.draftStepKey
+            completedAt = draft.completedAt
+            outcomeKey = draft.outcomeKey
+            finalizationMutationID = draft.finalizationMutationID
+        }
+
+        func restore(_ draft: WorkflowRecord) {
+            draft.packetID = packetID
+            draft.issueID = issueID
+            draft.state = state
+            draft.draftStepKey = draftStepKey
+            draft.completedAt = completedAt
+            draft.outcomeKey = outcomeKey
+            draft.finalizationMutationID = finalizationMutationID
+        }
     }
 
     private func freeze(_ input: FinalizationServiceInput) throws -> FrozenFinalization {
