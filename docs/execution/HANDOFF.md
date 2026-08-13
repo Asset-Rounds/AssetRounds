@@ -1243,3 +1243,71 @@ The accepted run's `head_sha` exactly equals `E=I2=4a0316d03298435a33bd8bf613047
 
 - Task ID only; it was not started: `S4.5`
 - Next gate: after re-proving remote phase=`E=I2` and remote `main=P`, same-phase autopilot may commit and non-force push exactly this HANDOFF append plus immediate-next S4.5 `CURRENT_TASK.md`, then must run fresh S4.5 G0. Do not mutate main.
+
+## `S4.5` — `complete` — `2026-08-13T20:23:53Z`
+
+- Phase ID / phase branch / card position / phase-boundary card: `S4` / `phase/s4-reports` / `5 of 5` / `yes`
+- Program-autopilot state / next boundary: enabled through accepted exact-main S9.1 / close S4, verify exact main, then hydrate S5.1 only on `phase/s5-work-recheck`; S9.2 and S9.3 remain owner-only
+- Outcome: added note-only clerical correction as a forward WorkflowRecord and Report replacement under the same Packet/stable root, preserved immutable prior snapshot/PDF/evidence authority, rendered only through the existing report renderer, kept every prior revision reopenable, and added the owner-approved correction/revision UI at Accessibility XXXL
+- Exact build-plan path / SHA-256: `docs/product/BUILD_PLAN_V4.md` / `23DAAB390AF917CBE91C3044E4906F3FBF8D67D2FDFC6BC9BDE985D984F37BBD`
+- Exact implementation-runbook path / SHA-256 / selected card: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / `S4.5 — Clerical correction and forward replacement`
+- Authoring host: Windows 11; no Windows Xcode or Simulator result was claimed
+- Immutable phase-main base: `P=8b33ee6a26ed4f7ccdccc8e092920b26c6e04122`; freshly read remote `main` still equaled P after accepted card CI
+- Integrated/card base and predecessor: `M=E=I2=4a0316d03298435a33bd8bf6130470d78b8d35f5`; accepted S4.4 run `31683138727` / job `94392986217`, P12/UI enabled, `7/7` units and `1/1` UI green with `105/105` artifact payloads verified
+- Observed task-start authority: `A=066d09b6c5e5033c0feae7770f30eb22781b673a`, direct child of M; `M..A` changed only the append-only S4.4 HANDOFF plus immediate-next `CURRENT_TASK.md`
+- Mechanical authority corrections: `R=94bfb52e2356b6288a3ce1dd9b92dd53965abc98` corrected the frozen heading/copy hold; `R2=11a81cfdd1b11c52202f91a2c4b145eafc51fee8` authorized the exact owner copy and descriptor-anchored intent-store path; later direct-child task-only amendments `b1c4ee18385e437d84bcd462f0e208be7ea728f8` and `5c020eec73e468ee9d769999f7abb034c8347789` recorded the diagnosed recovery and persistent correction policy without weakening outcome or acceptance
+- First implementation and accepted implementation: `I=a27611a80eb0ad86a27a57bfe7f8ac478b66cdec`; accepted `E=8e14858d0fc047203ef31ba01c57a527383d3307`; no distinct infrastructure K exists
+- Pre-existing dirty work: `NONE`; final accepted worktree and `git diff --check` were clean
+- Workflow / ref / selector: `.github/workflows/ios-ci.yml` SHA-256 `9FFEA51ADB2620B01FE250412716487F6102DAC7E93AEA0471943AF66C1BC2AC`; `workflow_dispatch`; `phase/s4-reports@E`; S4.5 P12, `runUISmoke=true`, exact compact JSON plus LF SHA-256 `F985AFA45EEB2089287834E22F258055E7562923EE65C298D2D8E5543C7731AC`
+- Accepted run/job/URLs: `31739621721` / `94579545248`; `https://github.com/palatis3/AssetRounds/actions/runs/31739621721`; `https://github.com/palatis3/AssetRounds/actions/runs/31739621721/job/94579545248`; terminal `success`; `head_sha=E`; attempt 1
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.5 build `23F77`; UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; initial Simulator state `Shutdown`
+- Budgets: setup `15/300` s; Simulator readiness `210/900` s; build step `144/600` s; unit step `86/900` s; UI step `384/900` s; artifact `1` s and setup-plus-artifact `16/300` s; selected total `702/3300` s; all watchdogs passed
+- Artifact: `ios-ci-31739621721-1`, ID `9196900725`, size `5326121`, GitHub/raw ZIP SHA-256 `03AEC80A09112862716B6A788950F2DF7E8F851AB055B21D828F2BE8BA69004B`; `SHA256SUMS.txt` SHA-256 `9EAE8E166E3488580CA1769621C1F662CA311416810616AA928A24E04A57F978`; all `113/113` payloads independently matched with no missing, extra, or mismatched payload
+- Accepted logs: `build-smoke.log` SHA-256 `40D6EE6EF9AFD92C621297FC2F77E04410BC865852DB1F33035FF3CCE1312B8A`; `test-smoke.log` `4B0C5923D9D2CAB798E9D2ECD7F91EFDD3F8E4D5533FB445FC6FC5BD36E7A377`; `ui-smoke.log` `4150EB59BABE94F74EA20688C2B75908A2E569736F512B14321DE46268A70827`
+- Terminal evidence: `ui-final.png`, `1206×2622`, 251994 bytes, SHA-256 `1711F8AA5C4D76F5C0A2CFE899647639B4160F4F5417D09A2FBC7DDDD90FAA3B`; visual PASS showed the second corrected ready report at Accessibility XXXL with `Correct report`, `View prior report`, delivery controls, no error state, no keyboard, and intact navigation
+- Candidate provenance: terminal non-green runs were `31696578593`, `31696713370`, `31701326475`, `31702909352`, `31703722932`, `31705046990`, `31706503297`, `31708116139`, `31709520393`, `31711051954`, `31712501657`, `31714171228`, `31715967018`, `31717017514`, `31718500219`, `31719868472`, `31720818921`, `31722746671`, `31724827307`, `31726385918`, `31727384953`, `31729440756`, `31730799501`, `31731941052`, `31733498658`, `31734778459`, `31735613924`, and `31737256195`; none was rerun by run ID or accepted
+- Diagnosed recovery sequence: fixed the initial workflow-input mismatch; deterministic unit fixture ordering and held SwiftData rollback assumptions; correction finalization/recovery, dirty-context, journal/root/ancestor ABA, and exact-owned cleanup faults; UI fixture preflight control selection; saving-state observability; retained-receipt and correction reachability; report-detail scrolling across PDFKit; and Accessibility XXXL revision/preview reachability. Each correction was a direct child limited to an evidenced S4.5 allowed path, and the final correction removed only a redundant PDF hit-point assertion while retaining preview existence and full terminal truth
+- Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run
+
+### Changed paths
+
+- `FieldEvidenceApp/Domain/Workflow/ReportCorrectionRule.swift`
+- `FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift`
+- `FieldEvidenceApp/Features/Reports/ReportDetailView.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift`
+- `FieldEvidenceAppTests/S4_5CorrectionTests.swift`
+- `FieldEvidenceAppUITests/S4_5CorrectionUITests.swift`
+- `Scripts/ci-selection.json`
+
+Authority-only `CURRENT_TASK.md` commits are recorded separately above. The implementation/test/selector envelope is exactly eight production paths, two test paths, and the standing selector exception.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`11/11`): `testCommittedJournalRecoveryAndSameIdentifierReplayAreDuplicateFree`; `testDirtyCollisionMalformedAndUnsafeAuthorityFailClosedWithoutMutationOrLinkFollowing`; `testFirstAndSecondCorrectionCopyOnlyFiveSnapshotFieldsAndKeepEveryPriorPDF`; `testGenerationRootIdentityReplacementFailsClosedWithoutTouchingRetainedBytes`; `testIntentStorePersistentSwapAndJournalABAKeepMutationOwnedBytesAnchored`; `testPostcommitDirtyInterleavingReturnsPersistedAuthorityWithoutSavingOrRollingBackUnrelatedEdit`; `testPrecommitJournalAndSaveFailuresLeaveNoPartialAuthorityThenRetryOnce`; `testPureRuleRejectsNoopMalformedUnknownAndNoncurrentAuthority`; `testRenderFailurePersistsOneRecoverableCorrectionWithoutResubmitOrCounterMutation`; `testSnapshotPromotedCrashRecoveryPreservesRawSubmillisecondVisitDates`; `testSubmillisecondProductionDateCanonicalizesOnceAndColdRecoveryAcceptsIt`
+- UI `PASS` (`1/1`): `testFirstAndSecondCorrectionReopenPriorAndCurrentAtAccessibilityXXXL`, 291.901 s
+
+### Acceptance results
+
+- GOLDEN `PASS`: a correction changed only the normalized note and required revision identities, revised the immediately prior current record, replaced its Report forward-only, pointed evidence directly to the original owner, preserved every frozen snapshot/evidence/history/issue/pack/template value, reached ready, and reopened exact prior/current cached PDFs
+- ALT-1 `PASS`: the second correction revised the first correction while retaining the same Packet/stable root and direct-original evidence authority, created no EvidenceFile, preserved all earlier rows/bytes, and navigated the complete current/nearest-prior/original report chain
+- Recovery/security `PASS`: dirty contexts, collisions, noncurrent authority, malformed/unknown truth, broken chains, unsafe paths/symlinks/special files, corrupt hashes/bytes, submillisecond timestamp serialization, render/save/journal failures, root/ancestor replacement, and bounded persistent/ABA store barriers failed closed or remained recoverable without partial database authority, unowned mutation, evidence duplication, issue mutation, false precommit copy, or duplicate replay
+- UI/accessibility `PASS`: the exact owner copy and hints, note-only validation, count, saving and ready states, deterministic focus, 44-point controls, Accessibility XXXL scrolling, first and second corrections, stale receipt reopen, prior/current traversal, and one terminal in-app screenshot all passed
+- Scope `PASS`: no schema/project/package/capability/permission/backend/hosted-link/analytics/payment/work/recheck/deletion/backup/commerce/release behavior was added
+
+### Known bugs or limitations
+
+- `NONE`; `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template
+
+### Blockers
+
+- `NONE`
+
+### Phase-boundary state and next unstarted task
+
+- S4.5 product implementation is accepted at `E=8e14858d0fc047203ef31ba01c57a527383d3307`; remote phase equaled E and remote main equaled P immediately before this append
+- This entry does not self-record its future HANDOFF-only S4 phase-close commit C
+- Next unstarted card: `S5.1`; it must remain unstarted until C is non-force pushed to the S4 phase branch, exact phase CI at C is accepted, remote main is verified at P and non-force fast-forwarded to C, exact-main UI-enabled CI at C is accepted, and `phase/s5-work-recheck` is created or resumed exactly at that accepted head
