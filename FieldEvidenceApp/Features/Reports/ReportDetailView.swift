@@ -140,6 +140,16 @@ struct ReportDetailView: View {
         }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: DesignTokens.Spacing.small) {
+                if let source = state.correctionSource,
+                   state.isCurrentReadyRevision {
+                    Button("Correct report") {
+                        activeCorrectionSource = source
+                    }
+                    .buttonStyle(WorklightPrimaryButtonStyle())
+                    .accessibilityHint("Change only the report note and keep the prior report.")
+                    .accessibilityIdentifier(Self.correctAccessibilityIdentifier)
+                }
+
                 HStack(spacing: DesignTokens.Spacing.small) {
                     Button("Share PDF") {
                         showsShareSheet = true
@@ -209,15 +219,6 @@ struct ReportDetailView: View {
     private var revisionActions: some View {
         if hasRevisionActions {
             WorklightCard {
-                if let source = state.correctionSource, state.isCurrentReadyRevision {
-                    Button("Correct report") {
-                        activeCorrectionSource = source
-                    }
-                    .buttonStyle(WorklightPrimaryButtonStyle())
-                    .accessibilityHint("Change only the report note and keep the prior report.")
-                    .accessibilityIdentifier(Self.correctAccessibilityIdentifier)
-                }
-
                 if let prior = immediatelyPriorDelivery {
                     Button("View prior report") {
                         selectReport(id: prior.reportID)
@@ -246,8 +247,7 @@ struct ReportDetailView: View {
 
     private var hasRevisionActions: Bool {
         state.isAuthorityResolved && (
-            state.correctionSource != nil && state.isCurrentReadyRevision
-                || immediatelyPriorDelivery != nil
+            immediatelyPriorDelivery != nil
                 || !state.isCurrentReadyRevision
                     && state.unavailableCurrentReportID == nil
         )
