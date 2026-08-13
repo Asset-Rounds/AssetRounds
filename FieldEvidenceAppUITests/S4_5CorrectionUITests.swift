@@ -411,24 +411,28 @@ final class S4_5CorrectionUITests: XCTestCase {
 
     @MainActor
     private func scrollReportDetailUntilHittable(
-        _ element: XCUIElement,
+        _ target: XCUIElement,
         in app: XCUIApplication
     ) {
-        let upperEdge = app.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.06, dy: 0.25)
+        let reportScreen = element(
+            in: app,
+            identifier: "s4.3.report-detail.screen"
         )
-        let lowerEdge = app.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.06, dy: 0.75)
+        let upperEdge = reportScreen.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.98, dy: 0.25)
         )
-        for _ in 0..<20 {
-            if element.isHittable { return }
+        let lowerEdge = reportScreen.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.98, dy: 0.75)
+        )
+        for _ in 0..<8 {
+            if target.isHittable { return }
             upperEdge.press(forDuration: 0.05, thenDragTo: lowerEdge)
         }
-        for _ in 0..<20 {
-            if element.isHittable { return }
+        for _ in 0..<8 {
+            if target.isHittable { return }
             lowerEdge.press(forDuration: 0.05, thenDragTo: upperEdge)
         }
-        XCTAssertTrue(element.isHittable)
+        XCTAssertTrue(target.isHittable)
     }
 
     @MainActor
