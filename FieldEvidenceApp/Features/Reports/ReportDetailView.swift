@@ -92,8 +92,6 @@ struct ReportDetailView: View {
                         }
                     }
 
-                    revisionActions
-
                     if state.unavailableCurrentReportID != nil {
                         WorklightStatusBadge(
                             kind: .attention,
@@ -141,15 +139,7 @@ struct ReportDetailView: View {
         }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: DesignTokens.Spacing.small) {
-                if let source = state.correctionSource,
-                   state.isCurrentReadyRevision {
-                    Button("Correct report") {
-                        activeCorrectionSource = source
-                    }
-                    .buttonStyle(WorklightPrimaryButtonStyle())
-                    .accessibilityHint("Change only the report note and keep the prior report.")
-                    .accessibilityIdentifier(Self.correctAccessibilityIdentifier)
-                }
+                revisionActions
 
                 HStack(spacing: DesignTokens.Spacing.small) {
                     Button("Share PDF") {
@@ -219,7 +209,17 @@ struct ReportDetailView: View {
     @ViewBuilder
     private var revisionActions: some View {
         if hasRevisionActions {
-            WorklightCard {
+            VStack(spacing: DesignTokens.Spacing.small) {
+                if let source = state.correctionSource,
+                   state.isCurrentReadyRevision {
+                    Button("Correct report") {
+                        activeCorrectionSource = source
+                    }
+                    .buttonStyle(WorklightPrimaryButtonStyle())
+                    .accessibilityHint("Change only the report note and keep the prior report.")
+                    .accessibilityIdentifier(Self.correctAccessibilityIdentifier)
+                }
+
                 if let prior = immediatelyPriorDelivery {
                     Button("View prior report") {
                         selectReport(id: prior.reportID)
@@ -248,7 +248,8 @@ struct ReportDetailView: View {
 
     private var hasRevisionActions: Bool {
         state.isAuthorityResolved && (
-            immediatelyPriorDelivery != nil
+            state.correctionSource != nil && state.isCurrentReadyRevision
+                || immediatelyPriorDelivery != nil
                 || !state.isCurrentReadyRevision
                     && state.unavailableCurrentReportID == nil
         )
