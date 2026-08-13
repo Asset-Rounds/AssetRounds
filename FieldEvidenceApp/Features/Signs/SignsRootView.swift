@@ -16,6 +16,7 @@ struct SignsRootView: View {
         case sample
         case newSign
         case check
+        case report(UUID)
     }
 
     let pack: SignPack
@@ -25,7 +26,10 @@ struct SignsRootView: View {
 
     @StateObject private var coordinator: FirstSignCoordinator
     private let checkRunnerCoordinator: CheckRunnerCoordinator
+    private let reportDeliveryCoordinator: ReportDeliveryCoordinator?
     @State private var snapshot: FirstSignSnapshot?
+    @State private var readyReport: ReportDeliveryValue?
+    @State private var presentedReport: ReportDeliveryValue?
     @State private var path = NavigationPath()
     @State private var didLoad = false
     @State private var loadErrorMessage: String?
@@ -58,6 +62,12 @@ struct SignsRootView: View {
             injectsLowStorageFailureOnceForUITest:
                 injectsLowStorageFailureOnceForUITest
         )
+        reportDeliveryCoordinator = try? ReportDeliveryCoordinator(
+            modelContext: modelContext,
+            generationRootURL: generationRootURL,
+            diagnosticsStore: diagnosticsStore,
+            signPack: pack
+        )
     }
 
     var body: some View {
@@ -66,7 +76,11 @@ struct SignsRootView: View {
                 if let snapshot {
                     SignDetailView(
                         snapshot: snapshot,
-                        checkNotice: checkNotice
+                        checkNotice: checkNotice,
+                        openReport: readyReport.map { report in
+                            { openReport(id: report.reportID) }
+                        },
+                        refreshReport: refreshReadyReport
                     ) {
                         checkNotice = nil
                         path.append(Route.check)
@@ -104,6 +118,17 @@ struct SignsRootView: View {
                             path.removeLast()
                         }
                     }
+                case .report(let reportID):
+                    if let presentedReport,
+                       presentedReport.reportID == reportID,
+                       let reportDeliveryCoordinator {
+                        ReportDetailView(
+                            delivery: presentedReport,
+                            coordinator: reportDeliveryCoordinator
+                        )
+                    } else {
+                        reportUnavailable
+                    }
                 }
             }
             .toolbar {
@@ -130,6 +155,7 @@ struct SignsRootView: View {
             do {
                 let loadedSnapshot = try coordinator.load()
                 snapshot = loadedSnapshot
+                refreshReadyReport()
 
                 if let loadedSnapshot,
                    try checkRunnerCoordinator.existingDraft(assetID: loadedSnapshot.assetID) != nil {
@@ -139,6 +165,43 @@ struct SignsRootView: View {
                 loadErrorMessage = "Saved sign data could not be opened."
             }
         }
+    }
+
+    private func refreshReadyReport() {
+        guard let assetID = snapshot?.assetID,
+              let reportDeliveryCoordinator else {
+            readyReport = nil
+            return
+        }
+        readyReport = try? reportDeliveryCoordinator.onlyReadyReport(assetID: assetID)
+    }
+
+    private func openReport(id reportID: UUID) {
+        guard let assetID = snapshot?.assetID,
+              let reportDeliveryCoordinator,
+              let delivery = try? reportDeliveryCoordinator.onlyReadyReport(assetID: assetID),
+              delivery.reportID == reportID else {
+            readyReport = nil
+            presentedReport = nil
+            return
+        }
+        presentedReport = delivery
+        path.append(Route.report(reportID))
+    }
+
+    private var reportUnavailable: some View {
+        ScrollView {
+            WorklightCard {
+                WorklightStatusBadge(kind: .blocked, text: "Report unavailable")
+                Text("The saved report could not be opened.")
+                    .font(.body)
+                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(DesignTokens.Spacing.medium)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DesignTokens.Colors.canvas)
     }
 
     private var welcome: some View {

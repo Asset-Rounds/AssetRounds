@@ -153,6 +153,7 @@ final class CheckRunnerCoordinator {
     private let finalizationServiceFailureInjection: FinalizationServiceFailureInjection?
     private var captureGenerationRootURL: URL?
     private var evidenceBundleStore: EvidenceBundleStore?
+    private var reportDeliveryCoordinator: ReportDeliveryCoordinator?
     private var finalizationAttempt: FinalizationAttempt?
 
     private struct FinalizationAttempt {
@@ -234,6 +235,7 @@ final class CheckRunnerCoordinator {
         let standardizedURL = generationRootURL.standardizedFileURL
         guard captureGenerationRootURL != standardizedURL else { return }
         captureGenerationRootURL = standardizedURL
+        reportDeliveryCoordinator = nil
         evidenceBundleStore = EvidenceBundleStore(
             generationRootURL: standardizedURL,
             failureInjection: evidenceStoreFailureInjection
@@ -430,6 +432,27 @@ final class CheckRunnerCoordinator {
             await diagnosticsStore?.increment(.reportSaved)
         }
         return result
+    }
+
+    func makeReportDeliveryCoordinator() throws -> ReportDeliveryCoordinator {
+        if let reportDeliveryCoordinator { return reportDeliveryCoordinator }
+        guard let generationRootURL = captureGenerationRootURL else {
+            throw CheckRunnerCoordinatorError.finalizationNotConfigured
+        }
+        let coordinator = try ReportDeliveryCoordinator(
+            modelContext: modelContext,
+            generationRootURL: generationRootURL,
+            diagnosticsStore: diagnosticsStore,
+            signPack: signPack
+        )
+        reportDeliveryCoordinator = coordinator
+        return coordinator
+    }
+
+    func prepareReportDelivery(
+        result: FinalizationResult
+    ) throws -> ReportDeliveryPreparation {
+        try makeReportDeliveryCoordinator().prepareFinalizedReport(id: result.reportID)
     }
 
     func prepareCapture(assetID: UUID) throws -> CapturePreparation {

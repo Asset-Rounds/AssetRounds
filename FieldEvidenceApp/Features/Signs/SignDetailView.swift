@@ -8,9 +8,12 @@ struct SignDetailView: View {
     static let timeZoneAccessibilityIdentifier = "s2.sign-detail.time-zone"
     static let startCheckAccessibilityIdentifier = "s2.sign-detail.start-check"
     static let noCheckStartedAccessibilityIdentifier = "s3.sign-detail.no-check-started"
+    static let viewReportAccessibilityIdentifier = "s4.3.sign-detail.view-report"
 
     let snapshot: FirstSignSnapshot
     let checkNotice: String?
+    let openReport: (() -> Void)?
+    let refreshReport: () -> Void
     let startCheck: () -> Void
 
     var body: some View {
@@ -50,6 +53,13 @@ struct SignDetailView: View {
                 }
 
                 WorklightCard {
+                    if let openReport {
+                        Button("View report", action: openReport)
+                            .buttonStyle(WorklightSecondaryButtonStyle())
+                            .accessibilityHint("Opens the saved report for this sign")
+                            .accessibilityIdentifier(Self.viewReportAccessibilityIdentifier)
+                    }
+
                     Button("Start Check", action: startCheck)
                         .buttonStyle(WorklightPrimaryButtonStyle())
                         .accessibilityIdentifier(Self.startCheckAccessibilityIdentifier)
@@ -72,6 +82,7 @@ struct SignDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+        .onAppear(perform: refreshReport)
     }
 
     private func detailRow(title: String, value: String, identifier: String) -> some View {
