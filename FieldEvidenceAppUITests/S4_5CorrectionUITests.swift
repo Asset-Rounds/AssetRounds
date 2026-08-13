@@ -83,6 +83,10 @@ final class S4_5CorrectionUITests: XCTestCase {
             .waitForExistence(timeout: 15))
 
         app.terminate()
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL",
+        ]
         app.launch()
 
         let signDetail = element(in: app, identifier: "s2.sign-detail.screen")
@@ -312,8 +316,6 @@ final class S4_5CorrectionUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += [
             "-AppleInterfaceStyle", "Light",
-            "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityXXXL",
             "--s1-ui-test-light-mode",
             "--s3-2-ui-test-imported-fixtures",
         ]
@@ -382,20 +384,8 @@ final class S4_5CorrectionUITests: XCTestCase {
     private func toggle(_ identifier: String, in app: XCUIApplication) {
         let control = element(in: app, identifier: identifier)
         scrollUntilHittable(control, in: app)
-        XCTAssertTrue(waitForElement(
-            control,
-            matching: "exists == true AND enabled == true AND hittable == true",
-            timeout: 10
-        ))
-        control.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)
-        ).tap()
-        XCTAssertTrue(waitForElement(
-            control,
-            matching: "value == %@",
-            argument: "1",
-            timeout: 10
-        ))
+        control.tap()
+        XCTAssertEqual(control.value as? String, "1")
     }
 
     @MainActor
