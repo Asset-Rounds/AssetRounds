@@ -11,12 +11,18 @@ struct SignDetailView: View {
     static let viewReportAccessibilityIdentifier = "s4.3.sign-detail.view-report"
     static let reportHistoryAccessibilityIdentifier =
         "s4.4.sign-detail.report-history"
+    static let recordWorkAccessibilityIdentifier = "s5.1.sign-detail.record-work"
+    static let recheckDueAccessibilityIdentifier = "s5.1.sign-detail.recheck-due"
 
     let snapshot: FirstSignSnapshot
     let checkNotice: String?
     let openReport: (() -> Void)?
     let openReportHistory: () -> Void
     let refreshReport: () -> Void
+    let activeIssue: WorkIssuePresentationValue?
+    let openIssue: () -> Void
+    let recordWork: () -> Void
+    let refreshIssue: () -> Void
     let startCheck: () -> Void
 
     var body: some View {
@@ -56,6 +62,22 @@ struct SignDetailView: View {
                 }
 
                 WorklightCard {
+                    if let activeIssue {
+                        if activeIssue.canRecordWork {
+                            Button("Record work", action: recordWork)
+                                .buttonStyle(WorklightPrimaryButtonStyle())
+                                .accessibilityIdentifier(
+                                    Self.recordWorkAccessibilityIdentifier
+                                )
+                        } else {
+                            Button("Recheck due", action: openIssue)
+                                .buttonStyle(WorklightSecondaryButtonStyle())
+                                .accessibilityIdentifier(
+                                    Self.recheckDueAccessibilityIdentifier
+                                )
+                        }
+                    }
+
                     if let openReport {
                         Button("View report", action: openReport)
                             .buttonStyle(WorklightSecondaryButtonStyle())
@@ -90,7 +112,10 @@ struct SignDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
-        .onAppear(perform: refreshReport)
+        .onAppear {
+            refreshReport()
+            refreshIssue()
+        }
     }
 
     private func detailRow(title: String, value: String, identifier: String) -> some View {

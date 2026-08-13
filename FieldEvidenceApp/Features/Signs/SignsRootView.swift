@@ -18,6 +18,8 @@ struct SignsRootView: View {
         case check
         case report(UUID)
         case reportHistory(UUID)
+        case issue(UUID)
+        case work(UUID)
     }
 
     let pack: SignPack
@@ -29,12 +31,15 @@ struct SignsRootView: View {
     private let checkRunnerCoordinator: CheckRunnerCoordinator
     private let reportDeliveryCoordinator: ReportDeliveryCoordinator?
     private let reportHistoryCoordinator: ReportHistoryCoordinator?
+    private let workCoordinator: WorkCoordinator?
     @State private var snapshot: FirstSignSnapshot?
     @State private var readyReport: ReportDeliveryValue?
     @State private var path = NavigationPath()
     @State private var didLoad = false
     @State private var loadErrorMessage: String?
     @State private var checkNotice: String?
+    @State private var activeIssue: WorkIssuePresentationValue?
+    @State private var activeWorkDraft: WorkDraftValue?
 
     init(
         modelContext: ModelContext,
@@ -56,13 +61,14 @@ struct SignsRootView: View {
                 signPack: pack
             )
         )
-        checkRunnerCoordinator = CheckRunnerCoordinator(
+        let runnerCoordinator = CheckRunnerCoordinator(
             modelContext: modelContext,
             signPack: pack,
             diagnosticsStore: diagnosticsStore,
             injectsLowStorageFailureOnceForUITest:
                 injectsLowStorageFailureOnceForUITest
         )
+        checkRunnerCoordinator = runnerCoordinator
         let deliveryCoordinator = try? ReportDeliveryCoordinator(
             modelContext: modelContext,
             generationRootURL: generationRootURL,
@@ -76,6 +82,12 @@ struct SignsRootView: View {
                 deliveryCoordinator: $0
             )
         }
+        workCoordinator = try? WorkCoordinator(
+            modelContext: modelContext,
+            signPack: pack,
+            generationRootURL: generationRootURL,
+            checkRunnerCoordinator: runnerCoordinator
+        )
     }
 
     var body: some View {
@@ -91,7 +103,11 @@ struct SignsRootView: View {
                         openReportHistory: {
                             path.append(Route.reportHistory(snapshot.assetID))
                         },
-                        refreshReport: refreshReadyReport
+                        refreshReport: refreshReadyReport,
+                        activeIssue: activeIssue,
+                        openIssue: openActiveIssue,
+                        recordWork: beginRecordWork,
+                        refreshIssue: refreshActiveIssue
                     ) {
                         checkNotice = nil
                         path.append(Route.check)
@@ -152,6 +168,36 @@ struct SignsRootView: View {
                     } else {
                         reportHistoryUnavailable
                     }
+                case .issue(let issueID):
+                    if let activeIssue,
+                       activeIssue.id == issueID {
+                        IssueDetailView(
+                            issue: activeIssue,
+                            recordWork: beginRecordWork
+                        )
+                    } else {
+                        issueUnavailable
+                    }
+                case .work(let draftID):
+                    if let workCoordinator,
+                       let activeWorkDraft,
+                       activeWorkDraft.recordID == draftID {
+                        RecordWorkView(
+                            draft: activeWorkDraft,
+                            coordinator: workCoordinator,
+                            usesImportedFixtureForUITest:
+                                usesImportedCaptureFixturesForUITest
+                        ) { issue in
+                            activeIssue = issue
+                            activeWorkDraft = nil
+                            if !path.isEmpty {
+                                path.removeLast()
+                            }
+                            path.append(Route.issue(issue.id))
+                        }
+                    } else {
+                        issueUnavailable
+                    }
                 }
             }
             .toolbar {
@@ -179,6 +225,7 @@ struct SignsRootView: View {
                 let loadedSnapshot = try coordinator.load()
                 snapshot = loadedSnapshot
                 refreshReadyReport()
+                refreshActiveIssue()
 
                 if let loadedSnapshot,
                    try checkRunnerCoordinator.existingDraft(assetID: loadedSnapshot.assetID) != nil {
@@ -197,6 +244,37 @@ struct SignsRootView: View {
             return
         }
         readyReport = try? reportDeliveryCoordinator.onlyReadyReport(assetID: assetID)
+    }
+
+    private func refreshActiveIssue() {
+        guard let assetID = snapshot?.assetID,
+              let workCoordinator else {
+            activeIssue = nil
+            return
+        }
+        Task {
+            activeIssue = try? await workCoordinator.activeIssue(assetID: assetID)
+        }
+    }
+
+    private func openActiveIssue() {
+        guard let activeIssue else { return }
+        path.append(Route.issue(activeIssue.id))
+    }
+
+    private func beginRecordWork() {
+        guard let activeIssue,
+              activeIssue.canRecordWork,
+              let workCoordinator else {
+            return
+        }
+        do {
+            let draft = try workCoordinator.beginWork(issueID: activeIssue.id)
+            activeWorkDraft = draft
+            path.append(Route.work(draft.recordID))
+        } catch {
+            refreshActiveIssue()
+        }
     }
 
     private func openReport(id reportID: UUID) {
@@ -233,6 +311,17 @@ struct SignsRootView: View {
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(DesignTokens.Spacing.medium)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DesignTokens.Colors.canvas)
+    }
+
+    private var issueUnavailable: some View {
+        ScrollView {
+            WorklightCard {
+                WorklightStatusBadge(kind: .blocked, text: "Record work")
             }
             .padding(DesignTokens.Spacing.medium)
         }
