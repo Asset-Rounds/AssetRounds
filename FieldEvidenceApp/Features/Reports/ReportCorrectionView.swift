@@ -268,7 +268,7 @@ struct ReportCorrectionView: View {
         moveAccessibilityFocus(to: .saving)
         Task { @MainActor in
             let minimumSavingPresentation = Task<Void, Never> {
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
             }
             do {
                 let result = try await coordinator.submitCorrection(
