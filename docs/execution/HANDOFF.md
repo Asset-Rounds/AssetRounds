@@ -1311,3 +1311,56 @@ Authority-only `CURRENT_TASK.md` commits are recorded separately above. The impl
 - S4.5 product implementation is accepted at `E=8e14858d0fc047203ef31ba01c57a527383d3307`; remote phase equaled E and remote main equaled P immediately before this append
 - This entry does not self-record its future HANDOFF-only S4 phase-close commit C
 - Next unstarted card: `S5.1`; it must remain unstarted until C is non-force pushed to the S4 phase branch, exact phase CI at C is accepted, remote main is verified at P and non-force fast-forwarded to C, exact-main UI-enabled CI at C is accepted, and `phase/s5-work-recheck` is created or resumed exactly at that accepted head
+
+## `S5.1` — `complete` — `2026-08-13T23:25:33Z`
+
+- Phase / branch / position / boundary: `S5` / `phase/s5-work-recheck` / `1 of 4` / `no`
+- Outcome: added issue detail and record-work entry; saved one completed original work record with an optional canonical `work_context` photo; atomically moved only the same Issue to `recheck_due`; reopened frozen work truth; created no Packet, Report, stable root, PDF, evaluation use, resolution, or new Issue
+- Immutable phase-main base: `P=dc28f80c76dcbfb3d78ee79349e9a261c5a2bd1e`; accepted S4 exact-main run `31743393609`; remote `main` remained exactly P throughout S5.1
+- Integrated/card base: `M=P`; task-start authority `A=8be17cf6b5b6cf5d94a402005112f4cd09153a5c`; `A^=M`, and `M..A` changed only `docs/execution/CURRENT_TASK.md`
+- First implementation / accepted implementation: `I=319f8496b1689137b98326d928137371b5284518`; `E=fc3de1772297cdcac9134be3594187e0abc39c24`; no distinct infrastructure K
+- Exact selector: S5.1 P12/UI enabled; compact JSON plus LF, 335 bytes, SHA-256 `74923EB79FFB5DFBC49E54E1074334773A1D9A89C7BFCA503525113200A2920E`; exact selectors `FieldEvidenceAppTests/S5_1RecordWorkTests` and `FieldEvidenceAppUITests/S5_1RecordWorkUITests`
+- Accepted run/job/URLs: `31753067635` / `94622857870`; `https://github.com/palatis3/AssetRounds/actions/runs/31753067635`; `https://github.com/palatis3/AssetRounds/actions/runs/31753067635/job/94622857870`; attempt 1; terminal `success`; exact `head_sha=E`
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.5 build `23F77`; UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; initial Simulator state `Shutdown`
+- Budgets: setup `46/300` s; Simulator readiness `185/900` s; build `133/600` s; unit step `64/900` s; UI step `351/900` s with selected test `310.666` s; artifact `1` s and setup-plus-artifact `47/300` s; selected total approximately `652/3300` s; all watchdogs passed
+- Artifact: `ios-ci-31753067635-1`, ID `9201925316`, size `5206751`, GitHub digest `sha256:182b93e81f83321331fb35095da813a40390e0c36dd71b878f0e31c0a206116a`; `SHA256SUMS.txt` SHA-256 `998D7692B45D21CCF1E0AD5F73114351ABAB17CC82580BF1DF01F1A44266F86A`; all `101/101` payloads independently matched with no missing or mismatched file
+- Accepted logs: `build-smoke.log` SHA-256 `AA8BC87BE9AB3C9BD1A94CEC2C849C8BE77EF5A38A6A765B00756EBF61CF5718`; `test-smoke.log` `1483FE4B4337D785212897A6260F82288E7945054D18A57D94E175225D84E417`; `ui-smoke.log` `887A2D1B691878947FEA2A138148AB27586562744CFFE6220B564E8BBF3ABB22`
+- Terminal evidence: `ui-final.png`, `1206×2622`, 520460 bytes, SHA-256 `321C22819A8D47688AB4C3FDD60DB5CA088D674FEB77EDC878E2D60AB85E3E17`; visual PASS at Accessibility XXXL showing `Recheck due`, frozen `failed power supply` work description, frozen note, and the exact saved Close fixture photo in-app with intact navigation
+- Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run
+
+### Changed paths
+
+- `FieldEvidenceApp/Domain/Workflow/WorkRule.swift`
+- `FieldEvidenceApp/Features/Issues/IssueDetailView.swift`
+- `FieldEvidenceApp/Features/Issues/RecordWorkView.swift`
+- `FieldEvidenceApp/Features/Issues/WorkCoordinator.swift`
+- `FieldEvidenceApp/Features/Signs/SignDetailView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceAppTests/S5_1RecordWorkTests.swift`
+- `FieldEvidenceAppUITests/S5_1RecordWorkUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact implementation envelope is six production paths, two test paths, and the standing selector exception. `I..E` contains six direct-child diagnosed corrections: route-state assignment; self-contained work-draft navigation; Date accessibility naming; exact capture-heading observation; note assertion before multiline Return; and a deterministic bounded saving-state presentation. No project, target, package, capability, permission, model-schema, backend, or remote-product path changed.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`5/5`): `testALTValidationFamilyWritesNothingAndKeepsOpenDraftRetryable`; `testDirtyContextAndStorageFailurePreserveUnrelatedWorkAndOwnedFiles`; `testGoldenWorkPhotoPersistsReopensAndExactReplayCreatesNoReportRoot`; `testMalformedLineageEvidenceAndRootIdentityFailClosed`; `testPromotionAndModelSaveFailuresCleanOwnedMediaThenRetryExactlyOnce`
+- UI `PASS` (`1/1`): `testVisibleIssueRecordsWorkPhotoReopensDueWithoutNewReportVisit`
+
+### Acceptance results
+
+- GOLDEN `PASS`: one uniquely valid open Issue recorded a completed work child with required local date and trimmed description, optional note, and one canonical work-only photo; reopening showed immutable saved values and `Recheck due`
+- Lineage/atomicity `PASS`: the work parent was the unique latest completed substantive record; the same Issue UUID alone moved to `recheck_due`; it remained unresolved; replay stayed duplicate-free; no Packet, Report, root, snapshot, PDF, evaluation count, or new Issue appeared
+- Negative/security `PASS`: invalid fields/evidence, malformed or colliding authority, dirty context, stale/broken lineage, unsafe generation paths, and storage/promotion/save failures failed closed without Issue drift, retained/unowned-byte touch, or staging/final orphan; retry succeeded exactly once where authorized
+- UI/accessibility `PASS`: Accessibility XXXL scrolling, 44-point controls, required/optional semantics, validation focus, deterministic saving/completion focus, return navigation, exact photo purpose, immutable reopened values, and unchanged report-visit count all passed
+- Scope `PASS`: no recheck behavior, resolution, commerce, notification, remote/backend, schema, project, package, capability, permission, deletion, backup, diagnostics, or S5.2+ behavior was added
+
+### Candidate recovery provenance
+
+- Terminal non-green exact-head candidates: `31747053188` (compile-state assignment); `31747691519` (route lost the draft); `31748891904` (missing Date accessibility label); `31749905840` (heading predicate observation); `31750912043` (multiline Return changed asserted note); `31752093783` (saving state completed before accessibility observation). None was rerun by run ID or accepted; each caused one direct-child task-scoped correction.
+
+### Known bugs, blockers, and next task
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known bugs: `NONE`. Blockers: `NONE`.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
+- Next unstarted task: `S5.2`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S5.2 `CURRENT_TASK.md`, then must run fresh S5.2 G0. Do not mutate main.
