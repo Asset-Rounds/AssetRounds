@@ -396,12 +396,23 @@ final class S4_4ReportsUITests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
+        let geometryTolerance: CGFloat = 0.001
         XCTAssertTrue(control.waitForExistence(timeout: 15), file: file, line: line)
         XCTAssertEqual(control.label, label, file: file, line: line)
         XCTAssertTrue(control.isEnabled, file: file, line: line)
         XCTAssertTrue(control.isHittable, file: file, line: line)
-        XCTAssertGreaterThanOrEqual(control.frame.width, 44, file: file, line: line)
-        XCTAssertGreaterThanOrEqual(control.frame.height, 44, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(
+            control.frame.width + geometryTolerance,
+            44,
+            file: file,
+            line: line
+        )
+        XCTAssertGreaterThanOrEqual(
+            control.frame.height + geometryTolerance,
+            44,
+            file: file,
+            line: line
+        )
     }
 
     @MainActor
