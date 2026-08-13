@@ -57,6 +57,7 @@ struct RecordWorkView: View {
                     )
                     .datePickerStyle(.compact)
                     .frame(minHeight: DesignTokens.Control.minimumHitSize)
+                    .accessibilityLabel("Date")
                     .accessibilityHint("Required")
                     .accessibilityIdentifier(Self.dateAccessibilityIdentifier)
 
