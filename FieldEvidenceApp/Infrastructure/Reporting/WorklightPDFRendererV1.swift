@@ -366,10 +366,15 @@ private extension WorklightPDFRendererV1 {
         var mediaBox = Self.pageRect
         let metadata: [CFString: Any] = [
             kCGPDFContextCreator: "FieldEvidenceApp PDFTemplateV1",
-            kCGPDFContextCreationDate: snapshot.snapshotCreatedAt as CFDate,
-            kCGPDFContextModificationDate: snapshot.snapshotCreatedAt as CFDate,
+            "CreationDate" as CFString: snapshot.snapshotCreatedAt as CFDate,
+            "ModDate" as CFString: snapshot.snapshotCreatedAt as CFDate,
         ]
-        guard let context = CGDataConsumer(data: output as CFMutableData).flatMap({ CGPDFContextCreate($0, &mediaBox, metadata as CFDictionary) }) else {
+        guard let consumer = CGDataConsumer(data: output as CFMutableData),
+              let context = CGContext(
+                consumer: consumer,
+                mediaBox: &mediaBox,
+                metadata as CFDictionary
+              ) else {
             throw WorklightPDFRendererErrorV1.pdfCreationFailed
         }
         for (pageIndex, page) in pages.enumerated() {
