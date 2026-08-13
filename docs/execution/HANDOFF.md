@@ -848,3 +848,65 @@ The accepted run's `head_sha` exactly equals `I=E=a728f8fe50e016e190074b6a5f4faf
 
 - Task ID only; it was not started: `S3.7`
 - Next gate: same-phase autopilot may commit and non-force push exactly this append plus immediate-next S3.7 `CURRENT_TASK.md` after re-proving remote phase=`I` and remote main=`P`; then run fresh S3.7 G0. Do not mutate main before accepted S3.7 and its ordered phase-close/exact-main verification.
+
+## `S3.7` — `complete` — `2026-08-13T01:34:20Z`
+
+- Phase ID / phase branch / card position / phase-boundary card (`yes | no`): `S3` / `phase/s3-check-runner` / `7 of 7` / `yes`
+- Program/phase autopilot: enabled through accepted exact-main `S9.1` / exact same-phase span `S3.1,S3.2,S3.3,S3.4,S3.5,S3.6,S3.7`; S9.2 signing/TestFlight and S9.3 App Store submission remain owner-only
+- Immutable phase-main base: `P=7d135aaddd0bdc50168552b0610f04adc1703506`; freshly fetched remote `main` remained exactly P
+- Integrated/card base and predecessor evidence: `M=E=I=86fd3a3576cd77889c15a0f6501deb55a33fb9c1`; accepted S3.6 run `31655122900`
+- Observed task-start authority: `A=c292031d8c2e43538eda8b744af8712611b02c8d`, a direct child of M changing exactly the append-only S3.6 HANDOFF plus immediate-next S3.7 CURRENT_TASK
+- Implementation sequence: failed initial `I=dfaf41e53dbe851537a802d49f31dcbdcb4b9276`; accepted `E=I2=755554c3442cc6ceda7947a6c4fa891c5f366e68`; no distinct infrastructure verification head K
+- Outcome: after a durable draft exists, Cannot complete opens the closed Could-not-verify reason/note/review flow and finalizes one honest incomplete original check/root/Packet/pending Report/canonical snapshot through the existing atomic finalization and recovery path, preserving zero or one accepted wide and zero or one accepted close evidence without creating an Issue or extra evaluation credit
+- Exact build plan / SHA-256: `docs/product/BUILD_PLAN_V4.md` / `23DAAB390AF917CBE91C3044E4906F3FBF8D67D2FDFC6BC9BDE985D984F37BBD`
+- Exact runbook / SHA-256 / selected card: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / `S3.7 — Post-draft Could-not-verify`
+- Workflow / trigger / ref / accepted head: `.github/workflows/ios-ci.yml` / `workflow_dispatch` / `phase/s3-check-runner` / `755554c3442cc6ceda7947a6c4fa891c5f366e68`
+- Selector: `S3.7` / `P12` / `runUISmoke=true`; unit `FieldEvidenceAppTests/S3_7CouldNotVerifyTests`; UI `FieldEvidenceAppUITests/S3_7CouldNotVerifyUITests`; exact `300/600/900/900/3300`; LF SHA-256 `57C8276ED267CCA525C924A5189FB93C09AB0CDA7D0AC8509F7768CB1F242AD0`
+- Failed candidate: run `31657062550`, job `94313754173`, `https://github.com/palatis3/AssetRounds/actions/runs/31657062550`, `https://github.com/palatis3/AssetRounds/actions/runs/31657062550/job/94313754173`, exact `head_sha=dfaf41e53dbe851537a802d49f31dcbdcb4b9276`, `failure`; artifact `ios-ci-31657062550-1`, ID `9164859019`, size `59670`, API/raw ZIP digest `sha256:be6ded89011c028ff2fac70eb941ba0869e459ef5f397382cd2b3c6583d2ec0`
+- Failed-candidate diagnosis/correction: the exact Xcode compiler error required unwrapping `workflowRecordAfter.outcomeKey` before passing it to `outcomeDisplay`; I2 changed only `FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift`, added one fail-closed guard, and reused the proven nonoptional value in the two snapshot comparisons without changing recovery acceptance
+- Accepted run/job/URLs/conclusion: `31657482877` / `94315030400` / `https://github.com/palatis3/AssetRounds/actions/runs/31657482877` / `https://github.com/palatis3/AssetRounds/actions/runs/31657482877/job/94315030400` / `success`; exact `head_sha=755554c3442cc6ceda7947a6c4fa891c5f366e68`
+- Runner/toolchain/destination: `macos26`, image `20260728.0273.1`; Xcode 26.6 build `17F113`; `/Applications/Xcode_26.6.app/Contents/Developer`; iPhone 17 / iOS 26.5 build `23F77` / UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; deployment target iOS 18.0
+- Budgets: setup `17/300` s; Simulator readiness `158/900` s; artifact `1` s and setup+artifact `18/300` s; total `459/3300` s; every watchdog passed
+- Artifact: `ios-ci-31657482877-1`, ID `9165054434`, size `2037628`, API/raw ZIP digest `sha256:7f3ffa727f4f18377bfe9f1ee4106c6d890b2272d94ada32dabf5cb148fc23b6`; `SHA256SUMS.txt` SHA-256 `203FD7620F8C07CBBD9C2BDF49568877BE077C68946C20E9ACCAFDD724D1DE96`; all `99/99` payloads independently matched; `ui-final.png` SHA-256 `FC1E0F18226258FA0CC7369CD85627FA77C4F1AC81DFDD0DC20DBD605FC1E1DF`
+- Exact verification: unsigned exact-destination build passed; all four targeted unit tests passed with zero failures in 1.262 s; the sole targeted UI test passed in 149.146 s; required Build, UnitTests, and UISmoke result bundles, nonempty logs, selector/runner/Xcode/Simulator/budget evidence, and the terminal in-app screenshot were present and checksummed
+- Authoring host OS/build: Microsoft Windows 11 Home, 64-bit, version `10.0.26200`, build `26200`; no local Xcode/Simulator result was claimed
+- Project / target / shared scheme / configuration: `FieldEvidenceApp.xcodeproj` / `FieldEvidenceApp` / `FieldEvidenceApp` / `Debug`
+- Exact product commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all returned exit 0 in the accepted run
+- Allowed GitHub actions actually performed: exact task-named read/fetch/ref/run/workflow/artifact inspection, explicit-path commits, non-force phase pushes, workflow dispatch on the phase branch, exact-run observation/download; no main mutation, force-push, merge, PR, settings/secret, signing, deployment, or release action
+- Effective tool posture: Full access; `sandbox_mode=danger-full-access`; `approval_policy=never`; command network enabled; trusted repository configuration active; authenticated GitHub CLI available; XcodeBuildMCP and owner-operated Mac unnecessary
+- Pre-existing dirty paths: `NONE`; fresh G0 and implementation preflight were clean
+- Boundary state before this append: freshly fetched remote phase=`E=I2`, remote `main=P`; the S3 phase-close HANDOFF commit C, phase-close CI, main fast-forward, exact-main CI, S4 branch, and S4.1 authority were all unstarted
+- Project/persistent-schema delta: none; project settings, capabilities, entitlements, dependencies, targets, and the frozen seven-model schema remained unchanged
+
+### Changed paths
+
+- `FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift`
+- `FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift`
+- `FieldEvidenceAppTests/S3_7CouldNotVerifyTests.swift`
+- `FieldEvidenceAppUITests/S3_7CouldNotVerifyUITests.swift`
+- `Scripts/ci-selection.json`
+
+### Acceptance results
+
+- GOLDEN `PASS`: one accepted `wide_context` photo plus `required_view_obstructed` and a trimmed optional note produced one honest incomplete canonical snapshot/Report/root, retained the exact wide evidence, represented close as missing, froze the exact CNV registry fields, and created no Issue
+- ALT-1 `PASS`: zero-photo `capture_unavailable` produced the same single counted incomplete authority with both required purposes missing, no EvidenceFile mutation, no Issue/pass/resolution, and invalid/reordered/stale/untrimmed reason or note selections failed closed
+- Finalization/recovery `PASS`: zero-or-one wide and zero-or-one close cardinality is enforced only for CNV; substantive outcomes retain exact two-evidence requirements; retry, post-save journal recovery, and relaunch preserve one completed record/Packet/pending Report/root/snapshot and create no duplicate authority
+- UI/accessibility `PASS`: the exact UI path began a real draft, accepted one wide fixture through the canonical media route, selected Cannot complete and the closed reason, reviewed retained-wide/missing-close truth, saved, reached the Value receipt, and relaunched without duplication; reasons, note, navigation, missing-purpose truth, Save, and receipt controls are accessible/actionable
+- Terminal artifact `PASS`: retained `ui-final.png` shows the terminal local Value receipt after the honest incomplete flow; SHA-256 `FC1E0F18226258FA0CC7369CD85627FA77C4F1AC81DFDD0DC20DBD605FC1E1DF`
+- Scope/security `PASS`: no pre-draft/Cancel CNV, fabricated/deleted evidence, Issue/pass/resolution, extra evaluation credit, production fixture route, camera/media-policy, PDF, work/recheck, report share/export, data-rights, commerce, project, package, capability, entitlement, remote, or S4.1+ behavior was added
+
+### Known bugs or limitations
+
+- `NONE`; `docs/execution/KNOWN_BUGS.md` contains no qualifying S3.7 defect
+
+### Blockers
+
+- `NONE`
+
+### Next unstarted task
+
+- Task ID only; it was not started: `S4.1`
+- Next gate: commit and non-force push exactly this append as the S3 phase-close HANDOFF-only head C, with product bytes equal to accepted E=I2; run and accept UI-enabled exact-head phase-close CI at C. Only after that green evidence, prove `origin/main=P`, non-force fast-forward main to the exact accepted phase-close/verification head, and accept UI-enabled exact-main CI. Only then create `phase/s4-reports` from that exact green main head and hydrate immediate-next S4.1; no main mutation or S4.1 work is part of this append.
