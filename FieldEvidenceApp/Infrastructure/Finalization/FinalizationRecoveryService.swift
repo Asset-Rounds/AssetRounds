@@ -400,6 +400,9 @@ final class FinalizationRecoveryService {
             throw FinalizationRecoveryServiceError.inconsistent
         }
         let record = payload.workflowRecordAfter
+        guard let outcomeKey = record.outcomeKey else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
         let expectedCNV = record.couldNotVerifyKey.map { key in
             CouldNotVerifySnapshotV1(
                 display: record.couldNotVerifyDisplaySnapshot ?? "",
@@ -408,8 +411,8 @@ final class FinalizationRecoveryService {
             )
         }
         guard snapshot.history.isEmpty,
-              snapshot.outcome == record.outcomeKey,
-              snapshot.display.outcome == outcomeDisplay(record.outcomeKey),
+              snapshot.outcome == outcomeKey,
+              snapshot.display.outcome == outcomeDisplay(outcomeKey),
               snapshot.couldNotVerify == expectedCNV,
               snapshot.note == payload.workflowRecordAfter.note,
               snapshot.timeContext.observedAtUTC == payload.workflowRecordAfter.observedAtUTC,
