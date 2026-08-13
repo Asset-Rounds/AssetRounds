@@ -371,6 +371,32 @@ final class ReportRecoveryService: ObservableObject {
     ) throws {
         guard exists else { return }
         do {
+            let quarantineDirectory: String
+            let parentPath = quarantineURL.deletingLastPathComponent()
+                .standardizedFileURL.path
+            if parentPath == generationRootURL.appendingPathComponent(
+                "pdfs",
+                isDirectory: true
+            ).standardizedFileURL.path {
+                quarantineDirectory = "pdfs"
+            } else if parentPath == generationRootURL.appendingPathComponent(
+                ".staging/pdfs",
+                isDirectory: true
+            ).standardizedFileURL.path {
+                try ReportPDFAnchoredFile.ensureDirectory(
+                    relativePath: ".staging",
+                    within: generationRootURL,
+                    rootIdentity: rootIdentity
+                )
+                quarantineDirectory = ".staging/pdfs"
+            } else {
+                throw ReportRecoveryServiceError.cleanupFailed
+            }
+            try ReportPDFAnchoredFile.ensureDirectory(
+                relativePath: quarantineDirectory,
+                within: generationRootURL,
+                rootIdentity: rootIdentity
+            )
             try ReportPDFAnchoredFile.removeRegularFile(
                 at: url,
                 quarantineAt: quarantineURL,
