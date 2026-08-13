@@ -249,14 +249,19 @@ struct RecordWorkView: View {
             completedAt: now
         )
         Task {
+            let minimumSavingPresentation = Task<Void, Never> {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+            }
             do {
                 let issue = try await coordinator.saveWork(
                     draftID: draft.recordID,
                     submission: submission
                 )
+                await minimumSavingPresentation.value
                 isSaving = false
                 onComplete(issue)
             } catch {
+                await minimumSavingPresentation.value
                 isSaving = false
                 showsFailure = true
                 moveAccessibilityFocus(to: .failure)
