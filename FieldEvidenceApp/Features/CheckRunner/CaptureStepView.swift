@@ -33,10 +33,17 @@ struct CaptureStepView: View {
     @State private var presentsCamera = false
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var didOpenCameraSettings = false
+    @State private var showsCouldNotVerify = false
 
     var body: some View {
         Group {
-            if let preparation, preparation.step == .outcome {
+            if showsCouldNotVerify {
+                OutcomeReviewView(
+                    assetID: assetID,
+                    coordinator: coordinator,
+                    startsWithCouldNotVerify: true
+                )
+            } else if let preparation, preparation.step == .outcome {
                 OutcomeReviewView(
                     assetID: assetID,
                     coordinator: coordinator
@@ -185,11 +192,11 @@ struct CaptureStepView: View {
         }
 
         Button("Cannot complete") {
-            cannotComplete()
+            showsCouldNotVerify = true
         }
         .buttonStyle(WorklightSecondaryButtonStyle())
         .disabled(isWorking)
-        .accessibilityHint("Leaves this check incomplete so you can resume it later")
+        .accessibilityHint("Opens the reason flow to save this check as incomplete")
         .accessibilityIdentifier(Self.cannotCompleteAccessibilityIdentifier)
 
         if usesImportedCaptureFixturesForUITest {

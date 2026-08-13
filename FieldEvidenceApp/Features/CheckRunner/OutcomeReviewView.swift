@@ -6,22 +6,41 @@ struct OutcomeReviewView: View {
     static let outcomeScreenAccessibilityIdentifier = "s3.outcome.screen"
     static let noVisibleIssueAccessibilityIdentifier = "s3.outcome.no-visible-issue"
     static let visibleIssueAccessibilityIdentifier = "s3.outcome.visible-issue"
+    static let couldNotVerifyAccessibilityIdentifier = "s3.outcome.could-not-verify"
+    static let couldNotVerifyNoteAccessibilityIdentifier = "s3.outcome.cnv.note"
     static let continueAccessibilityIdentifier = "s3.outcome.continue"
     static let reviewScreenAccessibilityIdentifier = "s3.review.screen"
     static let reviewOutcomeAccessibilityIdentifier = "s3.review.outcome"
+    static let reviewCouldNotVerifyAccessibilityIdentifier = "s3.review.could-not-verify"
     static let wideEvidenceAccessibilityIdentifier = "s3.review.evidence.wide"
     static let closeEvidenceAccessibilityIdentifier = "s3.review.evidence.close"
     static let saveAccessibilityIdentifier = "s3.review.save-report"
+    static let backAccessibilityIdentifier = "s3.review.back"
 
     let assetID: UUID
     let coordinator: CheckRunnerCoordinator
+    let startsWithCouldNotVerify: Bool
 
     @State private var selection: CheckOutcomeSelection?
     @State private var isChoosingVisibleIssue = false
+    @State private var isChoosingCouldNotVerify: Bool
+    @State private var selectedCouldNotVerifyReasonKey: String?
+    @State private var couldNotVerifyNote = ""
     @State private var review: FinalizationReview?
     @State private var result: FinalizationResult?
     @State private var isSaving = false
     @State private var errorMessage: String?
+
+    init(
+        assetID: UUID,
+        coordinator: CheckRunnerCoordinator,
+        startsWithCouldNotVerify: Bool = false
+    ) {
+        self.assetID = assetID
+        self.coordinator = coordinator
+        self.startsWithCouldNotVerify = startsWithCouldNotVerify
+        _isChoosingCouldNotVerify = State(initialValue: startsWithCouldNotVerify)
+    }
 
     var body: some View {
         Group {
@@ -45,23 +64,38 @@ struct OutcomeReviewView: View {
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityAddTraits(.isHeader)
 
-                choiceButton(
-                    title: outcomeDisplay("no_visible_issue"),
-                    isSelected: selection == .noVisibleIssue,
-                    identifier: Self.noVisibleIssueAccessibilityIdentifier
-                ) {
-                    selection = .noVisibleIssue
-                    isChoosingVisibleIssue = false
-                    errorMessage = nil
+                if !startsWithCouldNotVerify {
+                    choiceButton(
+                        title: outcomeDisplay("no_visible_issue"),
+                        isSelected: selection == .noVisibleIssue,
+                        identifier: Self.noVisibleIssueAccessibilityIdentifier
+                    ) {
+                        selection = .noVisibleIssue
+                        isChoosingVisibleIssue = false
+                        isChoosingCouldNotVerify = false
+                        errorMessage = nil
+                    }
+
+                    choiceButton(
+                        title: outcomeDisplay("visible_issue"),
+                        isSelected: isChoosingVisibleIssue,
+                        identifier: Self.visibleIssueAccessibilityIdentifier
+                    ) {
+                        selection = nil
+                        isChoosingVisibleIssue = true
+                        isChoosingCouldNotVerify = false
+                        errorMessage = nil
+                    }
                 }
 
                 choiceButton(
-                    title: outcomeDisplay("visible_issue"),
-                    isSelected: isChoosingVisibleIssue,
-                    identifier: Self.visibleIssueAccessibilityIdentifier
+                    title: outcomeDisplay("could_not_verify"),
+                    isSelected: isChoosingCouldNotVerify,
+                    identifier: Self.couldNotVerifyAccessibilityIdentifier
                 ) {
                     selection = nil
-                    isChoosingVisibleIssue = true
+                    isChoosingVisibleIssue = false
+                    isChoosingCouldNotVerify = true
                     errorMessage = nil
                 }
             }
@@ -82,6 +116,45 @@ struct OutcomeReviewView: View {
                             errorMessage = nil
                         }
                     }
+                }
+            }
+
+            if isChoosingCouldNotVerify {
+                WorklightCard {
+                    Text("Why could this check not be completed?")
+                        .font(.headline)
+                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                    ForEach(coordinator.couldNotVerifyReasons) { reason in
+                        choiceButton(
+                            title: reason.display,
+                            isSelected: selectedCouldNotVerifyReasonKey == reason.key,
+                            identifier: "s3.outcome.cnv.reason.\(reason.key)"
+                        ) {
+                            selectedCouldNotVerifyReasonKey = reason.key
+                            selection = .couldNotVerify(
+                                reasonKey: reason.key,
+                                note: normalizedCouldNotVerifyNote
+                            )
+                            errorMessage = nil
+                        }
+                    }
+
+                    TextField(
+                        "Optional note",
+                        text: $couldNotVerifyNote,
+                        axis: .vertical
+                    )
+                    .lineLimit(3...6)
+                    .accessibilityIdentifier(
+                        Self.couldNotVerifyNoteAccessibilityIdentifier
+                    )
+                    .onChange(of: couldNotVerifyNote) { _, _ in
+                        updateCouldNotVerifySelection()
+                    }
+
+                    Text("\(couldNotVerifyNote.count) of 1000 characters")
+                        .font(.caption)
+                        .foregroundStyle(DesignTokens.Colors.secondaryText)
                 }
             }
 
@@ -115,14 +188,33 @@ struct OutcomeReviewView: View {
                 if let issue = review.issueLabelDisplay {
                     reviewRow(label: "Visible issue", value: issue)
                 }
+                if let reason = review.couldNotVerifyReasonDisplay {
+                    reviewRow(label: "Could not verify", value: reason)
+                        .accessibilityIdentifier(
+                            Self.reviewCouldNotVerifyAccessibilityIdentifier
+                        )
+                }
+                if let note = review.note {
+                    reviewRow(label: "Note", value: note)
+                }
                 reviewRow(
                     label: "Observed",
                     value: "\(review.localDate) · \(review.localTime) · \(review.timeZoneID)"
                 )
             }
 
-            evidenceRow(review.wideEvidence, identifier: Self.wideEvidenceAccessibilityIdentifier)
-            evidenceRow(review.closeEvidence, identifier: Self.closeEvidenceAccessibilityIdentifier)
+            reviewEvidence(
+                review.wideEvidence,
+                purposeDisplay: "Wide view",
+                isMissing: review.missingPurposeDisplays.contains("Wide view"),
+                identifier: Self.wideEvidenceAccessibilityIdentifier
+            )
+            reviewEvidence(
+                review.closeEvidence,
+                purposeDisplay: "Close view",
+                isMissing: review.missingPurposeDisplays.contains("Close view"),
+                identifier: Self.closeEvidenceAccessibilityIdentifier
+            )
 
             WorklightCard {
                 Text("Confirmed")
@@ -147,6 +239,7 @@ struct OutcomeReviewView: View {
             }
             .buttonStyle(WorklightSecondaryButtonStyle())
             .disabled(isSaving)
+            .accessibilityIdentifier(Self.backAccessibilityIdentifier)
             }
             .padding(DesignTokens.Spacing.medium)
         }
@@ -183,9 +276,15 @@ struct OutcomeReviewView: View {
         }
     }
 
-    private func evidenceRow(_ evidence: ReviewEvidence, identifier: String) -> some View {
+    private func reviewEvidence(
+        _ evidence: ReviewEvidence?,
+        purposeDisplay: String,
+        isMissing: Bool,
+        identifier: String
+    ) -> some View {
         WorklightCard {
-            if let data = try? coordinator.reviewThumbnailData(for: evidence),
+            if let evidence,
+               let data = try? coordinator.reviewThumbnailData(for: evidence),
                let image = UIImage(data: data) {
                 Image(uiImage: image)
                     .resizable()
@@ -194,10 +293,17 @@ struct OutcomeReviewView: View {
                     .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
                     .accessibilityHidden(true)
             }
-            Label(evidence.purposeDisplay, systemImage: "photo.fill")
+            Label(
+                evidence?.purposeDisplay ?? purposeDisplay,
+                systemImage: evidence == nil ? "photo.badge.exclamationmark" : "photo.fill"
+            )
                 .font(.headline)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
-            Text("Photo saved for this check")
+            Text(
+                isMissing || evidence == nil
+                    ? "Not captured — Could not verify"
+                    : "Photo saved for this check"
+            )
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
         }
@@ -226,9 +332,42 @@ struct OutcomeReviewView: View {
             true
         case let .visibleIssue(labelKey):
             coordinator.signPackIssueLabels.contains { $0.key == labelKey }
+        case let .couldNotVerify(reasonKey, note):
+            coordinator.couldNotVerifyReasons.contains { $0.key == reasonKey }
+                && normalizedNote(note) != .invalid
         case nil:
             false
         }
+    }
+
+    private enum NormalizedNote: Equatable {
+        case none
+        case value(String)
+        case invalid
+    }
+
+    private var normalizedCouldNotVerifyNote: String? {
+        switch normalizedNote(couldNotVerifyNote) {
+        case .none: nil
+        case let .value(value): value
+        case .invalid: couldNotVerifyNote
+        }
+    }
+
+    private func normalizedNote(_ value: String?) -> NormalizedNote {
+        guard let value else { return .none }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return .none }
+        guard trimmed.count <= 1000 else { return .invalid }
+        return .value(trimmed)
+    }
+
+    private func updateCouldNotVerifySelection() {
+        guard let key = selectedCouldNotVerifyReasonKey else { return }
+        selection = .couldNotVerify(
+            reasonKey: key,
+            note: normalizedCouldNotVerifyNote
+        )
     }
 
     private func outcomeDisplay(_ key: String) -> String {

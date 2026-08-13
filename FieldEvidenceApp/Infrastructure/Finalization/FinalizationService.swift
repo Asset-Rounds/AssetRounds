@@ -21,6 +21,8 @@ struct FinalizationServiceInput {
     let outcomeKey: String
     let outcomeDisplay: String
     let issueLabel: SignPack.RegistryEntry?
+    let couldNotVerify: SignPack.RegistryEntry?
+    let note: String?
     let completedAt: Date
     let snapshotCreatedAt: Date
     let sourceApp: SourceAppSnapshotV1
@@ -237,6 +239,10 @@ final class FinalizationService {
               record.draftStepKey == nil,
               record.completedAt == input.completedAt,
               record.outcomeKey == input.outcomeKey,
+              record.couldNotVerifyKey == input.couldNotVerify?.key,
+              record.couldNotVerifyDisplaySnapshot == input.couldNotVerify?.display,
+              record.couldNotVerifyRegistryVersion == input.couldNotVerify.map { _ in signPack.couldNotVerifyReasons.version },
+              record.note == input.note,
               record.packID == signPack.packID,
               record.packSchemaVersion == signPack.schemaVersion,
               record.packContentVersion == signPack.contentVersion,
@@ -244,9 +250,12 @@ final class FinalizationService {
               record.pdfTemplateVersion == 1,
               record.packetID == packet.id,
               record.issueID == issue?.id,
-              sortedEvidence.count == 2,
-              sortedEvidence[0].purposeKey == "wide_context",
-              sortedEvidence[1].purposeKey == "close_detail",
+              validCouldNotVerifySelection(input),
+              (input.outcomeKey == "could_not_verify"
+                ? (sortedEvidence.count <= 2
+                    && Set(sortedEvidence.map(\.purposeKey)).count == sortedEvidence.count
+                    && sortedEvidence.allSatisfy { $0.purposeKey == "wide_context" || $0.purposeKey == "close_detail" })
+                : sortedEvidence.map(\.purposeKey) == ["wide_context", "close_detail"]),
               sortedEvidence.allSatisfy({
                   $0.recordID == record.id
                     && $0.mimeType == MediaContractV1.durableMIMEType
@@ -347,6 +356,10 @@ final class FinalizationService {
         let draftStepKey: String?
         let completedAt: Date?
         let outcomeKey: String?
+        let couldNotVerifyKey: String?
+        let couldNotVerifyDisplaySnapshot: String?
+        let couldNotVerifyRegistryVersion: String?
+        let note: String?
         let finalizationMutationID: UUID?
 
         init(_ draft: WorkflowRecord) {
@@ -356,6 +369,10 @@ final class FinalizationService {
             draftStepKey = draft.draftStepKey
             completedAt = draft.completedAt
             outcomeKey = draft.outcomeKey
+            couldNotVerifyKey = draft.couldNotVerifyKey
+            couldNotVerifyDisplaySnapshot = draft.couldNotVerifyDisplaySnapshot
+            couldNotVerifyRegistryVersion = draft.couldNotVerifyRegistryVersion
+            note = draft.note
             finalizationMutationID = draft.finalizationMutationID
         }
 
@@ -366,6 +383,10 @@ final class FinalizationService {
             draft.draftStepKey = draftStepKey
             draft.completedAt = completedAt
             draft.outcomeKey = outcomeKey
+            draft.couldNotVerifyKey = couldNotVerifyKey
+            draft.couldNotVerifyDisplaySnapshot = couldNotVerifyDisplaySnapshot
+            draft.couldNotVerifyRegistryVersion = couldNotVerifyRegistryVersion
+            draft.note = note
             draft.finalizationMutationID = finalizationMutationID
         }
     }
@@ -458,7 +479,9 @@ final class FinalizationService {
         guard input.draft.revisionKind == WorkflowRevisionKind.original.rawValue,
               input.draft.stage == WorkflowStage.check.rawValue,
               input.draft.state == WorkflowState.draft.rawValue,
-              input.draft.draftStepKey == WorkflowDraftStep.outcome.rawValue,
+              (input.outcomeKey == "could_not_verify"
+                ? [WorkflowDraftStep.wide.rawValue, WorkflowDraftStep.close.rawValue, WorkflowDraftStep.outcome.rawValue].contains(input.draft.draftStepKey ?? "")
+                : input.draft.draftStepKey == WorkflowDraftStep.outcome.rawValue),
               input.draft.packetID == nil,
               input.draft.issueID == nil,
               input.draft.parentRecordID == nil,
@@ -478,15 +501,19 @@ final class FinalizationService {
             throw FinalizationServiceError.invalidDraft
         }
         guard input.outcomeKey == "no_visible_issue"
-                || input.outcomeKey == "visible_issue",
+                || input.outcomeKey == "visible_issue"
+                || input.outcomeKey == "could_not_verify",
               (input.outcomeKey == "visible_issue") == (input.issueLabel != nil),
-              (input.issueLabel != nil) == (input.identifiers.issueID != nil) else {
+              (input.issueLabel != nil) == (input.identifiers.issueID != nil),
+              uniqueDisplay(signPack.outcomeDisplays, key: input.outcomeKey) == input.outcomeDisplay,
+              validCouldNotVerifySelection(input) else {
             throw FinalizationServiceError.invalidSelection
         }
         let sorted = input.evidence.sorted(by: evidenceOrder)
-        guard sorted.count == 2,
-              sorted[0].purposeKey == "wide_context",
-              sorted[1].purposeKey == "close_detail",
+        let keys = sorted.map(\.purposeKey)
+        guard (input.outcomeKey == "could_not_verify"
+                ? (sorted.count <= 2 && Set(keys).count == keys.count && keys.allSatisfy { $0 == "wide_context" || $0 == "close_detail" })
+                : keys == ["wide_context", "close_detail"]),
               sorted.allSatisfy({
                   $0.recordID == input.draft.id
                     && $0.mimeType == MediaContractV1.durableMIMEType
@@ -613,6 +640,10 @@ final class FinalizationService {
         input.draft.draftStepKey = nil
         input.draft.completedAt = input.completedAt
         input.draft.outcomeKey = input.outcomeKey
+        input.draft.couldNotVerifyKey = input.couldNotVerify?.key
+        input.draft.couldNotVerifyDisplaySnapshot = input.couldNotVerify?.display
+        input.draft.couldNotVerifyRegistryVersion = input.couldNotVerify.map { _ in signPack.couldNotVerifyReasons.version }
+        input.draft.note = input.note
         input.draft.finalizationMutationID = input.identifiers.mutationID
         if let issue = frozen.issue { modelContext.insert(issue) }
         modelContext.insert(frozen.packet)
@@ -639,13 +670,16 @@ final class FinalizationService {
               let stageDisplay = uniqueDisplay(signPack.stageDisplays, key: "check") else {
             throw FinalizationServiceError.invalidDraft
         }
-        let evidence = input.evidence.sorted(by: evidenceOrder).map { row in
-            EvidenceSnapshotV1(
+        let evidence = try input.evidence.sorted(by: evidenceOrder).map { row in
+            guard let display = purposeDisplay(row.purposeKey) else {
+                throw FinalizationServiceError.invalidEvidence
+            }
+            return EvidenceSnapshotV1(
                 byteCount: row.byteCount,
                 createdAt: row.createdAt,
                 evidenceID: row.id,
                 mimeType: row.mimeType,
-                purposeDisplay: purposeDisplay(row.purposeKey)!,
+                purposeDisplay: display,
                 purposeKey: row.purposeKey,
                 recordID: row.recordID,
                 relativePath: row.relativePath,
@@ -673,7 +707,9 @@ final class FinalizationService {
                 AcknowledgementSnapshotV1(accepted: true, copy: safeCopy, key: safeKey, version: safeVersion),
             ],
             asset: AssetSnapshotV1(label: input.asset.label),
-            couldNotVerify: nil,
+            couldNotVerify: input.couldNotVerify.map {
+                CouldNotVerifySnapshotV1(display: $0.display, key: $0.key, registryVersion: signPack.couldNotVerifyReasons.version)
+            },
             disclaimer: signPack.disclaimer,
             display: DisplaySnapshotV1(
                 assetSingular: signPack.nouns.asset.singular,
@@ -686,7 +722,7 @@ final class FinalizationService {
             evidenceSourceRecordID: input.draft.id,
             history: [],
             issues: issues,
-            note: nil,
+            note: input.note,
             outcome: input.outcomeKey,
             pack: PackSnapshotV1(contentVersion: signPack.contentVersion, id: signPack.packID, schemaVersion: signPack.schemaVersion),
             packetID: input.identifiers.packetID,
@@ -721,7 +757,23 @@ final class FinalizationService {
 
     private func completedRecordPayload(_ input: FinalizationServiceInput, packet: Packet, issue: Issue?) -> WorkflowRecordPayloadV1 {
         let d = input.draft
-        return WorkflowRecordPayloadV1(id: d.id, schemaVersion: d.schemaVersion, assetID: d.assetID, packetID: packet.id, issueID: issue?.id, parentRecordID: d.parentRecordID, recordRevisionRootID: d.recordRevisionRootID, revisesRecordID: d.revisesRecordID, evidenceSourceRecordID: d.evidenceSourceRecordID, revisionKind: d.revisionKind, stage: d.stage, state: WorkflowState.completed.rawValue, draftStepKey: nil, startedAt: d.startedAt, completedAt: input.completedAt, observedAtUTC: d.observedAtUTC, timeZoneID: d.timeZoneID, utcOffsetMinutes: d.utcOffsetMinutes, localDate: d.localDate, localTime: d.localTime, afterDarkAcknowledgementKey: d.afterDarkAcknowledgementKey, afterDarkAcknowledgementCopy: d.afterDarkAcknowledgementCopy, afterDarkAcknowledgementVersion: d.afterDarkAcknowledgementVersion, afterDarkAcknowledgementAccepted: d.afterDarkAcknowledgementAccepted, safePositionAcknowledgementKey: d.safePositionAcknowledgementKey, safePositionAcknowledgementCopy: d.safePositionAcknowledgementCopy, safePositionAcknowledgementVersion: d.safePositionAcknowledgementVersion, safePositionAcknowledgementAccepted: d.safePositionAcknowledgementAccepted, packID: d.packID, packSchemaVersion: d.packSchemaVersion, packContentVersion: d.packContentVersion, pdfTemplateID: d.pdfTemplateID, pdfTemplateVersion: d.pdfTemplateVersion, outcomeKey: input.outcomeKey, couldNotVerifyKey: nil, couldNotVerifyDisplaySnapshot: nil, couldNotVerifyRegistryVersion: nil, workPerformedLocalDate: nil, workDescription: nil, note: nil, finalizationMutationID: input.identifiers.mutationID)
+        return WorkflowRecordPayloadV1(id: d.id, schemaVersion: d.schemaVersion, assetID: d.assetID, packetID: packet.id, issueID: issue?.id, parentRecordID: d.parentRecordID, recordRevisionRootID: d.recordRevisionRootID, revisesRecordID: d.revisesRecordID, evidenceSourceRecordID: d.evidenceSourceRecordID, revisionKind: d.revisionKind, stage: d.stage, state: WorkflowState.completed.rawValue, draftStepKey: nil, startedAt: d.startedAt, completedAt: input.completedAt, observedAtUTC: d.observedAtUTC, timeZoneID: d.timeZoneID, utcOffsetMinutes: d.utcOffsetMinutes, localDate: d.localDate, localTime: d.localTime, afterDarkAcknowledgementKey: d.afterDarkAcknowledgementKey, afterDarkAcknowledgementCopy: d.afterDarkAcknowledgementCopy, afterDarkAcknowledgementVersion: d.afterDarkAcknowledgementVersion, afterDarkAcknowledgementAccepted: d.afterDarkAcknowledgementAccepted, safePositionAcknowledgementKey: d.safePositionAcknowledgementKey, safePositionAcknowledgementCopy: d.safePositionAcknowledgementCopy, safePositionAcknowledgementVersion: d.safePositionAcknowledgementVersion, safePositionAcknowledgementAccepted: d.safePositionAcknowledgementAccepted, packID: d.packID, packSchemaVersion: d.packSchemaVersion, packContentVersion: d.packContentVersion, pdfTemplateID: d.pdfTemplateID, pdfTemplateVersion: d.pdfTemplateVersion, outcomeKey: input.outcomeKey, couldNotVerifyKey: input.couldNotVerify?.key, couldNotVerifyDisplaySnapshot: input.couldNotVerify?.display, couldNotVerifyRegistryVersion: input.couldNotVerify.map { _ in signPack.couldNotVerifyReasons.version }, workPerformedLocalDate: nil, workDescription: nil, note: input.note, finalizationMutationID: input.identifiers.mutationID)
+    }
+
+    private func validCouldNotVerifySelection(_ input: FinalizationServiceInput) -> Bool {
+        let expected = SignPack.illuminatedSignV1.couldNotVerifyReasons
+        if input.outcomeKey == "could_not_verify" {
+            guard signPack.couldNotVerifyReasons == expected,
+                  input.issueLabel == nil,
+                  input.identifiers.issueID == nil,
+                  input.outcomeDisplay == "Could not verify",
+                  let selected = input.couldNotVerify,
+                  expected.entries.filter({ $0.key == selected.key && $0.display == selected.display }).count == 1 else { return false }
+            return input.note.map {
+                $0 == $0.trimmingCharacters(in: .whitespacesAndNewlines) && (1...1000).contains($0.count)
+            } ?? true
+        }
+        return input.couldNotVerify == nil && input.note == nil
     }
 
     private func issuePayload(_ issue: Issue) -> IssuePayloadV1 {

@@ -245,12 +245,8 @@ final class FinalizationRecoveryService {
               payload.workflowRecordAfter.pdfTemplateID
                 == "field.evidence.pdf.worklight.v1",
               payload.workflowRecordAfter.pdfTemplateVersion == 1,
-              payload.workflowRecordAfter.couldNotVerifyKey == nil,
-              payload.workflowRecordAfter.couldNotVerifyDisplaySnapshot == nil,
-              payload.workflowRecordAfter.couldNotVerifyRegistryVersion == nil,
               payload.workflowRecordAfter.workPerformedLocalDate == nil,
               payload.workflowRecordAfter.workDescription == nil,
-              payload.workflowRecordAfter.note == nil,
               payload.packetAfter.createdAt == intent.completedAt,
               validOriginalOutcome(payload),
               report.pdfState == ReportPDFState.pending.rawValue,
@@ -279,14 +275,40 @@ final class FinalizationRecoveryService {
         switch payload.workflowRecordAfter.outcomeKey {
         case "no_visible_issue":
             return payload.issueInsert == nil && payload.workflowRecordAfter.issueID == nil
+                && noCouldNotVerifyFields(payload.workflowRecordAfter)
         case "visible_issue":
             return payload.issueInsert != nil
                 && payload.workflowRecordAfter.issueID == payload.issueInsert?.id
                 && !(payload.issueInsert?.labelKey.isEmpty ?? true)
                 && !(payload.issueInsert?.labelDisplaySnapshot.isEmpty ?? true)
+                && noCouldNotVerifyFields(payload.workflowRecordAfter)
+        case "could_not_verify":
+            let record = payload.workflowRecordAfter
+            guard payload.issueInsert == nil, record.issueID == nil,
+                  record.couldNotVerifyRegistryVersion == "cnv.reason.en-US.v1",
+                  let key = record.couldNotVerifyKey,
+                  let display = record.couldNotVerifyDisplaySnapshot,
+                  couldNotVerifyEntries.contains(where: { $0.key == key && $0.display == display }) else {
+                return false
+            }
+            return record.note.map {
+                $0 == $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                    && (1...1000).contains($0.count)
+            } ?? true
         default:
             return false
         }
+    }
+
+    private var couldNotVerifyEntries: [SignPack.RegistryEntry] {
+        SignPack.illuminatedSignV1.couldNotVerifyReasons.entries
+    }
+
+    private func noCouldNotVerifyFields(_ record: WorkflowRecordPayloadV1) -> Bool {
+        record.couldNotVerifyKey == nil
+            && record.couldNotVerifyDisplaySnapshot == nil
+            && record.couldNotVerifyRegistryVersion == nil
+            && record.note == nil
     }
 
     private func validateSnapshotAuthority(
@@ -319,10 +341,14 @@ final class FinalizationRecoveryService {
         let rows = try modelContext.fetch(FetchDescriptor<EvidenceFile>()).filter {
             $0.recordID == sourceRecordID
         }
-        guard rows.count == 2,
-              snapshot.evidence.count == 2,
-              snapshot.evidence[0].purposeKey == "wide_context",
-              snapshot.evidence[1].purposeKey == "close_detail" else {
+        let cnv = payload.workflowRecordAfter.outcomeKey == "could_not_verify"
+        let rowKeys = rows.sorted { evidenceOrder($0.purposeKey) < evidenceOrder($1.purposeKey) }.map(\.purposeKey)
+        guard rows.count == snapshot.evidence.count,
+              (cnv
+                ? rows.count <= 2 && Set(rowKeys).count == rowKeys.count
+                    && rowKeys.allSatisfy { $0 == "wide_context" || $0 == "close_detail" }
+                : rowKeys == ["wide_context", "close_detail"]),
+              snapshot.evidence.map(\.purposeKey) == rowKeys else {
             throw FinalizationRecoveryServiceError.inconsistent
         }
         let groupedRows = Dictionary(grouping: rows, by: \.id)
@@ -336,6 +362,7 @@ final class FinalizationRecoveryService {
                       && evidence.recordID == sourceRecordID
                       && row.recordID == evidence.recordID
                       && row.purposeKey == evidence.purposeKey
+                      && evidence.purposeDisplay == purposeDisplay(evidence.purposeKey)
                       && row.relativePath == "evidence/\(id)/original.jpg"
                       && row.relativePath == evidence.relativePath
                       && row.mimeType == MediaContractV1.durableMIMEType
@@ -372,8 +399,18 @@ final class FinalizationRecoveryService {
         } else if !snapshot.issues.isEmpty {
             throw FinalizationRecoveryServiceError.inconsistent
         }
+        let record = payload.workflowRecordAfter
+        let expectedCNV = record.couldNotVerifyKey.map { key in
+            CouldNotVerifySnapshotV1(
+                display: record.couldNotVerifyDisplaySnapshot ?? "",
+                key: key,
+                registryVersion: record.couldNotVerifyRegistryVersion ?? ""
+            )
+        }
         guard snapshot.history.isEmpty,
-              snapshot.couldNotVerify == nil,
+              snapshot.outcome == record.outcomeKey,
+              snapshot.display.outcome == outcomeDisplay(record.outcomeKey),
+              snapshot.couldNotVerify == expectedCNV,
               snapshot.note == payload.workflowRecordAfter.note,
               snapshot.timeContext.observedAtUTC == payload.workflowRecordAfter.observedAtUTC,
               snapshot.timeContext.timeZoneID == payload.workflowRecordAfter.timeZoneID,
@@ -423,12 +460,35 @@ final class FinalizationRecoveryService {
               asset.packID == payload.workflowRecordAfter.packID,
               asset.packSchemaVersion == payload.workflowRecordAfter.packSchemaVersion,
               asset.packContentVersion == payload.workflowRecordAfter.packContentVersion,
-              evidence.count == 2,
-              evidence.filter({ $0.purposeKey == "wide_context" }).count == 1,
-              evidence.filter({ $0.purposeKey == "close_detail" }).count == 1,
+              validEvidenceCardinality(evidence, cnv: payload.workflowRecordAfter.outcomeKey == "could_not_verify"),
               evidence.allSatisfy(validEvidenceAuthority) else {
             throw FinalizationRecoveryServiceError.inconsistent
         }
+    }
+
+    private func validEvidenceCardinality(_ evidence: [EvidenceFile], cnv: Bool) -> Bool {
+        let keys = evidence.map(\.purposeKey)
+        if cnv {
+            return evidence.count <= 2 && Set(keys).count == keys.count
+                && keys.allSatisfy { $0 == "wide_context" || $0 == "close_detail" }
+        }
+        return evidence.count == 2
+            && keys.filter { $0 == "wide_context" }.count == 1
+            && keys.filter { $0 == "close_detail" }.count == 1
+    }
+
+    private func evidenceOrder(_ key: String) -> Int {
+        key == "wide_context" ? 0 : key == "close_detail" ? 1 : 2
+    }
+
+    private func outcomeDisplay(_ key: String) -> String? {
+        SignPack.illuminatedSignV1.outcomeDisplays
+            .first(where: { $0.key == key })?.display
+    }
+
+    private func purposeDisplay(_ key: String) -> String? {
+        SignPack.illuminatedSignV1.evidencePurposes
+            .first(where: { $0.key == key })?.display
     }
 
     private func validEvidenceAuthority(_ row: EvidenceFile) -> Bool {
@@ -575,11 +635,19 @@ final class FinalizationRecoveryService {
     }
 
     private func draft(_ row: WorkflowRecord, matchesBefore after: WorkflowRecordPayloadV1) -> Bool {
-        record(row, matches: after, overrides: (
-            packetID: nil, issueID: nil, state: WorkflowState.draft.rawValue,
-            draftStepKey: WorkflowDraftStep.outcome.rawValue, completedAt: nil,
-            outcomeKey: nil, finalizationMutationID: nil
-        ))
+        let steps = after.outcomeKey == "could_not_verify"
+            ? [WorkflowDraftStep.wide, .close, .outcome]
+            : [.outcome]
+        return steps.contains { step in
+            record(row, matches: after, overrides: (
+                packetID: nil, issueID: nil, state: WorkflowState.draft.rawValue,
+                draftStepKey: step.rawValue, completedAt: nil,
+                outcomeKey: nil, couldNotVerifyKey: nil,
+                couldNotVerifyDisplaySnapshot: nil,
+                couldNotVerifyRegistryVersion: nil, note: nil,
+                finalizationMutationID: nil
+            ))
+        }
     }
 
     private func record(_ row: WorkflowRecord, matches value: WorkflowRecordPayloadV1) -> Bool {
@@ -588,7 +656,9 @@ final class FinalizationRecoveryService {
 
     private typealias RecordOverrides = (
         packetID: UUID?, issueID: UUID?, state: String, draftStepKey: String?,
-        completedAt: Date?, outcomeKey: String?, finalizationMutationID: UUID?
+        completedAt: Date?, outcomeKey: String?, couldNotVerifyKey: String?,
+        couldNotVerifyDisplaySnapshot: String?, couldNotVerifyRegistryVersion: String?,
+        note: String?, finalizationMutationID: UUID?
     )
 
     private func record(
@@ -602,6 +672,10 @@ final class FinalizationRecoveryService {
         let completedAt: Date?
         let draftStepKey: String?
         let outcomeKey: String?
+        let couldNotVerifyKey: String?
+        let couldNotVerifyDisplaySnapshot: String?
+        let couldNotVerifyRegistryVersion: String?
+        let note: String?
         let mutationID: UUID?
         if let overrides {
             packetID = overrides.packetID
@@ -610,6 +684,10 @@ final class FinalizationRecoveryService {
             completedAt = overrides.completedAt
             draftStepKey = overrides.draftStepKey
             outcomeKey = overrides.outcomeKey
+            couldNotVerifyKey = overrides.couldNotVerifyKey
+            couldNotVerifyDisplaySnapshot = overrides.couldNotVerifyDisplaySnapshot
+            couldNotVerifyRegistryVersion = overrides.couldNotVerifyRegistryVersion
+            note = overrides.note
             mutationID = overrides.finalizationMutationID
         } else {
             packetID = v.packetID
@@ -618,6 +696,10 @@ final class FinalizationRecoveryService {
             completedAt = v.completedAt
             draftStepKey = v.draftStepKey
             outcomeKey = v.outcomeKey
+            couldNotVerifyKey = v.couldNotVerifyKey
+            couldNotVerifyDisplaySnapshot = v.couldNotVerifyDisplaySnapshot
+            couldNotVerifyRegistryVersion = v.couldNotVerifyRegistryVersion
+            note = v.note
             mutationID = v.finalizationMutationID
         }
         return r.id == v.id && r.schemaVersion == v.schemaVersion && r.assetID == v.assetID
@@ -643,11 +725,11 @@ final class FinalizationRecoveryService {
             && r.packContentVersion == v.packContentVersion && r.pdfTemplateID == v.pdfTemplateID
             && r.pdfTemplateVersion == v.pdfTemplateVersion
             && r.outcomeKey == outcomeKey
-            && r.couldNotVerifyKey == v.couldNotVerifyKey
-            && r.couldNotVerifyDisplaySnapshot == v.couldNotVerifyDisplaySnapshot
-            && r.couldNotVerifyRegistryVersion == v.couldNotVerifyRegistryVersion
+            && r.couldNotVerifyKey == couldNotVerifyKey
+            && r.couldNotVerifyDisplaySnapshot == couldNotVerifyDisplaySnapshot
+            && r.couldNotVerifyRegistryVersion == couldNotVerifyRegistryVersion
             && r.workPerformedLocalDate == v.workPerformedLocalDate
-            && r.workDescription == v.workDescription && r.note == v.note
+            && r.workDescription == v.workDescription && r.note == note
             && r.finalizationMutationID == mutationID
     }
 

@@ -49,6 +49,7 @@ enum CheckRunnerCoordinatorError: Error, Equatable {
 enum CheckOutcomeSelection: Equatable, Sendable {
     case noVisibleIssue
     case visibleIssue(labelKey: String)
+    case couldNotVerify(reasonKey: String, note: String?)
 }
 
 struct ReviewEvidence: Equatable, Sendable {
@@ -63,8 +64,11 @@ struct FinalizationReview: Equatable, Sendable {
     let outcomeKey: String
     let outcomeDisplay: String
     let issueLabelDisplay: String?
-    let wideEvidence: ReviewEvidence
-    let closeEvidence: ReviewEvidence
+    let wideEvidence: ReviewEvidence?
+    let closeEvidence: ReviewEvidence?
+    let couldNotVerifyReasonDisplay: String?
+    let note: String?
+    let missingPurposeDisplays: [String]
     let localDate: String
     let localTime: String
     let timeZoneID: String
@@ -197,6 +201,10 @@ final class CheckRunnerCoordinator {
         signPack.issueLabels
     }
 
+    var couldNotVerifyReasons: [SignPack.RegistryEntry] {
+        validCouldNotVerifyRegistry() ? signPack.couldNotVerifyReasons.entries : []
+    }
+
     func signPackOutcomeDisplay(key: String) -> String? {
         let matches = signPack.outcomeDisplays.filter { $0.key == key }
         return matches.count == 1 ? matches[0].display : nil
@@ -237,7 +245,8 @@ final class CheckRunnerCoordinator {
         selection: CheckOutcomeSelection
     ) throws -> FinalizationReview {
         let preparation = try prepareCapture(assetID: assetID)
-        guard preparation.step == .outcome else {
+        let outcome = try resolvedOutcome(selection)
+        guard outcome.couldNotVerify != nil || preparation.step == .outcome else {
             throw CheckRunnerCoordinatorError.reviewUnavailable
         }
         let draftID = preparation.draftID
@@ -252,29 +261,32 @@ final class CheckRunnerCoordinator {
               let safePositionCopy = draft.safePositionAcknowledgementCopy else {
             throw CheckRunnerCoordinatorError.invalidCaptureState
         }
-        let outcome = try resolvedOutcome(selection)
         let evidenceDescriptor = FetchDescriptor<EvidenceFile>(
             predicate: #Predicate { $0.recordID == draftID }
         )
         let evidence = try modelContext.fetch(evidenceDescriptor)
-        guard evidence.count == 2,
-              let wide = evidence.first(where: { $0.purposeKey == "wide_context" }),
-              let close = evidence.first(where: { $0.purposeKey == "close_detail" }) else {
+        let wideRows = evidence.filter { $0.purposeKey == "wide_context" }
+        let closeRows = evidence.filter { $0.purposeKey == "close_detail" }
+        guard evidence.count == wideRows.count + closeRows.count,
+              wideRows.count <= 1,
+              closeRows.count <= 1,
+              outcome.couldNotVerify != nil || (wideRows.count == 1 && closeRows.count == 1) else {
             throw CheckRunnerCoordinatorError.invalidCaptureState
         }
+        let widePurpose = try capturePurpose(key: "wide_context", index: 0)
+        let closePurpose = try capturePurpose(key: "close_detail", index: 1)
+        let wide = wideRows.first
+        let close = closeRows.first
         return FinalizationReview(
             draftID: draftID,
             outcomeKey: outcome.key,
             outcomeDisplay: outcome.display,
             issueLabelDisplay: outcome.issueLabel?.display,
-            wideEvidence: reviewEvidence(
-                wide,
-                purposeDisplay: try capturePurpose(key: "wide_context", index: 0).display
-            ),
-            closeEvidence: reviewEvidence(
-                close,
-                purposeDisplay: try capturePurpose(key: "close_detail", index: 1).display
-            ),
+            wideEvidence: wide.map { reviewEvidence($0, purposeDisplay: widePurpose.display) },
+            closeEvidence: close.map { reviewEvidence($0, purposeDisplay: closePurpose.display) },
+            couldNotVerifyReasonDisplay: outcome.couldNotVerify?.display,
+            note: outcome.note,
+            missingPurposeDisplays: [wide == nil ? widePurpose.display : nil, close == nil ? closePurpose.display : nil].compactMap { $0 },
             localDate: localDate,
             localTime: localTime,
             timeZoneID: timeZoneID,
@@ -311,7 +323,7 @@ final class CheckRunnerCoordinator {
             activeAttempt = FinalizationAttempt(
                 assetID: assetID,
                 draftID: currentDraftID,
-                selection: selection,
+                selection: outcome.selection,
                 completedAt: completedAt,
                 snapshotCreatedAt: snapshotCreatedAt,
                 sourceApp: sourceApp,
@@ -319,7 +331,7 @@ final class CheckRunnerCoordinator {
             )
         } else if let attempt = finalizationAttempt,
                   attempt.assetID == assetID,
-                  attempt.selection == selection,
+                  attempt.selection == outcome.selection,
                   attempt.sourceApp == sourceApp,
                   currentDraftID == nil || attempt.draftID == currentDraftID {
             activeAttempt = attempt
@@ -327,7 +339,7 @@ final class CheckRunnerCoordinator {
             activeAttempt = FinalizationAttempt(
                 assetID: assetID,
                 draftID: currentDraftID,
-                selection: selection,
+                selection: outcome.selection,
                 completedAt: completedAt,
                 snapshotCreatedAt: snapshotCreatedAt,
                 sourceApp: sourceApp,
@@ -394,6 +406,8 @@ final class CheckRunnerCoordinator {
                     outcomeKey: outcome.key,
                     outcomeDisplay: outcome.display,
                     issueLabel: outcome.issueLabel,
+                    couldNotVerify: outcome.couldNotVerify,
+                    note: outcome.note,
                     completedAt: activeAttempt.completedAt,
                     snapshotCreatedAt: activeAttempt.snapshotCreatedAt,
                     sourceApp: activeAttempt.sourceApp,
@@ -1167,14 +1181,23 @@ final class CheckRunnerCoordinator {
     ) throws -> (
         key: String,
         display: String,
-        issueLabel: SignPack.RegistryEntry?
+        issueLabel: SignPack.RegistryEntry?,
+        couldNotVerify: SignPack.RegistryEntry?,
+        note: String?,
+        selection: CheckOutcomeSelection
     ) {
         let key: String
         let issueLabel: SignPack.RegistryEntry?
+        let couldNotVerify: SignPack.RegistryEntry?
+        let note: String?
+        let normalizedSelection: CheckOutcomeSelection
         switch selection {
         case .noVisibleIssue:
             key = "no_visible_issue"
             issueLabel = nil
+            couldNotVerify = nil
+            note = nil
+            normalizedSelection = .noVisibleIssue
         case let .visibleIssue(labelKey):
             let normalizedKey = labelKey.trimmingCharacters(
                 in: .whitespacesAndNewlines
@@ -1189,6 +1212,28 @@ final class CheckRunnerCoordinator {
             }
             key = "visible_issue"
             issueLabel = selected
+            couldNotVerify = nil
+            note = nil
+            normalizedSelection = .visibleIssue(labelKey: normalizedKey)
+        case let .couldNotVerify(reasonKey, rawNote):
+            let normalizedKey = reasonKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard reasonKey == normalizedKey,
+                  !normalizedKey.isEmpty,
+                  validCouldNotVerifyRegistry(),
+                  let selected = signPack.couldNotVerifyReasons.entries.first(where: { $0.key == normalizedKey }) else {
+                throw CheckRunnerCoordinatorError.invalidLineage
+            }
+            let trimmed = rawNote?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedNote = trimmed.flatMap { $0.isEmpty ? nil : $0 }
+            guard rawNote.map({ $0.isEmpty || $0 == trimmed }) ?? true,
+                  normalizedNote.map({ (1...1000).contains($0.count) }) ?? true else {
+                throw CheckRunnerCoordinatorError.invalidLineage
+            }
+            key = "could_not_verify"
+            issueLabel = nil
+            couldNotVerify = selected
+            note = normalizedNote
+            normalizedSelection = .couldNotVerify(reasonKey: selected.key, note: normalizedNote)
         }
         guard let display = signPack.outcomeDisplays.first(where: {
             $0.key == key
@@ -1196,7 +1241,20 @@ final class CheckRunnerCoordinator {
               signPack.outcomeDisplays.filter({ $0.key == key }).count == 1 else {
             throw CheckRunnerCoordinatorError.invalidLineage
         }
-        return (key, display, issueLabel)
+        return (key, display, issueLabel, couldNotVerify, note, normalizedSelection)
+    }
+
+    private func validCouldNotVerifyRegistry() -> Bool {
+        signPack.couldNotVerifyReasons.version == "cnv.reason.en-US.v1"
+            && signPackOutcomeDisplay(key: "could_not_verify") == "Could not verify"
+            && signPack.couldNotVerifyReasons.entries == [
+                .init(key: "conditions_changed", display: "Conditions changed"),
+                .init(key: "access_lost", display: "I lost safe access"),
+                .init(key: "unsafe_to_continue", display: "It became unsafe to continue"),
+                .init(key: "required_view_obstructed", display: "Required view is blocked"),
+                .init(key: "capture_unavailable", display: "Camera or photo capture is unavailable"),
+                .init(key: "other", display: "Another reason"),
+            ]
     }
 
     private func reviewEvidence(
