@@ -61,12 +61,13 @@ final class ReportRecoveryService: ObservableObject {
         failNextRenderAttempt: Bool = false,
         failureInjection: ReportRenderFailureInjection? = nil,
         recoveryFailureInjection: ReportRecoveryFailureInjection? = nil,
-        launchAttemptRegistry: ReportLaunchAttemptRegistry = .init()
+        launchAttemptRegistry: ReportLaunchAttemptRegistry? = nil
     ) throws {
         self.modelContext = modelContext
         self.generationRootURL = generationRootURL.standardizedFileURL
         self.fileManager = fileManager
         self.launchAttemptRegistry = launchAttemptRegistry
+            ?? ReportLaunchAttemptRegistry()
         self.failureInjection = recoveryFailureInjection
         do {
             self.rootIdentity = try ReportPDFAnchoredFile.rootIdentity(
