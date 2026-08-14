@@ -1263,12 +1263,14 @@ final class FinalizationRecoveryService {
     }
 
     private func outcomeDisplay(_ key: String) -> String? {
-        SignPack.illuminatedSignV1.outcomeDisplays
+        if key == "work_recorded" { return "Work recorded" }
+        return SignPack.illuminatedSignV1.outcomeDisplays
             .first(where: { $0.key == key })?.display
     }
 
     private func stageDisplay(_ key: String) -> String? {
-        SignPack.illuminatedSignV1.stageDisplays
+        if key == WorkflowStage.work.rawValue { return "Work" }
+        return SignPack.illuminatedSignV1.stageDisplays
             .first(where: { $0.key == key })?.display
     }
 

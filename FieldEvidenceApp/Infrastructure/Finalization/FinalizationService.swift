@@ -2103,14 +2103,8 @@ final class FinalizationService {
             guard let completedAt = record.completedAt,
                   completedAt < input.completedAt,
                   let outcomeKey = record.outcomeKey,
-                  let historyStageDisplay = uniqueDisplay(
-                    signPack.stageDisplays,
-                    key: record.stage
-                  ),
-                  let historyOutcomeDisplay = uniqueDisplay(
-                    signPack.outcomeDisplays,
-                    key: outcomeKey
-                  ) else {
+                  let historyStageDisplay = historyStageDisplay(record.stage),
+                  let historyOutcomeDisplay = historyOutcomeDisplay(outcomeKey) else {
                 throw FinalizationServiceError.invalidDraft
             }
             let evidenceIDs = authority.historicalEvidence
@@ -2338,6 +2332,16 @@ final class FinalizationService {
     private func purposeDisplay(_ key: String) -> String? {
         let matches = signPack.evidencePurposes.filter { $0.key == key }
         return matches.count == 1 ? matches[0].display : nil
+    }
+
+    private func historyStageDisplay(_ value: String) -> String? {
+        if value == WorkflowStage.work.rawValue { return "Work" }
+        return uniqueDisplay(signPack.stageDisplays, key: value)
+    }
+
+    private func historyOutcomeDisplay(_ value: String) -> String? {
+        if value == "work_recorded" { return "Work recorded" }
+        return uniqueDisplay(signPack.outcomeDisplays, key: value)
     }
 
     private func uniqueDisplay(_ entries: [SignPack.RegistryEntry], key: String) -> String? {
