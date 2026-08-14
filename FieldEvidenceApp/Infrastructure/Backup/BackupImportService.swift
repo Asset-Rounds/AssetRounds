@@ -158,7 +158,7 @@ private extension BackupImportService {
         }
     }
 
-    func validateSourceBoundary(_ sourceURL: URL) throws -> SourceBoundary {
+    private func validateSourceBoundary(_ sourceURL: URL) throws -> SourceBoundary {
         let root = sourceURL.standardizedFileURL
         guard root.pathExtension == "fieldrecordbackup",
               try itemInformation(at: root).map(isDirectory) == true else {
