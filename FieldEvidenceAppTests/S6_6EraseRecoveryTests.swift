@@ -303,17 +303,15 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             ])
         )
 
-        await XCTAssertThrowsErrorAsync {
-            _ = try await service.erase(
-                confirmation: "ERASE",
-                coordinator: coordinator,
-                diagnosticsStore: harness.diagnostics
-            ) { session in
-                coordinator.activate(session: session)
-            }
-        } verify: { error in
-            XCTAssertEqual(error as? EraseAllServiceError, .recoveryRequired)
+        let outcome = try await service.erase(
+            confirmation: "ERASE",
+            coordinator: coordinator,
+            diagnosticsStore: harness.diagnostics
+        ) { session in
+            coordinator.activate(session: session)
         }
+        XCTAssertTrue(outcome.cleanupDeferred)
+        XCTAssertEqual(outcome.session.generationID, newID)
         XCTAssertNotNil(retainedContext)
         XCTAssertTrue(fileManager.fileExists(
             atPath: harness.factory.installedGenerationURL(id: oldID).path
