@@ -1,0 +1,357 @@
+import CoreGraphics
+import CryptoKit
+import Foundation
+import ImageIO
+import SwiftData
+import UniformTypeIdentifiers
+import XCTest
+@testable import FieldEvidenceApp
+
+final class S6_2BackupExportTests: XCTestCase {
+    private let fileManager = FileManager.default
+
+    @MainActor
+    func testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently() async throws {
+        let harness = try await makeMixedHarness("golden")
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let sourceFacts = try sourceMediaFacts(harness)
+        let before = try treeFacts(harness.session.generationRootURL)
+        let destination = harness.applicationSupportURL.appendingPathComponent("export", isDirectory: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
+        let service = makeService(harness, capacity: .max)
+
+        let preview = try service.prepare()
+        XCTAssertEqual(preview.signCount, 1)
+        XCTAssertEqual(preview.reportCount, 3)
+        XCTAssertEqual(preview.photoCount, 6)
+        let package = try service.export(previewID: preview.id, to: destination)
+        XCTAssertEqual(package.lastPathComponent, "AssetRounds.fieldrecordbackup")
+        XCTAssertEqual(try treeFacts(harness.session.generationRootURL), before)
+
+        let recordsData = try Data(contentsOf: package.appendingPathComponent("records.json"))
+        let records = try XCTUnwrap(try JSONSerialization.jsonObject(with: recordsData) as? [String: Any])
+        XCTAssertEqual((records["assets"] as? [Any])?.count, 1)
+        XCTAssertEqual((records["reports"] as? [Any])?.count, 3)
+        XCTAssertEqual((records["packets"] as? [Any])?.count, 4)
+        let packetJSON = try XCTUnwrap(records["packets"] as? [[String: Any]])
+        XCTAssertEqual(packetJSON.filter { $0["contentDeletedAt"] is String && $0["currentRecordID"] is NSNull }.count, 1)
+
+        let manifestData = try Data(contentsOf: package.appendingPathComponent("manifest.json"))
+        let manifest = try XCTUnwrap(try JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
+        let entries = try XCTUnwrap(manifest["entries"] as? [[String: Any]])
+        let actual = try packagePayloadFacts(package)
+        XCTAssertEqual(entries.compactMap { $0["path"] as? String }, actual.map(\.path))
+        XCTAssertEqual(entries.compactMap { $0["byteCount"] as? Int }, actual.map(\.byteCount))
+        XCTAssertEqual(entries.compactMap { $0["sha256"] as? String }, actual.map(\.sha256))
+        XCTAssertEqual(entries.compactMap { $0["mimeType"] as? String }, actual.map(\.mimeType))
+        XCTAssertEqual(manifest["declaredPayloadByteCount"] as? Int, actual.reduce(0) { $0 + $1.byteCount })
+        XCTAssertEqual(manifest["consumedEvaluationRootIDs"] as? [String], harness.countedRoots.sorted())
+
+        let paths = Set(actual.map(\.path))
+        let reports = try harness.context.fetch(FetchDescriptor<Report>())
+        XCTAssertEqual(paths.filter { $0.hasPrefix("snapshots/") }.count, reports.count)
+        XCTAssertEqual(paths.filter { $0.hasPrefix("pdfs/") }.count, 1)
+        for report in reports {
+            let id = report.id.uuidString.lowercased()
+            XCTAssertTrue(paths.contains("snapshots/\(id).json"))
+            XCTAssertEqual(paths.contains("pdfs/\(id).pdf"), report.pdfState == ReportPDFState.ready.rawValue)
+        }
+        for fact in sourceFacts {
+            let exported = package.appendingPathComponent(fact.exportPath)
+            XCTAssertEqual(try Data(contentsOf: exported).sha256, fact.sha256)
+            XCTAssertEqual(try Data(contentsOf: harness.session.generationRootURL.appendingPathComponent(fact.sourcePath)).sha256, fact.sha256)
+        }
+    }
+
+    @MainActor
+    func testDirtyMalformedAndUnsafeAuthorityFailClosed() async throws {
+        let harness = try await makeMixedHarness("fail-closed")
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let service = makeService(harness, capacity: .max)
+        let site = try XCTUnwrap(harness.context.fetch(FetchDescriptor<Site>()).first)
+        site.label = "unsaved"
+        XCTAssertThrowsError(try service.prepare()) { XCTAssertEqual($0 as? BackupExportServiceError, .contextHasChanges) }
+        harness.context.rollback()
+
+        let evidence = try XCTUnwrap(harness.context.fetch(FetchDescriptor<EvidenceFile>()).first)
+        let validHash = evidence.sha256
+        evidence.sha256 = validHash.uppercased()
+        try harness.context.save()
+        XCTAssertThrowsError(try service.prepare()) { XCTAssertEqual($0 as? BackupExportServiceError, .invalidAuthority) }
+        evidence.sha256 = validHash
+        try harness.context.save()
+
+        let validPath = evidence.relativePath
+        evidence.relativePath = "evidence/../\(evidence.id.uuidString.lowercased())/original.jpg"
+        try harness.context.save()
+        XCTAssertThrowsError(try service.prepare()) { XCTAssertEqual($0 as? BackupExportServiceError, .invalidAuthority) }
+        evidence.relativePath = validPath
+        try harness.context.save()
+    }
+
+    @MainActor
+    func testInsufficientCapacityCreatesNoPackageAndMutatesNoLiveAuthority() async throws {
+        let harness = try await makeMixedHarness("capacity")
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let destination = harness.applicationSupportURL.appendingPathComponent("export", isDirectory: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
+        let service = makeService(harness, capacity: 0)
+        let preview = try service.prepare()
+        let beforeFiles = try treeFacts(harness.session.generationRootURL)
+        let beforeRecords = try modelFacts(harness.context)
+
+        XCTAssertThrowsError(try service.export(previewID: preview.id, to: destination)) {
+            guard let typed = $0 as? StoragePreflightError else {
+                return XCTFail("Expected exact capacity failure, got \($0)")
+            }
+            guard case .insufficientCapacity = typed else {
+                return XCTFail("Expected insufficient capacity, got \(typed)")
+            }
+        }
+        XCTAssertFalse(fileManager.fileExists(atPath: destination.appendingPathComponent("AssetRounds.fieldrecordbackup").path))
+        XCTAssertEqual(try treeFacts(harness.session.generationRootURL), beforeFiles)
+        XCTAssertEqual(try modelFacts(harness.context), beforeRecords)
+        XCTAssertFalse(harness.context.hasChanges)
+    }
+
+    func testCanonicalFixturesAndExportedBundleTypeDeclaration() throws {
+        let records = try object(fixture("S6_2V4BackupRecordsV1"))
+        XCTAssertEqual(Set(records.keys), ["assets", "evidenceFiles", "issues", "packets", "recordsSchemaVersion", "reports", "sites", "workflowRecords"])
+        XCTAssertEqual(records["recordsSchemaVersion"] as? Int, 1)
+        try assertEveryObject(in: records, key: "assets", hasKeys: ["createdAt", "id", "label", "packContentVersion", "packID", "packSchemaVersion", "schemaVersion", "siteID", "updatedAt"])
+        try assertEveryObject(in: records, key: "evidenceFiles", hasKeys: ["byteCount", "createdAt", "id", "mimeType", "purposeKey", "recordID", "relativePath", "schemaVersion", "sha256", "thumbnailByteCount", "thumbnailRelativePath", "thumbnailSHA256"])
+        try assertEveryObject(in: records, key: "issues", hasKeys: ["assetID", "createdAt", "id", "labelDisplaySnapshot", "labelKey", "openedByRecordID", "resolvedByRecordID", "schemaVersion", "status", "updatedAt"])
+        try assertEveryObject(in: records, key: "packets", hasKeys: ["contentDeletedAt", "createdAt", "currentRecordID", "evaluationCounted", "id", "schemaVersion", "stableRootID"])
+        try assertEveryObject(in: records, key: "reports", hasKeys: ["createdAt", "id", "packetID", "pdfRelativePath", "pdfSHA256", "pdfState", "replacesReportID", "schemaVersion", "snapshotRelativePath", "snapshotSHA256", "snapshotSchemaVersion", "sourceRecordID"])
+        try assertEveryObject(in: records, key: "sites", hasKeys: ["address", "createdAt", "id", "label", "schemaVersion", "timeZoneID", "updatedAt"])
+        try assertEveryObject(in: records, key: "workflowRecords", hasKeys: Self.workflowRecordKeys)
+        let workflows = try XCTUnwrap(records["workflowRecords"] as? [[String: Any]])
+        XCTAssertEqual(Set(workflows.compactMap { $0["stage"] as? String }), ["check", "recheck"])
+        XCTAssertTrue(workflows.contains { $0["revisionKind"] as? String == "clerical_correction" && !($0["revisesRecordID"] is NSNull) })
+        let issues = try XCTUnwrap(records["issues"] as? [[String: Any]])
+        XCTAssertEqual(issues.first?["status"] as? String, "resolved")
+        let packets = try XCTUnwrap(records["packets"] as? [[String: Any]])
+        XCTAssertEqual(packets.filter { $0["currentRecordID"] is NSNull && $0["contentDeletedAt"] is String && $0["evaluationCounted"] as? Bool == true }.count, 1)
+        let reports = try XCTUnwrap(records["reports"] as? [[String: Any]])
+        XCTAssertEqual(Set(reports.compactMap { $0["pdfState"] as? String }), ["ready", "pending", "failed"])
+        XCTAssertEqual(reports.filter { $0["pdfState"] as? String == "ready" && $0["pdfRelativePath"] is String && $0["pdfSHA256"] is String }.count, 1)
+        XCTAssertEqual(reports.filter { $0["pdfState"] as? String != "ready" && $0["pdfRelativePath"] is NSNull && $0["pdfSHA256"] is NSNull }.count, 2)
+
+        let manifest = try object(fixture("S6_2V4BackupManifestV1"))
+        XCTAssertEqual(Set(manifest.keys), ["backupSchemaVersion", "consumedEvaluationRootIDs", "declaredPayloadByteCount", "entries", "exportedAt", "packs", "source"])
+        let fixtureEntries = try XCTUnwrap(manifest["entries"] as? [[String: Any]])
+        let fixturePaths = fixtureEntries.compactMap { $0["path"] as? String }
+        XCTAssertEqual(fixturePaths, fixturePaths.sorted())
+        XCTAssertEqual(fixtureEntries.filter { ($0["path"] as? String)?.hasPrefix("snapshots/") == true }.count, 3)
+        XCTAssertEqual(fixtureEntries.filter { ($0["path"] as? String)?.hasPrefix("pdfs/") == true }.count, 1)
+        XCTAssertEqual(manifest["declaredPayloadByteCount"] as? Int, fixtureEntries.reduce(0) { $0 + ($1["byteCount"] as? Int ?? -100) })
+        let evidenceIDs = try XCTUnwrap(records["evidenceFiles"] as? [[String: Any]]).compactMap { $0["id"] as? String }
+        let reportRows = try XCTUnwrap(records["reports"] as? [[String: Any]])
+        let expectedPaths = ["records.json"]
+            + evidenceIDs.flatMap { ["media/\($0).jpg", "thumbnails/\($0).jpg"] }
+            + reportRows.compactMap { ($0["id"] as? String).map { "snapshots/\($0).json" } }
+            + reportRows.compactMap { row in
+                guard row["pdfState"] as? String == "ready", let id = row["id"] as? String else { return nil }
+                return "pdfs/\(id).pdf"
+            }
+        XCTAssertEqual(Set(fixturePaths), Set(expectedPaths))
+        let countedRoots = packets.compactMap { row -> String? in
+            row["evaluationCounted"] as? Bool == true ? row["stableRootID"] as? String : nil
+        }.sorted()
+        XCTAssertEqual(manifest["consumedEvaluationRootIDs"] as? [String], countedRoots)
+
+        let project = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("FieldEvidenceApp.xcodeproj/project.pbxproj")
+        let bytes = try String(contentsOf: project, encoding: .utf8)
+        XCTAssertEqual(bytes.components(separatedBy: "UTTypeIdentifier = com.palatis3.fieldrecordbackup;").count - 1, 2)
+        XCTAssertEqual(bytes.components(separatedBy: "fieldrecordbackup,").count - 1, 2)
+        XCTAssertEqual(bytes.components(separatedBy: "\"com.apple.package\",").count - 1, 2)
+        let declarations = try XCTUnwrap(Bundle.main.object(forInfoDictionaryKey: "UTExportedTypeDeclarations") as? [[String: Any]])
+        let declaration = try XCTUnwrap(declarations.first { $0["UTTypeIdentifier"] as? String == "com.palatis3.fieldrecordbackup" })
+        XCTAssertEqual(declaration["UTTypeConformsTo"] as? [String], ["com.apple.package"])
+        let tags = try XCTUnwrap(declaration["UTTypeTagSpecification"] as? [String: Any])
+        XCTAssertEqual(tags["public.filename-extension"] as? [String], ["fieldrecordbackup"])
+    }
+}
+
+private extension S6_2BackupExportTests {
+    struct Harness {
+        let applicationSupportURL: URL
+        let session: StoreGenerationSession
+        let context: ModelContext
+        let countedRoots: [String]
+    }
+    struct PayloadFact: Equatable {
+        let path: String
+        let byteCount: Int
+        let mimeType: String
+        let sha256: String
+    }
+    struct MediaFact { let sourcePath: String; let exportPath: String; let sha256: String }
+
+    @MainActor
+    func makeService(_ harness: Harness, capacity: Int64) -> BackupExportService {
+        BackupExportService(
+            modelContext: harness.context,
+            generationRootURL: harness.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in capacity }),
+            now: { Date(timeIntervalSince1970: 1_786_708_800) },
+            makeUUID: { UUID(uuidString: "62000000-0000-0000-0000-000000000099")! },
+            appVersion: { "4.0" }, appBuild: { "42" }
+        )
+    }
+
+    @MainActor
+    func makeMixedHarness(_ label: String) async throws -> Harness {
+        let support = fileManager.temporaryDirectory.appendingPathComponent("S6_2BackupExportTests-\(label)-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
+        let session = try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent()
+        let context = session.modelContext
+        let pack = SignPack.illuminatedSignV1
+        let siteID = UUID(uuidString: "62000000-0000-0000-0000-000000000001")!
+        let assetID = UUID(uuidString: "62000000-0000-0000-0000-000000000002")!
+        context.insert(Site(id: siteID, label: "Backup Site", address: nil, timeZoneID: "America/New_York", createdAt: Date(timeIntervalSince1970: 1_776_420_000)))
+        context.insert(Asset(id: assetID, siteID: siteID, packID: pack.packID, packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion, label: "One Live Sign", createdAt: Date(timeIntervalSince1970: 1_776_420_001)))
+        try context.save()
+        let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
+        coordinator.configureCapture(generationRootURL: session.generationRootURL)
+        var roots: [String] = []
+        for index in 0..<3 {
+            let base = 10 + index * 10
+            let observed = Date(timeIntervalSince1970: 1_776_420_100 + Double(base))
+            _ = try coordinator.beginCheck(assetID: assetID, timeZoneID: nil, isTimeZoneConfirmed: false, afterDarkAccepted: true, safePositionAccepted: true, observedAt: observed)
+            let wide = try await coordinator.importCandidate(assetID: assetID, sourceData: try makePNG(seed: UInt8(31 + index)), createdAt: observed.addingTimeInterval(1))
+            _ = try await coordinator.accept(candidate: wide, assetID: assetID)
+            let close = try await coordinator.importCandidate(assetID: assetID, sourceData: try makePNG(seed: UInt8(71 + index)), createdAt: observed.addingTimeInterval(2))
+            _ = try await coordinator.accept(candidate: close, assetID: assetID)
+            let packetID = uuid(base + 2), rootID = uuid(base + 3), reportID = uuid(base + 4)
+            let result = try await coordinator.finalize(
+                assetID: assetID, selection: .noVisibleIssue,
+                completedAt: observed.addingTimeInterval(5), snapshotCreatedAt: observed.addingTimeInterval(6),
+                sourceApp: .init(build: "42", version: "4.0"),
+                identifiers: .init(mutationID: uuid(base + 1), packetID: packetID, stableRootID: rootID, reportID: reportID, issueID: nil)
+            )
+            guard case .ready = try coordinator.prepareReportDelivery(result: result) else { throw FixtureError.invalid }
+            roots.append(rootID.uuidString.lowercased())
+        }
+        let reports = try context.fetch(FetchDescriptor<Report>()).sorted { $0.id.uuidString < $1.id.uuidString }
+        for (offset, state) in [(1, ReportPDFState.pending), (2, ReportPDFState.failed)] {
+            let report = reports[offset]
+            if let path = report.pdfRelativePath { try fileManager.removeItem(at: session.generationRootURL.appendingPathComponent(path)) }
+            report.pdfState = state.rawValue; report.pdfRelativePath = nil; report.pdfSHA256 = nil
+        }
+        let tombstoneRoot = uuid(90)
+        context.insert(Packet(id: uuid(89), stableRootID: tombstoneRoot, currentRecordID: nil, evaluationCounted: true, contentDeletedAt: Date(timeIntervalSince1970: 1_776_421_000), createdAt: Date(timeIntervalSince1970: 1_776_420_000)))
+        roots.append(tombstoneRoot.uuidString.lowercased())
+        try context.save()
+        return Harness(applicationSupportURL: support, session: session, context: context, countedRoots: roots)
+    }
+
+    func sourceMediaFacts(_ harness: Harness) throws -> [MediaFact] {
+        try harness.context.fetch(FetchDescriptor<EvidenceFile>()).flatMap { evidence in
+            let id = evidence.id.uuidString.lowercased()
+            return [
+                MediaFact(sourcePath: evidence.relativePath, exportPath: "media/\(id).jpg", sha256: evidence.sha256),
+                MediaFact(sourcePath: evidence.thumbnailRelativePath, exportPath: "thumbnails/\(id).jpg", sha256: evidence.thumbnailSHA256),
+            ]
+        }
+    }
+
+    func packagePayloadFacts(_ package: URL) throws -> [PayloadFact] {
+        let keys: [URLResourceKey] = [.isRegularFileKey]
+        let urls = try XCTUnwrap(fileManager.enumerator(at: package, includingPropertiesForKeys: keys))
+            .compactMap { $0 as? URL }
+        return try urls.filter { try $0.resourceValues(forKeys: Set(keys)).isRegularFile == true && $0.lastPathComponent != "manifest.json" }
+            .map { url in
+                let data = try Data(contentsOf: url)
+                let path = String(url.path.dropFirst(package.path.count + 1)).replacingOccurrences(of: "\\", with: "/")
+                let mimeType: String
+                switch url.pathExtension {
+                case "jpg": mimeType = "image/jpeg"
+                case "pdf": mimeType = "application/pdf"
+                default: mimeType = "application/json"
+                }
+                return PayloadFact(
+                    path: path,
+                    byteCount: data.count,
+                    mimeType: mimeType,
+                    sha256: data.sha256
+                )
+            }.sorted { $0.path < $1.path }
+    }
+
+    func treeFacts(_ root: URL) throws -> [String] {
+        let values = try XCTUnwrap(fileManager.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey])).compactMap { $0 as? URL }
+        return try values.filter { try $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true }.map {
+            let relative = String($0.path.dropFirst(root.path.count + 1)).replacingOccurrences(of: "\\", with: "/")
+            return "\(relative)|\((try Data(contentsOf: $0)).sha256)"
+        }.sorted()
+    }
+
+    func modelFacts(_ context: ModelContext) throws -> [String] {
+        let packets = try context.fetch(FetchDescriptor<Packet>()).map { "packet|\($0.id)|\($0.currentRecordID?.uuidString ?? "nil")|\($0.evaluationCounted)|\($0.contentDeletedAt?.timeIntervalSince1970 ?? -1)" }
+        let reports = try context.fetch(FetchDescriptor<Report>()).map { "report|\($0.id)|\($0.pdfState)|\($0.pdfSHA256 ?? "nil")" }
+        let evidence = try context.fetch(FetchDescriptor<EvidenceFile>()).map { "evidence|\($0.id)|\($0.relativePath)|\($0.sha256)" }
+        return (packets + reports + evidence).sorted()
+    }
+
+    func fixture(_ name: String) throws -> Data {
+        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: name, withExtension: "json", subdirectory: "Fixtures") ?? Bundle(for: Self.self).url(forResource: name, withExtension: "json"))
+        return try Data(contentsOf: url)
+    }
+
+    func object(_ data: Data) throws -> [String: Any] {
+        try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    func assertEveryObject(
+        in root: [String: Any],
+        key: String,
+        hasKeys expected: Set<String>,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let values = try XCTUnwrap(root[key] as? [[String: Any]], file: file, line: line)
+        XCTAssertFalse(values.isEmpty, file: file, line: line)
+        for value in values { XCTAssertEqual(Set(value.keys), expected, file: file, line: line) }
+    }
+
+    static let workflowRecordKeys: Set<String> = [
+        "afterDarkAcknowledgementAccepted", "afterDarkAcknowledgementCopy",
+        "afterDarkAcknowledgementKey", "afterDarkAcknowledgementVersion", "assetID",
+        "completedAt", "couldNotVerifyDisplaySnapshot", "couldNotVerifyKey",
+        "couldNotVerifyRegistryVersion", "draftStepKey", "evidenceSourceRecordID",
+        "finalizationMutationID", "id", "issueID", "localDate", "localTime", "note",
+        "observedAtUTC", "outcomeKey", "packContentVersion", "packID",
+        "packSchemaVersion", "packetID", "parentRecordID", "pdfTemplateID",
+        "pdfTemplateVersion", "recordRevisionRootID", "revisesRecordID", "revisionKind",
+        "safePositionAcknowledgementAccepted", "safePositionAcknowledgementCopy",
+        "safePositionAcknowledgementKey", "safePositionAcknowledgementVersion",
+        "schemaVersion", "stage", "startedAt", "state", "timeZoneID",
+        "utcOffsetMinutes", "workDescription", "workPerformedLocalDate",
+    ]
+
+    func uuid(_ suffix: Int) -> UUID { UUID(uuidString: String(format: "62000000-0000-0000-0000-%012d", suffix))! }
+
+    func makePNG(seed: UInt8) throws -> Data {
+        let width = 48, height = 32
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            pixels[index] = seed &+ UInt8(truncatingIfNeeded: index / 4)
+            pixels[index + 1] = seed &+ 17; pixels[index + 2] = seed &+ 43; pixels[index + 3] = 255
+        }
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData),
+              let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let image = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4, space: space, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue), provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent) else { throw FixtureError.invalid }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, UTType.png.identifier as CFString, 1, nil) else { throw FixtureError.invalid }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { throw FixtureError.invalid }
+        return output as Data
+    }
+}
+
+private enum FixtureError: Error { case invalid }
+private extension Data {
+    var sha256: String { SHA256.hash(data: self).map { String(format: "%02x", $0) }.joined() }
+}

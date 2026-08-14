@@ -24,6 +24,7 @@ struct SignsRootView: View {
 
     let pack: SignPack
     let generationRootURL: URL
+    let modelContext: ModelContext
     let usesImportedCaptureFixturesForUITest: Bool
     let cameraAdapter: CameraAdapter
 
@@ -53,6 +54,7 @@ struct SignsRootView: View {
     ) {
         self.pack = pack
         self.generationRootURL = generationRootURL
+        self.modelContext = modelContext
         self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
         self.cameraAdapter = cameraAdapter
         _coordinator = StateObject(
@@ -221,7 +223,10 @@ struct SignsRootView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {
-                        SettingsPlaceholderView()
+                        SettingsPlaceholderView(
+                            modelContext: modelContext,
+                            generationRootURL: generationRootURL
+                        )
                     } label: {
                         Image(systemName: "gearshape")
                     }

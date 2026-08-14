@@ -78,6 +78,42 @@ struct StoragePreflightService {
         )
     }
 
+    func backupRequiredBytes(declaredPayloadByteCount: Int64) throws -> Int64 {
+        guard declaredPayloadByteCount >= 0 else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let (roundedDividend, roundingOverflow) = declaredPayloadByteCount
+            .addingReportingOverflow(4)
+        guard !roundingOverflow else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let overhead = roundedDividend / 5
+        let (estimatedBytes, estimateOverflow) = declaredPayloadByteCount
+            .addingReportingOverflow(overhead)
+        guard !estimateOverflow else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let (requiredBytes, reserveOverflow) = estimatedBytes.addingReportingOverflow(
+            Self.reserveBytes
+        )
+        guard !reserveOverflow else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        return requiredBytes
+    }
+
+    func checkBackupExport(
+        declaredPayloadByteCount: Int64,
+        onVolumeContaining destinationURL: URL
+    ) throws {
+        try check(
+            requiredBytes: backupRequiredBytes(
+                declaredPayloadByteCount: declaredPayloadByteCount
+            ),
+            onVolumeContaining: destinationURL
+        )
+    }
+
     private func check(requiredBytes: Int64, onVolumeContaining targetURL: URL) throws {
         guard let availableBytes = try capacityProvider(targetURL) else {
             throw StoragePreflightError.capacityUnavailable

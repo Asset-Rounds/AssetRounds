@@ -109,7 +109,10 @@ struct AppShellView: View {
     private var settingsToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             NavigationLink {
-                SettingsPlaceholderView()
+                SettingsPlaceholderView(
+                    modelContext: modelContext,
+                    generationRootURL: generationRootURL
+                )
             } label: {
                 Image(systemName: "gearshape")
             }
@@ -125,6 +128,9 @@ struct AppShellView: View {
 }
 
 struct SettingsPlaceholderView: View {
+    let modelContext: ModelContext
+    let generationRootURL: URL
+
     var body: some View {
         ScrollView {
             WorklightCard {
@@ -133,10 +139,16 @@ struct SettingsPlaceholderView: View {
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityAddTraits(.isHeader)
 
-                Text("Settings are not available in this sample.")
-                    .font(.body)
-                    .foregroundStyle(DesignTokens.Colors.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                NavigationLink("Back up current data") {
+                    BackupExportView(
+                        modelContext: modelContext,
+                        generationRootURL: generationRootURL
+                    )
+                }
+                .buttonStyle(WorklightPrimaryButtonStyle())
+                .accessibilityIdentifier(
+                    BackupExportView.settingsEntryAccessibilityIdentifier
+                )
             }
             .padding(DesignTokens.Spacing.medium)
         }
