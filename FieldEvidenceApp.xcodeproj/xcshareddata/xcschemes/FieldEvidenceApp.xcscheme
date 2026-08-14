@@ -84,6 +84,9 @@
             ReferencedContainer = "container:FieldEvidenceApp.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
+      <StoreKitConfigurationFileReference
+         identifier = "../TestFixtures/StoreKit/FieldEvidence.storekit">
+      </StoreKitConfigurationFileReference>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
