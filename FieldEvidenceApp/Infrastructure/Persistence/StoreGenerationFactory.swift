@@ -947,7 +947,7 @@ struct StoreGenerationFactory {
                 )
                 let context = container.mainContext
                 try populate(context)
-                guard !context.hasChanges else {
+                if context.hasChanges {
                     try context.save()
                     guard !context.hasChanges else {
                         throw StoreGenerationFailure.dataPointerInvalid
