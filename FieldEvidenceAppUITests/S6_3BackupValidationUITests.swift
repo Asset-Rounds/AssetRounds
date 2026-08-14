@@ -12,6 +12,12 @@ final class S6_3BackupValidationUITests: XCTestCase {
         finishReceiptToSign(in: app)
         recordWorkWithPhoto(in: app)
         completeResolvedRecheckAndCorrection(in: app)
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(
+            element("s2.sign-detail.screen", in: app).waitForExistence(timeout: 30)
+        )
         createSeparateNoVisibleReport(in: app)
 
         app.terminate()
