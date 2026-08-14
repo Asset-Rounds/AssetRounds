@@ -216,6 +216,7 @@ final class S5_2RecheckOutcomeTests: XCTestCase {
 
     private struct Harness {
         let applicationSupportURL: URL
+        let session: StoreGenerationSession
         let generationRootURL: URL
         let context: ModelContext
         let runner: CheckRunnerCoordinator
@@ -377,6 +378,7 @@ final class S5_2RecheckOutcomeTests: XCTestCase {
         runner.configureCapture(generationRootURL: session.generationRootURL)
         return Harness(
             applicationSupportURL: support,
+            session: session,
             generationRootURL: session.generationRootURL,
             context: context, runner: runner, diagnostics: diagnostics,
             assetID: assetID, issueID: issueID,
