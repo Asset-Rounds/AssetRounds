@@ -1364,3 +1364,59 @@ The exact implementation envelope is six production paths, two test paths, and t
 - `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known bugs: `NONE`. Blockers: `NONE`.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
 - Next unstarted task: `S5.2`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S5.2 `CURRENT_TASK.md`, then must run fresh S5.2 G0. Do not mutate main.
+
+## `S5.2` — `complete` — `2026-08-13T21:49:10-04:00`
+
+- Phase / branch / position / boundary: `S5` / `phase/s5-work-recheck` / `2 of 4` / `no`.
+- Outcome: started or resumed the sole validated recheck draft from one uniquely valid `recheck_due` Issue; captured new wide/close evidence; finalized `Resolved` or `Issue still visible` into one recoverable Packet/Report/stable root; preserved earlier check/work truth as immutable history; transitioned only the original Issue; and attempted `report_saved` plus `recheck_completed` only after a newly created authority.
+- Immutable phase-main base: `P=dc28f80c76dcbfb3d78ee79349e9a261c5a2bd1e`; remote `main` remained exactly P throughout S5.2.
+- Integrated/card base and predecessor: `M=E=fc3de1772297cdcac9134be3594187e0abc39c24`; accepted S5.1 run `31753067635` / job `94622857870`, P12/UI enabled, `5/5` units and `1/1` UI green.
+- Observed task-start authority: `A=6b6455c6a85d933859eca661f312364a41d45e96`; `A^=M`, and `M..A` changed only append-only `docs/execution/HANDOFF.md` plus immediate-next `docs/execution/CURRENT_TASK.md`.
+- First implementation / accepted implementation: `I=662ea37de39e7155110ad700ea8ff4a0742577c5`; `E=bbc5d7b69ce5107efffcde5032060050b2b3e88c`; no distinct infrastructure K.
+- Exact selector: S5.2 P12/UI enabled; compact JSON plus LF, 336 bytes, SHA-256 `4323E709BCCC43EA9604A357FBF3B594F1B1093B117D686484E61C9B7172FC8E`; exact selectors `FieldEvidenceAppTests/S5_2RecheckOutcomeTests` and `FieldEvidenceAppUITests/S5_2RecheckUITests`.
+- Accepted run/job/URLs: `31761221175` / `94647800123`; `https://github.com/palatis3/AssetRounds/actions/runs/31761221175`; `https://github.com/palatis3/AssetRounds/actions/runs/31761221175/job/94647800123`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.5 build `23F77`; UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; initial Simulator state `Shutdown`.
+- Budgets: setup `16/300` s; Simulator readiness `153/900` s; build `196/600` s; unit step `93/900` s; UI step `328/900` s with selected test `276.464` s; artifact `2` s and setup-plus-artifact `18/300` s; job total `661/3300` s; all watchdogs passed.
+- Artifact: `ios-ci-31761221175-1`, ID `9204862667`, size `4971440`, GitHub/raw ZIP SHA-256 `692F2C808C66A3F473F69916483302316F784206AE54F6B0D2B956ECF77B6EAE`; `SHA256SUMS.txt` SHA-256 `75FE220ACDC13444E2A065C488294B7E2B755A96472CD34909D02C066F13A7CF`; all `101/101` payloads independently matched with no malformed, duplicate, unsafe, missing, mismatched, extra, or unlisted payload.
+- Accepted logs: `build-smoke.log` SHA-256 `123FF8329F5D79E40B6A4EAC85AF7F1F3E4AD2C86D88367C177B943BFDEF2F9E`; `test-smoke.log` `9E92296AECD84FCB2D827B39993B1380CF744E4DD5BAB1445D94568E263EDBDA`; `ui-smoke.log` `0738D492A92EF7F6057AF11F8E1ADDDC407E80AED11AECD7030FDFD12182553B`.
+- Terminal evidence: `ui-final.png`, `1206×2622`, 357015 bytes, RGB24, SHA-256 `0C0E337D17C21304248517C3CD000BB409C398A971E2D9789D486376573D308F`; visual PASS at Accessibility XXXL showed the retained original Issue as `Resolved`, its exact `Section appears dark` label, frozen date/description content, intact back navigation and Signs/Reports chrome, with no error, loading, keyboard, or external sheet.
+- Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp/Domain/Workflow/RecheckOutcomeRule.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift`
+- `FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift`
+- `FieldEvidenceApp/Features/Issues/IssueDetailView.swift`
+- `FieldEvidenceApp/Features/Signs/SignDetailView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift`
+- `FieldEvidenceAppTests/S5_2RecheckOutcomeTests.swift`
+- `FieldEvidenceAppUITests/S5_2RecheckUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact implementation envelope is eight production paths, two test paths, and the standing selector exception. No project, target, package, capability, permission, model-schema, backend, notification, commerce, deletion, backup, feedback, or release path changed.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`5/5`): `testCommittedRecheckJournalRecoversWithoutIssueDriftOrDuplicateRoot`; `testDirtyContextAndStaleIssueFailClosedWithoutPartialAuthority`; `testIssueStillVisibleReturnsSameIssueOpenAndReplayDoesNotDuplicateOrIncrement`; `testPureRuleRejectsImplicitIssueStateWrongParentAndUnsupportedOutcomes`; `testResolvedCreatesOneRootTransitionsOriginalIssueAndFreezesNewEvidenceHistory`.
+- UI `PASS` (`1/1`): `testPersistedWorkStartsResolvedRecheckAndAddsExactlyOneReportRoot`, 276.464 s.
+
+### Acceptance results
+
+- GOLDEN `PASS`: `Resolved` completed the recheck, created exactly one Packet/Report/stable root, set only the original Issue to resolved with this recheck as resolver, retained only new wide/close evidence as current, and preserved earlier work/check truth as immutable history.
+- ALT-1 `PASS`: `Issue still visible` completed the same one-root authority, returned the same original Issue UUID to open with no resolver, and created no new Issue.
+- Recovery/atomicity `PASS`: committed-journal recovery, same-identifier replay, dirty context, stale Issue authority, malformed lineage, collision, storage/promotion/save/render/cleanup failure, and diagnostics failure remained fail-closed or exactly recoverable without Issue drift, duplicate root/use, partial report authority, or counter-driven truth.
+- UI/accessibility `PASS`: the persisted work/recheck-due route, standard-size prerequisite creation, Accessibility XXXL recheck flow, after-dark/safe-position controls, new wide/close captures, exact outcome review accessibility value, receipt/report navigation, two-visit proof, original-Issue reopen, resolved state, 44-point controls, scrolling, and one terminal in-app screenshot all passed.
+- Scope `PASS`: no S5.3 outcome, new-Issue insertion, recheck CNV, correction, commerce, notification, remote/backend, schema, project, package, capability, permission, deletion, backup, feedback, or release behavior was added.
+
+### Candidate recovery provenance
+
+- Terminal non-green exact-head candidates: `31756614840` (test harness did not retain the store-generation session); `31757564204` (recheck history could not freeze fixed Work display labels); `31758319218` and `31759070455` (first prerequisite toggle at Accessibility XXXL); `31759768808` (safe-position control needed deterministic XXXL positioning); `31760462826` (review outcome row existed without a combined accessibility label). None was rerun by run ID or accepted; each caused one direct-child task-scoped correction.
+
+### Known bugs, blockers, and next task
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known bugs: `NONE`. Blockers: `NONE`.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
+- Next unstarted task: `S5.3`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S5.3 `CURRENT_TASK.md`, then must run fresh S5.3 G0. Do not mutate main.
