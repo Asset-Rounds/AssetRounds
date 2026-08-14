@@ -106,9 +106,9 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                 || point == .beforePreparedWrite {
                 XCTAssertNil(recovered, "\(point)")
                 XCTAssertEqual(try harness.factory.currentGenerationID(), oldID)
+                let retainedSession = try harness.factory.openOrBootstrapCurrent()
                 XCTAssertEqual(
-                    try harness.factory.openOrBootstrapCurrent()
-                        .modelContext.fetchCount(
+                    try retainedSession.modelContext.fetchCount(
                         FetchDescriptor<Asset>()
                     ),
                     1

@@ -687,16 +687,17 @@ private extension EraseAllService {
         _ intent: EraseIntentV1,
         authority: StoreRestoreGenerationAuthority
     ) throws {
+        let currentSession = try generationFactory.openInstalledGeneration(
+            id: intent.newGenerationID,
+            authority: authority
+        )
         guard try generationFactory.currentGenerationID(authority: authority)
                 == intent.newGenerationID,
               try authority.retiredGenerationIDs().isEmpty,
               Set(try authority.installedGenerationNames())
                 == [Self.canonical(intent.newGenerationID)],
               BackupRestoreService.isEmptyCurrent(
-                try generationFactory.openInstalledGeneration(
-                    id: intent.newGenerationID,
-                    authority: authority
-                ).modelContext
+                currentSession.modelContext
               ) else {
             throw EraseAllServiceError.invalidAuthority
         }
