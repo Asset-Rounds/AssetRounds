@@ -197,6 +197,7 @@ private extension S6_5ReplacementUITests {
         dismissKeyboard(in: app)
         toggle("s3.preflight.time-zone-confirmed", in: app)
         toggle("s3.preflight.after-dark", in: app)
+        app.swipeUp()
         toggle("s3.preflight.safe-position", in: app)
         tap("s3.preflight.begin", in: app)
         capture("1 of 2 · Wide view", in: app)
