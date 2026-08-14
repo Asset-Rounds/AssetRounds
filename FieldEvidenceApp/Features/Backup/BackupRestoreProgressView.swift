@@ -150,6 +150,12 @@ struct BackupRestoreProgressView: View {
             }
             .navigationTitle("Restore")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(isPresented: $showsCurrentBackup) {
+                BackupExportView(
+                    modelContext: currentModelContext,
+                    generationRootURL: currentGenerationRootURL
+                )
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
@@ -170,12 +176,6 @@ struct BackupRestoreProgressView: View {
             case .failure:
                 errorMessage = "Backup unavailable"
             }
-        }
-        .navigationDestination(isPresented: $showsCurrentBackup) {
-            BackupExportView(
-                modelContext: currentModelContext,
-                generationRootURL: currentGenerationRootURL
-            )
         }
         .task {
             await Task.yield()
