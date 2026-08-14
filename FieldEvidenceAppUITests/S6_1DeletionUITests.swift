@@ -28,6 +28,7 @@ final class S6_1DeletionUITests: XCTestCase {
             "Delete this sign, its photos, and its reports from this app? This cannot be undone. Your free-report count will not reset. Erase All removes the remaining anonymous count."
         )
         let cancel = element("s6.1.delete.cancel", in: app)
+        scroll(cancel, in: app)
         assertButton(cancel, label: "Cancel")
         cancel.tap()
         XCTAssertTrue(detail.waitForExistence(timeout: 20))
