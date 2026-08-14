@@ -1531,3 +1531,61 @@ The exact implementation envelope is six production paths, two test paths, and t
 - `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known bugs: `NONE`. Product/card blockers: `NONE`.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future HANDOFF-only phase-close C, phase verification, main fast-forward, or exact-main verification.
 - Next unstarted task: `S6.1`. Program autopilot must first commit/push this HANDOFF-only S5 phase-close, accept exact-head phase CI, non-force fast-forward `main` to that exact green verification head, accept exact-main UI-enabled CI, reprove both refs, create `phase/s6-data-rights` from green main, and hydrate only S6.1 before fresh G0.
+
+## `S6.1` — `complete` — `2026-08-14T03:13:26-04:00`
+
+- Phase / branch / position / boundary: `S6` / `phase/s6-data-rights` / `1 of 6` / `no`.
+- Outcome: whole-sign deletion now validates and journals one referentially closed live lineage, atomically removes visible Asset-owned rows, retains only content-free counted Packet tombstones, cleans exact owned files after commit, recovers interruptions, returns to Welcome, and permits one replacement live sign without refunding evaluation consumption.
+- Immutable phase-main base and integrated/card base: `P=M=7c3c381055abde6f6b1020a9f3f599333ef47f40`; remote `main` remained exactly P throughout S6.1.
+- Predecessor evidence: accepted S5.4 product `3fb262a1e584e8e3d67a1b0198ba5b4551cc98f4`, phase-close and exact-main base P; accepted exact-main run `31769275147` / job `94671606460`, P12/UI enabled, terminal success.
+- Observed task-start authority: `A=8a7e9ff8cc89bfd2861c8b6f52d9fc9de3b08c10`; `A^=P`, and `P..A` changed only `docs/execution/CURRENT_TASK.md`.
+- First implementation / accepted implementation: `I=e78492b5ce9724823d8d98feb34e1f5cfb5f4b9a`; accepted `E=I6=97a29dd8da93718d5e0e29e8e67ff4d6f43c6915`; no distinct infrastructure K.
+- Exact selector: S6.1 P12/UI enabled; compact JSON plus LF, 336 bytes, SHA-256 `A66022B9E5B51BF032C2570518025121B3F0D7FCDB7362319AA85083774CEFC7`; exact selectors `FieldEvidenceAppTests/S6_1DeletionGraphTests` and `FieldEvidenceAppUITests/S6_1DeletionUITests`.
+- Accepted run/job/URLs: `31777874383` / `94697039768`; `https://github.com/palatis3/AssetRounds/actions/runs/31777874383`; `https://github.com/palatis3/AssetRounds/actions/runs/31777874383/job/94697039768`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.5 build `23F77`; UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; initial Simulator state `Shutdown`.
+- Budgets: setup `15/300` s; Simulator readiness `345/900` s; build `230/600` s; unit step `86/900` s; UI step `446/900` s with selected test `383.389` s; artifact `2` s and setup-plus-artifact `17/300` s; job total `953/3300` s; all watchdogs passed.
+- Artifact: `ios-ci-31777874383-1`, ID `9210878757`, size `4877915`, GitHub digest `sha256:78dd8e60646acb161005ab76c16e0d5907aa51ccbd4b833dc561611f30d4ae76`; `SHA256SUMS.txt` SHA-256 `1AC56FC2DB09CB833E32EFFD4B1FE9AC79DE0A1B29D73F8DA92C36877EDE4B2D`; all `101/101` payloads independently matched with no malformed, duplicate, missing, mismatched, extra, or unlisted payload.
+- Accepted logs: `build-smoke.log` SHA-256 `8A2D7236B7C3A8023453A05612D6992A52C9370AF5394B2D6C4B7B56935582FD`; `test-smoke.log` `06A337161A602FEA7CBF5247FF3A659F616447A8F3B8C57C908F6A884558657B`; `ui-smoke.log` `BBA8949E3A86414F25A98E3D942409B5655E0C2AC819A2E5FF7D5C2EE63B2979`.
+- Terminal evidence: `ui-final.png`, `1206×2622`, 400397 bytes, SHA-256 `F3F95756E8B4A49B17CB8436248BDDD07ED0ADF63FC89178D6C43598A8E8312D`; visual PASS at Accessibility XXXL showed the new `Replacement Sign` / `Replacement Campus` live sign after deletion, intact Sign detail and Signs/Reports chrome, with no old sign/report/Issue content, error, loading state, keyboard, or external sheet.
+- Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp/Domain/Workflow/DeletionIntentV1.swift`
+- `FieldEvidenceApp/Domain/Workflow/WholeSignDeletionRule.swift`
+- `FieldEvidenceApp/Features/Signs/SignDetailView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift`
+- `FieldEvidenceAppTests/S6_1DeletionGraphTests.swift`
+- `FieldEvidenceAppUITests/S6_1DeletionUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact implementation envelope is six production paths, two test paths, and the standing selector exception. No project-model schema, package dependency, capability, permission, backend, account, commerce, backup/import/restore, diagnostics, feedback, signing, or release path changed.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`5/5`): `testDeepEvidenceSnapshotAndPDFAuthorityFailBeforeMutation`; `testDeletesClosedGraphKeepsCountedTombstoneAndUnrelatedBytes`; `testDirtyContextAndInjectedSaveRollbackRestoreHeldPacket`; `testMalformedJournalAndPinnedAncestorReplacementEnterClosedFailure`; `testPreparedCancelsAndPostCommitRecoversWhileMismatchFailsClosed`.
+- UI `PASS` (`1/1`): `testWholeSignDeletionCancelsThenDeletesAndAllowsReplacementAtXXXL`, 383.389 s.
+
+### Acceptance results
+
+- GOLDEN `PASS`: the exact confirmation removed every visible row and exact owned file in the complete report-bearing Issue/work/recheck lineage, removed its empty Site, retained the counted root only as a content-free tombstone, removed uncounted roots, returned to Welcome, and allowed a replacement live sign without resetting evaluation consumption.
+- ALT-1 `PASS`: prepared-live cancellation, precommit save rollback, phase-replace temp recovery, and committed-tombstone recovery remained fail-closed or completed only intent-owned cleanup without fragment deletion, partial tombstones, or unrelated-byte touch.
+- Authority/security `PASS`: dirty context; malformed/colliding graph or journal; counted-root mismatch; missing/mismatched snapshot/PDF/evidence; unsafe path, ancestor replacement, and pinned-directory failures were rejected before mutation or remained exactly recoverable.
+- UI/accessibility `PASS`: persisted report-bearing prerequisite lineage, Accessibility XXXL confirmation copy, Cancel preservation via unchanged two-visit history, bounded scrolling, destructive confirmation, Welcome/no old sign/report/Issue route, replacement-sign creation, and one terminal in-app screenshot all passed.
+- Scope `PASS`: no fragment delete, undo/trash, evaluation refund, Erase All, backup/import/restore, entitlement, StoreKit, schema/model, package, capability, permission, diagnostics, feedback, or release behavior was added.
+
+### Candidate recovery provenance
+
+- Run `31771862379` at I failed only the Swift 5 compiler rejection of array-literal switch patterns in `DeletionIntentV1`; direct-child I2 rewrote those conditions without changing semantics.
+- Run `31772366306` at I2 passed build and all five units, then exposed SwiftUI container accessibility-identifier propagation that replaced the confirmation child identifiers; direct-child I3 moved the screen identifier to the header.
+- Runs `31773712802` and `31774536547` at I3 were not rerun by run ID: the first was a hosted switch-tap flake; the fresh runner cleared it and exposed the offscreen XXXL Cancel assertion, corrected by direct-child I4.
+- Run `31775370122` at I4 exposed an invalid cold-relaunch resolved-Issue button assertion; direct-child I5 first proved it was not scrollable, and run `31776379989` confirmed the resolved Issue is intentionally absent from the active-Issue route while persisted two-visit history remains authoritative. Direct-child I6 removed only that extra assertion.
+- Run `31777331626` at I6 failed only a hosted TextField keyboard-focus event before any deletion assertion; it was not rerun by run ID. One fresh-runner exact-head candidate `31777874383` passed the unchanged I6 selector completely.
+
+### Known bugs, blockers, and next task
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known bugs: `NONE`. Product/card blockers: `NONE`.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
+- Next unstarted task: `S6.2`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S6.2 `CURRENT_TASK.md`, then must run fresh S6.2 G0. Do not mutate main.
