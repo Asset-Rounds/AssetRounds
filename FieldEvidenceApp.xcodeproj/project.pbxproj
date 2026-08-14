@@ -27,6 +27,7 @@
 		A00000000000000000000010 /* FieldEvidenceApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FieldEvidenceApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000011 /* FieldEvidenceAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FieldEvidenceAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000012 /* FieldEvidenceAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FieldEvidenceAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000013 /* FieldEvidence.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = TestFixtures/StoreKit/FieldEvidence.storekit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -91,6 +92,7 @@
 				A00000000000000000000004 /* FieldEvidenceApp */,
 				A00000000000000000000005 /* FieldEvidenceAppTests */,
 				A00000000000000000000006 /* FieldEvidenceAppUITests */,
+				A00000000000000000000013 /* FieldEvidence.storekit */,
 				A00000000000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";

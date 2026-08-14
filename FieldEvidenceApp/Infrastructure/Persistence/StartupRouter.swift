@@ -46,6 +46,7 @@ final class StartupRouter: ObservableObject {
     private let didBeginStep: (StartupStep) -> Void
     private var injectsReportRenderFailureOnce: Bool
     private let reportLaunchAttemptRegistry = ReportLaunchAttemptRegistry()
+    private(set) var entitlementProcessor: StoreKitTransactionProcessor?
 
     private var hasStarted = false
     private var isRunning = false
@@ -84,6 +85,8 @@ final class StartupRouter: ObservableObject {
         guard !isRunning else {
             return
         }
+        entitlementProcessor?.stop()
+        entitlementProcessor = nil
         if let pendingEraseDrainProof {
             guard pendingEraseDrainProof.isDrained else {
                 route = .maintenance(.eraseInconsistent)
@@ -198,6 +201,11 @@ final class StartupRouter: ObservableObject {
             }
 
             await diagnosticsStore.prepare()
+            do {
+                try await installCommerceProcessor()
+            } catch {
+                throw StartupMaintenanceReason.finalizationInconsistent
+            }
             route = .ready(
                 StoreSessionCoordinator(session: session),
                 diagnosticsStore,
@@ -227,6 +235,8 @@ final class StartupRouter: ObservableObject {
     }
 
     func beginEraseBlocking(coordinator: StoreSessionCoordinator) {
+        entitlementProcessor?.stop()
+        entitlementProcessor = nil
         pendingEraseDrainProof = EraseGenerationDrainProof(
             priorContext: coordinator.modelContext
         )
@@ -282,6 +292,7 @@ final class StartupRouter: ObservableObject {
             guard await diagnosticsStore.isExactlyZero() else {
                 throw StartupMaintenanceReason.eraseInconsistent
             }
+            try await installCommerceProcessor()
             pendingEraseDrainProof = nil
             route = .ready(coordinator, diagnosticsStore, recovery)
         } catch {
@@ -389,6 +400,7 @@ final class StartupRouter: ObservableObject {
                 )
                 try recovery.reconcileAtStartup()
                 await diagnosticsStore.prepare()
+                try await ensureCommerceProcessor()
                 route = .ready(activeCoordinator, diagnosticsStore, recovery)
             } catch {
                 throw StartupMaintenanceReason.restoreInconsistent
@@ -417,6 +429,23 @@ final class StartupRouter: ObservableObject {
         } catch {
             throw StartupMaintenanceReason.dataPointerInvalid
         }
+    }
+
+    private func ensureCommerceProcessor() async throws {
+        if entitlementProcessor?.isStarted == true { return }
+        try await installCommerceProcessor()
+    }
+
+    private func installCommerceProcessor() async throws {
+        entitlementProcessor?.stop()
+        entitlementProcessor = nil
+        let store = try EntitlementStore(
+            applicationSupportURL: applicationSupportURL,
+            fileManager: fileManager
+        )
+        let processor = StoreKitTransactionProcessor(store: store)
+        try await processor.start()
+        entitlementProcessor = processor
     }
 
     private func requireNoPendingJournal(

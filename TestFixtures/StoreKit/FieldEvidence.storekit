@@ -1,0 +1,85 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "F1E1D071",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : true,
+    "_billingIssuesEnabled" : false,
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "5010A0C1",
+      "localizations" : [
+        {
+          "description" : "",
+          "displayName" : "Solo Access",
+          "locale" : "en_US"
+        }
+      ],
+      "name" : "FIELD_RECORD_SOLO_ACCESS_V1",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "59.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "5010A0C2",
+          "introductoryOffer" : {
+            "displayPrice" : "0",
+            "internalID" : "5010A0C3",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P2W"
+          },
+          "localizations" : [
+            {
+              "description" : "Unlimited local field records for one purchaser.",
+              "displayName" : "Solo Access Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.palatis3.fieldrecord.sub.solo.monthly.v1",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "FIELD_RECORD_SOLO_MONTHLY_V1",
+          "subscriptionGroupID" : "5010A0C1",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

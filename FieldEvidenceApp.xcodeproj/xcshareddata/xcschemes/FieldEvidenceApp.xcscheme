@@ -104,6 +104,9 @@
             ReferencedContainer = "container:FieldEvidenceApp.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <StoreKitConfigurationFileReference
+         identifier = "../TestFixtures/StoreKit/FieldEvidence.storekit">
+      </StoreKitConfigurationFileReference>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
