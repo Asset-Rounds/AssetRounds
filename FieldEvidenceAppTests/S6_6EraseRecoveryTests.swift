@@ -8,6 +8,41 @@ final class S6_6EraseRecoveryTests: XCTestCase {
     private let bundleID = "com.palatis3.fieldrecord"
 
     @MainActor
+    func testAbsentApplicationSupportHasNoEraseAuthority() async throws {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "S6_6-absent-support-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        let library = root.appendingPathComponent("Library", isDirectory: true)
+        let support = library.appendingPathComponent(
+            "Application Support",
+            isDirectory: true
+        )
+        let caches = library.appendingPathComponent("Caches", isDirectory: true)
+        let temporary = root.appendingPathComponent("tmp", isDirectory: true)
+        try fileManager.createDirectory(
+            at: caches,
+            withIntermediateDirectories: true
+        )
+        try fileManager.createDirectory(
+            at: temporary,
+            withIntermediateDirectories: true
+        )
+        defer { try? fileManager.removeItem(at: root) }
+
+        let recovered = try await EraseAllService(
+            applicationSupportURL: support,
+            cachesDirectoryURL: caches,
+            temporaryDirectoryURL: temporary
+        ).reconcileAtStartup(
+            diagnosticsStore: DiagnosticsStore(applicationSupportURL: support)
+        )
+
+        XCTAssertNil(recovered)
+        XCTAssertFalse(fileManager.fileExists(atPath: support.path))
+    }
+
+    @MainActor
     func testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState() async throws {
         let harness = try await makeHarness("golden")
         defer { cleanup(harness) }

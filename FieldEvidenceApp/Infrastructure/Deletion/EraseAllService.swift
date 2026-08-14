@@ -263,6 +263,19 @@ final class EraseAllService {
     func reconcileAtStartup(
         diagnosticsStore: DiagnosticsStore
     ) async throws -> StoreGenerationSession? {
+        var supportStatus = stat()
+        let supportResult = applicationSupportURL.path.withCString {
+            lstat($0, &supportStatus)
+        }
+        if supportResult != 0 {
+            guard errno == ENOENT else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            return nil
+        }
+        guard (supportStatus.st_mode & S_IFMT) == S_IFDIR else {
+            throw EraseAllServiceError.invalidAuthority
+        }
         let auxiliary = try makeAuxiliaryAuthority()
         let intentStore = try EraseIntentStore(
             applicationSupportURL: applicationSupportURL,
