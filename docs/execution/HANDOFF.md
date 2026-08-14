@@ -1476,3 +1476,58 @@ The exact implementation envelope is seven production paths, two test paths, and
 - `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known bugs: `NONE`. Blockers: `NONE`.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
 - Next unstarted task: `S5.4`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S5.4 `CURRENT_TASK.md`, then must run fresh S5.4 G0. Do not mutate main before accepted S5.4 phase-boundary integration.
+
+## `S5.4` — `complete` — `2026-08-13T23:41:05-04:00`
+
+- Phase / branch / position / boundary: `S5` / `phase/s5-work-recheck` / `4 of 4` / `yes`.
+- Outcome: completed a recheck as `Could not verify` with zero or partial current evidence; created exactly one incomplete Packet/Report/stable root; preserved the linked original Issue byte-for-byte as `recheck_due`; and retained prior check/work truth only as immutable history.
+- Immutable phase-main base: `P=dc28f80c76dcbfb3d78ee79349e9a261c5a2bd1e`; remote `main` remained exactly P through accepted S5.4 product verification.
+- Integrated/card base and predecessor: `M=E=3bc7f42f84bb36dd6d306168fc894faf9976eb3e`; accepted S5.3 run `31764299215` / job `94656885520`, P12/UI enabled, `7/7` units and `1/1` UI green.
+- Observed task-start authority: `A=156cd6376c89c84052f8cfb336ca935f41dfc537`; `A^=M`, and `M..A` changed only append-only `docs/execution/HANDOFF.md` plus immediate-next `docs/execution/CURRENT_TASK.md`.
+- First implementation / accepted implementation: `I=9af39e0e23441fd76efd9d9cd692ecfdad7884f3`; accepted `E=I3=3fb262a1e584e8e3d67a1b0198ba5b4551cc98f4`; no distinct infrastructure K.
+- Exact selector: S5.4 P12/UI enabled; compact JSON plus LF, 335 bytes, SHA-256 `26B050C4BDE1BFDF9CC5324A6FE63DFE16AD36AEF215052FDA9480E3FB142A64`; exact selectors `FieldEvidenceAppTests/S5_4RecheckCNVTests` and `FieldEvidenceAppUITests/S5_4RecheckCNVUITests`.
+- Accepted run/job/URLs: `31767088432` / `94665088396`; `https://github.com/palatis3/AssetRounds/actions/runs/31767088432`; `https://github.com/palatis3/AssetRounds/actions/runs/31767088432/job/94665088396`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.5 build `23F77`; UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; initial Simulator state `Shutdown`.
+- Budgets: setup `39/300` s; Simulator readiness `139/900` s; build step `157/600` s; unit step `39/900` s; UI step `290/900` s with selected test `255.550` s; artifact `1` s and setup-plus-artifact `40/300` s; selected total `528/3300` s; all watchdogs passed.
+- Artifact: `ios-ci-31767088432-1`, ID `9206854883`, size `4599932`, GitHub/raw ZIP SHA-256 `CA548251DCF04F64FC0898DC64FDDB94732849D8F4AE72AB7A2C65846367E7D5`; `SHA256SUMS.txt` SHA-256 `3FF31E548A503B4B3568D789BF9ED8C25EC5F0D9B347ABBC84C79A3929588DE6`; all `101/101` payloads independently matched with no malformed, missing, mismatched, extra, or unlisted payload.
+- Accepted logs: `build-smoke.log` SHA-256 `5BF9FAF73DCAD054A751CF68D438FB504B92F4306A8C92BD77A04710CB6CEDAD`; `test-smoke.log` `4CBA764365BEF09F3AA58980C286EB614C4224D24A4FB9AE475195836A0798E1`; `ui-smoke.log` `B04CA08CDF88F48E3FD833F65633828EA6B4D9B6EED2E3FDACA267E01D9D22AB`.
+- Terminal evidence: `ui-final.png`, `1206×2622`, 343141 bytes, RGB24, SHA-256 `E91F5E1E05533E0F4EC71CE82EEC3688DC7FC3BB9EA5784D952EC042A724A802`; visual PASS at Accessibility XXXL showed the exact original `Section appears dark` Issue still at `Recheck due`, its enabled `Start recheck` action, intact back navigation and Signs/Reports chrome, with no false resolved/open claim, error, loading, keyboard, truncation, or external sheet.
+- Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp/Domain/Workflow/RecheckOutcomeRule.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift`
+- `FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift`
+- `FieldEvidenceApp/Features/Issues/WorkCoordinator.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift`
+- `FieldEvidenceAppTests/S5_4RecheckCNVTests.swift`
+- `FieldEvidenceAppUITests/S5_4RecheckCNVUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact implementation envelope is six production paths, two test paths, and the standing selector exception. No project, target, package, capability, permission, model-schema, backend, notification, commerce, deletion, backup, feedback, or release path changed.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`5/5`): `testCommittedCNVJournalRecoversAndReplayKeepsOneUnchangedIssueAndRoot`; `testPartialConditionsChangedCreatesOneIncompleteRootAndPreservesIssue`; `testPureRulePreservesIssueAndRejectsInvalidCNVAuthority`; `testStaleIssueAndUnknownReasonFailClosedWithoutPartialAuthority`; `testZeroEvidenceUnsafeToContinueReplaysWithoutIssueDriftOrDuplicateRoot`.
+- UI `PASS` (`1/1`): `testPartialRecheckCouldNotVerifyPreservesOriginalIssueAndAddsOneReport`, 255.550 s.
+
+### Acceptance results
+
+- GOLDEN `PASS`: one accepted current wide photo plus `conditions_changed` completed one incomplete recheck root while the close purpose remained explicitly `Not captured — Could not verify`; the original Issue payload stayed exact and `recheck_due`.
+- ALT-1 `PASS`: zero current photos plus `unsafe_to_continue` created the same one-root incomplete authority, marked both current purposes unrecorded, and neither substituted historical photos nor changed or inserted an Issue.
+- Atomicity/recovery `PASS`: exact same-identifier replay, committed-journal recovery, dirty/stale/malformed authority, collision, unknown CNV reason, storage/promotion/save/render/cleanup/rollback failure, and lower-bound diagnostic behavior remained fail-closed or exactly recoverable without Issue drift, duplicate root/use, partial report authority, or retained/unowned-byte touch.
+- UI/accessibility `PASS`: persisted recheck-due truth, Accessibility XXXL partial-evidence flow, `Cannot complete` → `Conditions changed`, review/receipt/report navigation, report visits `1→2`, return to the exact original Issue still due, 44-point controls, scrolling, and one terminal in-app screenshot all passed.
+- Scope `PASS`: no Issue open/resolve/relabel/insert behavior, pass/fixed/verified claim, history substitution, work mutation, correction, commerce, notification, remote/backend, schema, project, package, capability, permission, deletion, backup, feedback, or release behavior was added.
+
+### Candidate recovery provenance
+
+- Terminal non-green exact-head candidate `31766016515` at I failed the unsigned app build because Swift could not infer a generic type in the recovery CNV snapshot expression; direct-child I2 made that type explicit.
+- Terminal non-green exact-head candidate `31766265107` at I2 passed the app build but failed the targeted units because the coordinator still required both photos before CNV review, so no zero/partial authority could be finalized or recovered; direct-child I3 limited incomplete review to validated CNV selection. Neither failed run was rerun by run ID or accepted.
+
+### Known bugs, blockers, and boundary state
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known bugs: `NONE`. Product/card blockers: `NONE`.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future HANDOFF-only phase-close C, phase verification, main fast-forward, or exact-main verification.
+- Next unstarted task: `S6.1`. Program autopilot must first commit/push this HANDOFF-only S5 phase-close, accept exact-head phase CI, non-force fast-forward `main` to that exact green verification head, accept exact-main UI-enabled CI, reprove both refs, create `phase/s6-data-rights` from green main, and hydrate only S6.1 before fresh G0.
