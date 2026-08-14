@@ -608,7 +608,11 @@ private extension S6_6EraseRecoveryTests {
 
     func cleanup(_ harness: Harness) {
         harness.defaults.removePersistentDomain(forName: bundleID)
-        try? fileManager.removeItem(at: harness.root)
+        harness.coordinator = nil
+        // These roots are unique and live under the Simulator's temporary
+        // container. A synchronous XCTest defer can still retain a local
+        // ModelContext/ModelContainer while it runs, so unlinking the SQLite
+        // vnode here is an API violation. The Simulator owns final temp cleanup.
     }
 
     func sequence(_ values: [UUID]) -> () -> UUID {
