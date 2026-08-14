@@ -1589,3 +1589,65 @@ The exact implementation envelope is six production paths, two test paths, and t
 - `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known bugs: `NONE`. Product/card blockers: `NONE`.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
 - Next unstarted task: `S6.2`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S6.2 `CURRENT_TASK.md`, then must run fresh S6.2 G0. Do not mutate main.
+
+## `S6.2` — `complete` — `2026-08-14T04:28:58-04:00`
+
+- Phase / branch / position / boundary: `S6` / `phase/s6-data-rights` / `2 of 6` / `no`.
+- Outcome: exported one deterministic `com.palatis3.fieldrecordbackup` FileWrapper package only after a confirmed destination and actual-target-volume capacity check; froze canonical seven-model records and manifest truth, unchanged original/thumbnail media, every report snapshot, ready PDFs only, counted-root equality, exact warning/counts, and no commerce, diagnostic, journal, staging, secret, or encryption claim.
+- Immutable phase-main base: `P=7c3c381055abde6f6b1020a9f3f599333ef47f40`; remote `main` remained exactly P throughout S6.2.
+- Integrated/card base and predecessor: `M=E=97a29dd8da93718d5e0e29e8e67ff4d6f43c6915`; accepted S6.1 run `31777874383` / job `94697039768`, P12/UI enabled, `5/5` units and `1/1` UI green.
+- Observed task-start authority: `A=0de582cac758c653d130aa02c6a35887bf7e76f8`; `A^=M`, and `M..A` changed only append-only `docs/execution/HANDOFF.md` plus immediate-next `docs/execution/CURRENT_TASK.md`.
+- Mechanical authority correction: direct-child `c10d77fec200edccb42821e14b27811b93788deb` added only the required `FieldEvidenceApp/Info.plist` path after hosted evidence proved the frozen proprietary UTI could not be emitted through an unrecognized generated-Info build setting. It changed only `CURRENT_TASK.md`, retained the exact product truth, and raised the production envelope from eight to nine paths within the default 10-path cap.
+- First implementation / accepted implementation: `I=e38f49530a93458ca4e2874141785b7d56513367`; accepted `E=de0faeda88e2d3021f6944260b86fa128ea8611f`; no distinct infrastructure K.
+- Exact selector: S6.2 P12/UI enabled; compact JSON plus LF, 339 bytes, SHA-256 `E582CB7BB4F435ED582163A9F2E763742D7F01A94F8B0ED3EA926731579DF1FE`; exact selectors `FieldEvidenceAppTests/S6_2BackupExportTests` and `FieldEvidenceAppUITests/S6_2BackupExportUITests`.
+- Accepted run/job/URLs: `31783299741` / `94713542856`; `https://github.com/palatis3/AssetRounds/actions/runs/31783299741`; `https://github.com/palatis3/AssetRounds/actions/runs/31783299741/job/94713542856`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.5; UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; initial Simulator state `Shutdown`.
+- Budgets: setup `16/300` s; Simulator readiness `90/900` s; build step `251/600` s; unit step `56/900` s; UI step `186/900` s with selected test `145.103` s; artifact `0` s and setup-plus-artifact `16/300` s; job total `535/3300` s; all watchdogs passed.
+- Artifact: `ios-ci-31783299741-1`, ID `9212708214`, size `3428030`, GitHub digest `sha256:90590c30d5c6f3f18fa9b41d47069bfed681eb7b5d9234c9d80086e7586fb548`; `SHA256SUMS.txt` SHA-256 `C5FC8CB810984D916CBC909BD9C3A782355AFA901E1321F3D0D56665941B2723`; all `99/99` checksummed payloads independently matched with no malformed, duplicate, unsafe, missing, mismatched, extra, or unlisted payload.
+- Accepted logs: `build-smoke.log` SHA-256 `E8865626DED83020EEBC4E62DA27B78374AB034B6358B3524A01AA22F9D3B3C2`; `test-smoke.log` `7B79764833392F6E9BBF35E51F1F158DB49707890D547D92C5643B635C3B22E6`; `ui-smoke.log` `7CDB680022A56D82070AB2C1A31184CEC4E3D45EF5A936D7605F0798836B1849`.
+- Terminal evidence: `ui-final.png`, `1206×2622`, 590802 bytes, SHA-256 `87B0258A58B66588088E37485FE868C7565408B7934182B6FD5F30019877576B`; visual PASS at Accessibility XXXL showed the exact security warning, reachable post-export backup surface, intact navigation and Signs/Reports chrome, with no error, loading state, keyboard, external sheet, or clipped primary action.
+- Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp.xcodeproj/project.pbxproj`
+- `FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift`
+- `FieldEvidenceApp/Features/Settings/BackupExportView.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Info.plist`
+- `FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift`
+- `FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift`
+- `FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift`
+- `FieldEvidenceAppTests/Fixtures/S6_2V4BackupManifestV1.json`
+- `FieldEvidenceAppTests/Fixtures/S6_2V4BackupRecordsV1.json`
+- `FieldEvidenceAppTests/S6_2BackupExportTests.swift`
+- `FieldEvidenceAppUITests/S6_2BackupExportUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact implementation envelope is nine production paths, four test paths, and the standing selector exception. No model schema, package dependency, capability, entitlement, permission, backend, account, commerce, import/restore, live-data mutation, diagnostic, feedback, signing, or release behavior changed.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`4/4`): `testCanonicalFixturesAndExportedBundleTypeDeclaration`; `testDirtyMalformedAndUnsafeAuthorityFailClosed`; `testInsufficientCapacityCreatesNoPackageAndMutatesNoLiveAuthority`; `testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently`.
+- UI `PASS` (`1/1`): `testConfirmedBackupShowsExactCountsAndWarningAtXXXL`, 145.103 s.
+
+### Acceptance results
+
+- GOLDEN `PASS`: the mixed live/Issue/recheck/correction/tombstone and ready/pending/failed authority exported deterministic counts, canonical records/manifest bytes, exact normalized member paths, unchanged original/thumbnail hashes, every snapshot, one ready PDF only, and exact counted-root equality.
+- ALT-1 `PASS`: a selected destination with capacity below the overflow-safe declared-payload-plus-20-percent-plus-64-MiB requirement created no package and changed no live row or file.
+- Authority/compatibility `PASS`: dirty context, malformed hashes, unsafe paths, cross-sign or broken lineage, generation-root change, invalid media/snapshot/PDF authority, and unsupported model/pack/type truth fail closed; `Bundle.main` proved the exact exported UTI array, package conformance, and filename extension in the built app.
+- UI/accessibility `PASS`: cold Accessibility XXXL launch, exact sign/report/photo counts, exact warning, 44-point confirmed action, double-submit lock, deterministic package filename, retained app navigation, and one terminal in-app screenshot all passed.
+- Scope `PASS`: no ZIP, encryption claim, import, restore, Erase All, entitlement/subscription transfer, commerce, diagnostic, journal/staging/temp/OS-metadata/secret export, remote/backend, schema, permission, signing, or release behavior was added.
+
+### Candidate recovery provenance
+
+- Run `31781228277` at I failed only three Swift access-control declarations on helpers exposing the private `Rows` type; direct-child `2798e378ca42c9f44cd411c5b3b3ead2989a2f05` made those helpers explicitly private.
+- Run `31781716916` at `2798e378ca42c9f44cd411c5b3b3ead2989a2f05` built and passed all three behavioral units, but proved the one-item complex generated-Info setting was emitted as a dictionary and absent from the app Info dictionary.
+- Run `31782408147` at `cfea7d64465e6dabd707f3bc7374e2edc8be297a` again built and passed every behavioral unit, but proved that preserving the complex value as a quoted build-setting scalar still did not populate the app Info dictionary. The CURRENT_TASK-only authority correction and source-plist product correction followed; none of the failed runs was rerun by run ID or accepted.
+
+### Known bugs, blockers, and next task
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known bugs: `NONE`. Product/card blockers: `NONE`.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
+- Next unstarted task: `S6.3`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S6.3 `CURRENT_TASK.md`, then must run fresh S6.3 G0. Do not mutate main.
