@@ -208,6 +208,11 @@ private struct StartupRootView: View {
 }
 
 private struct ReadyAppView: View {
+    private struct RestorePresentation: Identifiable {
+        let id = UUID()
+        let mode: BackupRestoreMode
+    }
+
     @ObservedObject var coordinator: StoreSessionCoordinator
 
     let diagnosticsStore: DiagnosticsStore
@@ -222,8 +227,7 @@ private struct ReadyAppView: View {
     @ObservedObject var router: StartupRouter
     let selectedRestorePackageForUITest: URL?
 
-    @State private var showsRestore = false
-    @State private var restoreMode: BackupRestoreMode = .emptyInstall
+    @State private var restorePresentation: RestorePresentation?
 
     var body: some View {
         Group {
@@ -239,12 +243,10 @@ private struct ReadyAppView: View {
                     injectsLowStorageFailureOnceForUITest,
                 cameraAdapter: cameraAdapter,
                 restoreDataBackup: {
-                    restoreMode = .emptyInstall
-                    showsRestore = true
+                    restorePresentation = RestorePresentation(mode: .emptyInstall)
                 },
                 replaceDataBackup: {
-                    restoreMode = .replaceExisting
-                    showsRestore = true
+                    restorePresentation = RestorePresentation(mode: .replaceExisting)
                 }
             )
             } else {
@@ -256,13 +258,13 @@ private struct ReadyAppView: View {
         }
         .id(coordinator.uiGenerationToken)
         .modelContext(coordinator.modelContext)
-        .sheet(isPresented: $showsRestore) {
+        .sheet(item: $restorePresentation) { presentation in
             BackupRestoreProgressView(
                 applicationSupportURL: applicationSupportURL,
                 currentModelContext: coordinator.modelContext,
                 currentGenerationID: coordinator.generationID,
                 currentGenerationRootURL: coordinator.generationRootURL,
-                mode: restoreMode,
+                mode: presentation.mode,
                 selectedPackageForUITest: selectedRestorePackageForUITest
             ) { session in
                 await router.activateRestoredSession(
