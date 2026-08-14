@@ -398,11 +398,27 @@ private extension S6_5ReplacementUITests {
     func toggle(_ id: String, in app: XCUIApplication) {
         let value = element(id, in: app)
         scroll(value, in: app)
-        value.tap()
+        value.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)
+        ).tap()
+        if XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "1"),
+            object: value
+        )], timeout: 10) == .completed {
+            return
+        }
+
+        let retry = element(id, in: app)
+        scroll(retry, in: app)
+        if retry.value as? String != "1" {
+            retry.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)
+            ).tap()
+        }
         XCTAssertEqual(
             XCTWaiter.wait(for: [XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "value == %@", "1"),
-                object: value
+                object: retry
             )], timeout: 10),
             .completed
         )
