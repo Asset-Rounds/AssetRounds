@@ -1,6 +1,6 @@
 import Foundation
 import StoreKit
-import SwiftUI
+import Combine
 
 struct VerifiedEntitlementProcessorEventV1: @unchecked Sendable {
     let fact: VerifiedEntitlementFactV1

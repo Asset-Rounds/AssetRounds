@@ -309,7 +309,7 @@ private extension EntitlementStore {
         }
     }
 
-    func readIfPresent(_ name: String) throws -> ReadValue? {
+    private func readIfPresent(_ name: String) throws -> ReadValue? {
         let descriptor = Darwin.openat(
             commerceDescriptor,
             name,
@@ -391,7 +391,9 @@ private extension EntitlementStore {
         return names.sorted()
     }
 
-    static func directoryIdentity(_ descriptor: Int32) throws -> Identity {
+    private static func directoryIdentity(
+        _ descriptor: Int32
+    ) throws -> Identity {
         var info = stat()
         guard Darwin.fstat(descriptor, &info) == 0,
               (info.st_mode & S_IFMT) == S_IFDIR else {
