@@ -178,6 +178,14 @@ struct SignsRootView: View {
                             recordWork: beginRecordWork,
                             startRecheck: beginRecheck
                         )
+                        .onDisappear {
+                            guard activeIssue.status == .resolved else { return }
+                            self.activeIssue = nil
+                            refreshActiveIssue(
+                                preferRetained: false,
+                                openLoadedIssue: true
+                            )
+                        }
                     } else {
                         issueUnavailable
                     }
@@ -246,15 +254,35 @@ struct SignsRootView: View {
         readyReport = try? reportDeliveryCoordinator.onlyReadyReport(assetID: assetID)
     }
 
-    private func refreshActiveIssue() {
+    private func refreshActiveIssue(
+        preferRetained: Bool = true,
+        openLoadedIssue: Bool = false
+    ) {
         guard let assetID = snapshot?.assetID,
               let workCoordinator else {
             activeIssue = nil
             return
         }
         Task {
-            if let loaded = try? await workCoordinator.activeIssue(assetID: assetID) {
+            if preferRetained,
+               let retained = activeIssue,
+               let status = try? checkRunnerCoordinator.issueStatus(
+                assetID: assetID,
+                issueID: retained.id
+               ),
+               status == .resolved {
+                activeIssue = WorkIssuePresentationValue(
+                    id: retained.id,
+                    assetID: retained.assetID,
+                    label: retained.label,
+                    status: status,
+                    records: retained.records
+                )
+            } else if let loaded = try? await workCoordinator.activeIssue(assetID: assetID) {
                 activeIssue = loaded
+                if openLoadedIssue {
+                    path.append(Route.issue(loaded.id))
+                }
             } else if let retained = activeIssue,
                       let status = try? checkRunnerCoordinator.issueStatus(
                         assetID: assetID,

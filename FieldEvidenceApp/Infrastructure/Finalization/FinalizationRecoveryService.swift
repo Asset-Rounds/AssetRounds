@@ -98,12 +98,13 @@ final class FinalizationRecoveryService {
                   stableRootIDs.insert(intent.stableRootID).inserted else {
                 throw FinalizationRecoveryServiceError.inconsistent
             }
-            if let issueID = (
-                intent.finalizationPayload.issueInsert
-                    ?? intent.finalizationPayload.issueTransition?.before
-            )?.id,
-               !issueIDs.insert(issueID).inserted {
-                throw FinalizationRecoveryServiceError.inconsistent
+            for issueID in [
+                intent.finalizationPayload.issueTransition?.before.id,
+                intent.finalizationPayload.issueInsert?.id,
+            ].compactMap({ $0 }) {
+                guard issueIDs.insert(issueID).inserted else {
+                    throw FinalizationRecoveryServiceError.inconsistent
+                }
             }
             let state = databaseState(for: intent)
             guard state != .inconsistent else {
@@ -340,9 +341,12 @@ final class FinalizationRecoveryService {
               } ?? true),
               (payload.packetBefore == nil
                 ? ((payload.workflowRecordAfter.stage == WorkflowStage.recheck.rawValue
-                    && payload.issueInsert == nil
                     && payload.issueTransition?.before.id
-                        == payload.workflowRecordAfter.issueID)
+                        == payload.workflowRecordAfter.issueID
+                    && (payload.workflowRecordAfter.outcomeKey
+                            == "original_resolved_different_issue"
+                        ? payload.issueInsert != nil
+                        : payload.issueInsert == nil))
                   || (payload.workflowRecordAfter.stage == WorkflowStage.check.rawValue
                     && payload.issueTransition == nil
                     && payload.issueInsert?.id
@@ -427,12 +431,12 @@ final class FinalizationRecoveryService {
 
     private func validOriginalRecheck(_ payload: FinalizationPayloadV1) -> Bool {
         let record = payload.workflowRecordAfter
-        guard payload.issueInsert == nil,
-              let transition = payload.issueTransition,
+        guard let transition = payload.issueTransition,
               let issueID = record.issueID,
               record.parentRecordID != nil,
               record.outcomeKey == "resolved"
-                || record.outcomeKey == "issue_still_visible",
+                || record.outcomeKey == "issue_still_visible"
+                || record.outcomeKey == "original_resolved_different_issue",
               record.couldNotVerifyKey == nil,
               record.couldNotVerifyDisplaySnapshot == nil,
               record.couldNotVerifyRegistryVersion == nil,
@@ -459,10 +463,31 @@ final class FinalizationRecoveryService {
             return false
         }
         if record.outcomeKey == "resolved" {
+            return payload.issueInsert == nil
+                && transition.after.status == IssueStatus.resolved.rawValue
+                && transition.after.resolvedByRecordID == record.id
+        }
+        if record.outcomeKey == "original_resolved_different_issue" {
+            guard let inserted = payload.issueInsert,
+                  inserted.schemaVersion == 1,
+                  inserted.id != issueID,
+                  inserted.assetID == record.assetID,
+                  inserted.openedByRecordID == record.id,
+                  SignPack.illuminatedSignV1.issueLabels.filter({
+                      $0.key == inserted.labelKey
+                        && $0.display == inserted.labelDisplaySnapshot
+                  }).count == 1,
+                  inserted.status == IssueStatus.open.rawValue,
+                  inserted.resolvedByRecordID == nil,
+                  inserted.createdAt == record.completedAt,
+                  inserted.updatedAt == record.completedAt else {
+                return false
+            }
             return transition.after.status == IssueStatus.resolved.rawValue
                 && transition.after.resolvedByRecordID == record.id
         }
-        return transition.after.status == IssueStatus.open.rawValue
+        return payload.issueInsert == nil
+            && transition.after.status == IssueStatus.open.rawValue
             && transition.after.resolvedByRecordID == nil
     }
 
@@ -670,7 +695,6 @@ final class FinalizationRecoveryService {
     ) throws {
         let after = payload.workflowRecordAfter
         guard payload.packetBefore == nil,
-              payload.issueInsert == nil,
               let transition = payload.issueTransition,
               let report = payload.reportInsert,
               let issueID = after.issueID,
@@ -712,6 +736,11 @@ final class FinalizationRecoveryService {
         let issues = try modelContext.fetch(FetchDescriptor<Issue>()).filter {
             $0.id == issueID
         }
+        let insertedIssueID = payload.issueInsert?.id
+        let insertedIssues = try modelContext.fetch(FetchDescriptor<Issue>()).filter { issue in
+            (insertedIssueID.map { $0 == issue.id } ?? false)
+                || issue.openedByRecordID == after.id
+        }
         let allRecords = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
         let drafts = allRecords.filter { $0.id == after.id }
         let parents = allRecords.filter { $0.id == parentID }
@@ -719,12 +748,15 @@ final class FinalizationRecoveryService {
             && draft(drafts[0], matchesBefore: after)
             && issues.count == 1
             && issueRowsMatch(issues, payload: transition.before)
+            && insertedIssues.isEmpty
         let hasMatchingDatabaseState = drafts.count == 1
             && record(drafts[0], matches: after)
             && issues.count == 1
             && issueRowsMatch(issues, payload: transition.after)
+            && issueRowsMatch(insertedIssues, payload: payload.issueInsert)
         guard sites.count == 1,
               issues.count == 1,
+              insertedIssues.count <= 1,
               drafts.count == 1,
               parents.count == 1,
               asset.schemaVersion == 1,
@@ -774,16 +806,28 @@ final class FinalizationRecoveryService {
         }
         let completedAt = try requiredDate(after.completedAt)
         let expectedAfterStatus = after.outcomeKey == "resolved"
+                || after.outcomeKey == "original_resolved_different_issue"
             ? IssueStatus.resolved.rawValue
             : IssueStatus.open.rawValue
+        let expectedIssuePayloads = ([transition.after]
+            + (payload.issueInsert.map { [$0] } ?? []))
+            .sorted {
+                $0.createdAt < $1.createdAt
+                    || ($0.createdAt == $1.createdAt
+                        && $0.id.uuidString.lowercased()
+                            < $1.id.uuidString.lowercased())
+            }
         guard transition.before.status == IssueStatus.recheckDue.rawValue,
               transition.before.resolvedByRecordID == nil,
               transition.after.status == expectedAfterStatus,
               transition.after.resolvedByRecordID
-                == (after.outcomeKey == "resolved" ? after.id : nil),
+                == (expectedAfterStatus == IssueStatus.resolved.rawValue
+                    ? after.id : nil),
               canonicalDateEqual(transition.after.updatedAt, completedAt),
-              snapshot.issues.count == 1,
-              issueSnapshot(snapshot.issues[0], matches: transition.after),
+              snapshot.issues.count == expectedIssuePayloads.count,
+              zip(snapshot.issues, expectedIssuePayloads).allSatisfy({ value, expected in
+                  issueSnapshot(value, matches: expected)
+              }),
               canonicalOptionalDateEqual(
                 snapshot.timeContext.observedAtUTC,
                 after.observedAtUTC
@@ -1334,40 +1378,36 @@ final class FinalizationRecoveryService {
                     || $0.packetID == intent.packetID
                     || $0.sourceRecordID == intent.recordID
             }
-            let issuePayload = payload.issueInsert ?? payload.issueTransition?.before
-            let issues = try issuePayload.map { try fetch(Issue.self, id: $0.id) } ?? []
-            let issueCollisions = payload.issueInsert == nil ? [] : try modelContext
-                .fetch(FetchDescriptor<Issue>()).filter {
-                    $0.openedByRecordID == intent.recordID
-                }
+            let allIssues = try modelContext.fetch(FetchDescriptor<Issue>())
+            let originalIssues = payload.issueTransition.map { transition in
+                allIssues.filter { $0.id == transition.before.id }
+            } ?? []
+            let insertedIssueID = payload.issueInsert?.id
+            let insertedIssues = allIssues.filter { issue in
+                (insertedIssueID.map { $0 == issue.id } ?? false)
+                    || issue.openedByRecordID == intent.recordID
+            }
             guard records.count <= 1, packets.count <= 1, reports.count <= 1,
-                  issues.count <= 1, issueCollisions.count <= 1 else {
+                  originalIssues.count <= 1, insertedIssues.count <= 1 else {
                 return .inconsistent
             }
 
             if let mutationRecord = mutationRecords.first {
                 guard records.count == 1, records.first === mutationRecord,
                       packets.count == 1, reports.count == 1,
-                      (payload.issueInsert == nil
-                        || (issueCollisions.count == issues.count
-                            && issueCollisions.first === issues.first)),
                       record(records[0], matches: payload.workflowRecordAfter),
                       packet(packets[0], matches: payload.packetAfter),
                       report(reports[0], matches: reportPayload),
-                      issueRowsMatch(
-                        issues,
-                        payload: payload.issueInsert ?? payload.issueTransition?.after
-                      ) else {
+                      issueRowsMatch(originalIssues, payload: payload.issueTransition?.after),
+                      issueRowsMatch(insertedIssues, payload: payload.issueInsert) else {
                     return .inconsistent
                 }
                 return .matching
             }
 
             guard packets.isEmpty, reports.isEmpty,
-                  (payload.issueTransition == nil
-                    ? issues.isEmpty
-                    : issueRowsMatch(issues, payload: payload.issueTransition?.before)),
-                  issueCollisions.isEmpty else {
+                  issueRowsMatch(originalIssues, payload: payload.issueTransition?.before),
+                  insertedIssues.isEmpty else {
                 return .inconsistent
             }
             guard records.count == 1 else { return .inconsistent }
@@ -1464,6 +1504,16 @@ final class FinalizationRecoveryService {
             throw FinalizationRecoveryServiceError.inconsistent
         }
         apply(payload.workflowRecordAfter, to: records[0])
+        if let transition = payload.issueTransition {
+            let issues = try fetch(Issue.self, id: transition.before.id)
+            guard issues.count == 1,
+                  issueRowsMatch(issues, payload: transition.before) else {
+                throw FinalizationRecoveryServiceError.inconsistent
+            }
+            issues[0].status = transition.after.status
+            issues[0].resolvedByRecordID = transition.after.resolvedByRecordID
+            issues[0].updatedAt = transition.after.updatedAt
+        }
         if let value = payload.issueInsert {
             guard let issueStatus = IssueStatus(rawValue: value.status) else {
                 throw FinalizationRecoveryServiceError.inconsistent
@@ -1477,15 +1527,6 @@ final class FinalizationRecoveryService {
                 resolvedByRecordID: value.resolvedByRecordID,
                 createdAt: value.createdAt, updatedAt: value.updatedAt
             ))
-        } else if let transition = payload.issueTransition {
-            let issues = try fetch(Issue.self, id: transition.before.id)
-            guard issues.count == 1,
-                  issueRowsMatch(issues, payload: transition.before) else {
-                throw FinalizationRecoveryServiceError.inconsistent
-            }
-            issues[0].status = transition.after.status
-            issues[0].resolvedByRecordID = transition.after.resolvedByRecordID
-            issues[0].updatedAt = transition.after.updatedAt
         }
         let packet = payload.packetAfter
         modelContext.insert(Packet(

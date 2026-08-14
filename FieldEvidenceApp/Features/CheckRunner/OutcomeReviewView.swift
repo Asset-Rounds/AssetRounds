@@ -20,6 +20,8 @@ struct OutcomeReviewView: View {
     static let issueStillVisibleAccessibilityIdentifier =
         "s5.2.outcome.issue-still-visible"
     static let recheckNoteAccessibilityIdentifier = "s5.2.outcome.note"
+    static let originalResolvedDifferentIssueAccessibilityIdentifier =
+        "s5.3.outcome.original-resolved-different-issue"
 
     let assetID: UUID
     let coordinator: CheckRunnerCoordinator
@@ -27,6 +29,7 @@ struct OutcomeReviewView: View {
 
     @State private var selection: CheckOutcomeSelection?
     @State private var isChoosingVisibleIssue = false
+    @State private var isChoosingDifferentIssue = false
     @State private var isChoosingCouldNotVerify: Bool
     @State private var selectedCouldNotVerifyReasonKey: String?
     @State private var couldNotVerifyNote = ""
@@ -77,6 +80,7 @@ struct OutcomeReviewView: View {
                     ) {
                         selection = .resolved(note: normalizedRecheckNote)
                         isChoosingVisibleIssue = false
+                        isChoosingDifferentIssue = false
                         isChoosingCouldNotVerify = false
                         errorMessage = nil
                     }
@@ -88,6 +92,19 @@ struct OutcomeReviewView: View {
                     ) {
                         selection = .issueStillVisible(note: normalizedRecheckNote)
                         isChoosingVisibleIssue = false
+                        isChoosingDifferentIssue = false
+                        isChoosingCouldNotVerify = false
+                        errorMessage = nil
+                    }
+
+                    choiceButton(
+                        title: outcomeDisplay("original_resolved_different_issue"),
+                        isSelected: isOriginalResolvedDifferentIssueSelected,
+                        identifier: Self.originalResolvedDifferentIssueAccessibilityIdentifier
+                    ) {
+                        selection = nil
+                        isChoosingVisibleIssue = false
+                        isChoosingDifferentIssue = true
                         isChoosingCouldNotVerify = false
                         errorMessage = nil
                     }
@@ -99,6 +116,7 @@ struct OutcomeReviewView: View {
                     ) {
                         selection = .noVisibleIssue
                         isChoosingVisibleIssue = false
+                        isChoosingDifferentIssue = false
                         isChoosingCouldNotVerify = false
                         errorMessage = nil
                     }
@@ -110,6 +128,7 @@ struct OutcomeReviewView: View {
                     ) {
                         selection = nil
                         isChoosingVisibleIssue = true
+                        isChoosingDifferentIssue = false
                         isChoosingCouldNotVerify = false
                         errorMessage = nil
                     }
@@ -123,6 +142,7 @@ struct OutcomeReviewView: View {
                     ) {
                         selection = nil
                         isChoosingVisibleIssue = false
+                        isChoosingDifferentIssue = false
                         isChoosingCouldNotVerify = true
                         errorMessage = nil
                     }
@@ -147,7 +167,7 @@ struct OutcomeReviewView: View {
                 }
             }
 
-            if isChoosingVisibleIssue {
+            if isChoosingVisibleIssue || isChoosingDifferentIssue {
                 WorklightCard {
                     Text("Choose one visible issue")
                         .font(.headline)
@@ -158,8 +178,15 @@ struct OutcomeReviewView: View {
                             isSelected: selectedIssueKey == label.key,
                             identifier: "s3.outcome.issue.\(label.key)"
                         ) {
-                            selection = .visibleIssue(labelKey: label.key)
-                            isChoosingVisibleIssue = true
+                            if isChoosingDifferentIssue {
+                                selection = .originalResolvedDifferentIssue(
+                                    labelKey: label.key,
+                                    note: normalizedRecheckNote
+                                )
+                            } else {
+                                selection = .visibleIssue(labelKey: label.key)
+                                isChoosingVisibleIssue = true
+                            }
                             errorMessage = nil
                         }
                     }
@@ -371,6 +398,9 @@ struct OutcomeReviewView: View {
 
     private var selectedIssueKey: String? {
         if case let .visibleIssue(labelKey) = selection { return labelKey }
+        if case let .originalResolvedDifferentIssue(labelKey, _) = selection {
+            return labelKey
+        }
         return nil
     }
 
@@ -385,6 +415,9 @@ struct OutcomeReviewView: View {
                 && normalizedNote(note) != .invalid
         case let .resolved(note), let .issueStillVisible(note):
             normalizedNote(note) != .invalid
+        case let .originalResolvedDifferentIssue(labelKey, note):
+            coordinator.signPackIssueLabels.contains { $0.key == labelKey }
+                && normalizedNote(note) != .invalid
         case nil:
             false
         }
@@ -426,12 +459,22 @@ struct OutcomeReviewView: View {
         return false
     }
 
+    private var isOriginalResolvedDifferentIssueSelected: Bool {
+        if case .originalResolvedDifferentIssue = selection { return true }
+        return false
+    }
+
     private func updateRecheckSelection() {
         switch selection {
         case .resolved:
             selection = .resolved(note: normalizedRecheckNote)
         case .issueStillVisible:
             selection = .issueStillVisible(note: normalizedRecheckNote)
+        case let .originalResolvedDifferentIssue(labelKey, _):
+            selection = .originalResolvedDifferentIssue(
+                labelKey: labelKey,
+                note: normalizedRecheckNote
+            )
         default:
             break
         }

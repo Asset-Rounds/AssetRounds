@@ -52,6 +52,7 @@ enum CheckOutcomeSelection: Equatable, Sendable {
     case couldNotVerify(reasonKey: String, note: String?)
     case resolved(note: String?)
     case issueStillVisible(note: String?)
+    case originalResolvedDifferentIssue(labelKey: String, note: String?)
 }
 
 struct ReviewEvidence: Equatable, Sendable {
@@ -84,6 +85,23 @@ struct FinalizationIdentifiers: Equatable, Sendable {
     let stableRootID: UUID
     let reportID: UUID
     let issueID: UUID?
+    let newIssueID: UUID?
+
+    init(
+        mutationID: UUID,
+        packetID: UUID,
+        stableRootID: UUID,
+        reportID: UUID,
+        issueID: UUID?,
+        newIssueID: UUID? = nil
+    ) {
+        self.mutationID = mutationID
+        self.packetID = packetID
+        self.stableRootID = stableRootID
+        self.reportID = reportID
+        self.issueID = issueID
+        self.newIssueID = newIssueID
+    }
 }
 
 struct FinalizationResult: Equatable, Sendable {
@@ -92,8 +110,29 @@ struct FinalizationResult: Equatable, Sendable {
     let stableRootID: UUID
     let reportID: UUID
     let issueID: UUID?
+    let newIssueID: UUID?
     let snapshotRelativePath: String
     let snapshotSHA256: String
+
+    init(
+        recordID: UUID,
+        packetID: UUID,
+        stableRootID: UUID,
+        reportID: UUID,
+        issueID: UUID?,
+        newIssueID: UUID? = nil,
+        snapshotRelativePath: String,
+        snapshotSHA256: String
+    ) {
+        self.recordID = recordID
+        self.packetID = packetID
+        self.stableRootID = stableRootID
+        self.reportID = reportID
+        self.issueID = issueID
+        self.newIssueID = newIssueID
+        self.snapshotRelativePath = snapshotRelativePath
+        self.snapshotSHA256 = snapshotSHA256
+    }
 }
 
 struct CapturePreparation: Equatable, Sendable {
@@ -342,8 +381,12 @@ final class CheckRunnerCoordinator {
         let activeAttempt: FinalizationAttempt
         if let suppliedIdentifiers {
             guard isRecheck
-                    ? suppliedIdentifiers.issueID == existingIssueID
-                    : (outcome.issueLabel != nil) == (suppliedIdentifiers.issueID != nil) else {
+                    ? (suppliedIdentifiers.issueID == existingIssueID
+                        && (outcome.issueLabel != nil)
+                            == (suppliedIdentifiers.newIssueID != nil))
+                    : ((outcome.issueLabel != nil)
+                        == (suppliedIdentifiers.issueID != nil)
+                        && suppliedIdentifiers.newIssueID == nil) else {
                 throw CheckRunnerCoordinatorError.issueLabelInvalid
             }
             activeAttempt = FinalizationAttempt(
@@ -376,7 +419,8 @@ final class CheckRunnerCoordinator {
                     reportID: UUID(),
                     issueID: isRecheck
                         ? existingIssueID
-                        : outcome.issueLabel == nil ? nil : UUID()
+                        : outcome.issueLabel == nil ? nil : UUID(),
+                    newIssueID: isRecheck && outcome.issueLabel != nil ? UUID() : nil
                 )
             )
         }
@@ -1360,6 +1404,27 @@ final class CheckRunnerCoordinator {
             couldNotVerify = nil
             note = normalizedNote
             normalizedSelection = .issueStillVisible(note: normalizedNote)
+        case let .originalResolvedDifferentIssue(labelKey, rawNote):
+            let normalizedKey = labelKey.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            guard labelKey == normalizedKey,
+                  !normalizedKey.isEmpty,
+                  let selected = signPack.issueLabels.first(where: {
+                      $0.key == normalizedKey
+                  }),
+                  signPack.issueLabels.filter({ $0.key == normalizedKey }).count == 1 else {
+                throw CheckRunnerCoordinatorError.issueLabelInvalid
+            }
+            let normalizedNote = try normalizedRecheckNote(rawNote)
+            key = "original_resolved_different_issue"
+            issueLabel = selected
+            couldNotVerify = nil
+            note = normalizedNote
+            normalizedSelection = .originalResolvedDifferentIssue(
+                labelKey: normalizedKey,
+                note: normalizedNote
+            )
         }
         guard let display = signPack.outcomeDisplays.first(where: {
             $0.key == key
@@ -1481,7 +1546,7 @@ final class CheckRunnerCoordinator {
 private extension CheckOutcomeSelection {
     var isRecheck: Bool {
         switch self {
-        case .resolved, .issueStillVisible: true
+        case .resolved, .issueStillVisible, .originalResolvedDifferentIssue: true
         default: false
         }
     }

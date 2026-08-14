@@ -273,6 +273,7 @@ final class FinalizationService {
                 stableRootID: input.identifiers.stableRootID,
                 reportID: input.identifiers.reportID,
                 issueID: input.identifiers.issueID,
+                newIssueID: input.identifiers.newIssueID,
                 snapshotRelativePath: frozen.snapshotRelativePath,
                 snapshotSHA256: frozen.encodedSnapshot.sha256
             ),
@@ -534,8 +535,11 @@ final class FinalizationService {
               let parentID = record.parentRecordID else {
             throw FinalizationServiceError.preconditionFailed
         }
-        let issues = try modelContext.fetch(FetchDescriptor<Issue>()).filter {
-            $0.id == issueID
+        let allIssues = try modelContext.fetch(FetchDescriptor<Issue>())
+        let issues = allIssues.filter { $0.id == issueID }
+        let insertedIssues = allIssues.filter { issue in
+            (input.identifiers.newIssueID.map { $0 == issue.id } ?? false)
+                || issue.openedByRecordID == record.id
         }
         let parents = try modelContext.fetch(FetchDescriptor<WorkflowRecord>()).filter {
             $0.id == parentID
@@ -550,7 +554,9 @@ final class FinalizationService {
                 || $0.packetID == input.identifiers.packetID
                 || $0.sourceRecordID == record.id
         }
-        guard issues.count == 1, parents.count == 1,
+        guard issues.count == 1,
+              insertedIssues.count == (input.identifiers.newIssueID == nil ? 0 : 1),
+              parents.count == 1,
               packets.count == 1, reports.count == 1 else {
             throw FinalizationServiceError.preconditionFailed
         }
@@ -567,20 +573,63 @@ final class FinalizationService {
             createdAt: issueAfter.createdAt,
             updatedAt: parents[0].completedAt ?? issueAfter.createdAt
         )
-        let plan = try RecheckOutcomeRule.makePlan(RecheckOutcomeRuleInput(
-            draft: recheckDraftBefore(record),
-            parent: recordPayload(parents[0]),
-            issue: issueBefore,
-            outcomeKey: input.outcomeKey,
-            note: input.note,
-            completedAt: input.completedAt,
-            mutationID: input.identifiers.mutationID,
-            packetID: input.identifiers.packetID
-        ))
+        let plan: RecheckFinalizationPlan
+        if input.outcomeKey == "original_resolved_different_issue" {
+            guard let label = input.issueLabel,
+                  let newIssueID = input.identifiers.newIssueID else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            let value = try DifferentIssueOutcomeRule.makePlan(
+                DifferentIssueOutcomeRuleInput(
+                    draft: recheckDraftBefore(record),
+                    parent: recordPayload(parents[0]),
+                    originalIssue: issueBefore,
+                    outcomeKey: input.outcomeKey,
+                    newIssueID: newIssueID,
+                    newIssueLabelKey: label.key,
+                    newIssueLabelDisplaySnapshot: label.display,
+                    note: input.note,
+                    completedAt: input.completedAt,
+                    mutationID: input.identifiers.mutationID,
+                    packetID: input.identifiers.packetID
+                )
+            )
+            plan = RecheckFinalizationPlan(
+                recordAfter: value.recordAfter,
+                issueBefore: value.originalIssueBefore,
+                issueAfter: value.originalIssueAfter,
+                issueInsert: value.newIssue
+            )
+        } else {
+            guard input.identifiers.newIssueID == nil,
+                  input.issueLabel == nil else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            let value = try RecheckOutcomeRule.makePlan(RecheckOutcomeRuleInput(
+                draft: recheckDraftBefore(record),
+                parent: recordPayload(parents[0]),
+                issue: issueBefore,
+                outcomeKey: input.outcomeKey,
+                note: input.note,
+                completedAt: input.completedAt,
+                mutationID: input.identifiers.mutationID,
+                packetID: input.identifiers.packetID
+            ))
+            plan = RecheckFinalizationPlan(
+                recordAfter: value.recordAfter,
+                issueBefore: value.issueBefore,
+                issueAfter: value.issueAfter,
+                issueInsert: nil
+            )
+        }
         let packet = packets[0]
         let report = reports[0]
         guard recordPayload(record) == plan.recordAfter,
               issueAfter == plan.issueAfter,
+              (plan.issueInsert.map { expected in
+                  insertedIssues.count == 1
+                    && issuePayload(insertedIssues[0]) == expected
+              } ?? insertedIssues.isEmpty),
               packet.stableRootID == input.identifiers.stableRootID,
               packet.currentRecordID == record.id,
               packet.evaluationCounted,
@@ -615,6 +664,7 @@ final class FinalizationService {
             stableRootID: packet.stableRootID,
             reportID: report.id,
             issueID: issueAfter.id,
+            newIssueID: plan.issueInsert?.id,
             snapshotRelativePath: report.snapshotRelativePath,
             snapshotSHA256: report.snapshotSHA256
         )
@@ -1079,10 +1129,18 @@ final class FinalizationService {
         let encodedSnapshot: EncodedReportSnapshotV1
         let intent: FinalizationIntentV1
         let issue: Issue?
-        let recheckPlan: RecheckOutcomeRulePlan?
+        let insertedIssue: Issue?
+        let recheckPlan: RecheckFinalizationPlan?
         let packet: Packet
         let report: Report
         let snapshotRelativePath: String
+    }
+
+    private struct RecheckFinalizationPlan: Equatable {
+        let recordAfter: WorkflowRecordPayloadV1
+        let issueBefore: IssuePayloadV1
+        let issueAfter: IssuePayloadV1
+        let issueInsert: IssuePayloadV1?
     }
 
     private struct DraftMutationState {
@@ -1150,7 +1208,7 @@ final class FinalizationService {
         let parent: WorkflowRecord
         let chain: [WorkflowRecord]
         let historicalEvidence: [EvidenceFile]
-        let plan: RecheckOutcomeRulePlan
+        let plan: RecheckFinalizationPlan
     }
 
     private func recheckAuthority(_ input: FinalizationServiceInput) throws -> RecheckAuthority {
@@ -1258,7 +1316,8 @@ final class FinalizationService {
               allIssues.filter({
                 $0.assetID == input.draft.assetID
                     && $0.status != IssueStatus.resolved.rawValue
-              }).count == 1 else {
+              }).count == 1,
+              allIssues.allSatisfy({ $0.openedByRecordID != input.draft.id }) else {
             throw FinalizationServiceError.preconditionFailed
         }
         try validateRecheckRevisionAuthority(
@@ -1266,16 +1325,56 @@ final class FinalizationService {
             records: allRecords,
             packets: allPackets
         )
-        let plan = try RecheckOutcomeRule.makePlan(RecheckOutcomeRuleInput(
-            draft: recordPayload(input.draft),
-            parent: recordPayload(parent),
-            issue: issuePayload(issue),
-            outcomeKey: input.outcomeKey,
-            note: input.note,
-            completedAt: input.completedAt,
-            mutationID: input.identifiers.mutationID,
-            packetID: input.identifiers.packetID
-        ))
+        let plan: RecheckFinalizationPlan
+        if input.outcomeKey == "original_resolved_different_issue" {
+            guard let label = input.issueLabel,
+                  let newIssueID = input.identifiers.newIssueID,
+                  !allIssues.contains(where: { $0.id == newIssueID }) else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            let value = try DifferentIssueOutcomeRule.makePlan(
+                DifferentIssueOutcomeRuleInput(
+                    draft: recordPayload(input.draft),
+                    parent: recordPayload(parent),
+                    originalIssue: issuePayload(issue),
+                    outcomeKey: input.outcomeKey,
+                    newIssueID: newIssueID,
+                    newIssueLabelKey: label.key,
+                    newIssueLabelDisplaySnapshot: label.display,
+                    note: input.note,
+                    completedAt: input.completedAt,
+                    mutationID: input.identifiers.mutationID,
+                    packetID: input.identifiers.packetID
+                )
+            )
+            plan = RecheckFinalizationPlan(
+                recordAfter: value.recordAfter,
+                issueBefore: value.originalIssueBefore,
+                issueAfter: value.originalIssueAfter,
+                issueInsert: value.newIssue
+            )
+        } else {
+            guard input.issueLabel == nil,
+                  input.identifiers.newIssueID == nil else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            let value = try RecheckOutcomeRule.makePlan(RecheckOutcomeRuleInput(
+                draft: recordPayload(input.draft),
+                parent: recordPayload(parent),
+                issue: issuePayload(issue),
+                outcomeKey: input.outcomeKey,
+                note: input.note,
+                completedAt: input.completedAt,
+                mutationID: input.identifiers.mutationID,
+                packetID: input.identifiers.packetID
+            ))
+            plan = RecheckFinalizationPlan(
+                recordAfter: value.recordAfter,
+                issueBefore: value.issueBefore,
+                issueAfter: value.issueAfter,
+                issueInsert: nil
+            )
+        }
         let chainIDs = Set(chain.map(\.id))
         let historicalEvidence = allEvidence.filter { chainIDs.contains($0.recordID) }
         for record in chain {
@@ -1301,7 +1400,7 @@ final class FinalizationService {
         )
     }
 
-    private func recheckPlan(_ input: FinalizationServiceInput) throws -> RecheckOutcomeRulePlan {
+    private func recheckPlan(_ input: FinalizationServiceInput) throws -> RecheckFinalizationPlan {
         try recheckAuthority(input).plan
     }
 
@@ -1610,11 +1709,34 @@ final class FinalizationService {
               input.asset.siteID == input.site.id,
               input.completedAt >= input.draft.startedAt,
               input.snapshotCreatedAt >= input.completedAt,
-              input.issueLabel == nil,
               input.couldNotVerify == nil,
-              input.outcomeKey == "resolved" || input.outcomeKey == "issue_still_visible",
+              input.outcomeKey == "resolved"
+                || input.outcomeKey == "issue_still_visible"
+                || input.outcomeKey == "original_resolved_different_issue",
+              (input.outcomeKey == "original_resolved_different_issue"
+                ? input.issueLabel != nil && input.identifiers.newIssueID != nil
+                : input.issueLabel == nil && input.identifiers.newIssueID == nil),
               uniqueDisplay(signPack.outcomeDisplays, key: input.outcomeKey) == input.outcomeDisplay else {
             throw FinalizationServiceError.invalidDraft
+        }
+        if input.outcomeKey == "original_resolved_different_issue" {
+            guard let originalIssueID = input.identifiers.issueID,
+                  let newIssueID = input.identifiers.newIssueID,
+                  let parentID = input.draft.parentRecordID,
+                  Set([
+                      input.site.id,
+                      input.asset.id,
+                      input.draft.id,
+                      parentID,
+                      originalIssueID,
+                      newIssueID,
+                      input.identifiers.mutationID,
+                      input.identifiers.packetID,
+                      input.identifiers.stableRootID,
+                      input.identifiers.reportID,
+                  ]).count == 10 else {
+                throw FinalizationServiceError.invalidDraft
+            }
         }
         let keys = input.evidence.sorted(by: evidenceOrder).map(\.purposeKey)
         guard keys == ["wide_context", "close_detail"],
@@ -1633,6 +1755,19 @@ final class FinalizationService {
 
     private func freezeRecheck(_ input: FinalizationServiceInput) throws -> FrozenFinalization {
         let authority = try recheckAuthority(input)
+        let insertedIssue = authority.plan.issueInsert.map { value in
+            Issue(
+                id: value.id,
+                assetID: value.assetID,
+                openedByRecordID: value.openedByRecordID,
+                labelKey: value.labelKey,
+                labelDisplaySnapshot: value.labelDisplaySnapshot,
+                status: .open,
+                resolvedByRecordID: nil,
+                createdAt: value.createdAt,
+                updatedAt: value.updatedAt
+            )
+        }
         let packet = Packet(
             id: input.identifiers.packetID,
             stableRootID: input.identifiers.stableRootID,
@@ -1659,7 +1794,7 @@ final class FinalizationService {
             replacesReportID: nil
         )
         let payload = FinalizationPayloadV1(
-            issueInsert: nil,
+            issueInsert: authority.plan.issueInsert,
             issueTransition: IssueTransitionV1(
                 after: authority.plan.issueAfter,
                 before: authority.plan.issueBefore
@@ -1691,6 +1826,7 @@ final class FinalizationService {
             encodedSnapshot: encodedSnapshot,
             intent: intent,
             issue: authority.issue,
+            insertedIssue: insertedIssue,
             recheckPlan: authority.plan,
             packet: packet,
             report: report,
@@ -1779,6 +1915,7 @@ final class FinalizationService {
             encodedSnapshot: encodedSnapshot,
             intent: intent,
             issue: issue,
+            insertedIssue: nil,
             recheckPlan: nil,
             packet: packet,
             report: report,
@@ -1806,6 +1943,7 @@ final class FinalizationService {
               input.draft.completedAt == nil,
               input.draft.outcomeKey == nil,
               input.draft.finalizationMutationID == nil,
+              input.identifiers.newIssueID == nil,
               input.draft.packID == signPack.packID,
               input.draft.packSchemaVersion == signPack.schemaVersion,
               input.draft.packContentVersion == signPack.contentVersion,
@@ -1864,6 +2002,10 @@ final class FinalizationService {
                 : input.identifiers.issueID.map({ id in
                     !issues.contains(where: { $0.id == id })
                   }) ?? true),
+              input.identifiers.newIssueID.map({ id in
+                  !issues.contains(where: { $0.id == id })
+              }) ?? true,
+              issues.allSatisfy({ $0.openedByRecordID != input.draft.id }),
               records.filter({
                   $0.finalizationMutationID == input.identifiers.mutationID
               }).isEmpty else {
@@ -1936,6 +2078,9 @@ final class FinalizationService {
         if let plan = frozen.recheckPlan, let issue = frozen.issue {
             apply(plan.recordAfter, to: input.draft)
             apply(plan.issueAfter, to: issue)
+            if let insertedIssue = frozen.insertedIssue {
+                modelContext.insert(insertedIssue)
+            }
         } else {
             input.draft.packetID = frozen.packet.id
             input.draft.issueID = frozen.issue?.id
@@ -2146,7 +2291,14 @@ final class FinalizationService {
                 workPerformedLocalDate: record.workPerformedLocalDate
             )
         }
-        let issue = authority.plan.issueAfter
+        let issueValues = ([authority.plan.issueAfter]
+            + (authority.plan.issueInsert.map { [$0] } ?? []))
+            .sorted {
+                $0.createdAt < $1.createdAt
+                    || ($0.createdAt == $1.createdAt
+                        && $0.id.uuidString.lowercased()
+                            < $1.id.uuidString.lowercased())
+            }
         return ReportSnapshotV1(
             acknowledgements: [
                 AcknowledgementSnapshotV1(
@@ -2175,16 +2327,18 @@ final class FinalizationService {
             evidence: evidenceSnapshots,
             evidenceSourceRecordID: input.draft.id,
             history: history,
-            issues: [IssueSnapshotV1(
-                createdAt: issue.createdAt,
-                display: issue.labelDisplaySnapshot,
-                issueID: issue.id,
-                key: issue.labelKey,
-                openedByRecordID: issue.openedByRecordID,
-                resolvedByRecordID: issue.resolvedByRecordID,
-                status: issue.status,
-                updatedAt: issue.updatedAt
-            )],
+            issues: issueValues.map { issue in
+                IssueSnapshotV1(
+                    createdAt: issue.createdAt,
+                    display: issue.labelDisplaySnapshot,
+                    issueID: issue.id,
+                    key: issue.labelKey,
+                    openedByRecordID: issue.openedByRecordID,
+                    resolvedByRecordID: issue.resolvedByRecordID,
+                    status: issue.status,
+                    updatedAt: issue.updatedAt
+                )
+            },
             note: input.note,
             outcome: input.outcomeKey,
             pack: PackSnapshotV1(
@@ -2244,7 +2398,7 @@ final class FinalizationService {
         if input.draft.stage == WorkflowStage.recheck.rawValue,
            let plan = try? recheckPlan(input) {
             return FinalizationPayloadV1(
-                issueInsert: nil,
+                issueInsert: plan.issueInsert,
                 issueTransition: IssueTransitionV1(
                     after: plan.issueAfter,
                     before: plan.issueBefore

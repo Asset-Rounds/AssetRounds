@@ -500,7 +500,13 @@ final class WorkCoordinator {
 
         guard records.filter({ $0.id == issue.openedByRecordID }).count == 1,
               let opening = records.first(where: { $0.id == issue.openedByRecordID }),
-              validOpeningRecord(opening, issue: issue) else {
+              validOpeningRecord(
+                opening,
+                issue: issue,
+                issues: issues,
+                records: records,
+                visitedIssueIDs: []
+              ) else {
             throw WorkCoordinatorError.invalidAuthority
         }
         let issueRecords = records.filter { $0.issueID == issue.id }
@@ -533,6 +539,7 @@ final class WorkCoordinator {
         while true {
             let children = records.filter {
                 $0.parentRecordID == current.id
+                    && $0.issueID == issue.id
                     && $0.revisionKind == WorkflowRevisionKind.original.rawValue
                     && $0.state == WorkflowState.completed.rawValue
             }
@@ -549,7 +556,8 @@ final class WorkCoordinator {
             chain.append(child)
             current = child
         }
-        guard visited.count == substantive.count,
+        let externalOpeningCount = opening.issueID == issue.id ? 0 : 1
+        guard visited.count == substantive.count + externalOpeningCount,
               validStatus(issue, terminal: current) else {
             throw WorkCoordinatorError.invalidAuthority
         }
@@ -588,7 +596,7 @@ final class WorkCoordinator {
             draft = nil
         }
 
-        let issueRecordIDs = Set(issueRecords.map(\.id))
+        let issueRecordIDs = Set(issueRecords.map(\.id)).union([opening.id])
         let issueEvidence = evidence.filter { row in
             issueRecordIDs.contains(row.recordID)
         }
@@ -921,7 +929,100 @@ final class WorkCoordinator {
         value.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil
     }
 
-    private func validOpeningRecord(_ record: WorkflowRecord, issue: Issue) -> Bool {
+    private func validOpeningRecord(
+        _ record: WorkflowRecord,
+        issue: Issue,
+        issues: [Issue],
+        records: [WorkflowRecord],
+        visitedIssueIDs: Set<UUID>
+    ) -> Bool {
+        var visitedIssueIDs = visitedIssueIDs
+        guard visitedIssueIDs.insert(issue.id).inserted,
+              record.id == issue.openedByRecordID,
+              issue.createdAt == record.completedAt else {
+            return false
+        }
+        if validOrdinaryOpeningRecord(record, issue: issue) {
+            return true
+        }
+        guard record.stage == WorkflowStage.recheck.rawValue,
+              record.outcomeKey == "original_resolved_different_issue",
+              let sourceIssueID = record.issueID,
+              sourceIssueID != issue.id,
+              issues.filter({ $0.id == sourceIssueID }).count == 1,
+              let sourceIssue = issues.first(where: { $0.id == sourceIssueID }),
+              sourceIssue.schemaVersion == 1,
+              sourceIssue.assetID == issue.assetID,
+              sourceIssue.status == IssueStatus.resolved.rawValue,
+              sourceIssue.resolvedByRecordID == record.id,
+              sourceIssue.updatedAt == record.completedAt,
+              signPack.issueLabels.filter({
+                $0.key == sourceIssue.labelKey
+                    && $0.display == sourceIssue.labelDisplaySnapshot
+              }).count == 1 else {
+            return false
+        }
+        return validIssueChain(
+            sourceIssue,
+            terminal: record,
+            issues: issues,
+            records: records,
+            visitedIssueIDs: visitedIssueIDs
+        )
+    }
+
+    private func validIssueChain(
+        _ issue: Issue,
+        terminal: WorkflowRecord,
+        issues: [Issue],
+        records: [WorkflowRecord],
+        visitedIssueIDs: Set<UUID>
+    ) -> Bool {
+        let openings = records.filter { $0.id == issue.openedByRecordID }
+        guard openings.count == 1,
+              let opening = openings.first,
+              validOpeningRecord(
+                opening,
+                issue: issue,
+                issues: issues,
+                records: records,
+                visitedIssueIDs: visitedIssueIDs
+              ) else {
+            return false
+        }
+        var current = opening
+        var visitedRecordIDs: Set<UUID> = [opening.id]
+        while true {
+            let children = records.filter {
+                $0.parentRecordID == current.id
+                    && $0.issueID == issue.id
+                    && $0.revisionKind == WorkflowRevisionKind.original.rawValue
+                    && $0.state == WorkflowState.completed.rawValue
+            }
+            guard children.count <= 1 else { return false }
+            guard let child = children.first else { break }
+            guard visitedRecordIDs.insert(child.id).inserted,
+                  validSubstantiveChild(child, issue: issue),
+                  let parentCompletedAt = current.completedAt,
+                  child.startedAt >= parentCompletedAt else {
+                return false
+            }
+            current = child
+        }
+        let substantive = records.filter {
+            $0.issueID == issue.id
+                && $0.revisionKind == WorkflowRevisionKind.original.rawValue
+                && $0.state == WorkflowState.completed.rawValue
+        }
+        let externalOpeningCount = opening.issueID == issue.id ? 0 : 1
+        return current === terminal
+            && visitedRecordIDs.count == substantive.count + externalOpeningCount
+    }
+
+    private func validOrdinaryOpeningRecord(
+        _ record: WorkflowRecord,
+        issue: Issue
+    ) -> Bool {
         record.schemaVersion == 1
             && record.assetID == issue.assetID
             && record.issueID == issue.id
@@ -1022,8 +1123,14 @@ final class WorkCoordinator {
     private func validStatus(_ issue: Issue, terminal: WorkflowRecord) -> Bool {
         switch issue.status {
         case IssueStatus.open.rawValue:
-            return terminal.stage == WorkflowStage.check.rawValue
+            let ordinaryOpening = terminal.stage == WorkflowStage.check.rawValue
                 && terminal.outcomeKey == "visible_issue"
+                && terminal.issueID == issue.id
+            let differentIssueOpening = terminal.stage == WorkflowStage.recheck.rawValue
+                && terminal.outcomeKey == "original_resolved_different_issue"
+                && terminal.id == issue.openedByRecordID
+                && terminal.issueID != issue.id
+            return (ordinaryOpening || differentIssueOpening)
                 && terminal.completedAt == issue.updatedAt
         case IssueStatus.recheckDue.rawValue:
             return terminal.stage == WorkflowStage.work.rawValue
