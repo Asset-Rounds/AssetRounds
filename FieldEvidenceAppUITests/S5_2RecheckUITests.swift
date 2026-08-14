@@ -317,7 +317,12 @@ final class S5_2RecheckUITests: XCTestCase {
         let control = element(in: app, identifier: identifier)
         scrollUntilHittable(control, in: app)
         control.tap()
-        XCTAssertEqual(control.value as? String, "1")
+        XCTAssertTrue(waitForElement(
+            control,
+            matching: "value == %@",
+            argument: "1",
+            timeout: 10
+        ))
     }
 
     @MainActor
