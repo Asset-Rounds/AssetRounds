@@ -116,8 +116,16 @@ final class StartupRouter: ObservableObject {
                 throw StartupMaintenanceReason.finalizationInconsistent
             }
 
-            // These checkpoints remain inert until their owning cards.
             didBeginStep(.deletion)
+            do {
+                _ = try await WholeSignDeletionService(
+                    modelContext: session.modelContext,
+                    generationRootURL: session.generationRootURL,
+                    fileManager: fileManager
+                ).reconcile()
+            } catch {
+                throw StartupMaintenanceReason.finalizationInconsistent
+            }
 
             didBeginStep(.media)
             do {

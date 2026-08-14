@@ -32,6 +32,7 @@ struct SignsRootView: View {
     private let reportDeliveryCoordinator: ReportDeliveryCoordinator?
     private let reportHistoryCoordinator: ReportHistoryCoordinator?
     private let workCoordinator: WorkCoordinator?
+    private let deletionService: WholeSignDeletionService
     @State private var snapshot: FirstSignSnapshot?
     @State private var readyReport: ReportDeliveryValue?
     @State private var path = NavigationPath()
@@ -39,6 +40,7 @@ struct SignsRootView: View {
     @State private var loadErrorMessage: String?
     @State private var checkNotice: String?
     @State private var activeIssue: WorkIssuePresentationValue?
+    @AccessibilityFocusState private var welcomeTitleFocused: Bool
 
     init(
         modelContext: ModelContext,
@@ -87,6 +89,10 @@ struct SignsRootView: View {
             generationRootURL: generationRootURL,
             checkRunnerCoordinator: runnerCoordinator
         )
+        deletionService = WholeSignDeletionService(
+            modelContext: modelContext,
+            generationRootURL: generationRootURL
+        )
     }
 
     var body: some View {
@@ -106,12 +112,16 @@ struct SignsRootView: View {
                         activeIssue: activeIssue,
                         openIssue: openActiveIssue,
                         recordWork: beginRecordWork,
-                        refreshIssue: { refreshActiveIssue() }
-                    ) {
-                        checkRunnerCoordinator.clearPendingRecheckRequest()
-                        checkNotice = nil
-                        path.append(Route.check)
-                    }
+                        refreshIssue: { refreshActiveIssue() },
+                        startCheck: {
+                            checkRunnerCoordinator.clearPendingRecheckRequest()
+                            checkNotice = nil
+                            path.append(Route.check)
+                        },
+                        deleteSign: {
+                            try await deleteCurrentSign(assetID: snapshot.assetID)
+                        }
+                    )
                 } else if let loadErrorMessage {
                     loadFailure(message: loadErrorMessage)
                 } else {
@@ -347,6 +357,25 @@ struct SignsRootView: View {
         path.append(Route.report(reportID))
     }
 
+    private func deleteCurrentSign(assetID: UUID) async throws {
+        do {
+            _ = try await deletionService.delete(assetID: assetID)
+        } catch {
+            let recovery = try? await deletionService.reconcile()
+            guard recovery?.completedCommittedCount ?? 0 > 0 else {
+                throw error
+            }
+        }
+        path = NavigationPath()
+        readyReport = nil
+        activeIssue = nil
+        checkNotice = nil
+        loadErrorMessage = nil
+        snapshot = try coordinator.load()
+        await Task.yield()
+        welcomeTitleFocused = true
+    }
+
     private var reportUnavailable: some View {
         ScrollView {
             WorklightCard {
@@ -400,6 +429,7 @@ struct SignsRootView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier(Self.welcomeTitleAccessibilityIdentifier)
                         .accessibilityAddTraits(.isHeader)
+                        .accessibilityFocused($welcomeTitleFocused)
 
                     Text("Add the first sign you inspect, or look through the bundled sample before you begin.")
                         .font(.body)

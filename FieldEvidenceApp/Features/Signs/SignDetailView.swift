@@ -14,6 +14,11 @@ struct SignDetailView: View {
     static let recordWorkAccessibilityIdentifier = "s5.1.sign-detail.record-work"
     static let recheckDueAccessibilityIdentifier = "s5.1.sign-detail.recheck-due"
     static let resolvedIssueAccessibilityIdentifier = "s5.2.sign-detail.resolved"
+    static let deleteActionAccessibilityIdentifier = "s6.1.delete.action"
+    static let deleteScreenAccessibilityIdentifier = "s6.1.delete.screen"
+    static let deleteMessageAccessibilityIdentifier = "s6.1.delete.message"
+    static let deleteCancelAccessibilityIdentifier = "s6.1.delete.cancel"
+    static let deleteConfirmAccessibilityIdentifier = "s6.1.delete.confirm"
 
     let snapshot: FirstSignSnapshot
     let checkNotice: String?
@@ -25,6 +30,11 @@ struct SignDetailView: View {
     let recordWork: () -> Void
     let refreshIssue: () -> Void
     let startCheck: () -> Void
+    let deleteSign: () async throws -> Void
+
+    @State private var isConfirmingDeletion = false
+    @State private var isDeleting = false
+    @AccessibilityFocusState private var deletionMessageFocused: Bool
 
     var body: some View {
         ScrollView {
@@ -111,6 +121,47 @@ struct SignDetailView: View {
                             .accessibilityIdentifier(Self.noCheckStartedAccessibilityIdentifier)
                     }
                 }
+
+                if isConfirmingDeletion {
+                    WorklightCard {
+                        Text("Delete sign")
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(DesignTokens.Colors.primaryText)
+                            .accessibilityAddTraits(.isHeader)
+
+                        Text("Delete this sign, its photos, and its reports from this app? This cannot be undone. Your free-report count will not reset. Erase All removes the remaining anonymous count.")
+                            .font(.body)
+                            .foregroundStyle(DesignTokens.Colors.primaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityFocused($deletionMessageFocused)
+                            .accessibilityIdentifier(Self.deleteMessageAccessibilityIdentifier)
+
+                        Button("Cancel") {
+                            isConfirmingDeletion = false
+                        }
+                        .buttonStyle(WorklightSecondaryButtonStyle())
+                        .disabled(isDeleting)
+                        .accessibilityIdentifier(Self.deleteCancelAccessibilityIdentifier)
+
+                        Button("Delete sign", role: .destructive) {
+                            performDeletion()
+                        }
+                        .buttonStyle(WorklightPrimaryButtonStyle())
+                        .disabled(isDeleting)
+                        .accessibilityIdentifier(Self.deleteConfirmAccessibilityIdentifier)
+                    }
+                    .accessibilityIdentifier(Self.deleteScreenAccessibilityIdentifier)
+                } else {
+                    Button("Delete sign", role: .destructive) {
+                        isConfirmingDeletion = true
+                        Task { @MainActor in
+                            await Task.yield()
+                            deletionMessageFocused = true
+                        }
+                    }
+                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .accessibilityIdentifier(Self.deleteActionAccessibilityIdentifier)
+                }
             }
             .padding(DesignTokens.Spacing.medium)
         }
@@ -122,6 +173,20 @@ struct SignDetailView: View {
         .onAppear {
             refreshReport()
             refreshIssue()
+        }
+    }
+
+    private func performDeletion() {
+        guard !isDeleting else { return }
+        isDeleting = true
+        Task { @MainActor in
+            do {
+                try await deleteSign()
+            } catch {
+                isDeleting = false
+                await Task.yield()
+                deletionMessageFocused = true
+            }
         }
     }
 
