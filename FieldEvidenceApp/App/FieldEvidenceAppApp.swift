@@ -18,6 +18,8 @@ struct FieldEvidenceAppApp: App {
         "--s4-2-ui-test-render-failure-once"
     private static let emptyRestoreUITestLaunchArgument =
         "--s6-4-ui-test-empty-restore"
+    private static let replacementRestoreUITestLaunchArgument =
+        "--s6-5-ui-test-replacement-restore"
 
     @StateObject private var startupRouter: StartupRouter
 
@@ -37,7 +39,13 @@ struct FieldEvidenceAppApp: App {
             in: .userDomainMask
         )[0]
         self.applicationSupportURL = applicationSupportURL
-        if arguments.contains(Self.emptyRestoreUITestLaunchArgument) {
+        let usesEmptyRestoreFixture = arguments.contains(
+            Self.emptyRestoreUITestLaunchArgument
+        )
+        let usesReplacementRestoreFixture = arguments.contains(
+            Self.replacementRestoreUITestLaunchArgument
+        )
+        if usesEmptyRestoreFixture {
             for name in [
                 "FieldEvidenceData",
                 "FieldEvidenceRestore",
@@ -51,6 +59,8 @@ struct FieldEvidenceAppApp: App {
                     try? FileManager.default.removeItem(at: url)
                 }
             }
+        }
+        if usesEmptyRestoreFixture || usesReplacementRestoreFixture {
             let sourceDirectory = applicationSupportURL.appendingPathComponent(
                 "S6_4UITestSource",
                 isDirectory: true
@@ -213,6 +223,7 @@ private struct ReadyAppView: View {
     let selectedRestorePackageForUITest: URL?
 
     @State private var showsRestore = false
+    @State private var restoreMode: BackupRestoreMode = .emptyInstall
 
     var body: some View {
         Group {
@@ -228,6 +239,11 @@ private struct ReadyAppView: View {
                     injectsLowStorageFailureOnceForUITest,
                 cameraAdapter: cameraAdapter,
                 restoreDataBackup: {
+                    restoreMode = .emptyInstall
+                    showsRestore = true
+                },
+                replaceDataBackup: {
+                    restoreMode = .replaceExisting
                     showsRestore = true
                 }
             )
@@ -246,6 +262,7 @@ private struct ReadyAppView: View {
                 currentModelContext: coordinator.modelContext,
                 currentGenerationID: coordinator.generationID,
                 currentGenerationRootURL: coordinator.generationRootURL,
+                mode: restoreMode,
                 selectedPackageForUITest: selectedRestorePackageForUITest
             ) { session in
                 await router.activateRestoredSession(

@@ -27,6 +27,7 @@ struct AppShellView: View {
     let injectsLowStorageFailureOnceForUITest: Bool
     let cameraAdapter: CameraAdapter
     let restoreDataBackup: @MainActor () -> Void
+    let replaceDataBackup: @MainActor () -> Void
 
     @State private var selectedTab: Tab = .signs
 
@@ -39,7 +40,8 @@ struct AppShellView: View {
         usesImportedCaptureFixturesForUITest: Bool = false,
         injectsLowStorageFailureOnceForUITest: Bool = false,
         cameraAdapter: CameraAdapter = .live,
-        restoreDataBackup: @escaping @MainActor () -> Void = {}
+        restoreDataBackup: @escaping @MainActor () -> Void = {},
+        replaceDataBackup: @escaping @MainActor () -> Void = {}
     ) {
         self.packLoadResult = packLoadResult
         self.exposesColorSchemeForUITest = exposesColorSchemeForUITest
@@ -51,6 +53,7 @@ struct AppShellView: View {
             injectsLowStorageFailureOnceForUITest
         self.cameraAdapter = cameraAdapter
         self.restoreDataBackup = restoreDataBackup
+        self.replaceDataBackup = replaceDataBackup
     }
 
     var body: some View {
@@ -86,7 +89,8 @@ struct AppShellView: View {
                 injectsLowStorageFailureOnceForUITest:
                     injectsLowStorageFailureOnceForUITest,
                 cameraAdapter: cameraAdapter,
-                restoreDataBackup: restoreDataBackup
+                restoreDataBackup: restoreDataBackup,
+                replaceDataBackup: replaceDataBackup
             )
             .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
             .accessibilityValue(
@@ -127,7 +131,8 @@ struct AppShellView: View {
             NavigationLink {
                 SettingsPlaceholderView(
                     modelContext: modelContext,
-                    generationRootURL: generationRootURL
+                    generationRootURL: generationRootURL,
+                    restoreDataBackup: replaceDataBackup
                 )
             } label: {
                 Image(systemName: "gearshape")
@@ -298,6 +303,17 @@ private struct S6_3BackupValidationUITestHost: View {
 struct SettingsPlaceholderView: View {
     let modelContext: ModelContext
     let generationRootURL: URL
+    let restoreDataBackup: @MainActor () -> Void
+
+    init(
+        modelContext: ModelContext,
+        generationRootURL: URL,
+        restoreDataBackup: @escaping @MainActor () -> Void = {}
+    ) {
+        self.modelContext = modelContext
+        self.generationRootURL = generationRootURL
+        self.restoreDataBackup = restoreDataBackup
+    }
 
     var body: some View {
         ScrollView {
@@ -317,6 +333,12 @@ struct SettingsPlaceholderView: View {
                 .accessibilityIdentifier(
                     BackupExportView.settingsEntryAccessibilityIdentifier
                 )
+
+                Button("Restore data backup", action: restoreDataBackup)
+                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .accessibilityIdentifier(
+                        BackupRestoreProgressView.settingsEntryAccessibilityIdentifier
+                    )
             }
             .padding(DesignTokens.Spacing.medium)
         }

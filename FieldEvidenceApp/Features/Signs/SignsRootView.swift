@@ -28,6 +28,7 @@ struct SignsRootView: View {
     let usesImportedCaptureFixturesForUITest: Bool
     let cameraAdapter: CameraAdapter
     let restoreDataBackup: @MainActor () -> Void
+    let replaceDataBackup: @MainActor () -> Void
 
     @StateObject private var coordinator: FirstSignCoordinator
     private let checkRunnerCoordinator: CheckRunnerCoordinator
@@ -52,7 +53,8 @@ struct SignsRootView: View {
         usesImportedCaptureFixturesForUITest: Bool = false,
         injectsLowStorageFailureOnceForUITest: Bool = false,
         cameraAdapter: CameraAdapter = .live,
-        restoreDataBackup: @escaping @MainActor () -> Void = {}
+        restoreDataBackup: @escaping @MainActor () -> Void = {},
+        replaceDataBackup: @escaping @MainActor () -> Void = {}
     ) {
         self.pack = pack
         self.generationRootURL = generationRootURL
@@ -60,6 +62,7 @@ struct SignsRootView: View {
         self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
         self.cameraAdapter = cameraAdapter
         self.restoreDataBackup = restoreDataBackup
+        self.replaceDataBackup = replaceDataBackup
         _coordinator = StateObject(
             wrappedValue: FirstSignCoordinator(
                 modelContext: modelContext,
@@ -228,7 +231,8 @@ struct SignsRootView: View {
                     NavigationLink {
                         SettingsPlaceholderView(
                             modelContext: modelContext,
-                            generationRootURL: generationRootURL
+                            generationRootURL: generationRootURL,
+                            restoreDataBackup: replaceDataBackup
                         )
                     } label: {
                         Image(systemName: "gearshape")

@@ -4,12 +4,26 @@ import SwiftData
 enum BackupRestoreServiceError: Error, Equatable {
     case contextHasChanges
     case currentGenerationInvalid
+    case currentGenerationEmpty
     case currentGenerationNotEmpty
     case invalidPackage
     case invalidRestoreAuthority
     case materializationFailed
     case recoveryRequired
     case injectedFailure
+}
+
+enum BackupRestoreMode: Equatable, Sendable {
+    case emptyInstall
+    case replaceExisting
+}
+
+struct BackupRestoreCurrentSummaryV1: Equatable, Sendable {
+    let signCount: Int
+    let reportCount: Int
+    let photoCount: Int
+    let declaredPayloadByteCount: Int
+    let consumedRootCount: Int
 }
 
 enum BackupRestoreFailurePoint: CaseIterable, Equatable, Sendable {
@@ -47,6 +61,7 @@ final class BackupRestoreService {
     private let intentStore: RestoreIntentStore
     private let storagePreflight: StoragePreflightService
     private let fileManager: FileManager
+    private let now: () -> Date
     private let makeUUID: () -> UUID
     private let failureInjection: BackupRestoreFailureInjection?
 
@@ -54,6 +69,7 @@ final class BackupRestoreService {
         applicationSupportURL: URL,
         fileManager: FileManager = .default,
         storagePreflight: StoragePreflightService = StoragePreflightService(),
+        now: @escaping () -> Date = Date.init,
         makeUUID: @escaping () -> UUID = UUID.init,
         failureInjection: BackupRestoreFailureInjection? = nil
     ) throws {
@@ -82,6 +98,7 @@ final class BackupRestoreService {
         self.intentStore = store
         self.storagePreflight = storagePreflight
         self.fileManager = fileManager
+        self.now = now
         self.makeUUID = makeUUID
         self.failureInjection = failureInjection
     }
@@ -117,13 +134,40 @@ final class BackupRestoreService {
         }
     }
 
-    /// The only S6.4 mutation path: a closed-validated package replaces a
-    /// proven empty generation. Existing-data replacement remains S6.5.
+    static func currentSummary(
+        modelContext: ModelContext,
+        generationRootURL: URL
+    ) throws -> BackupRestoreCurrentSummaryV1 {
+        guard !modelContext.hasChanges else {
+            throw BackupRestoreServiceError.contextHasChanges
+        }
+        let preview = try BackupExportService(
+            modelContext: modelContext,
+            generationRootURL: generationRootURL
+        ).prepare()
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>())
+        let roots = packets.filter(\.evaluationCounted).map(\.stableRootID)
+        guard Set(roots).count == roots.count,
+              !modelContext.hasChanges else {
+            throw BackupRestoreServiceError.currentGenerationInvalid
+        }
+        return BackupRestoreCurrentSummaryV1(
+            signCount: preview.signCount,
+            reportCount: preview.reportCount,
+            photoCount: preview.photoCount,
+            declaredPayloadByteCount: preview.declaredPayloadByteCount,
+            consumedRootCount: roots.count
+        )
+    }
+
+    /// The only restore mutation path. Its explicit mode keeps Welcome and
+    /// maintenance empty-only while Settings owns confirmed replacement.
     func restore(
         validatedPackage: ValidatedV4BackupPackageV1,
         currentModelContext: ModelContext,
         currentGenerationID: UUID,
-        currentGenerationRootURL: URL
+        currentGenerationRootURL: URL,
+        mode: BackupRestoreMode = .emptyInstall
     ) async throws -> StoreGenerationSession {
         guard !currentModelContext.hasChanges else {
             throw BackupRestoreServiceError.contextHasChanges
@@ -131,8 +175,7 @@ final class BackupRestoreService {
         try ensureGenerationAuthority()
         try generationAuthority.requireNoEraseAuthority()
         let initialRetiredIDs = try generationAuthority.retiredGenerationIDs()
-        guard Self.isEmptyCurrent(currentModelContext),
-              try generationFactory.currentGenerationID(
+        guard try generationFactory.currentGenerationID(
                   authority: generationAuthority
               ) == currentGenerationID,
               !initialRetiredIDs.contains(currentGenerationID),
@@ -144,8 +187,26 @@ final class BackupRestoreService {
                         id: currentGenerationID
                     )
                 ),
-              try intentStore.load() == nil else {
-            throw BackupRestoreServiceError.currentGenerationNotEmpty
+               try intentStore.load() == nil else {
+            throw BackupRestoreServiceError.currentGenerationInvalid
+        }
+        let initialIsEmpty = Self.isEmptyCurrent(currentModelContext)
+        let frozenCurrentRecords: V4BackupRecordsV1?
+        switch mode {
+        case .emptyInstall:
+            guard initialIsEmpty else {
+                throw BackupRestoreServiceError.currentGenerationNotEmpty
+            }
+            frozenCurrentRecords = nil
+        case .replaceExisting:
+            guard !initialIsEmpty else {
+                throw BackupRestoreServiceError.currentGenerationEmpty
+            }
+            _ = try Self.currentSummary(
+                modelContext: currentModelContext,
+                generationRootURL: currentGenerationRootURL
+            )
+            frozenCurrentRecords = try records(in: currentModelContext)
         }
         do {
             _ = try BackupPackageValidatorV1().validate(
@@ -172,11 +233,49 @@ final class BackupRestoreService {
             retiredIDs: initialRetiredIDs
         )
         guard !currentModelContext.hasChanges,
-              Self.isEmptyCurrent(currentModelContext),
               try generationFactory.currentGenerationID(
                   authority: generationAuthority
               ) == currentGenerationID else {
             throw BackupRestoreServiceError.contextHasChanges
+        }
+
+        let expectedRecords: V4BackupRecordsV1
+        switch mode {
+        case .emptyInstall:
+            guard Self.isEmptyCurrent(currentModelContext) else {
+                throw BackupRestoreServiceError.currentGenerationNotEmpty
+            }
+            expectedRecords = validatedPackage.records
+        case .replaceExisting:
+            guard !Self.isEmptyCurrent(currentModelContext),
+                  let frozenCurrentRecords,
+                  try records(in: currentModelContext) == frozenCurrentRecords else {
+                throw BackupRestoreServiceError.contextHasChanges
+            }
+            _ = try Self.currentSummary(
+                modelContext: currentModelContext,
+                generationRootURL: currentGenerationRootURL
+            )
+            let plan: ReplacementRestorePlan
+            do {
+                plan = try ReplacementRestoreRule.makePlan(
+                    ReplacementRestoreRuleInput(
+                        currentPackets: frozenCurrentRecords.packets,
+                        incomingPackets: validatedPackage.records.packets,
+                        replacementAt: now()
+                    )
+                )
+            } catch {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let replacementRecords = replacingPackets(
+                in: validatedPackage.records,
+                with: plan.packetsAfter
+            )
+            guard uniqueModelIDs(in: replacementRecords) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            expectedRecords = replacementRecords
         }
 
         let newGenerationID = makeUUID()
@@ -203,10 +302,14 @@ final class BackupRestoreService {
         }
 
         do {
-            try materialize(validatedPackage, generationID: newGenerationID)
+            try materialize(
+                validatedPackage,
+                records: expectedRecords,
+                generationID: newGenerationID
+            )
             try validateStagingGeneration(
                 id: newGenerationID,
-                expected: validatedPackage.records
+                expected: expectedRecords
             )
             try discardImportedPackage(validatedPackage, currentGenerationRootURL)
             let expectedInstalledNames = Set(
@@ -233,7 +336,7 @@ final class BackupRestoreService {
             try intentStore.replace(expected: intent, with: installed)
             try validateInstalledGeneration(
                 id: newGenerationID,
-                expected: validatedPackage.records
+                expected: expectedRecords
             )
             try inject(.afterGenerationInstall)
 
@@ -254,7 +357,7 @@ final class BackupRestoreService {
             )
             try validateLiveSession(
                 session,
-                expected: validatedPackage.records
+                expected: expectedRecords
             )
             let validated = switched.advancing(to: .newGenerationValidated)
             try intentStore.replace(expected: switched, with: validated)
@@ -323,7 +426,11 @@ final class BackupRestoreService {
               try generationAuthority.importStagingNames().isEmpty else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
-        let oldValid = validEmptyInstalledGeneration(id: intent.oldGenerationID)
+        guard let oldSession = validInstalledGeneration(
+            id: intent.oldGenerationID
+        ), let oldRecords = try? records(in: oldSession.modelContext) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
         switch intent.phase {
         case .prepared, .generationInstalled, .pointerSwitched:
             guard !retiredIDs.contains(intent.oldGenerationID),
@@ -341,14 +448,30 @@ final class BackupRestoreService {
         if presence.staging {
             try requireNoUnexpectedStagingBytes(id: intent.newGenerationID)
         }
+        let installedNewSession = presence.installed
+            ? validInstalledGeneration(id: intent.newGenerationID)
+            : nil
+        if let installedNewSession {
+            let newRecords = try records(in: installedNewSession.modelContext)
+            guard validMonotonicUnion(from: oldRecords, to: newRecords) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        }
+        if presence.staging,
+           let stagedRecords = validStagingGenerationRecords(
+               id: intent.newGenerationID
+           ),
+           !validMonotonicUnion(from: oldRecords, to: stagedRecords) {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
 
         switch intent.phase {
         case .prepared:
-            guard currentID == intent.oldGenerationID, oldValid else {
+            guard currentID == intent.oldGenerationID else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
             if presence.installed {
-                guard validInstalledGeneration(id: intent.newGenerationID) != nil,
+                guard installedNewSession != nil,
                       !presence.staging else {
                     throw BackupRestoreServiceError.invalidRestoreAuthority
                 }
@@ -368,10 +491,10 @@ final class BackupRestoreService {
             return nil
 
         case .generationInstalled:
-            guard !presence.staging, presence.installed, oldValid else {
+            guard !presence.staging, presence.installed else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
-            let newSession = validInstalledGeneration(id: intent.newGenerationID)
+            let newSession = installedNewSession
             guard let newSession else {
                 if currentID == intent.newGenerationID {
                     try generationFactory.switchCurrentGeneration(
@@ -408,10 +531,10 @@ final class BackupRestoreService {
             )
 
         case .pointerSwitched:
-            guard !presence.staging, presence.installed, oldValid else {
+            guard !presence.staging, presence.installed else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
-            let newSession = validInstalledGeneration(id: intent.newGenerationID)
+            let newSession = installedNewSession
             guard let newSession else {
                 guard currentID == intent.newGenerationID else {
                     throw BackupRestoreServiceError.invalidRestoreAuthority
@@ -436,13 +559,10 @@ final class BackupRestoreService {
             return try finishValidatedNew(intent, session: newSession)
 
         case .newGenerationValidated:
-            let newSession = presence.installed
-                ? validInstalledGeneration(id: intent.newGenerationID)
-                : nil
+            let newSession = installedNewSession
             guard !presence.staging,
                   presence.installed,
                   currentID == intent.newGenerationID,
-                  oldValid,
                   let newSession else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
@@ -509,8 +629,36 @@ private extension BackupRestoreService {
         return session
     }
 
+    func replacingPackets(
+        in records: V4BackupRecordsV1,
+        with packets: [V4BackupPacketDTO]
+    ) -> V4BackupRecordsV1 {
+        V4BackupRecordsV1(
+            assets: records.assets,
+            evidenceFiles: records.evidenceFiles,
+            issues: records.issues,
+            packets: packets,
+            recordsSchemaVersion: records.recordsSchemaVersion,
+            reports: records.reports,
+            sites: records.sites,
+            workflowRecords: records.workflowRecords
+        )
+    }
+
+    func uniqueModelIDs(in records: V4BackupRecordsV1) -> Bool {
+        let ids = records.sites.map(\.id)
+            + records.assets.map(\.id)
+            + records.workflowRecords.map(\.id)
+            + records.evidenceFiles.map(\.id)
+            + records.issues.map(\.id)
+            + records.packets.map(\.id)
+            + records.reports.map(\.id)
+        return Set(ids).count == ids.count
+    }
+
     func materialize(
         _ value: ValidatedV4BackupPackageV1,
+        records: V4BackupRecordsV1,
         generationID: UUID
     ) throws {
         do {
@@ -518,7 +666,7 @@ private extension BackupRestoreService {
                 id: generationID,
                 authority: generationAuthority
             ) { context in
-                try insert(value.records, into: context)
+                try insert(records, into: context)
             }
             try writeMembers(
                 value,
@@ -888,15 +1036,6 @@ private extension BackupRestoreService {
         )
     }
 
-    func validEmptyInstalledGeneration(id: UUID) -> Bool {
-        guard let session = try? generationFactory.openInstalledGeneration(
-            id: id,
-            authority: generationAuthority
-        )
-        else { return false }
-        return Self.isEmptyCurrent(session.modelContext)
-    }
-
     func validInstalledGeneration(id: UUID) -> StoreGenerationSession? {
         guard let session = try? generationFactory.openInstalledGeneration(
             id: id,
@@ -906,6 +1045,45 @@ private extension BackupRestoreService {
             return nil
         }
         return session
+    }
+
+    func validStagingGenerationRecords(id: UUID) -> V4BackupRecordsV1? {
+        do {
+            let session = try generationFactory.openRestoreStagingGeneration(
+                id: id,
+                authority: generationAuthority
+            )
+            guard !session.modelContext.hasChanges else { return nil }
+            let frozenRecords = try records(in: session.modelContext)
+            _ = try BackupExportService(
+                modelContext: session.modelContext,
+                generationRootURL: session.generationRootURL,
+                now: { Date(timeIntervalSince1970: 0) }
+            ).prepare()
+            try validateGenerationTree(
+                generationAuthority.stagingTree(id: id),
+                records: frozenRecords
+            )
+            return frozenRecords
+        } catch {
+            return nil
+        }
+    }
+
+    func validMonotonicUnion(
+        from current: V4BackupRecordsV1,
+        to replacement: V4BackupRecordsV1
+    ) -> Bool {
+        guard let plan = try? ReplacementRestoreRule.makePlan(
+            ReplacementRestoreRuleInput(
+                currentPackets: current.packets,
+                incomingPackets: replacement.packets,
+                replacementAt: now()
+            )
+        ) else {
+            return false
+        }
+        return plan.packetsAfter == replacement.packets
     }
 
     func validateRows(
