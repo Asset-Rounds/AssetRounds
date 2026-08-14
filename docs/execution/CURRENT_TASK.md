@@ -71,6 +71,7 @@ Production paths:
 - `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
 - `FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift`
 - `FieldEvidenceApp.xcodeproj/project.pbxproj`
+- `FieldEvidenceApp/Info.plist`
 
 Test paths:
 
@@ -90,3 +91,9 @@ No other implementation, model, resource, fixture, script, workflow, authority, 
 - Fresh G0 must prove clean `phase/s6-data-rights`, `A^=M`, exact one-commit HANDOFF-append-plus-CURRENT_TASK `M..A`, remote phase=A, remote main=P, all pins, accepted S6.1 exact-head run/artifact, accepted S6.1 selector byte-exact, and the eight-production/four-test expanded envelope inside the default 10/5 cap.
 - After G0, replace only `Scripts/ci-selection.json` with the frozen S6.2 object, then implement exactly this card. Candidate recovery follows the persistent evidence-driven direct-child loop without weakening acceptance or expanding paths.
 - After accepted exact-head S6.2 CI, read `KNOWN_BUGS.md`, append the immutable card HANDOFF, and—only if fresh refs still match—commit/push exactly that append plus immediate-next S6.3 `CURRENT_TASK.md`; then run fresh S6.3 G0. Do not mutate `main`.
+
+## Diagnosed generated-Info correction authority
+
+- Failed exact-head candidates remain immutable provenance: run `31781228277` at `e38f49530a93458ca4e2874141785b7d56513367` exposed only three Swift access-control compile errors; run `31781716916` at `2798e378ca42c9f44cd411c5b3b3ead2989a2f05` built successfully and passed the three behavioral unit tests but proved the exported type absent from the generated app Info dictionary; run `31782408147` at `cfea7d64465e6dabd707f3bc7374e2edc8be297a` reproduced that exact UTI absence after the complex value was preserved in build settings. None is accepted or rerun by run ID.
+- Exact hosted evidence proves `UTExportedTypeDeclarations` cannot be supplied as the attempted user-defined generated-Info build setting. The frozen runbook already requires the proprietary UTI Info setting; this mechanical correction adds only `FieldEvidenceApp/Info.plist`, raising the production envelope from eight to nine paths within the unchanged default 10-path cap. Xcode must merge that source plist while `GENERATE_INFOPLIST_FILE=YES`; no document import role, entitlement, schema, or other product truth is added.
+- This authority correction is a direct child of `cfea7d64465e6dabd707f3bc7374e2edc8be297a`, changes only `docs/execution/CURRENT_TASK.md`, and does not self-record its own commit SHA. The next product correction remains a direct child and may change only the now-listed S6.2 product/test paths.
