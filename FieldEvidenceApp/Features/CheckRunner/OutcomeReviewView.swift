@@ -321,6 +321,7 @@ struct OutcomeReviewView: View {
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private func reviewEvidence(
