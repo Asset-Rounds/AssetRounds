@@ -106,7 +106,7 @@ struct SignsRootView: View {
                         activeIssue: activeIssue,
                         openIssue: openActiveIssue,
                         recordWork: beginRecordWork,
-                        refreshIssue: refreshActiveIssue
+                        refreshIssue: { refreshActiveIssue() }
                     ) {
                         checkRunnerCoordinator.clearPendingRecheckRequest()
                         checkNotice = nil
