@@ -46,18 +46,6 @@ struct PaywallView: View {
             }
             .navigationTitle("Subscription")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close", action: close)
-                        .frame(
-                            minWidth: DesignTokens.Control.minimumHitSize,
-                            minHeight: DesignTokens.Control.minimumHitSize
-                        )
-                        .disabled(coordinator.isPurchasing)
-                        .accessibilityHint("Returns to your existing history")
-                        .accessibilityIdentifier(Self.closeAccessibilityIdentifier)
-                }
-            }
         }
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
@@ -80,7 +68,10 @@ struct PaywallView: View {
             Text("Loading subscription options…")
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
+
+            closeButton
         }
+        .padding(DesignTokens.Spacing.medium)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.loadingAccessibilityIdentifier)
@@ -110,6 +101,8 @@ struct PaywallView: View {
                 }
                 .buttonStyle(WorklightPrimaryButtonStyle())
                 .accessibilityIdentifier(Self.retryAccessibilityIdentifier)
+
+                closeButton
             }
             .padding(DesignTokens.Spacing.medium)
         }
@@ -147,6 +140,8 @@ struct PaywallView: View {
         links: PaywallCatalogLinksV1
     ) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
+            closeButton
+
             Text(presentation.displayName)
                 .font(.title2.weight(.bold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
@@ -213,6 +208,14 @@ struct PaywallView: View {
         }
         .padding(DesignTokens.Spacing.medium)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var closeButton: some View {
+        Button("Close", action: close)
+            .buttonStyle(WorklightSecondaryButtonStyle())
+            .disabled(coordinator.isPurchasing)
+            .accessibilityHint("Returns to your existing history")
+            .accessibilityIdentifier(Self.closeAccessibilityIdentifier)
     }
 
     @ViewBuilder
