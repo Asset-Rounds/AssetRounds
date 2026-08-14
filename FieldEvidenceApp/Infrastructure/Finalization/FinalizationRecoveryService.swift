@@ -713,19 +713,21 @@ final class FinalizationRecoveryService {
     ) throws {
         let after = payload.workflowRecordAfter
         let isCouldNotVerify = after.outcomeKey == "could_not_verify"
-        let expectedCouldNotVerify = isCouldNotVerify
-            ? after.couldNotVerifyKey.flatMap { key in
-                guard let display = after.couldNotVerifyDisplaySnapshot,
-                      let version = after.couldNotVerifyRegistryVersion else {
-                    return nil
-                }
-                return CouldNotVerifySnapshotV1(
-                    display: display,
-                    key: key,
-                    registryVersion: version
-                )
+        let expectedCouldNotVerify: CouldNotVerifySnapshotV1?
+        if isCouldNotVerify {
+            guard let key = after.couldNotVerifyKey,
+                  let display = after.couldNotVerifyDisplaySnapshot,
+                  let version = after.couldNotVerifyRegistryVersion else {
+                throw FinalizationRecoveryServiceError.inconsistent
             }
-            : nil
+            expectedCouldNotVerify = CouldNotVerifySnapshotV1(
+                display: display,
+                key: key,
+                registryVersion: version
+            )
+        } else {
+            expectedCouldNotVerify = nil
+        }
         guard payload.packetBefore == nil,
               let transition = payload.issueTransition,
               let report = payload.reportInsert,
