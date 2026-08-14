@@ -119,7 +119,10 @@ final class StoreRestoreGenerationAuthority {
         )
         retained.append(installed)
         let installedIdentity = try Self.identity(installed)
-        let restore = try Self.openDirectory(parent: app, name: Self.restoreName)
+        let restore = try Self.openOrCreateDirectory(
+            parent: app,
+            name: Self.restoreName
+        )
         retained.append(restore)
         let restoreIdentity = try Self.identity(restore)
         let stagingGenerations = try Self.openOrCreateDirectory(
