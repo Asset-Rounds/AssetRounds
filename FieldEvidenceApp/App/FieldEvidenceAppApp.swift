@@ -283,6 +283,9 @@ private struct ReadyAppView: View {
                 coordinator: coordinator,
                 diagnosticsStore: diagnosticsStore,
                 applicationSupportURL: applicationSupportURL,
+                onBegin: {
+                    router.beginEraseBlocking(coordinator: coordinator)
+                },
                 onActivate: { session in
                     await router.beginErasedSessionActivation(
                         session,
@@ -345,6 +348,11 @@ private struct MaintenanceRestoreHost: View {
                     coordinator: eraseCoordinator,
                     diagnosticsStore: router.maintenanceDiagnosticsStore,
                     applicationSupportURL: applicationSupportURL,
+                    onBegin: {
+                        router.beginEraseBlocking(
+                            coordinator: eraseCoordinator
+                        )
+                    },
                     onActivate: { session in
                         await router.beginErasedSessionActivation(
                             session,

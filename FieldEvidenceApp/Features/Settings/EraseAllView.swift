@@ -19,6 +19,7 @@ struct EraseAllView: View {
     @ObservedObject var coordinator: StoreSessionCoordinator
     let diagnosticsStore: DiagnosticsStore
     let applicationSupportURL: URL
+    let onBegin: @MainActor () -> Void
     let onActivate: @MainActor (StoreGenerationSession) async -> Void
     let onFinished: @MainActor (StoreGenerationSession) async -> Void
     let onFailure: @MainActor () -> Void
@@ -141,6 +142,9 @@ struct EraseAllView: View {
         isErasing = true
         errorMessage = nil
         Task { @MainActor in
+            onBegin()
+            dismiss()
+            await Task.yield()
             do {
                 let session = try await EraseAllService(
                     applicationSupportURL: applicationSupportURL

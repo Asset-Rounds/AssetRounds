@@ -225,13 +225,25 @@ final class StartupRouter: ObservableObject {
         route = .maintenance(.finalizationInconsistent)
     }
 
+    func beginEraseBlocking(coordinator: StoreSessionCoordinator) {
+        pendingEraseDrainProof = EraseGenerationDrainProof(
+            priorContext: coordinator.modelContext
+        )
+        isRunning = true
+        maintenanceRestoreSession = nil
+        maintenanceEraseSession = nil
+        route = .checking
+    }
+
     func beginErasedSessionActivation(
         _ session: StoreGenerationSession,
         coordinator: StoreSessionCoordinator
     ) async {
-        pendingEraseDrainProof = EraseGenerationDrainProof(
-            priorContext: coordinator.modelContext
-        )
+        if pendingEraseDrainProof == nil {
+            pendingEraseDrainProof = EraseGenerationDrainProof(
+                priorContext: coordinator.modelContext
+            )
+        }
         isRunning = true
         maintenanceRestoreSession = nil
         maintenanceEraseSession = nil
