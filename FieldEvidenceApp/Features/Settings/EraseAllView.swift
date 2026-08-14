@@ -141,9 +141,22 @@ struct EraseAllView: View {
         confirmationFocused = false
         isErasing = true
         errorMessage = nil
-        Task { @MainActor in
-            onBegin()
-            dismiss()
+        let coordinator = coordinator
+        let diagnosticsStore = diagnosticsStore
+        let applicationSupportURL = applicationSupportURL
+        let onActivate = onActivate
+        let onFinished = onFinished
+        let onFailure = onFailure
+        onBegin()
+        dismiss()
+        Task { @MainActor [
+            coordinator,
+            diagnosticsStore,
+            applicationSupportURL,
+            onActivate,
+            onFinished,
+            onFailure
+        ] in
             await Task.yield()
             do {
                 let session = try await EraseAllService(
@@ -156,8 +169,6 @@ struct EraseAllView: View {
                 )
                 await onFinished(session)
             } catch {
-                isErasing = false
-                errorMessage = "Erase could not finish safely. Local data changes are blocked while recovery checks run."
                 onFailure()
             }
         }
