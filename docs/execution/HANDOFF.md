@@ -1774,3 +1774,62 @@ The exact implementation envelope is ten production paths, two test paths, and t
 - Mandatory later integration revisit remains: a same-session fresh check after a completed recheck can reuse the prior `CheckRunnerCoordinator.finalizationAttempt`, misclassify supplied no-visible identifiers as recheck identifiers, and show `Check not saved`; S8.1 must exercise and correct that prior-card reusable seam before release.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
 - Next unstarted task: `S6.5`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S6.5 `CURRENT_TASK.md`, then must run fresh S6.5 G0. Do not mutate main.
+
+## `S6.5` — `complete` — `2026-08-14T11:35:13-04:00`
+
+- Phase / branch / position / boundary: `S6` / `phase/s6-data-rights` / `5 of 6` / `no`.
+- Outcome: activated Settings **Restore data backup** for a proven nonempty current generation; reused the S6.4 importer, validator, journal, immutable-generation switch, recovery, and progress surfaces; added deterministic current/incoming summaries, optional **Back up current data**, explicit **Replace current data**, and an exact monotonic union that preserves incoming live authority while materializing current-only counted roots as tombstones.
+- Immutable phase-main base: `P=7c3c381055abde6f6b1020a9f3f599333ef47f40`; remote `main` remained exactly P throughout S6.5.
+- Integrated/card base and predecessor: `M=d1e2aae38f96c37e5b395bc3fa1ccc9fac3f3d40`; accepted S6.4 run `31801293840` / job `94769659418`, F25/UI enabled, `13/13` units and `1/1` UI green.
+- Observed task-start authority: `A=8c77a2278ae20ef9963eedf58dfa0d38aa65f815`; `A^=M`, and `M..A` changed only append-only `docs/execution/HANDOFF.md` plus immediate-next `docs/execution/CURRENT_TASK.md`.
+- First implementation / accepted implementation: `I=4c14ec6648ed84e1f28adb83a36cf9ff61f382db`; accepted `E=b2e8a8170d55872c93ec4611b7ef82ecb7890247`; no distinct infrastructure K.
+- Exact selector: S6.5 F25/UI enabled; compact JSON plus LF, 344 bytes, SHA-256 `92DADA795227BD92E1B0A39D7FB47279C35BB95E056ECC430ADE1C4EECA725FE`; exact selectors `FieldEvidenceAppTests/S6_5ReplacementUnionTests` and `FieldEvidenceAppUITests/S6_5ReplacementUITests`.
+- Accepted run/job/URLs: `31812947145` / `94807703697`; `https://github.com/palatis3/AssetRounds/actions/runs/31812947145`; `https://github.com/palatis3/AssetRounds/actions/runs/31812947145/job/94807703697`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.5; UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; initial Simulator state `Shutdown`.
+- Budgets: setup `77/300` s; Simulator readiness `388/900` s; build step `281/900` s; unit step `96/1200` s with selected tests `5.682` s; UI step `739/1800` s with selected test `614.256` s; artifact `1` s and setup-plus-artifact `78/300` s; job total `1313/4500` s; all watchdogs passed.
+- Artifact: `ios-ci-31812947145-1`, ID `9224539028`, size `9396892`, GitHub digest `sha256:99c1dbd452c2d97af2fe7ec2c970a01b38f697f8fca161134944e6562e2a5029`; `SHA256SUMS.txt` SHA-256 `2EB223006B1CE8B920C10F3CA036FD51F09DB000A60362A11C49C3B2E17947CF`; all `101/101` listed payloads independently matched with no malformed, duplicate, unsafe, missing, mismatched, extra, or unlisted payload.
+- Accepted logs: `build-smoke.log` SHA-256 `EEEFE3ACDE492EE9E756FB279C288E0527D12D8DF13A63A4F0DC8378207BE971`; `test-smoke.log` `1D1F1B27B7312B651195E76B21D3FBB45C829CC949FB7CF056ED87A79F940488`; `ui-smoke.log` `264081A9D92AF72C36459D43BEC8FD29A099909F28D6E0112793B0AAD98DDBA0`.
+- Terminal evidence: `ui-final.png`, `1206×2622`, 366259 bytes, SHA-256 `81B87097F1E29F2A52A6A9D8072A01C8BF1FD10F0BC314E07FF6A47931BD848A`; visual PASS at Accessibility XXXL showed the cold-reopened replacement Report history/current revision for Monument Sign at North Campus with intact Signs/Reports navigation and no error, loading state, keyboard, external sheet, or clipped primary action.
+- Exact commands: `bash Scripts/run-with-timeout.sh 900 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 1200 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 1800 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
+- `FieldEvidenceApp/Domain/Backup/ReplacementRestoreRule.swift`
+- `FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift`
+- `FieldEvidenceAppTests/S6_5ReplacementUnionTests.swift`
+- `FieldEvidenceAppUITests/S6_5ReplacementUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact implementation envelope is six production paths, two test paths, and the standing selector exception. No schema/model/project/package/capability/permission, backend/account/commerce, entitlement/diagnostic import, live-content merge, evaluation decrement, Erase All, signing, or release behavior changed.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`5/5`): `testCancelRemovesOnlyOwnedStageAndDirtyCurrentFailsClosed`; `testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot`; `testPacketCollisionFailsBeforeGenerationOrJournalMutation`; `testPureRuleCreatesOnlyCurrentOnlyTombstonesAndRejectsCollisions`; `testRecoveryPreservesReplacementUnionAcrossEveryJournalPhase`.
+- UI `PASS` (`1/1`): `testSettingsReplacementCancelsThenUnionsAndRestoresAtXXXL`, 614.256 s.
+
+### Acceptance results
+
+- GOLDEN `PASS`: a current counted root A plus a validated incoming live counted root B produced only the incoming live customer graph, one valid current-only tombstone for A, exact counted roots `{A,B}`, no duplicate B, canonical pointer to the validated replacement generation, retired old authority, and no Restore stage or journal.
+- ALT-1 `PASS`: Cancel after closed package validation and exact current/incoming summary removed only the selected operation stage and changed no live byte, pointer, generation, root, counter, external package, entitlement, or diagnostic; collisions and dirty/ambiguous authority failed before generation or journal mutation.
+- Authority/recovery `PASS`: every journal phase preserved or completed the exact monotonic Packet/root union, old and new generations were fully revalidated, pending/failed/ready Report truth remained frozen, and Welcome/maintenance stayed empty-install-only while Settings selected replacement mode.
+- UI/accessibility `PASS`: distinct backup, Cancel, and replacement actions; exact summaries; item-backed sheet mode; retained navigation; deterministic Accessibility XXXL controls; cold reopen; and one terminal in-app screenshot all passed.
+- Scope `PASS`: no live merge, root decrement/duplication, entitlement/diagnostic import, automatic backup, Welcome/maintenance replacement, active-generation overwrite/delete, StoreKit action, Erase All, remote/backend, migration, signing, or release behavior was added.
+
+### Candidate recovery provenance
+
+- Run `31805457695` at I stopped in units because valid empty app-owned staging directories were classified as unexpected live-generation bytes; direct-child I2 admitted only those exact known empty parents while preserving the strict file set.
+- Run `31806931401` at I2 built and passed units, then exposed a hosted safe-position switch tap that did not set the value; direct-child I3 added explicit bounded positioning.
+- Run `31808369300` at I3 built and passed units, then proved a two-state sheet race opened empty-install mode from Settings; direct-child I4 made restore mode and presentation one atomic item-backed value.
+- Run `31810267694` at I4 built and passed units, then app evidence proved **Back up current data** used a navigation destination outside its `NavigationStack`; direct-child I5 moved the destination inside.
+- Run `31811922051` at I5 built and passed units, then exposed one Accessibility XXXL after-dark switch tap flake; direct-child E used the switch thumb coordinate and one exact value-checked retry. None of these failed run IDs was rerun or accepted.
+
+### Known bugs, blockers, and next task
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S6.5 product/card blockers: `NONE`.
+- Mandatory later integration revisit remains: a same-session fresh check after a completed recheck can reuse the prior `CheckRunnerCoordinator.finalizationAttempt`, misclassify supplied no-visible identifiers as recheck identifiers, and show `Check not saved`; S8.1 must exercise and correct that prior-card reusable seam before release.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
+- Next unstarted task: `S6.6`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S6.6 `CURRENT_TASK.md`, then must run fresh S6.6 G0. Do not mutate main until accepted S6.6 boundary integration.
