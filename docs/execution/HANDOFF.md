@@ -1420,3 +1420,59 @@ The exact implementation envelope is eight production paths, two test paths, and
 - `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known bugs: `NONE`. Blockers: `NONE`.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
 - Next unstarted task: `S5.3`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S5.3 `CURRENT_TASK.md`, then must run fresh S5.3 G0. Do not mutate main.
+
+## `S5.3` — `complete` — `2026-08-13T22:52:14-04:00`
+
+- Phase / branch / position / boundary: `S5` / `phase/s5-work-recheck` / `3 of 4` / `no`.
+- Outcome: completed one recheck as `Original resolved, different visible issue`; atomically resolved only the original Issue, inserted exactly one new open Issue with the selected closed-pack label, and created exactly one new Packet/Report/stable root while preserving prior check/work authority as immutable history.
+- Immutable phase-main base: `P=dc28f80c76dcbfb3d78ee79349e9a261c5a2bd1e`; remote `main` remained exactly P throughout S5.3.
+- Integrated/card base and predecessor: `M=E=bbc5d7b69ce5107efffcde5032060050b2b3e88c`; accepted S5.2 run `31761221175` / job `94647800123`, P12/UI enabled, `5/5` units and `1/1` UI green.
+- Observed task-start authority: `A=635b1a10ccf49c1de4b62074678b3441ef05a0b8`; `A^=M`, and `M..A` changed only append-only `docs/execution/HANDOFF.md` plus immediate-next `docs/execution/CURRENT_TASK.md`.
+- Mechanical authority corrections: direct-child `5ecb32a49b63a3ffcf0f28c49c4e753595271498` added the required `SignsRootView.swift` route path; direct-child `a775475f16210f4cf716cb10a4c2b1a7d8b97f93` added the required `WorkCoordinator.swift` lineage path. Each changed only `CURRENT_TASK.md` and preserved the frozen outcome and acceptance.
+- First implementation / accepted implementation: `I=93546599a963d05472c6bb65ec6398ece12b6a77`; accepted `E=I3=3bc7f42f84bb36dd6d306168fc894faf9976eb3e`; no distinct infrastructure K.
+- Exact selector: S5.3 P12/UI enabled; compact JSON plus LF, 343 bytes, SHA-256 `F105470B001D4FDF9505913F3CB71B4E6E4A43482FB8B3B8B4ADC56E50A12F35`; exact selectors `FieldEvidenceAppTests/S5_3DifferentIssueTests` and `FieldEvidenceAppUITests/S5_3DifferentIssueUITests`.
+- Accepted run/job/URLs: `31764299215` / `94656885520`; `https://github.com/palatis3/AssetRounds/actions/runs/31764299215`; `https://github.com/palatis3/AssetRounds/actions/runs/31764299215/job/94656885520`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.5 build `23F77`; UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; initial Simulator state `Shutdown`.
+- Budgets: setup `72/300` s; Simulator readiness `112/900` s; build `213/600` s; unit step `84/900` s; UI step `336/900` s with selected test `287.051` s; artifact `0` s and setup-plus-artifact `72/300` s; job total `735/3300` s; all watchdogs passed.
+- Artifact: `ios-ci-31764299215-1`, ID `9205908925`, size `4607931`, GitHub/raw ZIP SHA-256 `00076D7F91528505541BFC006FA10CE7AA67763E8C87E89A52581918ABCF93C5`; `SHA256SUMS.txt` SHA-256 `A466CA619AC14C587A3D8ACD87FFB54592D02E00A32D779D28EED82A6C26F023`; all `105/105` payloads independently matched with no missing, mismatched, extra, or unlisted payload.
+- Accepted logs: `build-smoke.log` SHA-256 `396FCCA8C3E349C0618ACBE3961F83EA87B5602F220D9E07DBB709991EDA643B`; `test-smoke.log` `5211489E17FDCDAB3D57D012E22816C465AB313B5B239CA89F0074D5273F18A8`; `ui-smoke.log` `EB174514387AAB4C7CCBCB37C3E54802F82BD56FE0AB990681E8606E1CE0AFA1`.
+- Terminal evidence: `ui-final.png`, `1206×2622`, 213024 bytes, SHA-256 `7077815A0AA5C655D8776CB8D1518D99290753C50BFDEF017390010D23377201`; visual PASS at Accessibility XXXL showed the fresh Issue reopened as `Visible physical damage`, its enabled `Record work` action, intact back navigation and Signs/Reports chrome, with no error, loading, keyboard, truncation, or external sheet.
+- Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp/Domain/Workflow/DifferentIssueOutcomeRule.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift`
+- `FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift`
+- `FieldEvidenceApp/Features/Issues/WorkCoordinator.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift`
+- `FieldEvidenceAppTests/S5_3DifferentIssueTests.swift`
+- `FieldEvidenceAppUITests/S5_3DifferentIssueUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact implementation envelope is seven production paths, two test paths, and the standing selector exception. No project, target, package, capability, permission, model-schema, backend, notification, commerce, deletion, backup, feedback, or release path changed.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`7/7`): `testCommittedRecheckJournalRecoversWithoutIssueDriftOrDuplicateRoot`; `testDifferentIssueCreatesOneRootResolvesOriginalAndFreezesBothIssues`; `testDirtyContextAndStaleIssueFailClosedWithoutPartialAuthority`; `testExistingIssueOpenedByDraftCollisionFailsBeforeAnyAuthorityMutation`; `testModelSaveFailureRestoresBothIssueSidesAndSameIdentifiersRetryOnce`; `testPureRuleCreatesExactTwoIssuePlanAndRejectsUnknownLabelOrStaleIssue`; `testSameIdentifierReplayReturnsSameTwoIssueAuthorityWithoutAnotherRoot`.
+- UI `PASS` (`1/1`): `testDifferentIssueResolvesOriginalAndLeavesOneFreshIssueOpen`, 287.051 s.
+
+### Acceptance results
+
+- GOLDEN `PASS`: one completed recheck resolved the original Issue with that recheck as resolver, inserted exactly one new open/unresolved Issue under the same Asset with the exact selected pack label, and committed both Issue states with one Packet/Report/stable root before lower-bound diagnostics.
+- Atomicity/recovery `PASS`: dirty/stale authority, unknown label, ID/opened-by collision, model-save failure, committed-journal recovery, and same-identifier replay failed closed or recovered without partial Issue drift, duplicate Issue/root/report, or duplicate diagnostics.
+- Lineage/history `PASS`: the new Issue is authorized by the completed recheck and accepted by the existing work route; prior check/work/recheck truth remains immutable history; the old Issue reopens resolved and the fresh Issue reopens open with exactly one Record work route.
+- UI/accessibility `PASS`: persisted prerequisite work, Accessibility XXXL recheck flow, closed-pack label selection, review/receipt/report navigation, report visits `1→2`, resolved-original presentation, automatic fresh-Issue handoff, 44-point controls, scrolling, and one terminal in-app screenshot all passed.
+- Scope `PASS`: no S5.4 recheck CNV, correction, commerce, notification, remote/backend, schema, project, package, capability, permission, deletion, backup, feedback, or release behavior was added.
+
+### Candidate recovery provenance
+
+- Terminal non-green exact-head candidates: `31763631628` at I failed only the `SignsRootView` callback function-shape compile check; `31763921641` at I2 failed only two Swift type-check-complexity expressions in deterministic Issue snapshot sorting. Neither run was rerun by run ID or accepted; each caused one direct-child task-scoped correction, and I3 passed the exact same selector.
+
+### Known bugs, blockers, and next task
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known bugs: `NONE`. Blockers: `NONE`.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
+- Next unstarted task: `S5.4`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S5.4 `CURRENT_TASK.md`, then must run fresh S5.4 G0. Do not mutate main before accepted S5.4 phase-boundary integration.
