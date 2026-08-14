@@ -134,7 +134,7 @@ final class S6_3BackupValidationTests: XCTestCase {
             ("duplicate/case-fold", { root in
                 try self.fileManager.copyItem(
                     at: root.appendingPathComponent("records.json"),
-                    to: root.appendingPathComponent("Records.json")
+                    to: root.appendingPathComponent("\u{ff52}ecords.json")
                 )
             }),
             ("symlink", { root in
