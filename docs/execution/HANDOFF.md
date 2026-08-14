@@ -1833,3 +1833,67 @@ The exact implementation envelope is six production paths, two test paths, and t
 - Mandatory later integration revisit remains: a same-session fresh check after a completed recheck can reuse the prior `CheckRunnerCoordinator.finalizationAttempt`, misclassify supplied no-visible identifiers as recheck identifiers, and show `Check not saved`; S8.1 must exercise and correct that prior-card reusable seam before release.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
 - Next unstarted task: `S6.6`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S6.6 `CURRENT_TASK.md`, then must run fresh S6.6 G0. Do not mutate main until accepted S6.6 boundary integration.
+
+## `S6.6` — `complete` — `2026-08-14T15:50:42-04:00`
+
+- Phase / branch / position / boundary: `S6` / `phase/s6-data-rights` / `6 of 6` / `yes`.
+- Outcome: added typed **Erase All** confirmation and a four-phase recoverable operation that installs and activates one independently validated empty generation, preserves the active/old store until references drain, defers cleanup behind a non-mutating Welcome surface when live references remain, cold-recovers only the frozen old generations and exact auxiliary roots, recreates zero diagnostics, and leaves exported backups and StoreKit state untouched.
+- Immutable phase-main base: `P=7c3c381055abde6f6b1020a9f3f599333ef47f40`; remote `main` remained exactly P throughout S6.6 implementation.
+- Integrated/card base and predecessor: `M=b2e8a8170d55872c93ec4611b7ef82ecb7890247`; accepted S6.5 run `31812947145` / job `94807703697`, F25/UI enabled, `5/5` units and `1/1` UI green.
+- Observed task-start authority: `A=e34bab1849b2fa723a6e522b393932ce27573706`; `A^=M`, and `M..A` changed only append-only `docs/execution/HANDOFF.md` plus immediate-next `docs/execution/CURRENT_TASK.md`.
+- First implementation / accepted implementation: `I=0579e798503a0a748ca4139fe7044b4a5f990569`; accepted `E=198d577cba3e51c2380b16d5e07ed4f213067882`; no distinct infrastructure K.
+- Exact selector: S6.6 P12/UI enabled; compact JSON plus LF, 336 bytes, SHA-256 `8EE33FCE260474843CD33FBF8565C0FE19248AA19B550F4FB59542E41B191BC2`; exact selectors `FieldEvidenceAppTests/S6_6EraseRecoveryTests` and `FieldEvidenceAppUITests/S6_6EraseAllUITests`.
+- Accepted run/job/URLs: `31834072656` / `94876291120`; `https://github.com/palatis3/AssetRounds/actions/runs/31834072656`; `https://github.com/palatis3/AssetRounds/actions/runs/31834072656/job/94876291120`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.5; UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; initial Simulator state `Shutdown`.
+- Budgets: setup `14/300` s; Simulator readiness `68/900` s; build step `215/600` s; unit step `45/900` s with selected tests `8.455` s; UI step `289/900` s with selected test `240.584` s; artifact `0` s and setup-plus-artifact `14/300` s; job total `588/3300` s; all watchdogs passed.
+- Artifact: `ios-ci-31834072656-1`, ID `9232051382`, size `4480633`, GitHub digest `sha256:ffcd1e39fcfec3a0ad4794531c907d2cfdd016ab1100c6e2e8f9a1af62aecf98`; `SHA256SUMS.txt` SHA-256 `03E5546F09059E8AEB09370CC745F5F153F456FB597BACC38065ED7FDA73660D`; all `109/109` listed payloads independently matched.
+- Accepted logs: `build-smoke.log` SHA-256 `9FFB75673D2110A6B344225FAF144030F0DA5BAC295EE43F2C97678119F1EA5D`; `test-smoke.log` `DBBBA50A6A181AA618CF81B05C36219DC259BB644E63D820C2576727E234D730`; `ui-smoke.log` `6DD44554FBF717E7D7CFC955A68FD0697B87983089EEF34EAC71A7ABF7150385`.
+- Terminal evidence: `ui-final.png`, `1206×2622`, 425201 bytes, SHA-256 `BC433E5EC15E7A66A9CCCC1033836A49EE028E8B772DE3EE00786FE1DB99E7D1`; visual PASS at Accessibility XXXL showed the fresh replacement sign in the rebuilt empty generation with intact navigation and no maintenance, error, loading state, keyboard, external sheet, or clipped primary action.
+- Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
+- `FieldEvidenceApp/Domain/Workflow/EraseIntentV1.swift`
+- `FieldEvidenceApp/Features/Settings/EraseAllView.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift`
+- `FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift`
+- `FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift`
+- `FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift`
+- `FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift`
+- `FieldEvidenceAppUITests/S6_6EraseAllUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact implementation envelope is ten production paths, two test paths, and the standing selector exception. No schema/model/project/package/capability/permission, backend/account/commerce, entitlement or StoreKit mutation, exported-backup deletion, signing, deployment, or release behavior changed.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`9/9`): `testAbsentApplicationSupportHasNoEraseAuthority`; `testCancelAndDirtyContextChangeNothingBeforeMarker`; `testEveryInterruptionRecoversOldOrFullyErasedNew`; `testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState`; `testLiveCleanupWaitsForOldContextReferenceDrain`; `testMalformedAuxiliaryTreeFailsBeforeAnyDeletion`; `testPinnedEmptyGenerationCreationRejectsReplacementBeforeSQLiteWrite`; `testReplacedGenerationAncestorFailsClosedWithoutDeletingEitherTree`; `testRetainedLiveContextDefersCleanupUntilColdRecovery`.
+- UI `PASS` (`1/1`): `testTypedEraseCancelsThenRebuildsEmptyGenerationAtXXXL`, 240.584 s.
+
+### Acceptance results
+
+- GOLDEN `PASS`: every injected pointer/phase boundary recovered to the prior valid authority or the fully validated new empty generation; session activation occurred before cleanup; retained references left the exact `.sessionActivated` marker and old generation for cold recovery; the cold path removed only frozen targets, zeroed diagnostics/rows/roots, and removed the marker.
+- ALT-1 `PASS`: Cancel and dirty-context rejection changed no row, byte, counter, pointer, generation, auxiliary root, external package, entitlement, StoreKit state, or Erase marker.
+- Authority/recovery `PASS`: pinned no-follow generation and auxiliary ancestry, exact current/retired/Restore/Erase presence, canonical journals/pointers, active-store protection, bounded ancestor replacement, clean-install absence, and phase-lagged idempotency all held before mutation.
+- UI/accessibility `PASS`: exact typed `ERASE`, separate-subscription copy, Cancel preservation, duplicate-action lock, deferred non-mutating Welcome state, cold cleanup, replacement-sign creation, Accessibility XXXL reachability, and one terminal in-app screenshot all passed.
+- Scope `PASS`: Erase never discovered targets outside the frozen IDs/roots, deleted an active container or external backup, modified evaluation beyond device-local Packet roots, called StoreKit, or added S7 commerce behavior.
+
+### Candidate recovery provenance
+
+- Run `31819851272` at I exposed SQLite vnode deletion while test containers were still live; direct-child `b47daa24d6e4a6fec85a2236921c02e8f6394b7e` stopped unlinking live SwiftData test stores.
+- Runs `31820957460` and `31821990724` at successive heads still restarted the test process while old SwiftData container/session references survived cleanup. Direct children `71887613e42e09f6ae076cf9dfb88ceee06d015f` and `0606fae50599c2e70de5fa4df3731eb738552cbf` added explicit reference drain and retained validation sessions.
+- Run `31823318129` then isolated `dataPointerInvalid` during interruption recovery; direct-child `cccc93e4b2ce888a15246343b22503a35798c1fd` recreated pinned Restore authority after its frozen root was cleaned.
+- Run `31824479813` passed build/units but failed the initial Welcome assertion because a truly absent Application Support directory was treated as Erase maintenance; direct-child `a1711089d086655954f090a4a3dea389049fafae` made that no-journal clean-install state read-only absent authority.
+- Runs `31826107503`, `31827681166`, `31829229147`, and `31831021189` passed build/units and successively proved live SwiftUI, router recovery, and sheet environment references could outlive the bounded drain and route to maintenance instead of Welcome. Direct children `1ec482540e0d2b2479048308d452510cb4bc622d`, `0a4bc4f59607cfde517ed9a4bc72f9d6b43d0ec8`, and `500cbf1e957300d727d73fd2b1fb0412096e775d` removed specific retained references; `5ce6f9b13b3cf4325d6737b28ccaba5f49f97e33` implemented the frozen cold-launch fallback rather than claiming live cleanup.
+- Run `31833079389` at `5ce6f9b13b3cf4325d6737b28ccaba5f49f97e33` built and proved the new deferred path, but one older unit still expected the superseded pre-defer error. Direct-child E aligned only that stale assertion. No failed run ID was rerun or accepted.
+
+### Known bugs, blockers, and boundary state
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S6.6 product/card blockers: `NONE`.
+- Mandatory S8.1 integration revisit remains: a same-session fresh check after a completed recheck can reuse the prior `CheckRunnerCoordinator.finalizationAttempt`, misclassify supplied no-visible identifiers as recheck identifiers, and show `Check not saved`; S8.1 must exercise and correct that reusable seam before release.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future phase-close commit.
+- Next unstarted task: `S7.1`. Program autopilot may commit and non-force push this HANDOFF-only phase-close, verify exact phase CI, non-force fast-forward `main` only after that green phase evidence, verify exact-main CI, create `phase/s7-commerce` from the accepted exact-main head, hydrate only S7.1, and run fresh S7.1 G0.
