@@ -404,7 +404,7 @@ private extension BackupExportService {
         }
     }
 
-    func fetchRows() throws -> Rows {
+    private func fetchRows() throws -> Rows {
         do {
             return Rows(
                 sites: try modelContext.fetch(FetchDescriptor<Site>()),
@@ -420,7 +420,7 @@ private extension BackupExportService {
         }
     }
 
-    func validateGraph(_ rows: Rows) throws {
+    private func validateGraph(_ rows: Rows) throws {
         guard unique(rows.sites.map(\.id)),
               unique(rows.assets.map(\.id)),
               unique(rows.records.map(\.id)),
@@ -571,7 +571,7 @@ private extension BackupExportService {
         }
     }
 
-    func makeRecords(_ rows: Rows) -> V4BackupRecordsV1 {
+    private func makeRecords(_ rows: Rows) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             assets: rows.assets.map {
                 .init(
