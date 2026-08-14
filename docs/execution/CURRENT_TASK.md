@@ -21,6 +21,7 @@
 - Task-start transition authority: `A=02b9aa17c7c29c9614a0cd3b4f9f0ca0e4996013`; `A^=M`, and `M..A` changes only append-only `docs/execution/HANDOFF.md` plus the S7.2 replacement `docs/execution/CURRENT_TASK.md`.
 - Owner-copy authority: the owner approved all four exact recovery messages on `2026-08-14`. The direct-child CURRENT_TASK-only authority correction `A2` is observed after it exists at fresh G0; this file deliberately never self-records that future SHA.
 - Required `A..A2`: exactly one direct-child commit changing only `docs/execution/CURRENT_TASK.md`; remote `phase/s7-commerce=A2`, remote `main=P`, and no other dirty path at fresh G0.
+- Diagnosed recovery authority: after exact-head run `31847380324` proved the existing StoreKit configuration is unavailable to the scheme Test action, the owner approved `FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme` as the one additional S7.2 project path on `2026-08-14`. The authority commit changes only this file; the following correction may attach only the existing `TestFixtures/StoreKit/FieldEvidence.storekit` reference to the Test action without changing the fixture, product, selector, workflow, or pinned environment.
 
 ## Pinned authority
 
@@ -60,7 +61,7 @@
 
 ## Exact allowed implementation paths
 
-Production paths:
+Production/project paths:
 
 - `FieldEvidenceApp/Features/Subscription/PaywallView.swift`
 - `FieldEvidenceApp/Infrastructure/Commerce/StoreKitPurchaseCoordinator.swift`
@@ -70,6 +71,7 @@ Production paths:
 - `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
 - `FieldEvidenceApp/Features/Shell/AppShellView.swift`
 - `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme`
 
 Test paths:
 
@@ -80,10 +82,10 @@ Standing selector exception:
 
 - `Scripts/ci-selection.json`
 
-No other implementation, model, project, resource, fixture, script, workflow, authority, or documentation path is allowed during S7.2 implementation. Existing S7.1 entitlement facts/reducer/store, Diagnostics purchase/paywall APIs, StoreKit fixture/scheme, navigation, design tokens, history, and data-rights surfaces may be read and reused without editing. Append-only `docs/execution/HANDOFF.md` remains separately authorized bookkeeping after accepted evidence.
+No other implementation, model, project, resource, fixture, script, workflow, authority, or documentation path is allowed during S7.2 implementation. Existing S7.1 entitlement facts/reducer/store, Diagnostics purchase/paywall APIs, StoreKit fixture, navigation, design tokens, history, and data-rights surfaces may be read and reused without editing. Append-only `docs/execution/HANDOFF.md` remains separately authorized bookkeeping after accepted evidence.
 
 ## G0 and verification
 
-- Fresh G0 must prove clean `phase/s7-commerce`, exact transition `A^=M`, exact one-commit HANDOFF-plus-CURRENT_TASK-only `M..A`, exact owner correction `A2^=A`, exact CURRENT_TASK-only `A..A2`, remote S7 phase=A2, remote main=P, all pins, accepted S7.1 run/artifact/checksum evidence, accepted predecessor S7.1 selector byte-exact, the four exact owner-frozen recovery messages above, and the eight-production/two-test expanded envelope inside the default 10/5 cap.
+- Fresh recovery G0 must additionally prove the owner-approved CURRENT_TASK-only authority commit directly parents exact failed head `b7601c50e669ea7f34349da65e5e38fd1555fad8`, remote `main=P`, all pins and selector bytes remain unchanged, and the nine-production/project/two-test expanded envelope remains inside the default 10/5 cap.
 - After complete G0, replace only `Scripts/ci-selection.json` with the frozen S7.2 object, then implement exactly this card. Candidate recovery follows the persistent evidence-driven direct-child loop without weakening acceptance or expanding paths.
 - After accepted exact-head S7.2 CI, read `KNOWN_BUGS.md`, append the immutable S7.2 HANDOFF, and—only with phase autopilot still enabled—commit/push exactly that append plus immediate-next S7.3 CURRENT_TASK. Run fresh S7.3 G0; do not mutate `main` during a same-phase transition.
