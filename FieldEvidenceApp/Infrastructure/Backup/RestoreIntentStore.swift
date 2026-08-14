@@ -277,7 +277,9 @@ private extension RestoreIntentStore {
         }
     }
 
-    func readIfPresent(_ name: String) throws -> (data: Data, identity: Identity)? {
+    private func readIfPresent(
+        _ name: String
+    ) throws -> (data: Data, identity: Identity)? {
         let descriptor = Darwin.openat(
             restoreDescriptor,
             name,
@@ -367,7 +369,7 @@ private extension RestoreIntentStore {
         try removeExact(name, expected: current)
     }
 
-    func removeExact(
+    private func removeExact(
         _ name: String,
         expected: (data: Data, identity: Identity)
     ) throws {
@@ -383,7 +385,7 @@ private extension RestoreIntentStore {
         }
     }
 
-    static func directoryIdentity(_ descriptor: Int32) throws -> Identity {
+    private static func directoryIdentity(_ descriptor: Int32) throws -> Identity {
         var info = stat()
         guard Darwin.fstat(descriptor, &info) == 0,
               (info.st_mode & S_IFMT) == S_IFDIR else {
@@ -392,7 +394,7 @@ private extension RestoreIntentStore {
         return Identity(device: info.st_dev, inode: info.st_ino)
     }
 
-    static func requireDirectory(
+    private static func requireDirectory(
         _ descriptor: Int32,
         identity: Identity
     ) throws {
