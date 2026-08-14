@@ -12,6 +12,7 @@ final class S7_2PaywallUITests: XCTestCase {
             "-UIPreferredContentSizeCategoryName",
             "UICTContentSizeCategoryAccessibilityXXXL",
             "--s1-ui-test-light-mode",
+            "--s7-2-ui-test-paywall",
         ]
         app.launch()
 
@@ -27,31 +28,6 @@ final class S7_2PaywallUITests: XCTestCase {
         XCTAssertEqual(element("s2.sign-detail.sign-label", in: app).label,
                        "Paywall Sign")
 
-        // Production has no configured public links yet and must fail closed.
-        tap("s1.settings.button", in: app)
-        tap("s7.2.settings.paywall", in: app)
-        XCTAssertTrue(element("s7.2.paywall.screen", in: app)
-            .waitForExistence(timeout: 30))
-        XCTAssertTrue(element("s7.2.paywall.unavailable", in: app)
-            .waitForExistence(timeout: 30))
-        let retry = element("s7.2.paywall.retry", in: app)
-        scroll(retry, in: app)
-        XCTAssertGreaterThanOrEqual(retry.frame.width, 44)
-        XCTAssertGreaterThanOrEqual(retry.frame.height, 44)
-        retry.tap()
-        XCTAssertTrue(element("s7.2.paywall.unavailable", in: app)
-            .waitForExistence(timeout: 15))
-        let unavailableClose = element("s7.2.paywall.close", in: app)
-        scroll(unavailableClose, in: app)
-        XCTAssertGreaterThanOrEqual(unavailableClose.frame.width, 44)
-        XCTAssertGreaterThanOrEqual(unavailableClose.frame.height, 44)
-        unavailableClose.tap()
-
-        app.terminate()
-        app.launchArguments.append("--s7-2-ui-test-paywall")
-        app.launch()
-        XCTAssertTrue(element("s2.sign-detail.screen", in: app)
-            .waitForExistence(timeout: 30))
         tap("s1.settings.button", in: app)
         tap("s7.2.settings.paywall", in: app)
         XCTAssertTrue(element("s7.2.paywall.screen", in: app)
@@ -120,8 +96,40 @@ final class S7_2PaywallUITests: XCTestCase {
         XCTAssertEqual(element("s2.sign-detail.sign-label", in: app).label,
                        "Paywall Sign")
 
+        // Production has no configured public links yet and must fail closed.
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "--s7-2-ui-test-paywall" }
+        app.launch()
+        XCTAssertTrue(element("s2.sign-detail.screen", in: app)
+            .waitForExistence(timeout: 30))
+        tap("s1.settings.button", in: app)
+        tap("s7.2.settings.paywall", in: app)
+        XCTAssertTrue(element("s7.2.paywall.screen", in: app)
+            .waitForExistence(timeout: 30))
+        XCTAssertTrue(element("s7.2.paywall.unavailable", in: app)
+            .waitForExistence(timeout: 30))
+        let retry = element("s7.2.paywall.retry", in: app)
+        scroll(retry, in: app)
+        XCTAssertGreaterThanOrEqual(retry.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(retry.frame.height, 44)
+        retry.tap()
+        XCTAssertTrue(element("s7.2.paywall.unavailable", in: app)
+            .waitForExistence(timeout: 15))
+        let unavailableClose = element("s7.2.paywall.close", in: app)
+        scroll(unavailableClose, in: app)
+        XCTAssertGreaterThanOrEqual(unavailableClose.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(unavailableClose.frame.height, 44)
+        unavailableClose.tap()
+        XCTAssertTrue(element("s1.settings.screen", in: app)
+            .waitForExistence(timeout: 20))
+        navigateBack(in: app)
+        XCTAssertTrue(element("s2.sign-detail.screen", in: app)
+            .waitForExistence(timeout: 20))
+        XCTAssertEqual(element("s2.sign-detail.sign-label", in: app).label,
+                       "Paywall Sign")
+
         let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        screenshot.name = "S7.2 verified monthly purchase preserves sign history"
+        screenshot.name = "S7.2 purchase and unavailable links preserve sign history"
         screenshot.lifetime = .keepAlways
         add(screenshot)
     }
