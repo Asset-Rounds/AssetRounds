@@ -28,7 +28,7 @@ struct BackupSecurityScopedAccessV1 {
 final class BackupImportService {
     private struct SourceBoundary {
         let manifest: V4BackupManifestV1
-        let rootIdentity: ReportPDFAnchoredFile.RootIdentity
+        let rootIdentity: BackupPackageRootIdentity
     }
 
     private let generationRootURL: URL
@@ -145,7 +145,7 @@ private extension BackupImportService {
         do {
             let value = try validator.validate(stagedPackageURL: destinationURL)
             guard value.manifest == source.manifest,
-                  try ReportPDFAnchoredFile.rootIdentity(at: sourceURL)
+                  try BackupPackageAnchoredFile.rootIdentity(at: sourceURL)
                     == source.rootIdentity else {
                 throw BackupImportServiceError.invalidSource
             }
@@ -164,12 +164,12 @@ private extension BackupImportService {
               try itemInformation(at: root).map(isDirectory) == true else {
             throw BackupImportServiceError.invalidSource
         }
-        let rootIdentity: ReportPDFAnchoredFile.RootIdentity
+        let rootIdentity: BackupPackageRootIdentity
         let manifestData: Data
         do {
-            rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: root)
-            manifestData = try ReportPDFAnchoredFile.readRegularFile(
-                at: root.appendingPathComponent("manifest.json", isDirectory: false),
+            rootIdentity = try BackupPackageAnchoredFile.rootIdentity(at: root)
+            manifestData = try BackupPackageAnchoredFile.readRegularFile(
+                "manifest.json",
                 within: root,
                 rootIdentity: rootIdentity
             )
@@ -190,7 +190,7 @@ private extension BackupImportService {
             root: root,
             manifest: manifest
         ) == (expectedFiles, expectedDirectories),
-              try ReportPDFAnchoredFile.rootIdentity(at: root) == rootIdentity else {
+              try BackupPackageAnchoredFile.rootIdentity(at: root) == rootIdentity else {
             throw BackupImportServiceError.invalidSource
         }
         return SourceBoundary(manifest: manifest, rootIdentity: rootIdentity)

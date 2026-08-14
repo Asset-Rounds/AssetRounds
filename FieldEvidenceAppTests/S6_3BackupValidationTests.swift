@@ -438,9 +438,16 @@ private extension S6_3BackupValidationTests {
         try context.save()
 
         let laterObserved = recheckObserved.addingTimeInterval(120)
-        _ = try coordinator.beginCheck(assetID: assetID, timeZoneID: "America/New_York", isTimeZoneConfirmed: true, afterDarkAccepted: true, safePositionAccepted: true, observedAt: laterObserved)
-        try await acceptPair(coordinator, assetID: assetID, observedAt: laterObserved, seeds: (51, 101))
-        _ = try await coordinator.finalize(
+        let laterCoordinator = CheckRunnerCoordinator(
+            modelContext: context,
+            signPack: pack
+        )
+        laterCoordinator.configureCapture(
+            generationRootURL: session.generationRootURL
+        )
+        _ = try laterCoordinator.beginCheck(assetID: assetID, timeZoneID: "America/New_York", isTimeZoneConfirmed: true, afterDarkAccepted: true, safePositionAccepted: true, observedAt: laterObserved)
+        try await acceptPair(laterCoordinator, assetID: assetID, observedAt: laterObserved, seeds: (51, 101))
+        _ = try await laterCoordinator.finalize(
             assetID: assetID,
             selection: .noVisibleIssue,
             completedAt: laterObserved.addingTimeInterval(30),

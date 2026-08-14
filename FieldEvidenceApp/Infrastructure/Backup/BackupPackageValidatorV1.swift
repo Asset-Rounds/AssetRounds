@@ -26,6 +26,100 @@ struct ValidatedV4BackupPackageV1: Equatable, Sendable {
     let summary: BackupValidationSummaryV1
 }
 
+struct BackupPackageRootIdentity: Equatable {
+    let device: dev_t
+    let inode: ino_t
+}
+
+enum BackupPackageAnchoredFile {
+    static func rootIdentity(at rootURL: URL) throws -> BackupPackageRootIdentity {
+        let descriptor = try openRoot(rootURL)
+        defer { Darwin.close(descriptor) }
+        return try identity(of: descriptor)
+    }
+
+    static func readRegularFile(
+        _ relativePath: String,
+        within rootURL: URL,
+        rootIdentity: BackupPackageRootIdentity
+    ) throws -> Data {
+        let components = relativePath.split(
+            separator: "/",
+            omittingEmptySubsequences: false
+        ).map(String.init)
+        guard !components.isEmpty,
+              components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+
+        var descriptor = try openRoot(rootURL)
+        defer { Darwin.close(descriptor) }
+        guard try identity(of: descriptor) == rootIdentity else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+        for component in components.dropLast() {
+            let child = Darwin.openat(
+                descriptor,
+                component,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard child >= 0 else {
+                throw BackupPackageValidationErrorV1.invalidPackage
+            }
+            Darwin.close(descriptor)
+            descriptor = child
+        }
+        guard let leaf = components.last else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+        let fileDescriptor = Darwin.openat(
+            descriptor,
+            leaf,
+            O_RDONLY | O_NOFOLLOW
+        )
+        guard fileDescriptor >= 0 else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+        let handle = FileHandle(
+            fileDescriptor: fileDescriptor,
+            closeOnDealloc: true
+        )
+        defer { try? handle.close() }
+        var information = stat()
+        guard Darwin.fstat(fileDescriptor, &information) == 0,
+              (information.st_mode & S_IFMT) == S_IFREG,
+              information.st_nlink == 1 else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+        return try handle.readToEnd() ?? Data()
+    }
+
+    private static func openRoot(_ rootURL: URL) throws -> Int32 {
+        let descriptor = Darwin.open(
+            rootURL.standardizedFileURL.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard descriptor >= 0 else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+        return descriptor
+    }
+
+    private static func identity(
+        of descriptor: Int32
+    ) throws -> BackupPackageRootIdentity {
+        var information = stat()
+        guard Darwin.fstat(descriptor, &information) == 0,
+              (information.st_mode & S_IFMT) == S_IFDIR else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+        return BackupPackageRootIdentity(
+            device: information.st_dev,
+            inode: information.st_ino
+        )
+    }
+}
+
 struct BackupPackageValidatorV1 {
     private let fileManager: FileManager
     private let signPack: SignPack
@@ -56,7 +150,7 @@ private extension BackupPackageValidatorV1 {
               try itemType(root) == .directory else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
-        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+        let rootIdentity = try BackupPackageAnchoredFile.rootIdentity(at: root)
         let manifestData = try anchoredRead(
             "manifest.json",
             root: root,
@@ -71,7 +165,7 @@ private extension BackupPackageValidatorV1 {
         let enumerated = try enumerate(root: root)
         guard enumerated.files == expectedFiles,
               enumerated.directories == expectedDirectories,
-              try ReportPDFAnchoredFile.rootIdentity(at: root) == rootIdentity else {
+              try BackupPackageAnchoredFile.rootIdentity(at: root) == rootIdentity else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
 
@@ -92,7 +186,7 @@ private extension BackupPackageValidatorV1 {
         try validateGraph(records, manifest: manifest)
         try validateOwnedMembers(records, manifest: manifest, members: members)
         try validateReports(records, members: members)
-        guard try ReportPDFAnchoredFile.rootIdentity(at: root) == rootIdentity else {
+        guard try BackupPackageAnchoredFile.rootIdentity(at: root) == rootIdentity else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
 
@@ -216,13 +310,13 @@ private extension BackupPackageValidatorV1 {
     func anchoredRead(
         _ path: String,
         root: URL,
-        identity: ReportPDFAnchoredFile.RootIdentity
+        identity: BackupPackageRootIdentity
     ) throws -> Data {
         guard validRelativePath(path) else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
-        return try ReportPDFAnchoredFile.readRegularFile(
-            at: root.appendingPathComponent(path),
+        return try BackupPackageAnchoredFile.readRegularFile(
+            path,
             within: root,
             rootIdentity: identity
         )
