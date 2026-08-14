@@ -541,8 +541,16 @@ final class FinalizationService {
             (input.identifiers.newIssueID.map { $0 == issue.id } ?? false)
                 || issue.openedByRecordID == record.id
         }
-        let parents = try modelContext.fetch(FetchDescriptor<WorkflowRecord>()).filter {
+        let allRecords = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
+        let parents = allRecords.filter {
             $0.id == parentID
+        }
+        let workRecords = allRecords.filter {
+            $0.issueID == issueID
+                && $0.revisionKind == WorkflowRevisionKind.original.rawValue
+                && $0.state == WorkflowState.completed.rawValue
+                && $0.stage == WorkflowStage.work.rawValue
+                && $0.outcomeKey == "work_recorded"
         }
         let packets = try modelContext.fetch(FetchDescriptor<Packet>()).filter {
             $0.id == input.identifiers.packetID
@@ -556,23 +564,26 @@ final class FinalizationService {
         }
         guard issues.count == 1,
               insertedIssues.count == (input.identifiers.newIssueID == nil ? 0 : 1),
-              parents.count == 1,
+              parents.count == 1, workRecords.count == 1,
+              let issueUpdatedAt = workRecords[0].completedAt,
               packets.count == 1, reports.count == 1 else {
             throw FinalizationServiceError.preconditionFailed
         }
         let issueAfter = issuePayload(issues[0])
-        let issueBefore = IssuePayloadV1(
-            id: issueAfter.id,
-            schemaVersion: issueAfter.schemaVersion,
-            assetID: issueAfter.assetID,
-            openedByRecordID: issueAfter.openedByRecordID,
-            labelKey: issueAfter.labelKey,
-            labelDisplaySnapshot: issueAfter.labelDisplaySnapshot,
-            status: IssueStatus.recheckDue.rawValue,
-            resolvedByRecordID: nil,
-            createdAt: issueAfter.createdAt,
-            updatedAt: parents[0].completedAt ?? issueAfter.createdAt
-        )
+        let issueBefore = record.outcomeKey == "could_not_verify"
+            ? issueAfter
+            : IssuePayloadV1(
+                id: issueAfter.id,
+                schemaVersion: issueAfter.schemaVersion,
+                assetID: issueAfter.assetID,
+                openedByRecordID: issueAfter.openedByRecordID,
+                labelKey: issueAfter.labelKey,
+                labelDisplaySnapshot: issueAfter.labelDisplaySnapshot,
+                status: IssueStatus.recheckDue.rawValue,
+                resolvedByRecordID: nil,
+                createdAt: issueAfter.createdAt,
+                updatedAt: issueUpdatedAt
+            )
         let plan: RecheckFinalizationPlan
         if input.outcomeKey == "original_resolved_different_issue" {
             guard let label = input.issueLabel,
@@ -613,7 +624,8 @@ final class FinalizationService {
                 note: input.note,
                 completedAt: input.completedAt,
                 mutationID: input.identifiers.mutationID,
-                packetID: input.identifiers.packetID
+                packetID: input.identifiers.packetID,
+                couldNotVerify: recheckCouldNotVerifySelection(input)
             ))
             plan = RecheckFinalizationPlan(
                 recordAfter: value.recordAfter,
@@ -1304,10 +1316,22 @@ final class FinalizationService {
                 && $0.state == WorkflowState.completed.rawValue
         }
         let drafts = issueRecords.filter { $0.state == WorkflowState.draft.rawValue }
+        let workRecords = chain.filter {
+            $0.stage == WorkflowStage.work.rawValue
+        }
+        let recordsAfterWork = workRecords.first.flatMap { work in
+            chain.firstIndex(where: { $0 === work }).map { index in
+                Array(chain.dropFirst(index + 1))
+            }
+        } ?? []
         guard current === parent,
-              parent.stage == WorkflowStage.work.rawValue,
-              parent.outcomeKey == "work_recorded",
-              parent.completedAt == issue.updatedAt,
+              workRecords.count == 1,
+              workRecords[0].completedAt == issue.updatedAt,
+              recordsAfterWork.allSatisfy({ record in
+                  record.stage == WorkflowStage.recheck.rawValue
+                    && record.outcomeKey == "could_not_verify"
+                    && validRecheckCouldNotVerify(record)
+              }),
               Set(issueOriginals.map(\.id)) == Set(chain.map(\.id)),
               drafts.count == 1,
               drafts.first === input.draft,
@@ -1366,7 +1390,8 @@ final class FinalizationService {
                 note: input.note,
                 completedAt: input.completedAt,
                 mutationID: input.identifiers.mutationID,
-                packetID: input.identifiers.packetID
+                packetID: input.identifiers.packetID,
+                couldNotVerify: recheckCouldNotVerifySelection(input)
             ))
             plan = RecheckFinalizationPlan(
                 recordAfter: value.recordAfter,
@@ -1689,10 +1714,17 @@ final class FinalizationService {
     }
 
     private func validateFrozenRecheckInput(_ input: FinalizationServiceInput) throws {
+        let isCouldNotVerify = input.outcomeKey == "could_not_verify"
         guard input.draft.revisionKind == WorkflowRevisionKind.original.rawValue,
               input.draft.stage == WorkflowStage.recheck.rawValue,
               input.draft.state == WorkflowState.draft.rawValue,
-              input.draft.draftStepKey == WorkflowDraftStep.outcome.rawValue,
+              (isCouldNotVerify
+                ? [
+                    WorkflowDraftStep.wide.rawValue,
+                    WorkflowDraftStep.close.rawValue,
+                    WorkflowDraftStep.outcome.rawValue,
+                  ].contains(input.draft.draftStepKey ?? "")
+                : input.draft.draftStepKey == WorkflowDraftStep.outcome.rawValue),
               input.draft.packetID == nil,
               input.draft.issueID != nil,
               input.draft.parentRecordID != nil,
@@ -1709,37 +1741,47 @@ final class FinalizationService {
               input.asset.siteID == input.site.id,
               input.completedAt >= input.draft.startedAt,
               input.snapshotCreatedAt >= input.completedAt,
-              input.couldNotVerify == nil,
               input.outcomeKey == "resolved"
                 || input.outcomeKey == "issue_still_visible"
-                || input.outcomeKey == "original_resolved_different_issue",
+                || input.outcomeKey == "original_resolved_different_issue"
+                || isCouldNotVerify,
               (input.outcomeKey == "original_resolved_different_issue"
                 ? input.issueLabel != nil && input.identifiers.newIssueID != nil
                 : input.issueLabel == nil && input.identifiers.newIssueID == nil),
-              uniqueDisplay(signPack.outcomeDisplays, key: input.outcomeKey) == input.outcomeDisplay else {
+              uniqueDisplay(signPack.outcomeDisplays, key: input.outcomeKey) == input.outcomeDisplay,
+              validRecheckCouldNotVerifySelection(input),
+              let originalIssueID = input.identifiers.issueID,
+              let parentID = input.draft.parentRecordID else {
             throw FinalizationServiceError.invalidDraft
         }
+        var authorityIDs = [
+            input.site.id,
+            input.asset.id,
+            input.draft.id,
+            parentID,
+            originalIssueID,
+            input.identifiers.mutationID,
+            input.identifiers.packetID,
+            input.identifiers.stableRootID,
+            input.identifiers.reportID,
+        ]
         if input.outcomeKey == "original_resolved_different_issue" {
-            guard let originalIssueID = input.identifiers.issueID,
-                  let newIssueID = input.identifiers.newIssueID,
-                  let parentID = input.draft.parentRecordID,
-                  Set([
-                      input.site.id,
-                      input.asset.id,
-                      input.draft.id,
-                      parentID,
-                      originalIssueID,
-                      newIssueID,
-                      input.identifiers.mutationID,
-                      input.identifiers.packetID,
-                      input.identifiers.stableRootID,
-                      input.identifiers.reportID,
-                  ]).count == 10 else {
+            guard let newIssueID = input.identifiers.newIssueID else {
                 throw FinalizationServiceError.invalidDraft
             }
+            authorityIDs.append(newIssueID)
+        }
+        guard Set(authorityIDs).count == authorityIDs.count else {
+            throw FinalizationServiceError.invalidDraft
         }
         let keys = input.evidence.sorted(by: evidenceOrder).map(\.purposeKey)
-        guard keys == ["wide_context", "close_detail"],
+        guard (isCouldNotVerify
+                ? (keys.count <= 2
+                    && Set(keys).count == keys.count
+                    && keys.allSatisfy {
+                        $0 == "wide_context" || $0 == "close_detail"
+                    })
+                : keys == ["wide_context", "close_detail"]),
               input.evidence.allSatisfy({
                 $0.recordID == input.draft.id
                     && $0.mimeType == MediaContractV1.durableMIMEType
@@ -2317,7 +2359,13 @@ final class FinalizationService {
                 ),
             ],
             asset: AssetSnapshotV1(label: input.asset.label),
-            couldNotVerify: nil,
+            couldNotVerify: input.couldNotVerify.map {
+                CouldNotVerifySnapshotV1(
+                    display: $0.display,
+                    key: $0.key,
+                    registryVersion: signPack.couldNotVerifyReasons.version
+                )
+            },
             disclaimer: signPack.disclaimer,
             display: DisplaySnapshotV1(
                 assetSingular: signPack.nouns.asset.singular,
@@ -2462,6 +2510,42 @@ final class FinalizationService {
             } ?? true
         }
         return input.couldNotVerify == nil && input.note == nil
+    }
+
+    private func recheckCouldNotVerifySelection(
+        _ input: FinalizationServiceInput
+    ) -> RecheckCouldNotVerifySelection? {
+        input.couldNotVerify.map {
+            RecheckCouldNotVerifySelection(
+                key: $0.key,
+                display: $0.display,
+                registryVersion: signPack.couldNotVerifyReasons.version
+            )
+        }
+    }
+
+    private func validRecheckCouldNotVerifySelection(
+        _ input: FinalizationServiceInput
+    ) -> Bool {
+        if input.outcomeKey == "could_not_verify" {
+            guard signPack.couldNotVerifyReasons
+                    == SignPack.illuminatedSignV1.couldNotVerifyReasons,
+                  input.issueLabel == nil,
+                  input.identifiers.issueID != nil,
+                  input.identifiers.newIssueID == nil,
+                  input.outcomeDisplay == "Could not verify",
+                  let selected = input.couldNotVerify,
+                  signPack.couldNotVerifyReasons.entries.filter({
+                      $0.key == selected.key && $0.display == selected.display
+                  }).count == 1 else {
+                return false
+            }
+            return input.note.map {
+                $0 == $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                    && (1...1_000).contains($0.count)
+            } ?? true
+        }
+        return input.couldNotVerify == nil
     }
 
     private func issuePayload(_ issue: Issue) -> IssuePayloadV1 {

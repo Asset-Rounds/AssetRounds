@@ -72,7 +72,7 @@ struct OutcomeReviewView: View {
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityAddTraits(.isHeader)
 
-                if isRecheck {
+                if isRecheck && !startsWithCouldNotVerify {
                     choiceButton(
                         title: outcomeDisplay("resolved"),
                         isSelected: isResolvedSelected,
@@ -108,7 +108,7 @@ struct OutcomeReviewView: View {
                         isChoosingCouldNotVerify = false
                         errorMessage = nil
                     }
-                } else if !startsWithCouldNotVerify {
+                } else if !isRecheck && !startsWithCouldNotVerify {
                     choiceButton(
                         title: outcomeDisplay("no_visible_issue"),
                         isSelected: selection == .noVisibleIssue,
@@ -134,22 +134,20 @@ struct OutcomeReviewView: View {
                     }
                 }
 
-                if !isRecheck {
-                    choiceButton(
-                        title: outcomeDisplay("could_not_verify"),
-                        isSelected: isChoosingCouldNotVerify,
-                        identifier: Self.couldNotVerifyAccessibilityIdentifier
-                    ) {
-                        selection = nil
-                        isChoosingVisibleIssue = false
-                        isChoosingDifferentIssue = false
-                        isChoosingCouldNotVerify = true
-                        errorMessage = nil
-                    }
+                choiceButton(
+                    title: outcomeDisplay("could_not_verify"),
+                    isSelected: isChoosingCouldNotVerify,
+                    identifier: Self.couldNotVerifyAccessibilityIdentifier
+                ) {
+                    selection = nil
+                    isChoosingVisibleIssue = false
+                    isChoosingDifferentIssue = false
+                    isChoosingCouldNotVerify = true
+                    errorMessage = nil
                 }
             }
 
-            if isRecheck {
+            if isRecheck && !isChoosingCouldNotVerify {
                 WorklightCard {
                     TextField("Optional note", text: $recheckNote, axis: .vertical)
                         .lineLimit(3...6)

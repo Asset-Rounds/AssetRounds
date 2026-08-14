@@ -431,15 +431,14 @@ final class FinalizationRecoveryService {
 
     private func validOriginalRecheck(_ payload: FinalizationPayloadV1) -> Bool {
         let record = payload.workflowRecordAfter
+        let isCouldNotVerify = record.outcomeKey == "could_not_verify"
         guard let transition = payload.issueTransition,
               let issueID = record.issueID,
               record.parentRecordID != nil,
               record.outcomeKey == "resolved"
                 || record.outcomeKey == "issue_still_visible"
-                || record.outcomeKey == "original_resolved_different_issue",
-              record.couldNotVerifyKey == nil,
-              record.couldNotVerifyDisplaySnapshot == nil,
-              record.couldNotVerifyRegistryVersion == nil,
+                || record.outcomeKey == "original_resolved_different_issue"
+                || isCouldNotVerify,
               record.note.map({
                   $0 == $0.trimmingCharacters(in: .whitespacesAndNewlines)
                     && (1...1_000).contains($0.count)
@@ -458,7 +457,26 @@ final class FinalizationRecoveryService {
                 == transition.after.labelDisplaySnapshot,
               transition.before.createdAt == transition.after.createdAt,
               transition.before.status == IssueStatus.recheckDue.rawValue,
-              transition.before.resolvedByRecordID == nil,
+              transition.before.resolvedByRecordID == nil else {
+            return false
+        }
+        if isCouldNotVerify {
+            guard payload.issueInsert == nil,
+                  transition.after == transition.before,
+                  record.couldNotVerifyRegistryVersion
+                    == "cnv.reason.en-US.v1",
+                  let key = record.couldNotVerifyKey,
+                  let display = record.couldNotVerifyDisplaySnapshot,
+                  couldNotVerifyEntries.contains(where: {
+                      $0.key == key && $0.display == display
+                  }) else {
+                return false
+            }
+            return true
+        }
+        guard record.couldNotVerifyKey == nil,
+              record.couldNotVerifyDisplaySnapshot == nil,
+              record.couldNotVerifyRegistryVersion == nil,
               transition.after.updatedAt == record.completedAt else {
             return false
         }
@@ -694,6 +712,20 @@ final class FinalizationRecoveryService {
         payload: FinalizationPayloadV1
     ) throws {
         let after = payload.workflowRecordAfter
+        let isCouldNotVerify = after.outcomeKey == "could_not_verify"
+        let expectedCouldNotVerify = isCouldNotVerify
+            ? after.couldNotVerifyKey.flatMap { key in
+                guard let display = after.couldNotVerifyDisplaySnapshot,
+                      let version = after.couldNotVerifyRegistryVersion else {
+                    return nil
+                }
+                return CouldNotVerifySnapshotV1(
+                    display: display,
+                    key: key,
+                    registryVersion: version
+                )
+            }
+            : nil
         guard payload.packetBefore == nil,
               let transition = payload.issueTransition,
               let report = payload.reportInsert,
@@ -721,7 +753,8 @@ final class FinalizationRecoveryService {
               snapshot.display.checkSingular == SignPack.illuminatedSignV1.nouns.check.singular,
               snapshot.display.issueSingular == SignPack.illuminatedSignV1.nouns.issue.singular,
               snapshot.disclaimer == SignPack.illuminatedSignV1.disclaimer,
-              snapshot.couldNotVerify == nil else {
+              snapshot.couldNotVerify == expectedCouldNotVerify,
+              !isCouldNotVerify || expectedCouldNotVerify != nil else {
             throw FinalizationRecoveryServiceError.inconsistent
         }
         let assets = try modelContext.fetch(FetchDescriptor<Asset>()).filter {
@@ -797,18 +830,35 @@ final class FinalizationRecoveryService {
             current = child
         }
         let issueOriginals = originals.filter { $0.issueID == issue.id }
+        let workRecords = chain.filter {
+            $0.stage == WorkflowStage.work.rawValue
+        }
+        let recordsAfterWork = workRecords.first.flatMap { work in
+            chain.firstIndex(where: { $0 === work }).map { index in
+                Array(chain.dropFirst(index + 1))
+            }
+        } ?? []
         guard current === parents[0],
-              current.stage == WorkflowStage.work.rawValue,
-              current.outcomeKey == "work_recorded",
-              canonicalOptionalDateEqual(current.completedAt, transition.before.updatedAt),
+              workRecords.count == 1,
+              canonicalOptionalDateEqual(
+                workRecords[0].completedAt,
+                transition.before.updatedAt
+              ),
+              recordsAfterWork.allSatisfy({ record in
+                  record.stage == WorkflowStage.recheck.rawValue
+                    && record.outcomeKey == "could_not_verify"
+                    && recoveryCouldNotVerify(record) != nil
+              }),
               Set(issueOriginals.map(\.id)) == Set(chain.map(\.id)) else {
             throw FinalizationRecoveryServiceError.inconsistent
         }
         let completedAt = try requiredDate(after.completedAt)
-        let expectedAfterStatus = after.outcomeKey == "resolved"
+        let expectedAfterStatus = isCouldNotVerify
+            ? IssueStatus.recheckDue.rawValue
+            : (after.outcomeKey == "resolved"
                 || after.outcomeKey == "original_resolved_different_issue"
-            ? IssueStatus.resolved.rawValue
-            : IssueStatus.open.rawValue
+                ? IssueStatus.resolved.rawValue
+                : IssueStatus.open.rawValue)
         var expectedIssuePayloads = [transition.after]
         if let insertedIssue = payload.issueInsert {
             expectedIssuePayloads.append(insertedIssue)
@@ -825,7 +875,9 @@ final class FinalizationRecoveryService {
               transition.after.resolvedByRecordID
                 == (expectedAfterStatus == IssueStatus.resolved.rawValue
                     ? after.id : nil),
-              canonicalDateEqual(transition.after.updatedAt, completedAt),
+              (isCouldNotVerify
+                ? transition.after == transition.before
+                : canonicalDateEqual(transition.after.updatedAt, completedAt)),
               snapshot.issues.count == expectedIssuePayloads.count,
               zip(snapshot.issues, expectedIssuePayloads).allSatisfy({ value, expected in
                   issueSnapshot(value, matches: expected)
@@ -855,7 +907,10 @@ final class FinalizationRecoveryService {
         let allEvidence = try modelContext.fetch(FetchDescriptor<EvidenceFile>())
         let currentRows = allEvidence.filter { $0.recordID == after.id }
             .sorted { evidenceOrder($0.purposeKey) < evidenceOrder($1.purposeKey) }
-        guard validEvidenceCardinality(currentRows, cnv: false) else {
+        guard validEvidenceCardinality(
+            currentRows,
+            cnv: isCouldNotVerify
+        ) else {
             throw FinalizationRecoveryServiceError.inconsistent
         }
         var orderedRows = currentRows

@@ -9,6 +9,35 @@ struct RecheckOutcomeRuleInput: Equatable, Sendable {
     let completedAt: Date
     let mutationID: UUID
     let packetID: UUID
+    let couldNotVerify: RecheckCouldNotVerifySelection?
+
+    init(
+        draft: WorkflowRecordPayloadV1,
+        parent: WorkflowRecordPayloadV1,
+        issue: IssuePayloadV1,
+        outcomeKey: String,
+        note: String?,
+        completedAt: Date,
+        mutationID: UUID,
+        packetID: UUID,
+        couldNotVerify: RecheckCouldNotVerifySelection? = nil
+    ) {
+        self.draft = draft
+        self.parent = parent
+        self.issue = issue
+        self.outcomeKey = outcomeKey
+        self.note = note
+        self.completedAt = completedAt
+        self.mutationID = mutationID
+        self.packetID = packetID
+        self.couldNotVerify = couldNotVerify
+    }
+}
+
+struct RecheckCouldNotVerifySelection: Equatable, Sendable {
+    let key: String
+    let display: String
+    let registryVersion: String
 }
 
 struct RecheckOutcomeRulePlan: Equatable, Sendable {
@@ -40,7 +69,7 @@ enum RecheckOutcomeRule {
     static func makePlan(
         _ input: RecheckOutcomeRuleInput
     ) throws -> RecheckOutcomeRulePlan {
-        guard validDraft(input.draft) else {
+        guard validDraft(input.draft, outcomeKey: input.outcomeKey) else {
             throw RecheckOutcomeRuleError.invalidDraft
         }
         guard validParent(input.parent, draft: input.draft) else {
@@ -49,8 +78,19 @@ enum RecheckOutcomeRule {
         guard validIssue(input.issue, draft: input.draft, parent: input.parent) else {
             throw RecheckOutcomeRuleError.invalidIssue
         }
+        let isCouldNotVerify = input.outcomeKey == "could_not_verify"
         guard input.outcomeKey == "resolved"
-                || input.outcomeKey == "issue_still_visible" else {
+                || input.outcomeKey == "issue_still_visible"
+                || isCouldNotVerify else {
+            throw RecheckOutcomeRuleError.invalidOutcome
+        }
+        if isCouldNotVerify {
+            guard let selection = input.couldNotVerify,
+                  selection.registryVersion == "cnv.reason.en-US.v1",
+                  couldNotVerifyDisplays[selection.key] == selection.display else {
+                throw RecheckOutcomeRuleError.invalidOutcome
+            }
+        } else if input.couldNotVerify != nil {
             throw RecheckOutcomeRuleError.invalidOutcome
         }
 
@@ -108,27 +148,32 @@ enum RecheckOutcomeRule {
             pdfTemplateID: pdfTemplateID,
             pdfTemplateVersion: 1,
             outcomeKey: input.outcomeKey,
-            couldNotVerifyKey: nil,
-            couldNotVerifyDisplaySnapshot: nil,
-            couldNotVerifyRegistryVersion: nil,
+            couldNotVerifyKey: input.couldNotVerify?.key,
+            couldNotVerifyDisplaySnapshot: input.couldNotVerify?.display,
+            couldNotVerifyRegistryVersion: input.couldNotVerify?.registryVersion,
             workPerformedLocalDate: nil,
             workDescription: nil,
             note: normalizedNote,
             finalizationMutationID: input.mutationID
         )
-        let resolves = input.outcomeKey == "resolved"
-        let issueAfter = IssuePayloadV1(
-            id: input.issue.id,
-            schemaVersion: 1,
-            assetID: input.issue.assetID,
-            openedByRecordID: input.issue.openedByRecordID,
-            labelKey: input.issue.labelKey,
-            labelDisplaySnapshot: input.issue.labelDisplaySnapshot,
-            status: resolves ? IssueStatus.resolved.rawValue : IssueStatus.open.rawValue,
-            resolvedByRecordID: resolves ? input.draft.id : nil,
-            createdAt: input.issue.createdAt,
-            updatedAt: input.completedAt
-        )
+        let issueAfter: IssuePayloadV1
+        if isCouldNotVerify {
+            issueAfter = input.issue
+        } else {
+            let resolves = input.outcomeKey == "resolved"
+            issueAfter = IssuePayloadV1(
+                id: input.issue.id,
+                schemaVersion: 1,
+                assetID: input.issue.assetID,
+                openedByRecordID: input.issue.openedByRecordID,
+                labelKey: input.issue.labelKey,
+                labelDisplaySnapshot: input.issue.labelDisplaySnapshot,
+                status: resolves ? IssueStatus.resolved.rawValue : IssueStatus.open.rawValue,
+                resolvedByRecordID: resolves ? input.draft.id : nil,
+                createdAt: input.issue.createdAt,
+                updatedAt: input.completedAt
+            )
+        }
         return RecheckOutcomeRulePlan(
             recordAfter: recordAfter,
             issueBefore: input.issue,
@@ -136,7 +181,10 @@ enum RecheckOutcomeRule {
         )
     }
 
-    private static func validDraft(_ draft: WorkflowRecordPayloadV1) -> Bool {
+    private static func validDraft(
+        _ draft: WorkflowRecordPayloadV1,
+        outcomeKey: String
+    ) -> Bool {
         draft.schemaVersion == 1
             && draft.packetID == nil
             && draft.issueID != nil
@@ -147,7 +195,13 @@ enum RecheckOutcomeRule {
             && draft.revisionKind == WorkflowRevisionKind.original.rawValue
             && draft.stage == WorkflowStage.recheck.rawValue
             && draft.state == WorkflowState.draft.rawValue
-            && draft.draftStepKey == WorkflowDraftStep.outcome.rawValue
+            && (outcomeKey == "could_not_verify"
+                ? [
+                    WorkflowDraftStep.wide.rawValue,
+                    WorkflowDraftStep.close.rawValue,
+                    WorkflowDraftStep.outcome.rawValue,
+                  ].contains(draft.draftStepKey ?? "")
+                : draft.draftStepKey == WorkflowDraftStep.outcome.rawValue)
             && draft.completedAt == nil
             && draft.observedAtUTC == draft.startedAt
             && validTimeContext(draft)
@@ -239,7 +293,11 @@ enum RecheckOutcomeRule {
             && issue.status == IssueStatus.recheckDue.rawValue
             && issue.resolvedByRecordID == nil
             && issue.updatedAt >= issue.createdAt
-            && issue.updatedAt == parent.completedAt
+            && (parent.stage == WorkflowStage.work.rawValue
+                ? issue.updatedAt == parent.completedAt
+                : (parent.stage == WorkflowStage.recheck.rawValue
+                    && parent.outcomeKey == "could_not_verify"
+                    && parent.completedAt.map({ issue.updatedAt <= $0 }) == true))
     }
 
     private static func validTimeContext(_ record: WorkflowRecordPayloadV1) -> Bool {

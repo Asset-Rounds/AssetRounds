@@ -558,7 +558,7 @@ final class WorkCoordinator {
         }
         let externalOpeningCount = opening.issueID == issue.id ? 0 : 1
         guard visited.count == substantive.count + externalOpeningCount,
-              validStatus(issue, terminal: current) else {
+              validStatus(issue, terminal: current, chain: chain) else {
             throw WorkCoordinatorError.invalidAuthority
         }
         for record in chain where record.stage != WorkflowStage.work.rawValue {
@@ -1120,7 +1120,11 @@ final class WorkCoordinator {
         return false
     }
 
-    private func validStatus(_ issue: Issue, terminal: WorkflowRecord) -> Bool {
+    private func validStatus(
+        _ issue: Issue,
+        terminal: WorkflowRecord,
+        chain: [WorkflowRecord]
+    ) -> Bool {
         switch issue.status {
         case IssueStatus.open.rawValue:
             let ordinaryOpening = terminal.stage == WorkflowStage.check.rawValue
@@ -1133,9 +1137,22 @@ final class WorkCoordinator {
             return (ordinaryOpening || differentIssueOpening)
                 && terminal.completedAt == issue.updatedAt
         case IssueStatus.recheckDue.rawValue:
-            return terminal.stage == WorkflowStage.work.rawValue
-                && terminal.outcomeKey == "work_recorded"
-                && terminal.completedAt == issue.updatedAt
+            let workRecords = chain.filter {
+                $0.stage == WorkflowStage.work.rawValue
+            }
+            let recordsAfterWork = workRecords.first.flatMap { work in
+                chain.firstIndex(where: { $0 === work }).map { index in
+                    Array(chain.dropFirst(index + 1))
+                }
+            } ?? []
+            return workRecords.count == 1
+                && workRecords[0].completedAt == issue.updatedAt
+                && chain.last.map({ $0 === terminal }) == true
+                && recordsAfterWork.allSatisfy({ record in
+                    record.stage == WorkflowStage.recheck.rawValue
+                        && record.outcomeKey == "could_not_verify"
+                        && validCouldNotVerify(record)
+                })
         default:
             return false
         }
