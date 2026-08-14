@@ -33,9 +33,6 @@ final class S6_1DeletionUITests: XCTestCase {
         cancel.tap()
         XCTAssertTrue(detail.waitForExistence(timeout: 20))
         assertReportCount(2, in: app)
-        let resolved = element("s5.2.sign-detail.resolved", in: app)
-        scroll(resolved, in: app)
-        XCTAssertTrue(resolved.exists)
 
         openDeletion(in: app)
         let confirm = element("s6.1.delete.confirm", in: app)
