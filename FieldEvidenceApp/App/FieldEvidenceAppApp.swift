@@ -283,22 +283,22 @@ private struct ReadyAppView: View {
                 coordinator: coordinator,
                 diagnosticsStore: diagnosticsStore,
                 applicationSupportURL: applicationSupportURL,
-                onBegin: {
+                onBegin: { [router, coordinator] in
                     router.beginEraseBlocking(coordinator: coordinator)
                 },
-                onActivate: { session in
+                onActivate: { [router, coordinator] session in
                     await router.beginErasedSessionActivation(
                         session,
                         coordinator: coordinator
                     )
                 },
-                onFinished: { session in
+                onFinished: { [router, coordinator] session in
                     await router.finishErasedSessionActivation(
                         session,
                         coordinator: coordinator
                     )
                 },
-                onFailure: {
+                onFailure: { [router] in
                     router.failClosedErase()
                 }
             )
@@ -348,24 +348,24 @@ private struct MaintenanceRestoreHost: View {
                     coordinator: eraseCoordinator,
                     diagnosticsStore: router.maintenanceDiagnosticsStore,
                     applicationSupportURL: applicationSupportURL,
-                    onBegin: {
+                    onBegin: { [router, eraseCoordinator] in
                         router.beginEraseBlocking(
                             coordinator: eraseCoordinator
                         )
                     },
-                    onActivate: { session in
+                    onActivate: { [router, eraseCoordinator] session in
                         await router.beginErasedSessionActivation(
                             session,
                             coordinator: eraseCoordinator
                         )
                     },
-                    onFinished: { session in
+                    onFinished: { [router, eraseCoordinator] session in
                         await router.finishErasedSessionActivation(
                             session,
                             coordinator: eraseCoordinator
                         )
                     },
-                    onFailure: {
+                    onFailure: { [router] in
                         router.failClosedErase()
                     }
                 )
