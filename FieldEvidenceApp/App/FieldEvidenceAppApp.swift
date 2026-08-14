@@ -16,15 +16,19 @@ struct FieldEvidenceAppApp: App {
         "--s3-6-ui-test-camera-denied-once"
     private static let reportRenderFailureOnceLaunchArgument =
         "--s4-2-ui-test-render-failure-once"
+    private static let emptyRestoreUITestLaunchArgument =
+        "--s6-4-ui-test-empty-restore"
 
     @StateObject private var startupRouter: StartupRouter
 
+    private let applicationSupportURL: URL
     private let packLoadResult: SignPackLoadResult
     private let preferredColorScheme: ColorScheme?
     private let exposesColorSchemeForUITest: Bool
     private let usesImportedCaptureFixturesForUITest: Bool
     private let injectsLowStorageFailureOnceForUITest: Bool
     private let cameraAdapter: CameraAdapter
+    private let selectedRestorePackageForUITest: URL?
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -32,6 +36,35 @@ struct FieldEvidenceAppApp: App {
             for: .applicationSupportDirectory,
             in: .userDomainMask
         )[0]
+        self.applicationSupportURL = applicationSupportURL
+        if arguments.contains(Self.emptyRestoreUITestLaunchArgument) {
+            for name in [
+                "FieldEvidenceData",
+                "FieldEvidenceRestore",
+                "FieldEvidenceOperations",
+            ] {
+                let url = applicationSupportURL.appendingPathComponent(
+                    name,
+                    isDirectory: true
+                )
+                if FileManager.default.fileExists(atPath: url.path) {
+                    try? FileManager.default.removeItem(at: url)
+                }
+            }
+            let sourceDirectory = applicationSupportURL.appendingPathComponent(
+                "S6_4UITestSource",
+                isDirectory: true
+            )
+            let packages = (try? FileManager.default.contentsOfDirectory(
+                at: sourceDirectory,
+                includingPropertiesForKeys: nil
+            ))?.filter { $0.pathExtension == "fieldrecordbackup" } ?? []
+            selectedRestorePackageForUITest = packages.count == 1
+                ? packages[0]
+                : nil
+        } else {
+            selectedRestorePackageForUITest = nil
+        }
         _startupRouter = StateObject(
             wrappedValue: StartupRouter(
                 applicationSupportURL: applicationSupportURL,
@@ -97,7 +130,9 @@ struct FieldEvidenceAppApp: App {
                 usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
                 injectsLowStorageFailureOnceForUITest:
                     injectsLowStorageFailureOnceForUITest,
-                cameraAdapter: cameraAdapter
+                cameraAdapter: cameraAdapter,
+                applicationSupportURL: applicationSupportURL,
+                selectedRestorePackageForUITest: selectedRestorePackageForUITest
             )
             .preferredColorScheme(preferredColorScheme)
         }
@@ -112,6 +147,8 @@ private struct StartupRootView: View {
     let usesImportedCaptureFixturesForUITest: Bool
     let injectsLowStorageFailureOnceForUITest: Bool
     let cameraAdapter: CameraAdapter
+    let applicationSupportURL: URL
+    let selectedRestorePackageForUITest: URL?
 
     var body: some View {
         Group {
@@ -126,9 +163,12 @@ private struct StartupRootView: View {
                     .accessibilityIdentifier("s2.startup.checking")
 
             case let .maintenance(reason):
-                StartupMaintenanceView(reason: reason) {
-                    Task { await router.retryChecks() }
-                }
+                MaintenanceRestoreHost(
+                    router: router,
+                    reason: reason,
+                    session: router.maintenanceRestoreSession,
+                    applicationSupportURL: applicationSupportURL
+                )
 
             case let .ready(coordinator, diagnosticsStore, reportRecoveryService):
                 ReadyAppView(
@@ -143,7 +183,11 @@ private struct StartupRootView: View {
                     usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
                     injectsLowStorageFailureOnceForUITest:
                         injectsLowStorageFailureOnceForUITest,
-                    cameraAdapter: cameraAdapter
+                    cameraAdapter: cameraAdapter,
+                    applicationSupportURL: applicationSupportURL,
+                    router: router,
+                    selectedRestorePackageForUITest:
+                        selectedRestorePackageForUITest
                 )
             }
         }
@@ -164,6 +208,11 @@ private struct ReadyAppView: View {
     let usesImportedCaptureFixturesForUITest: Bool
     let injectsLowStorageFailureOnceForUITest: Bool
     let cameraAdapter: CameraAdapter
+    let applicationSupportURL: URL
+    @ObservedObject var router: StartupRouter
+    let selectedRestorePackageForUITest: URL?
+
+    @State private var showsRestore = false
 
     var body: some View {
         Group {
@@ -177,7 +226,10 @@ private struct ReadyAppView: View {
                 usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
                 injectsLowStorageFailureOnceForUITest:
                     injectsLowStorageFailureOnceForUITest,
-                cameraAdapter: cameraAdapter
+                cameraAdapter: cameraAdapter,
+                restoreDataBackup: {
+                    showsRestore = true
+                }
             )
             } else {
                 ReportFailureView(
@@ -188,5 +240,59 @@ private struct ReadyAppView: View {
         }
         .id(coordinator.uiGenerationToken)
         .modelContext(coordinator.modelContext)
+        .sheet(isPresented: $showsRestore) {
+            BackupRestoreProgressView(
+                applicationSupportURL: applicationSupportURL,
+                currentModelContext: coordinator.modelContext,
+                currentGenerationID: coordinator.generationID,
+                currentGenerationRootURL: coordinator.generationRootURL,
+                selectedPackageForUITest: selectedRestorePackageForUITest
+            ) { session in
+                await router.activateRestoredSession(
+                    session,
+                    coordinator: coordinator
+                )
+            }
+        }
+    }
+}
+
+private struct MaintenanceRestoreHost: View {
+    @ObservedObject var router: StartupRouter
+
+    let reason: StartupMaintenanceReason
+    let session: StoreGenerationSession?
+    let applicationSupportURL: URL
+
+    @State private var showsRestore = false
+
+    var body: some View {
+        StartupMaintenanceView(
+            reason: reason,
+            retryChecks: {
+                Task { await router.retryChecks() }
+            },
+            restoreDataBackup: restoreAction
+        )
+        .sheet(isPresented: $showsRestore) {
+            if let session {
+                BackupRestoreProgressView(
+                    applicationSupportURL: applicationSupportURL,
+                    currentModelContext: session.modelContext,
+                    currentGenerationID: session.generationID,
+                    currentGenerationRootURL: session.generationRootURL
+                ) { restored in
+                    await router.activateRestoredSession(
+                        restored,
+                        coordinator: nil
+                    )
+                }
+            }
+        }
+    }
+
+    private var restoreAction: (() -> Void)? {
+        guard session != nil else { return nil }
+        return { showsRestore = true }
     }
 }

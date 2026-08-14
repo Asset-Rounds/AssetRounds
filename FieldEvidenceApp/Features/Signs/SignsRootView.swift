@@ -27,6 +27,7 @@ struct SignsRootView: View {
     let modelContext: ModelContext
     let usesImportedCaptureFixturesForUITest: Bool
     let cameraAdapter: CameraAdapter
+    let restoreDataBackup: @MainActor () -> Void
 
     @StateObject private var coordinator: FirstSignCoordinator
     private let checkRunnerCoordinator: CheckRunnerCoordinator
@@ -50,13 +51,15 @@ struct SignsRootView: View {
         generationRootURL: URL,
         usesImportedCaptureFixturesForUITest: Bool = false,
         injectsLowStorageFailureOnceForUITest: Bool = false,
-        cameraAdapter: CameraAdapter = .live
+        cameraAdapter: CameraAdapter = .live,
+        restoreDataBackup: @escaping @MainActor () -> Void = {}
     ) {
         self.pack = pack
         self.generationRootURL = generationRootURL
         self.modelContext = modelContext
         self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
         self.cameraAdapter = cameraAdapter
+        self.restoreDataBackup = restoreDataBackup
         _coordinator = StateObject(
             wrappedValue: FirstSignCoordinator(
                 modelContext: modelContext,
@@ -455,10 +458,8 @@ struct SignsRootView: View {
                 .accessibilityIdentifier(Self.viewSampleAccessibilityIdentifier)
 
                 WorklightCard {
-                    Button("Restore data backup") {}
+                    Button("Restore data backup", action: restoreDataBackup)
                         .buttonStyle(WorklightSecondaryButtonStyle())
-                        .disabled(true)
-                        .accessibilityHint("Unavailable in this version")
                         .accessibilityIdentifier(Self.restoreDataAccessibilityIdentifier)
 
                     Button("Restore Purchases") {}

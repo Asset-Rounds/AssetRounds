@@ -11,11 +11,23 @@ struct StartupMaintenanceView: View {
     static let retryAccessibilityIdentifier = "s2.maintenance.retry"
     static let recoveryButtonAccessibilityIdentifier = "s2.maintenance.recovery.button"
     static let recoveryTextAccessibilityIdentifier = "s2.maintenance.recovery.text"
+    static let restoreAccessibilityIdentifier = "s6.4.maintenance.restore-data-backup"
 
     let reason: StartupMaintenanceReason
     let retryChecks: () -> Void
+    let restoreDataBackup: (() -> Void)?
 
     @State private var showsRecoverySteps = false
+
+    init(
+        reason: StartupMaintenanceReason,
+        retryChecks: @escaping () -> Void,
+        restoreDataBackup: (() -> Void)? = nil
+    ) {
+        self.reason = reason
+        self.retryChecks = retryChecks
+        self.restoreDataBackup = restoreDataBackup
+    }
 
     var body: some View {
         ScrollView {
@@ -37,6 +49,12 @@ struct StartupMaintenanceView: View {
                 }
                 .buttonStyle(WorklightPrimaryButtonStyle())
                 .accessibilityIdentifier(Self.retryAccessibilityIdentifier)
+
+                if let restoreDataBackup {
+                    Button("Restore data backup", action: restoreDataBackup)
+                        .buttonStyle(WorklightSecondaryButtonStyle())
+                        .accessibilityIdentifier(Self.restoreAccessibilityIdentifier)
+                }
 
                 Button {
                     showsRecoverySteps.toggle()

@@ -26,6 +26,7 @@ struct AppShellView: View {
     let usesImportedCaptureFixturesForUITest: Bool
     let injectsLowStorageFailureOnceForUITest: Bool
     let cameraAdapter: CameraAdapter
+    let restoreDataBackup: @MainActor () -> Void
 
     @State private var selectedTab: Tab = .signs
 
@@ -37,7 +38,8 @@ struct AppShellView: View {
         generationRootURL: URL,
         usesImportedCaptureFixturesForUITest: Bool = false,
         injectsLowStorageFailureOnceForUITest: Bool = false,
-        cameraAdapter: CameraAdapter = .live
+        cameraAdapter: CameraAdapter = .live,
+        restoreDataBackup: @escaping @MainActor () -> Void = {}
     ) {
         self.packLoadResult = packLoadResult
         self.exposesColorSchemeForUITest = exposesColorSchemeForUITest
@@ -48,15 +50,19 @@ struct AppShellView: View {
         self.injectsLowStorageFailureOnceForUITest =
             injectsLowStorageFailureOnceForUITest
         self.cameraAdapter = cameraAdapter
+        self.restoreDataBackup = restoreDataBackup
     }
 
     var body: some View {
-        if ProcessInfo.processInfo.arguments.contains(
-            "--s6-3-ui-test-validation-summary"
-        ) {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--s6-3-ui-test-validation-summary")
+            || arguments.contains("--s6-4-ui-test-export-source") {
             S6_3BackupValidationUITestHost(
                 modelContext: modelContext,
-                generationRootURL: generationRootURL
+                generationRootURL: generationRootURL,
+                keepsPackageForRestoreUITest: arguments.contains(
+                    "--s6-4-ui-test-export-source"
+                )
             )
         } else {
             switch packLoadResult {
@@ -79,7 +85,8 @@ struct AppShellView: View {
                 usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
                 injectsLowStorageFailureOnceForUITest:
                     injectsLowStorageFailureOnceForUITest,
-                cameraAdapter: cameraAdapter
+                cameraAdapter: cameraAdapter,
+                restoreDataBackup: restoreDataBackup
             )
             .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
             .accessibilityValue(
@@ -139,6 +146,7 @@ struct AppShellView: View {
 private struct S6_3BackupValidationUITestHost: View {
     let modelContext: ModelContext
     let generationRootURL: URL
+    let keepsPackageForRestoreUITest: Bool
 
     @State private var summary: BackupValidationSummaryV1?
     @State private var didStart = false
@@ -164,10 +172,20 @@ private struct S6_3BackupValidationUITestHost: View {
     private func loadValidatedSummary() {
         do {
             let fileManager = FileManager.default
-            let destination = fileManager.temporaryDirectory.appendingPathComponent(
-                "S6_3BackupValidationUITest",
-                isDirectory: true
-            )
+            let destination: URL
+            if keepsPackageForRestoreUITest {
+                destination = try BackupRestoreService.applicationSupportURL(
+                    containing: generationRootURL
+                ).appendingPathComponent(
+                    "S6_4UITestSource",
+                    isDirectory: true
+                )
+            } else {
+                destination = fileManager.temporaryDirectory.appendingPathComponent(
+                    "S6_3BackupValidationUITest",
+                    isDirectory: true
+                )
+            }
             if fileManager.fileExists(atPath: destination.path) {
                 try fileManager.removeItem(at: destination)
             }

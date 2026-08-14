@@ -34,6 +34,7 @@ final class StartupRouter: ObservableObject {
     }
 
     @Published private(set) var route: Route = .checking
+    private(set) var maintenanceRestoreSession: StoreGenerationSession?
 
     private let applicationSupportURL: URL
     private let generationFactory: StoreGenerationFactory
@@ -81,8 +82,10 @@ final class StartupRouter: ObservableObject {
         }
 
         isRunning = true
+        maintenanceRestoreSession = nil
         route = .checking
         defer { isRunning = false }
+        var openedSession: StoreGenerationSession?
 
         do {
             didBeginStep(.erase)
@@ -95,16 +98,18 @@ final class StartupRouter: ObservableObject {
             )
 
             didBeginStep(.restore)
-            try requireNoPendingJournal(
-                in: applicationSupportURL.appendingPathComponent(
-                    "FieldEvidenceRestore",
-                    isDirectory: true
-                ),
-                reason: .restoreInconsistent
-            )
+            do {
+                _ = try BackupRestoreService(
+                    applicationSupportURL: applicationSupportURL,
+                    fileManager: fileManager
+                ).reconcileAtStartup()
+            } catch {
+                throw StartupMaintenanceReason.restoreInconsistent
+            }
 
             didBeginStep(.currentOpen)
             let session = try openCurrentGeneration()
+            openedSession = session
 
             didBeginStep(.finalization)
             do {
@@ -177,8 +182,12 @@ final class StartupRouter: ObservableObject {
                 reportRecoveryService
             )
         } catch let reason as StartupMaintenanceReason {
+            maintenanceRestoreSession = openedSession.flatMap {
+                eligibleMaintenanceSession($0)
+            }
             route = .maintenance(reason)
         } catch {
+            maintenanceRestoreSession = nil
             route = .maintenance(.dataPointerInvalid)
         }
     }
@@ -186,7 +195,83 @@ final class StartupRouter: ObservableObject {
     /// Unsafe explicit PDF recovery failures are not retryable delivery
     /// failures. They enter the existing closed maintenance surface directly.
     func failClosedPDFRecovery() {
+        maintenanceRestoreSession = nil
         route = .maintenance(.finalizationInconsistent)
+    }
+
+    func activateRestoredSession(
+        _ session: StoreGenerationSession,
+        coordinator: StoreSessionCoordinator?
+    ) async {
+        guard !isRunning else { return }
+        isRunning = true
+        maintenanceRestoreSession = nil
+        route = .checking
+        defer { isRunning = false }
+
+        do {
+            guard try generationFactory.currentGenerationID() == session.generationID
+            else {
+                throw StartupMaintenanceReason.restoreInconsistent
+            }
+            let activeCoordinator: StoreSessionCoordinator
+            if let coordinator {
+                coordinator.activate(session: session)
+                activeCoordinator = coordinator
+            } else {
+                activeCoordinator = StoreSessionCoordinator(session: session)
+            }
+
+            do {
+                _ = try await FinalizationRecoveryService(
+                    modelContext: session.modelContext,
+                    generationRootURL: session.generationRootURL
+                ).reconcile()
+                _ = try await WholeSignDeletionService(
+                    modelContext: session.modelContext,
+                    generationRootURL: session.generationRootURL,
+                    fileManager: fileManager
+                ).reconcile()
+                let authorities = try session.modelContext.fetch(
+                    FetchDescriptor<EvidenceFile>()
+                ).map {
+                    EvidenceBundleAuthority(
+                        schemaVersion: $0.schemaVersion,
+                        id: $0.id,
+                        recordID: $0.recordID,
+                        purposeKey: $0.purposeKey,
+                        relativePath: $0.relativePath,
+                        mimeType: $0.mimeType,
+                        byteCount: $0.byteCount,
+                        sha256: $0.sha256,
+                        thumbnailRelativePath: $0.thumbnailRelativePath,
+                        thumbnailByteCount: $0.thumbnailByteCount,
+                        thumbnailSHA256: $0.thumbnailSHA256
+                    )
+                }
+                try await EvidenceBundleStore(
+                    generationRootURL: session.generationRootURL,
+                    fileManager: fileManager
+                ).reconcile(authorities: authorities)
+                let recovery = try ReportRecoveryService(
+                    modelContext: session.modelContext,
+                    generationRootURL: session.generationRootURL,
+                    fileManager: fileManager,
+                    launchAttemptRegistry: reportLaunchAttemptRegistry
+                )
+                try recovery.reconcileAtStartup()
+                await diagnosticsStore.prepare()
+                route = .ready(activeCoordinator, diagnosticsStore, recovery)
+            } catch {
+                throw StartupMaintenanceReason.restoreInconsistent
+            }
+        } catch let reason as StartupMaintenanceReason {
+            maintenanceRestoreSession = eligibleMaintenanceSession(session)
+            route = .maintenance(reason)
+        } catch {
+            maintenanceRestoreSession = nil
+            route = .maintenance(.restoreInconsistent)
+        }
     }
 
     private func openCurrentGeneration() throws -> StoreGenerationSession {
@@ -230,5 +315,29 @@ final class StartupRouter: ObservableObject {
         guard entries.isEmpty else {
             throw reason
         }
+    }
+
+    private func eligibleMaintenanceSession(
+        _ session: StoreGenerationSession
+    ) -> StoreGenerationSession? {
+        guard BackupRestoreService.isEmptyCurrent(session.modelContext),
+              (try? generationFactory.currentGenerationID()) == session.generationID,
+              noActiveJournal(
+                at: applicationSupportURL.appendingPathComponent(
+                    "FieldEvidenceRestore/restore.json"
+                )
+              ),
+              noActiveJournal(
+                at: applicationSupportURL.appendingPathComponent(
+                    "FieldEvidenceErase/erase.json"
+                )
+              ) else {
+            return nil
+        }
+        return session
+    }
+
+    private func noActiveJournal(at url: URL) -> Bool {
+        !fileManager.fileExists(atPath: url.path)
     }
 }
