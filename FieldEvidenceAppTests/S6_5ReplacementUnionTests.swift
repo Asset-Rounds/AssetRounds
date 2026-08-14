@@ -329,7 +329,13 @@ final class S6_5ReplacementUnionTests: XCTestCase {
                 applicationSupportURL: current.support,
                 now: { self.replacementAt }
             )
-            let recovered = try recovery.reconcileAtStartup()
+            let recovered: StoreGenerationSession?
+            do {
+                recovered = try recovery.reconcileAtStartup()
+            } catch {
+                XCTFail("Recovery failed at \(value.point): \(error)")
+                continue
+            }
             let active = try current.factory.openOrBootstrapCurrent()
             if value.keepsOld {
                 XCTAssertNil(recovered)

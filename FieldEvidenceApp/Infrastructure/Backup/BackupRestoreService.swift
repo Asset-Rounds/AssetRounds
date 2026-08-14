@@ -959,7 +959,11 @@ private extension BackupRestoreService {
         records: V4BackupRecordsV1
     ) throws {
         let expected = expectedGenerationTree(records: records)
-        guard tree.directories == expected.directories,
+        let allowedDirectories = expected.directories.union(
+            allowedEmptyStagingDirectories
+        )
+        guard expected.directories.isSubset(of: tree.directories),
+              tree.directories.isSubset(of: allowedDirectories),
               expected.files.isSubset(of: tree.files),
               tree.files.isSubset(of: expected.files.union(expected.optionalFiles)) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
@@ -974,7 +978,9 @@ private extension BackupRestoreService {
         let frozenRecords = try records(in: session.modelContext)
         let tree = try generationAuthority.installedTree(id: id)
         let expected = expectedGenerationTree(records: frozenRecords)
-        guard tree.directories.isSubset(of: expected.directories),
+        guard tree.directories.isSubset(
+                  of: expected.directories.union(allowedEmptyStagingDirectories)
+              ),
               tree.files.isSubset(of: expected.files.union(expected.optionalFiles)) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
@@ -988,7 +994,9 @@ private extension BackupRestoreService {
         let frozenRecords = try records(in: session.modelContext)
         let tree = try generationAuthority.stagingTree(id: id)
         let expected = expectedGenerationTree(records: frozenRecords)
-        guard tree.directories.isSubset(of: expected.directories),
+        guard tree.directories.isSubset(
+                  of: expected.directories.union(allowedEmptyStagingDirectories)
+              ),
               tree.files.isSubset(of: expected.files.union(expected.optionalFiles)) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
@@ -1034,6 +1042,15 @@ private extension BackupRestoreService {
             expectedFiles,
             optionalSQLiteSidecars
         )
+    }
+
+    var allowedEmptyStagingDirectories: Set<String> {
+        [
+            ".staging",
+            ".staging/evidence",
+            ".staging/pdfs",
+            ".staging/snapshots",
+        ]
     }
 
     func validInstalledGeneration(id: UUID) -> StoreGenerationSession? {
