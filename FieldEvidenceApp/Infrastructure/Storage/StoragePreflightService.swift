@@ -114,6 +114,46 @@ struct StoragePreflightService {
         )
     }
 
+    func restoreRequiredBytes(declaredPayloadByteCount: Int64) throws -> Int64 {
+        guard declaredPayloadByteCount >= 0 else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let (stagedAndGenerationBytes, multiplicationOverflow) =
+            declaredPayloadByteCount.multipliedReportingOverflow(by: 2)
+        guard !multiplicationOverflow else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let (roundedDividend, roundingOverflow) = declaredPayloadByteCount
+            .addingReportingOverflow(4)
+        guard !roundingOverflow else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let validationAllowance = roundedDividend / 5
+        let (withValidationAllowance, allowanceOverflow) = stagedAndGenerationBytes
+            .addingReportingOverflow(validationAllowance)
+        guard !allowanceOverflow else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let (requiredBytes, reserveOverflow) = withValidationAllowance
+            .addingReportingOverflow(Self.reserveBytes)
+        guard !reserveOverflow else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        return requiredBytes
+    }
+
+    func checkBackupImport(
+        declaredPayloadByteCount: Int64,
+        onVolumeContaining stagingURL: URL
+    ) throws {
+        try check(
+            requiredBytes: restoreRequiredBytes(
+                declaredPayloadByteCount: declaredPayloadByteCount
+            ),
+            onVolumeContaining: stagingURL
+        )
+    }
+
     private func check(requiredBytes: Int64, onVolumeContaining targetURL: URL) throws {
         guard let availableBytes = try capacityProvider(targetURL) else {
             throw StoragePreflightError.capacityUnavailable

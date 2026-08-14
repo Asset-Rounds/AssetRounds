@@ -45,6 +45,24 @@ struct StoreGenerationFactory {
         self.fileManager = fileManager
     }
 
+    static func backupImportStagingDirectory(
+        containing generationRootURL: URL
+    ) throws -> URL {
+        let root = generationRootURL.standardizedFileURL
+        let generations = root.deletingLastPathComponent()
+        let dataRoot = generations.deletingLastPathComponent()
+        guard root.isFileURL,
+              generations.lastPathComponent == Self.generationsDirectoryName,
+              dataRoot.lastPathComponent == Self.dataDirectoryName,
+              let generationID = UUID(uuidString: root.lastPathComponent),
+              generationID.uuidString.lowercased() == root.lastPathComponent else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return dataRoot.deletingLastPathComponent()
+            .appendingPathComponent("FieldEvidenceRestore", isDirectory: true)
+            .appendingPathComponent("staging", isDirectory: true)
+    }
+
     @MainActor
     func openOrBootstrapCurrent() throws -> StoreGenerationSession {
         let dataRootURL = applicationSupportURL.appendingPathComponent(
