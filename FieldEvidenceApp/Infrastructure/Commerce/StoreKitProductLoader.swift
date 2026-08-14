@@ -104,11 +104,11 @@ private extension StoreKitProductLoader {
     ) -> StoreKitProductContractV1.PeriodUnit {
         guard let value else { return .other }
         switch value {
-        case .day: .day
-        case .week: .week
-        case .month: .month
-        case .year: .year
-        @unknown default: .other
+        case .day: return .day
+        case .week: return .week
+        case .month: return .month
+        case .year: return .year
+        @unknown default: return .other
         }
     }
 }

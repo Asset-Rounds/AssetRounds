@@ -305,10 +305,16 @@ private enum StoreKitRuntimeAdapterV1 {
               let fact = fact(from: status) else {
             return .unverified
         }
+        let finish: (@Sendable () async -> Void)?
+        if shouldFinish {
+            finish = { await transaction.finish() }
+        } else {
+            finish = nil
+        }
         return .verified(VerifiedEntitlementProcessorEventV1(
             fact: fact,
             transactionID: shouldFinish ? transaction.id : nil,
-            finish: shouldFinish ? { await transaction.finish() } : nil
+            finish: finish
         ))
     }
 
@@ -324,7 +330,6 @@ private enum StoreKitRuntimeAdapterV1 {
     ) -> VerifiedEntitlementFactV1? {
         guard case let .verified(transaction) = status.transaction,
               case let .verified(renewal) = status.renewalInfo,
-              status.state == renewal.state,
               transaction.productID == EntitlementReducerV1.productID,
               renewal.currentProductID == EntitlementReducerV1.productID,
               transaction.productType == .autoRenewable,
@@ -353,10 +358,16 @@ private enum StoreKitRuntimeAdapterV1 {
             revocationAt = nil
         } else if status.state == .revoked,
                   let date = transaction.revocationDate {
-            let type = transaction.revocationType
-            state = type == .fullRefund || type == .proratedRefund
-                ? .refunded
-                : .revoked
+            if #available(iOS 26.4, *) {
+                let type = transaction.revocationType
+                state = type == .fullRefund || type == .proratedRefund
+                    ? .refunded
+                    : .revoked
+            } else {
+                state = transaction.revocationReason == nil
+                    ? .revoked
+                    : .refunded
+            }
             graceExpirationAt = nil
             revocationAt = date
         } else {
