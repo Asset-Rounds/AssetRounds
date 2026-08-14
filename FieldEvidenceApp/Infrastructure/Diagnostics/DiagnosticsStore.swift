@@ -139,6 +139,16 @@ actor DiagnosticsStore {
         return counters
     }
 
+    func acceptDescriptorErasedZero() {
+        counters = .zero
+        isPrepared = true
+    }
+
+    func isExactlyZero() -> Bool {
+        prepare()
+        return counters == .zero
+    }
+
     func increment(_ counter: Counter) {
         prepare()
         var candidate = counters

@@ -2,6 +2,21 @@ import Foundation
 import SwiftData
 import SwiftUI
 
+private struct EraseAllAction {
+    let call: @MainActor () -> Void
+}
+
+private struct EraseAllActionKey: EnvironmentKey {
+    static let defaultValue = EraseAllAction(call: {})
+}
+
+private extension EnvironmentValues {
+    var eraseAllAction: EraseAllAction {
+        get { self[EraseAllActionKey.self] }
+        set { self[EraseAllActionKey.self] = newValue }
+    }
+}
+
 struct AppShellView: View {
     static let screenAccessibilityIdentifier = "s1.shell.screen"
     static let signsTabAccessibilityIdentifier = "s1.tab.signs"
@@ -28,6 +43,7 @@ struct AppShellView: View {
     let cameraAdapter: CameraAdapter
     let restoreDataBackup: @MainActor () -> Void
     let replaceDataBackup: @MainActor () -> Void
+    let eraseAll: @MainActor () -> Void
 
     @State private var selectedTab: Tab = .signs
 
@@ -41,7 +57,8 @@ struct AppShellView: View {
         injectsLowStorageFailureOnceForUITest: Bool = false,
         cameraAdapter: CameraAdapter = .live,
         restoreDataBackup: @escaping @MainActor () -> Void = {},
-        replaceDataBackup: @escaping @MainActor () -> Void = {}
+        replaceDataBackup: @escaping @MainActor () -> Void = {},
+        eraseAll: @escaping @MainActor () -> Void = {}
     ) {
         self.packLoadResult = packLoadResult
         self.exposesColorSchemeForUITest = exposesColorSchemeForUITest
@@ -54,6 +71,7 @@ struct AppShellView: View {
         self.cameraAdapter = cameraAdapter
         self.restoreDataBackup = restoreDataBackup
         self.replaceDataBackup = replaceDataBackup
+        self.eraseAll = eraseAll
     }
 
     var body: some View {
@@ -123,6 +141,7 @@ struct AppShellView: View {
         }
         .tint(DesignTokens.Colors.interactionAccent)
         .background(DesignTokens.Colors.canvas)
+        .environment(\.eraseAllAction, EraseAllAction(call: eraseAll))
     }
 
     @ToolbarContentBuilder
@@ -301,6 +320,8 @@ private struct S6_3BackupValidationUITestHost: View {
 }
 
 struct SettingsPlaceholderView: View {
+    @Environment(\.eraseAllAction) private var eraseAllAction
+
     let modelContext: ModelContext
     let generationRootURL: URL
     let restoreDataBackup: @MainActor () -> Void
@@ -338,6 +359,12 @@ struct SettingsPlaceholderView: View {
                     .buttonStyle(WorklightSecondaryButtonStyle())
                     .accessibilityIdentifier(
                         BackupRestoreProgressView.settingsEntryAccessibilityIdentifier
+                    )
+
+                Button("Erase All", action: eraseAllAction.call)
+                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .accessibilityIdentifier(
+                        EraseAllView.settingsEntryAccessibilityIdentifier
                     )
             }
             .padding(DesignTokens.Spacing.medium)

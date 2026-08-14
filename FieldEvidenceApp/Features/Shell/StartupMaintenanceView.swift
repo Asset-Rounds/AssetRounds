@@ -12,21 +12,25 @@ struct StartupMaintenanceView: View {
     static let recoveryButtonAccessibilityIdentifier = "s2.maintenance.recovery.button"
     static let recoveryTextAccessibilityIdentifier = "s2.maintenance.recovery.text"
     static let restoreAccessibilityIdentifier = "s6.4.maintenance.restore-data-backup"
+    static let eraseAccessibilityIdentifier = "s6.6.maintenance.erase-all"
 
     let reason: StartupMaintenanceReason
     let retryChecks: () -> Void
     let restoreDataBackup: (() -> Void)?
+    let eraseAll: (() -> Void)?
 
     @State private var showsRecoverySteps = false
 
     init(
         reason: StartupMaintenanceReason,
         retryChecks: @escaping () -> Void,
-        restoreDataBackup: (() -> Void)? = nil
+        restoreDataBackup: (() -> Void)? = nil,
+        eraseAll: (() -> Void)? = nil
     ) {
         self.reason = reason
         self.retryChecks = retryChecks
         self.restoreDataBackup = restoreDataBackup
+        self.eraseAll = eraseAll
     }
 
     var body: some View {
@@ -54,6 +58,12 @@ struct StartupMaintenanceView: View {
                     Button("Restore data backup", action: restoreDataBackup)
                         .buttonStyle(WorklightSecondaryButtonStyle())
                         .accessibilityIdentifier(Self.restoreAccessibilityIdentifier)
+                }
+
+                if let eraseAll {
+                    Button("Erase All", action: eraseAll)
+                        .buttonStyle(WorklightSecondaryButtonStyle())
+                        .accessibilityIdentifier(Self.eraseAccessibilityIdentifier)
                 }
 
                 Button {

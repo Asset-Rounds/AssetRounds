@@ -176,7 +176,8 @@ private struct StartupRootView: View {
                 MaintenanceRestoreHost(
                     router: router,
                     reason: reason,
-                    session: router.maintenanceRestoreSession,
+                    restoreSession: router.maintenanceRestoreSession,
+                    eraseSession: router.maintenanceEraseSession,
                     applicationSupportURL: applicationSupportURL
                 )
 
@@ -228,6 +229,7 @@ private struct ReadyAppView: View {
     let selectedRestorePackageForUITest: URL?
 
     @State private var restorePresentation: RestorePresentation?
+    @State private var showsEraseAll = false
 
     var body: some View {
         Group {
@@ -247,6 +249,9 @@ private struct ReadyAppView: View {
                 },
                 replaceDataBackup: {
                     restorePresentation = RestorePresentation(mode: .replaceExisting)
+                },
+                eraseAll: {
+                    showsEraseAll = true
                 }
             )
             } else {
@@ -273,6 +278,28 @@ private struct ReadyAppView: View {
                 )
             }
         }
+        .sheet(isPresented: $showsEraseAll) {
+            EraseAllView(
+                coordinator: coordinator,
+                diagnosticsStore: diagnosticsStore,
+                applicationSupportURL: applicationSupportURL,
+                onActivate: { session in
+                    await router.beginErasedSessionActivation(
+                        session,
+                        coordinator: coordinator
+                    )
+                },
+                onFinished: { session in
+                    await router.finishErasedSessionActivation(
+                        session,
+                        coordinator: coordinator
+                    )
+                },
+                onFailure: {
+                    router.failClosedErase()
+                }
+            )
+        }
     }
 }
 
@@ -280,10 +307,13 @@ private struct MaintenanceRestoreHost: View {
     @ObservedObject var router: StartupRouter
 
     let reason: StartupMaintenanceReason
-    let session: StoreGenerationSession?
+    let restoreSession: StoreGenerationSession?
+    let eraseSession: StoreGenerationSession?
     let applicationSupportURL: URL
 
     @State private var showsRestore = false
+    @State private var showsErase = false
+    @State private var eraseCoordinator: StoreSessionCoordinator?
 
     var body: some View {
         StartupMaintenanceView(
@@ -291,15 +321,16 @@ private struct MaintenanceRestoreHost: View {
             retryChecks: {
                 Task { await router.retryChecks() }
             },
-            restoreDataBackup: restoreAction
+            restoreDataBackup: restoreAction,
+            eraseAll: eraseAction
         )
         .sheet(isPresented: $showsRestore) {
-            if let session {
+            if let restoreSession {
                 BackupRestoreProgressView(
                     applicationSupportURL: applicationSupportURL,
-                    currentModelContext: session.modelContext,
-                    currentGenerationID: session.generationID,
-                    currentGenerationRootURL: session.generationRootURL
+                    currentModelContext: restoreSession.modelContext,
+                    currentGenerationID: restoreSession.generationID,
+                    currentGenerationRootURL: restoreSession.generationRootURL
                 ) { restored in
                     await router.activateRestoredSession(
                         restored,
@@ -308,10 +339,42 @@ private struct MaintenanceRestoreHost: View {
                 }
             }
         }
+        .sheet(isPresented: $showsErase) {
+            if let eraseCoordinator {
+                EraseAllView(
+                    coordinator: eraseCoordinator,
+                    diagnosticsStore: router.maintenanceDiagnosticsStore,
+                    applicationSupportURL: applicationSupportURL,
+                    onActivate: { session in
+                        await router.beginErasedSessionActivation(
+                            session,
+                            coordinator: eraseCoordinator
+                        )
+                    },
+                    onFinished: { session in
+                        await router.finishErasedSessionActivation(
+                            session,
+                            coordinator: eraseCoordinator
+                        )
+                    },
+                    onFailure: {
+                        router.failClosedErase()
+                    }
+                )
+            }
+        }
     }
 
     private var restoreAction: (() -> Void)? {
-        guard session != nil else { return nil }
+        guard restoreSession != nil else { return nil }
         return { showsRestore = true }
+    }
+
+    private var eraseAction: (() -> Void)? {
+        guard let eraseSession else { return nil }
+        return {
+            eraseCoordinator = StoreSessionCoordinator(session: eraseSession)
+            showsErase = true
+        }
     }
 }

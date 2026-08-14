@@ -2,6 +2,11 @@ import Darwin
 import Foundation
 import SwiftData
 
+struct StoreApplicationSupportIdentity: Equatable {
+    let device: dev_t
+    let inode: ino_t
+}
+
 enum StoreGenerationFailure: Error, Equatable {
     case dataPointerInvalid
     case dataGenerationMissing
@@ -47,6 +52,22 @@ final class StoreRestoreGenerationAuthority {
         let files: Set<String>
     }
 
+    final class InstalledGenerationHandle {
+        fileprivate let id: UUID
+        fileprivate let descriptor: Int32
+        fileprivate let identity: Identity
+
+        fileprivate init(id: UUID, descriptor: Int32, identity: Identity) {
+            self.id = id
+            self.descriptor = descriptor
+            self.identity = identity
+        }
+
+        deinit {
+            _ = Darwin.close(descriptor)
+        }
+    }
+
     private static let dataName = "FieldEvidenceData"
     private static let restoreName = "FieldEvidenceRestore"
     private static let generationsName = "generations"
@@ -66,7 +87,10 @@ final class StoreRestoreGenerationAuthority {
     private let importStagingDescriptor: Int32
     private let importStagingIdentity: Identity
 
-    init(applicationSupportURL: URL) throws {
+    init(
+        applicationSupportURL: URL,
+        expectedApplicationSupportIdentity: StoreApplicationSupportIdentity? = nil
+    ) throws {
         let root = applicationSupportURL.standardizedFileURL
         guard root.isFileURL else { throw StoreGenerationFailure.dataPointerInvalid }
         let app = Darwin.open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
@@ -80,6 +104,12 @@ final class StoreRestoreGenerationAuthority {
         }
 
         let appIdentity = try Self.identity(app)
+        if let expectedApplicationSupportIdentity {
+            guard appIdentity.device == expectedApplicationSupportIdentity.device,
+                  appIdentity.inode == expectedApplicationSupportIdentity.inode else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
         let data = try Self.openDirectory(parent: app, name: Self.dataName)
         retained.append(data)
         let dataIdentity = try Self.identity(data)
@@ -205,6 +235,21 @@ final class StoreRestoreGenerationAuthority {
         guard reopened >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
         defer { _ = Darwin.close(reopened) }
         guard try Self.identity(reopened) == expected else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try verify()
+    }
+
+    func requireNoRestoreJournal() throws {
+        try verify()
+        guard try !Self.itemExists(
+            parent: restoreDescriptor,
+            name: "restore.json"
+        ),
+              try !Self.itemExists(
+                parent: restoreDescriptor,
+                name: ".restore.json.next"
+              ) else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
         try verify()
@@ -345,6 +390,169 @@ final class StoreRestoreGenerationAuthority {
         }
     }
 
+    func createInstalledGeneration(id: UUID) throws -> InstalledGenerationHandle {
+        try verify()
+        let name = Self.canonical(id)
+        guard try !Self.itemExists(parent: stagingGenerationsDescriptor, name: name),
+              try !Self.itemExists(parent: installedGenerationsDescriptor, name: name),
+              Darwin.mkdirat(
+                  installedGenerationsDescriptor,
+                  name,
+                  mode_t(0o700)
+              ) == 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let descriptor = Darwin.openat(
+            installedGenerationsDescriptor,
+            name,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard descriptor >= 0 else {
+            _ = Darwin.unlinkat(
+                installedGenerationsDescriptor,
+                name,
+                AT_REMOVEDIR
+            )
+            _ = Darwin.fsync(installedGenerationsDescriptor)
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        var createdIdentity: Identity?
+        do {
+            let identity = try Self.identity(descriptor)
+            createdIdentity = identity
+            guard Darwin.fsync(installedGenerationsDescriptor) == 0 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            try verify()
+            try Self.require(descriptor, identity)
+            guard try Self.requiredDirectoryIdentity(
+                parent: installedGenerationsDescriptor,
+                name: name
+            ) == identity else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return InstalledGenerationHandle(
+                id: id,
+                descriptor: descriptor,
+                identity: identity
+            )
+        } catch {
+            if let createdIdentity,
+               let currentIdentity = try? Self.requiredDirectoryIdentity(
+                   parent: installedGenerationsDescriptor,
+                   name: name
+               ), currentIdentity == createdIdentity {
+                _ = Darwin.unlinkat(
+                    installedGenerationsDescriptor,
+                    name,
+                    AT_REMOVEDIR
+                )
+                _ = Darwin.fsync(installedGenerationsDescriptor)
+            }
+            _ = Darwin.close(descriptor)
+            throw error
+        }
+    }
+
+    func modelStoreURL(
+        for handle: InstalledGenerationHandle,
+        name: String
+    ) throws -> URL {
+        try requireInstalledGeneration(handle)
+        let root = try Self.currentURL(for: handle.descriptor)
+        guard root.isFileURL,
+              root.lastPathComponent == Self.canonical(handle.id) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let reopened = Darwin.open(
+            root.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard reopened >= 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        defer { _ = Darwin.close(reopened) }
+        guard try Self.identity(reopened) == handle.identity else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try requireInstalledGeneration(handle)
+        return root.appendingPathComponent(name, isDirectory: false)
+    }
+
+    func requireRegularFile(
+        named name: String,
+        in handle: InstalledGenerationHandle
+    ) throws {
+        try requireInstalledGeneration(handle)
+        let descriptor = Darwin.openat(
+            handle.descriptor,
+            name,
+            O_RDONLY | O_NOFOLLOW
+        )
+        guard descriptor >= 0 else {
+            throw StoreGenerationFailure.dataGenerationMissing
+        }
+        defer { _ = Darwin.close(descriptor) }
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFREG,
+              info.st_nlink == 1,
+              Darwin.fsync(descriptor) == 0,
+              Darwin.fsync(handle.descriptor) == 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try requireInstalledGeneration(handle)
+    }
+
+    func requireInstalledGeneration(
+        _ handle: InstalledGenerationHandle
+    ) throws {
+        try verify()
+        try Self.require(handle.descriptor, handle.identity)
+        guard try Self.requiredDirectoryIdentity(
+            parent: installedGenerationsDescriptor,
+            name: Self.canonical(handle.id)
+        ) == handle.identity else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+    }
+
+    func removeCreatedInstalledGeneration(
+        _ handle: InstalledGenerationHandle
+    ) throws {
+        try Self.require(handle.descriptor, handle.identity)
+        let currentURL = try Self.currentURL(for: handle.descriptor)
+        let parentURL = currentURL.deletingLastPathComponent()
+        let parent = Darwin.open(
+            parentURL.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard parent >= 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        defer { _ = Darwin.close(parent) }
+        guard try Self.identity(parent) == installedGenerationsIdentity,
+              try Self.requiredDirectoryIdentity(
+                  parent: parent,
+                  name: currentURL.lastPathComponent
+              ) == handle.identity else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try Self.removeContents(of: handle.descriptor)
+        guard try Self.requiredDirectoryIdentity(
+            parent: parent,
+            name: currentURL.lastPathComponent
+        ) == handle.identity,
+              Darwin.unlinkat(
+                  parent,
+                  currentURL.lastPathComponent,
+                  AT_REMOVEDIR
+              ) == 0,
+              Darwin.fsync(parent) == 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+    }
+
     func installStagingGeneration(id: UUID) throws {
         try verify()
         let name = Self.canonical(id)
@@ -410,6 +618,31 @@ final class StoreRestoreGenerationAuthority {
             parent: installedGenerationsDescriptor,
             name: Self.canonical(id)
         )
+    }
+
+    func replaceRetiredGenerationIDs(
+        expected: [UUID],
+        with replacement: [UUID],
+        currentID: UUID
+    ) throws {
+        try verify()
+        guard try currentGenerationID() == currentID,
+              try retiredGenerationIDs() == expected,
+              !replacement.contains(currentID),
+              Set(replacement).count == replacement.count,
+              replacement == replacement.sorted(by: Self.idOrder) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try replacePointer(
+            name: "retired.json",
+            value: RetiredPointerV1(
+                generationIDs: replacement.map(Self.canonical),
+                schemaVersion: 1
+            )
+        )
+        guard try retiredGenerationIDs() == replacement else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
     }
 
     func restoreGenerationNames() throws -> [String] {
@@ -860,8 +1093,26 @@ final class StoreRestoreGenerationAuthority {
         }
     }
 
+    private static func currentURL(for descriptor: Int32) throws -> URL {
+        var path = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+        let result = Darwin.fcntl(descriptor, F_GETPATH, &path)
+        guard result >= 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let value = String(cString: path)
+        guard !value.isEmpty else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return URL(fileURLWithPath: value, isDirectory: true)
+            .standardizedFileURL
+    }
+
     private static func canonical(_ id: UUID) -> String {
         id.uuidString.lowercased()
+    }
+
+    private static func idOrder(_ lhs: UUID, _ rhs: UUID) -> Bool {
+        canonical(lhs) < canonical(rhs)
     }
 }
 
@@ -919,9 +1170,12 @@ struct StoreGenerationFactory {
         )
     }
 
-    func makeRestoreGenerationAuthority() throws -> StoreRestoreGenerationAuthority {
+    func makeRestoreGenerationAuthority(
+        expectedApplicationSupportIdentity: StoreApplicationSupportIdentity? = nil
+    ) throws -> StoreRestoreGenerationAuthority {
         try StoreRestoreGenerationAuthority(
-            applicationSupportURL: applicationSupportURL
+            applicationSupportURL: applicationSupportURL,
+            expectedApplicationSupportIdentity: expectedApplicationSupportIdentity
         )
     }
 
@@ -971,6 +1225,35 @@ struct StoreGenerationFactory {
         authority: StoreRestoreGenerationAuthority
     ) throws {
         try authority.installStagingGeneration(id: id)
+    }
+
+    @MainActor
+    func createEmptyInstalledGeneration(
+        id: UUID,
+        authority: StoreRestoreGenerationAuthority,
+        beforeStoreCreate: () throws -> Void = {}
+    ) throws {
+        var handle: StoreRestoreGenerationAuthority.InstalledGenerationHandle?
+        do {
+            let created = try authority.createInstalledGeneration(id: id)
+            handle = created
+            try beforeStoreCreate()
+            try createAndReleaseEmptyContainer(
+                at: try authority.modelStoreURL(
+                    for: created,
+                    name: Self.modelStoreName
+                )
+            )
+            try authority.requireRegularFile(
+                named: Self.modelStoreName,
+                in: created
+            )
+        } catch {
+            if let handle {
+                try? authority.removeCreatedInstalledGeneration(handle)
+            }
+            throw error
+        }
     }
 
     func removeRestoreStagingGeneration(
@@ -1023,6 +1306,19 @@ struct StoreGenerationFactory {
         authority: StoreRestoreGenerationAuthority
     ) throws {
         try authority.retireGeneration(oldID: oldID, currentID: currentID)
+    }
+
+    func replaceRetiredGenerationIDs(
+        expected: [UUID],
+        with replacement: [UUID],
+        currentID: UUID,
+        authority: StoreRestoreGenerationAuthority
+    ) throws {
+        try authority.replaceRetiredGenerationIDs(
+            expected: expected,
+            with: replacement,
+            currentID: currentID
+        )
     }
 
     func retireGeneration(oldID: UUID, currentID: UUID) throws {

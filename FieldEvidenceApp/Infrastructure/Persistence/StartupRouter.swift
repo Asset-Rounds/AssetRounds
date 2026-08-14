@@ -35,6 +35,8 @@ final class StartupRouter: ObservableObject {
 
     @Published private(set) var route: Route = .checking
     private(set) var maintenanceRestoreSession: StoreGenerationSession?
+    private(set) var maintenanceEraseSession: StoreGenerationSession?
+    var maintenanceDiagnosticsStore: DiagnosticsStore { diagnosticsStore }
 
     private let applicationSupportURL: URL
     private let generationFactory: StoreGenerationFactory
@@ -46,6 +48,7 @@ final class StartupRouter: ObservableObject {
 
     private var hasStarted = false
     private var isRunning = false
+    private var pendingEraseDrainProof: EraseGenerationDrainProof?
 
     init(
         applicationSupportURL: URL,
@@ -80,26 +83,37 @@ final class StartupRouter: ObservableObject {
         guard !isRunning else {
             return
         }
+        if let pendingEraseDrainProof {
+            guard pendingEraseDrainProof.isDrained else {
+                route = .maintenance(.eraseInconsistent)
+                return
+            }
+            self.pendingEraseDrainProof = nil
+        }
 
         isRunning = true
         maintenanceRestoreSession = nil
+        maintenanceEraseSession = nil
         route = .checking
         defer { isRunning = false }
         var openedSession: StoreGenerationSession?
 
         do {
             didBeginStep(.erase)
-            try requireNoPendingJournal(
-                in: applicationSupportURL.appendingPathComponent(
-                    "FieldEvidenceErase",
-                    isDirectory: true
-                ),
-                reason: .eraseInconsistent
-            )
+            let erasedSession: StoreGenerationSession?
+            do {
+                erasedSession = try await EraseAllService(
+                    applicationSupportURL: applicationSupportURL,
+                    fileManager: fileManager
+                ).reconcileAtStartup(diagnosticsStore: diagnosticsStore)
+            } catch {
+                throw StartupMaintenanceReason.eraseInconsistent
+            }
 
             didBeginStep(.restore)
+            let restoredSession: StoreGenerationSession?
             do {
-                _ = try BackupRestoreService(
+                restoredSession = try BackupRestoreService(
                     applicationSupportURL: applicationSupportURL,
                     fileManager: fileManager
                 ).reconcileAtStartup()
@@ -108,7 +122,14 @@ final class StartupRouter: ObservableObject {
             }
 
             didBeginStep(.currentOpen)
-            let session = try openCurrentGeneration()
+            let session: StoreGenerationSession
+            if let restoredSession {
+                session = restoredSession
+            } else if let erasedSession {
+                session = erasedSession
+            } else {
+                session = try openCurrentGeneration()
+            }
             openedSession = session
 
             didBeginStep(.finalization)
@@ -183,11 +204,15 @@ final class StartupRouter: ObservableObject {
             )
         } catch let reason as StartupMaintenanceReason {
             maintenanceRestoreSession = openedSession.flatMap {
-                eligibleMaintenanceSession($0)
+                eligibleMaintenanceRestoreSession($0)
+            }
+            maintenanceEraseSession = openedSession.flatMap {
+                eligibleMaintenanceEraseSession($0)
             }
             route = .maintenance(reason)
         } catch {
             maintenanceRestoreSession = nil
+            maintenanceEraseSession = nil
             route = .maintenance(.dataPointerInvalid)
         }
     }
@@ -196,7 +221,68 @@ final class StartupRouter: ObservableObject {
     /// failures. They enter the existing closed maintenance surface directly.
     func failClosedPDFRecovery() {
         maintenanceRestoreSession = nil
+        maintenanceEraseSession = nil
         route = .maintenance(.finalizationInconsistent)
+    }
+
+    func beginErasedSessionActivation(
+        _ session: StoreGenerationSession,
+        coordinator: StoreSessionCoordinator
+    ) async {
+        pendingEraseDrainProof = EraseGenerationDrainProof(
+            priorContext: coordinator.modelContext
+        )
+        isRunning = true
+        maintenanceRestoreSession = nil
+        maintenanceEraseSession = nil
+        route = .checking
+        coordinator.activate(session: session)
+        await Task.yield()
+    }
+
+    func finishErasedSessionActivation(
+        _ session: StoreGenerationSession,
+        coordinator: StoreSessionCoordinator
+    ) async {
+        defer { isRunning = false }
+        do {
+            guard pendingEraseDrainProof?.isDrained == true,
+                  coordinator.generationID == session.generationID,
+                  try generationFactory.currentGenerationID()
+                    == session.generationID,
+                  BackupRestoreService.isEmptyCurrent(session.modelContext),
+                  noActiveJournal(
+                    at: applicationSupportURL.appendingPathComponent(
+                        "FieldEvidenceErase/erase.json"
+                    )
+                  ) else {
+                throw StartupMaintenanceReason.eraseInconsistent
+            }
+            let recovery = try ReportRecoveryService(
+                modelContext: session.modelContext,
+                generationRootURL: session.generationRootURL,
+                fileManager: fileManager,
+                launchAttemptRegistry: reportLaunchAttemptRegistry
+            )
+            try recovery.reconcileAtStartup()
+            await diagnosticsStore.prepare()
+            guard await diagnosticsStore.isExactlyZero() else {
+                throw StartupMaintenanceReason.eraseInconsistent
+            }
+            pendingEraseDrainProof = nil
+            route = .ready(coordinator, diagnosticsStore, recovery)
+        } catch {
+            maintenanceRestoreSession = nil
+            maintenanceEraseSession = nil
+            route = .maintenance(.eraseInconsistent)
+        }
+    }
+
+    func failClosedErase() {
+        isRunning = false
+        maintenanceRestoreSession = nil
+        maintenanceEraseSession = nil
+        route = .maintenance(.eraseInconsistent)
     }
 
     func activateRestoredSession(
@@ -206,6 +292,7 @@ final class StartupRouter: ObservableObject {
         guard !isRunning else { return }
         isRunning = true
         maintenanceRestoreSession = nil
+        maintenanceEraseSession = nil
         route = .checking
         defer { isRunning = false }
 
@@ -266,10 +353,12 @@ final class StartupRouter: ObservableObject {
                 throw StartupMaintenanceReason.restoreInconsistent
             }
         } catch let reason as StartupMaintenanceReason {
-            maintenanceRestoreSession = eligibleMaintenanceSession(session)
+            maintenanceRestoreSession = eligibleMaintenanceRestoreSession(session)
+            maintenanceEraseSession = eligibleMaintenanceEraseSession(session)
             route = .maintenance(reason)
         } catch {
             maintenanceRestoreSession = nil
+            maintenanceEraseSession = nil
             route = .maintenance(.restoreInconsistent)
         }
     }
@@ -317,24 +406,54 @@ final class StartupRouter: ObservableObject {
         }
     }
 
-    private func eligibleMaintenanceSession(
+    private func eligibleMaintenanceRestoreSession(
         _ session: StoreGenerationSession
     ) -> StoreGenerationSession? {
         guard BackupRestoreService.isEmptyCurrent(session.modelContext),
               (try? generationFactory.currentGenerationID()) == session.generationID,
-              noActiveJournal(
-                at: applicationSupportURL.appendingPathComponent(
-                    "FieldEvidenceRestore/restore.json"
-                )
-              ),
-              noActiveJournal(
-                at: applicationSupportURL.appendingPathComponent(
-                    "FieldEvidenceErase/erase.json"
-                )
-              ) else {
+              maintenanceJournalAuthorityIsClear() else {
             return nil
         }
         return session
+    }
+
+    private func eligibleMaintenanceEraseSession(
+        _ session: StoreGenerationSession
+    ) -> StoreGenerationSession? {
+        guard !session.modelContext.hasChanges,
+              (try? generationFactory.currentGenerationID()) == session.generationID,
+              maintenanceJournalAuthorityIsClear() else {
+            return nil
+        }
+        do {
+            try EraseAllService(
+                applicationSupportURL: applicationSupportURL,
+                fileManager: fileManager
+            ).validateMaintenanceEntry(session)
+        } catch {
+            return nil
+        }
+        return session
+    }
+
+    private func maintenanceJournalAuthorityIsClear() -> Bool {
+        do {
+            let root = try ReportPDFAnchoredFile.rootIdentity(
+                at: applicationSupportURL
+            )
+            let authority = try generationFactory.makeRestoreGenerationAuthority(
+                expectedApplicationSupportIdentity: StoreApplicationSupportIdentity(
+                    device: root.device,
+                    inode: root.inode
+                )
+            )
+            try authority.requireNoEraseAuthority()
+            try authority.requireNoRestoreJournal()
+            return try authority.restoreGenerationNames().isEmpty
+                && authority.importStagingNames().isEmpty
+        } catch {
+            return false
+        }
     }
 
     private func noActiveJournal(at url: URL) -> Bool {
