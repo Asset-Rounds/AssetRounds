@@ -310,19 +310,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = AssetRounds;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Use the camera to add sign photos to reports stored on this iPhone.";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = (
-					{
-						UTTypeConformsTo = (
-							"com.apple.package",
-						);
-						UTTypeIdentifier = com.palatis3.fieldrecordbackup;
-						UTTypeTagSpecification = {
-							"public.filename-extension" = (
-								fieldrecordbackup,
-							);
-						};
-					},
-				);
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "( { UTTypeConformsTo = (\"com.apple.package\"); UTTypeIdentifier = \"com.palatis3.fieldrecordbackup\"; UTTypeTagSpecification = { \"public.filename-extension\" = (fieldrecordbackup); }; } )";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -347,19 +335,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = AssetRounds;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Use the camera to add sign photos to reports stored on this iPhone.";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = (
-					{
-						UTTypeConformsTo = (
-							"com.apple.package",
-						);
-						UTTypeIdentifier = com.palatis3.fieldrecordbackup;
-						UTTypeTagSpecification = {
-							"public.filename-extension" = (
-								fieldrecordbackup,
-							);
-						};
-					},
-				);
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "( { UTTypeConformsTo = (\"com.apple.package\"); UTTypeIdentifier = \"com.palatis3.fieldrecordbackup\"; UTTypeTagSpecification = { \"public.filename-extension\" = (fieldrecordbackup); }; } )";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
