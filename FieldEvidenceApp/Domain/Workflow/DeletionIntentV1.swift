@@ -106,17 +106,18 @@ struct DeletionIntentEncoderV1 {
             return false
         }
         let components = value.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
-        switch components {
-        case ["evidence", let identifier, "original.jpg"],
-             ["evidence", let identifier, "thumbnail.jpg"]:
-            return canonicalUUID(identifier)
-        case ["snapshots", let filename]:
-            return canonicalUUIDFilename(filename, pathExtension: "json")
-        case ["pdfs", let filename]:
-            return canonicalUUIDFilename(filename, pathExtension: "pdf")
-        default:
-            return false
+        if components.count == 3,
+           components[0] == "evidence",
+           components[2] == "original.jpg" || components[2] == "thumbnail.jpg" {
+            return canonicalUUID(components[1])
         }
+        if components.count == 2, components[0] == "snapshots" {
+            return canonicalUUIDFilename(components[1], pathExtension: "json")
+        }
+        if components.count == 2, components[0] == "pdfs" {
+            return canonicalUUIDFilename(components[1], pathExtension: "pdf")
+        }
+        return false
     }
 
     private static func canonicalUUIDFilename(_ filename: String, pathExtension: String) -> Bool {
