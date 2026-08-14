@@ -174,6 +174,9 @@ final class FinalizationService {
         let promoted: PromotedFinalization
         let snapshotPromoted: PromotedFinalization
         let priorDraftState = DraftMutationState(input.draft)
+        let priorIssueState = frozen.recheckPlan.flatMap { _ in
+            frozen.issue.map(IssueMutationState.init)
+        }
         do {
             try requireFrozenRootIdentity()
             prepared = try await intentStore.prepare(
@@ -200,7 +203,7 @@ final class FinalizationService {
             try validateFrozenInput(input)
             try validateEvidenceFiles(input.evidence)
             try validateDatabasePreconditions(input)
-            let currentPayload = makePayload(
+            let currentPayload = try makePayload(
                 input,
                 issue: frozen.issue,
                 packet: frozen.packet,
@@ -231,6 +234,9 @@ final class FinalizationService {
                 // pending so rollback leaves both storage and held state at
                 // the exact prior authority.
                 priorDraftState.restore(input.draft)
+                if let issue = frozen.issue {
+                    priorIssueState?.restore(issue)
+                }
                 modelContext.rollback()
             }
             do {
@@ -408,6 +414,9 @@ final class FinalizationService {
             throw FinalizationServiceError.preconditionFailed
         }
         guard let record = mutationRecords.first else { return nil }
+        if record.stage == WorkflowStage.recheck.rawValue {
+            return try replayedRecheckFinalization(input, record: record)
+        }
 
         let packets = try modelContext.fetch(FetchDescriptor<Packet>()).filter {
             $0.id == input.identifiers.packetID
@@ -506,6 +515,144 @@ final class FinalizationService {
             issueID: issue?.id,
             snapshotRelativePath: report.snapshotRelativePath,
             snapshotSHA256: report.snapshotSHA256
+        )
+    }
+
+    private func replayedRecheckFinalization(
+        _ input: FinalizationServiceInput,
+        record: WorkflowRecord
+    ) throws -> FinalizationResult {
+        guard record === input.draft,
+              record.assetID == input.asset.id,
+              record.outcomeKey == input.outcomeKey,
+              record.note == input.note,
+              record.completedAt == input.completedAt,
+              record.finalizationMutationID == input.identifiers.mutationID,
+              record.packetID == input.identifiers.packetID,
+              record.issueID == input.identifiers.issueID,
+              let issueID = record.issueID,
+              let parentID = record.parentRecordID else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let issues = try modelContext.fetch(FetchDescriptor<Issue>()).filter {
+            $0.id == issueID
+        }
+        let parents = try modelContext.fetch(FetchDescriptor<WorkflowRecord>()).filter {
+            $0.id == parentID
+        }
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>()).filter {
+            $0.id == input.identifiers.packetID
+                || $0.stableRootID == input.identifiers.stableRootID
+                || $0.currentRecordID == record.id
+        }
+        let reports = try modelContext.fetch(FetchDescriptor<Report>()).filter {
+            $0.id == input.identifiers.reportID
+                || $0.packetID == input.identifiers.packetID
+                || $0.sourceRecordID == record.id
+        }
+        guard issues.count == 1, parents.count == 1,
+              packets.count == 1, reports.count == 1 else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let issueAfter = issuePayload(issues[0])
+        let issueBefore = IssuePayloadV1(
+            id: issueAfter.id,
+            schemaVersion: issueAfter.schemaVersion,
+            assetID: issueAfter.assetID,
+            openedByRecordID: issueAfter.openedByRecordID,
+            labelKey: issueAfter.labelKey,
+            labelDisplaySnapshot: issueAfter.labelDisplaySnapshot,
+            status: IssueStatus.recheckDue.rawValue,
+            resolvedByRecordID: nil,
+            createdAt: issueAfter.createdAt,
+            updatedAt: parents[0].completedAt ?? issueAfter.createdAt
+        )
+        let plan = try RecheckOutcomeRule.makePlan(RecheckOutcomeRuleInput(
+            draft: recheckDraftBefore(record),
+            parent: recordPayload(parents[0]),
+            issue: issueBefore,
+            outcomeKey: input.outcomeKey,
+            note: input.note,
+            completedAt: input.completedAt,
+            mutationID: input.identifiers.mutationID,
+            packetID: input.identifiers.packetID
+        ))
+        let packet = packets[0]
+        let report = reports[0]
+        guard recordPayload(record) == plan.recordAfter,
+              issueAfter == plan.issueAfter,
+              packet.stableRootID == input.identifiers.stableRootID,
+              packet.currentRecordID == record.id,
+              packet.evaluationCounted,
+              packet.contentDeletedAt == nil,
+              report.id == input.identifiers.reportID,
+              report.packetID == packet.id,
+              report.sourceRecordID == record.id,
+              report.snapshotSchemaVersion == 1,
+              report.snapshotRelativePath
+                == "snapshots/\(report.id.uuidString.lowercased()).json",
+              report.createdAt == input.snapshotCreatedAt,
+              report.replacesReportID == nil,
+              report.pdfState == ReportPDFState.pending.rawValue,
+              report.pdfRelativePath == nil,
+              report.pdfSHA256 == nil,
+              let snapshotData = try? anchoredSnapshotData(report.snapshotRelativePath),
+              sha256(snapshotData) == report.snapshotSHA256 else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        do {
+            _ = try SnapshotValidatorV1(
+                modelContext: modelContext,
+                generationRootURL: generationRootURL,
+                signPack: signPack
+            ).validate(report: report)
+        } catch {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        return FinalizationResult(
+            recordID: record.id,
+            packetID: packet.id,
+            stableRootID: packet.stableRootID,
+            reportID: report.id,
+            issueID: issueAfter.id,
+            snapshotRelativePath: report.snapshotRelativePath,
+            snapshotSHA256: report.snapshotSHA256
+        )
+    }
+
+    private func recheckDraftBefore(_ record: WorkflowRecord) -> WorkflowRecordPayloadV1 {
+        let value = recordPayload(record)
+        return WorkflowRecordPayloadV1(
+            id: value.id, schemaVersion: value.schemaVersion,
+            assetID: value.assetID, packetID: nil,
+            issueID: value.issueID, parentRecordID: value.parentRecordID,
+            recordRevisionRootID: value.recordRevisionRootID,
+            revisesRecordID: value.revisesRecordID,
+            evidenceSourceRecordID: value.evidenceSourceRecordID,
+            revisionKind: value.revisionKind, stage: value.stage,
+            state: WorkflowState.draft.rawValue,
+            draftStepKey: WorkflowDraftStep.outcome.rawValue,
+            startedAt: value.startedAt, completedAt: nil,
+            observedAtUTC: value.observedAtUTC, timeZoneID: value.timeZoneID,
+            utcOffsetMinutes: value.utcOffsetMinutes,
+            localDate: value.localDate, localTime: value.localTime,
+            afterDarkAcknowledgementKey: value.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: value.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: value.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: value.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: value.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: value.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: value.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: value.safePositionAcknowledgementAccepted,
+            packID: value.packID, packSchemaVersion: value.packSchemaVersion,
+            packContentVersion: value.packContentVersion,
+            pdfTemplateID: value.pdfTemplateID,
+            pdfTemplateVersion: value.pdfTemplateVersion,
+            outcomeKey: nil, couldNotVerifyKey: nil,
+            couldNotVerifyDisplaySnapshot: nil,
+            couldNotVerifyRegistryVersion: nil,
+            workPerformedLocalDate: nil, workDescription: nil,
+            note: nil, finalizationMutationID: nil
         )
     }
 
@@ -932,6 +1079,7 @@ final class FinalizationService {
         let encodedSnapshot: EncodedReportSnapshotV1
         let intent: FinalizationIntentV1
         let issue: Issue?
+        let recheckPlan: RecheckOutcomeRulePlan?
         let packet: Packet
         let report: Report
         let snapshotRelativePath: String
@@ -979,7 +1127,581 @@ final class FinalizationService {
         }
     }
 
+    private struct IssueMutationState {
+        let status: String
+        let resolvedByRecordID: UUID?
+        let updatedAt: Date
+
+        init(_ issue: Issue) {
+            status = issue.status
+            resolvedByRecordID = issue.resolvedByRecordID
+            updatedAt = issue.updatedAt
+        }
+
+        func restore(_ issue: Issue) {
+            issue.status = status
+            issue.resolvedByRecordID = resolvedByRecordID
+            issue.updatedAt = updatedAt
+        }
+    }
+
+    private struct RecheckAuthority {
+        let issue: Issue
+        let parent: WorkflowRecord
+        let chain: [WorkflowRecord]
+        let historicalEvidence: [EvidenceFile]
+        let plan: RecheckOutcomeRulePlan
+    }
+
+    private func recheckAuthority(_ input: FinalizationServiceInput) throws -> RecheckAuthority {
+        guard let issueID = input.draft.issueID,
+              input.identifiers.issueID == issueID,
+              let parentID = input.draft.parentRecordID else {
+            throw FinalizationServiceError.invalidDraft
+        }
+        let allSites = try modelContext.fetch(FetchDescriptor<Site>())
+        let allAssets = try modelContext.fetch(FetchDescriptor<Asset>())
+        let allIssues = try modelContext.fetch(FetchDescriptor<Issue>())
+        let issues = allIssues.filter { $0.id == issueID }
+        let allRecords = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
+        let allEvidence = try modelContext.fetch(FetchDescriptor<EvidenceFile>())
+        let allPackets = try modelContext.fetch(FetchDescriptor<Packet>())
+        let allReports = try modelContext.fetch(FetchDescriptor<Report>())
+        let parents = allRecords.filter { $0.id == parentID }
+        let mutationIDs = allRecords.compactMap(\.finalizationMutationID)
+        let evidencePaths = allEvidence.flatMap {
+            [$0.relativePath, $0.thumbnailRelativePath]
+        }
+        guard !modelContext.hasChanges,
+              uniqueValues(allSites.map(\.id)),
+              uniqueValues(allAssets.map(\.id)),
+              uniqueValues(allIssues.map(\.id)),
+              uniqueValues(allRecords.map(\.id)),
+              uniqueValues(allEvidence.map(\.id)),
+              uniqueValues(allPackets.map(\.id)),
+              uniqueValues(allPackets.map(\.stableRootID)),
+              uniqueValues(allPackets.compactMap(\.currentRecordID)),
+              uniqueValues(allReports.map(\.id)),
+              uniqueValues(mutationIDs),
+              Set(evidencePaths).count == evidencePaths.count,
+              allAssets.filter({ $0.id == input.asset.id }).count == 1,
+              allAssets.first(where: { $0.id == input.asset.id }) === input.asset,
+              allSites.filter({ $0.id == input.site.id }).count == 1,
+              allSites.first(where: { $0.id == input.site.id }) === input.site,
+              input.asset.siteID == input.site.id,
+              input.asset.packID == signPack.packID,
+              input.asset.packSchemaVersion == signPack.schemaVersion,
+              input.asset.packContentVersion == signPack.contentVersion,
+              issues.count == 1,
+              parents.count == 1,
+              allRecords.filter({ $0.id == input.draft.id }).count == 1,
+              allRecords.first(where: { $0.id == input.draft.id }) === input.draft,
+              allRecords.filter({
+                  $0.assetID == input.asset.id
+                      && $0.state == WorkflowState.draft.rawValue
+              }).count == 1 else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let issue = issues[0]
+        let parent = parents[0]
+        guard issue.schemaVersion == 1,
+              issue.assetID == input.asset.id,
+              signPack.issueLabels.filter({
+                  $0.key == issue.labelKey
+                      && $0.display == issue.labelDisplaySnapshot
+              }).count == 1,
+              issue.status == IssueStatus.recheckDue.rawValue,
+              issue.resolvedByRecordID == nil,
+              issue.updatedAt >= issue.createdAt else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        let originals = allRecords.filter {
+            $0.state == WorkflowState.completed.rawValue
+                && $0.revisionKind == WorkflowRevisionKind.original.rawValue
+        }
+        guard let opening = originals.first(where: { $0.id == issue.openedByRecordID }),
+              validRecheckOpening(opening, issue: issue) else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        var chain = [opening]
+        var visited: Set<UUID> = [opening.id]
+        var current = opening
+        while true {
+            let children = originals.filter { $0.parentRecordID == current.id }
+            guard children.count <= 1 else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            guard let child = children.first else { break }
+            guard visited.insert(child.id).inserted,
+                  validRecheckChild(child, issue: issue, parent: current) else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            chain.append(child)
+            current = child
+        }
+        let issueOriginals = originals.filter { $0.issueID == issue.id }
+        let issueRecords = allRecords.filter { $0.issueID == issue.id }
+        let corrections = issueRecords.filter {
+            $0.revisionKind == WorkflowRevisionKind.clericalCorrection.rawValue
+                && $0.state == WorkflowState.completed.rawValue
+        }
+        let drafts = issueRecords.filter { $0.state == WorkflowState.draft.rawValue }
+        guard current === parent,
+              parent.stage == WorkflowStage.work.rawValue,
+              parent.outcomeKey == "work_recorded",
+              parent.completedAt == issue.updatedAt,
+              Set(issueOriginals.map(\.id)) == Set(chain.map(\.id)),
+              drafts.count == 1,
+              drafts.first === input.draft,
+              issueOriginals.count + corrections.count + drafts.count
+                == issueRecords.count,
+              allIssues.filter({
+                $0.assetID == input.draft.assetID
+                    && $0.status != IssueStatus.resolved.rawValue
+              }).count == 1 else {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        try validateRecheckRevisionAuthority(
+            roots: chain,
+            records: allRecords,
+            packets: allPackets
+        )
+        let plan = try RecheckOutcomeRule.makePlan(RecheckOutcomeRuleInput(
+            draft: recordPayload(input.draft),
+            parent: recordPayload(parent),
+            issue: issuePayload(issue),
+            outcomeKey: input.outcomeKey,
+            note: input.note,
+            completedAt: input.completedAt,
+            mutationID: input.identifiers.mutationID,
+            packetID: input.identifiers.packetID
+        ))
+        let chainIDs = Set(chain.map(\.id))
+        let historicalEvidence = allEvidence.filter { chainIDs.contains($0.recordID) }
+        for record in chain {
+            try validateRecheckEvidenceCardinality(
+                historicalEvidence.filter { $0.recordID == record.id },
+                record: record
+            )
+        }
+        let draftEvidence = allEvidence.filter { $0.recordID == input.draft.id }
+        guard Set(draftEvidence.map(\.id)) == Set(input.evidence.map(\.id)),
+              corrections.allSatisfy({ correction in
+                  allEvidence.allSatisfy { $0.recordID != correction.id }
+              }) else {
+            throw FinalizationServiceError.invalidEvidence
+        }
+        try validateEvidenceFiles(historicalEvidence)
+        return RecheckAuthority(
+            issue: issue,
+            parent: parent,
+            chain: chain,
+            historicalEvidence: historicalEvidence,
+            plan: plan
+        )
+    }
+
+    private func recheckPlan(_ input: FinalizationServiceInput) throws -> RecheckOutcomeRulePlan {
+        try recheckAuthority(input).plan
+    }
+
+    private func validRecheckOpening(_ record: WorkflowRecord, issue: Issue) -> Bool {
+        record.schemaVersion == 1
+            && record.assetID == issue.assetID
+            && record.issueID == issue.id
+            && record.parentRecordID == nil
+            && record.recordRevisionRootID == record.id
+            && record.revisesRecordID == nil
+            && record.evidenceSourceRecordID == nil
+            && record.revisionKind == WorkflowRevisionKind.original.rawValue
+            && record.stage == WorkflowStage.check.rawValue
+            && record.state == WorkflowState.completed.rawValue
+            && record.draftStepKey == nil
+            && record.packetID != nil
+            && record.completedAt.map({ $0 >= record.startedAt }) == true
+            && validRecheckTimeAndAcknowledgements(record)
+            && record.packID == signPack.packID
+            && record.packSchemaVersion == signPack.schemaVersion
+            && record.packContentVersion == signPack.contentVersion
+            && record.pdfTemplateID == "field.evidence.pdf.worklight.v1"
+            && record.pdfTemplateVersion == 1
+            && record.outcomeKey == "visible_issue"
+            && record.couldNotVerifyKey == nil
+            && record.couldNotVerifyDisplaySnapshot == nil
+            && record.couldNotVerifyRegistryVersion == nil
+            && record.workPerformedLocalDate == nil
+            && record.workDescription == nil
+            && (record.note.map({
+                validRecheckText($0, maximum: 1_000)
+            }) ?? true)
+            && record.finalizationMutationID != nil
+            && issue.createdAt == record.completedAt
+    }
+
+    private func validRecheckChild(
+        _ record: WorkflowRecord,
+        issue: Issue,
+        parent: WorkflowRecord
+    ) -> Bool {
+        guard record.schemaVersion == 1,
+              record.assetID == issue.assetID,
+              record.issueID == issue.id,
+              record.parentRecordID == parent.id,
+              record.recordRevisionRootID == record.id,
+              record.revisesRecordID == nil,
+              record.evidenceSourceRecordID == nil,
+              record.revisionKind == WorkflowRevisionKind.original.rawValue,
+              record.state == WorkflowState.completed.rawValue,
+              record.draftStepKey == nil,
+              let completedAt = record.completedAt,
+              completedAt >= record.startedAt,
+              parent.completedAt.map({ record.startedAt >= $0 }) == true,
+              record.packID == signPack.packID,
+              record.packSchemaVersion == signPack.schemaVersion,
+              record.packContentVersion == signPack.contentVersion,
+              record.pdfTemplateID == "field.evidence.pdf.worklight.v1",
+              record.pdfTemplateVersion == 1,
+              record.finalizationMutationID != nil else {
+            return false
+        }
+        if record.stage == WorkflowStage.work.rawValue {
+            return record.packetID == nil
+                && record.outcomeKey == "work_recorded"
+                && record.observedAtUTC == nil
+                && record.timeZoneID == nil
+                && record.utcOffsetMinutes == nil
+                && record.localDate == nil
+                && record.localTime == nil
+                && noRecheckAcknowledgements(record)
+                && record.couldNotVerifyKey == nil
+                && record.couldNotVerifyDisplaySnapshot == nil
+                && record.couldNotVerifyRegistryVersion == nil
+                && record.workPerformedLocalDate.map(validRecheckLocalDate) == true
+                && record.workDescription.map({ validRecheckText($0, maximum: 160) }) == true
+                && (record.note.map({ validRecheckText($0, maximum: 1_000) }) ?? true)
+        }
+        if record.stage == WorkflowStage.recheck.rawValue {
+            let couldNotVerify = record.outcomeKey == "could_not_verify"
+            return record.packetID != nil
+                && [
+                    "resolved", "issue_still_visible",
+                    "original_resolved_different_issue", "could_not_verify",
+                ].contains(record.outcomeKey ?? "")
+                && validRecheckTimeAndAcknowledgements(record)
+                && record.workPerformedLocalDate == nil
+                && record.workDescription == nil
+                && (record.note.map({ validRecheckText($0, maximum: 1_000) }) ?? true)
+                && (couldNotVerify
+                    ? validRecheckCouldNotVerify(record)
+                    : record.couldNotVerifyKey == nil
+                        && record.couldNotVerifyDisplaySnapshot == nil
+                        && record.couldNotVerifyRegistryVersion == nil)
+        }
+        return false
+    }
+
+    private func validateRecheckRevisionAuthority(
+        roots: [WorkflowRecord],
+        records: [WorkflowRecord],
+        packets: [Packet]
+    ) throws {
+        for root in roots {
+            let revisionGroup = records.filter { $0.recordRevisionRootID == root.id }
+            var visited: Set<UUID> = [root.id]
+            var current = root
+            while true {
+                let children = records.filter { $0.revisesRecordID == current.id }
+                guard children.count <= 1 else {
+                    throw FinalizationServiceError.preconditionFailed
+                }
+                guard let child = children.first else { break }
+                guard visited.insert(child.id).inserted,
+                      validRecheckCorrection(child, prior: current, root: root) else {
+                    throw FinalizationServiceError.preconditionFailed
+                }
+                current = child
+            }
+            guard visited.count == revisionGroup.count else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            if let packetID = root.packetID {
+                let matches = packets.filter { $0.id == packetID }
+                guard matches.count == 1,
+                      let packet = matches.first,
+                      packet.schemaVersion == 1,
+                      packet.contentDeletedAt == nil,
+                      packet.evaluationCounted,
+                      packet.createdAt == root.completedAt,
+                      packet.currentRecordID == current.id else {
+                    throw FinalizationServiceError.preconditionFailed
+                }
+            }
+        }
+    }
+
+    private func validRecheckCorrection(
+        _ correction: WorkflowRecord,
+        prior: WorkflowRecord,
+        root: WorkflowRecord
+    ) -> Bool {
+        correction.schemaVersion == 1
+            && correction.id != root.id
+            && correction.assetID == prior.assetID
+            && correction.packetID == prior.packetID
+            && correction.issueID == prior.issueID
+            && correction.parentRecordID == prior.parentRecordID
+            && correction.recordRevisionRootID == root.id
+            && correction.revisesRecordID == prior.id
+            && correction.evidenceSourceRecordID == root.id
+            && correction.revisionKind == WorkflowRevisionKind.clericalCorrection.rawValue
+            && correction.stage == prior.stage
+            && correction.stage != WorkflowStage.work.rawValue
+            && correction.state == WorkflowState.completed.rawValue
+            && correction.draftStepKey == nil
+            && correction.startedAt == prior.startedAt
+            && correction.completedAt == prior.completedAt
+            && correction.observedAtUTC == prior.observedAtUTC
+            && correction.timeZoneID == prior.timeZoneID
+            && correction.utcOffsetMinutes == prior.utcOffsetMinutes
+            && correction.localDate == prior.localDate
+            && correction.localTime == prior.localTime
+            && correction.afterDarkAcknowledgementKey == prior.afterDarkAcknowledgementKey
+            && correction.afterDarkAcknowledgementCopy == prior.afterDarkAcknowledgementCopy
+            && correction.afterDarkAcknowledgementVersion == prior.afterDarkAcknowledgementVersion
+            && correction.afterDarkAcknowledgementAccepted == prior.afterDarkAcknowledgementAccepted
+            && correction.safePositionAcknowledgementKey == prior.safePositionAcknowledgementKey
+            && correction.safePositionAcknowledgementCopy == prior.safePositionAcknowledgementCopy
+            && correction.safePositionAcknowledgementVersion == prior.safePositionAcknowledgementVersion
+            && correction.safePositionAcknowledgementAccepted == prior.safePositionAcknowledgementAccepted
+            && correction.packID == prior.packID
+            && correction.packSchemaVersion == prior.packSchemaVersion
+            && correction.packContentVersion == prior.packContentVersion
+            && correction.pdfTemplateID == prior.pdfTemplateID
+            && correction.pdfTemplateVersion == prior.pdfTemplateVersion
+            && correction.outcomeKey == prior.outcomeKey
+            && correction.couldNotVerifyKey == prior.couldNotVerifyKey
+            && correction.couldNotVerifyDisplaySnapshot == prior.couldNotVerifyDisplaySnapshot
+            && correction.couldNotVerifyRegistryVersion == prior.couldNotVerifyRegistryVersion
+            && correction.workPerformedLocalDate == prior.workPerformedLocalDate
+            && correction.workDescription == prior.workDescription
+            && correction.note != prior.note
+            && (correction.note.map({ validRecheckText($0, maximum: 1_000) }) ?? true)
+            && correction.finalizationMutationID != nil
+    }
+
+    private func validateRecheckEvidenceCardinality(
+        _ rows: [EvidenceFile],
+        record: WorkflowRecord
+    ) throws {
+        let keys = rows.map(\.purposeKey)
+        if record.stage == WorkflowStage.work.rawValue {
+            guard rows.count <= 1,
+                  keys.allSatisfy({ $0 == "work_context" }) else {
+                throw FinalizationServiceError.invalidEvidence
+            }
+            return
+        }
+        guard record.stage == WorkflowStage.check.rawValue
+                || record.stage == WorkflowStage.recheck.rawValue else {
+            throw FinalizationServiceError.invalidEvidence
+        }
+        let allowed = Set(["wide_context", "close_detail"])
+        if record.outcomeKey == "could_not_verify" {
+            guard rows.count <= 2,
+                  Set(keys).count == keys.count,
+                  keys.allSatisfy(allowed.contains) else {
+                throw FinalizationServiceError.invalidEvidence
+            }
+        } else {
+            guard rows.count == 2, Set(keys) == allowed else {
+                throw FinalizationServiceError.invalidEvidence
+            }
+        }
+    }
+
+    private func validRecheckTimeAndAcknowledgements(_ record: WorkflowRecord) -> Bool {
+        record.observedAtUTC == record.startedAt
+            && record.timeZoneID.map({ !$0.isEmpty }) == true
+            && record.utcOffsetMinutes.map({ ((-14 * 60)...(14 * 60)).contains($0) }) == true
+            && record.localDate.map(validRecheckLocalDate) == true
+            && record.localTime.map({
+                $0.range(
+                    of: #"^(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$"#,
+                    options: .regularExpression
+                ) != nil
+            }) == true
+            && record.afterDarkAcknowledgementKey == "after_dark"
+            && record.afterDarkAcknowledgementCopy.map({ !$0.isEmpty }) == true
+            && record.afterDarkAcknowledgementVersion.map({ !$0.isEmpty }) == true
+            && record.afterDarkAcknowledgementAccepted == true
+            && record.safePositionAcknowledgementKey == "safe_authorized_position"
+            && record.safePositionAcknowledgementCopy.map({ !$0.isEmpty }) == true
+            && record.safePositionAcknowledgementVersion.map({ !$0.isEmpty }) == true
+            && record.safePositionAcknowledgementAccepted == true
+    }
+
+    private func noRecheckAcknowledgements(_ record: WorkflowRecord) -> Bool {
+        record.afterDarkAcknowledgementKey == nil
+            && record.afterDarkAcknowledgementCopy == nil
+            && record.afterDarkAcknowledgementVersion == nil
+            && record.afterDarkAcknowledgementAccepted == nil
+            && record.safePositionAcknowledgementKey == nil
+            && record.safePositionAcknowledgementCopy == nil
+            && record.safePositionAcknowledgementVersion == nil
+            && record.safePositionAcknowledgementAccepted == nil
+    }
+
+    private func validRecheckCouldNotVerify(_ record: WorkflowRecord) -> Bool {
+        guard record.couldNotVerifyRegistryVersion == "cnv.reason.en-US.v1",
+              let key = record.couldNotVerifyKey,
+              let display = record.couldNotVerifyDisplaySnapshot else {
+            return false
+        }
+        return signPack.couldNotVerifyReasons.entries.filter {
+            $0.key == key && $0.display == display
+        }.count == 1
+    }
+
+    private func validRecheckText(_ value: String, maximum: Int) -> Bool {
+        !value.isEmpty
+            && value.count <= maximum
+            && value == value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func validRecheckLocalDate(_ value: String) -> Bool {
+        guard value.range(
+            of: #"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"#,
+            options: .regularExpression
+        ) != nil else {
+            return false
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        guard let date = formatter.date(from: value) else { return false }
+        return formatter.string(from: date) == value
+    }
+
+    private func uniqueValues<T: Hashable>(_ values: [T]) -> Bool {
+        Set(values).count == values.count
+    }
+
+    private func validateFrozenRecheckInput(_ input: FinalizationServiceInput) throws {
+        guard input.draft.revisionKind == WorkflowRevisionKind.original.rawValue,
+              input.draft.stage == WorkflowStage.recheck.rawValue,
+              input.draft.state == WorkflowState.draft.rawValue,
+              input.draft.draftStepKey == WorkflowDraftStep.outcome.rawValue,
+              input.draft.packetID == nil,
+              input.draft.issueID != nil,
+              input.draft.parentRecordID != nil,
+              input.draft.recordRevisionRootID == input.draft.id,
+              input.draft.revisesRecordID == nil,
+              input.draft.evidenceSourceRecordID == nil,
+              input.draft.completedAt == nil,
+              input.draft.outcomeKey == nil,
+              input.draft.finalizationMutationID == nil,
+              input.draft.packID == signPack.packID,
+              input.draft.packSchemaVersion == signPack.schemaVersion,
+              input.draft.packContentVersion == signPack.contentVersion,
+              input.asset.id == input.draft.assetID,
+              input.asset.siteID == input.site.id,
+              input.completedAt >= input.draft.startedAt,
+              input.snapshotCreatedAt >= input.completedAt,
+              input.issueLabel == nil,
+              input.couldNotVerify == nil,
+              input.outcomeKey == "resolved" || input.outcomeKey == "issue_still_visible",
+              uniqueDisplay(signPack.outcomeDisplays, key: input.outcomeKey) == input.outcomeDisplay else {
+            throw FinalizationServiceError.invalidDraft
+        }
+        let keys = input.evidence.sorted(by: evidenceOrder).map(\.purposeKey)
+        guard keys == ["wide_context", "close_detail"],
+              input.evidence.allSatisfy({
+                $0.recordID == input.draft.id
+                    && $0.mimeType == MediaContractV1.durableMIMEType
+                    && $0.createdAt >= input.draft.startedAt
+                    && $0.createdAt <= input.completedAt
+              }),
+              purposeDisplay("wide_context") != nil,
+              purposeDisplay("close_detail") != nil else {
+            throw FinalizationServiceError.invalidEvidence
+        }
+        _ = try recheckAuthority(input)
+    }
+
+    private func freezeRecheck(_ input: FinalizationServiceInput) throws -> FrozenFinalization {
+        let authority = try recheckAuthority(input)
+        let packet = Packet(
+            id: input.identifiers.packetID,
+            stableRootID: input.identifiers.stableRootID,
+            currentRecordID: input.draft.id,
+            evaluationCounted: true,
+            contentDeletedAt: nil,
+            createdAt: input.completedAt
+        )
+        let snapshotRelativePath = "snapshots/\(input.identifiers.reportID.uuidString.lowercased()).json"
+        let encodedSnapshot = try ReportSnapshotEncoderV1().encode(
+            makeRecheckSnapshot(input, authority: authority)
+        )
+        let report = Report(
+            id: input.identifiers.reportID,
+            packetID: packet.id,
+            sourceRecordID: input.draft.id,
+            snapshotSchemaVersion: 1,
+            snapshotRelativePath: snapshotRelativePath,
+            snapshotSHA256: encodedSnapshot.sha256,
+            pdfState: .pending,
+            pdfRelativePath: nil,
+            pdfSHA256: nil,
+            createdAt: input.snapshotCreatedAt,
+            replacesReportID: nil
+        )
+        let payload = FinalizationPayloadV1(
+            issueInsert: nil,
+            issueTransition: IssueTransitionV1(
+                after: authority.plan.issueAfter,
+                before: authority.plan.issueBefore
+            ),
+            packetAfter: packetPayload(packet),
+            packetBefore: nil,
+            reportInsert: reportPayload(report),
+            workflowRecordAfter: authority.plan.recordAfter
+        )
+        let encodedPayload = try FinalizationContractEncoderV1().encodePayload(payload)
+        let intent = FinalizationIntentV1(
+            completedAt: input.completedAt,
+            finalizationMutationID: input.identifiers.mutationID,
+            finalizationPayload: payload,
+            finalizationPayloadSHA256: encodedPayload.sha256,
+            generationID: generationID,
+            packetID: packet.id,
+            phase: .prepared,
+            recordID: input.draft.id,
+            reportID: report.id,
+            schemaVersion: 1,
+            snapshotCreatedAt: input.snapshotCreatedAt,
+            snapshotFinalRelativePath: snapshotRelativePath,
+            snapshotSHA256: encodedSnapshot.sha256,
+            snapshotStagingRelativePath: ".staging/\(snapshotRelativePath)",
+            stableRootID: packet.stableRootID
+        )
+        return FrozenFinalization(
+            encodedSnapshot: encodedSnapshot,
+            intent: intent,
+            issue: authority.issue,
+            recheckPlan: authority.plan,
+            packet: packet,
+            report: report,
+            snapshotRelativePath: snapshotRelativePath
+        )
+    }
+
     private func freeze(_ input: FinalizationServiceInput) throws -> FrozenFinalization {
+        if input.draft.stage == WorkflowStage.recheck.rawValue {
+            return try freezeRecheck(input)
+        }
         let issue: Issue?
         if let label = input.issueLabel,
            let issueID = input.identifiers.issueID {
@@ -1029,7 +1751,7 @@ final class FinalizationService {
             createdAt: input.snapshotCreatedAt,
             replacesReportID: nil
         )
-        let payload = makePayload(input, issue: issue, packet: packet, report: report)
+        let payload = try makePayload(input, issue: issue, packet: packet, report: report)
         let encodedPayload: EncodedFinalizationContractV1
         do {
             encodedPayload = try FinalizationContractEncoderV1().encodePayload(payload)
@@ -1057,6 +1779,7 @@ final class FinalizationService {
             encodedSnapshot: encodedSnapshot,
             intent: intent,
             issue: issue,
+            recheckPlan: nil,
             packet: packet,
             report: report,
             snapshotRelativePath: snapshotRelativePath
@@ -1064,6 +1787,10 @@ final class FinalizationService {
     }
 
     private func validateFrozenInput(_ input: FinalizationServiceInput) throws {
+        if input.draft.stage == WorkflowStage.recheck.rawValue {
+            try validateFrozenRecheckInput(input)
+            return
+        }
         guard input.draft.revisionKind == WorkflowRevisionKind.original.rawValue,
               input.draft.stage == WorkflowStage.check.rawValue,
               input.draft.state == WorkflowState.draft.rawValue,
@@ -1130,9 +1857,13 @@ final class FinalizationService {
                 || $0.stableRootID == input.identifiers.stableRootID
         }),
               !reports.contains(where: { $0.id == input.identifiers.reportID }),
-              input.identifiers.issueID.map({ id in
-                  !issues.contains(where: { $0.id == id })
-              }) ?? true,
+              (input.draft.stage == WorkflowStage.recheck.rawValue
+                ? input.identifiers.issueID.map({ id in
+                    issues.filter({ $0.id == id }).count == 1
+                  }) ?? false
+                : input.identifiers.issueID.map({ id in
+                    !issues.contains(where: { $0.id == id })
+                  }) ?? true),
               records.filter({
                   $0.finalizationMutationID == input.identifiers.mutationID
               }).isEmpty else {
@@ -1142,22 +1873,44 @@ final class FinalizationService {
 
     private func validateEvidenceFiles(_ evidence: [EvidenceFile]) throws {
         let normalizer = MediaNormalizerV1()
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
         for row in evidence {
-            let originalURL = try evidenceURL(
-                for: row,
-                relativePath: row.relativePath,
-                fileName: "original.jpg"
-            )
-            let thumbnailURL = try evidenceURL(
-                for: row,
-                relativePath: row.thumbnailRelativePath,
-                fileName: "thumbnail.jpg"
+            let canonicalID = row.id.uuidString.lowercased()
+            let matches = records.filter { $0.id == row.recordID }
+            guard row.schemaVersion == 1,
+                  matches.count == 1,
+                  let record = matches.first,
+                  row.relativePath == "evidence/\(canonicalID)/original.jpg",
+                  row.thumbnailRelativePath
+                    == "evidence/\(canonicalID)/thumbnail.jpg",
+                  row.mimeType == MediaContractV1.durableMIMEType,
+                  row.byteCount > 0,
+                  row.byteCount <= MediaContractV1.originalByteCountMaximum,
+                  row.thumbnailByteCount > 0,
+                  row.thumbnailByteCount <= MediaContractV1.thumbnailByteCountMaximum,
+                  isLowercaseSHA256(row.sha256),
+                  isLowercaseSHA256(row.thumbnailSHA256),
+                  row.createdAt >= record.startedAt,
+                  record.completedAt.map({ row.createdAt <= $0 }) ?? true else {
+                throw FinalizationServiceError.invalidEvidence
+            }
+            let originalURL = generationRootURL.appendingPathComponent(row.relativePath)
+            let thumbnailURL = generationRootURL.appendingPathComponent(
+                row.thumbnailRelativePath
             )
             let original: Data
             let thumbnail: Data
             do {
-                original = try Data(contentsOf: originalURL, options: .mappedIfSafe)
-                thumbnail = try Data(contentsOf: thumbnailURL, options: .mappedIfSafe)
+                original = try ReportPDFAnchoredFile.readRegularFile(
+                    at: originalURL,
+                    within: generationRootURL,
+                    rootIdentity: rootIdentity
+                )
+                thumbnail = try ReportPDFAnchoredFile.readRegularFile(
+                    at: thumbnailURL,
+                    within: generationRootURL,
+                    rootIdentity: rootIdentity
+                )
             } catch {
                 throw FinalizationServiceError.invalidEvidence
             }
@@ -1176,64 +1929,27 @@ final class FinalizationService {
         }
     }
 
-    private func evidenceURL(
-        for row: EvidenceFile,
-        relativePath: String,
-        fileName: String
-    ) throws -> URL {
-        let canonicalID = row.id.uuidString.lowercased()
-        let expectedRelativePath = "evidence/\(canonicalID)/\(fileName)"
-        guard relativePath == expectedRelativePath else {
-            throw FinalizationServiceError.invalidEvidence
-        }
-        let evidenceRootURL = generationRootURL.appendingPathComponent(
-            "evidence",
-            isDirectory: true
-        )
-        let evidenceDirectoryURL = evidenceRootURL.appendingPathComponent(
-            canonicalID,
-            isDirectory: true
-        )
-        let url = evidenceDirectoryURL.appendingPathComponent(fileName)
-        guard try fileType(at: generationRootURL) == .typeDirectory,
-              try fileType(at: evidenceRootURL) == .typeDirectory,
-              try fileType(at: evidenceDirectoryURL) == .typeDirectory,
-              try fileType(at: url) == .typeRegular else {
-            throw FinalizationServiceError.invalidEvidence
-        }
-        return url
-    }
-
-    private func fileType(at url: URL) throws -> FileAttributeType {
-        do {
-            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-            guard let type = attributes[.type] as? FileAttributeType else {
-                throw FinalizationServiceError.invalidEvidence
-            }
-            return type
-        } catch let error as FinalizationServiceError {
-            throw error
-        } catch {
-            throw FinalizationServiceError.invalidEvidence
-        }
-    }
-
     private func applyDatabaseMutation(
         _ input: FinalizationServiceInput,
         frozen: FrozenFinalization
     ) {
-        input.draft.packetID = frozen.packet.id
-        input.draft.issueID = frozen.issue?.id
-        input.draft.state = WorkflowState.completed.rawValue
-        input.draft.draftStepKey = nil
-        input.draft.completedAt = input.completedAt
-        input.draft.outcomeKey = input.outcomeKey
-        input.draft.couldNotVerifyKey = input.couldNotVerify?.key
-        input.draft.couldNotVerifyDisplaySnapshot = input.couldNotVerify?.display
-        input.draft.couldNotVerifyRegistryVersion = input.couldNotVerify.map { _ in signPack.couldNotVerifyReasons.version }
-        input.draft.note = input.note
-        input.draft.finalizationMutationID = input.identifiers.mutationID
-        if let issue = frozen.issue { modelContext.insert(issue) }
+        if let plan = frozen.recheckPlan, let issue = frozen.issue {
+            apply(plan.recordAfter, to: input.draft)
+            apply(plan.issueAfter, to: issue)
+        } else {
+            input.draft.packetID = frozen.packet.id
+            input.draft.issueID = frozen.issue?.id
+            input.draft.state = WorkflowState.completed.rawValue
+            input.draft.draftStepKey = nil
+            input.draft.completedAt = input.completedAt
+            input.draft.outcomeKey = input.outcomeKey
+            input.draft.couldNotVerifyKey = input.couldNotVerify?.key
+            input.draft.couldNotVerifyDisplaySnapshot = input.couldNotVerify?.display
+            input.draft.couldNotVerifyRegistryVersion = input.couldNotVerify.map { _ in signPack.couldNotVerifyReasons.version }
+            input.draft.note = input.note
+            input.draft.finalizationMutationID = input.identifiers.mutationID
+            if let issue = frozen.issue { modelContext.insert(issue) }
+        }
         modelContext.insert(frozen.packet)
         modelContext.insert(frozen.report)
     }
@@ -1242,6 +1958,9 @@ final class FinalizationService {
         _ input: FinalizationServiceInput,
         issue: Issue?
     ) throws -> ReportSnapshotV1 {
+        if input.draft.stage == WorkflowStage.recheck.rawValue {
+            return try makeRecheckSnapshot(input)
+        }
         guard let observedAtUTC = input.draft.observedAtUTC,
               let timeZoneID = input.draft.timeZoneID,
               let utcOffsetMinutes = input.draft.utcOffsetMinutes,
@@ -1327,13 +2046,224 @@ final class FinalizationService {
         )
     }
 
+    private func makeRecheckSnapshot(
+        _ input: FinalizationServiceInput,
+        authority suppliedAuthority: RecheckAuthority? = nil
+    ) throws -> ReportSnapshotV1 {
+        let authority: RecheckAuthority
+        if let suppliedAuthority {
+            authority = suppliedAuthority
+        } else {
+            authority = try recheckAuthority(input)
+        }
+        guard let observedAtUTC = input.draft.observedAtUTC,
+              let timeZoneID = input.draft.timeZoneID,
+              let utcOffsetMinutes = input.draft.utcOffsetMinutes,
+              let localDate = input.draft.localDate,
+              let localTime = input.draft.localTime,
+              let afterKey = input.draft.afterDarkAcknowledgementKey,
+              let afterCopy = input.draft.afterDarkAcknowledgementCopy,
+              let afterVersion = input.draft.afterDarkAcknowledgementVersion,
+              input.draft.afterDarkAcknowledgementAccepted == true,
+              let safeKey = input.draft.safePositionAcknowledgementKey,
+              let safeCopy = input.draft.safePositionAcknowledgementCopy,
+              let safeVersion = input.draft.safePositionAcknowledgementVersion,
+              input.draft.safePositionAcknowledgementAccepted == true,
+              let stageDisplay = uniqueDisplay(signPack.stageDisplays, key: "recheck") else {
+            throw FinalizationServiceError.invalidDraft
+        }
+        let allEvidence = input.evidence + authority.historicalEvidence
+        var evidenceRowsByID: [UUID: EvidenceFile] = [:]
+        for row in allEvidence {
+            guard evidenceRowsByID.updateValue(row, forKey: row.id) == nil else {
+                throw FinalizationServiceError.invalidEvidence
+            }
+        }
+        let currentEvidence = input.evidence.sorted(by: evidenceOrder)
+        let historyRecords = authority.chain.sorted {
+            let left = $0.completedAt ?? .distantPast
+            let right = $1.completedAt ?? .distantPast
+            return left < right
+                || (left == right
+                    && $0.id.uuidString.lowercased()
+                        < $1.id.uuidString.lowercased())
+        }
+        var orderedEvidence = currentEvidence
+        var seenEvidenceIDs = Set(currentEvidence.map(\.id))
+        for record in historyRecords {
+            let rows = authority.historicalEvidence
+                .filter { $0.recordID == record.id }
+                .sorted(by: evidenceOrder)
+            for row in rows where seenEvidenceIDs.insert(row.id).inserted {
+                orderedEvidence.append(row)
+            }
+        }
+        let evidenceSnapshots = try orderedEvidence.map(evidenceSnapshot)
+        let history = try historyRecords.map { record in
+            guard let completedAt = record.completedAt,
+                  completedAt < input.completedAt,
+                  let outcomeKey = record.outcomeKey,
+                  let historyStageDisplay = uniqueDisplay(
+                    signPack.stageDisplays,
+                    key: record.stage
+                  ),
+                  let historyOutcomeDisplay = uniqueDisplay(
+                    signPack.outcomeDisplays,
+                    key: outcomeKey
+                  ) else {
+                throw FinalizationServiceError.invalidDraft
+            }
+            let evidenceIDs = authority.historicalEvidence
+                .filter { $0.recordID == record.id }
+                .sorted(by: evidenceOrder)
+                .map(\.id)
+            let issueIDs = Set(
+                record.issueID.map { [$0] } ?? []
+                    + ([authority.issue].compactMap {
+                        $0.openedByRecordID == record.id ? $0.id : nil
+                    })
+            ).sorted {
+                $0.uuidString.lowercased() < $1.uuidString.lowercased()
+            }
+            return HistoryEntrySnapshotV1(
+                completedAt: completedAt,
+                couldNotVerify: record.outcomeKey == "could_not_verify"
+                    ? record.couldNotVerifyKey.flatMap { key in
+                        guard let display = record.couldNotVerifyDisplaySnapshot,
+                              let version = record.couldNotVerifyRegistryVersion else {
+                            return nil
+                        }
+                        return CouldNotVerifySnapshotV1(
+                            display: display,
+                            key: key,
+                            registryVersion: version
+                        )
+                    }
+                    : nil,
+                evidenceIDs: evidenceIDs,
+                issueIDs: issueIDs,
+                note: record.note,
+                outcome: outcomeKey,
+                outcomeDisplay: historyOutcomeDisplay,
+                recordID: record.id,
+                stage: record.stage,
+                stageDisplay: historyStageDisplay,
+                workDescription: record.workDescription,
+                workPerformedLocalDate: record.workPerformedLocalDate
+            )
+        }
+        let issue = authority.plan.issueAfter
+        return ReportSnapshotV1(
+            acknowledgements: [
+                AcknowledgementSnapshotV1(
+                    accepted: true,
+                    copy: afterCopy,
+                    key: afterKey,
+                    version: afterVersion
+                ),
+                AcknowledgementSnapshotV1(
+                    accepted: true,
+                    copy: safeCopy,
+                    key: safeKey,
+                    version: safeVersion
+                ),
+            ],
+            asset: AssetSnapshotV1(label: input.asset.label),
+            couldNotVerify: nil,
+            disclaimer: signPack.disclaimer,
+            display: DisplaySnapshotV1(
+                assetSingular: signPack.nouns.asset.singular,
+                checkSingular: signPack.nouns.check.singular,
+                issueSingular: signPack.nouns.issue.singular,
+                outcome: input.outcomeDisplay,
+                stage: stageDisplay
+            ),
+            evidence: evidenceSnapshots,
+            evidenceSourceRecordID: input.draft.id,
+            history: history,
+            issues: [IssueSnapshotV1(
+                createdAt: issue.createdAt,
+                display: issue.labelDisplaySnapshot,
+                issueID: issue.id,
+                key: issue.labelKey,
+                openedByRecordID: issue.openedByRecordID,
+                resolvedByRecordID: issue.resolvedByRecordID,
+                status: issue.status,
+                updatedAt: issue.updatedAt
+            )],
+            note: input.note,
+            outcome: input.outcomeKey,
+            pack: PackSnapshotV1(
+                contentVersion: signPack.contentVersion,
+                id: signPack.packID,
+                schemaVersion: signPack.schemaVersion
+            ),
+            packetID: input.identifiers.packetID,
+            pdfTemplate: PDFTemplateReferenceV1(
+                id: input.draft.pdfTemplateID,
+                version: input.draft.pdfTemplateVersion
+            ),
+            reportID: input.identifiers.reportID,
+            site: SiteSnapshotV1(address: input.site.address, label: input.site.label),
+            snapshotCreatedAt: input.snapshotCreatedAt,
+            snapshotSchemaVersion: 1,
+            sourceApp: input.sourceApp,
+            sourceRecordID: input.draft.id,
+            stableRootID: input.identifiers.stableRootID,
+            stage: WorkflowStage.recheck.rawValue,
+            timeContext: TimeContextSnapshotV1(
+                localDate: localDate,
+                localTime: localTime,
+                observedAtUTC: observedAtUTC,
+                timeZoneID: timeZoneID,
+                utcOffsetMinutes: utcOffsetMinutes
+            )
+        )
+    }
+
+    private func evidenceSnapshot(_ row: EvidenceFile) throws -> EvidenceSnapshotV1 {
+        guard let display = purposeDisplay(row.purposeKey) else {
+            throw FinalizationServiceError.invalidEvidence
+        }
+        return EvidenceSnapshotV1(
+            byteCount: row.byteCount,
+            createdAt: row.createdAt,
+            evidenceID: row.id,
+            mimeType: row.mimeType,
+            purposeDisplay: display,
+            purposeKey: row.purposeKey,
+            recordID: row.recordID,
+            relativePath: row.relativePath,
+            sha256: row.sha256,
+            thumbnailByteCount: row.thumbnailByteCount,
+            thumbnailRelativePath: row.thumbnailRelativePath,
+            thumbnailSHA256: row.thumbnailSHA256
+        )
+    }
+
     private func makePayload(
         _ input: FinalizationServiceInput,
         issue: Issue?,
         packet: Packet,
         report: Report
-    ) -> FinalizationPayloadV1 {
-        FinalizationPayloadV1(
+    ) throws -> FinalizationPayloadV1 {
+        if input.draft.stage == WorkflowStage.recheck.rawValue,
+           let plan = try? recheckPlan(input) {
+            return FinalizationPayloadV1(
+                issueInsert: nil,
+                issueTransition: IssueTransitionV1(
+                    after: plan.issueAfter,
+                    before: plan.issueBefore
+                ),
+                packetAfter: packetPayload(packet),
+                packetBefore: nil,
+                reportInsert: reportPayload(report),
+                workflowRecordAfter: plan.recordAfter
+            )
+        } else if input.draft.stage == WorkflowStage.recheck.rawValue {
+            throw FinalizationServiceError.preconditionFailed
+        }
+        return FinalizationPayloadV1(
             issueInsert: issue.map(issuePayload),
             issueTransition: nil,
             packetAfter: packetPayload(packet),
@@ -1346,6 +2276,26 @@ final class FinalizationService {
     private func completedRecordPayload(_ input: FinalizationServiceInput, packet: Packet, issue: Issue?) -> WorkflowRecordPayloadV1 {
         let d = input.draft
         return WorkflowRecordPayloadV1(id: d.id, schemaVersion: d.schemaVersion, assetID: d.assetID, packetID: packet.id, issueID: issue?.id, parentRecordID: d.parentRecordID, recordRevisionRootID: d.recordRevisionRootID, revisesRecordID: d.revisesRecordID, evidenceSourceRecordID: d.evidenceSourceRecordID, revisionKind: d.revisionKind, stage: d.stage, state: WorkflowState.completed.rawValue, draftStepKey: nil, startedAt: d.startedAt, completedAt: input.completedAt, observedAtUTC: d.observedAtUTC, timeZoneID: d.timeZoneID, utcOffsetMinutes: d.utcOffsetMinutes, localDate: d.localDate, localTime: d.localTime, afterDarkAcknowledgementKey: d.afterDarkAcknowledgementKey, afterDarkAcknowledgementCopy: d.afterDarkAcknowledgementCopy, afterDarkAcknowledgementVersion: d.afterDarkAcknowledgementVersion, afterDarkAcknowledgementAccepted: d.afterDarkAcknowledgementAccepted, safePositionAcknowledgementKey: d.safePositionAcknowledgementKey, safePositionAcknowledgementCopy: d.safePositionAcknowledgementCopy, safePositionAcknowledgementVersion: d.safePositionAcknowledgementVersion, safePositionAcknowledgementAccepted: d.safePositionAcknowledgementAccepted, packID: d.packID, packSchemaVersion: d.packSchemaVersion, packContentVersion: d.packContentVersion, pdfTemplateID: d.pdfTemplateID, pdfTemplateVersion: d.pdfTemplateVersion, outcomeKey: input.outcomeKey, couldNotVerifyKey: input.couldNotVerify?.key, couldNotVerifyDisplaySnapshot: input.couldNotVerify?.display, couldNotVerifyRegistryVersion: input.couldNotVerify.map { _ in signPack.couldNotVerifyReasons.version }, workPerformedLocalDate: nil, workDescription: nil, note: input.note, finalizationMutationID: input.identifiers.mutationID)
+    }
+
+    private func apply(_ value: WorkflowRecordPayloadV1, to record: WorkflowRecord) {
+        record.packetID = value.packetID
+        record.issueID = value.issueID
+        record.state = value.state
+        record.draftStepKey = value.draftStepKey
+        record.completedAt = value.completedAt
+        record.outcomeKey = value.outcomeKey
+        record.couldNotVerifyKey = value.couldNotVerifyKey
+        record.couldNotVerifyDisplaySnapshot = value.couldNotVerifyDisplaySnapshot
+        record.couldNotVerifyRegistryVersion = value.couldNotVerifyRegistryVersion
+        record.note = value.note
+        record.finalizationMutationID = value.finalizationMutationID
+    }
+
+    private func apply(_ value: IssuePayloadV1, to issue: Issue) {
+        issue.status = value.status
+        issue.resolvedByRecordID = value.resolvedByRecordID
+        issue.updatedAt = value.updatedAt
     }
 
     private func validCouldNotVerifySelection(_ input: FinalizationServiceInput) -> Bool {

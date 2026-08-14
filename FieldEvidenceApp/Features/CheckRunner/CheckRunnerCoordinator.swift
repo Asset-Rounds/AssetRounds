@@ -50,6 +50,8 @@ enum CheckOutcomeSelection: Equatable, Sendable {
     case noVisibleIssue
     case visibleIssue(labelKey: String)
     case couldNotVerify(reasonKey: String, note: String?)
+    case resolved(note: String?)
+    case issueStillVisible(note: String?)
 }
 
 struct ReviewEvidence: Equatable, Sendable {
@@ -155,6 +157,7 @@ final class CheckRunnerCoordinator {
     private var evidenceBundleStore: EvidenceBundleStore?
     private var reportDeliveryCoordinator: ReportDeliveryCoordinator?
     private var finalizationAttempt: FinalizationAttempt?
+    private var pendingRecheckRequest: (assetID: UUID, issueID: UUID)?
 
     private struct FinalizationAttempt {
         let assetID: UUID
@@ -316,10 +319,31 @@ final class CheckRunnerCoordinator {
             throw CheckRunnerCoordinatorError.finalizationNotConfigured
         }
         let outcome = try resolvedOutcome(selection)
-        let currentDraftID = try existingDraft(assetID: assetID)?.id
+        let currentDraft = try existingDraft(assetID: assetID)
+        let currentDraftID = currentDraft?.id
+        let suppliedMutationRecord: WorkflowRecord?
+        if let suppliedIdentifiers {
+            let matches = try modelContext.fetch(FetchDescriptor<WorkflowRecord>()).filter {
+                $0.finalizationMutationID == suppliedIdentifiers.mutationID
+            }
+            guard matches.count <= 1 else {
+                throw CheckRunnerCoordinatorError.finalizationFailed
+            }
+            suppliedMutationRecord = matches.first
+        } else {
+            suppliedMutationRecord = nil
+        }
+        let isRecheck = currentDraft?.stage == WorkflowStage.recheck.rawValue
+            || finalizationAttempt?.selection.isRecheck == true
+            || suppliedMutationRecord?.stage == WorkflowStage.recheck.rawValue
+        let existingIssueID = currentDraft?.issueID
+            ?? finalizationAttempt?.identifiers.issueID
+            ?? suppliedMutationRecord?.issueID
         let activeAttempt: FinalizationAttempt
         if let suppliedIdentifiers {
-            guard (outcome.issueLabel != nil) == (suppliedIdentifiers.issueID != nil) else {
+            guard isRecheck
+                    ? suppliedIdentifiers.issueID == existingIssueID
+                    : (outcome.issueLabel != nil) == (suppliedIdentifiers.issueID != nil) else {
                 throw CheckRunnerCoordinatorError.issueLabelInvalid
             }
             activeAttempt = FinalizationAttempt(
@@ -350,7 +374,9 @@ final class CheckRunnerCoordinator {
                     packetID: UUID(),
                     stableRootID: UUID(),
                     reportID: UUID(),
-                    issueID: outcome.issueLabel == nil ? nil : UUID()
+                    issueID: isRecheck
+                        ? existingIssueID
+                        : outcome.issueLabel == nil ? nil : UUID()
                 )
             )
         }
@@ -430,6 +456,9 @@ final class CheckRunnerCoordinator {
         }
         if outcomeResult.createdAuthority {
             await diagnosticsStore?.increment(.reportSaved)
+            if draft.stage == WorkflowStage.recheck.rawValue {
+                await diagnosticsStore?.increment(.recheckCompleted)
+            }
         }
         return result
     }
@@ -459,12 +488,16 @@ final class CheckRunnerCoordinator {
         guard let draft = try existingDraft(assetID: assetID) else {
             throw CheckRunnerCoordinatorError.captureDraftRequired
         }
+        let isCheck = draft.stage == WorkflowStage.check.rawValue
+            && draft.issueID == nil
+            && draft.parentRecordID == nil
+        let isRecheck = draft.stage == WorkflowStage.recheck.rawValue
+            && draft.issueID != nil
+            && draft.parentRecordID != nil
         guard draft.revisionKind == WorkflowRevisionKind.original.rawValue,
-              draft.stage == WorkflowStage.check.rawValue,
+              isCheck || isRecheck,
               draft.state == WorkflowState.draft.rawValue,
               draft.packetID == nil,
-              draft.issueID == nil,
-              draft.parentRecordID == nil,
               draft.recordRevisionRootID == draft.id,
               draft.revisesRecordID == nil,
               draft.evidenceSourceRecordID == nil,
@@ -765,6 +798,9 @@ final class CheckRunnerCoordinator {
 
     func prepare(assetID: UUID) throws -> CheckRunnerPreparation {
         let draft = try existingDraft(assetID: assetID)
+        if draft != nil {
+            pendingRecheckRequest = nil
+        }
         let asset = try requiredAsset(id: assetID)
         let site = try requiredSite(id: asset.siteID)
         return CheckRunnerPreparation(
@@ -794,17 +830,70 @@ final class CheckRunnerCoordinator {
         safePositionAccepted: Bool,
         observedAt: Date
     ) throws -> WorkflowRecord {
-        try beginOrResumeDraft(
+        let requestedStage: WorkflowStage
+        let issueID: UUID?
+        if let request = pendingRecheckRequest {
+            guard request.assetID == assetID else {
+                throw CheckRunnerCoordinatorError.invalidLineage
+            }
+            requestedStage = .recheck
+            issueID = request.issueID
+        } else {
+            requestedStage = .check
+            issueID = nil
+        }
+        let draft = try beginOrResumeDraft(
             BeginDraftSubmission(
                 assetID: assetID,
-                requestedStage: .check,
-                issueID: nil,
+                requestedStage: requestedStage,
+                issueID: issueID,
                 observedAtUTC: observedAt,
                 confirmedTimeZoneID: isTimeZoneConfirmed ? timeZoneID : nil,
                 afterDarkAccepted: afterDarkAccepted,
                 safePositionAccepted: safePositionAccepted
             )
         )
+        pendingRecheckRequest = nil
+        return draft
+    }
+
+    func requestRecheck(assetID: UUID, issueID: UUID) throws {
+        if try existingDraft(assetID: assetID) != nil {
+            pendingRecheckRequest = nil
+            return
+        }
+        _ = try requiredAsset(id: assetID)
+        _ = try validatedParentRecordID(
+            assetID: assetID,
+            requestedStage: .recheck,
+            issueID: issueID
+        )
+        pendingRecheckRequest = (assetID, issueID)
+    }
+
+    func clearPendingRecheckRequest() {
+        pendingRecheckRequest = nil
+    }
+
+    func activeDraftStage(assetID: UUID) -> WorkflowStage? {
+        guard let draft = try? existingDraft(assetID: assetID) else { return nil }
+        return WorkflowStage(rawValue: draft.stage)
+    }
+
+    func issueStatus(assetID: UUID, issueID: UUID) throws -> IssueStatus {
+        guard !modelContext.hasChanges else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        let issues = try modelContext.fetch(FetchDescriptor<Issue>()).filter {
+            $0.id == issueID
+        }
+        guard issues.count == 1,
+              issues[0].schemaVersion == 1,
+              issues[0].assetID == assetID,
+              let status = IssueStatus(rawValue: issues[0].status) else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        return status
     }
 
     func beginOrResumeDraft(
@@ -1257,6 +1346,20 @@ final class CheckRunnerCoordinator {
             couldNotVerify = selected
             note = normalizedNote
             normalizedSelection = .couldNotVerify(reasonKey: selected.key, note: normalizedNote)
+        case let .resolved(rawNote):
+            let normalizedNote = try normalizedRecheckNote(rawNote)
+            key = "resolved"
+            issueLabel = nil
+            couldNotVerify = nil
+            note = normalizedNote
+            normalizedSelection = .resolved(note: normalizedNote)
+        case let .issueStillVisible(rawNote):
+            let normalizedNote = try normalizedRecheckNote(rawNote)
+            key = "issue_still_visible"
+            issueLabel = nil
+            couldNotVerify = nil
+            note = normalizedNote
+            normalizedSelection = .issueStillVisible(note: normalizedNote)
         }
         guard let display = signPack.outcomeDisplays.first(where: {
             $0.key == key
@@ -1265,6 +1368,16 @@ final class CheckRunnerCoordinator {
             throw CheckRunnerCoordinatorError.invalidLineage
         }
         return (key, display, issueLabel, couldNotVerify, note, normalizedSelection)
+    }
+
+    private func normalizedRecheckNote(_ value: String?) throws -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmed.flatMap { $0.isEmpty ? nil : $0 }
+        guard value.map({ $0.isEmpty || $0 == trimmed }) ?? true,
+              normalized.map({ (1...1000).contains($0.count) }) ?? true else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        return normalized
     }
 
     private func validCouldNotVerifyRegistry() -> Bool {
@@ -1362,6 +1475,15 @@ final class CheckRunnerCoordinator {
             throw CheckRunnerCoordinatorError.saveFailed
         }
         return draft
+    }
+}
+
+private extension CheckOutcomeSelection {
+    var isRecheck: Bool {
+        switch self {
+        case .resolved, .issueStillVisible: true
+        default: false
+        }
     }
 }
 

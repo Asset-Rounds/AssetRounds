@@ -11,9 +11,11 @@ struct IssueDetailView: View {
     static let workDescriptionAccessibilityIdentifier = "s5.1.issue.work-description"
     static let workNoteAccessibilityIdentifier = "s5.1.issue.work-note"
     static let workPhotoAccessibilityIdentifier = "s5.1.issue.work-photo"
+    static let startRecheckAccessibilityIdentifier = "s5.2.issue.start-recheck"
 
     let issue: WorkIssuePresentationValue
     let recordWork: () -> Void
+    let startRecheck: () -> Void
 
     @AccessibilityFocusState private var focusesHeader: Bool
 
@@ -22,8 +24,10 @@ struct IssueDetailView: View {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                 WorklightCard {
                     WorklightStatusBadge(
-                        kind: issue.status == .recheckDue ? .attention : .information,
-                        text: issue.status == .recheckDue ? "Recheck due" : "Record work"
+                        kind: issue.status == .resolved
+                            ? .complete
+                            : issue.status == .recheckDue ? .attention : .information,
+                        text: statusDisplay
                     )
                     .accessibilityIdentifier(Self.statusAccessibilityIdentifier)
 
@@ -39,6 +43,10 @@ struct IssueDetailView: View {
                         Button("Record work", action: recordWork)
                             .buttonStyle(WorklightPrimaryButtonStyle())
                             .accessibilityIdentifier(Self.recordWorkAccessibilityIdentifier)
+                    } else if issue.status == .recheckDue {
+                        Button("Start recheck", action: startRecheck)
+                            .buttonStyle(WorklightPrimaryButtonStyle())
+                            .accessibilityIdentifier(Self.startRecheckAccessibilityIdentifier)
                     }
                 }
 
@@ -79,7 +87,7 @@ struct IssueDetailView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle(issue.status == .recheckDue ? "Recheck due" : "Record work")
+        .navigationTitle(statusDisplay)
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
@@ -90,6 +98,14 @@ struct IssueDetailView: View {
                 await Task.yield()
                 focusesHeader = true
             }
+        }
+    }
+
+    private var statusDisplay: String {
+        switch issue.status {
+        case .open: "Record work"
+        case .recheckDue: "Recheck due"
+        case .resolved: "Resolved"
         }
     }
 

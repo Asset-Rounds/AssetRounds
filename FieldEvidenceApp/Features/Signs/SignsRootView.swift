@@ -108,6 +108,7 @@ struct SignsRootView: View {
                         recordWork: beginRecordWork,
                         refreshIssue: refreshActiveIssue
                     ) {
+                        checkRunnerCoordinator.clearPendingRecheckRequest()
                         checkNotice = nil
                         path.append(Route.check)
                     }
@@ -137,9 +138,11 @@ struct SignsRootView: View {
                                 usesImportedCaptureFixturesForUITest,
                             cameraAdapter: cameraAdapter,
                             cannotComplete: {
+                                checkRunnerCoordinator.clearPendingRecheckRequest()
                                 path.removeLast()
                             }
                         ) {
+                            checkRunnerCoordinator.clearPendingRecheckRequest()
                             checkNotice = "No check was started."
                             path.removeLast()
                         }
@@ -172,7 +175,8 @@ struct SignsRootView: View {
                        activeIssue.id == issueID {
                         IssueDetailView(
                             issue: activeIssue,
-                            recordWork: beginRecordWork
+                            recordWork: beginRecordWork,
+                            startRecheck: beginRecheck
                         )
                     } else {
                         issueUnavailable
@@ -249,7 +253,23 @@ struct SignsRootView: View {
             return
         }
         Task {
-            activeIssue = try? await workCoordinator.activeIssue(assetID: assetID)
+            if let loaded = try? await workCoordinator.activeIssue(assetID: assetID) {
+                activeIssue = loaded
+            } else if let retained = activeIssue,
+                      let status = try? checkRunnerCoordinator.issueStatus(
+                        assetID: assetID,
+                        issueID: retained.id
+                      ) {
+                activeIssue = WorkIssuePresentationValue(
+                    id: retained.id,
+                    assetID: retained.assetID,
+                    label: retained.label,
+                    status: status,
+                    records: retained.records
+                )
+            } else {
+                activeIssue = nil
+            }
         }
     }
 
@@ -267,6 +287,22 @@ struct SignsRootView: View {
         do {
             let draft = try workCoordinator.beginWork(issueID: activeIssue.id)
             path.append(Route.work(draft))
+        } catch {
+            refreshActiveIssue()
+        }
+    }
+
+    private func beginRecheck() {
+        guard let activeIssue,
+              activeIssue.status == .recheckDue else {
+            return
+        }
+        do {
+            try checkRunnerCoordinator.requestRecheck(
+                assetID: activeIssue.assetID,
+                issueID: activeIssue.id
+            )
+            path.append(Route.check)
         } catch {
             refreshActiveIssue()
         }

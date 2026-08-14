@@ -13,6 +13,7 @@ struct SignDetailView: View {
         "s4.4.sign-detail.report-history"
     static let recordWorkAccessibilityIdentifier = "s5.1.sign-detail.record-work"
     static let recheckDueAccessibilityIdentifier = "s5.1.sign-detail.recheck-due"
+    static let resolvedIssueAccessibilityIdentifier = "s5.2.sign-detail.resolved"
 
     let snapshot: FirstSignSnapshot
     let checkNotice: String?
@@ -69,11 +70,17 @@ struct SignDetailView: View {
                                 .accessibilityIdentifier(
                                     Self.recordWorkAccessibilityIdentifier
                                 )
-                        } else {
+                        } else if activeIssue.status == .recheckDue {
                             Button("Recheck due", action: openIssue)
                                 .buttonStyle(WorklightSecondaryButtonStyle())
                                 .accessibilityIdentifier(
                                     Self.recheckDueAccessibilityIdentifier
+                                )
+                        } else {
+                            Button("Resolved", action: openIssue)
+                                .buttonStyle(WorklightSecondaryButtonStyle())
+                                .accessibilityIdentifier(
+                                    Self.resolvedIssueAccessibilityIdentifier
                                 )
                         }
                     }

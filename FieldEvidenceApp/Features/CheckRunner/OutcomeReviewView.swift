@@ -16,6 +16,10 @@ struct OutcomeReviewView: View {
     static let closeEvidenceAccessibilityIdentifier = "s3.review.evidence.close"
     static let saveAccessibilityIdentifier = "s3.review.save-report"
     static let backAccessibilityIdentifier = "s3.review.back"
+    static let resolvedAccessibilityIdentifier = "s5.2.outcome.resolved"
+    static let issueStillVisibleAccessibilityIdentifier =
+        "s5.2.outcome.issue-still-visible"
+    static let recheckNoteAccessibilityIdentifier = "s5.2.outcome.note"
 
     let assetID: UUID
     let coordinator: CheckRunnerCoordinator
@@ -26,6 +30,7 @@ struct OutcomeReviewView: View {
     @State private var isChoosingCouldNotVerify: Bool
     @State private var selectedCouldNotVerifyReasonKey: String?
     @State private var couldNotVerifyNote = ""
+    @State private var recheckNote = ""
     @State private var review: FinalizationReview?
     @State private var result: FinalizationResult?
     @State private var isSaving = false
@@ -64,7 +69,29 @@ struct OutcomeReviewView: View {
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityAddTraits(.isHeader)
 
-                if !startsWithCouldNotVerify {
+                if isRecheck {
+                    choiceButton(
+                        title: outcomeDisplay("resolved"),
+                        isSelected: isResolvedSelected,
+                        identifier: Self.resolvedAccessibilityIdentifier
+                    ) {
+                        selection = .resolved(note: normalizedRecheckNote)
+                        isChoosingVisibleIssue = false
+                        isChoosingCouldNotVerify = false
+                        errorMessage = nil
+                    }
+
+                    choiceButton(
+                        title: outcomeDisplay("issue_still_visible"),
+                        isSelected: isIssueStillVisibleSelected,
+                        identifier: Self.issueStillVisibleAccessibilityIdentifier
+                    ) {
+                        selection = .issueStillVisible(note: normalizedRecheckNote)
+                        isChoosingVisibleIssue = false
+                        isChoosingCouldNotVerify = false
+                        errorMessage = nil
+                    }
+                } else if !startsWithCouldNotVerify {
                     choiceButton(
                         title: outcomeDisplay("no_visible_issue"),
                         isSelected: selection == .noVisibleIssue,
@@ -88,15 +115,35 @@ struct OutcomeReviewView: View {
                     }
                 }
 
-                choiceButton(
-                    title: outcomeDisplay("could_not_verify"),
-                    isSelected: isChoosingCouldNotVerify,
-                    identifier: Self.couldNotVerifyAccessibilityIdentifier
-                ) {
-                    selection = nil
-                    isChoosingVisibleIssue = false
-                    isChoosingCouldNotVerify = true
-                    errorMessage = nil
+                if !isRecheck {
+                    choiceButton(
+                        title: outcomeDisplay("could_not_verify"),
+                        isSelected: isChoosingCouldNotVerify,
+                        identifier: Self.couldNotVerifyAccessibilityIdentifier
+                    ) {
+                        selection = nil
+                        isChoosingVisibleIssue = false
+                        isChoosingCouldNotVerify = true
+                        errorMessage = nil
+                    }
+                }
+            }
+
+            if isRecheck {
+                WorklightCard {
+                    TextField("Optional note", text: $recheckNote, axis: .vertical)
+                        .lineLimit(3...6)
+                        .frame(
+                            minHeight: DesignTokens.Control.minimumHitSize,
+                            alignment: .topLeading
+                        )
+                        .accessibilityIdentifier(Self.recheckNoteAccessibilityIdentifier)
+                        .onChange(of: recheckNote) { _, _ in
+                            updateRecheckSelection()
+                        }
+                    Text("\(recheckNote.count) of 1000 characters")
+                        .font(.caption)
+                        .foregroundStyle(DesignTokens.Colors.secondaryText)
                 }
             }
 
@@ -178,7 +225,7 @@ struct OutcomeReviewView: View {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
             WorklightCard {
                 WorklightStatusBadge(kind: .information, text: "Review")
-                Text("Review this check")
+                Text(isRecheck ? "Review this recheck" : "Review this check")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityAddTraits(.isHeader)
@@ -335,6 +382,8 @@ struct OutcomeReviewView: View {
         case let .couldNotVerify(reasonKey, note):
             coordinator.couldNotVerifyReasons.contains { $0.key == reasonKey }
                 && normalizedNote(note) != .invalid
+        case let .resolved(note), let .issueStillVisible(note):
+            normalizedNote(note) != .invalid
         case nil:
             false
         }
@@ -351,6 +400,39 @@ struct OutcomeReviewView: View {
         case .none: nil
         case let .value(value): value
         case .invalid: couldNotVerifyNote
+        }
+    }
+
+    private var normalizedRecheckNote: String? {
+        switch normalizedNote(recheckNote) {
+        case .none: nil
+        case let .value(value): value
+        case .invalid: recheckNote
+        }
+    }
+
+    private var isRecheck: Bool {
+        coordinator.activeDraftStage(assetID: assetID) == .recheck
+    }
+
+    private var isResolvedSelected: Bool {
+        if case .resolved = selection { return true }
+        return false
+    }
+
+    private var isIssueStillVisibleSelected: Bool {
+        if case .issueStillVisible = selection { return true }
+        return false
+    }
+
+    private func updateRecheckSelection() {
+        switch selection {
+        case .resolved:
+            selection = .resolved(note: normalizedRecheckNote)
+        case .issueStillVisible:
+            selection = .issueStillVisible(note: normalizedRecheckNote)
+        default:
+            break
         }
     }
 
