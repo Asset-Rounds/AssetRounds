@@ -14,6 +14,10 @@ final class S5_2RecheckUITests: XCTestCase {
         recordWorkWithPhoto(in: app)
 
         app.terminate()
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL",
+        ]
         app.launch()
 
         let signDetail = element(in: app, identifier: "s2.sign-detail.screen")
@@ -274,8 +278,6 @@ final class S5_2RecheckUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += [
             "-AppleInterfaceStyle", "Light",
-            "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityXXXL",
             "--s1-ui-test-light-mode",
             "--s3-2-ui-test-imported-fixtures",
         ]
