@@ -29,9 +29,22 @@
 		A00000000000000000000012 /* FieldEvidenceAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FieldEvidenceAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A00000000000000000000044 /* Exceptions for "FieldEvidenceApp" folder in "FieldEvidenceApp" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A00000000000000000000030 /* FieldEvidenceApp */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A00000000000000000000004 /* FieldEvidenceApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A00000000000000000000044 /* Exceptions for "FieldEvidenceApp" folder in "FieldEvidenceApp" target */,
+			);
 			path = FieldEvidenceApp;
 			sourceTree = "<group>";
 		};
@@ -310,7 +323,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = AssetRounds;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Use the camera to add sign photos to reports stored on this iPhone.";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "( { UTTypeConformsTo = (\"com.apple.package\"); UTTypeIdentifier = \"com.palatis3.fieldrecordbackup\"; UTTypeTagSpecification = { \"public.filename-extension\" = (fieldrecordbackup); }; } )";
+				INFOPLIST_FILE = FieldEvidenceApp/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -335,7 +348,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = AssetRounds;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Use the camera to add sign photos to reports stored on this iPhone.";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "( { UTTypeConformsTo = (\"com.apple.package\"); UTTypeIdentifier = \"com.palatis3.fieldrecordbackup\"; UTTypeTagSpecification = { \"public.filename-extension\" = (fieldrecordbackup); }; } )";
+				INFOPLIST_FILE = FieldEvidenceApp/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
