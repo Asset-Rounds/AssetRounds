@@ -63,6 +63,7 @@ Production paths:
 - `FieldEvidenceApp/Domain/Workflow/DifferentIssueOutcomeRule.swift`
 - `FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift`
 - `FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift`
+- `FieldEvidenceApp/Features/Issues/WorkCoordinator.swift`
 - `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
 - `FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift`
 - `FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift`
@@ -80,6 +81,6 @@ No other implementation, project, model, resource, fixture, script, workflow, au
 
 ## G0 and transition
 
-- Fresh G0 must prove clean `phase/s5-work-recheck`, `A^=M`, exact HANDOFF-plus-CURRENT_TASK `M..A`, remote phase=A, remote main=P, all pins and accepted S5.2 run/artifact live and exact, the accepted S5.2 selector still byte-exact, and the six-production/two-test expanded envelope inside the default 10/5 cap.
+- Fresh G0 must prove clean `phase/s5-work-recheck`, `A^=M`, exact HANDOFF-plus-CURRENT_TASK `M..A`, remote phase=A, remote main=P, all pins and accepted S5.2 run/artifact live and exact, the accepted S5.2 selector still byte-exact, and the seven-production/two-test expanded envelope inside the default 10/5 cap.
 - After G0, replace only `Scripts/ci-selection.json` with the frozen S5.3 object, then implement exactly this card. Candidate recovery follows the persistent evidence-driven direct-child loop without weakening acceptance or expanding paths.
 - After accepted exact-head S5.3 CI, read `KNOWN_BUGS.md`, append HANDOFF, and—only if fresh refs still match—transition with exactly HANDOFF plus immediate-next S5.4 CURRENT_TASK; do not start S5.4 early and do not mutate main.
