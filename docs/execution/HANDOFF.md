@@ -1651,3 +1651,65 @@ The exact implementation envelope is nine production paths, four test paths, and
 - `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known bugs: `NONE`. Product/card blockers: `NONE`.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
 - Next unstarted task: `S6.3`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S6.3 `CURRENT_TASK.md`, then must run fresh S6.3 G0. Do not mutate main.
+
+## `S6.3` — `complete` — `2026-08-14T07:15:16-04:00`
+
+- Phase / branch / position / boundary: `S6` / `phase/s6-data-rights` / `3 of 6` / `no`.
+- Outcome: obtained scoped access to one selected `.fieldrecordbackup` package only through the coordinated copy; capacity-checked and copied it into operation-owned app staging; released the external scope; closed-validated canonical manifest/records, exact members and bytes, media/snapshot/PDF authority, the complete seven-model graph, packs/templates, report/revision chains, and counted roots; returned only a deterministic customer-content-safe summary without mutating the live generation.
+- Immutable phase-main base: `P=7c3c381055abde6f6b1020a9f3f599333ef47f40`; remote `main` remained exactly P throughout S6.3.
+- Integrated/card base and predecessor: `M=E=de0faeda88e2d3021f6944260b86fa128ea8611f`; accepted S6.2 run `31783299741` / job `94713542856`, P12/UI enabled, `4/4` units and `1/1` UI green.
+- Observed task-start authority: `A=f4f93388489935ab85727cc704b87800581c894d`; `A^=M`, and `M..A` changed only append-only `docs/execution/HANDOFF.md` plus immediate-next `docs/execution/CURRENT_TASK.md`.
+- First implementation / accepted implementation: `I=f4178e0284b7a407ebdd409aefef2502310094e3`; accepted `E=2a6c5316112f90902f05a55e1fa4b0c67ece457c`; no distinct infrastructure K.
+- Exact selector: S6.3 P12/UI enabled; compact JSON plus LF, 347 bytes, SHA-256 `BFB97B3FF1BC13B36ED001D9CB26B2762D49C81F54A586464114272621DB5F18`; exact selectors `FieldEvidenceAppTests/S6_3BackupValidationTests` and `FieldEvidenceAppUITests/S6_3BackupValidationUITests`.
+- Accepted run/job/URLs: `31794139948` / `94747368022`; `https://github.com/palatis3/AssetRounds/actions/runs/31794139948`; `https://github.com/palatis3/AssetRounds/actions/runs/31794139948/job/94747368022`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.5; UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; initial Simulator state `Shutdown`.
+- Budgets: setup `17/300` s; Simulator readiness `374/900` s; build step `189/600` s; unit step `166/900` s with selected tests `4.685` s; UI step `474/900` s with selected test `417.814` s; artifact `1` s and setup-plus-artifact `18/300` s; job total `1069/3300` s; all watchdogs passed.
+- Artifact: `ios-ci-31794139948-1`, ID `9217114043`, size `5363060`, GitHub digest `sha256:9102e7ac06bd1161c14d3c7c471879753d6d5490522a171f62ec92b4e923b9a0`; `SHA256SUMS.txt` SHA-256 `1C0C9C4607D0A58F9B90FD885A82EB9B30159A82D1713FEBD372DA551B1B2D39`; all `95/95` listed payloads independently matched.
+- Accepted logs: `build-smoke.log` SHA-256 `A4DABBD202B32EE070E15DC06E20E1AB6262BDA67E3594E75B190BD76A09201D`; `test-smoke.log` `7A93F3A5261C41B661424E0534DFF3EDAFDBA83480603833E51D7B3BBA666CB9`; `ui-smoke.log` `7649DA36B7630C03ABFD295EE4C75C170882183FABA4EED5EF7FC13A330E8A66`.
+- Terminal evidence: `ui-final.png`, `1206×2622`, 191375 bytes, SHA-256 `1CE4B0C385BF98AD4F53079B3D544F93E49EECD39C0E0E764750104FFB0B64F1`; visual PASS at Accessibility XXXL showed the exact safe Backup summary with `1 sign`, `4 reports`, and `7 photos`, frozen export date/size/pack/root/slot truth below the bounded scroll, and no error, loading state, keyboard, external sheet, or customer-content disclosure.
+- Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp/Domain/Backup/V4BackupImportContracts.swift`
+- `FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift`
+- `FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift`
+- `FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift`
+- `FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift`
+- `FieldEvidenceAppTests/Fixtures/S6_3V4BackupPackageV1.json`
+- `FieldEvidenceAppTests/S6_3BackupValidationTests.swift`
+- `FieldEvidenceAppUITests/Fixtures/S6_3V4BackupPackageV1.json`
+- `FieldEvidenceAppUITests/S6_3BackupValidationUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact implementation envelope is eight production paths, four test paths, and the standing selector exception. No live-generation mutation, restore install/pointer/journal, union/merge, schema/model/project/package/capability/permission, backend/account/commerce, diagnostics, signing, or release behavior changed.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`2/2`): `testGoldenMixedPackageStagesValidatesAndRecomputesSummary`; `testInvalidFamiliesAndCapacityFailClosedAndCleanStage`.
+- UI `PASS` (`1/1`): `testValidatedMixedBackupShowsDeterministicSafeSummaryAtXXXL`, 417.814 s.
+
+### Acceptance results
+
+- GOLDEN `PASS`: both an active-work-draft package and the exact mixed live/Issue/work/recheck/correction/tombstone package coordinated through the importer, retained unchanged source/live authority, validated the exact complete graph and member bytes, recomputed the deterministic `1/4/7` summary, and discarded only the operation-owned stage.
+- ALT-1 `PASS`: the bounded invalid family rejected missing/extra/fold-colliding/unsafe/symlinked/special/hard-linked members; noncanonical JSON and unknown schema/pack/template; scalar/time/ID/relationship/draft/Issue/report/correction/chain/root/media/snapshot/PDF faults; and insufficient capacity before live mutation, while cleaning only the exact stage.
+- Authority/compatibility `PASS`: arbitrary external/staged package roots use package-specific no-follow descriptor authority rather than the generation-only helper; source scope starts/stops exactly once; selected source and current generation identities are rechecked; validation never renders, retries, repairs, or mutates live data.
+- UI/accessibility `PASS`: persisted mixed-fixture materialization, cold Accessibility XXXL validation-summary launch, exact safe counts/date/size/pack/root/slot assertions, bounded scrolling, and one terminal in-app screenshot all passed.
+- Scope `PASS`: no S6.4 generation install, restore journal/pointer, union/partial import, Erase All, entitlement/subscription transfer, commerce, remote/backend, migration, repair, signing, or release behavior was added.
+
+### Candidate recovery provenance
+
+- Run `31790379517` at I stopped at the Swift access-control rule requiring `validateSourceBoundary` to be private because its result type was private; direct-child `856713ae0f3a126e8c91c9ac6f2d1b484a3f7494` made only that declaration private.
+- Run `31790797942` at `856713ae0f3a126e8c91c9ac6f2d1b484a3f7494` built, then proved the report-generation-only anchored helper rejected every ordinary package root as `invalidSource`, and the long fixture reused prior recheck submission state. Direct-child `59cc9a03b9766311bc46363d61cc12b1068c5468` added package-root descriptor authority and a fresh fixture coordinator.
+- Run `31792129516` at `59cc9a03b9766311bc46363d61cc12b1068c5468` built and passed the GOLDEN unit; the invalid-family setup then proved case-insensitive APFS cannot materialize both `records.json` and `Records.json`. Direct-child `b056e56ab6ca494092e8f1ebe4b5e91a7ec77b73` used an equivalent representable Unicode width-fold collision without weakening rejection.
+- Run `31792782350` at `b056e56ab6ca494092e8f1ebe4b5e91a7ec77b73` built and passed both units; the UI evidence hierarchy showed the independent same-session check remained on Review with `Check not saved` because the earlier recheck attempt was retained by the prior-card coordinator seam. The S6.3-owned fixture correction `2a6c5316112f90902f05a55e1fa4b0c67ece457c` cold-relaunched before creating that independently persisted report; the accepted run then passed the unchanged product validator and summary proof. None of the failed runs was rerun by run ID or accepted.
+
+### Known bugs, blockers, and next task
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S6.3 product/card blockers: `NONE`.
+- Mandatory later integration revisit: a same-session fresh check after a completed recheck can reuse the prior `CheckRunnerCoordinator.finalizationAttempt`, misclassify supplied no-visible identifiers as recheck identifiers, and show `Check not saved`; the exact correction belongs to the earlier coordinator path, which S6.3 did not authorize. The persisted S6.3 proof uses a cold boundary and remains valid. S8.1 must exercise and correct this prior-card reusable seam under its explicit production-seam correction authority; it may not be silently accepted for release.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
+- Next unstarted task: `S6.4`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S6.4 `CURRENT_TASK.md`, then must run fresh S6.4 G0. Do not mutate main.
