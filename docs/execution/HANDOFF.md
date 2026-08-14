@@ -1897,3 +1897,59 @@ The exact implementation envelope is ten production paths, two test paths, and t
 - Mandatory S8.1 integration revisit remains: a same-session fresh check after a completed recheck can reuse the prior `CheckRunnerCoordinator.finalizationAttempt`, misclassify supplied no-visible identifiers as recheck identifiers, and show `Check not saved`; S8.1 must exercise and correct that reusable seam before release.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future phase-close commit.
 - Next unstarted task: `S7.1`. Program autopilot may commit and non-force push this HANDOFF-only phase-close, verify exact phase CI, non-force fast-forward `main` only after that green phase evidence, verify exact-main CI, create `phase/s7-commerce` from the accepted exact-main head, hydrate only S7.1, and run fresh S7.1 G0.
+
+## `S7.1` — `complete` — `2026-08-14T17:29:59-04:00`
+
+- Phase / branch / position / boundary: `S7` / `phase/s7-commerce` / `1 of 5` / `no`.
+- Outcome: installed the sole monthly StoreKit product loader, verified-fact model, pure entitlement reducer, descriptor-pinned canonical entitlement cache, transaction/status observers, durable-before-finish processing, offline interpretation, shared local StoreKit fixture, and startup lifecycle with no purchase UI or sync.
+- Immutable phase-main base: `P=5f50551f61bc363b430d4e877e462cb47865065d`; remote `main` remained exactly P throughout S7.1.
+- Integrated/card base and predecessor: `M=P=5f50551f61bc363b430d4e877e462cb47865065d`; accepted exact-main S6 integration run `31836285367` / job `94883189785`, P12/UI enabled, build plus `9/9` units plus `1/1` UI green.
+- Observed task-start authority: `A=16ef8f97e8819cf646468088de4d5b707fefc408`; `A^=M`, and `M..A` changed only `docs/execution/CURRENT_TASK.md`.
+- First implementation / accepted implementation: `I=3aaafb1126743dbaa9b15e710bfedbc259286b90`; intermediate `I2=3a2e721537bfad5e16f7040bc5bad504d80c2770`; accepted `E=f1d22d248a5d76dd2ac66bb2c57e7f06d0d177bc`; no distinct infrastructure K.
+- Exact selector: S7.1 N8/UI disabled; compact JSON plus LF, 288 bytes, SHA-256 `5EDA4846E62842DBC2933A65706B335C6B6431D067DF38F46DFA1443E528DE08`; exact unit selector `FieldEvidenceAppTests/S7_1CommerceCoreTests`; UI selector empty.
+- Accepted run/job/URLs: `31841797858` / `94900070630`; `https://github.com/palatis3/AssetRounds/actions/runs/31841797858`; `https://github.com/palatis3/AssetRounds/actions/runs/31841797858/job/94900070630`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.5; UDID `FC5FEF2A-E933-4515-AAEF-C9FC16651D0B`; initial Simulator state `Shutdown`.
+- Budgets: setup `15/300` s; Simulator readiness `455/900` s; build step `261/600` s; unit step `61/900` s with selected tests `0.911` s; UI disabled; artifact `6` s and setup-plus-artifact `21/300` s; total `548/2400` s; all watchdogs passed.
+- Artifact: `ios-ci-31841797858-1`, ID `9234729879`, size `128221`, GitHub digest `sha256:749284a0628a63e674835956ad39f64588f2334b30513dff009a7d868b0c6913`; `SHA256SUMS.txt` SHA-256 `7E129174BE4AD43930DFBF1737CE47B6741A76408B7F3AA0DDA3970BD5C4C292`; all `63/63` listed payloads independently matched.
+- Accepted logs: `build-smoke.log` SHA-256 `15C2F9448199FE52B43AC446368C912CE97D67AC498909AB5BB99E1C6BE25A8F`; `test-smoke.log` `599D92F80E1FE233F26165D26779A10A08783C0DE39ABEBC93259659B7E63EC4`; `unit-test-results.json` `68404AC726F14484A6178E1DD4807E69CE3FD4598FE602DFE2C6F4BEF1801B88`.
+- Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; UI smoke disabled; all required commands exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp.xcodeproj/project.pbxproj`
+- `FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme`
+- `FieldEvidenceApp/Domain/Commerce/EntitlementFactsV1.swift`
+- `FieldEvidenceApp/Domain/Commerce/EntitlementReducerV1.swift`
+- `FieldEvidenceApp/Infrastructure/Commerce/EntitlementStore.swift`
+- `FieldEvidenceApp/Infrastructure/Commerce/StoreKitProductLoader.swift`
+- `FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift`
+- `FieldEvidenceAppTests/S7_1CommerceCoreTests.swift`
+- `Scripts/ci-selection.json`
+- `TestFixtures/StoreKit/FieldEvidence.storekit`
+
+The exact implementation envelope is nine production/project/fixture paths, one test path, and the standing selector exception. No purchase/paywall/Restore/Manage UI, explicit StoreKit sync, access gating, annual product, hardcoded customer price, backend/account, signing, deployment, or release behavior changed.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`5/5`): `testProcessorObserversIgnoreNonverifiedPersistBeforeFinishAndReplayOnce`; `testProcessorWriteFailureDoesNotFinish`; `testProductContractIsExactMonthlyTrialAndNotShared`; `testReducerVerifiedTableSelectionAndOfflineBoundaries`; `testStoreCanonicalDurabilityMonotonicityAndFailClosedFamilies`.
+- UI: disabled and not required for N8.
+
+### Acceptance results
+
+- GOLDEN `PASS`: the table covered active subscription, introductory trial, auto-renew-off, signed grace, billing retry, expiration, refund, revocation, latest-fact selection, offline boundaries, exact product facts, canonical durable reopen, both observer families, idempotent replay, and persist-before-finish.
+- ALT-1 `PASS`: wrong-product, unresolved-tie, pending, cancelled, failed, unverified, malformed/colliding cache, write failure, replay, and offline-expired inputs did not create or regress paid authority or finish an unverified/unpersisted transaction.
+- Product/fixture `PASS`: the sole local product is `com.palatis3.fieldrecord.sub.solo.monthly.v1`, P1M with a P2W free introductory offer, Billing Grace enabled, Family Sharing off, and no annual or app-bundled StoreKit resource.
+- Scope `PASS`: startup owns one processor; Erase stops and recreates it around commerce-root deletion; ordinary startup never calls `AppStore.sync()`; no customer-facing commerce surface was added.
+
+### Candidate recovery provenance
+
+- Run `31840694764` / job `94896696880` at I stopped at compile before tests on two private-return-type access declarations and ambiguous `Transaction`; direct-child I2 made only those exact Swift compatibility corrections.
+- Run `31841260095` / job `94898436772` at I2 stopped at compile before tests on Swift-5 switch-return inference, an optional async-closure diagnostic crash, unavailable `RenewalInfo.state`, and iOS-26.4-only `revocationType`; direct-child E made explicit returns/closure typing, retained independently verified status authority, and availability-safe refund classification. Neither failed run ID was rerun or accepted.
+
+### Known bugs, blockers, and next task
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S7.1 product/card blockers: `NONE`.
+- Mandatory S8.1 integration revisit remains: a same-session fresh check after a completed recheck can reuse the prior `CheckRunnerCoordinator.finalizationAttempt`, misclassify supplied no-visible identifiers as recheck identifiers, and show `Check not saved`; S8.1 must exercise and correct that reusable seam before release.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
+- Next unstarted task: `S7.2`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S7.2 `CURRENT_TASK.md`, then must run fresh S7.2 G0. The pinned sources require exact recovery copy for cancelled/pending/unverified/failed purchases but do not provide those four strings; S7.2 must hold read-only at G0 until owner-frozen copy is incorporated into its authority. Do not mutate main.
