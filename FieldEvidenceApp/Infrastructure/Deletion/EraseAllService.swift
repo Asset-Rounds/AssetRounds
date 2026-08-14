@@ -10,6 +10,11 @@ enum EraseAllServiceError: Error, Equatable {
     case injectedFailure
 }
 
+struct EraseAllOutcome {
+    let session: StoreGenerationSession
+    let cleanupDeferred: Bool
+}
+
 enum EraseAllFailurePoint: CaseIterable, Equatable, Sendable {
     case afterEmptyGenerationDirectoryCreate
     case beforePreparedWrite
@@ -110,7 +115,7 @@ final class EraseAllService {
         coordinator: StoreSessionCoordinator,
         diagnosticsStore: DiagnosticsStore,
         activate: @escaping @MainActor (StoreGenerationSession) async -> Void
-    ) async throws -> StoreGenerationSession {
+    ) async throws -> EraseAllOutcome {
         guard confirmation == Self.requiredConfirmation else {
             throw EraseAllServiceError.invalidConfirmation
         }
@@ -209,9 +214,14 @@ final class EraseAllService {
             guard coordinator.generationID == session.generationID,
                   coordinator.generationRootURL.standardizedFileURL
                     == session.generationRootURL.standardizedFileURL,
-                  coordinator.modelContext === session.modelContext,
-                  await waitForDrain(drainProof) else {
+                  coordinator.modelContext === session.modelContext else {
                 throw EraseAllServiceError.recoveryRequired
+            }
+            guard await waitForDrain(drainProof) else {
+                return EraseAllOutcome(
+                    session: session,
+                    cleanupDeferred: true
+                )
             }
             let activated = intent.advancing(to: .sessionActivated)
             let completed = try await completeCleanup(
@@ -222,7 +232,10 @@ final class EraseAllService {
                 diagnosticsStore: diagnosticsStore,
                 intentStore: intentStore
             )
-            return completed
+            return EraseAllOutcome(
+                session: completed,
+                cleanupDeferred: false
+            )
         } catch {
             if !createdIntent {
                 var ownsUnjournaledGeneration = true

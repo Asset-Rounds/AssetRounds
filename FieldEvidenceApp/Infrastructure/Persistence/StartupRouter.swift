@@ -30,6 +30,7 @@ final class StartupRouter: ObservableObject {
             DiagnosticsStore,
             ReportRecoveryService
         )
+        case eraseCleanupPending(StoreSessionCoordinator)
         case maintenance(StartupMaintenanceReason)
     }
 
@@ -288,6 +289,34 @@ final class StartupRouter: ObservableObject {
             maintenanceEraseSession = nil
             route = .maintenance(.eraseInconsistent)
         }
+    }
+
+    func deferErasedSessionCleanup(
+        _ session: StoreGenerationSession,
+        coordinator: StoreSessionCoordinator
+    ) {
+        defer { isRunning = false }
+        let eraseJournalURL = applicationSupportURL.appendingPathComponent(
+            "FieldEvidenceErase/erase.json"
+        )
+        guard coordinator.generationID == session.generationID,
+              coordinator.generationRootURL.standardizedFileURL
+                == session.generationRootURL.standardizedFileURL,
+              coordinator.modelContext === session.modelContext,
+              (try? generationFactory.currentGenerationID())
+                == session.generationID,
+              BackupRestoreService.isEmptyCurrent(session.modelContext),
+              !noActiveJournal(at: eraseJournalURL) else {
+            pendingEraseDrainProof = nil
+            maintenanceRestoreSession = nil
+            maintenanceEraseSession = nil
+            route = .maintenance(.eraseInconsistent)
+            return
+        }
+        pendingEraseDrainProof = nil
+        maintenanceRestoreSession = nil
+        maintenanceEraseSession = nil
+        route = .eraseCleanupPending(coordinator)
     }
 
     func failClosedErase() {

@@ -69,11 +69,15 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             coordinator.activate(session: session)
         }
 
-        XCTAssertEqual(erased.generationID, newID)
+        XCTAssertFalse(erased.cleanupDeferred)
+        XCTAssertEqual(erased.session.generationID, newID)
         XCTAssertEqual(coordinator.generationID, newID)
         XCTAssertEqual(try harness.factory.currentGenerationID(), newID)
         XCTAssertEqual(try harness.factory.retiredGenerationIDs(), [])
-        XCTAssertEqual(try counts(erased.modelContext), [0, 0, 0, 0, 0, 0, 0])
+        XCTAssertEqual(
+            try counts(erased.session.modelContext),
+            [0, 0, 0, 0, 0, 0, 0]
+        )
         let diagnosticsAfterErase = await harness.diagnostics.snapshot()
         XCTAssertEqual(diagnosticsAfterErase, .zero)
         XCTAssertTrue(
@@ -90,6 +94,67 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         let reopened = try harness.factory.openOrBootstrapCurrent()
         XCTAssertEqual(reopened.generationID, newID)
         XCTAssertEqual(try counts(reopened.modelContext), [0, 0, 0, 0, 0, 0, 0])
+    }
+
+    @MainActor
+    func testRetainedLiveContextDefersCleanupUntilColdRecovery() async throws {
+        let harness = try await makeHarness("deferred-drain")
+        defer { cleanup(harness) }
+        let coordinator = try XCTUnwrap(harness.coordinator)
+        let oldID = coordinator.generationID
+        let newID = uuid("66000000-0000-0000-0000-000000000111")
+        var retainedContext: ModelContext? = coordinator.modelContext
+        let service = EraseAllService(
+            applicationSupportURL: harness.support,
+            cachesDirectoryURL: harness.caches,
+            temporaryDirectoryURL: harness.temporary,
+            userDefaults: harness.defaults,
+            bundleIdentifier: bundleID,
+            makeUUID: sequence([
+                newID,
+                uuid("66000000-0000-0000-0000-000000000112"),
+            ])
+        )
+
+        let outcome = try await service.erase(
+            confirmation: "ERASE",
+            coordinator: coordinator,
+            diagnosticsStore: harness.diagnostics
+        ) { session in
+            coordinator.activate(session: session)
+        }
+
+        XCTAssertTrue(outcome.cleanupDeferred)
+        XCTAssertEqual(outcome.session.generationID, newID)
+        XCTAssertEqual(try harness.factory.currentGenerationID(), newID)
+        XCTAssertTrue(fileManager.fileExists(atPath:
+            harness.factory.installedGenerationURL(id: oldID).path
+        ))
+        let pending = try XCTUnwrap(try EraseIntentStore(
+            applicationSupportURL: harness.support
+        ).load())
+        XCTAssertEqual(pending.phase, .sessionActivated)
+
+        retainedContext = nil
+        _ = retainedContext
+        await Task.yield()
+        let recovered = try await EraseAllService(
+            applicationSupportURL: harness.support,
+            cachesDirectoryURL: harness.caches,
+            temporaryDirectoryURL: harness.temporary,
+            userDefaults: harness.defaults,
+            bundleIdentifier: bundleID
+        ).reconcileAtStartup(diagnosticsStore: harness.diagnostics)
+
+        XCTAssertEqual(recovered?.generationID, newID)
+        XCTAssertFalse(fileManager.fileExists(atPath:
+            harness.factory.installedGenerationURL(id: oldID).path
+        ))
+        XCTAssertFalse(fileManager.fileExists(atPath:
+            harness.support.appendingPathComponent("FieldEvidenceErase").path
+        ))
+        let diagnosticsAfterRecovery = await harness.diagnostics.snapshot()
+        XCTAssertEqual(diagnosticsAfterRecovery, .zero)
     }
 
     @MainActor

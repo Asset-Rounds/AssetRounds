@@ -21,6 +21,7 @@ struct EraseAllView: View {
     let applicationSupportURL: URL
     let onBegin: @MainActor () -> Void
     let onActivate: @MainActor (StoreGenerationSession) async -> Void
+    let onDeferred: @MainActor (StoreGenerationSession) async -> Void
     let onFinished: @MainActor (StoreGenerationSession) async -> Void
     let onFailure: @MainActor () -> Void
 
@@ -145,6 +146,7 @@ struct EraseAllView: View {
         let diagnosticsStore = diagnosticsStore
         let applicationSupportURL = applicationSupportURL
         let onActivate = onActivate
+        let onDeferred = onDeferred
         let onFinished = onFinished
         let onFailure = onFailure
         onBegin()
@@ -154,12 +156,13 @@ struct EraseAllView: View {
             diagnosticsStore,
             applicationSupportURL,
             onActivate,
+            onDeferred,
             onFinished,
             onFailure
         ] in
             await Task.yield()
             do {
-                let session = try await EraseAllService(
+                let outcome = try await EraseAllService(
                     applicationSupportURL: applicationSupportURL
                 ).erase(
                     confirmation: confirmation,
@@ -167,7 +170,11 @@ struct EraseAllView: View {
                     diagnosticsStore: diagnosticsStore,
                     activate: onActivate
                 )
-                await onFinished(session)
+                if outcome.cleanupDeferred {
+                    await onDeferred(outcome.session)
+                } else {
+                    await onFinished(outcome.session)
+                }
             } catch {
                 onFailure()
             }

@@ -200,6 +200,9 @@ private struct StartupRootView: View {
                     selectedRestorePackageForUITest:
                         selectedRestorePackageForUITest
                 )
+
+            case .eraseCleanupPending:
+                EraseCleanupPendingView()
             }
         }
         .task {
@@ -292,6 +295,12 @@ private struct ReadyAppView: View {
                         coordinator: coordinator
                     )
                 },
+                onDeferred: { [router, coordinator] session in
+                    router.deferErasedSessionCleanup(
+                        session,
+                        coordinator: coordinator
+                    )
+                },
                 onFinished: { [router, coordinator] session in
                     await router.finishErasedSessionActivation(
                         session,
@@ -359,6 +368,12 @@ private struct MaintenanceRestoreHost: View {
                             coordinator: eraseCoordinator
                         )
                     },
+                    onDeferred: { [router, eraseCoordinator] session in
+                        router.deferErasedSessionCleanup(
+                            session,
+                            coordinator: eraseCoordinator
+                        )
+                    },
                     onFinished: { [router, eraseCoordinator] session in
                         await router.finishErasedSessionActivation(
                             session,
@@ -384,5 +399,31 @@ private struct MaintenanceRestoreHost: View {
             eraseCoordinator = StoreSessionCoordinator(session: eraseSession)
             showsErase = true
         }
+    }
+}
+
+private struct EraseCleanupPendingView: View {
+    var body: some View {
+        ScrollView {
+            WorklightCard {
+                WorklightStatusBadge(kind: .information, text: "Field Evidence")
+                Text("Local data erased")
+                    .font(.largeTitle.weight(.bold))
+                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                Text("Close and reopen the app to finish secure cleanup.")
+                    .font(.body)
+                    .foregroundStyle(DesignTokens.Colors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                ProgressView("Finishing erase")
+            }
+            .padding(DesignTokens.Spacing.medium)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DesignTokens.Colors.canvas)
+        .accessibilityIdentifier(
+            SignsRootView.welcomeScreenAccessibilityIdentifier
+        )
     }
 }
