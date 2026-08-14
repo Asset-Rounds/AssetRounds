@@ -63,6 +63,28 @@ struct StoreKitProductLoader: Sendable {
         return product
     }
 
+    func loadMonthlyPresentation() async throws -> PaywallProductPresentationV1 {
+        let product = try await loadMonthlyProduct()
+        guard let subscription = product.subscription else {
+            throw StoreKitProductLoaderError.invalidProduct
+        }
+        let duration = subscription.subscriptionPeriod.formatted(
+            product.subscriptionPeriodFormatStyle
+        )
+        let eligible = await subscription.isEligibleForIntroOffer
+        let presentation = PaywallProductPresentationV1(
+            productID: product.id,
+            displayName: product.displayName,
+            displayPrice: product.displayPrice,
+            subscriptionDuration: duration,
+            isEligibleForIntroOffer: eligible
+        )
+        guard presentation.isValid else {
+            throw StoreKitProductLoaderError.invalidProduct
+        }
+        return presentation
+    }
+
     static func validate(_ contract: StoreKitProductContractV1) throws {
         guard contract.productID == EntitlementReducerV1.productID,
               contract.kind == .autoRenewableSubscription,

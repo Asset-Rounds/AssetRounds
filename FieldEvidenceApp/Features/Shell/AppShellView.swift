@@ -45,6 +45,8 @@ struct AppShellView: View {
     let replaceDataBackup: @MainActor () -> Void
     let eraseAll: @MainActor () -> Void
 
+    @StateObject private var purchaseCoordinator: StoreKitPurchaseCoordinator
+
     @State private var selectedTab: Tab = .signs
 
     init(
@@ -56,6 +58,8 @@ struct AppShellView: View {
         usesImportedCaptureFixturesForUITest: Bool = false,
         injectsLowStorageFailureOnceForUITest: Bool = false,
         cameraAdapter: CameraAdapter = .live,
+        entitlementProcessor: StoreKitTransactionProcessor? = nil,
+        paywallCatalogLinks: PaywallCatalogLinksV1? = nil,
         restoreDataBackup: @escaping @MainActor () -> Void = {},
         replaceDataBackup: @escaping @MainActor () -> Void = {},
         eraseAll: @escaping @MainActor () -> Void = {}
@@ -69,6 +73,13 @@ struct AppShellView: View {
         self.injectsLowStorageFailureOnceForUITest =
             injectsLowStorageFailureOnceForUITest
         self.cameraAdapter = cameraAdapter
+        _purchaseCoordinator = StateObject(
+            wrappedValue: StoreKitPurchaseCoordinator(
+                processor: entitlementProcessor,
+                diagnosticsStore: diagnosticsStore,
+                catalogLinks: paywallCatalogLinks
+            )
+        )
         self.restoreDataBackup = restoreDataBackup
         self.replaceDataBackup = replaceDataBackup
         self.eraseAll = eraseAll
@@ -107,6 +118,7 @@ struct AppShellView: View {
                 injectsLowStorageFailureOnceForUITest:
                     injectsLowStorageFailureOnceForUITest,
                 cameraAdapter: cameraAdapter,
+                purchaseCoordinator: purchaseCoordinator,
                 restoreDataBackup: restoreDataBackup,
                 replaceDataBackup: replaceDataBackup
             )
@@ -151,6 +163,7 @@ struct AppShellView: View {
                 SettingsPlaceholderView(
                     modelContext: modelContext,
                     generationRootURL: generationRootURL,
+                    purchaseCoordinator: purchaseCoordinator,
                     restoreDataBackup: replaceDataBackup
                 )
             } label: {
@@ -320,19 +333,29 @@ private struct S6_3BackupValidationUITestHost: View {
 }
 
 struct SettingsPlaceholderView: View {
+    private struct PaywallPresentation: Identifiable {
+        let id = UUID()
+    }
+
     @Environment(\.eraseAllAction) private var eraseAllAction
+
+    @ObservedObject var purchaseCoordinator: StoreKitPurchaseCoordinator
 
     let modelContext: ModelContext
     let generationRootURL: URL
     let restoreDataBackup: @MainActor () -> Void
 
+    @State private var paywallPresentation: PaywallPresentation?
+
     init(
         modelContext: ModelContext,
         generationRootURL: URL,
+        purchaseCoordinator: StoreKitPurchaseCoordinator,
         restoreDataBackup: @escaping @MainActor () -> Void = {}
     ) {
         self.modelContext = modelContext
         self.generationRootURL = generationRootURL
+        self.purchaseCoordinator = purchaseCoordinator
         self.restoreDataBackup = restoreDataBackup
     }
 
@@ -361,6 +384,22 @@ struct SettingsPlaceholderView: View {
                         BackupRestoreProgressView.settingsEntryAccessibilityIdentifier
                     )
 
+                Button("View subscription") {
+                    paywallPresentation = PaywallPresentation()
+                }
+                .buttonStyle(WorklightSecondaryButtonStyle())
+                .accessibilityHint(
+                    "Shows the monthly subscription without changing existing data"
+                )
+                .accessibilityIdentifier(
+                    PaywallView.settingsEntryAccessibilityIdentifier
+                )
+
+                Text("Inspection data and photos are device-local and do not sync with the subscription.")
+                    .font(.subheadline)
+                    .foregroundStyle(DesignTokens.Colors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 Button("Erase All", action: eraseAllAction.call)
                     .buttonStyle(WorklightSecondaryButtonStyle())
                     .accessibilityIdentifier(
@@ -374,6 +413,13 @@ struct SettingsPlaceholderView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(AppShellView.settingsScreenAccessibilityIdentifier)
+        .sheet(item: $paywallPresentation) { presentation in
+            PaywallView(
+                coordinator: purchaseCoordinator,
+                presentationToken: presentation.id,
+                close: { paywallPresentation = nil }
+            )
+        }
     }
 }
 

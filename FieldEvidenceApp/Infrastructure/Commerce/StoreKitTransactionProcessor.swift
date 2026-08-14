@@ -26,6 +26,12 @@ enum EntitlementProcessorEventV1: @unchecked Sendable {
     case unverified
 }
 
+enum StoreKitVerifiedPurchaseProcessingResultV1: Equatable, Sendable {
+    case verified
+    case unverified
+    case failed
+}
+
 struct StoreKitEntitlementRuntimeV1: @unchecked Sendable {
     let initialEvents: @Sendable () async throws
         -> [EntitlementProcessorEventV1]
@@ -155,10 +161,23 @@ final class StoreKitTransactionProcessor: ObservableObject {
         guard isStarted else { return }
         switch event {
         case let .verified(value):
-            await applyVerified([value])
+            _ = await applyVerified([value])
         case .pending, .userCancelled, .failed, .unverified:
             break
         }
+    }
+
+    func processPurchasedTransaction(
+        _ transaction: Transaction
+    ) async -> StoreKitVerifiedPurchaseProcessingResultV1 {
+        guard isStarted else { return .failed }
+        guard let event = await StoreKitRuntimeAdapterV1.verifiedEvent(
+            from: transaction,
+            shouldFinish: true
+        ) else {
+            return .unverified
+        }
+        return await applyVerified([event]) ? .verified : .failed
     }
 }
 
@@ -178,7 +197,7 @@ private extension StoreKitTransactionProcessor {
                     now: now()
                 )
             } else {
-                await applyVerified(verified)
+                _ = await applyVerified(verified)
             }
         } catch {
             guard !Task.isCancelled, isStarted else { return }
@@ -194,8 +213,10 @@ private extension StoreKitTransactionProcessor {
         }
     }
 
-    func applyVerified(_ events: [VerifiedEntitlementProcessorEventV1]) async {
-        guard !events.isEmpty, isStarted else { return }
+    func applyVerified(
+        _ events: [VerifiedEntitlementProcessorEventV1]
+    ) async -> Bool {
+        guard !events.isEmpty, isStarted else { return false }
         let finishable = events.filter { value in
             guard let transactionID = value.transactionID,
                   value.finish != nil else {
@@ -225,11 +246,12 @@ private extension StoreKitTransactionProcessor {
                 priorCache: prior,
                 now: now()
             )
-            guard let replacement = reduction.cache else { return }
+            guard let replacement = reduction.cache else { return false }
             let durable = try store.persist(replacement)
-            guard durable == replacement else { return }
+            guard durable == replacement else { return false }
             state = reduction.state
             await finish(finishable)
+            return true
         } catch {
             do {
                 guard let standalone = try? EntitlementReducerV1.reduce(
@@ -238,22 +260,23 @@ private extension StoreKitTransactionProcessor {
                     now: now()
                 ),
                       let standaloneCache = standalone.cache else {
-                    return
+                    return false
                 }
                 guard let durable = try store.load(),
                       durable.hasEverVerifiedPaid,
                       standaloneCache.verifiedAt <= durable.verifiedAt,
                       standaloneCache.verifiedAt < durable.verifiedAt
                         || standaloneCache == durable else {
-                    return
+                    return false
                 }
                 state = try EntitlementReducerV1.offlineState(
                     cache: durable,
                     now: now()
                 )
                 await finish(finishable)
+                return true
             } catch {
-                return
+                return false
             }
         }
     }
@@ -298,12 +321,25 @@ private enum StoreKitRuntimeAdapterV1 {
         shouldFinish: Bool
     ) async -> EntitlementProcessorEventV1 {
         guard case let .verified(transaction) = result,
-              transaction.productID == EntitlementReducerV1.productID,
+              let event = await verifiedEvent(
+                from: transaction,
+                shouldFinish: shouldFinish
+              ) else {
+            return .unverified
+        }
+        return .verified(event)
+    }
+
+    static func verifiedEvent(
+        from transaction: Transaction,
+        shouldFinish: Bool
+    ) async -> VerifiedEntitlementProcessorEventV1? {
+        guard transaction.productID == EntitlementReducerV1.productID,
               transaction.productType == .autoRenewable,
               transaction.ownershipType == .purchased,
               let status = await transaction.subscriptionStatus,
               let fact = fact(from: status) else {
-            return .unverified
+            return nil
         }
         let finish: (@Sendable () async -> Void)?
         if shouldFinish {
@@ -311,11 +347,11 @@ private enum StoreKitRuntimeAdapterV1 {
         } else {
             finish = nil
         }
-        return .verified(VerifiedEntitlementProcessorEventV1(
+        return VerifiedEntitlementProcessorEventV1(
             fact: fact,
             transactionID: shouldFinish ? transaction.id : nil,
             finish: finish
-        ))
+        )
     }
 
     static func event(

@@ -30,6 +30,8 @@ struct SignsRootView: View {
     let restoreDataBackup: @MainActor () -> Void
     let replaceDataBackup: @MainActor () -> Void
 
+    @ObservedObject var purchaseCoordinator: StoreKitPurchaseCoordinator
+
     @StateObject private var coordinator: FirstSignCoordinator
     private let checkRunnerCoordinator: CheckRunnerCoordinator
     private let reportDeliveryCoordinator: ReportDeliveryCoordinator?
@@ -53,6 +55,7 @@ struct SignsRootView: View {
         usesImportedCaptureFixturesForUITest: Bool = false,
         injectsLowStorageFailureOnceForUITest: Bool = false,
         cameraAdapter: CameraAdapter = .live,
+        purchaseCoordinator: StoreKitPurchaseCoordinator,
         restoreDataBackup: @escaping @MainActor () -> Void = {},
         replaceDataBackup: @escaping @MainActor () -> Void = {}
     ) {
@@ -61,6 +64,7 @@ struct SignsRootView: View {
         self.modelContext = modelContext
         self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
         self.cameraAdapter = cameraAdapter
+        self.purchaseCoordinator = purchaseCoordinator
         self.restoreDataBackup = restoreDataBackup
         self.replaceDataBackup = replaceDataBackup
         _coordinator = StateObject(
@@ -232,6 +236,7 @@ struct SignsRootView: View {
                         SettingsPlaceholderView(
                             modelContext: modelContext,
                             generationRootURL: generationRootURL,
+                            purchaseCoordinator: purchaseCoordinator,
                             restoreDataBackup: replaceDataBackup
                         )
                     } label: {

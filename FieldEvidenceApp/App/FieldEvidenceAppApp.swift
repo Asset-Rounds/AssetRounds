@@ -20,6 +20,8 @@ struct FieldEvidenceAppApp: App {
         "--s6-4-ui-test-empty-restore"
     private static let replacementRestoreUITestLaunchArgument =
         "--s6-5-ui-test-replacement-restore"
+    private static let paywallUITestLaunchArgument =
+        "--s7-2-ui-test-paywall"
 
     @StateObject private var startupRouter: StartupRouter
 
@@ -31,9 +33,13 @@ struct FieldEvidenceAppApp: App {
     private let injectsLowStorageFailureOnceForUITest: Bool
     private let cameraAdapter: CameraAdapter
     private let selectedRestorePackageForUITest: URL?
+    private let paywallCatalogLinks: PaywallCatalogLinksV1?
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
+        paywallCatalogLinks = arguments.contains(Self.paywallUITestLaunchArgument)
+            ? .uiTestFixture
+            : nil
         let applicationSupportURL = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -142,7 +148,8 @@ struct FieldEvidenceAppApp: App {
                     injectsLowStorageFailureOnceForUITest,
                 cameraAdapter: cameraAdapter,
                 applicationSupportURL: applicationSupportURL,
-                selectedRestorePackageForUITest: selectedRestorePackageForUITest
+                selectedRestorePackageForUITest: selectedRestorePackageForUITest,
+                paywallCatalogLinks: paywallCatalogLinks
             )
             .preferredColorScheme(preferredColorScheme)
         }
@@ -159,6 +166,7 @@ private struct StartupRootView: View {
     let cameraAdapter: CameraAdapter
     let applicationSupportURL: URL
     let selectedRestorePackageForUITest: URL?
+    let paywallCatalogLinks: PaywallCatalogLinksV1?
 
     var body: some View {
         Group {
@@ -198,7 +206,8 @@ private struct StartupRootView: View {
                     applicationSupportURL: applicationSupportURL,
                     router: router,
                     selectedRestorePackageForUITest:
-                        selectedRestorePackageForUITest
+                        selectedRestorePackageForUITest,
+                    paywallCatalogLinks: paywallCatalogLinks
                 )
 
             case .eraseCleanupPending:
@@ -230,6 +239,7 @@ private struct ReadyAppView: View {
     let applicationSupportURL: URL
     @ObservedObject var router: StartupRouter
     let selectedRestorePackageForUITest: URL?
+    let paywallCatalogLinks: PaywallCatalogLinksV1?
 
     @State private var restorePresentation: RestorePresentation?
     @State private var showsEraseAll = false
@@ -247,6 +257,8 @@ private struct ReadyAppView: View {
                 injectsLowStorageFailureOnceForUITest:
                     injectsLowStorageFailureOnceForUITest,
                 cameraAdapter: cameraAdapter,
+                entitlementProcessor: router.entitlementProcessor,
+                paywallCatalogLinks: paywallCatalogLinks,
                 restoreDataBackup: {
                     restorePresentation = RestorePresentation(mode: .emptyInstall)
                 },
