@@ -214,6 +214,7 @@ final class S5_2RecheckUITests: XCTestCase {
         let preflight = element(in: app, identifier: "s3.preflight.screen")
         XCTAssertTrue(preflight.waitForExistence(timeout: 20))
         toggle("s3.preflight.after-dark", in: app)
+        app.swipeUp()
         toggle("s3.preflight.safe-position", in: app)
         let begin = element(in: app, identifier: "s3.preflight.begin")
         scrollUntilHittable(begin, in: app)
