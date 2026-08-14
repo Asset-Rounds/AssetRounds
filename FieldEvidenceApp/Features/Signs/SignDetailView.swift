@@ -128,6 +128,7 @@ struct SignDetailView: View {
                             .font(.title2.weight(.bold))
                             .foregroundStyle(DesignTokens.Colors.primaryText)
                             .accessibilityAddTraits(.isHeader)
+                            .accessibilityIdentifier(Self.deleteScreenAccessibilityIdentifier)
 
                         Text("Delete this sign, its photos, and its reports from this app? This cannot be undone. Your free-report count will not reset. Erase All removes the remaining anonymous count.")
                             .font(.body)
@@ -150,7 +151,6 @@ struct SignDetailView: View {
                         .disabled(isDeleting)
                         .accessibilityIdentifier(Self.deleteConfirmAccessibilityIdentifier)
                     }
-                    .accessibilityIdentifier(Self.deleteScreenAccessibilityIdentifier)
                 } else {
                     Button("Delete sign", role: .destructive) {
                         isConfirmingDeletion = true
