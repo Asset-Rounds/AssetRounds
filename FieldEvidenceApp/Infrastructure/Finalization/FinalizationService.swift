@@ -2291,14 +2291,16 @@ final class FinalizationService {
                 workPerformedLocalDate: record.workPerformedLocalDate
             )
         }
-        let issueValues = ([authority.plan.issueAfter]
-            + (authority.plan.issueInsert.map { [$0] } ?? []))
-            .sorted {
-                $0.createdAt < $1.createdAt
-                    || ($0.createdAt == $1.createdAt
-                        && $0.id.uuidString.lowercased()
-                            < $1.id.uuidString.lowercased())
-            }
+        var issueValues = [authority.plan.issueAfter]
+        if let insertedIssue = authority.plan.issueInsert {
+            issueValues.append(insertedIssue)
+        }
+        issueValues.sort {
+            $0.createdAt < $1.createdAt
+                || ($0.createdAt == $1.createdAt
+                    && $0.id.uuidString.lowercased()
+                        < $1.id.uuidString.lowercased())
+        }
         return ReportSnapshotV1(
             acknowledgements: [
                 AcknowledgementSnapshotV1(

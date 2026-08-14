@@ -809,14 +809,16 @@ final class FinalizationRecoveryService {
                 || after.outcomeKey == "original_resolved_different_issue"
             ? IssueStatus.resolved.rawValue
             : IssueStatus.open.rawValue
-        let expectedIssuePayloads = ([transition.after]
-            + (payload.issueInsert.map { [$0] } ?? []))
-            .sorted {
-                $0.createdAt < $1.createdAt
-                    || ($0.createdAt == $1.createdAt
-                        && $0.id.uuidString.lowercased()
-                            < $1.id.uuidString.lowercased())
-            }
+        var expectedIssuePayloads = [transition.after]
+        if let insertedIssue = payload.issueInsert {
+            expectedIssuePayloads.append(insertedIssue)
+        }
+        expectedIssuePayloads.sort {
+            $0.createdAt < $1.createdAt
+                || ($0.createdAt == $1.createdAt
+                    && $0.id.uuidString.lowercased()
+                        < $1.id.uuidString.lowercased())
+        }
         guard transition.before.status == IssueStatus.recheckDue.rawValue,
               transition.before.resolvedByRecordID == nil,
               transition.after.status == expectedAfterStatus,
