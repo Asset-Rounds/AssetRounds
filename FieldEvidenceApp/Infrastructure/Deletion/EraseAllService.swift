@@ -47,12 +47,16 @@ final class EraseAllFailureInjection {
 @MainActor
 final class EraseGenerationDrainProof {
     private weak var priorContext: ModelContext?
+    private weak var priorContainer: ModelContainer?
 
     init(priorContext: ModelContext) {
         self.priorContext = priorContext
+        self.priorContainer = priorContext.container
     }
 
-    var isDrained: Bool { priorContext == nil }
+    var isDrained: Bool {
+        priorContext == nil && priorContainer == nil
+    }
 }
 
 @MainActor
