@@ -288,8 +288,11 @@ final class CheckRunnerCoordinator {
         assetID: UUID,
         selection: CheckOutcomeSelection
     ) throws -> FinalizationReview {
-        let preparation = try prepareCapture(assetID: assetID)
         let outcome = try resolvedOutcome(selection)
+        let preparation = try prepareCapture(
+            assetID: assetID,
+            allowsIncompleteReview: outcome.couldNotVerify != nil
+        )
         guard outcome.couldNotVerify != nil || preparation.step == .outcome else {
             throw CheckRunnerCoordinatorError.reviewUnavailable
         }
@@ -528,7 +531,10 @@ final class CheckRunnerCoordinator {
         try makeReportDeliveryCoordinator().prepareFinalizedReport(id: result.reportID)
     }
 
-    func prepareCapture(assetID: UUID) throws -> CapturePreparation {
+    func prepareCapture(
+        assetID: UUID,
+        allowsIncompleteReview: Bool = false
+    ) throws -> CapturePreparation {
         guard let draft = try existingDraft(assetID: assetID) else {
             throw CheckRunnerCoordinatorError.captureDraftRequired
         }
@@ -583,7 +589,9 @@ final class CheckRunnerCoordinator {
             }
             purpose = try capturePurpose(key: "close_detail", index: 1)
         case .outcome:
-            guard wide.count == 1, close.count == 1 else {
+            guard allowsIncompleteReview
+                ? (close.isEmpty || wide.count == 1)
+                : (wide.count == 1 && close.count == 1) else {
                 throw CheckRunnerCoordinatorError.invalidCaptureState
             }
             purpose = nil
