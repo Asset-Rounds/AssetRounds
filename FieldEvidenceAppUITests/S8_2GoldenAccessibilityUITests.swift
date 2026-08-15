@@ -196,7 +196,7 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
         assertAccessibilityFocus(
             on: validation,
             label: "Blocked: Change the note before saving.",
-            type: .staticText
+            type: .other
         )
         XCTAssertTrue(element("s4.5.correction.screen", in: app).exists)
         navigateBack(in: app)

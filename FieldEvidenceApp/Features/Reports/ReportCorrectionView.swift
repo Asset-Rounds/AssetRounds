@@ -128,8 +128,8 @@ struct ReportCorrectionView: View {
 
                 if let validationMessage {
                     WorklightStatusBadge(kind: .blocked, text: validationMessage)
-                        .accessibilityFocused($accessibilityFocus, equals: .validation)
                         .accessibilityIdentifier(Self.validationAccessibilityIdentifier)
+                        .accessibilityFocused($accessibilityFocus, equals: .validation)
                 }
 
                 stateContent
