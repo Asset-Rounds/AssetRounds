@@ -165,6 +165,22 @@ struct SignsRootView: View {
                     welcome
                 }
             }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                HStack {
+                    Spacer()
+                    Button {
+                        path.append(Route.settings)
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
+                            .labelStyle(.iconOnly)
+                    }
+                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .accessibilityIdentifier(AppShellView.settingsButtonAccessibilityIdentifier)
+                }
+                .padding(.horizontal, DesignTokens.Spacing.medium)
+                .padding(.vertical, DesignTokens.Spacing.small)
+                .background(DesignTokens.Colors.canvas)
+            }
             .navigationDestination(for: Route.self) { route in
                 switch route {
                 case .sample:
@@ -270,23 +286,6 @@ struct SignsRootView: View {
                     } else {
                         issueUnavailable
                     }
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        path.append(Route.settings)
-                    } label: {
-                        Label("Settings", systemImage: "gearshape")
-                            .labelStyle(.iconOnly)
-                    }
-                    .frame(
-                        minWidth: DesignTokens.Control.minimumHitSize,
-                        minHeight: DesignTokens.Control.minimumHitSize
-                    )
-                    .contentShape(.interaction, Rectangle())
-                    .contentShape(.accessibility, Rectangle())
-                    .accessibilityIdentifier(AppShellView.settingsButtonAccessibilityIdentifier)
                 }
             }
         }
