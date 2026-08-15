@@ -662,15 +662,15 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
 
     @MainActor
     private func scroll(_ value: XCUIElement, in app: XCUIApplication) {
-        XCTAssertTrue(value.waitForExistence(timeout: 30))
         for _ in 0..<22 {
-            if value.isHittable { return }
+            if value.exists && value.isHittable { return }
             app.swipeUp()
         }
         for _ in 0..<22 {
-            if value.isHittable { return }
+            if value.exists && value.isHittable { return }
             app.swipeDown()
         }
+        XCTAssertTrue(value.waitForExistence(timeout: 2))
         XCTAssertTrue(value.isHittable)
     }
 
