@@ -2403,3 +2403,61 @@ The exact accepted envelope is six changed production paths, two test paths, and
 - `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S8.4 product/card blockers: `NONE`.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future phase-close commit.
 - Next unstarted task: `S9.1`. Program autopilot must first commit and non-force push this HANDOFF-only S8 phase-close, accept exact-head P12/UI-enabled phase CI, non-force fast-forward `main` to that exact green verification head, accept exact-main UI-enabled CI, reprove both refs, create `phase/s9-release` from green main, hydrate only S9.1, and run fresh S9.1 G0. S9.2/S9.3 remain owner-only.
+
+## `S9.1` — `complete` — `2026-08-15T15:41:07-04:00`
+
+- Phase / branch / position / boundary: `S9` / `phase/s9-release` / `1 of 1` / `yes`; this is the final Codex coding card.
+- Outcome: created the complete repository-derived unsigned RC package, exact pending/provided release-input authority, unsigned metadata and review artifacts, source-grounded privacy manifest, 12-smoke evidence index, bounded preflight, export options, and an inactive owner-only TestFlight workflow. No signing, archive/export, upload, deployment, App Store mutation, or submission occurred.
+- Immutable phase-main base and integrated/card base: `P=M=2e9f8a1bdade83f4510c6c6ff6bd18cefc7343a9`, the accepted S8 phase-close and exact-main verification head. Accepted predecessor runs were phase `31900317667` / job `95049942017` and exact-main `31900819297` / job `95051208912`, both P12/UI-enabled green at M.
+- Observed task-start authority: `A=96a32db31fc330abeea384359efb4d6793777864`; `A^=M`, `M..A` changed only immediate-next `docs/execution/CURRENT_TASK.md`, remote `phase/s9-release=A`, and remote `main=M` plus `phase/s8-quality=M` at fresh G0.
+- First implementation: `I=d15c7f685665be2878855cb4cff737ab5e291bf4`; accepted direct-child test correction and exact implementation/verification head `I2=E=35e87b0d97c732f4c63621cc87f9faf86eef97d3`; no distinct infrastructure K.
+- Exact selector: S9.1 F25/UI enabled; compact JSON plus LF, 340 bytes, SHA-256 `03C23506919733DDE0174448E446D26DF4753C505BE242587886F142D281314F`; exact selectors `FieldEvidenceAppTests/S9_1ReleasePreflightTests` and `FieldEvidenceAppUITests/S9_1FinalRCUITests`.
+- Accepted run/job/URLs: `31903960780` / `95058845368`; `https://github.com/palatis3/AssetRounds/actions/runs/31903960780`; `https://github.com/palatis3/AssetRounds/actions/runs/31903960780/job/95058845368`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.2 build `23C54`; UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`; initial Simulator state `Shutdown`.
+- Budgets: setup `24/300` s; Simulator boot step `79/900` s; build step `247/900` s; unit step `49/1200` s with selected tests `0.384` s; UI step `369/1800` s with selected test `306.645` s; setup-plus-artifact `24/300` s; total job `716/4500` s; all watchdogs passed.
+- Artifact: `ios-ci-31903960780-1`, ID `9251968960`, size `6784368`, GitHub digest `sha256:94219f690d1aff7a89ed9c12764fd011336bf36c540f3becb20aaa28f1a4a5a8`, unexpired when accepted; `SHA256SUMS.txt` SHA-256 `E87ACBF630FF8FC902D46C1C9C770CF84EB6AC5B31A2C0C1D2942968853D2F95`; all `99/99` listed payloads independently matched.
+- Accepted logs: `build-smoke.log` SHA-256 `EB14AF120639E1B714856D4010714041EBB328A12CF8AA1C78C606DB8E0A7F28`; `test-smoke.log` `130846BBF3903DF8EC8EC061B92B5A916908770515E02F620DEB30AD995DFB22`; `ui-smoke.log` `CAAC0A6D7EA12CB114A1490F735771AF99E8D76C54362947ECCAF6CE2C7B7F35`.
+- Terminal evidence: exactly one `ui-final.png`, `1206x2622`, 374260 bytes, SHA-256 `187C90CD9539AB7B0F4703A30637F71896C441063CA132F37CC417C6B5AE75C4`; it is the terminal in-app Settings/data-rights surface after the Dark Accessibility XXXL report/history/backup/Erase-cancel route.
+- Exact commands: `bash Scripts/run-with-timeout.sh 900 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 1200 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 1800 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `.github/workflows/testflight.yml`
+- `FieldEvidenceApp/PrivacyInfo.xcprivacy`
+- `FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift`
+- `FieldEvidenceAppUITests/S9_1FinalRCUITests.swift`
+- `Release/AppReviewChecklistV1.md`
+- `Release/LaunchSmokeEvidenceIndexV1.json`
+- `Release/PrivacyReviewV1.md`
+- `Release/ProvidedReleaseValuesV1.json`
+- `Release/ReleaseInputManifestV1.json`
+- `Release/TestFlightExportOptions.plist`
+- `Release/UnsignedRCMetadataV1.json`
+- `Scripts/ci-selection.json`
+- `Scripts/release-preflight.sh`
+
+The exact accepted envelope is ten release/product paths, two test paths, and the standing selector exception. No feature/backend/analytics SDK, account/auth, schema/dependency, live-value invention, production SKU/App Store record, credential/signing material, automatic workflow trigger, upload retry, deployment, release, or submission behavior was added.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`4/4`): `testMalformedAuthorityFamilyFailsClosedWithoutMakingPendingAnError`, 0.050 s; `testPrivacyManifestMatchesBuiltResourceAndSourceRequiredReasons`, 0.272 s; `testSmokeIndexAndInactiveWorkflowHaveExactReleaseBoundaries`, 0.034 s; `testUnsignedPackageHasExactClosedSchemasAndHonestPendingReadiness`, 0.028 s.
+- UI `PASS` (`1/1`): `testFinalRCReportAndDataRightsRemainReachableAtXXXL`, 306.645 s.
+
+### Acceptance results
+
+- Release authority `PASS`: the exact closed manifest contains `41` unique inputs, with only the four frozen repository identifiers provided and all `37` unspecified owner/App Store Connect/environment values explicitly pending; `releaseReady=false` is honest and unsigned preflight passes without converting pending truth into a coding failure.
+- Privacy `PASS`: the built `PrivacyInfo.xcprivacy` matches repository bytes, declares no app tracking or collected-data types, and contains only the source-evidenced Disk Space `E174.1`, File Timestamp `3B52.1` / `C617.1`, and User Defaults `CA92.1` required-reason entries; privacy review and diagnostics/backup/commerce/mail boundaries remain consistent.
+- Inactive workflow `PASS`: the committed TestFlight workflow is manual-only, exact-main/release-readiness/secret gated, non-cancelling, SHA-pinned, temporary-keychain based, and structurally limited to one archive, one export, and one upload with no retry. It was inspected by ordinary S9.1 CI and was never dispatched.
+- Evidence `PASS`: all twelve launch-smoke records have accepted prior-card evidence and retain owner physical verification as pending S9.2; the final RC test completed the existing sign/check/report route, reopened the report, proved Share/Files/Correction plus Settings/backup/restore/diagnostics/feedback/Erase controls reachable at Accessibility XXXL Dark, cancelled Erase back in-app, and produced exactly one screenshot.
+- ALT-1 `PASS`: malformed omitted/duplicate/unknown input, readiness mismatch, inconsistent provided identifiers, privacy-reason mutation, wrong main authority, unpinned action, forbidden trigger/retry, and embedded-secret shapes fail closed; no pending value is fabricated or treated as release ready.
+
+### Candidate recovery provenance
+
+- Run `31903262574` / job `95057161002` at I built and passed `4/4` units. The UI reopened the exact PDF preview, but the new test then required the noninteractive PDF container to be tappable and failed at `S9_1FinalRCUITests.swift:449`; evidence validation failed only derivatively. Artifact `ios-ci-31903262574-1`, ID `9251803088`, size `137070331`, digest `sha256:569acfc844a9c7fa74e1537b861f002a8d8a9d530cd3d5f0b77f080403ba60c3`, was downloaded and its listed payload checksums matched.
+- Direct-child E changed only the S9.1 UI test to require the report preview's exact existence, label, and nonempty frame while retaining separate enabled/hittable/44-point assertions for the actionable Share, Files, Correct, Close, Settings, backup, and Erase controls. No failed run ID was rerun or accepted.
+
+### Known bugs, blockers, and boundary state
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S9.1 product/card blockers: `NONE`.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future HANDOFF-only phase-close commit.
+- Next unstarted gate: owner-only `S9.2`. Program autopilot must first commit/push only this HANDOFF append, accept exact-head F25/UI-enabled S9 phase CI, non-force fast-forward `main` to that exact green verification head, and accept exact-main F25/UI-enabled CI. Coding stops after that exact-main gate; TestFlight dispatch, signing, archive/export/upload, deployment, and S9.2/S9.3 remain owner-only.
