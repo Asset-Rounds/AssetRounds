@@ -1,0 +1,45 @@
+{
+  "schema_version": "4.1.0",
+  "document_status": "baseline_frozen",
+  "comparison_tool": {
+    "name": "Exact PNG-byte XCT attachments exported from UISmoke.xcresult and reconstructed byte-for-byte at evidence K",
+    "version": "Xcode 26.6 XCTest attachment contract",
+    "human_review_required": true
+  },
+  "matrix_contract": {
+    "primary_locale": "en-US-release",
+    "primary_layout_direction": "left_to_right",
+    "double_length_locale": "en-US-double-length",
+    "rtl_locale": "ar-RTL",
+    "rtl_string_locale": "ar-RTL-string",
+    "tall_locale": "en-US-tall",
+    "accented_locale": "en-US-accented",
+    "bounded_locale": "en-US-bounded",
+    "default_content_size_category": "UICTContentSizeCategoryL",
+    "ax_content_size_category": "UICTContentSizeCategoryAccessibilityXXXL",
+    "current_os_device_profile_ids": [
+      "iphone-17-ios-26.2-current"
+    ],
+    "minimum_os_device_profile_ids": [
+      "iphone-se-3-ios-18.0-minimum"
+    ],
+    "required_requirement_ids": [
+      "default_light",
+      "default_dark",
+      "increased_contrast",
+      "ax_text",
+      "double_length",
+      "rtl",
+      "rtl_string",
+      "tall",
+      "accented",
+      "bounded",
+      "differentiate_without_color",
+      "reduce_motion",
+      "reduce_transparency",
+      "minimum_os"
+    ]
+  },
+  "baselines": [],
+  "change_records": []
+}

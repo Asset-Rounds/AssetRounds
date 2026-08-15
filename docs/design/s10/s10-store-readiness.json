@@ -1,0 +1,253 @@
+{
+  "schema_version": "4.1.0",
+  "document_status": "planned",
+  "activation_id": "assetrounds-s10-brand-handoff-v4.1-2026-08-15",
+  "final_product_head": "REQUIRED_AFTER_S10_RELEASE_CANDIDATE",
+  "plan": {
+    "privacy_gate_ids": [
+      "privacy_manifest",
+      "app_privacy_answers",
+      "privacy_policy_url",
+      "support_url",
+      "accessibility_url"
+    ],
+    "appearance_gate_ids": [
+      "default_light",
+      "default_dark",
+      "increased_contrast",
+      "ax_text",
+      "double_length",
+      "rtl",
+      "rtl_string",
+      "tall",
+      "accented",
+      "bounded",
+      "differentiate_without_color",
+      "reduce_motion",
+      "reduce_transparency",
+      "minimum_os"
+    ],
+    "accessibility_label_gate_ids": [
+      "voiceover",
+      "voice_control",
+      "larger_text",
+      "dark_interface",
+      "differentiate_without_color",
+      "sufficient_contrast",
+      "reduced_motion"
+    ],
+    "app_tag_gate_ids": [
+      "primary_category",
+      "secondary_category"
+    ],
+    "release_locale_profile_ids": [
+      "en-US-release"
+    ],
+    "sdk_gate_ids": [
+      "APP_BINARY"
+    ],
+    "archive_privacy_report_gate_id": "archive-privacy-report",
+    "platform_device_profile_ids": [
+      "iphone-17-ios-26.2-current",
+      "iphone-se-3-ios-18.0-minimum"
+    ],
+    "platform_escape_gate_id": "platform-compatibility-escape",
+    "legal_url_gate_ids": [
+      "privacy_policy_url",
+      "support_url",
+      "accessibility_url",
+      "terms_url"
+    ],
+    "custom_product_pages_gate_id": "custom-product-pages",
+    "ppo_experiments_gate_id": "ppo-experiments",
+    "age_rating_gate_id": "age-rating-declaration",
+    "age_rating_declaration_id": "owner-age-rating-declaration-pending",
+    "age_rating_owner_answers_sha256": "REQUIRED_AT_S10_INVENTORY",
+    "screenshot_slots": [
+      {
+        "gate_id": "store-screenshots-en-US-iphone-6.3",
+        "device_class": "iPhone 6.3-inch display",
+        "device_profile_id": "iphone-17-ios-26.2-current",
+        "locale_profile_id": "en-US-release",
+        "orientation": "portrait",
+        "pixel_width": 1206,
+        "pixel_height": 2622,
+        "apple_specification_url": "https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications",
+        "apple_specification_checked_date": "2026-08-15",
+        "slot_id": "en-US-iphone-6.3-01-find-asset",
+        "slot_order": 1,
+        "story_role": "find_asset"
+      },
+      {
+        "gate_id": "store-screenshots-en-US-iphone-6.3",
+        "device_class": "iPhone 6.3-inch display",
+        "device_profile_id": "iphone-17-ios-26.2-current",
+        "locale_profile_id": "en-US-release",
+        "orientation": "portrait",
+        "pixel_width": 1206,
+        "pixel_height": 2622,
+        "apple_specification_url": "https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications",
+        "apple_specification_checked_date": "2026-08-15",
+        "slot_id": "en-US-iphone-6.3-02-capture-evidence",
+        "slot_order": 2,
+        "story_role": "capture_evidence"
+      },
+      {
+        "gate_id": "store-screenshots-en-US-iphone-6.3",
+        "device_class": "iPhone 6.3-inch display",
+        "device_profile_id": "iphone-17-ios-26.2-current",
+        "locale_profile_id": "en-US-release",
+        "orientation": "portrait",
+        "pixel_width": 1206,
+        "pixel_height": 2622,
+        "apple_specification_url": "https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications",
+        "apple_specification_checked_date": "2026-08-15",
+        "slot_id": "en-US-iphone-6.3-03-share-report",
+        "slot_order": 3,
+        "story_role": "share_report"
+      },
+      {
+        "gate_id": "store-screenshots-en-US-iphone-6.3",
+        "device_class": "iPhone 6.3-inch display",
+        "device_profile_id": "iphone-17-ios-26.2-current",
+        "locale_profile_id": "en-US-release",
+        "orientation": "portrait",
+        "pixel_width": 1206,
+        "pixel_height": 2622,
+        "apple_specification_url": "https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications",
+        "apple_specification_checked_date": "2026-08-15",
+        "slot_id": "en-US-iphone-6.3-04-work-recheck",
+        "slot_order": 4,
+        "story_role": "supporting"
+      },
+      {
+        "gate_id": "store-screenshots-en-US-iphone-6.3",
+        "device_class": "iPhone 6.3-inch display",
+        "device_profile_id": "iphone-17-ios-26.2-current",
+        "locale_profile_id": "en-US-release",
+        "orientation": "portrait",
+        "pixel_width": 1206,
+        "pixel_height": 2622,
+        "apple_specification_url": "https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications",
+        "apple_specification_checked_date": "2026-08-15",
+        "slot_id": "en-US-iphone-6.3-05-local-data",
+        "slot_order": 5,
+        "story_role": "supporting"
+      }
+    ],
+    "planned_claims": [
+      {
+        "gate_id": "truthful-store-claims",
+        "claim_id": "claim.find-asset",
+        "text": "Find a sign and open its device-local inspection history.",
+        "screen_state_ids": [
+          "state.sign-detail.ready",
+          "state.report-history.ready"
+        ]
+      },
+      {
+        "gate_id": "truthful-store-claims",
+        "claim_id": "claim.capture-review",
+        "text": "Capture wide and close evidence, then review the selected outcome before saving.",
+        "screen_state_ids": [
+          "state.capture.wide-preview",
+          "state.capture.close-preview",
+          "state.check-review.visible-issue"
+        ]
+      },
+      {
+        "gate_id": "truthful-store-claims",
+        "claim_id": "claim.preview-share-report",
+        "text": "Preview and share a saved inspection report.",
+        "screen_state_ids": [
+          "state.receipt.report-saved",
+          "state.report-detail.ready"
+        ]
+      },
+      {
+        "gate_id": "truthful-store-claims",
+        "claim_id": "claim.work-recheck-history",
+        "text": "Record completed work and preserve the resulting recheck history.",
+        "screen_state_ids": [
+          "state.work.editing",
+          "state.issue.recheck-due",
+          "state.issue.resolved"
+        ]
+      },
+      {
+        "gate_id": "truthful-store-claims",
+        "claim_id": "claim.local-data-controls",
+        "text": "Back up and restore device-local inspection data through explicit user actions.",
+        "screen_state_ids": [
+          "state.backup.ready",
+          "state.restore.choose-backup"
+        ]
+      }
+    ]
+  },
+  "toolchain": {
+    "gate_id": "final-toolchain",
+    "toolchain_id": "github-macos26-xcode26.6-ios26.2-swift5",
+    "runner_image": "macos26-20260728.0273.1",
+    "xcode_version": "Xcode 26.6",
+    "xcode_build": "17F113",
+    "sdk_name": "iphonesimulator26.5",
+    "sdk_build": "23F81a",
+    "swift_version": "5",
+    "build_configuration": "Debug",
+    "evidence_ids": []
+  },
+  "privacy_results": [],
+  "appearance_results": [],
+  "accessibility_labels": [],
+  "app_tags": [],
+  "localization_metadata": [],
+  "sdk_inventory": [],
+  "archive_privacy_report": {
+    "gate_id": "archive-privacy-report",
+    "path": "REQUIRED_AFTER_S10_RELEASE_CANDIDATE",
+    "sha256": "REQUIRED_AFTER_S10_RELEASE_CANDIDATE",
+    "status": "NOT_RUN",
+    "reviewer": "",
+    "evidence_ids": []
+  },
+  "platform_compatibility": [],
+  "platform_compatibility_escape": {
+    "gate_id": "platform-compatibility-escape",
+    "uidesign_requires_compatibility_present": false,
+    "behavior": "The checked-in project does not declare UIDesignRequiresCompatibility; S10.6 must verify the final archive without adding a compatibility escape.",
+    "status": "NOT_RUN",
+    "reviewer": "",
+    "evidence_ids": []
+  },
+  "legal_urls": [],
+  "custom_product_pages": {
+    "gate_id": "custom-product-pages",
+    "authorized_ids": [],
+    "created_ids": [],
+    "status": "NOT_RUN",
+    "reviewer": "",
+    "evidence_ids": []
+  },
+  "ppo_experiments": {
+    "gate_id": "ppo-experiments",
+    "authorized": false,
+    "hypothesis": "",
+    "metric": "",
+    "stop_date": "",
+    "status": "NOT_RUN",
+    "reviewer": "",
+    "evidence_ids": []
+  },
+  "age_rating": {
+    "gate_id": "age-rating-declaration",
+    "declaration_id": "owner-age-rating-declaration-pending",
+    "owner_answers_sha256": "REQUIRED_AT_S10_INVENTORY",
+    "value": "REQUIRED_AFTER_S10_RELEASE_CANDIDATE",
+    "status": "NOT_RUN",
+    "reviewer": "",
+    "evidence_ids": []
+  },
+  "screenshots": [],
+  "claims": []
+}

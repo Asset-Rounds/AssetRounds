@@ -1,0 +1,4831 @@
+{
+  "schema_version": "4.1.0",
+  "document_status": "frozen",
+  "base_commit": "01233f789b1cef5a6f56c7ff4caa9271409cd3bc",
+  "inventory_revision": 2,
+  "migration_order": [
+    "migration.signs",
+    "migration.check",
+    "migration.reports",
+    "migration.work-recheck",
+    "migration.settings-data-rights",
+    "migration.commerce"
+  ],
+  "device_profiles": [
+    {
+      "device_profile_id": "iphone-17-ios-26.2-current",
+      "device": "iPhone 17",
+      "os": "iOS 26.2",
+      "os_build": "23C54",
+      "orientation": "portrait",
+      "os_roles": [
+        "current"
+      ],
+      "supported": true
+    },
+    {
+      "device_profile_id": "iphone-se-3-ios-18.0-minimum",
+      "device": "iPhone SE (3rd generation)",
+      "os": "iOS 18.0",
+      "os_build": "22A3354",
+      "orientation": "portrait",
+      "os_roles": [
+        "minimum_supported"
+      ],
+      "supported": true
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture_id": "fixture.invalid-pack",
+      "description": "Controlled launch with an invalid bundled sign-pack identifier, proving the released unavailable surface without changing product bytes.",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "FieldEvidenceAppUITests/S1ShellUITests.swift"
+      ]
+    },
+    {
+      "fixture_id": "fixture.empty-install",
+      "description": "Fresh installation with the bundled illuminated-sign pack and no local signs.",
+      "source_paths": [
+        "FieldEvidenceApp/Resources/Packs/IlluminatedSignPack.json",
+        "FieldEvidenceAppUITests/S2SignSetupUITests.swift"
+      ]
+    },
+    {
+      "fixture_id": "fixture.sample-report",
+      "description": "Bundled immutable sign-pack sample report with no customer data.",
+      "source_paths": [
+        "FieldEvidenceApp/Resources/Packs/IlluminatedSignPack.json",
+        "FieldEvidenceAppUITests/S1ShellUITests.swift"
+      ]
+    },
+    {
+      "fixture_id": "fixture.visible-issue-report",
+      "description": "Deterministic monument-sign check with accepted wide and close PNG fixtures and a visible dark-section issue.",
+      "source_paths": [
+        "FieldEvidenceAppUITests/Fixtures/S3_2WideInput.png",
+        "FieldEvidenceAppUITests/Fixtures/S3_2CloseInput.png",
+        "FieldEvidenceAppUITests/S3_3GoldenCheckUITests.swift"
+      ]
+    },
+    {
+      "fixture_id": "fixture.capture-recovery",
+      "description": "Deterministic camera-denial, low-storage, import, preview, and retry paths for the same draft.",
+      "source_paths": [
+        "FieldEvidenceAppUITests/S3_5FailureRecoveryUITests.swift",
+        "FieldEvidenceAppUITests/S3_6CameraRecoveryUITests.swift"
+      ]
+    },
+    {
+      "fixture_id": "fixture.alternative-outcomes",
+      "description": "Completed check and recheck variants for no-visible, could-not-verify, still-visible, and different-issue truth.",
+      "source_paths": [
+        "FieldEvidenceAppUITests/S3_7CouldNotVerifyUITests.swift",
+        "FieldEvidenceAppUITests/S5_3DifferentIssueUITests.swift",
+        "FieldEvidenceAppUITests/S5_4RecheckCNVUITests.swift"
+      ]
+    },
+    {
+      "fixture_id": "fixture.work-recheck",
+      "description": "Visible-issue report followed by recorded work and a resolved recheck.",
+      "source_paths": [
+        "FieldEvidenceAppUITests/Fixtures/S3_2WideInput.png",
+        "FieldEvidenceAppUITests/Fixtures/S3_2CloseInput.png",
+        "FieldEvidenceAppUITests/S5_2RecheckUITests.swift"
+      ]
+    },
+    {
+      "fixture_id": "fixture.report-history",
+      "description": "Multi-report and clerical-correction lineage with comparison, validation, saving, and completed states.",
+      "source_paths": [
+        "FieldEvidenceAppUITests/S4_4ReportsUITests.swift",
+        "FieldEvidenceAppUITests/S4_5CorrectionUITests.swift"
+      ]
+    },
+    {
+      "fixture_id": "fixture.report-failure",
+      "description": "Saved report with one injected PDF-render failure and explicit retry recovery.",
+      "source_paths": [
+        "FieldEvidenceAppUITests/S4_2PDFRetryUITests.swift"
+      ]
+    },
+    {
+      "fixture_id": "fixture.settings-data-rights",
+      "description": "Completed local report with Settings, backup, diagnostics, erase, restore, and commerce routes enabled.",
+      "source_paths": [
+        "FieldEvidenceAppUITests/S9_1FinalRCUITests.swift",
+        "FieldEvidenceAppTests/Fixtures/S6_3V4BackupPackageV1.json"
+      ]
+    },
+    {
+      "fixture_id": "fixture.valid-backup",
+      "description": "Repository-owned valid V4 backup used only for deterministic restore selection and validation.",
+      "source_paths": [
+        "FieldEvidenceAppTests/Fixtures/S6_3V4BackupPackageV1.json",
+        "FieldEvidenceAppUITests/Fixtures/S6_3V4BackupPackageV1.json"
+      ]
+    },
+    {
+      "fixture_id": "fixture.feedback-review",
+      "description": "Deterministic unavailable-mail feedback route with an exact sanitized diagnostic review.",
+      "source_paths": [
+        "FieldEvidenceAppUITests/S8_4FeedbackUITests.swift"
+      ]
+    },
+    {
+      "fixture_id": "fixture.commerce",
+      "description": "Checked-in StoreKit Test monthly product with deterministic paywall purchase and lifecycle states.",
+      "source_paths": [
+        "TestFixtures/StoreKit/FieldEvidence.storekit",
+        "FieldEvidenceAppUITests/S7_2PaywallUITests.swift",
+        "FieldEvidenceAppUITests/S7_3LifecycleUITests.swift"
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "route_id": "route.shell.maintenance",
+      "title": "Startup maintenance",
+      "reachable": false,
+      "unreachable_evidence_ids": [
+        "s10.1.no-valid-authority-fixture"
+      ],
+      "migration_slice_id": "migration.settings-data-rights",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift"
+      ],
+      "states": []
+    },
+    {
+      "route_id": "route.pack.unavailable",
+      "title": "Pack unavailable",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.signs",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Shell/AppShellView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.pack.unavailable",
+          "fixture_id": "fixture.invalid-pack",
+          "layout_family_id": "layout.unavailable",
+          "primary_action": null,
+          "reach_zone": "no_action",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "one_handed_start"
+          ],
+          "baseline_ids": [
+            "baseline.pack.unavailable"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Invalid pack authority stays unavailable and never opens the operational shell."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.signs.welcome",
+      "title": "Welcome and sample report",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.signs",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+        "FieldEvidenceApp/Features/Sample/PackSampleView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.welcome.empty",
+          "fixture_id": "fixture.empty-install",
+          "layout_family_id": "layout.empty-state",
+          "primary_action": {
+            "action_id": "s2.welcome.add-first-sign",
+            "label": "Add first sign"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.empty-state",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.brandHeading",
+            "color.disabled",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.16",
+            "space.24",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "one_handed_start"
+          ],
+          "baseline_ids": [
+            "baseline.welcome.empty"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "An empty installation offers sign creation, sample viewing, restore, and purchase recovery without creating data early."
+          ]
+        },
+        {
+          "state_id": "state.sample-report.ready",
+          "fixture_id": "fixture.sample-report",
+          "layout_family_id": "layout.report-preview",
+          "primary_action": {
+            "action_id": "s2.sample.back",
+            "label": "Back"
+          },
+          "reach_zone": "thumb_secondary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.report-brand-header",
+            "component.evidence-card",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.brandHeading",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "report_comprehension"
+          ],
+          "baseline_ids": [
+            "baseline.sample-report.ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "The bundled sample remains clearly identified as sample content and never becomes customer evidence."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.reports.index",
+      "title": "Reports index",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.reports",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Reports/ReportsRootView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.reports-index.empty",
+          "fixture_id": "fixture.empty-install",
+          "layout_family_id": "layout.empty-state",
+          "primary_action": null,
+          "reach_zone": "no_action",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.empty-state"
+          ],
+          "token_ids": [
+            "color.brandHeading",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "space.16",
+            "space.24",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery",
+            "report_comprehension"
+          ],
+          "baseline_ids": [
+            "baseline.reports-index.empty"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "The Reports tab truthfully shows no saved reports on an empty installation."
+          ]
+        },
+        {
+          "state_id": "state.reports-index.ready",
+          "fixture_id": "fixture.visible-issue-report",
+          "layout_family_id": "layout.list",
+          "primary_action": {
+            "action_id": "s4.4.reports.view-report",
+            "label": "View report"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery",
+            "report_comprehension"
+          ],
+          "baseline_ids": [
+            "baseline.reports-index.ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Saved report visits remain grouped, filterable, and linked to their exact device-local reports."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.signs.selection",
+      "title": "Sign selection",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.signs",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Signs/SignsRootView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.sign-selection.ready",
+          "fixture_id": "fixture.commerce",
+          "layout_family_id": "layout.list",
+          "primary_action": {
+            "action_id": "s7.4.signs.add-sign",
+            "label": "Add sign"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "one_handed_start"
+          ],
+          "baseline_ids": [
+            "baseline.sign-selection.ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Multiple entitled signs remain individually selectable after relaunch."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.signs.new",
+      "title": "New sign",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.signs",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Signs/NewSignView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.new-sign.editing",
+          "fixture_id": "fixture.empty-install",
+          "layout_family_id": "layout.form",
+          "primary_action": {
+            "action_id": "s2.new-sign.save",
+            "label": "Save and start check"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "one_handed_start"
+          ],
+          "baseline_ids": [
+            "baseline.new-sign.editing"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "New sign inputs remain editable and no row is created before valid Save."
+          ]
+        },
+        {
+          "state_id": "state.new-sign.validation-error",
+          "fixture_id": "fixture.empty-install",
+          "layout_family_id": "layout.form",
+          "primary_action": {
+            "action_id": "s2.new-sign.save",
+            "label": "Save and start check"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "one_handed_start"
+          ],
+          "baseline_ids": [
+            "baseline.new-sign.validation-error"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Invalid sign input remains on the form with retained values and actionable non-color recovery copy."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.signs.detail",
+      "title": "Sign detail and deletion confirmation",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.signs",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Signs/SignDetailView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.sign-detail.ready",
+          "fixture_id": "fixture.visible-issue-report",
+          "layout_family_id": "layout.detail",
+          "primary_action": {
+            "action_id": "s2.sign-detail.start-check",
+            "label": "Start Check"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "one_handed_start"
+          ],
+          "baseline_ids": [
+            "baseline.sign-detail.ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "The selected sign exposes the next valid check action without changing report or issue history."
+          ]
+        },
+        {
+          "state_id": "state.sign-detail.open-issue",
+          "fixture_id": "fixture.work-recheck",
+          "layout_family_id": "layout.detail",
+          "primary_action": {
+            "action_id": "s5.1.sign-detail.record-work",
+            "label": "Record work"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.sign-detail.open-issue"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "A visible unresolved issue exposes only the valid work action and retains its opening evidence."
+          ]
+        },
+        {
+          "state_id": "state.sign-detail.delete-confirmation",
+          "fixture_id": "fixture.visible-issue-report",
+          "layout_family_id": "layout.destructive-confirmation",
+          "primary_action": {
+            "action_id": "s6.1.delete.confirm",
+            "label": "Delete sign"
+          },
+          "reach_zone": "two_hand_or_confirmed_exception",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.destructive-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery"
+          ],
+          "baseline_ids": [
+            "baseline.sign-detail.delete-confirmation"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Whole-sign deletion requires an explicit destructive confirmation and leaves Cancel available."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.check.preflight",
+      "title": "Check and recheck preflight",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.check",
+      "source_paths": [
+        "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.check-preflight.ready",
+          "fixture_id": "fixture.visible-issue-report",
+          "layout_family_id": "layout.runner",
+          "primary_action": {
+            "action_id": "s3.preflight.begin",
+            "label": "Begin check"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "one_handed_start",
+            "capture_and_review",
+            "force_quit_draft_resume"
+          ],
+          "baseline_ids": [
+            "baseline.check-preflight.ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "A check begins only after exact time-zone and safety acknowledgements are valid."
+          ]
+        },
+        {
+          "state_id": "state.recheck-preflight.ready",
+          "fixture_id": "fixture.work-recheck",
+          "layout_family_id": "layout.runner",
+          "primary_action": {
+            "action_id": "s3.preflight.begin",
+            "label": "Begin check"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "force_quit_draft_resume",
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.recheck-preflight.ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "A recheck preserves the exact issue and terminal parent while reusing the validated preflight."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.check.capture",
+      "title": "Check and recheck photo capture",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.check",
+      "source_paths": [
+        "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+        "FieldEvidenceApp/Features/CheckRunner/CameraCaptureView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.capture.wide-ready",
+          "fixture_id": "fixture.capture-recovery",
+          "layout_family_id": "layout.photo",
+          "primary_action": {
+            "action_id": "s3.capture.take-photo",
+            "label": "Take photo"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.photo-capture",
+            "component.primary-action",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "capture_and_review",
+            "force_quit_draft_resume"
+          ],
+          "baseline_ids": [
+            "baseline.capture.wide-ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Wide evidence can be captured or imported and the durable draft remains resumable."
+          ]
+        },
+        {
+          "state_id": "state.capture.wide-preview",
+          "fixture_id": "fixture.visible-issue-report",
+          "layout_family_id": "layout.photo",
+          "primary_action": {
+            "action_id": "s3.capture.use-photo",
+            "label": "Use Photo"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.photo-capture",
+            "component.primary-action",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "capture_and_review",
+            "force_quit_draft_resume"
+          ],
+          "baseline_ids": [
+            "baseline.capture.wide-preview"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "The untinted aspect-fit wide preview must be accepted before it becomes evidence."
+          ]
+        },
+        {
+          "state_id": "state.capture.close-ready",
+          "fixture_id": "fixture.visible-issue-report",
+          "layout_family_id": "layout.photo",
+          "primary_action": {
+            "action_id": "s3.capture.take-photo",
+            "label": "Take photo"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.photo-capture",
+            "component.primary-action",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "capture_and_review",
+            "force_quit_draft_resume"
+          ],
+          "baseline_ids": [
+            "baseline.capture.close-ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Close evidence remains a distinct required slot after durable wide evidence."
+          ]
+        },
+        {
+          "state_id": "state.capture.close-preview",
+          "fixture_id": "fixture.visible-issue-report",
+          "layout_family_id": "layout.photo",
+          "primary_action": {
+            "action_id": "s3.capture.use-photo",
+            "label": "Use Photo"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.photo-capture",
+            "component.primary-action",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "capture_and_review",
+            "force_quit_draft_resume"
+          ],
+          "baseline_ids": [
+            "baseline.capture.close-preview"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "The untinted aspect-fit close preview must be accepted before outcome selection."
+          ]
+        },
+        {
+          "state_id": "state.capture.camera-denied",
+          "fixture_id": "fixture.capture-recovery",
+          "layout_family_id": "layout.recovery",
+          "primary_action": {
+            "action_id": "s3.capture.open-settings",
+            "label": "Open Settings"
+          },
+          "reach_zone": "thumb_secondary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.photo-capture",
+            "component.state-label",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "capture_and_review",
+            "force_quit_draft_resume"
+          ],
+          "baseline_ids": [
+            "baseline.capture.camera-denied"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Camera denial preserves the draft and offers import, Settings, or an explicit incomplete exit."
+          ]
+        },
+        {
+          "state_id": "state.capture.low-storage-error",
+          "fixture_id": "fixture.capture-recovery",
+          "layout_family_id": "layout.recovery",
+          "primary_action": {
+            "action_id": "s3.capture.import-fixture",
+            "label": "Import test photo"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.photo-capture",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "capture_and_review",
+            "force_quit_draft_resume"
+          ],
+          "baseline_ids": [
+            "baseline.capture.low-storage-error"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Low storage creates no evidence and keeps an exact retry path on the same draft."
+          ]
+        },
+        {
+          "state_id": "state.recheck-capture.wide-ready",
+          "fixture_id": "fixture.work-recheck",
+          "layout_family_id": "layout.photo",
+          "primary_action": {
+            "action_id": "s3.capture.take-photo",
+            "label": "Take photo"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.photo-capture",
+            "component.primary-action",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "force_quit_draft_resume",
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.recheck-capture.wide-ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Recheck wide capture remains bound to the original issue and current terminal parent."
+          ]
+        },
+        {
+          "state_id": "state.recheck-capture.wide-preview",
+          "fixture_id": "fixture.work-recheck",
+          "layout_family_id": "layout.photo",
+          "primary_action": {
+            "action_id": "s3.capture.use-photo",
+            "label": "Use Photo"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.photo-capture",
+            "component.primary-action",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "force_quit_draft_resume",
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.recheck-capture.wide-preview"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Recheck wide preview is untinted, aspect-fit, and not durable until accepted."
+          ]
+        },
+        {
+          "state_id": "state.recheck-capture.close-ready",
+          "fixture_id": "fixture.work-recheck",
+          "layout_family_id": "layout.photo",
+          "primary_action": {
+            "action_id": "s3.capture.take-photo",
+            "label": "Take photo"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.photo-capture",
+            "component.primary-action",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "force_quit_draft_resume",
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.recheck-capture.close-ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Recheck close capture follows the accepted wide slot without duplicating evidence."
+          ]
+        },
+        {
+          "state_id": "state.recheck-capture.close-preview",
+          "fixture_id": "fixture.work-recheck",
+          "layout_family_id": "layout.photo",
+          "primary_action": {
+            "action_id": "s3.capture.use-photo",
+            "label": "Use Photo"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.photo-capture",
+            "component.primary-action",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "force_quit_draft_resume",
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.recheck-capture.close-preview"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Recheck close preview remains reviewable before outcome selection."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.check.outcome",
+      "title": "Check and recheck outcome",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.check",
+      "source_paths": [
+        "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.check-outcome.visible-issue",
+          "fixture_id": "fixture.visible-issue-report",
+          "layout_family_id": "layout.runner",
+          "primary_action": {
+            "action_id": "s3.outcome.continue",
+            "label": "Continue"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.16",
+            "space.8",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "capture_and_review"
+          ],
+          "baseline_ids": [
+            "baseline.check-outcome.visible-issue"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Visible issue selection binds one closed-registry issue label to the completed check."
+          ]
+        },
+        {
+          "state_id": "state.check-outcome.no-visible-issue",
+          "fixture_id": "fixture.alternative-outcomes",
+          "layout_family_id": "layout.runner",
+          "primary_action": {
+            "action_id": "s3.outcome.continue",
+            "label": "Continue"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.16",
+            "space.8",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "capture_and_review"
+          ],
+          "baseline_ids": [
+            "baseline.check-outcome.no-visible-issue"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "No-visible-issue remains a closed outcome and creates no Issue."
+          ]
+        },
+        {
+          "state_id": "state.check-outcome.could-not-verify",
+          "fixture_id": "fixture.alternative-outcomes",
+          "layout_family_id": "layout.runner",
+          "primary_action": {
+            "action_id": "s3.outcome.continue",
+            "label": "Continue"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.16",
+            "space.8",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "capture_and_review"
+          ],
+          "baseline_ids": [
+            "baseline.check-outcome.could-not-verify"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Could-not-verify preserves partial evidence and requires exact reason authority."
+          ]
+        },
+        {
+          "state_id": "state.recheck-outcome.resolved",
+          "fixture_id": "fixture.work-recheck",
+          "layout_family_id": "layout.runner",
+          "primary_action": {
+            "action_id": "s3.outcome.continue",
+            "label": "Continue"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.16",
+            "space.8",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.recheck-outcome.resolved"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Resolved transitions the original issue only after the completed recheck is saved."
+          ]
+        },
+        {
+          "state_id": "state.recheck-outcome.issue-still-visible",
+          "fixture_id": "fixture.alternative-outcomes",
+          "layout_family_id": "layout.runner",
+          "primary_action": {
+            "action_id": "s3.outcome.continue",
+            "label": "Continue"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.16",
+            "space.8",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.recheck-outcome.issue-still-visible"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Issue-still-visible retains the same issue identity as open after recheck."
+          ]
+        },
+        {
+          "state_id": "state.recheck-outcome.different-issue",
+          "fixture_id": "fixture.alternative-outcomes",
+          "layout_family_id": "layout.runner",
+          "primary_action": {
+            "action_id": "s3.outcome.continue",
+            "label": "Continue"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.16",
+            "space.8",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.recheck-outcome.different-issue"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Different-issue resolves the original and opens exactly one new closed-label issue."
+          ]
+        },
+        {
+          "state_id": "state.recheck-outcome.could-not-verify",
+          "fixture_id": "fixture.alternative-outcomes",
+          "layout_family_id": "layout.runner",
+          "primary_action": {
+            "action_id": "s3.outcome.continue",
+            "label": "Continue"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.16",
+            "space.8",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.recheck-outcome.could-not-verify"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Could-not-verify records the bounded recheck truth without changing the original issue status."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.check.review",
+      "title": "Check and recheck review",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.check",
+      "source_paths": [
+        "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.check-review.visible-issue",
+          "fixture_id": "fixture.visible-issue-report",
+          "layout_family_id": "layout.review",
+          "primary_action": {
+            "action_id": "s3.review.save-report",
+            "label": "Save and finish"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.photo-capture",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "capture_and_review",
+            "force_quit_draft_resume"
+          ],
+          "baseline_ids": [
+            "baseline.check-review.visible-issue"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Review freezes visible-issue truth and both accepted evidence slots before save."
+          ]
+        },
+        {
+          "state_id": "state.check-review.no-visible-issue",
+          "fixture_id": "fixture.alternative-outcomes",
+          "layout_family_id": "layout.review",
+          "primary_action": {
+            "action_id": "s3.review.save-report",
+            "label": "Save and finish"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.photo-capture",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "capture_and_review",
+            "force_quit_draft_resume"
+          ],
+          "baseline_ids": [
+            "baseline.check-review.no-visible-issue"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Review shows the no-visible outcome and exact evidence before save."
+          ]
+        },
+        {
+          "state_id": "state.check-review.could-not-verify",
+          "fixture_id": "fixture.alternative-outcomes",
+          "layout_family_id": "layout.review",
+          "primary_action": {
+            "action_id": "s3.review.save-report",
+            "label": "Save and finish"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.photo-capture",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "capture_and_review",
+            "force_quit_draft_resume"
+          ],
+          "baseline_ids": [
+            "baseline.check-review.could-not-verify"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Review shows could-not-verify reason and only the evidence actually captured."
+          ]
+        },
+        {
+          "state_id": "state.recheck-review.resolved",
+          "fixture_id": "fixture.work-recheck",
+          "layout_family_id": "layout.review",
+          "primary_action": {
+            "action_id": "s3.review.save-report",
+            "label": "Save and finish"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.photo-capture",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "force_quit_draft_resume",
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.recheck-review.resolved"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Resolved recheck review shows exact issue transition and both fresh evidence slots."
+          ]
+        },
+        {
+          "state_id": "state.recheck-review.issue-still-visible",
+          "fixture_id": "fixture.alternative-outcomes",
+          "layout_family_id": "layout.review",
+          "primary_action": {
+            "action_id": "s3.review.save-report",
+            "label": "Save and finish"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.photo-capture",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "force_quit_draft_resume",
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.recheck-review.issue-still-visible"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Still-visible review preserves the original issue identity and exact evidence."
+          ]
+        },
+        {
+          "state_id": "state.recheck-review.different-issue",
+          "fixture_id": "fixture.alternative-outcomes",
+          "layout_family_id": "layout.review",
+          "primary_action": {
+            "action_id": "s3.review.save-report",
+            "label": "Save and finish"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.photo-capture",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "force_quit_draft_resume",
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.recheck-review.different-issue"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Different-issue review names both the original resolution and the fresh issue label."
+          ]
+        },
+        {
+          "state_id": "state.recheck-review.could-not-verify",
+          "fixture_id": "fixture.alternative-outcomes",
+          "layout_family_id": "layout.review",
+          "primary_action": {
+            "action_id": "s3.review.save-report",
+            "label": "Save and finish"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.photo-capture",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "force_quit_draft_resume",
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.recheck-review.could-not-verify"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Could-not-verify recheck review preserves partial evidence and no issue transition."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.check.receipt",
+      "title": "Check and recheck receipt",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.check",
+      "source_paths": [
+        "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.receipt.report-saved",
+          "fixture_id": "fixture.visible-issue-report",
+          "layout_family_id": "layout.receipt",
+          "primary_action": {
+            "action_id": "s3.receipt.view-report",
+            "label": "View report"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.state-label",
+            "component.report-brand-header",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.brandHeading",
+            "color.completed",
+            "color.disabled",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "capture_and_review",
+            "report_comprehension"
+          ],
+          "baseline_ids": [
+            "baseline.receipt.report-saved"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "The receipt distinguishes completed evaluation from device-local report save and exposes the exact report."
+          ]
+        },
+        {
+          "state_id": "state.recheck-receipt.saved",
+          "fixture_id": "fixture.work-recheck",
+          "layout_family_id": "layout.receipt",
+          "primary_action": {
+            "action_id": "s3.receipt.view-report",
+            "label": "View report"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.state-label",
+            "component.report-brand-header",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.brandHeading",
+            "color.completed",
+            "color.disabled",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "work_and_recheck",
+            "report_comprehension"
+          ],
+          "baseline_ids": [
+            "baseline.recheck-receipt.saved"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "The recheck receipt confirms one additional device-local report without hiding issue state."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.reports.detail",
+      "title": "Report detail",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.reports",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Reports/ReportDetailView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.report-detail.ready",
+          "fixture_id": "fixture.visible-issue-report",
+          "layout_family_id": "layout.report-preview",
+          "primary_action": {
+            "action_id": "s4.3.report-detail.share",
+            "label": "Share report"
+          },
+          "reach_zone": "thumb_secondary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.report-brand-header",
+            "component.evidence-card",
+            "component.primary-action",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.brandHeading",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "capture_and_review",
+            "history_recovery",
+            "report_comprehension"
+          ],
+          "baseline_ids": [
+            "baseline.report-detail.ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "The saved PDF preview remains reachable, untinted, shareable, and tied to its report authority."
+          ]
+        },
+        {
+          "state_id": "state.recheck-report-detail.ready",
+          "fixture_id": "fixture.work-recheck",
+          "layout_family_id": "layout.report-preview",
+          "primary_action": {
+            "action_id": "s4.3.report-detail.share",
+            "label": "Share report"
+          },
+          "reach_zone": "thumb_secondary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.report-brand-header",
+            "component.evidence-card",
+            "component.primary-action",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.brandHeading",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "work_and_recheck",
+            "report_comprehension"
+          ],
+          "baseline_ids": [
+            "baseline.recheck-report-detail.ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "The recheck PDF preview remains a distinct report in the same packet history."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.reports.history",
+      "title": "Report history",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.reports",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Reports/ReportsRootView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.report-history.ready",
+          "fixture_id": "fixture.report-history",
+          "layout_family_id": "layout.list",
+          "primary_action": {
+            "action_id": "s4.4.reports.view-report",
+            "label": "View report"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery",
+            "report_comprehension"
+          ],
+          "baseline_ids": [
+            "baseline.report-history.ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Report history preserves every visit and correction replacement in deterministic order."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.reports.comparison",
+      "title": "Report comparison",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.reports",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Reports/ReportsRootView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.report-comparison.ready",
+          "fixture_id": "fixture.report-history",
+          "layout_family_id": "layout.comparison",
+          "primary_action": null,
+          "reach_zone": "no_action",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.photo-capture",
+            "component.state-label"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery",
+            "report_comprehension"
+          ],
+          "baseline_ids": [
+            "baseline.report-comparison.ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Comparison presents then and now evidence without rewriting either report."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.reports.correction",
+      "title": "Report correction",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.reports",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.report-correction.editing",
+          "fixture_id": "fixture.report-history",
+          "layout_family_id": "layout.form",
+          "primary_action": {
+            "action_id": "s4.5.correction.save",
+            "label": "Save correction"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery",
+            "report_comprehension"
+          ],
+          "baseline_ids": [
+            "baseline.report-correction.editing"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Correction permits note-only editing while every substantive record field stays frozen."
+          ]
+        },
+        {
+          "state_id": "state.report-correction.validation-error",
+          "fixture_id": "fixture.report-history",
+          "layout_family_id": "layout.form",
+          "primary_action": {
+            "action_id": "s4.5.correction.save",
+            "label": "Save correction"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery",
+            "report_comprehension"
+          ],
+          "baseline_ids": [
+            "baseline.report-correction.validation-error"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "An unchanged correction is blocked with retained report authority and actionable recovery copy."
+          ]
+        },
+        {
+          "state_id": "state.report-correction.saving",
+          "fixture_id": "fixture.report-history",
+          "layout_family_id": "layout.progress",
+          "primary_action": null,
+          "reach_zone": "no_action",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery",
+            "report_comprehension"
+          ],
+          "baseline_ids": [
+            "baseline.report-correction.saving"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Saving visibly blocks duplicate submission while the correction transaction completes."
+          ]
+        },
+        {
+          "state_id": "state.report-correction.completed",
+          "fixture_id": "fixture.report-history",
+          "layout_family_id": "layout.receipt",
+          "primary_action": {
+            "action_id": "s4.5.correction.current-report",
+            "label": "Current report"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.report-brand-header",
+            "component.state-label",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.brandHeading",
+            "color.completed",
+            "color.disabled",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery",
+            "report_comprehension"
+          ],
+          "baseline_ids": [
+            "baseline.report-correction.completed"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Completion distinguishes prior and current report revisions without deleting history."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.reports.failure",
+      "title": "Report PDF failure",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.reports",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Reports/ReportFailureView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.report-pdf.failed",
+          "fixture_id": "fixture.report-failure",
+          "layout_family_id": "layout.recovery",
+          "primary_action": {
+            "action_id": "s4.pdf-failure.retry",
+            "label": "Retry report"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.16",
+            "space.8",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery",
+            "report_comprehension"
+          ],
+          "baseline_ids": [
+            "baseline.report-pdf.failed"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "A saved report remains truthful and recoverable when only PDF rendering failed."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.issues.detail",
+      "title": "Issue detail",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.work-recheck",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Issues/IssueDetailView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.issue.open",
+          "fixture_id": "fixture.alternative-outcomes",
+          "layout_family_id": "layout.detail",
+          "primary_action": {
+            "action_id": "s5.1.issue.record-work",
+            "label": "Record work"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.issue.open"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "A still-visible original issue remains open and can receive another work record."
+          ]
+        },
+        {
+          "state_id": "state.issue.different-open",
+          "fixture_id": "fixture.alternative-outcomes",
+          "layout_family_id": "layout.detail",
+          "primary_action": {
+            "action_id": "s5.1.issue.record-work",
+            "label": "Record work"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.issue.different-open"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "The one fresh different issue remains open with its own label and original-opening recheck."
+          ]
+        },
+        {
+          "state_id": "state.issue.recheck-due",
+          "fixture_id": "fixture.work-recheck",
+          "layout_family_id": "layout.detail",
+          "primary_action": {
+            "action_id": "s5.2.issue.start-recheck",
+            "label": "Start recheck"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.issue.recheck-due"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Recorded work advances the exact original issue to recheck due."
+          ]
+        },
+        {
+          "state_id": "state.issue.resolved",
+          "fixture_id": "fixture.work-recheck",
+          "layout_family_id": "layout.detail",
+          "primary_action": null,
+          "reach_zone": "no_action",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.issue.resolved"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "A resolved issue retains its full evidence, work, and recheck lineage without new work actions."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.issues.work",
+      "title": "Record work",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.work-recheck",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Issues/RecordWorkView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.work.editing",
+          "fixture_id": "fixture.work-recheck",
+          "layout_family_id": "layout.form",
+          "primary_action": {
+            "action_id": "s5.1.work.save",
+            "label": "Record work"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.photo-capture",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "force_quit_draft_resume",
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.work.editing"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Work date, description, optional note, and optional photo remain editable before save."
+          ]
+        },
+        {
+          "state_id": "state.work.validation-error",
+          "fixture_id": "fixture.work-recheck",
+          "layout_family_id": "layout.form",
+          "primary_action": {
+            "action_id": "s5.1.work.save",
+            "label": "Record work"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "force_quit_draft_resume",
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.work.validation-error"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Missing required work detail is blocked without discarding the durable draft."
+          ]
+        },
+        {
+          "state_id": "state.work.saving",
+          "fixture_id": "fixture.work-recheck",
+          "layout_family_id": "layout.progress",
+          "primary_action": null,
+          "reach_zone": "no_action",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "force_quit_draft_resume",
+            "work_and_recheck"
+          ],
+          "baseline_ids": [
+            "baseline.work.saving"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [
+            "Visible record, evidence, issue, and report relationships must match the persisted lineage."
+          ],
+          "preserved_behavior": [
+            "Saving prevents duplicate work submission until the issue transition completes."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.settings.hub",
+      "title": "Settings hub",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.settings-data-rights",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Shell/AppShellView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.settings.hub",
+          "fixture_id": "fixture.settings-data-rights",
+          "layout_family_id": "layout.settings",
+          "primary_action": {
+            "action_id": "s6.2.backup.settings-entry",
+            "label": "Back up current data"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.primary-action",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery"
+          ],
+          "baseline_ids": [
+            "baseline.settings.hub"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Settings keeps backup, restore, subscription, diagnostics, feedback, and erase as explicit owner actions."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.settings.backup",
+      "title": "Backup export",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.settings-data-rights",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Settings/BackupExportView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.backup.ready",
+          "fixture_id": "fixture.settings-data-rights",
+          "layout_family_id": "layout.detail",
+          "primary_action": {
+            "action_id": "s6.2.backup.action",
+            "label": "Back up current data"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery"
+          ],
+          "baseline_ids": [
+            "baseline.backup.ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Backup preview gives exact counts and privacy warning before any destination write."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.settings.diagnostics",
+      "title": "Diagnostics export",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.settings-data-rights",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.diagnostics.ready",
+          "fixture_id": "fixture.settings-data-rights",
+          "layout_family_id": "layout.detail",
+          "primary_action": {
+            "action_id": "s8.3.diagnostics.export",
+            "label": "Save diagnostics to Files"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery"
+          ],
+          "baseline_ids": [
+            "baseline.diagnostics.ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Diagnostic preview exposes only the sanitized canonical six-key export."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.settings.feedback",
+      "title": "Feedback",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.settings-data-rights",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Settings/FeedbackView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.feedback.review-ready",
+          "fixture_id": "fixture.feedback-review",
+          "layout_family_id": "layout.detail",
+          "primary_action": {
+            "action_id": "s8.4.feedback.dont-attach",
+            "label": "Don't Attach"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.primary-action",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery"
+          ],
+          "baseline_ids": [
+            "baseline.feedback.review-ready"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Feedback shows the exact diagnostic review and requires an explicit attach or do-not-attach choice."
+          ]
+        },
+        {
+          "state_id": "state.feedback.blocked",
+          "fixture_id": "fixture.settings-data-rights",
+          "layout_family_id": "layout.recovery",
+          "primary_action": {
+            "action_id": "s8.4.feedback.retry",
+            "label": "Retry"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery"
+          ],
+          "baseline_ids": [
+            "baseline.feedback.blocked"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Missing production support configuration fails closed without inventing an address or sending data."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.settings.erase",
+      "title": "Erase all",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.settings-data-rights",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Settings/EraseAllView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.erase.confirmation",
+          "fixture_id": "fixture.settings-data-rights",
+          "layout_family_id": "layout.destructive-confirmation",
+          "primary_action": {
+            "action_id": "s6.6.erase.confirm",
+            "label": "Erase everything"
+          },
+          "reach_zone": "two_hand_or_confirmed_exception",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.destructive-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery"
+          ],
+          "baseline_ids": [
+            "baseline.erase.confirmation"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Erase requires typed confirmation, preserves subscription independence, and keeps Cancel available."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.settings.restore",
+      "title": "Backup restore",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.settings-data-rights",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+        "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.restore.choose-backup",
+          "fixture_id": "fixture.valid-backup",
+          "layout_family_id": "layout.detail",
+          "primary_action": {
+            "action_id": "s6.4.restore.choose",
+            "label": "Choose backup"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.primary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery"
+          ],
+          "baseline_ids": [
+            "baseline.restore.choose-backup"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Restore creates no local mutation until the owner selects and validates a backup."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.subscription.status",
+      "title": "Subscription status",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.commerce",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.subscription.no-entitlement",
+          "fixture_id": "fixture.commerce",
+          "layout_family_id": "layout.modal",
+          "primary_action": {
+            "action_id": "s7.3.lifecycle.restore",
+            "label": "Restore Purchases"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery"
+          ],
+          "baseline_ids": [
+            "baseline.subscription.no-entitlement"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "No-entitlement truth preserves local data and offers only explicit purchase recovery."
+          ]
+        },
+        {
+          "state_id": "state.subscription.active",
+          "fixture_id": "fixture.commerce",
+          "layout_family_id": "layout.modal",
+          "primary_action": {
+            "action_id": "s7.3.lifecycle.manage",
+            "label": "Manage Subscription"
+          },
+          "reach_zone": "thumb_secondary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "history_recovery"
+          ],
+          "baseline_ids": [
+            "baseline.subscription.active"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Active status uses verified StoreKit dates and retains explicit restore and manage actions."
+          ]
+        }
+      ]
+    },
+    {
+      "route_id": "route.subscription.paywall",
+      "title": "Subscription paywall",
+      "reachable": true,
+      "unreachable_evidence_ids": [],
+      "migration_slice_id": "migration.commerce",
+      "source_paths": [
+        "FieldEvidenceApp/Features/Subscription/PaywallView.swift"
+      ],
+      "states": [
+        {
+          "state_id": "state.paywall.unavailable",
+          "fixture_id": "fixture.commerce",
+          "layout_family_id": "layout.recovery",
+          "primary_action": {
+            "action_id": "s7.2.paywall.retry",
+            "label": "Retry"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.state-label",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "one_handed_start"
+          ],
+          "baseline_ids": [
+            "baseline.paywall.unavailable"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Unavailable product or links show honest recovery without guessed price or trial copy."
+          ]
+        },
+        {
+          "state_id": "state.paywall.available",
+          "fixture_id": "fixture.commerce",
+          "layout_family_id": "layout.modal",
+          "primary_action": {
+            "action_id": "s7.2.paywall.store",
+            "label": "Subscribe"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.primary-action",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "one_handed_start"
+          ],
+          "baseline_ids": [
+            "baseline.paywall.available"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": false,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "The paywall presents only the verified monthly StoreKit product and explicit local-data truth."
+          ]
+        },
+        {
+          "state_id": "state.paywall.purchase-complete",
+          "fixture_id": "fixture.commerce",
+          "layout_family_id": "layout.modal",
+          "primary_action": {
+            "action_id": "s7.2.paywall.close",
+            "label": "Close"
+          },
+          "reach_zone": "thumb_primary",
+          "component_ids": [
+            "component.screen-foundation",
+            "component.evidence-card",
+            "component.state-label",
+            "component.secondary-action"
+          ],
+          "token_ids": [
+            "color.completed",
+            "color.disabled",
+            "color.elevatedSurface",
+            "color.error",
+            "color.primaryAction",
+            "color.primaryText",
+            "color.secondaryText",
+            "color.selected",
+            "color.unavailable",
+            "color.warning",
+            "color.workBackground",
+            "environment.darkMode",
+            "environment.largerText",
+            "environment.voiceControl",
+            "environment.voiceOver",
+            "radius.compact",
+            "radius.standard",
+            "space.12",
+            "space.16",
+            "space.8",
+            "stroke.standard",
+            "target.minimumInteractive",
+            "type.primaryBody",
+            "type.screenTitle",
+            "type.secondaryBody",
+            "type.sectionHeading"
+          ],
+          "accessibility_contract": [
+            "Expose stable identifiers and exact labels for the state root and every primary control.",
+            "Preserve logical reading order, non-color status meaning, and 44-point interactive targets at Accessibility XXXL."
+          ],
+          "common_task_ids": [
+            "one_handed_start"
+          ],
+          "baseline_ids": [
+            "baseline.paywall.purchase-complete"
+          ],
+          "capture_requirements": {
+            "text_bearing": true,
+            "custom_color_or_component": true,
+            "meaningful_color_state": true,
+            "motion": false,
+            "transparency": false
+          },
+          "persistence_wording": [
+            "State copy must distinguish device-local persistence from remote or account state."
+          ],
+          "evidence_relationships": [],
+          "preserved_behavior": [
+            "Verified purchase appears complete only after durable entitlement processing."
+          ]
+        }
+      ]
+    }
+  ]
+}
