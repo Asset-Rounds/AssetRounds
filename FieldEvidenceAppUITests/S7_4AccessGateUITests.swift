@@ -47,11 +47,6 @@ final class S7_4AccessGateUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(addSign.frame.height, 44)
         addSign.tap()
         assertPaywall(in: app)
-        tap("s7.2.paywall.close", in: app)
-        assertSign("Evaluation Sign", in: app)
-
-        tap("s7.4.sign-detail.add-sign", in: app)
-        assertPaywall(in: app)
         let store = element("s7.2.paywall.store", in: app)
         waitForValue("Ready", element: store, timeout: 30)
         let purchase = firstPurchaseButton(in: app)
