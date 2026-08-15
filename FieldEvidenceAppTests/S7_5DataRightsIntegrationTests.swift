@@ -128,13 +128,16 @@ final class S7_5DataRightsIntegrationTests: XCTestCase {
             createdAt: createdAt
         )
 
+        let entitlementNow = Date(
+            timeIntervalSince1970: floor(Date().timeIntervalSince1970)
+        )
         let cache = EntitlementCacheV1(
             productID: EntitlementReducerV1.productID,
             state: .active,
-            expirationAt: Date().addingTimeInterval(3_600),
+            expirationAt: entitlementNow.addingTimeInterval(3_600),
             graceExpirationAt: nil,
             revocationAt: nil,
-            verifiedAt: Date(),
+            verifiedAt: entitlementNow,
             hasEverVerifiedPaid: true
         )
         _ = try EntitlementStore(applicationSupportURL: paths.support)
@@ -174,12 +177,12 @@ final class S7_5DataRightsIntegrationTests: XCTestCase {
         await Task.yield()
 
         let probe = CommerceRuntimeProbe()
-        let expiration = Date().addingTimeInterval(7_200)
+        let expiration = entitlementNow.addingTimeInterval(7_200)
         let fact = VerifiedEntitlementFactV1(
             productID: EntitlementReducerV1.productID,
-            purchaseAt: Date().addingTimeInterval(-3_600),
+            purchaseAt: entitlementNow.addingTimeInterval(-3_600),
             expirationAt: expiration,
-            verifiedAt: Date(),
+            verifiedAt: entitlementNow,
             state: .active
         )
         let router = StartupRouter(
