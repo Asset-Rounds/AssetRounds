@@ -240,8 +240,19 @@ private extension S7_4AccessGateUITests {
 
     @MainActor
     func dismissKeyboard(in app: XCUIApplication) {
-        guard app.keyboards.firstMatch.exists else { return }
-        let key = app.keyboards.buttons["Return"]
-        key.exists ? key.tap() : app.swipeDown()
+        let keyboard = app.keyboards.firstMatch
+        guard keyboard.exists else { return }
+        let key = keyboard.buttons.matching(NSPredicate(
+            format: "label ==[c] 'Done' OR label ==[c] 'Return'"
+        )).firstMatch
+        XCTAssertTrue(key.exists)
+        key.tap()
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "exists == false"),
+                object: keyboard
+            )], timeout: 5),
+            .completed
+        )
     }
 }
