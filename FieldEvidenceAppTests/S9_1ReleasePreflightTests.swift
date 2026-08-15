@@ -215,6 +215,10 @@ final class S9_1ReleasePreflightTests: XCTestCase {
 
         let workflow = try text(".github/workflows/testflight.yml")
         XCTAssertTrue(validateWorkflow(workflow))
+        XCTAssertFalse(workflow.contains("RELEASE_HOME: ${{ runner.temp }}"))
+        XCTAssertTrue(workflow.contains(
+            "printf 'RELEASE_HOME=%s\\n' \"$RUNNER_TEMP/asset-rounds-release-home\""
+        ))
         XCTAssertTrue(workflow.contains("environment: app-store-connect"))
         XCTAssertTrue(workflow.contains("security create-keychain"))
         XCTAssertTrue(workflow.contains("security delete-keychain"))

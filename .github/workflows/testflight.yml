@@ -31,12 +31,18 @@ jobs:
       PROJECT_PATH: FieldEvidenceApp.xcodeproj
       SCHEME: FieldEvidenceApp
       CONFIGURATION: Release
-      RELEASE_HOME: ${{ runner.temp }}/asset-rounds-release-home
-      CERTIFICATE_PATH: ${{ runner.temp }}/asset-rounds-distribution.p12
-      KEYCHAIN_PATH: ${{ runner.temp }}/asset-rounds-release.keychain-db
-      EXPORT_OPTIONS_PATH: ${{ runner.temp }}/TestFlightExportOptions.plist
-      ARCHIVE_PATH: ${{ runner.temp }}/AssetRounds.xcarchive
     steps:
+      - name: Prepare ephemeral paths
+        run: |
+          set -euo pipefail
+          {
+            printf 'RELEASE_HOME=%s\n' "$RUNNER_TEMP/asset-rounds-release-home"
+            printf 'CERTIFICATE_PATH=%s\n' "$RUNNER_TEMP/asset-rounds-distribution.p12"
+            printf 'KEYCHAIN_PATH=%s\n' "$RUNNER_TEMP/asset-rounds-release.keychain-db"
+            printf 'EXPORT_OPTIONS_PATH=%s\n' "$RUNNER_TEMP/TestFlightExportOptions.plist"
+            printf 'ARCHIVE_PATH=%s\n' "$RUNNER_TEMP/AssetRounds.xcarchive"
+          } >> "$GITHUB_ENV"
+
       - name: Check out the reviewed commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
