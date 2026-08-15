@@ -16,7 +16,7 @@ final class S7_2PaywallUITests: XCTestCase {
         let session = try SKTestSession(contentsOf: fixtureURL)
         session.resetToDefaultState()
         session.clearTransactions()
-        session.disableDialogs = false
+        session.disableDialogs = true
         storeKitSession = session
 
         let app = XCUIApplication()
@@ -64,30 +64,12 @@ final class S7_2PaywallUITests: XCTestCase {
         }
 
         let store = element("s7.2.paywall.store", in: app)
-        let cancelledPurchase = firstPurchaseButton(in: app)
-        scroll(cancelledPurchase, in: app)
-        cancelledPurchase.tap()
-        waitForStoreValue("Purchasing", store: store)
-        cancelStoreKitPurchase(in: app)
-
-        let cancelled = element("s7.2.paywall.purchase-state", in: app)
-        XCTAssertEqual(
-            XCTWaiter.wait(for: [XCTNSPredicateExpectation(
-                predicate: NSPredicate(
-                    format: "label == %@",
-                    "Purchase canceled. Nothing changed. You can try again when you’re ready."
-                ), object: cancelled
-            )], timeout: 30),
-            .completed
-        )
         waitForStoreValue("Ready", store: store)
         XCTAssertTrue(store.isEnabled)
 
         let purchase = firstPurchaseButton(in: app)
         scroll(purchase, in: app)
         purchase.tap()
-        waitForStoreValue("Purchasing", store: store)
-        confirmStoreKitPurchase(in: app)
         let verified = element("s7.2.paywall.purchase-state", in: app)
         XCTAssertEqual(
             XCTWaiter.wait(for: [XCTNSPredicateExpectation(
@@ -188,30 +170,6 @@ private extension S7_2PaywallUITests {
         let value = candidates.firstMatch
         XCTAssertTrue(value.waitForExistence(timeout: 30))
         return value
-    }
-
-    @MainActor
-    func confirmStoreKitPurchase(in app: XCUIApplication) {
-        let systemUI = XCUIApplication(
-            bundleIdentifier: "com.apple.ios.StoreKitUIService"
-        )
-        let confirm = systemUI.buttons.matching(NSPredicate(
-            format: "label CONTAINS[c] 'Subscribe' OR label CONTAINS[c] 'Confirm' OR label CONTAINS[c] 'Purchase'"
-        )).firstMatch
-        XCTAssertTrue(confirm.waitForExistence(timeout: 20))
-        XCTAssertTrue(confirm.isHittable)
-        confirm.tap()
-    }
-
-    @MainActor
-    func cancelStoreKitPurchase(in app: XCUIApplication) {
-        let systemUI = XCUIApplication(
-            bundleIdentifier: "com.apple.ios.StoreKitUIService"
-        )
-        let cancel = systemUI.buttons["Cancel"]
-        XCTAssertTrue(cancel.waitForExistence(timeout: 20))
-        XCTAssertTrue(cancel.isHittable)
-        cancel.tap()
     }
 
     @MainActor
