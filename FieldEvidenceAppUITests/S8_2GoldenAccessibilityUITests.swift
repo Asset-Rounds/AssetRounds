@@ -76,30 +76,10 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
         XCTAssertTrue(sign.waitForExistence(timeout: 15))
         XCTAssertLessThan(site.frame.minY, sign.frame.minY)
 
-        site.tap()
-        site.typeText("North Campus")
-        dismissKeyboard(in: app)
         scroll(sign, in: app)
         sign.tap()
         sign.typeText("Monument Sign")
         dismissKeyboard(in: app)
-
-        let optionalDetails = element("s2.new-sign.optional-toggle", in: app)
-        scroll(optionalDetails, in: app)
-        assertControl(optionalDetails, label: "Add optional details")
-        optionalDetails.tap()
-
-        let timeZone = element("s2.new-sign.time-zone", in: app)
-        scroll(timeZone, in: app)
-        timeZone.tap()
-        timeZone.typeText("America/New_York")
-        dismissKeyboard(in: app)
-
-        let confirmation = element("s2.new-sign.time-zone-confirm", in: app)
-        scroll(confirmation, in: app)
-        XCTAssertEqual(confirmation.elementType, .switch)
-        XCTAssertEqual(confirmation.value as? String, "0")
-        assertMinimumGeometry(confirmation)
 
         let save = element("s2.new-sign.save", in: app)
         scroll(save, in: app)
@@ -108,17 +88,18 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
 
         let error = element("s2.new-sign.error", in: app)
         XCTAssertTrue(error.waitForExistence(timeout: 15))
-        XCTAssertEqual(error.label, "Blocked: Confirm the exact time-zone identifier.")
-        assertAccessibilityFocus(
-            on: confirmation,
-            label: "I confirm this exact time-zone identifier",
-            type: .switch
+        XCTAssertEqual(error.label, "Blocked: Enter a customer or site name.")
+        XCTAssertEqual(site.label, "Customer / site name")
+        XCTAssertEqual(site.elementType, .textField)
+        XCTAssertTrue(
+            wait(for: site, predicate: "hasKeyboardFocus == true", timeout: 10)
         )
-        XCTAssertEqual(site.value as? String, "North Campus")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 10))
         XCTAssertEqual(sign.value as? String, "Monument Sign")
         XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
 
-        setToggle("s2.new-sign.time-zone-confirm", in: app)
+        site.typeText("North Campus")
+        dismissKeyboard(in: app)
         scroll(save, in: app)
         save.tap()
 
@@ -557,25 +538,6 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
         let tolerance: CGFloat = 0.001
         XCTAssertGreaterThanOrEqual(value.frame.width + tolerance, 44, file: file, line: line)
         XCTAssertGreaterThanOrEqual(value.frame.height + tolerance, 44, file: file, line: line)
-    }
-
-    @MainActor
-    private func assertAccessibilityFocus(
-        on value: XCUIElement,
-        label: String,
-        type: XCUIElement.ElementType,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        XCTAssertTrue(value.waitForExistence(timeout: 10), file: file, line: line)
-        XCTAssertTrue(
-            wait(for: value, predicate: "hasFocus == true", timeout: 10),
-            file: file,
-            line: line
-        )
-        XCTAssertTrue(value.hasFocus, file: file, line: line)
-        XCTAssertEqual(value.label, label, file: file, line: line)
-        XCTAssertEqual(value.elementType, type, file: file, line: line)
     }
 
     @MainActor
