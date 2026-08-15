@@ -147,7 +147,14 @@ struct PreflightView: View {
                         acknowledgement.copy,
                         isOn: acknowledgementBinding(for: acknowledgement.key)
                     )
-                    .frame(minHeight: DesignTokens.Control.minimumHitSize)
+                    .frame(
+                        minWidth: DesignTokens.Control.minimumHitSize,
+                        maxWidth: .infinity,
+                        minHeight: DesignTokens.Control.minimumHitSize,
+                        alignment: .leading
+                    )
+                    .contentShape(.interaction, Rectangle())
+                    .contentShape(.accessibility, Rectangle())
                     .accessibilityIdentifier(
                         acknowledgement.key == "after_dark"
                             ? Self.afterDarkAccessibilityIdentifier
