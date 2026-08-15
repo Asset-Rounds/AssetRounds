@@ -218,8 +218,8 @@ struct PreflightView: View {
                     minHeight: DesignTokens.Control.minimumHitSize,
                     alignment: .leading
                 )
-                .contentShape(Rectangle())
-                .accessibilityElement(children: .combine)
+                .contentShape(.interaction, Rectangle())
+                .contentShape(.accessibility, Rectangle())
                 .disabled(!hasValidEnteredTimeZone)
                 .accessibilityHint(
                     hasValidEnteredTimeZone
