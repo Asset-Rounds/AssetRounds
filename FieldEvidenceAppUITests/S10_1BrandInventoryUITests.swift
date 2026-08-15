@@ -1282,13 +1282,24 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         scroll(cannotComplete, in: app)
         assertControl(cannotComplete, label: "Cannot complete")
         cannotComplete.tap()
-        let startCheck = element("s2.sign-detail.start-check", in: app)
-        XCTAssertTrue(startCheck.waitForExistence(timeout: 20))
-        scroll(startCheck, in: app)
-        assertControl(startCheck, label: "Start Check")
-        startCheck.tap()
-        XCTAssertTrue(element("s3.capture.screen", in: app)
+
+        XCTAssertTrue(element("s3.outcome.screen", in: app)
             .waitForExistence(timeout: 20))
+        let couldNotVerify = element("s3.outcome.could-not-verify", in: app)
+        XCTAssertTrue(couldNotVerify.waitForExistence(timeout: 10))
+        XCTAssertEqual(couldNotVerify.value as? String, "Selected")
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(element("s3.capture.screen", in: app)
+            .waitForExistence(timeout: 30))
+        let heading = element("s3.capture.heading", in: app)
+        XCTAssertTrue(wait(
+            for: heading,
+            predicate: "label == %@",
+            argument: "1 of 2 · Wide view",
+            timeout: 20
+        ))
     }
 
     @MainActor
