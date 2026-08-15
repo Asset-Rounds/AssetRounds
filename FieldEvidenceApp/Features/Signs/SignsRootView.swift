@@ -284,7 +284,8 @@ struct SignsRootView: View {
                         minWidth: DesignTokens.Control.minimumHitSize,
                         minHeight: DesignTokens.Control.minimumHitSize
                     )
-                    .contentShape(Rectangle())
+                    .contentShape(.interaction, Rectangle())
+                    .contentShape(.accessibility, Rectangle())
                     .accessibilityIdentifier(AppShellView.settingsButtonAccessibilityIdentifier)
                 }
             }
