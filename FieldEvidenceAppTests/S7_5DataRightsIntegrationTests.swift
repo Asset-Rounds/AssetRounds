@@ -5,6 +5,7 @@ import XCTest
 
 final class S7_5DataRightsIntegrationTests: XCTestCase {
     private let fileManager = FileManager.default
+    private let bundleID = "com.palatis3.fieldrecord"
 
     @MainActor
     func testFormerPaidBlocksOnlyNewValueAndKeepsExactDraftAndDataServices()
@@ -153,14 +154,17 @@ final class S7_5DataRightsIntegrationTests: XCTestCase {
         await diagnostics.increment(.reportSaved)
         let defaultsName = "S7_5-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
-        defer { defaults.removePersistentDomain(forName: defaultsName) }
+        defer {
+            defaults.removePersistentDomain(forName: bundleID)
+            defaults.removePersistentDomain(forName: defaultsName)
+        }
         let activeCoordinator = try XCTUnwrap(coordinator)
         let erased = try await EraseAllService(
             applicationSupportURL: paths.support,
             cachesDirectoryURL: paths.caches,
             temporaryDirectoryURL: paths.temporary,
             userDefaults: defaults,
-            bundleIdentifier: defaultsName
+            bundleIdentifier: bundleID
         ).erase(
             confirmation: "ERASE",
             coordinator: activeCoordinator,
