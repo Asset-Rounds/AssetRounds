@@ -129,7 +129,6 @@ struct PaywallView: View {
                 result: result
             )
         }
-        .disabled(coordinator.isPurchasing)
         .allowsHitTesting(!coordinator.isPurchasing)
         .accessibilityValue(coordinator.isPurchasing ? "Purchasing" : "Ready")
         .accessibilityIdentifier(Self.storeAccessibilityIdentifier)
