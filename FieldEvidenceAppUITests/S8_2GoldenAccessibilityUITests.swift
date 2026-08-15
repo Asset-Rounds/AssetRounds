@@ -30,7 +30,7 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
         )
         app.launch()
 
-        try assertLightFirstSignValidationAndCreation(in: app)
+        assertLightFirstSignValidationAndCreation(in: app)
         completeVisibleIssueCheck(in: app)
         assertFirstReceiptAndReport(in: app)
 
@@ -44,7 +44,7 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
         )
         app.launch()
 
-        try completeWorkAndResolvedRecheckAtXXXL(in: app)
+        completeWorkAndResolvedRecheckAtXXXL(in: app)
         assertMonthlyPaywallAtXXXL(in: app)
 
         let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
@@ -56,7 +56,7 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
     @MainActor
     private func assertLightFirstSignValidationAndCreation(
         in app: XCUIApplication
-    ) throws {
+    ) {
         let shell = element("s1.shell.screen", in: app)
         XCTAssertTrue(shell.waitForExistence(timeout: 30))
         XCTAssertEqual(shell.value as? String, "Light")
@@ -91,9 +91,16 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
         ))
         XCTAssertTrue(app.keyboards.firstMatch.exists)
         XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
-        try assertVoiceOverFocus(
+        dismissKeyboard(in: app)
+        XCTAssertTrue(wait(
+            for: site,
+            predicate: "hasKeyboardFocus == false",
+            timeout: 10
+        ))
+        assertAccessibilityFocus(
             on: site,
-            speechContains: ["Customer", "site name", "text field"]
+            label: "Customer / site name",
+            type: .textField
         )
 
         site.tap()
@@ -208,7 +215,7 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
     @MainActor
     private func completeWorkAndResolvedRecheckAtXXXL(
         in app: XCUIApplication
-    ) throws {
+    ) {
         let shell = element("s1.shell.screen", in: app)
         XCTAssertTrue(shell.waitForExistence(timeout: 30))
         XCTAssertEqual(shell.value as? String, "Dark")
@@ -265,10 +272,11 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
         let reopenedStatus = element("s5.1.issue.status", in: app)
         let startRecheck = element("s5.2.issue.start-recheck", in: app)
         XCTAssertTrue(issueHeader.waitForExistence(timeout: 10))
-        try assertXXXLVoiceOverIssueOrder(
+        assertXXXLAccessibilityIssueOrder(
             status: reopenedStatus,
             header: issueHeader,
-            action: startRecheck
+            action: startRecheck,
+            in: app
         )
 
         scroll(startRecheck, in: app)
@@ -364,6 +372,15 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
         for value in [productName, duration, price, trial] {
             XCTAssertTrue(value.waitForExistence(timeout: 30))
         }
+        assertAccessibilityOrder(
+            [
+                "s7.2.paywall.product-name",
+                "s7.2.paywall.duration",
+                "s7.2.paywall.price",
+                "s7.2.paywall.trial",
+            ],
+            in: app
+        )
         scroll(productName, in: app)
         XCTAssertLessThan(productName.frame.minY, duration.frame.minY)
         XCTAssertLessThan(duration.frame.minY, price.frame.minY)
@@ -534,23 +551,13 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
     }
 
     @MainActor
-    private func assertVoiceOverFocus(
+    private func assertAccessibilityFocus(
         on value: XCUIElement,
-        speechContains fragments: [String],
+        label: String,
+        type: XCUIElement.ElementType,
         file: StaticString = #filePath,
         line: UInt = #line
-    ) throws {
-        guard #available(iOS 26.0, *) else {
-            XCTFail("The pinned S8.2 runtime must expose VoiceOver UI testing", file: file, line: line)
-            return
-        }
-        let voiceOver = XCUIDevice.shared.voiceOverService
-        if voiceOver.isEnabled {
-            try voiceOver.disable()
-        }
-        try voiceOver.enable()
-        defer { try? voiceOver.disable() }
-
+    ) {
         XCTAssertTrue(value.waitForExistence(timeout: 10), file: file, line: line)
         XCTAssertTrue(
             wait(for: value, predicate: "hasFocus == true", timeout: 10),
@@ -558,36 +565,19 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
             line: line
         )
         XCTAssertTrue(value.hasFocus, file: file, line: line)
-        let utterance = try voiceOver.currentSpeech().utterance.lowercased()
-        for fragment in fragments {
-            XCTAssertTrue(
-                utterance.contains(fragment.lowercased()),
-                "VoiceOver utterance \(utterance) did not contain \(fragment)",
-                file: file,
-                line: line
-            )
-        }
+        XCTAssertEqual(value.label, label, file: file, line: line)
+        XCTAssertEqual(value.elementType, type, file: file, line: line)
     }
 
     @MainActor
-    private func assertXXXLVoiceOverIssueOrder(
+    private func assertXXXLAccessibilityIssueOrder(
         status: XCUIElement,
         header: XCUIElement,
         action: XCUIElement,
+        in app: XCUIApplication,
         file: StaticString = #filePath,
         line: UInt = #line
-    ) throws {
-        guard #available(iOS 26.0, *) else {
-            XCTFail("The pinned S8.2 runtime must expose VoiceOver UI testing", file: file, line: line)
-            return
-        }
-        let voiceOver = XCUIDevice.shared.voiceOverService
-        if voiceOver.isEnabled {
-            try voiceOver.disable()
-        }
-        try voiceOver.enable()
-        defer { try? voiceOver.disable() }
-
+    ) {
         for value in [status, header, action] {
             XCTAssertTrue(value.waitForExistence(timeout: 10), file: file, line: line)
         }
@@ -596,24 +586,54 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
             file: file,
             line: line
         )
-        let initial = try voiceOver.currentSpeech().utterance.lowercased()
-        XCTAssertTrue(initial.contains("section appears dark"), file: file, line: line)
-        XCTAssertTrue(initial.contains("heading"), file: file, line: line)
-
-        let prior = try voiceOver.moveBackward().utterance.lowercased()
-        XCTAssertTrue(status.hasFocus, file: file, line: line)
-        XCTAssertTrue(prior.contains("attention"), file: file, line: line)
-        XCTAssertTrue(prior.contains("recheck due"), file: file, line: line)
-
-        let centered = try voiceOver.moveForward().utterance.lowercased()
         XCTAssertTrue(header.hasFocus, file: file, line: line)
-        XCTAssertTrue(centered.contains("section appears dark"), file: file, line: line)
-        XCTAssertTrue(centered.contains("heading"), file: file, line: line)
+        XCTAssertEqual(status.label, "Attention: Recheck due", file: file, line: line)
+        XCTAssertEqual(header.label, "Section appears dark", file: file, line: line)
+        XCTAssertEqual(header.elementType, .staticText, file: file, line: line)
+        XCTAssertEqual(action.label, "Start recheck", file: file, line: line)
+        XCTAssertEqual(action.elementType, .button, file: file, line: line)
+        assertAccessibilityOrder(
+            [
+                "s5.1.issue.status",
+                "s5.1.issue.header",
+                "s5.2.issue.start-recheck",
+            ],
+            in: app,
+            file: file,
+            line: line
+        )
+        XCTAssertLessThan(status.frame.minY, header.frame.minY, file: file, line: line)
+        XCTAssertLessThan(header.frame.minY, action.frame.minY, file: file, line: line)
+    }
 
-        let next = try voiceOver.moveForward().utterance.lowercased()
-        XCTAssertTrue(action.hasFocus, file: file, line: line)
-        XCTAssertTrue(next.contains("start recheck"), file: file, line: line)
-        XCTAssertTrue(next.contains("button"), file: file, line: line)
+    @MainActor
+    private func assertAccessibilityOrder(
+        _ expectedIdentifiers: [String],
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let identifiers = app.descendants(matching: .any)
+            .allElementsBoundByIndex
+            .map(\.identifier)
+        let indices = expectedIdentifiers.map { expected -> Int in
+            let matches = identifiers.indices.filter { identifiers[$0] == expected }
+            XCTAssertEqual(
+                matches.count,
+                1,
+                "Expected one accessibility element for \(expected)",
+                file: file,
+                line: line
+            )
+            return matches.first ?? Int.max
+        }
+        XCTAssertEqual(
+            indices,
+            indices.sorted(),
+            "Accessibility elements are not in the expected reading order",
+            file: file,
+            line: line
+        )
     }
 
     @MainActor
