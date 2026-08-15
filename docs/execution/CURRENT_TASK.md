@@ -2,9 +2,9 @@
 
 ## Program and card
 
-- Phase / branch / card / global order: `S7 / phase/s7-commerce / S7.3 / 29 of 36`.
-- Card heading: `### S7.3 — Restore, manage, lifecycle status, and offline refresh`.
-- Position / boundary / immediate next card: `3 of 5 / phase boundary no / S7.4 only after accepted S7.3 evidence and a fresh same-phase transition G0`.
+- Phase / branch / card / global order: `S7 / phase/s7-commerce / S7.4 / 30 of 36`.
+- Card heading: `### S7.4 — Shared DraftAccessPolicy and paid multi-sign entry`.
+- Position / boundary / immediate next card: `4 of 5 / phase boundary no / S7.5 only after accepted S7.4 evidence and a fresh same-phase transition G0`.
 - Program autopilot / phase autopilot / exact S7 span / boundary integration: `enabled through accepted S9.1 / enabled / S7.1,S7.2,S7.3,S7.4,S7.5 / yes`.
 - Frozen phase→branch→card map: `S0→phase/s0-foundation→S0.1; S1→phase/s1-shell-design→S1.1; S2→phase/s2-persistence-signs→S2.1,S2.2; S3→phase/s3-check-runner→S3.1,S3.2,S3.3,S3.4,S3.5,S3.6,S3.7; S4→phase/s4-reports→S4.1,S4.2,S4.3,S4.4,S4.5; S5→phase/s5-work-recheck→S5.1,S5.2,S5.3,S5.4; S6→phase/s6-data-rights→S6.1,S6.2,S6.3,S6.4,S6.5,S6.6; S7→phase/s7-commerce→S7.1,S7.2,S7.3,S7.4,S7.5; S8→phase/s8-quality→S8.1,S8.2,S8.3,S8.4; S9→phase/s9-release→S9.1`.
 - End condition: accepted exact-main S9.1; S9.2 signing/TestFlight and S9.3 App Store submission remain owner-only.
@@ -12,9 +12,9 @@
 ## Predecessor and authority state
 
 - Immutable S7 phase-main base: `P=5f50551f61bc363b430d4e877e462cb47865065d`; it remains byte-for-byte fixed throughout S7.
-- Integrated/card base: `M=f09ddd11b10371b237f6e60bc2211b7ccb1b8739`; accepted S7.2 implementation and exact-head verification head.
-- Accepted S7.2 evidence: run `31863494463` / job `94960691821`, exact `phase/s7-commerce@M`, attempt 1, P12/UI enabled, terminal success, build plus `5/5` units plus `1/1` UI green.
-- Accepted S7.2 artifact: `ios-ci-31863494463-1`, ID `9241454169`, size `2959789`, digest `sha256:fd21cb0055ab72b1885d5a6c765cd826e968bde2475336ff63e6a6441b35fc36`; all `101/101` checksums matched; `SHA256SUMS.txt` SHA-256 `30F04B96907544C7B8CD292036457B52A810C893B0989D09D9DCF011E16F0BA7`.
+- Integrated/card base: `M=a21b456ec72de192aa0144129773e4008c980e18`; accepted S7.3 implementation and exact-head verification head.
+- Accepted S7.3 evidence: run `31866590332` / job `94968561813`, exact `phase/s7-commerce@M`, attempt 1, F25/UI enabled, terminal success, build plus `6/6` units plus `1/1` UI green.
+- Accepted S7.3 artifact: `ios-ci-31866590332-1`, ID `9242303582`, size `3140702`, digest `sha256:b9387edfa8a655138bf8cc8b73aa1987cd12b4d09f9471a991da69eab1e7a6c4`; all `103/103` checksums matched; `SHA256SUMS.txt` SHA-256 `B40B181C8DFE98846B5A89BABC14109520F637BF26A2E1CA0A4FD74E24BA7BCB`.
 - Accepted environment: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.2; Simulator UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`.
 - Task-start authority is the direct-child same-phase transition commit created from M. Fresh G0 must observe its exact SHA, prove `M..A` changes only append-only `docs/execution/HANDOFF.md` plus this immediate-next `docs/execution/CURRENT_TASK.md`, prove remote `phase/s7-commerce=A` and remote `main=P`, and record A later without attempting to self-record it here.
 - Mandatory S8.1 integration evidence remains frozen: a prior-card `CheckRunnerCoordinator.finalizationAttempt` can survive a completed recheck and misclassify a same-session fresh check. S8.1 must exercise and correct that reusable seam before release.
@@ -22,23 +22,23 @@
 ## Pinned authority
 
 - Build plan: `docs/product/BUILD_PLAN_V4.md` / `23DAAB390AF917CBE91C3044E4906F3FBF8D67D2FDFC6BC9BDE985D984F37BBD`.
-- S7.3 plan anchors: `## 7. Free evaluation, subscriptions, and payments` → explicit Restore Purchases, system Manage Subscription, signed lifecycle facts, paid-to-paid 16-day grace, Family Sharing off, data visibility, offline truth, and no data sync claim; `## 11. Build slices and release gates` → S7.3 restore/manage/status/offline; global execution anchors remain `## 16` and `## 18`.
-- Runbook: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / selected card S7.3 only.
+- S7.4 plan anchors: `## 7. Free evaluation, subscriptions, and payments` → one concurrent free live sign, three monotonic counted roots, former-paid behavior, exact normalized access table, and one pure repository-backed `DraftAccessPolicy`; `## 11. Build slices and release gates` → S7.4 shared access policy/multi-sign entry; global execution anchors remain `## 16` and `## 18`.
+- Runbook: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / selected card S7.4 only.
 - Execution contract: `docs/execution/CODEX_EXECUTION_CONTRACT_V4.md` / `9E7F3ABD2CC6FB15F33E4E56C95474BFEAC79C7148D7D125C75FBF88DB9F8A93`.
 - Workflow: `.github/workflows/ios-ci.yml` / `BCD64E2A42752D28844435241B5ABFCA911D04190375CBBDBFC10B45ACBA97D7` / `workflow_dispatch`.
-- Selector at G0 may still equal accepted S7.2 compact JSON plus LF, 337 bytes, SHA-256 `3E2E10AB82C3EABCA1FCC68C2F08D95BC56A1B9BFA33AD33AEC609B81F65CB1B`; after complete G0 the first support mutation replaces it with the exact S7.3 object below, 342 bytes, SHA-256 `209F452E409683B78AD8F3958506D5AF19FF63D6305F39D744E822D3BF0F63F4`.
+- Selector at G0 may still equal accepted S7.3 compact JSON plus LF, 342 bytes, SHA-256 `209F452E409683B78AD8F3958506D5AF19FF63D6305F39D744E822D3BF0F63F4`; after complete G0 the first support mutation replaces it with the exact S7.4 object below, 344 bytes, SHA-256 `584C85FFDC4BE63DDB36CA0350FF6CC124AEA008A04D994D75363DF00523D5A0`.
 
 ## Outcome and acceptance
 
-- Outcome: activate separate **Restore Purchases** actions on Welcome and Settings, one shared lifecycle coordinator, system **Manage Subscription**, renewal/auto-renew-off, verified grace, billing retry/lapse, expiration, refund/revocation, startup/status updates, and signed offline interpretation through the existing S7.1 reducer/store/processor and S7.2 commerce navigation.
-- Restore truth: only an explicit user tap may call `AppStore.sync()`. Both routes share one in-flight lock and the same result surface. Verified current entitlement must pass through the installed transaction processor, persist and reopen canonical authority before success, and never increment a purchase-result bucket. Cancel/failure/unverified/no-current-entitlement outcomes preserve all existing data and show honest retry/close without inventing access.
-- Manage truth: **Manage Subscription** presents only Apple's system subscription-management surface and never a web checkout, guessed URL, direct cancellation, or app-authored billing control. Dismissal changes no authority and increments no purchase-result diagnostic.
-- Lifecycle truth: render only verified signed facts and the frozen reducer state for introductory trial, active auto-renew-on/off, paid-to-paid grace, billing retry, expired/lapsed, refunded, and revoked. Active/auto-renew-off truth uses exact leading copy `Active until` with the verified expiration date. Grace requires signed grace authority and never exceeds the fixed 16-day paid-to-paid fact; billing retry without signed grace does not unlock.
-- Offline truth: startup and transaction/status updates may refresh verified facts without calling `AppStore.sync()`. Offline UI reads only the durable cache and signed expiration/grace windows; stale, malformed, wrong-product, unresolved-tie, never-paid, expired, refunded, or revoked authority never invents grace or access. Existing signs/photos/reports remain visible in every state and subscription restore never claims to restore app data.
-- GOLDEN: explicit Restore Purchases from Welcome and Settings processes verified current entitlement, durably persists access, preserves history, and exposes the system Manage Subscription route. The full signed status matrix shows truthful non-color lifecycle state including exact `Active until` copy, while startup/updates and fresh/offline reopen agree.
-- ALT-1: offline/lapsed, no-current-entitlement, sync failure, pending/unverified/wrong-product, malformed cache, unresolved tie, duplicate tap, Manage dismissal, and counter failure retain data, do not finish or persist invalid authority, never auto-sync, and never invent grace/unlock.
-- Accessibility/UI: one bounded Accessibility XXXL lifecycle flow proves the separate Restore action, non-color status, focus on progress/result/error, 44-point Restore/Manage/Close/Retry controls, unchanged existing history, and exactly one terminal in-app screenshot.
-- Forbidden behavior: automatic `AppStore.sync()`; Restore-data-backup conflation; server receipt validation; backend/account/sync; annual/new product; Family Sharing; guessed grace/renewal/price; web/external purchase or management; direct cancellation; access gating or `DraftAccessPolicy`; entitlement/domain schema migration; App Store Connect mutation; signing, TestFlight, submission, deployment, release, or S7.4/S7.5 behavior.
+- Outcome: implement one pure repository-backed `DraftAccessPolicy` for explicit create-sign, new-check, new-work, and new-recheck entry; include the fresh-offline never-paid loading branch; activate **Add sign** through the existing S2 form with existing-site or **New site** choice; and always allow a repository-validated existing draft to finish honestly.
+- Policy truth: inputs are only normalized access state, live `Asset` count, the distinct live+tombstoned `evaluationCounted=true` stable-root set, requested entry `create_sign|check|work|recheck`, and an optional repository-validated existing draft. Precedence is exact: valid existing draft → `continue_existing`; current entitlement → `allow`; former-paid inactive → `block_paid`; never-paid → local concurrent-sign/three-root evaluation; loading with a still-valid cache follows that cache, known prior-paid without valid cache → `wait_for_store`, and no cache plus `hasEverVerifiedPaid=false` applies never-paid evaluation.
+- Repository truth: a supplied UUID never bypasses policy. The owning coordinator must prove the draft exists, belongs to the exact requested Asset/Issue/stage, predates the gate check, and is a continuation rather than a clone. Every blocked new-value action fails before any Site, Asset, draft, row, evidence file, staging byte, or counter mutation.
+- Evaluation truth: never-paid permits at most one concurrent live sign and fewer than three distinct counted roots. Whole-sign deletion frees only the live-sign slot; tombstoned counted roots remain. Work records and report corrections consume no root. A former-paid lapse never reopens the free evaluation; active or signed-grace entitlement permits multiple Assets and new drafts.
+- Paywall/navigation truth: an explicitly blocked new-value action opens the same closable monthly paywall and returns to unchanged history. First-sign onboarding never auto-presents a paywall. **Add sign** reuses S2 validation and supports an existing Site or a newly entered Site without creating a second form or route-specific policy.
+- GOLDEN: a never-paid installation with one live sign and three counted roots blocks an explicit new-value action before any row/file and opens the same closable paywall; active entitlement permits multiple Assets and relaunch selection; existing validated drafts finish.
+- ALT-1: fresh loading with no cache/ever-paid=false permits the first offline never-paid report; known prior-paid without valid cache waits; deleting the only sign below three roots permits one replacement, while three retained roots do not. Every check/work/recheck and supplied-draft mismatch fails through the same policy without mutation.
+- Accessibility/UI: one bounded Accessibility XXXL flow proves explicit Add sign/new-draft gating, the shared closable paywall, unchanged readable history, active paid multi-sign entry, 44-point controls, and exactly one terminal in-app screenshot.
+- Forbidden behavior: fingerprinting, DeviceCheck, account/backend/remote counter, hidden usage ledger, route-specific access policies, automatic paywall, mutation before policy, evaluation decrement on deletion, correction/read/preview/share/export/backup/delete/Erase gating, automatic `AppStore.sync()`, new product/price/commerce state, schema migration, S7.5 behavior, signing, TestFlight, submission, deployment, or release.
 
 ## Environment and exact selector
 
@@ -47,7 +47,7 @@
 - Runner / Xcode / project: `macos-26 / Xcode 26.6 Build version 17F113 / /Applications/Xcode_26.6.app/Contents/Developer / FieldEvidenceApp.xcodeproj / FieldEvidenceApp / Debug / iOS 18.0`.
 - Simulator selector: `iPhone 17 / iOS 26.2`; resolve exactly one ephemeral-job UDID.
 - Tier / UI input: `F25 / run_ui_smoke=true`.
-- Exact selector: `{"schemaVersion":1,"taskID":"S7.3","tier":"F25","runUISmoke":true,"setupArtifactTimeoutSeconds":300,"buildTimeoutSeconds":900,"testTimeoutSeconds":1200,"uiTimeoutSeconds":1800,"totalBudgetSeconds":4500,"unitTestSelectors":["FieldEvidenceAppTests/S7_3LifecycleRestoreTests"],"uiTestSelectors":["FieldEvidenceAppUITests/S7_3LifecycleUITests"]}` plus exactly one LF; 342 UTF-8 bytes, no BOM; SHA-256 `209F452E409683B78AD8F3958506D5AF19FF63D6305F39D744E822D3BF0F63F4`.
+- Exact selector: `{"schemaVersion":1,"taskID":"S7.4","tier":"F25","runUISmoke":true,"setupArtifactTimeoutSeconds":300,"buildTimeoutSeconds":900,"testTimeoutSeconds":1200,"uiTimeoutSeconds":1800,"totalBudgetSeconds":4500,"unitTestSelectors":["FieldEvidenceAppTests/S7_4DraftAccessPolicyTests"],"uiTestSelectors":["FieldEvidenceAppUITests/S7_4AccessGateUITests"]}` plus exactly one LF; 344 UTF-8 bytes, no BOM; SHA-256 `584C85FFDC4BE63DDB36CA0350FF6CC124AEA008A04D994D75363DF00523D5A0`.
 - Exact commands: `bash Scripts/run-with-timeout.sh 900 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 1200 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 1800 bash Scripts/ui-smoke.sh`.
 - Required evidence: nonempty boot/build/unit/UI logs; Build, UnitTests, and UISmoke result bundles; exact one terminal in-app screenshot; selection/runner/Xcode/Simulator/budget evidence; verified relative `SHA256SUMS.txt`.
 - Allowed GitHub methods: read/fetch/ref/run/workflow/artifact inspection; exact-path staging/commits; non-force phase push; named workflow dispatch on exact phase ref with `run_ui_smoke=true`; exact-run observation/download. Force-push, merge commit, PR, ref rewrite/delete, main mutation before the S7 boundary, settings/secrets, App Store Connect, signing, TestFlight/App Store, deployment/release, and S9.2/S9.3 are forbidden.
@@ -56,26 +56,31 @@
 
 Production paths:
 
+- `FieldEvidenceApp/Domain/Commerce/DraftAccessPolicy.swift`
 - `FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift`
 - `FieldEvidenceApp/Infrastructure/Commerce/StoreKitLifecycleCoordinator.swift`
-- `FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift`
-- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Features/Signs/FirstSignCoordinator.swift`
+- `FieldEvidenceApp/Features/Signs/NewSignView.swift`
+- `FieldEvidenceApp/Features/Signs/SignDetailView.swift`
 - `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift`
+- `FieldEvidenceApp/Features/Issues/WorkCoordinator.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
 
 Test paths:
 
-- `FieldEvidenceAppTests/S7_3LifecycleRestoreTests.swift`
-- `FieldEvidenceAppUITests/S7_3LifecycleUITests.swift`
+- `FieldEvidenceAppTests/S7_4DraftAccessPolicyTests.swift`
+- `FieldEvidenceAppUITests/S7_4AccessGateUITests.swift`
 
 Standing selector exception:
 
 - `Scripts/ci-selection.json`
 
-No other implementation, model, project, resource, fixture, asset, script, workflow, authority, or documentation path is allowed during S7.3 implementation. Existing entitlement facts/reducer/store, product loader, StoreKit fixture/project/scheme, diagnostics APIs, purchase coordinator/paywall, app bootstrap, navigation, history, data-rights, and design tokens may be read and reused without editing. Append-only `docs/execution/HANDOFF.md` remains separately authorized bookkeeping after accepted evidence.
+No other implementation, model, project, resource, fixture, asset, script, workflow, authority, or documentation path is allowed during S7.4 implementation. Existing entitlement facts/reducer/store, Packet accounting, deletion tombstones, product loader, StoreKit fixture/project/scheme, diagnostics APIs, purchase coordinator/paywall/status view, app bootstrap, navigation, history, data-rights, and design tokens may be read and reused without editing. Append-only `docs/execution/HANDOFF.md` remains separately authorized bookkeeping after accepted evidence.
 
 ## G0 and verification
 
-- Fresh G0 must prove the transition authority directly parents exact M, changes only append-only `docs/execution/HANDOFF.md` plus this immediate-next `docs/execution/CURRENT_TASK.md`, leaves remote `main=P`, preserves all pins, and expands the runbook's shorthand into exactly five production and two test paths within the default 10/5 cap.
-- Validate the exact S7.3 F25 selector object against runbook Section 6 and the workflow schema. The accepted S7.2 selector is permitted only as predecessor state; after complete G0 replace only `Scripts/ci-selection.json` with the frozen S7.3 object as the first implementation-support mutation.
-- Implement only S7.3. Candidate recovery follows the persistent evidence-driven direct-child loop without weakening GOLDEN/ALT, selectors, tests, StoreKit truth, watchdogs, or scope.
-- After accepted exact-head S7.3 CI, read `KNOWN_BUGS.md`, append the immutable S7.3 HANDOFF, and—only with phase autopilot still enabled—commit/push exactly that append plus immediate-next S7.4 CURRENT_TASK. Run fresh S7.4 G0; do not mutate `main` during a same-phase transition.
+- Fresh G0 must prove the transition authority directly parents exact M, changes only append-only `docs/execution/HANDOFF.md` plus this immediate-next `docs/execution/CURRENT_TASK.md`, leaves remote `main=P`, preserves all pins, and expands the runbook's shorthand into exactly ten production and two test paths within the default 10/5 cap.
+- Validate the exact S7.4 F25 selector object against runbook Section 6 and the workflow schema. The accepted S7.3 selector is permitted only as predecessor state; after complete G0 replace only `Scripts/ci-selection.json` with the frozen S7.4 object as the first implementation-support mutation.
+- Implement only S7.4. Candidate recovery follows the persistent evidence-driven direct-child loop without weakening GOLDEN/ALT, selectors, tests, evaluation/StoreKit truth, watchdogs, or scope.
+- After accepted exact-head S7.4 CI, read `KNOWN_BUGS.md`, append the immutable S7.4 HANDOFF, and—only with phase autopilot still enabled—commit/push exactly that append plus immediate-next S7.5 CURRENT_TASK. Run fresh S7.5 G0; do not mutate `main` during a same-phase transition.
