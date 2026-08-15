@@ -2071,3 +2071,64 @@ The exact implementation envelope is five production paths, two test paths, and 
 - Mandatory S8.1 integration revisit remains: a same-session fresh check after a completed recheck can reuse the prior `CheckRunnerCoordinator.finalizationAttempt`, misclassify supplied no-visible identifiers as recheck identifiers, and show `Check not saved`; S8.1 must exercise and correct that reusable seam before release.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
 - Next unstarted task: `S7.4`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S7.4 `CURRENT_TASK.md`, then must run fresh S7.4 G0. Do not mutate main.
+
+## `S7.4` — `complete` — `2026-08-15T03:06:34-04:00`
+
+- Phase / branch / position / boundary: `S7` / `phase/s7-commerce` / `4 of 5` / `no`.
+- Outcome: installed one pure repository-backed `DraftAccessPolicy` across create-sign, check, work, and recheck entry; activated paid multi-sign creation through the existing S2 form and existing/new Site choices; preserved fresh-offline never-paid evaluation and former-paid fail-closed truth; and allowed only an exact repository-validated stored draft to continue.
+- Immutable phase-main base: `P=5f50551f61bc363b430d4e877e462cb47865065d`; remote `main` remained exactly P throughout S7.4.
+- Integrated/card base and predecessor: `M=a21b456ec72de192aa0144129773e4008c980e18`; accepted S7.3 run `31866590332` / job `94968561813`, F25/UI enabled, build plus `6/6` units plus `1/1` UI green.
+- Observed task-start authority: `A=0494826504bd24a2074148c5831ff3e5f1aee1bd`; `A^=M`, and `M..A` changed only append-only `docs/execution/HANDOFF.md` plus immediate-next `docs/execution/CURRENT_TASK.md`.
+- First implementation: `I=b0efbe2e67c60de867c9bd3de1d2546f3e29124d`; intermediate corrections `I2=dc83bdfa6e62c5cb9a6bfc9c36235582829eb1d3`, `I3=b5e5e88de4cf1fb9ec7e142843b0d8c3a6c6052a`, and `I4=24d3a19de1c0ebd10435d3ed02f4383ff59a9cc4`; accepted implementation and exact verification head `E=826b1c2193869c7282611300df31a56c51a56da9`; no distinct infrastructure K.
+- Exact selector: S7.4 F25/UI enabled; compact JSON plus LF, 344 bytes, SHA-256 `584C85FFDC4BE63DDB36CA0350FF6CC124AEA008A04D994D75363DF00523D5A0`; exact selectors `FieldEvidenceAppTests/S7_4DraftAccessPolicyTests` and `FieldEvidenceAppUITests/S7_4AccessGateUITests`.
+- Accepted run/job/URLs: `31870467506` / `94978205243`; `https://github.com/palatis3/AssetRounds/actions/runs/31870467506`; `https://github.com/palatis3/AssetRounds/actions/runs/31870467506/job/94978205243`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.2; UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`; initial Simulator state `Shutdown`.
+- Budgets: setup `60/300` s; Simulator readiness `82/900` s; build step `193/900` s; unit step `42/1200` s with selected tests `0.313` s; UI step `369/1800` s with selected test `262.102` s; artifact `0` s and setup-plus-artifact `60/300` s; total `668/4500` s; all watchdogs passed.
+- Artifact: `ios-ci-31870467506-1`, ID `9243388326`, size `4461295`, GitHub digest `sha256:e3bfeb518883921139b9c8eee751cd28fcabae12d7c88da16be4169e7fbc8131`; `SHA256SUMS.txt` SHA-256 `A1AD82A25252A78BE3B694578E7DE4782A3E1272337FA73CDC8CECC1A26242FB`; all `99/99` listed payloads independently matched.
+- Accepted logs: `build-smoke.log` SHA-256 `4A0447CFCB9AF69A156083D311F481763E3E6F469F8E9F64FA54D6D3AA178F36`; `test-smoke.log` `1E6F282DA5F5258AA0E5DB0536C75AAFF5D73CA4E3FCA7B6F92A1E2AEF97C4D2`; `ui-smoke.log` `FD83BC5CCA6962084DC0DEB3F53842EBBD06C0A7D56E11577AD0D5D73A474FFB`.
+- Terminal evidence: `ui-final.png`, `1206×2622`, 426225 bytes, SHA-256 `FFAA83F948DB14E69D0BE3417AA3AAAB1CB500B0C3FA943F1793710750C30820`; visual PASS at Accessibility XXXL showed both persisted signs, Site context, reachable **Add sign**, Signs/Reports navigation, and no error, keyboard, paywall, or external sheet.
+- Exact commands: `bash Scripts/run-with-timeout.sh 900 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 1200 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 1800 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp/Domain/Commerce/DraftAccessPolicy.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift`
+- `FieldEvidenceApp/Features/Issues/WorkCoordinator.swift`
+- `FieldEvidenceApp/Features/Signs/FirstSignCoordinator.swift`
+- `FieldEvidenceApp/Features/Signs/NewSignView.swift`
+- `FieldEvidenceApp/Features/Signs/SignDetailView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Infrastructure/Commerce/StoreKitLifecycleCoordinator.swift`
+- `FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift`
+- `FieldEvidenceAppTests/S7_4DraftAccessPolicyTests.swift`
+- `FieldEvidenceAppUITests/S7_4AccessGateUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact implementation envelope is nine production paths, two test paths, and the standing selector exception. No product/fixture/schema/project/capability, existing-data right, automatic StoreKit sync, remote counter/fingerprint/account/backend, correction/export/delete/Erase gate, signing, deployment, or release behavior changed.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`4/4`): `testDeletionFreesOnlyLiveSlotWhileCountedRootsRemain`; `testPaidAccessCreatesMultipleSignsAcrossExistingAndNewSites`; `testPurePolicyUsesExactPrecedenceAndLoadingTruth`; `testSharedCoordinatorGateBlocksBeforeMutationAndContinuesOnlyExactDraft`.
+- UI `PASS` (`1/1`): `testSharedGatePurchasesAddsAndResumesSecondSignAtXXXL`, 262.102 s.
+
+### Acceptance results
+
+- GOLDEN `PASS`: one pure policy applied exact stored-draft → entitlement → former-paid → never-paid/loading precedence, blocked one-live-sign/three-counted-root new value before mutation, opened the same closable monthly paywall, and permitted paid multi-sign creation and relaunch selection.
+- ALT-1 `PASS`: fresh loading/no prior-paid authority used never-paid evaluation; known prior-paid/no valid cache waited; deletion freed only the live-sign slot while retained counted tombstones stayed monotonic; malformed Asset/Issue/stage/parent supplied-draft requests failed without mutation.
+- Repository/entry `PASS`: CheckRunner and Work recomputed exact stored stage, Issue, and terminal parent authority before continuation; first-sign onboarding never auto-presented the paywall; Add sign reused the existing validated S2 form and Site rows.
+- UI/accessibility `PASS`: shared paywall purchase, unchanged first sign, paid second-sign creation, preflight draft persistence, cold relaunch exact draft resume, report completion, 44-point controls, Accessibility XXXL reachability, and one terminal screenshot all passed.
+- Scope `PASS`: read/correction/export/backup/delete/Erase remained ungated; no hidden counter, fingerprint, DeviceCheck, route-specific policy, automatic sync/paywall, annual/new product, schema/backend/account, signing, or release behavior was added.
+
+### Candidate recovery provenance
+
+- Run `31868174633` / job `94972410568` at I stopped at compile on actor-isolated diagnostics reads inside XCTest autoclosures; direct-child I2 bound those awaited values before assertions.
+- Run `31868531256` / job `94973285488` at I2 built and passed `4/4` units, then the XXXL preflight switch did not change through a center tap; direct-child I3 used the switch's control-side coordinate with a bounded exact-value retry.
+- Run `31869180435` / job `94975020204` at I3 built and passed `4/4` units, then a redundant second paywall presentation did not complete the StoreKit purchase; direct-child I4 purchased through the first already-proven closable presentation, matching accepted S7.2 behavior.
+- Run `31869691483` / job `94976287941` at I4 built and passed `4/4` units, completed the real StoreKit purchase, then left the time-zone keyboard open because the helper queried **Return** while that field exposed **Done**; direct-child E pressed either exact submit key and proved dismissal before the switches. No failed run ID was rerun or accepted.
+
+### Known bugs, blockers, and next task
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S7.4 product/card blockers: `NONE`.
+- Mandatory S8.1 integration revisit remains: a same-session fresh check after a completed recheck can reuse the prior `CheckRunnerCoordinator.finalizationAttempt`, misclassify supplied no-visible identifiers as recheck identifiers, and show `Check not saved`; S8.1 must exercise and correct that reusable seam before release.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
+- Next unstarted task: `S7.5`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S7.5 `CURRENT_TASK.md`, then must run fresh S7.5 G0. Do not mutate main before the S7.5 phase boundary.
