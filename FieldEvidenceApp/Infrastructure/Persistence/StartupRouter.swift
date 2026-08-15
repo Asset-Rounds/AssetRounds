@@ -43,6 +43,7 @@ final class StartupRouter: ObservableObject {
     private let generationFactory: StoreGenerationFactory
     private let diagnosticsStore: DiagnosticsStore
     private let fileManager: FileManager
+    private let entitlementRuntime: StoreKitEntitlementRuntimeV1
     private let didBeginStep: (StartupStep) -> Void
     private var injectsReportRenderFailureOnce: Bool
     private let reportLaunchAttemptRegistry = ReportLaunchAttemptRegistry()
@@ -56,6 +57,7 @@ final class StartupRouter: ObservableObject {
         applicationSupportURL: URL,
         fileManager: FileManager = .default,
         injectsReportRenderFailureOnce: Bool = false,
+        entitlementRuntime: StoreKitEntitlementRuntimeV1 = .live(),
         didBeginStep: @escaping (StartupStep) -> Void = { _ in }
     ) {
         self.applicationSupportURL = applicationSupportURL
@@ -68,6 +70,7 @@ final class StartupRouter: ObservableObject {
             fileManager: fileManager
         )
         self.fileManager = fileManager
+        self.entitlementRuntime = entitlementRuntime
         self.injectsReportRenderFailureOnce = injectsReportRenderFailureOnce
         self.didBeginStep = didBeginStep
     }
@@ -443,7 +446,10 @@ final class StartupRouter: ObservableObject {
             applicationSupportURL: applicationSupportURL,
             fileManager: fileManager
         )
-        let processor = StoreKitTransactionProcessor(store: store)
+        let processor = StoreKitTransactionProcessor(
+            store: store,
+            runtime: entitlementRuntime
+        )
         try await processor.start()
         entitlementProcessor = processor
     }
