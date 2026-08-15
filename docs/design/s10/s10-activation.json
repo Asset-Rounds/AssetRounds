@@ -1,0 +1,367 @@
+{
+  "schema_version": "4.1.0",
+  "document_status": "frozen",
+  "activation_id": "assetrounds-s10-brand-handoff-v4.1-2026-08-15",
+  "activation_route": "replace_unpublished_candidate",
+  "publication_state": "unpublished",
+  "owner_authority": {
+    "approval_id": "owner-s10-brand-refresh-approval-2026-08-15",
+    "approved_by": "palatis3",
+    "approved_at": "2026-08-15",
+    "evidence_id": "codex-task-owner-message-s10-full-authority-2026-08-15"
+  },
+  "rights_attestation": {
+    "rights_holder": "palatis3",
+    "grant_accepted": true,
+    "grant_evidence_id": "codex-task-owner-provided-v4.1-assets-and-use-authorization-2026-08-15",
+    "grant_scope": "assetrounds_project_app_marketing_and_distribution",
+    "trademark_clearance_status": "NOT_CLEARED",
+    "trademark_evidence_id": ""
+  },
+  "package_integrity": {
+    "package_format": "zip",
+    "zip_sha256": "595D6A8CFD7BF1ECF810472F0DFA4DFA46CC3967D6B8B358984119913A1A4C69",
+    "asset_manifest_sha256": "DD553EEE6D8D908388CF35C2FA688F16990496F574C22C1DBC2764346FAF77ED",
+    "folder_verification_method": "manifest_enumeration_and_per_file_sha256"
+  },
+  "s9_authority": {
+    "base_product_head": "01233f789b1cef5a6f56c7ff4caa9271409cd3bc",
+    "exact_main_ci_evidence_id": "github-actions-run-31908483947-artifact-9253163917",
+    "testflight_evidence_id": "",
+    "published_release_evidence_id": "",
+    "unpublished_candidate_evidence_id": "s9.1-unsigned-candidate-main-01233f789b1cef5a6f56c7ff4caa9271409cd3bc"
+  },
+  "repository_authority": {
+    "repository": "palatis3/AssetRounds",
+    "remote": "origin",
+    "main_branch": "main",
+    "base_branch": "phase/s9-release",
+    "s10_branch": "phase/s10-brand-refresh",
+    "authority_document_path": "docs/execution/CURRENT_TASK.md",
+    "pinned_plan_path": "docs/product/BUILD_PLAN_V4.md",
+    "pinned_plan_sha256": "0477672A3F97E02E229A8DC84B3F27AAF60A3B535FD51B68DADA94ADF410FF4D",
+    "pinned_runbook_path": "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
+    "pinned_runbook_sha256": "E3C5D9EF6CDCFE9D32D20BD5AF9567C6C8F5BA5D8B5BAFB3E8ABBF8998AC8B46",
+    "allowed_remote_operations": [
+      "fetch",
+      "read_refs",
+      "push_exact_phase_non_force",
+      "dispatch_ios_ci_workflow",
+      "inspect_runs_and_artifacts",
+      "download_exact_run_artifacts",
+      "fast_forward_main_after_green_phase_boundary"
+    ]
+  },
+  "toolchain": {
+    "toolchain_id": "github-macos26-xcode26.6-ios26.2-swift5",
+    "runner_label": "macos-26",
+    "runner_image": "macos26-20260728.0273.1",
+    "xcode_developer_dir": "/Applications/Xcode_26.6.app/Contents/Developer",
+    "xcode_version": "Xcode 26.6",
+    "xcode_build": "17F113",
+    "sdk_name": "iphonesimulator26.5",
+    "sdk_build": "23F81a",
+    "swift_version": "5",
+    "project_path": "FieldEvidenceApp.xcodeproj",
+    "target_name": "FieldEvidenceApp",
+    "scheme": "FieldEvidenceApp",
+    "build_configuration": "Debug",
+    "minimum_ios": "18.0"
+  },
+  "workflow": {
+    "workflow_id": "ios-ci",
+    "workflow_path": ".github/workflows/ios-ci.yml",
+    "workflow_ref": "phase/s10-brand-refresh",
+    "workflow_sha256": "BCD64E2A42752D28844435241B5ABFCA911D04190375CBBDBFC10B45ACBA97D7"
+  },
+  "contract_paths": {
+    "activation": "docs/design/s10/s10-activation.json",
+    "stage_checkpoints": "docs/design/s10/s10-stage-checkpoints.json",
+    "screen_state_inventory": "docs/design/s10/s10-screen-state-inventory.json",
+    "accessibility_common_tasks": "docs/design/s10/s10-accessibility-common-tasks.json",
+    "token_coverage": "docs/design/s10/s10-token-coverage.json",
+    "visual_regression": "docs/design/s10/s10-visual-regression.json",
+    "experience_validation": "docs/design/s10/s10-experience-validation.json",
+    "store_readiness": "docs/design/s10/s10-store-readiness.json",
+    "evidence_lock": "docs/design/s10/s10-evidence-lock.json"
+  },
+  "device_profile_ids": [
+    "iphone-17-ios-26.2-current",
+    "iphone-se-3-ios-18.0-minimum"
+  ],
+  "release_locale_profile_ids": [
+    "en-US-release"
+  ],
+  "pseudolanguage_profile_ids": [
+    "en-US-double-length",
+    "ar-RTL",
+    "ar-RTL-string",
+    "en-US-tall",
+    "en-US-accented",
+    "en-US-bounded"
+  ],
+  "required_pseudolanguages": [
+    "double_length",
+    "rtl",
+    "rtl_string",
+    "tall",
+    "accented",
+    "bounded"
+  ],
+  "accessibility_features": [
+    "voiceover",
+    "voice_control",
+    "larger_text",
+    "dark_interface",
+    "differentiate_without_color",
+    "sufficient_contrast",
+    "reduced_motion"
+  ],
+  "physical_device_bridge": {
+    "distribution_route": "owner_signed_development",
+    "owner_operator": "palatis3",
+    "owner_operation_evidence_id": "s10.5-owner-physical-operation-receipt",
+    "build_identity_method": "exact product git SHA plus signed app bundle identifier version build and artifact SHA-256",
+    "artifact_transfer_method": "owner-operated Xcode install of the exact reviewed checkout to a named physical iPhone",
+    "signing_boundary": "owner_only_no_codex_signing_upload_or_submission"
+  },
+  "cards": [
+    {
+      "card_id": "S10.1",
+      "branch": "phase/s10-brand-refresh",
+      "allowed_paths": [
+        "docs/design/s10/s10-stage-checkpoints.json",
+        "docs/design/s10/s10-screen-state-inventory.json",
+        "docs/design/s10/s10-accessibility-common-tasks.json",
+        "docs/design/s10/s10-token-coverage.json",
+        "docs/design/s10/s10-visual-regression.json",
+        "docs/design/s10/s10-experience-validation.json",
+        "docs/design/s10/s10-store-readiness.json",
+        "FieldEvidenceAppTests/S10_1BrandInventoryTests.swift",
+        "FieldEvidenceAppUITests/S10_1BrandInventoryUITests.swift"
+      ],
+      "product_file_cap": 7,
+      "test_file_cap": 2,
+      "file_cap_override_reason": "Seven canonical inventory contracts and two bounded tests are required to freeze all S9 states and screenshot baselines before product mutation.",
+      "selector": {
+        "tier": "F25",
+        "run_ui_smoke": true,
+        "setup_timeout_seconds": 300,
+        "build_timeout_seconds": 900,
+        "test_timeout_seconds": 1200,
+        "ui_timeout_seconds": 1800,
+        "total_timeout_seconds": 4500,
+        "unit_test_selectors": [
+          "FieldEvidenceAppTests/S10_1BrandInventoryTests"
+        ],
+        "ui_test_selectors": [
+          "FieldEvidenceAppUITests/S10_1BrandInventoryUITests"
+        ]
+      },
+      "selector_sha256": "A81865294251B405D6937849E8A888338A9BBC925FE3BEC875713CF4ACB1060C"
+    },
+    {
+      "card_id": "S10.2",
+      "branch": "phase/s10-brand-refresh",
+      "allowed_paths": [
+        "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Default-1024.png",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark-1024.png",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Tinted-1024.png",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-1x.png",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-2x.png",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-3x.png",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/Contents.json",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-1x.png",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-2x.png",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-3x.png",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/Contents.json",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsAccentTeal.colorset/Contents.json",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsDeepTeal.colorset/Contents.json",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsCheckpointGreen.colorset/Contents.json",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandCanvas.colorset/Contents.json",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsInk.colorset/Contents.json",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsSlate.colorset/Contents.json",
+        "FieldEvidenceApp/DesignSystem/DesignTokens.swift",
+        "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+        "FieldEvidenceApp.xcodeproj/project.pbxproj",
+        "FieldEvidenceAppTests/S10_2BrandComponentTests.swift",
+        "FieldEvidenceAppUITests/S10_2BrandComponentUITests.swift"
+      ],
+      "product_file_cap": 21,
+      "test_file_cap": 2,
+      "file_cap_override_reason": "The installation map fixes 12 runtime assets, six custom color catalogs, two shared design-system sources, and one project integration path.",
+      "selector": {
+        "tier": "P12",
+        "run_ui_smoke": true,
+        "setup_timeout_seconds": 300,
+        "build_timeout_seconds": 600,
+        "test_timeout_seconds": 900,
+        "ui_timeout_seconds": 900,
+        "total_timeout_seconds": 3300,
+        "unit_test_selectors": [
+          "FieldEvidenceAppTests/S10_2BrandComponentTests"
+        ],
+        "ui_test_selectors": [
+          "FieldEvidenceAppUITests/S10_2BrandComponentUITests"
+        ]
+      },
+      "selector_sha256": "B7ABCCBC64960F14AACBEB3A47A4C1CD2D4FFEA78E4A972EC3F2646EF9D37372"
+    },
+    {
+      "card_id": "S10.3",
+      "branch": "phase/s10-brand-refresh",
+      "allowed_paths": [
+        "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+        "FieldEvidenceApp/App/LaunchView.swift",
+        "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+        "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+        "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+        "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+        "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+        "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+        "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+        "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+        "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+        "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+        "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+        "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+        "FieldEvidenceApp/Features/Sample/PackSampleView.swift",
+        "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+        "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+        "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+        "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+        "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+        "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+        "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+        "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+        "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+        "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
+        "FieldEvidenceAppTests/S10_3BrandMigrationTests.swift",
+        "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift"
+      ],
+      "product_file_cap": 26,
+      "test_file_cap": 2,
+      "file_cap_override_reason": "All 26 released SwiftUI sources must migrate together so no frozen state remains visually split between systems.",
+      "selector": {
+        "tier": "F25",
+        "run_ui_smoke": true,
+        "setup_timeout_seconds": 300,
+        "build_timeout_seconds": 900,
+        "test_timeout_seconds": 1200,
+        "ui_timeout_seconds": 1800,
+        "total_timeout_seconds": 4500,
+        "unit_test_selectors": [
+          "FieldEvidenceAppTests/S10_3BrandMigrationTests"
+        ],
+        "ui_test_selectors": [
+          "FieldEvidenceAppUITests/S10_3BrandMigrationUITests"
+        ]
+      },
+      "selector_sha256": "2CC1BD1750ABFF29E769C3E0682AF3A726CE50A1FA1C421367F309DB1B2E1C6B"
+    },
+    {
+      "card_id": "S10.4",
+      "branch": "phase/s10-brand-refresh",
+      "allowed_paths": [
+        "docs/design/s10/s10-stage-checkpoints.json",
+        "docs/design/s10/s10-accessibility-common-tasks.json",
+        "docs/design/s10/s10-token-coverage.json",
+        "docs/design/s10/s10-visual-regression.json",
+        "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift",
+        "FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests.swift"
+      ],
+      "product_file_cap": 4,
+      "test_file_cap": 2,
+      "file_cap_override_reason": "Four canonical evidence contracts and two bounded tests close the exact automated matrix without product mutation.",
+      "selector": {
+        "tier": "F25",
+        "run_ui_smoke": true,
+        "setup_timeout_seconds": 300,
+        "build_timeout_seconds": 900,
+        "test_timeout_seconds": 1200,
+        "ui_timeout_seconds": 1800,
+        "total_timeout_seconds": 4500,
+        "unit_test_selectors": [
+          "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests"
+        ],
+        "ui_test_selectors": [
+          "FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests"
+        ]
+      },
+      "selector_sha256": "79F30EE86E96F27D9AD5550F38599A1D7ECF0C30DD1FEF1038FD03C0E54F568D"
+    },
+    {
+      "card_id": "S10.5",
+      "branch": "phase/s10-brand-refresh",
+      "allowed_paths": [
+        "docs/design/s10/s10-stage-checkpoints.json",
+        "docs/design/s10/s10-experience-validation.json",
+        "docs/design/s10/evidence/s10.5/physical-evidence-index.json",
+        "docs/design/s10/evidence/s10.5/owner-physical-receipt.json",
+        "FieldEvidenceAppTests/S10_5PhysicalExperienceTests.swift"
+      ],
+      "product_file_cap": 4,
+      "test_file_cap": 1,
+      "file_cap_override_reason": "Four evidence documents and one contract test bind owner physical observations to exact product E without product mutation.",
+      "selector": {
+        "tier": "N8",
+        "run_ui_smoke": false,
+        "setup_timeout_seconds": 300,
+        "build_timeout_seconds": 600,
+        "test_timeout_seconds": 900,
+        "ui_timeout_seconds": 0,
+        "total_timeout_seconds": 2400,
+        "unit_test_selectors": [
+          "FieldEvidenceAppTests/S10_5PhysicalExperienceTests"
+        ],
+        "ui_test_selectors": []
+      },
+      "selector_sha256": "78185772712E10DBADC35573DB3F45C90A574701F569F8A16B0153E4CEFBF190"
+    },
+    {
+      "card_id": "S10.6",
+      "branch": "phase/s10-brand-refresh",
+      "allowed_paths": [
+        "docs/design/s10/s10-stage-checkpoints.json",
+        "docs/design/s10/s10-store-readiness.json",
+        "docs/design/s10/s10-evidence-lock.json",
+        "docs/design/s10/evidence/s10.6/store-screenshot-manifest.json",
+        "docs/design/s10/evidence/s10.6/privacy-supply-chain-review.json",
+        "Release/UnsignedRCMetadataV1.json",
+        "Release/PrivacyReviewV1.md",
+        "Release/LaunchSmokeEvidenceIndexV1.json",
+        "FieldEvidenceAppTests/S10_6BrandReleaseTests.swift",
+        "FieldEvidenceAppUITests/S10_6BrandReleaseUITests.swift"
+      ],
+      "product_file_cap": 8,
+      "test_file_cap": 2,
+      "file_cap_override_reason": "Eight exact release-evidence/metadata files and two bounded tests close the branded candidate without feature or release-state mutation.",
+      "selector": {
+        "tier": "F25",
+        "run_ui_smoke": true,
+        "setup_timeout_seconds": 300,
+        "build_timeout_seconds": 900,
+        "test_timeout_seconds": 1200,
+        "ui_timeout_seconds": 1800,
+        "total_timeout_seconds": 4500,
+        "unit_test_selectors": [
+          "FieldEvidenceAppTests/S10_6BrandReleaseTests"
+        ],
+        "ui_test_selectors": [
+          "FieldEvidenceAppUITests/S10_6BrandReleaseUITests"
+        ]
+      },
+      "selector_sha256": "D6CA868DEF0D4D4D2E8AA2C626F8C31FFCA6A20A9EA104ED915FDCDC5504F313"
+    }
+  ],
+  "expected_checkpoint_stages": [
+    "Inventory",
+    "ComponentSystem",
+    "Migration",
+    "AutomatedLab",
+    "PhysicalExperience",
+    "Release"
+  ]
+}

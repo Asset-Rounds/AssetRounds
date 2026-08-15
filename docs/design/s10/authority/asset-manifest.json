@@ -1,0 +1,728 @@
+{
+  "schema_version": "4.1.0",
+  "package_name": "AssetRounds Production Brand Handoff V4.1",
+  "created_date": "2026-08-15",
+  "naming_boundary": "Brand Handoff V4.1 is separate from the application Foundation & Build Plan V4",
+  "approved_identity": {
+    "master_name": "AssetRounds",
+    "master_descriptor": "Field Inspections",
+    "current_app_store_title": "AssetRounds: Sign Inspection",
+    "vertical_strategy": "One permanent master identity with truthful vertical-specific product pages and modules"
+  },
+  "scores": {
+    "v1_historical": 82,
+    "v2_historical": 89,
+    "v2_strict_v3_model": 86,
+    "v3": 91,
+    "v4": 92,
+    "handoff_status": "S10_ACTIVATION_PACKET_READY",
+    "release_status": "RELEASE_GATES_OPEN",
+    "release_ready": false,
+    "package_ceiling": 92,
+    "integrated_target_minimum": 93,
+    "automatic_integrated_lift": false,
+    "model": "Scorecard/ASSET_HANDOFF_SCORING_MODEL.md",
+    "v4_1": 92
+  },
+  "v4_changes": [
+    "Preserved every approved V2/V3 runtime image and brand color byte-for-byte",
+    "Separated Brand Handoff V4 from the application Foundation & Build Plan V4",
+    "Split S10 into six cards by separating automated lab proof from physical field/durability/performance proof",
+    "Added immutable activation plus append-only Inventory, DesignSystem, Experience, and Release checkpoints",
+    "Added machine-readable physical-session, durability, performance, appearance, privacy, SDK, age-rating, screenshot, claim, accessibility-label, App Tag, CPP, PPO, and release-lock contracts",
+    "Added current Xcode 26+/SDK/runner and current/minimum-iOS compatibility evidence gates",
+    "Raised only App Store readiness by one point; package score is 92 and release-ready remains false"
+  ],
+  "source_generations": [
+    {
+      "role": "selected_concept_reference",
+      "source_generation": "exec-a35ca530-ee9d-4f23-a75f-9c7dfa28289a.png"
+    },
+    {
+      "role": "default_app_icon",
+      "source_generation": "exec-78b456b0-fa66-464c-a052-0de48e9f2c53.png"
+    },
+    {
+      "role": "v1_dark_app_icon_reference",
+      "source_generation": "exec-5f678051-b90f-4e8d-944d-21f6942caa9c.png",
+      "v2_use": "not shipped; V2 uses approved transparent symbol for the Dark foreground"
+    },
+    {
+      "role": "v1_tinted_app_icon_source",
+      "source_generation": "exec-d7c0021b-4c16-4536-b43e-7596363009b2.png",
+      "v2_use": "mechanically converted to true grayscale"
+    },
+    {
+      "role": "transparent_color_symbol_and_v2_dark",
+      "source_generation": "exec-9643996b-29fe-4dca-8a68-c876bd8a2fa3.png"
+    },
+    {
+      "role": "one_color_and_reversed_symbols",
+      "source_generation": "mechanical recolors of approved transparent master"
+    },
+    {
+      "role": "xcode_symbol_scales",
+      "source_generation": "mechanical high-quality downscales of approved masters"
+    },
+    {
+      "role": "v2_small_size_qa",
+      "source_generation": "mechanical contact sheet from corrected V2 app-icon sources"
+    }
+  ],
+  "s10_contracts": {
+    "lifecycle": [
+      "Package",
+      "Inventory",
+      "ComponentSystem",
+      "Migration",
+      "AutomatedLab",
+      "PhysicalExperience",
+      "Release"
+    ],
+    "cards": [
+      "S10.1",
+      "S10.2",
+      "S10.3",
+      "S10.4",
+      "S10.5",
+      "S10.6"
+    ],
+    "runbook": "Handoff/S10_VISUAL_REFRESH_RUNBOOK.md",
+    "activation": "Handoff/S10_ACTIVATION_PACKET.md",
+    "schemas": [
+      "Handoff/s10-activation.schema.json",
+      "Handoff/s10-stage-checkpoints.schema.json",
+      "Handoff/s10-screen-state-inventory.schema.json",
+      "Handoff/s10-accessibility-common-tasks.schema.json",
+      "Handoff/s10-token-coverage.schema.json",
+      "Handoff/s10-visual-regression.schema.json",
+      "Handoff/s10-experience-validation.schema.json",
+      "Handoff/s10-store-readiness.schema.json",
+      "Handoff/s10-evidence-lock.schema.json"
+    ],
+    "schema_validator": "Tools/validate-json-schema-subset.py",
+    "strict_json_validator": "Tools/validate-json-strict.py",
+    "cross_contract_validator": "Tools/validate-s10-contracts.ps1",
+    "package_validator": "Tools/validate-brand-handoff.ps1"
+  },
+  "validation": {
+    "approved_image_only_package": true,
+    "rejected_experiments_included": false,
+    "default_contract": "1024x1024 opaque",
+    "dark_contract": "1024x1024 transparent background",
+    "tinted_contract": "1024x1024 true grayscale",
+    "transparent_symbol_masters": "1024x1024",
+    "xcode_symbol_scales": [
+      "1x=256x256",
+      "2x=512x512",
+      "3x=768x768"
+    ],
+    "json_files_parse": true,
+    "strict_duplicate_key_check": true,
+    "schema_templates_validate": true,
+    "package_contract_mode_pass": true,
+    "approved_v2_v3_images_preserved_byte_for_byte": true,
+    "text_policy": "UTF-8 without BOM; LF only",
+    "manifest_excludes_self": true,
+    "release_ready": false,
+    "open_hard_gates": [
+      "Owner hydration and repository authority",
+      "Accepted owner rights/use attestation and separate trademark/name/claim clearance",
+      "Exact-project asset-catalog compilation including primary AppIcon build setting and exact-head CI",
+      "Automated lab and manual accessibility completion across activated profiles",
+      "Owner-bridged physical install, field, durability, and performance evidence",
+      "Privacy, dependency, archive, age-rating, screenshot, metadata, store, and final historical evidence lock"
+    ],
+    "approved_v4_images_preserved_byte_for_byte": true
+  },
+  "image_contracts": [
+    {
+      "path": "AppIcon/AppIcon-Dark-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "pixel_format": "Format32bppArgb",
+      "corner_alpha": 0
+    },
+    {
+      "path": "AppIcon/AppIcon-Default-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "pixel_format": "Format24bppRgb",
+      "corner_alpha": 255
+    },
+    {
+      "path": "AppIcon/AppIcon-Tinted-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "pixel_format": "Format24bppRgb",
+      "corner_alpha": 255
+    },
+    {
+      "path": "Brand/AssetRounds-Symbol-Color-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "pixel_format": "Format32bppArgb",
+      "corner_alpha": 0
+    },
+    {
+      "path": "Brand/AssetRounds-Symbol-OneColor-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "pixel_format": "Format32bppArgb",
+      "corner_alpha": 0
+    },
+    {
+      "path": "Brand/AssetRounds-Symbol-Reversed-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "pixel_format": "Format32bppArgb",
+      "corner_alpha": 0
+    },
+    {
+      "path": "Brand/XcodeImagesets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-1x.png",
+      "width": 256,
+      "height": 256,
+      "pixel_format": "Format32bppArgb",
+      "corner_alpha": 0
+    },
+    {
+      "path": "Brand/XcodeImagesets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-2x.png",
+      "width": 512,
+      "height": 512,
+      "pixel_format": "Format32bppArgb",
+      "corner_alpha": 0
+    },
+    {
+      "path": "Brand/XcodeImagesets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-3x.png",
+      "width": 768,
+      "height": 768,
+      "pixel_format": "Format32bppArgb",
+      "corner_alpha": 0
+    },
+    {
+      "path": "Brand/XcodeImagesets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-1x.png",
+      "width": 256,
+      "height": 256,
+      "pixel_format": "Format32bppArgb",
+      "corner_alpha": 0
+    },
+    {
+      "path": "Brand/XcodeImagesets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-2x.png",
+      "width": 512,
+      "height": 512,
+      "pixel_format": "Format32bppArgb",
+      "corner_alpha": 0
+    },
+    {
+      "path": "Brand/XcodeImagesets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-3x.png",
+      "width": 768,
+      "height": 768,
+      "pixel_format": "Format32bppArgb",
+      "corner_alpha": 0
+    },
+    {
+      "path": "SourceReference/approved-icons-small-size-qa.png",
+      "width": 760,
+      "height": 280,
+      "pixel_format": "Format24bppRgb",
+      "corner_alpha": 255
+    },
+    {
+      "path": "SourceReference/assetrounds-field-inspections-selected-concept.png",
+      "width": 1254,
+      "height": 1254,
+      "pixel_format": "Format24bppRgb",
+      "corner_alpha": 255
+    }
+  ],
+  "files": [
+    {
+      "path": "AppIcon/AppIcon-Dark-1024.png",
+      "role": "app_icon_runtime_and_contract",
+      "byte_length": 275201,
+      "sha256": "1382E2923E5D6795C6672CB3C672477E4C9DC3FF528EA1E6713AD29AA7C20FEA"
+    },
+    {
+      "path": "AppIcon/AppIcon-Default-1024.png",
+      "role": "app_icon_runtime_and_contract",
+      "byte_length": 747345,
+      "sha256": "9082ABAAD84221FD34C97CB72E20DF92ED5C5EEC20A5B9E298A19C7194618B12"
+    },
+    {
+      "path": "AppIcon/AppIcon-Tinted-1024.png",
+      "role": "app_icon_runtime_and_contract",
+      "byte_length": 339457,
+      "sha256": "6D9527F0187EA15EFB1C5D5B177926E8D21A9022569F6DF361A8B4547B10D76F"
+    },
+    {
+      "path": "AppIcon/Contents.json",
+      "role": "app_icon_runtime_and_contract",
+      "byte_length": 744,
+      "sha256": "3489D417973CD3250806AED5A2D9D0C04C8C3AC639B40C43E2F6606A7701F2DF"
+    },
+    {
+      "path": "AppIcon/README.md",
+      "role": "app_icon_runtime_and_contract",
+      "byte_length": 1347,
+      "sha256": "47AAB28FBF2BE666E5A14E1D43C30BEBB9A4D1AB2608B6DF2430AF8BCE08DA74"
+    },
+    {
+      "path": "Brand/ASSETROUNDS_BRAND_SYSTEM.md",
+      "role": "brand_system_and_runtime",
+      "byte_length": 10514,
+      "sha256": "21A0D5563B6C0051AC4CF59E5A9CFC4B398F6BC84FDA98F6A73DBB3E670B44AE"
+    },
+    {
+      "path": "Brand/AssetRounds-Symbol-Color-1024.png",
+      "role": "brand_system_and_runtime",
+      "byte_length": 275201,
+      "sha256": "1382E2923E5D6795C6672CB3C672477E4C9DC3FF528EA1E6713AD29AA7C20FEA"
+    },
+    {
+      "path": "Brand/AssetRounds-Symbol-OneColor-1024.png",
+      "role": "brand_system_and_runtime",
+      "byte_length": 68546,
+      "sha256": "03B87C226B4D0BD730720025301B52275FCA7D53D0B6526C4208F4E2025A4240"
+    },
+    {
+      "path": "Brand/AssetRounds-Symbol-Reversed-1024.png",
+      "role": "brand_system_and_runtime",
+      "byte_length": 57613,
+      "sha256": "39A9B718AAA6CD6D6B7F3B28A92E268CCBBC7445211F55D3FD2E172797B392B8"
+    },
+    {
+      "path": "Brand/XcodeImagesets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-1x.png",
+      "role": "xcode_symbol_runtime",
+      "byte_length": 22746,
+      "sha256": "48D85E616BD4081FFE7A99ACB0F31A2A63F979670C69ABB319E31D18B647E8F3"
+    },
+    {
+      "path": "Brand/XcodeImagesets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-2x.png",
+      "role": "xcode_symbol_runtime",
+      "byte_length": 81151,
+      "sha256": "BD6EC428E43072222DB9091980786BB3905AA3862F411AF0E08B772C35BB4C38"
+    },
+    {
+      "path": "Brand/XcodeImagesets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-3x.png",
+      "role": "xcode_symbol_runtime",
+      "byte_length": 174628,
+      "sha256": "371C48D2D5B37684490C4756ADE3450A06393CE7B411E6AD6EC9A1143C3C90E4"
+    },
+    {
+      "path": "Brand/XcodeImagesets/AssetRoundsBrandSymbol.imageset/Contents.json",
+      "role": "xcode_symbol_runtime",
+      "byte_length": 496,
+      "sha256": "F29B99ADEDAFFC6F6542D5AEEA8F7B060BEC922C247FB23E675AA3C0AD46D061"
+    },
+    {
+      "path": "Brand/XcodeImagesets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-1x.png",
+      "role": "xcode_symbol_runtime",
+      "byte_length": 11791,
+      "sha256": "954EF0A3985E03CEF6872DB5BE5D231151B70F94B0F31C3F1C12AE84BC8973D9"
+    },
+    {
+      "path": "Brand/XcodeImagesets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-2x.png",
+      "role": "xcode_symbol_runtime",
+      "byte_length": 29483,
+      "sha256": "678DC6F5A8D4E29595E26B8E6D8D49369F72788E2467DA4BF4C3A7F4FF676632"
+    },
+    {
+      "path": "Brand/XcodeImagesets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-3x.png",
+      "role": "xcode_symbol_runtime",
+      "byte_length": 54052,
+      "sha256": "54D09DC39F9EF173261432E48586FACBED491050CA00C5EC4985D056000D90C4"
+    },
+    {
+      "path": "Brand/XcodeImagesets/AssetRoundsBrandSymbolTemplate.imageset/Contents.json",
+      "role": "xcode_symbol_runtime",
+      "byte_length": 520,
+      "sha256": "AD2AD925FF43AF8679A260248BFE4776387D8EACDAD5637E0536381D5D584D55"
+    },
+    {
+      "path": "Brand/brand-tokens.json",
+      "role": "brand_system_and_runtime",
+      "byte_length": 8780,
+      "sha256": "2F044E9EAB2705F4265685B6F9370B07E0C1F6807D792744C8E4A35F6551E679"
+    },
+    {
+      "path": "Handoff/APPROVED_IMAGE_INDEX.md",
+      "role": "s10_execution_handoff",
+      "byte_length": 2396,
+      "sha256": "07E50DBF6C7321866E0CAB7419028513D921B1A922BAC66AF891A9E0624387B3"
+    },
+    {
+      "path": "Handoff/APP_STORE_ASSET_PLAN.md",
+      "role": "s10_execution_handoff",
+      "byte_length": 1658,
+      "sha256": "C3715A70137DB7B8009C878B483B0CCF02207F144B094F6C758CD94A0DF0BEAC"
+    },
+    {
+      "path": "Handoff/CODEX_ASSET_INTEGRATION_PROMPT.md",
+      "role": "s10_execution_handoff",
+      "byte_length": 1818,
+      "sha256": "CA0C43196EA3BC32F77C23E2F8DECFE5F0BEF28A707A852ACE77676E5D249AE3"
+    },
+    {
+      "path": "Handoff/INSTALLATION_MAP.md",
+      "role": "s10_execution_handoff",
+      "byte_length": 2720,
+      "sha256": "D9643150C525EAE73FFEB2F7EF06C6267059255C365616E0846565B1D6D1A39D"
+    },
+    {
+      "path": "Handoff/RELEASE_VALIDATION_MATRIX.md",
+      "role": "s10_execution_handoff",
+      "byte_length": 1803,
+      "sha256": "1ED49882B1316426FE7A06C3B9AD646708C8AC808F51DAFCB059E33AB28D48EE"
+    },
+    {
+      "path": "Handoff/S10_ACCESSIBILITY_AND_FIELD_PROTOCOL.md",
+      "role": "s10_execution_handoff",
+      "byte_length": 1575,
+      "sha256": "D88EDF121547A987B67B1ECF83D1A131A7E9EE1F7FAA99EAED5BBACA51EDFAF1"
+    },
+    {
+      "path": "Handoff/S10_ACTIVATION_PACKET.md",
+      "role": "s10_execution_handoff",
+      "byte_length": 3383,
+      "sha256": "FBCA18A99E00D976A43501CE2B61237C93D7BCF0011AEB0EA6933560B8672D4E"
+    },
+    {
+      "path": "Handoff/S10_CODEX_PHASE_PROMPT.md",
+      "role": "s10_execution_handoff",
+      "byte_length": 1837,
+      "sha256": "4868BBEA79E1FB7A8F1911424B5F9C1375AD4E445468A444F2D85008E8B746FC"
+    },
+    {
+      "path": "Handoff/S10_EVIDENCE_LOCK.md",
+      "role": "s10_execution_handoff",
+      "byte_length": 1136,
+      "sha256": "3627FB99C0FDA6977C5BAEB5FD66BB36450F3B1CEDFD7D55434C69C0CCCF5AD4"
+    },
+    {
+      "path": "Handoff/S10_EXPERIENCE_VALIDATION.md",
+      "role": "s10_execution_handoff",
+      "byte_length": 1350,
+      "sha256": "BB8DEDD31A6BCE4DD6448C5F1535513F44E7A4CC06422A5F524457BFCB2110FF"
+    },
+    {
+      "path": "Handoff/S10_SCREEN_STATE_INVENTORY.md",
+      "role": "s10_execution_handoff",
+      "byte_length": 1037,
+      "sha256": "25784044588581C8399950D654044BA4B20D7EAD000EF29EA5D00F05FB5A35B3"
+    },
+    {
+      "path": "Handoff/S10_STAGE_CHECKPOINTS.md",
+      "role": "s10_execution_handoff",
+      "byte_length": 1263,
+      "sha256": "C210B5774DF68E9B2BE47D1A09C498BC963964AF98EB666F23960F168FB11E67"
+    },
+    {
+      "path": "Handoff/S10_STORE_AND_COMPLIANCE.md",
+      "role": "s10_execution_handoff",
+      "byte_length": 1354,
+      "sha256": "C5233BA0DAE92123D0BF42E43F375CC8323E577F9C0629C6DA11037D8B902656"
+    },
+    {
+      "path": "Handoff/S10_TOKEN_COVERAGE.md",
+      "role": "s10_execution_handoff",
+      "byte_length": 950,
+      "sha256": "D019B483E4C388FD4EFF69562F1A6F28BDCA436BE0F01667AD7B5A7B2C8DC74E"
+    },
+    {
+      "path": "Handoff/S10_VISUAL_REFRESH_RUNBOOK.md",
+      "role": "s10_execution_handoff",
+      "byte_length": 8298,
+      "sha256": "92FD40B990B9F36D40DB8B2108D153226891709D0011CDAF608D47A1903B3716"
+    },
+    {
+      "path": "Handoff/S10_VISUAL_REGRESSION_CONTRACT.md",
+      "role": "s10_execution_handoff",
+      "byte_length": 1069,
+      "sha256": "217D54C2FFE926D10A49EDC337EED322FF0A889881A442612A9BE86D5D615628"
+    },
+    {
+      "path": "Handoff/s10-accessibility-common-tasks.schema.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 3755,
+      "sha256": "DF5259ADA9BADD1CF54110FC2DE0D335C84BCF3AAA350A92FB30752E1D48F9EA"
+    },
+    {
+      "path": "Handoff/s10-accessibility-common-tasks.template.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 455,
+      "sha256": "E537916BAADF5CD40DB393D13B04EDA51465F1527AE12061A6145809B9C72288"
+    },
+    {
+      "path": "Handoff/s10-activation.schema.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 11723,
+      "sha256": "F02D306FAF927B3343F137C39F4F344518E9F2B7B6A973E1FA25C1F8670AECEB"
+    },
+    {
+      "path": "Handoff/s10-activation.template.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 8607,
+      "sha256": "50114ED4FFE88C9A7C3385108801F41A7CC98D0119E77208BB7F8042130950AA"
+    },
+    {
+      "path": "Handoff/s10-evidence-lock.schema.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 4929,
+      "sha256": "BA5EF7EBAED530DE272EFAC908149DE3072962A60220EE7AC08ECD450254D281"
+    },
+    {
+      "path": "Handoff/s10-evidence-lock.template.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 900,
+      "sha256": "82220BA416F2BB27D023495EAD56B5729ECB329CF8CD407D714A6D87C0274A78"
+    },
+    {
+      "path": "Handoff/s10-experience-validation.schema.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 10108,
+      "sha256": "ACAB043885CBF8C8EDD8DEF54C93AB3E29B04912061745CF90B221FC6B3A32C8"
+    },
+    {
+      "path": "Handoff/s10-experience-validation.template.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 1331,
+      "sha256": "E4ED51A4799BC96CA86C2246C2C51C0406BDB30ED67EFC8BD47BF7BFDCF7D390"
+    },
+    {
+      "path": "Handoff/s10-screen-state-inventory.schema.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 5941,
+      "sha256": "6520F5EAB939784BFC640BCFEA183A1333C2A46B38AB184443D2D0C4372739FD"
+    },
+    {
+      "path": "Handoff/s10-screen-state-inventory.template.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 223,
+      "sha256": "C9A29EC1ED7274CC36044E5EFCFAAA2D2C5D339232437726685176584BF4EC23"
+    },
+    {
+      "path": "Handoff/s10-stage-checkpoints.schema.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 2249,
+      "sha256": "135D85AD4840DC85A35128C3463D1F377F5EA6AF2E909F63C9E3ED54117F6CED"
+    },
+    {
+      "path": "Handoff/s10-stage-checkpoints.template.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 187,
+      "sha256": "DA91E201503C9B739149FF2508107A7EA36CAAC38D389BF5DDEE951CFF7908A0"
+    },
+    {
+      "path": "Handoff/s10-store-readiness.schema.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 16375,
+      "sha256": "8F9ADD7FCDBAFE4F283E25193C493762BE72AE9B3B2C079249B4EC27BA29FB56"
+    },
+    {
+      "path": "Handoff/s10-store-readiness.template.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 3024,
+      "sha256": "3113DA72997D21FF0198CA0846733FA4180BB7E357076CD5CE021D38CDFB87B2"
+    },
+    {
+      "path": "Handoff/s10-token-coverage.schema.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 2935,
+      "sha256": "EAEECB13806DCE53AA38D53603B98B29EDC3E79E82B83E04BEA2636EEF5FFA27"
+    },
+    {
+      "path": "Handoff/s10-token-coverage.template.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 413,
+      "sha256": "B5424699330F374A8A86E07C954CB57B03DFB4A62B8906D33DB848B326F16A13"
+    },
+    {
+      "path": "Handoff/s10-visual-regression.schema.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 7294,
+      "sha256": "EA0F3305B29117A8773285426AF362C7667E25171773CAAE2CFF37594AF8C0AB"
+    },
+    {
+      "path": "Handoff/s10-visual-regression.template.json",
+      "role": "s10_execution_handoff",
+      "byte_length": 1255,
+      "sha256": "35746AE9C440F7D14EAEC907674444D97DD577E48174B406169284A8BB0568F4"
+    },
+    {
+      "path": "LICENSE_AND_PROVENANCE.md",
+      "role": "provenance",
+      "byte_length": 1883,
+      "sha256": "3F3A5508AF455A2B49A6CB823F7D902FDC761EC829FE1F8DC24483CDF1481FB5"
+    },
+    {
+      "path": "README.md",
+      "role": "package_guide",
+      "byte_length": 1875,
+      "sha256": "405D3CF68F27755F351F76BD364568B39C881AC3EF8E35C31017DB8F915F703B"
+    },
+    {
+      "path": "Research/APPLE_BRAND_HANDOFF_V4_RESEARCH_2026-08-14.md",
+      "role": "research_evidence",
+      "byte_length": 5807,
+      "sha256": "EBE9512829DF115E1A9741E8E4C5BB642BF31EC057D99D17BE72A9732B78663B"
+    },
+    {
+      "path": "Research/APPLE_REQUIREMENTS_SNAPSHOT_2026-08-14.md",
+      "role": "research_evidence",
+      "byte_length": 3098,
+      "sha256": "B18380921BE3D733B8663A480AAF493708D3D9D229140A844DDF862B85EB5E75"
+    },
+    {
+      "path": "Research/APPLE_S10_RESEARCH_2026-08-14.md",
+      "role": "research_evidence",
+      "byte_length": 4317,
+      "sha256": "E989CE1BBE4BE56D1BCC68ED8F87F365577DA8372C18FEBCE27BF918255F538A"
+    },
+    {
+      "path": "Research/COMPETITOR_REVIEW_EVIDENCE.md",
+      "role": "research_evidence",
+      "byte_length": 3548,
+      "sha256": "519CD3111F5CD920DAD2910AA916110ED5536D6A2F81242FFB78BA5EFE569F6C"
+    },
+    {
+      "path": "Research/FIELD_APP_REVIEW_DELTA_2026-08-14.md",
+      "role": "research_evidence",
+      "byte_length": 2550,
+      "sha256": "F8E22B5C7887209B4BC87CB4B3C8645D98113C2058A8496067069041F9E6D0F9"
+    },
+    {
+      "path": "Research/V3_RESEARCH_DECISION_LOG.md",
+      "role": "research_evidence",
+      "byte_length": 1912,
+      "sha256": "9F3E3E0DDA97A05D4AA114A6FF2B737539EE1B483CA9EA0EF3C5D32BD76734A4"
+    },
+    {
+      "path": "Research/V4_RESEARCH_DECISION_LOG.md",
+      "role": "research_evidence",
+      "byte_length": 2461,
+      "sha256": "796273F484C4A3A52AD3B678032F54469676D92255CFD38BD23101D9BE211CB2"
+    },
+    {
+      "path": "Scorecard/ASSET_HANDOFF_SCORING_MODEL.md",
+      "role": "scoring_and_backlog",
+      "byte_length": 1558,
+      "sha256": "B4D3C0B9F44CA216B2537441B8037C594498E18A98DAAD44DE63EFBB923D94F4"
+    },
+    {
+      "path": "Scorecard/V1_V2_SCORECARD.md",
+      "role": "scoring_and_backlog",
+      "byte_length": 3114,
+      "sha256": "A20E3F8F78AEAA86D17DF67E525D0440936102240857852240DA6D2D705BAC24"
+    },
+    {
+      "path": "Scorecard/V1_V2_V3_SCORECARD.md",
+      "role": "scoring_and_backlog",
+      "byte_length": 2956,
+      "sha256": "C2DE560014A18E83B79A6184E23A92CFE43564577E44DD8702E4F151C2FD853B"
+    },
+    {
+      "path": "Scorecard/V1_V2_V3_V4_SCORECARD.md",
+      "role": "scoring_and_backlog",
+      "byte_length": 1222,
+      "sha256": "6A581E0F0E36C62AF205D4005E63D117E7BE5515FD83A25CA49433AEB04957C2"
+    },
+    {
+      "path": "Scorecard/V2_IMPROVEMENT_BACKLOG.md",
+      "role": "scoring_and_backlog",
+      "byte_length": 1846,
+      "sha256": "8BB4F362C40CADE15110B37603FA1F7D02D38C6A76036FAA730783BDBB551A7B"
+    },
+    {
+      "path": "Scorecard/V3_IMPROVEMENT_BACKLOG.md",
+      "role": "scoring_and_backlog",
+      "byte_length": 1262,
+      "sha256": "8D98A27F9027DD599492804E902E12B4B22027F02DF18E7EAC1FED620947068D"
+    },
+    {
+      "path": "Scorecard/V4_IMPROVEMENT_BACKLOG.md",
+      "role": "scoring_and_backlog",
+      "byte_length": 1249,
+      "sha256": "E418D42588419A4E191063348D1B961FE0A9D37F5BB7C5D945FEAB69FF786832"
+    },
+    {
+      "path": "Scorecard/v1-v2-score.json",
+      "role": "scoring_and_backlog",
+      "byte_length": 1688,
+      "sha256": "051E7A929E216037D28D6CAC430FFCD4A04A3EA6CFA18C07495DB982CE28FC2C"
+    },
+    {
+      "path": "Scorecard/v1-v2-v3-score.json",
+      "role": "scoring_and_backlog",
+      "byte_length": 2044,
+      "sha256": "477B12132FA88DC72AE8DA9543D5DC25F7B8B36B2FB10863B3E89146C487D1BA"
+    },
+    {
+      "path": "Scorecard/v1-v2-v3-v4-score.json",
+      "role": "scoring_and_backlog",
+      "byte_length": 1900,
+      "sha256": "4D9700971347BF38726F9FD5E673A33228B8A46746CF832C19A9E87A832FCAB2"
+    },
+    {
+      "path": "SourceReference/README.md",
+      "role": "approved_visual_reference",
+      "byte_length": 674,
+      "sha256": "A46FB6DFEE0AF5CCEFC3FA6EFC7CA10948F0B852F62F45A01337786C177A7557"
+    },
+    {
+      "path": "SourceReference/approved-icons-small-size-qa.png",
+      "role": "approved_visual_reference",
+      "byte_length": 56318,
+      "sha256": "7EDFEC60D357A147D0B25BE7272F5E4C178FAD4A656269EED32378C73141384B"
+    },
+    {
+      "path": "SourceReference/assetrounds-field-inspections-selected-concept.png",
+      "role": "approved_visual_reference",
+      "byte_length": 1316714,
+      "sha256": "F1E680EBAAF138BD73E6DAE2D44A5B81DE08A8E3B5850CA2F7E4B67D6638106D"
+    },
+    {
+      "path": "Tools/README.md",
+      "role": "reproducible_validation",
+      "byte_length": 1714,
+      "sha256": "D7BC700C1D3A5D8EFA733EA852CFCCB6723AF6662EE5959D93EF9352989DD81F"
+    },
+    {
+      "path": "Tools/validate-brand-handoff.ps1",
+      "role": "reproducible_validation",
+      "byte_length": 7671,
+      "sha256": "BB5C34F208D4D5BE4C79D8F6D0B748D95A94911E8809918FD35DC6111611EA39"
+    },
+    {
+      "path": "Tools/validate-json-schema-subset.py",
+      "role": "reproducible_validation",
+      "byte_length": 6942,
+      "sha256": "4185C99A6C94184CAFD8D01758BD501206429708B6D51A665F8038A449B871E0"
+    },
+    {
+      "path": "Tools/validate-json-strict.py",
+      "role": "reproducible_validation",
+      "byte_length": 1150,
+      "sha256": "23D077EEC5589A42905D294B09979FC73BE92E3407AA5071C6EF2755ABB64157"
+    },
+    {
+      "path": "Tools/validate-s10-contracts.ps1",
+      "role": "reproducible_validation",
+      "byte_length": 30430,
+      "sha256": "B3EB530E257BB7B46BD694F3A07213D6F58160A89DF4E7A8B414A15476E0A76E"
+    },
+    {
+      "path": "VERSION_HISTORY.md",
+      "role": "version_history",
+      "byte_length": 1898,
+      "sha256": "B556C04D98BAC07C859B04B78AA7840BA6745B96E4F97F288E82632187C69B02"
+    }
+  ],
+  "v4_1_changes": [
+    "Preserved all 14 approved PNG files byte-for-byte from Brand Handoff V4",
+    "Corrected readiness wording to S10_ACTIVATION_PACKET_READY without claiming implementation or release proof",
+    "Expanded activation authority, package digests, route selection, exact card paths/selectors, rights input, and physical-device bridge",
+    "Split S10 into Inventory, ComponentSystem, Migration, AutomatedLab, PhysicalExperience, and Release",
+    "Added E product, K evidence, C receipt semantics with historical Git-blob hashing",
+    "Completed accessibility, pseudolanguage, durability, performance, screenshot provenance, App Tags, and AppIcon project-integration contracts"
+  ]
+}

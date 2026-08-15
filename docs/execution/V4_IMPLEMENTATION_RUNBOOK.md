@@ -2,7 +2,7 @@
 
 Status: canonical execution catalog for the device-local V4 iPhone app.
 
-Install this exact file as `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md`. It contains **36 strictly ordered Codex coding cards plus two owner-only release gates**. One persistent `/goal` completes the coding program through S9.1 while every card remains separately scoped, committed, and CI-verified. Program autopilot performs verified non-force fast-forward `main` integration and exact-main CI at each phase boundary. Product and hosted-CI failures remain inside an evidence-driven retry/correction loop with no numeric ceiling; that loop never expands product-card scope or weakens acceptance.
+Install this exact file as `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md`. It contains **42 strictly ordered Codex coding cards plus two owner-only release gates**. One persistent `/goal` completes the coding program through S10.6 while every card remains separately scoped, committed, and CI-verified. Program autopilot performs verified non-force fast-forward `main` integration and exact-main CI at each phase boundary. Product and hosted-CI failures remain inside an evidence-driven retry/correction loop with no numeric ceiling; that loop never expands product-card scope or weakens acceptance.
 
 ## 1. Authority and use
 
@@ -34,7 +34,7 @@ The build plan remains product truth and its phase-summary table is aligned to t
 
 At S0 phase start, `CURRENT_TASK.md` freezes program autopilot, the exact phase/branch map, phase autopilot, and the ordered S0 span. Later phase starts are hydrated by program autopilot only after the preceding phase's accepted exact-main verification/phase-close head, including an accepted infrastructure `K` when the standing lane applies. For any transition, Codex hydrates only the immediate next runbook card and uses this closed rule:
 
-- Carry forward byte-for-byte the repository/visibility/base identity; immutable program-autopilot state and exact S0–S9 phase/branch map; plan/runbook/workflow identity; runner/Xcode/deployment/project/scheme/configuration; Simulator selector; Full access posture; allowed method set/prohibitions; and final S9.2/S9.3 owner boundary. Freeze phase-main base `P` for every card in a phase: `P=B` for S0 and the prior accepted exact-main phase-close SHA thereafter. Inside a phase also carry phase ID/branch, phase-autopilot state/span, and flags. At an exact boundary, change only phase ID/branch/span/flags and `P` to the next frozen values. Codex may never alter the program map.
+- Carry forward byte-for-byte the repository/visibility/base identity; immutable program-autopilot state and exact S0–S10 phase/branch map; plan/runbook/workflow identity; runner/Xcode/deployment/project/scheme/configuration; Simulator selector; Full access posture; allowed method set/prohibitions; and final S9.2/S9.3 owner boundary after S10.6. Freeze phase-main base `P` for every card in a phase: `P=B` for S0 and the prior accepted exact-main phase-close SHA thereafter. Inside a phase also carry phase ID/branch, phase-autopilot state/span, and flags. At an exact boundary, change only phase ID/branch/span/flags and `P` to the next frozen values. Codex may never alter the program map.
 - Set current card ID/order/position/boundary/tier/selectors from the immediate runbook card. Within a phase set `M` to the prior accepted implementation or verification head required by CURRENT_TASK and expected `M..A` to HANDOFF plus CURRENT_TASK. At phase start set `M=P` and expected `M..A` to CURRENT_TASK alone; include predecessor main run evidence. Historical S0.1/S0 recovery evidence remains immutable. For an infrastructure recovery, preserve product implementation `E`, set failed verification base `F`, keep candidate `K` as `OBSERVE AT POST-COMMIT G0`, and declare exact `F..K` lane paths. Card-specific UI mode, selector semantics, product commands, paths, delta, and acceptance remain frozen; only a causally diagnosed CI-harness scheduling/evidence/watchdog correction and its exact pins may differ.
 - Copy the card's exact outcome, delta, GOLDEN, ALT-1, terminal, next card, and named exclusions. Enumerate the smallest concrete fully expanded individual repository-relative file paths inside the card's named categories and cap, reusing existing paths when possible. Globs, directory roots, brace/set expressions, and `/**` are forbidden in hydrated tasks. A cap may exceed the default only when this frozen selected runbook card explicitly states the override; CURRENT_TASK cannot self-raise it. Optional/speculative paths remain forbidden.
 - Never invent a package, permission, schema field, product decision, selector, fixture, public copy, or release value. If more than one materially different path/file shape is plausible or a required fact is absent, retain the current card, gather repository/Git/GitHub evidence, continue every independent in-card action, and hydrate only facts uniquely implied by frozen authority. An unresolved value is recorded explicitly rather than silently guessed; it does not consume program authority or erase completed evidence.
@@ -50,7 +50,7 @@ Never place passwords, 2FA codes, bank/tax details, `.p8`, `.p12`, provisioning 
 4. CI candidates are append-only and one-at-a-time per exact workflow/ref/head. If any candidate is green with complete evidence, accept it. If one is queued or running, wait. Otherwise inspect every terminal candidate/log/artifact and dispatch exactly one new `workflow_dispatch` candidate at the same branch ref, exact head, inputs, runner/toolchain/Simulator selector, and tier. Every redispatch receives a new run ID; never use Actions rerun on a failed run ID. Candidate count, repeated signature, missing artifact, or watchdog expiry never consumes authority.
 5. For a diagnosed hosted-runner, pinned-toolchain/runtime, exact-Simulator, Actions service/transport, or lane-harness failure, either redispatch the same exact head on a fresh runner or create one direct-child `K(n+1)` with one smallest diagnosed operational correction. K may change only required CURRENT_TASK evidence/pins and the smallest causal subset of `.github/workflows/ios-ci.yml`, `Scripts/build-smoke.sh`, `Scripts/test-smoke.sh`, `Scripts/ui-smoke.sh`, and `Scripts/run-with-timeout.sh`. Preserve product/project/test/fixture/asset bytes, selector semantics, pinned environment, exact product commands/destinations, timeout exit behavior, evidence/checksum/upload enforcement, and raw aggregate accounting. K indices, correction count, repeated/overlapping failure/repair labels, hashes, and trailers are provenance rather than consumption gates. When evidence is insufficient, gather another exact-head candidate or add one non-accepting diagnostic K.
 6. On a non-boundary card after green evidence, Codex appends HANDOFF. When phase autopilot is enabled and the immediate next runbook card is inside the authorized span, apply Section 3's closed hydration rule and create one transition commit containing exactly that HANDOFF append plus next CURRENT_TASK. Re-fetch before non-force push, require remote phase to equal accepted verification head `V` (`E` normally, exact green K when distinct), push, verify the new ref, and run fresh G0. Unexpected movement triggers read-only ancestry/provenance diagnosis and valid-lineage recovery; never force or silently reconcile unrelated history.
-7. On a final card after green implementation evidence, append HANDOFF and create/push phase-close `C`. Re-fetch and prove refs, then apply Steps 4–5 on the phase ref at C or a later direct-child recovery head until that exact phase-close/verification head is green. Only then advance `main` by verified non-force fast-forward from phase base `P` to that exact green head, or resume if main already equals it. Reuse a matching exact-main success, wait for an active candidate, or use Steps 4–5 until exact-main CI is green. A product failure at phase-close or exact-main keeps the boundary card active for successive scoped product correction heads and repeated phase/main verification; prior HANDOFF entries remain append-only. Then create/resume only the frozen next phase branch, hydrate its first card, and run fresh G0. After green exact-main S9.1, report the accepted head/run and end coding for owner-only S9.2/S9.3.
+7. On a final card after green implementation evidence, append HANDOFF and create/push phase-close `C`. Re-fetch and prove refs, then apply Steps 4–5 on the phase ref at C or a later direct-child recovery head until that exact phase-close/verification head is green. Only then advance `main` by verified non-force fast-forward from phase base `P` to that exact green head, or resume if main already equals it. Reuse a matching exact-main success, wait for an active candidate, or use Steps 4–5 until exact-main CI is green. A product failure at phase-close or exact-main keeps the boundary card active for successive scoped product correction heads and repeated phase/main verification; prior HANDOFF entries remain append-only. Then create/resume only the frozen next phase branch, hydrate its first card, and run fresh G0. After green exact-main S10.6, report the accepted head/run and end coding for owner-only S9.2/S9.3.
 8. Watchdogs are exact, non-accepting cleanup controls rather than authority limits. Simulator readiness is `900` seconds; tier values are the exact Section 6 compatibility-label values; job watchdog is 90 minutes; concurrency does not cancel an in-progress candidate. A timeout or missing artifact remains non-green and feeds Steps 3–5. Failed run IDs remain historical and are never rerun by ID.
 9. Current S0 bridge: retain `E=I3=ac310dd37700d65165200f742aaec1d48d0a34d6`, HANDOFF-only `C=15348e92466a79efd02bfb71f5ffee043e615829`, authority head `R=1e0322cc072fda28718468bcd1b0dbe1f5d0accc`, failed main runs `31567299022` at C and `31571125674` at R, K1 `0da62482db7e3f90742876ef05574de9e9569e32`, K2 `400f8827f5451b9a44f4d846340b51377554069d`, and their failed runs as immutable provenance. K3 `e569951909c2ee8aff4253bae0d442550c229a16` passed exact-head phase run `31590956549`. Exact-main K3 run `31591804256` failed only the historical 300-second Simulator-readiness watchdog after the unchanged product build passed. Direct-child K4 installs the persistent recovery policy and Section 6 watchdog values without changing protected product/project/test bytes. Verify K4 or a later direct-child recovery head on phase and exact-main through Steps 4–5 until green. Accepted K becomes S0 phase close and S1 `P=M`; I3 remains product evidence. Do not amend the completed historical HANDOFF.
 
@@ -137,7 +137,7 @@ S0 creates `run-with-timeout.sh`; it accepts a positive integer ceiling followed
 
 The scripts must write these exact baseline required artifacts under `CI_ARTIFACT_DIR`: nonempty `build-smoke.log`, directory `Build.xcresult`, nonempty `test-smoke.log`, and directory `UnitTests.xcresult`; enabled UI additionally requires nonempty `ui-smoke.log`, directory `UISmoke.xcresult`, and nonempty `ui-final.png`. A lane-authorized infrastructure diagnostic may be required only in addition to this baseline and must be nonempty and checksummed. The workflow verifies them before upload and creates `SHA256SUMS.txt` with relative paths from inside the artifact root. `N8` never accepts a placeholder UI selector or accessibility option; P12/F25 never become a broad UI suite. A timeout is non-accepting evidence for the persistent recovery loop; it consumes no retry or correction authority.
 
-For P12/F25, every touched primary control has a label, trait, logical order, non-color state, 44-point target, and named focus behavior; card acceptance checks only the touched route. Real camera quality and spoken VoiceOver remain owner S9.2.
+For P12/F25, every touched primary control has a label, trait, logical order, non-color state, 44-point target, and named focus behavior; card acceptance checks only the touched route. S10.5 records real camera quality and owner-observed physical accessibility for the branded candidate; signing/upload/release verification remain S9.2.
 
 ## 7. Frozen implementation contracts
 
@@ -282,7 +282,13 @@ These counters are non-authoritative, best-effort lower-bound diagnostics. The s
 | 33 | S8.2 | Golden-flow accessibility CI | F25 | S8.3 |
 | 34 | S8.3 | Private diagnostics/export | P12 | S8.4 |
 | 35 | S8.4 | Feedback and attachment consent | P12 | S9.1 |
-| 36 | S9.1 | Unsigned RC and inactive release workflow | F25 | owner S9.2 |
+| 36 | S9.1 | Unsigned RC and inactive release workflow | F25 | S10.1 |
+| 37 | S10.1 | Brand activation, inventory, and S9 baselines | F25 | S10.2 |
+| 38 | S10.2 | Brand assets, semantic tokens, and components | P12 | S10.3 |
+| 39 | S10.3 | Full released-state visual migration | F25 | S10.4 |
+| 40 | S10.4 | Automated appearance/accessibility/localization lab | F25 | S10.5 |
+| 41 | S10.5 | Owner-bridged physical experience evidence | N8 | S10.6 |
+| 42 | S10.6 | Branded release/store/privacy/legal evidence lock | F25 | owner S9.2 |
 | owner | S9.2 | Owner-only upload and physical iPhone | owner | S9.3 |
 | owner | S9.3 | App Store Connect submission | owner | complete |
 
@@ -687,7 +693,73 @@ Every card inherits Sections 1–7. `HANDOFF.md` and `Scripts/ci-selection.json`
 - GOLDEN: ordinary unsigned CI builds/tests the RC, validates every provided live link/email/metadata/privacy value plus the complete pending/provided manifest and inactive workflow without secrets, runs final golden smoke, and creates the evidence index. A pending external value is explicit non-release-ready evidence, not fabricated data and not a coding failure.
 - ALT-1: one release-preflight family fails closed for malformed or inconsistent provided config, an omitted manifest key, privacy inconsistency, wrong or unexpectedly moved `main` ref, or secret-boundary violation. Pending external values keep S9.2 unavailable but do not block completion of the unsigned S9.1 coding artifact.
 - Selectors/budget: `S9_1ReleasePreflightTests`, `S9_1FinalRCUITests`; F25.
-- Terminal/next: phase-end fast-forward/exact-main CI; then end coding and hand the accepted exact head/run to the owner for S9.2.
+- Terminal/next: phase-end fast-forward/exact-main CI; next S10.1 on `phase/s10-brand-refresh` from the accepted exact-main unpublished candidate.
+
+### S10.1 — Brand activation, released-state inventory, and S9 baselines
+
+- Anchors/start: owner-approved Brand Handoff V4.1, exact accepted S9 unpublished-candidate base and exact-main run, frozen ZIP/manifest digests, accepted use grant, current/minimum device profiles, release locale, six pseudolanguage profiles, and planned owner-operated physical bridge.
+- Outcome: freeze the one-to-one six-stage S10 contract, complete released route/state and common-task inventory, map every state to the approved token catalog, and capture immutable pre-migration S9 screenshot baselines before any app/product byte changes.
+- Allowed/forbidden: exactly the seven canonical inventory/coverage JSON instances plus `S10_1BrandInventoryTests.swift` and `S10_1BrandInventoryUITests.swift`; activation/authority bytes are pre-card authority and selector/HANDOFF remain standing exceptions. No app, project, asset, feature, fixture, release-metadata, or design-token mutation. Explicit envelope override: 7 product/document files and 2 test files because the V4.1 validator requires the seven one-to-one canonical instances and a UI baseline-capture lane.
+- Exact delta: documentation, machine-readable coverage, and baseline evidence only. Inventory uses stable route/state IDs and points to existing source identifiers/fixtures; planned later tokens are `planned`, every visual row is `baseline_frozen`, and candidate/review fields remain blank or `NOT_RUN`/`NOT_REVIEWED`.
+- GOLDEN: F25 UI proof traverses every frozen baseline-capture scenario on the accepted S9 UI without changing product bytes, uploads exact screenshots, and the package validator proves exact state↔token↔baseline coverage, common-task reachability, accessibility matrix, store-slot plan, and six checkpoints.
+- ALT-1: an omitted/duplicate route or state, stale source path, unknown token, missing baseline, mismatched selector/hash, unauthorized package member, or fabricated physical/legal/release fact fails closed without regenerating or accepting a baseline.
+- Selectors/budget: `S10_1BrandInventoryTests`, `S10_1BrandInventoryUITests`; F25.
+- Terminal/next: record accepted product E, descendant evidence K when screenshot/document evidence must be committed after E, later receipt C only as bookkeeping; next S10.2.
+
+### S10.2 — Brand assets, semantic tokens, and reusable components
+
+- Anchors/start: accepted S10.1 inventory/baselines and the installation map's exact 12 runtime files.
+- Outcome: install the exact three AppIcon appearances and two original/template symbol image sets, set the effective AppIcon catalog name, and implement the frozen semantic color/type/spacing/radius/stroke/environment/component roles without migrating released screens.
+- Allowed/forbidden: the exact 12 runtime asset destinations; six named brand color-set `Contents.json` files; `DesignTokens.swift`, `WorklightComponents.swift`, `project.pbxproj`; and one unit/one UI test. Explicit envelope override: 21 production files and 2 test files because the package fixes 12 runtime files, six custom color roles, two shared design-system sources, and one project integration path. No feature view migration, copy change, schema/model/service/navigation change, source-reference/research/scorecard bundle member, custom font, decorative glass, or custom familiar-action icon.
+- Exact delta: component-system primitives only; existing released screens remain baseline-equivalent until S10.3.
+- GOLDEN: asset bytes/catalog metadata/dimensions/rendering intent and effective build setting match the package; components prove Light/Dark/increased-contrast, Dynamic Type, 44-point targets, non-color status, Reduce Motion/Transparency behavior, and restrained original/template mark use.
+- ALT-1: a mismatched source hash, extra bundled package member, invalid appearance, raw feature hex, unavailable semantic fallback, or baseline-affecting feature edit fails closed and leaves S10.1 evidence unchanged.
+- Selectors/budget: `S10_2BrandComponentTests`, `S10_2BrandComponentUITests`; P12.
+- Terminal/next: next S10.3.
+
+### S10.3 — Full released-state visual migration
+
+- Anchors/start: exact S10.1 inventory/baselines plus accepted S10.2 components.
+- Outcome: migrate every released app state named by the frozen inventory to the approved AssetRounds identity and shared semantic components while preserving behavior, accessibility identifiers, navigation, persistence, commerce, report/backup bytes, and evidence rendering.
+- Allowed/forbidden: the exact 26 released SwiftUI source files enumerated by activation plus one unit and one UI migration test. Explicit envelope override: 26 production files and 2 test files because the frozen inventory covers all released SwiftUI states and partial migration is prohibited. No coordinator/model/store/service/schema/permission/commerce/backup/report-content behavior change; no untasked copy, route, or data mutation.
+- Exact delta: presentation and identity only. Evidence photos remain untinted/aspect-correct, native controls/SF Symbols remain familiar, and one primary action per state is preserved.
+- GOLDEN: the full representative fresh-install→check/report→issue/work/recheck→Settings/commerce/data-rights route and every inventory exception state render from the shared brand system in Light and Dark with unchanged semantic outcomes and durable bytes.
+- ALT-1: any missing state, clipped/lost action, color-only meaning, changed AX identifier/order, altered report/snapshot/backup output, unexpected navigation/model write, or silent baseline regeneration fails closed.
+- Selectors/budget: `S10_3BrandMigrationTests`, `S10_3BrandMigrationUITests`; F25.
+- Terminal/next: next S10.4.
+
+### S10.4 — Automated appearance, accessibility, and localization lab
+
+- Anchors/start: accepted branded migration and exact device/locale/pseudolanguage matrix.
+- Outcome: execute and lock automated current/minimum platform, Light/Dark, increased contrast, largest accessibility text, Differentiate Without Color, Reduce Motion, Reduce Transparency, VoiceOver/Voice Control semantics, and all six pseudolanguage profiles against every common task/state.
+- Allowed/forbidden: the canonical stage/accessibility/token/visual evidence documents plus one unit and one UI lab test; no product/app/project/asset/fixture mutation unless a diagnosed S10.2/S10.3 defect is corrected in place on the exact introducing path and the unchanged S10.4 selector re-proves it. Explicit envelope: 4 evidence documents and 2 tests; later evidence K may update only those exact documents and required task pins.
+- Exact delta: automated verification/evidence only.
+- GOLDEN: every frozen matrix cell is PASS with exact screenshot/AX/contrast/hash evidence, all brand assets render, common tasks complete, and candidate-vs-S9 comparisons are human-reviewed without erasing S9 baselines.
+- ALT-1: any missing matrix cell, overflow/crop, contrast/target/focus/order/localization failure, unreviewed visual delta, or flaky/unbound screenshot fails closed and triggers a smallest causal correction rather than waived acceptance.
+- Selectors/budget: `S10_4AutomatedBrandLabTests`, `S10_4AutomatedBrandLabUITests`; F25.
+- Terminal/next: next S10.5 only after automated evidence K is accepted.
+
+### S10.5 — Owner-bridged physical experience evidence
+
+- Anchors/start: exact accepted product E from S10.4, frozen owner-operated distribution bridge, and the physical protocol; Codex does not sign, upload, or operate the device.
+- Outcome: prepare and validate the bounded owner evidence packet tying the installed build to E and recording physical accessibility, camera/field, force-quit/durability, performance/thermal, Light/Dark/largest-text, and real-device common-task observations.
+- Allowed/forbidden: `s10-experience-validation.json`, the exact physical evidence index/receipt paths frozen by activation, and one non-UI contract test. Explicit envelope: 3 evidence documents and 1 test. No app/product/project/asset change, simulated physical PASS, credential/signing material, automatic TestFlight dispatch, upload, or invented owner observation.
+- Exact delta: owner-bridged evidence only; missing physical operation stays explicit `NOT_RUN` and blocks completion rather than blocking unrelated static preparation.
+- GOLDEN: every required physical task is owner-recorded PASS against the exact build identity with no blocker, and machine validation binds installation/build/artifact/device/observer/timestamp evidence to product E.
+- ALT-1: absent/mismatched build identity, inaccessible/unsigned/uninstalled artifact, unresolved blocker, missing observation, or fabricated automation claim fails closed and preserves all evidence.
+- Selectors/budget: `S10_5PhysicalExperienceTests`; N8 with UI disabled.
+- Terminal/next: next S10.6 only after required owner evidence exists.
+
+### S10.6 — Branded release, store, privacy, supply-chain, and legal evidence lock
+
+- Anchors/start: accepted automated and physical evidence, unchanged product E, descendant K evidence, reviewed store plan, S9 release artifacts, and explicit pending/provided external release facts.
+- Outcome: lock App Store screenshot/copy/asset readiness, privacy-manifest consistency, package/runtime supply-chain allowlist, brand-rights/trademark/name/claim/URL status, all six checkpoint receipts, and the final S10 evidence graph without signing/upload/submission.
+- Allowed/forbidden: canonical store-readiness/evidence-lock/stage-checkpoint documents, exact store/privacy/supply-chain evidence manifests, S9 release metadata documents only where the branded candidate requires a truthful repository-derived update, and one unit/one UI final branded-candidate test. Explicit envelope override: up to 10 product/evidence files and 2 tests; no feature/schema/behavior change, secret, signing, upload, deployment, App Store mutation, fabricated clearance, or automatic baseline replacement.
+- Exact delta: release evidence and truthful metadata only; unresolved live/legal values stay `pending` and release remains blocked.
+- GOLDEN: final F25 branded candidate, store slots, privacy/supply-chain inventory, rights grant, separate dated trademark/name/claim/URL evidence, checkpoint E/K/C receipts, hashes, CI artifacts, and one terminal branded screenshot all cross-validate with no unresolved hard gate.
+- ALT-1: stale/mismatched E/K/C ancestry, extra runtime asset, missing privacy/store field, unreviewed screenshot, pending/malformed clearance, unsupported claim, or external-value invention fails closed and prevents release-ready status.
+- Selectors/budget: `S10_6BrandReleaseTests`, `S10_6BrandReleaseUITests`; F25.
+- Terminal/next: phase-end exact-head CI, HANDOFF-only phase close, non-force exact-main fast-forward and exact-main F25; then stop coding for owner-only S9.2/S9.3.
 
 ## 10. Owner-only release gates
 
@@ -704,7 +776,7 @@ Owner selects the exact tested build, completes App Privacy from actual binary/n
 ## 11. Copy-ready no-planning goal
 
 ```text
-/goal Complete every remaining coding card through S9.1 in strict runbook and
+/goal Complete every remaining coding card through S10.6 in strict runbook and
 frozen phase/branch-map order.
 
 The plan is approved. Do not enter /plan, redesign, combine, skip, pre-implement,
@@ -731,10 +803,10 @@ CI, create only the frozen next branch, hydrate only its first card, run fresh G
 and continue. Unexpected ref movement, missing evidence, product/compiler/test
 failure, and infrastructure recurrence keep the current card active for read-only
 diagnosis, waiting, fresh dispatch, or the smallest authorized correction. Never
-weaken acceptance, force-push, sign, upload, deploy, or submit. End coding after S9.1 for the
+weaken acceptance, force-push, sign, upload, deploy, or submit. End coding after S10.6 for the
 owner-only S9.2/S9.3 gates.
 ```
 
 ## 12. Completion rule
 
-A card completes only with accepted product implementation evidence, green exact verification-head CI, and recorded handoff. A phase completes only after verified non-force fast-forward integration and green CI on the exact resulting `main` verification/phase-close SHA. When infrastructure changes the verification head, record implementation `E` and verification head `K` separately and use accepted `K` as the next base. Current S0's next support head is direct-child K4; K3 phase run `31590956549` is green and K3 main run `31591804256` is a historical readiness-watchdog failure. The first current exact-green phase and exact-main support head becomes S0 verification/phase-close and S1 `P=M`, while S0.1 remains evidenced by I3 and its existing HANDOFF. Coding automation completes after S9.1's exact-main gate; product release completes only after owner-recorded S9.2/S9.3 evidence. A Windows edit, stale run, divergent branch, plan-only artifact, or upload without physical verification is not completion evidence and feeds diagnosis rather than consuming authority.
+A card completes only with accepted product implementation evidence, green exact verification-head CI, and recorded handoff. A phase completes only after verified non-force fast-forward integration and green CI on the exact resulting `main` verification/phase-close SHA. When infrastructure changes the verification head, record implementation `E` and verification head `K` separately and use accepted `K` as the next base. Current S0's next support head is direct-child K4; K3 phase run `31590956549` is green and K3 main run `31591804256` is a historical readiness-watchdog failure. The first current exact-green phase and exact-main support head becomes S0 verification/phase-close and S1 `P=M`, while S0.1 remains evidenced by I3 and its existing HANDOFF. S10 additionally requires a product head `E`, any descendant evidence head `K`, and a later receipt/bookkeeping `C` with no product-byte mutation after E. Coding automation completes after S10.6's exact-main gate; product release completes only after owner-recorded S9.2/S9.3 evidence. A Windows edit, stale run, divergent branch, plan-only artifact, or upload without physical verification is not completion evidence and feeds diagnosis rather than consuming authority.
