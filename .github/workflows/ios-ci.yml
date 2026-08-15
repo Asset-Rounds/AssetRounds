@@ -21,14 +21,14 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 90
     env:
-      DEVELOPER_DIR: /Applications/Xcode_26.1.1.app/Contents/Developer
-      EXPECTED_XCODE_VERSION: "Xcode 26.1.1"
-      EXPECTED_XCODE_BUILD: "Build version 17B100"
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      EXPECTED_XCODE_VERSION: "Xcode 16.4"
+      EXPECTED_XCODE_BUILD: "Build version 16F6"
       EXPECTED_MINIMUM_IOS: "18.0"
       PROJECT_PATH: FieldEvidenceApp.xcodeproj
       SCHEME: FieldEvidenceApp
       CONFIGURATION: Debug
-      SIMULATOR_RUNTIME: iOS 18.6
+      SIMULATOR_RUNTIME: iOS 18.5
       SIMULATOR_NAME: iPhone 16 Pro
       CI_SIMULATOR_BOOT_TIMEOUT_SECONDS: "900"
       CODE_SIGNING_ALLOWED: "NO"
