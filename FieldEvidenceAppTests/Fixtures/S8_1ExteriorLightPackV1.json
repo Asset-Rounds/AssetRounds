@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "packID": "test.field.evidence.exterior_light.v1",
+  "contentVersion": 1,
+  "nouns": {
+    "asset": {
+      "singular": "exterior light",
+      "plural": "exterior lights"
+    },
+    "check": {
+      "singular": "lighting survey",
+      "plural": "lighting surveys"
+    },
+    "issue": {
+      "singular": "observed lighting condition",
+      "plural": "observed lighting conditions"
+    }
+  },
+  "evidencePurposes": [
+    {
+      "key": "wide_context",
+      "display": "Exterior area context",
+      "instruction": "Take one wide photo showing the exterior light and the surrounding area."
+    },
+    {
+      "key": "close_detail",
+      "display": "Luminaire detail",
+      "instruction": "Take one close photo showing the exterior luminaire clearly."
+    },
+    {
+      "key": "work_context",
+      "display": "Lighting work photo",
+      "instruction": "Add one optional photo showing the exterior-light work performed."
+    }
+  ],
+  "acknowledgements": [
+    {
+      "key": "after_dark",
+      "copy": "It is dark enough to observe the exterior light's visible output.",
+      "version": "fixture.exterior-light.ack.en-US.v1"
+    },
+    {
+      "key": "safe_authorized_position",
+      "copy": "I am in a safe, authorized position to photograph this exterior light.",
+      "version": "fixture.exterior-light.ack.en-US.v1"
+    }
+  ],
+  "issueLabels": [
+    {
+      "key": "dark_section",
+      "display": "Exterior lamp section is dark"
+    },
+    {
+      "key": "dim_or_uneven",
+      "display": "Exterior output is dim or uneven"
+    },
+    {
+      "key": "flicker_or_intermittent",
+      "display": "Exterior light flickers or cuts out"
+    },
+    {
+      "key": "color_mismatch",
+      "display": "Exterior light color differs"
+    },
+    {
+      "key": "physical_damage",
+      "display": "Exterior luminaire has visible damage"
+    },
+    {
+      "key": "other_visible_condition",
+      "display": "Other exterior-light condition"
+    }
+  ],
+  "couldNotVerifyReasons": {
+    "version": "fixture.exterior-light.cnv.en-US.v1",
+    "entries": [
+      {
+        "key": "conditions_changed",
+        "display": "Exterior conditions changed"
+      },
+      {
+        "key": "access_lost",
+        "display": "Safe exterior access was lost"
+      },
+      {
+        "key": "unsafe_to_continue",
+        "display": "Exterior survey became unsafe"
+      },
+      {
+        "key": "required_view_obstructed",
+        "display": "Exterior-light view is obstructed"
+      },
+      {
+        "key": "capture_unavailable",
+        "display": "Exterior-light photo capture is unavailable"
+      },
+      {
+        "key": "other",
+        "display": "Another exterior-light reason"
+      }
+    ]
+  },
+  "stageDisplays": [
+    {
+      "key": "check",
+      "display": "Exterior-light survey"
+    },
+    {
+      "key": "recheck",
+      "display": "Exterior-light follow-up"
+    }
+  ],
+  "outcomeDisplays": [
+    {
+      "key": "no_visible_issue",
+      "display": "No exterior-light condition observed"
+    },
+    {
+      "key": "visible_issue",
+      "display": "Exterior-light condition observed"
+    },
+    {
+      "key": "could_not_verify",
+      "display": "Exterior light could not be verified"
+    },
+    {
+      "key": "resolved",
+      "display": "Exterior-light condition resolved"
+    },
+    {
+      "key": "issue_still_visible",
+      "display": "Exterior-light condition remains visible"
+    },
+    {
+      "key": "original_resolved_different_issue",
+      "display": "Original exterior condition resolved; another is visible"
+    }
+  ],
+  "disclaimer": "This exterior-light survey records visible conditions from the listed photos and time. It is not an electrical, lighting-design, code, safety, or professional certification."
+}

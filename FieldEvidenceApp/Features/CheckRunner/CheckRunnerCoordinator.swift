@@ -511,6 +511,7 @@ final class CheckRunnerCoordinator {
                 await diagnosticsStore?.increment(.recheckCompleted)
             }
         }
+        finalizationAttempt = nil
         return result
     }
 
