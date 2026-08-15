@@ -239,10 +239,12 @@ final class S8_1SecondPackZeroForkTests: XCTestCase {
         XCTAssertEqual(rendered.data, rerendered.data)
         XCTAssertEqual(rendered.sha256, rerendered.sha256)
         XCTAssertGreaterThan(rendered.pageCount, 0)
-        let pdfText = rendered.inspection.pages
-            .flatMap { $0 }
-            .compactMap(\.text)
-            .joined(separator: "\n")
+        let pdfText = normalizedWhitespace(
+            rendered.inspection.pages
+                .flatMap { $0 }
+                .compactMap(\.text)
+                .joined(separator: "\n")
+        )
         for expected in [
             "Lighting survey report",
             "Exterior Light: Parking Lot East",
@@ -255,10 +257,16 @@ final class S8_1SecondPackZeroForkTests: XCTestCase {
             "Exterior-light survey — Exterior-light condition observed",
             pack.disclaimer,
         ] {
-            XCTAssertTrue(pdfText.contains(expected), "Missing PDF copy: \(expected)")
+            XCTAssertTrue(
+                pdfText.contains(normalizedWhitespace(expected)),
+                "Missing PDF copy: \(expected)"
+            )
         }
         for forbidden in ["Wide view", "Close view", "Section appears dark"] {
-            XCTAssertFalse(pdfText.contains(forbidden), "Production fallback leaked: \(forbidden)")
+            XCTAssertFalse(
+                pdfText.contains(normalizedWhitespace(forbidden)),
+                "Production fallback leaked: \(forbidden)"
+            )
         }
 
         let freshObservedAt = recheckCompletedAt.addingTimeInterval(120)
@@ -416,6 +424,10 @@ final class S8_1SecondPackZeroForkTests: XCTestCase {
 
     private func lowercaseSHA256(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func normalizedWhitespace(_ value: String) -> String {
+        value.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
     }
 }
 
