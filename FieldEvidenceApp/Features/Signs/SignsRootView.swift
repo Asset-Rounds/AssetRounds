@@ -27,6 +27,7 @@ struct SignsRootView: View {
     private enum Route: Hashable {
         case sample
         case newSign
+        case settings
         case check
         case report(UUID)
         case reportHistory(UUID)
@@ -182,6 +183,14 @@ struct SignsRootView: View {
                             loadErrorMessage = "Saved sign data could not be opened."
                         }
                     }
+                case .settings:
+                    SettingsPlaceholderView(
+                        modelContext: modelContext,
+                        generationRootURL: generationRootURL,
+                        purchaseCoordinator: purchaseCoordinator,
+                        lifecycleCoordinator: lifecycleCoordinator,
+                        restoreDataBackup: replaceDataBackup
+                    )
                 case .check:
                     if let snapshot {
                         PreflightView(
@@ -265,14 +274,8 @@ struct SignsRootView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        SettingsPlaceholderView(
-                            modelContext: modelContext,
-                            generationRootURL: generationRootURL,
-                            purchaseCoordinator: purchaseCoordinator,
-                            lifecycleCoordinator: lifecycleCoordinator,
-                            restoreDataBackup: replaceDataBackup
-                        )
+                    Button {
+                        path.append(Route.settings)
                     } label: {
                         Image(systemName: "gearshape")
                             .frame(
