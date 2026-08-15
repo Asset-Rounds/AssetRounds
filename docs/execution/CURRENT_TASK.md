@@ -59,6 +59,10 @@ Verification-only proof paths:
 - `FieldEvidenceAppTests/S8_2GoldenAccessibilityTests.swift`
 - `FieldEvidenceAppUITests/S8_2GoldenAccessibilityUITests.swift`
 
+Exact hosted-evidence production correction path authorized by failed exact-head run `31881179721`:
+
+- `FieldEvidenceApp/Features/CheckRunner/PreflightView.swift`
+
 Standing selector exception:
 
 - `Scripts/ci-selection.json`
