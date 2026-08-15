@@ -41,7 +41,7 @@ final class S8_4FeedbackUITests: XCTestCase {
 
         let attach = element("s8.4.feedback.attach", in: app)
         scroll(attach, in: app)
-        assertControl(attach, label: "Attach")
+        assertControl(attach, label: "Attach", in: app)
         attach.tap()
         assertComposer(in: app, attachmentCount: "1")
         closeComposer(in: app)
@@ -52,7 +52,7 @@ final class S8_4FeedbackUITests: XCTestCase {
 
         let doNotAttach = element("s8.4.feedback.do-not-attach", in: app)
         scroll(doNotAttach, in: app)
-        assertControl(doNotAttach, label: "Don't Attach")
+        assertControl(doNotAttach, label: "Don't Attach", in: app)
         doNotAttach.tap()
         assertComposer(in: app, attachmentCount: "0")
         closeComposer(in: app)
@@ -63,7 +63,7 @@ final class S8_4FeedbackUITests: XCTestCase {
 
         let copy = element("s8.4.feedback.copy-address", in: app)
         scroll(copy, in: app)
-        assertControl(copy, label: "Copy support address")
+        assertControl(copy, label: "Copy support address", in: app)
         copy.tap()
         let copied = element("s8.4.feedback.status", in: app)
         scroll(copied, in: app)
@@ -71,12 +71,12 @@ final class S8_4FeedbackUITests: XCTestCase {
 
         let save = element("s8.4.feedback.save-diagnostics", in: app)
         scroll(save, in: app)
-        assertControl(save, label: "Save diagnostics to Files")
+        assertControl(save, label: "Save diagnostics to Files", in: app)
         save.tap()
         dismissFiles(in: app)
         let terminalCopy = element("s8.4.feedback.copy-address", in: app)
         scroll(terminalCopy, in: app)
-        assertControl(terminalCopy, label: "Copy support address")
+        assertControl(terminalCopy, label: "Copy support address", in: app)
 
         let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         screenshot.name = "S8.4 explicit feedback consent and fallback at Accessibility XXXL"
@@ -134,7 +134,7 @@ final class S8_4FeedbackUITests: XCTestCase {
         )
         let entry = element("s8.4.feedback.settings-entry", in: app)
         scroll(entry, in: app)
-        assertControl(entry, label: "Send feedback")
+        assertControl(entry, label: "Send feedback", in: app)
         entry.tap()
         XCTAssertTrue(
             element("s8.4.feedback.screen", in: app)
@@ -175,7 +175,7 @@ final class S8_4FeedbackUITests: XCTestCase {
     private func closeComposer(in app: XCUIApplication) {
         let done = element("s8.4.mail.done", in: app)
         scroll(done, in: app)
-        assertControl(done, label: "Done")
+        assertControl(done, label: "Done", in: app)
         done.tap()
         XCTAssertFalse(
             element("s8.4.mail.screen", in: app)
@@ -184,11 +184,18 @@ final class S8_4FeedbackUITests: XCTestCase {
     }
 
     @MainActor
-    private func assertControl(_ value: XCUIElement, label: String) {
+    private func assertControl(
+        _ value: XCUIElement,
+        label: String,
+        in app: XCUIApplication
+    ) {
         XCTAssertTrue(value.exists)
         XCTAssertEqual(value.label, label)
         XCTAssertEqual(value.elementType, .button)
         XCTAssertTrue(value.isEnabled)
+        if !value.isHittable {
+            scroll(value, in: app)
+        }
         XCTAssertTrue(value.isHittable)
         XCTAssertGreaterThanOrEqual(value.frame.width + 0.001, 44)
         XCTAssertGreaterThanOrEqual(value.frame.height + 0.001, 44)
