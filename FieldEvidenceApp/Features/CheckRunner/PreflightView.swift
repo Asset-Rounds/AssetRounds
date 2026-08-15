@@ -211,11 +211,15 @@ struct PreflightView: View {
 
             Toggle(isOn: $isTimeZoneConfirmed) {
                 Text("I confirm this is the site's time zone.")
-                    .frame(
-                        minHeight: DesignTokens.Control.minimumHitSize,
-                        alignment: .leading
-                    )
             }
+                .frame(
+                    minWidth: DesignTokens.Control.minimumHitSize,
+                    maxWidth: .infinity,
+                    minHeight: DesignTokens.Control.minimumHitSize,
+                    alignment: .leading
+                )
+                .contentShape(Rectangle())
+                .accessibilityElement(children: .combine)
                 .disabled(!hasValidEnteredTimeZone)
                 .accessibilityHint(
                     hasValidEnteredTimeZone
