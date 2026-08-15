@@ -2185,3 +2185,54 @@ The exact implementation envelope is two production paths, two test paths, and t
 - Mandatory S8.1 integration revisit remains: a prior-card `CheckRunnerCoordinator.finalizationAttempt` can survive a completed recheck and misclassify a same-session fresh check; S8.1 must exercise and correct that reusable seam before release.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future phase-close commit.
 - Next unstarted task: `S8.1`. Program autopilot must first commit and non-force push this HANDOFF-only S7 phase-close, accept exact-head phase CI, non-force fast-forward `main` to that exact green verification head, accept exact-main UI-enabled CI, reprove both refs, create `phase/s8-quality` from green main, hydrate only S8.1, and run fresh S8.1 G0.
+
+## `S8.1` — `complete` — `2026-08-15T05:42:00-04:00`
+
+- Phase / branch / position / boundary: `S8` / `phase/s8-quality` / `1 of 4` / `no`.
+- Outcome: proved one exact nonshipping exterior-light pack fixture through the existing loader, check/work/recheck runner, finalization, canonical snapshot validator, and deterministic PDF renderer with no production second-pack branch; corrected the reusable same-coordinator completed-recheck attempt lifetime defect.
+- Immutable phase-main base: `P=0b1e506dd71ba704cbfb48787d6cfa1731024d83`; remote `main` remained exactly P throughout S8.1.
+- Integrated/card base and predecessor: `M=P`; accepted S7 phase run `31874580940` / job `94988283092` and exact-main run `31875162640` / job `94989692369` both succeeded at P with F25/UI enabled.
+- Observed task-start authority: initial `A1=97812d3228daa0a8226f155200a8422ead05b6bb`, loader-scope correction `A2=0f764668d6ec124e6873f37a1b551228368e9e5a`, and final schema authority `A3=b1bf9d932df649cd7820a5429a1c9ad9d655ae86`; each directly parents the prior authority head and `P..A3` changed only `docs/execution/CURRENT_TASK.md`.
+- First implementation: `I=b3420922b024f0232237da08e789a4d7516cde01`; test-only corrections `I2=322a3d44d1b42367f54a057c7e95befa26b5e26e` and accepted `I3=E=d0e8762fffbcaf6e6f9076c26ed50e5de2bf254e`; no distinct infrastructure K.
+- Exact selector: S8.1 N8/UI disabled; compact JSON plus LF, 294 bytes, SHA-256 `08F058C46FD35D3904FD9636E86F06E136926110F5FBB3A39987B8DA92D1A54A`; exact selector `FieldEvidenceAppTests/S8_1SecondPackZeroForkTests`, UI selector empty.
+- Accepted run/job/URLs: `31877304310` / `94994834315`; `https://github.com/palatis3/AssetRounds/actions/runs/31877304310`; `https://github.com/palatis3/AssetRounds/actions/runs/31877304310/job/94994834315`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.2 build `23C54`; UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`; initial Simulator state `Shutdown`.
+- Budgets: setup `15/300` s; Simulator readiness `74/900` s; build step `195/600` s; unit step `59/900` s with selected tests about `1.355` s; UI disabled `0/0` s; artifact `3` s and setup-plus-artifact `18/300` s; selected total `273/2400` s; all watchdogs passed.
+- Artifact: `ios-ci-31877304310-1`, ID `9245126681`, size `124545`, GitHub digest `sha256:68949b3c7fe8aba17fbf76d77e91139091914af224d92abc7ef82e04ef15266c`; `SHA256SUMS.txt` SHA-256 `3A040983C33484C4595CE84FCAB6E03B9ADDE6E2EA98DDD3659A8C9C1CBE714E`; all `57/57` listed payloads independently matched.
+- Accepted logs: `build-smoke.log` SHA-256 `6E3600D003B2F1C3B8691FF545257DED6C788C52438645BFF04940632DFA8710`; `test-smoke.log` `2EB82D7E92C2BA2B55A07C3F3150A7F0E482AC25733D516DA309D40E947BD186`.
+- Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; both exited 0. UI was disabled and no UI command/evidence was accepted.
+
+### Changed paths
+
+- `FieldEvidenceApp/Domain/Packs/SignPackLoader.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift`
+- `FieldEvidenceAppTests/Fixtures/S8_1ExteriorLightPackV1.json`
+- `FieldEvidenceAppTests/S8_1SecondPackZeroForkTests.swift`
+- `Scripts/ci-selection.json`
+
+The exact implementation envelope is two narrowly activated reusable production seams, two test-only paths, and the standing selector exception. The exterior fixture remains absent from the app bundle; no production resource, pack selector, route, service, registry, schema, renderer/finalization branch, project, capability, commerce/data-right, signing, deployment, or release behavior changed.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`2/2`): `testClosedLoaderAcceptsExactTestFixtureAndRejectsUnknownAuthority`, 0.025 s; `testFixtureFlowsThroughCurrentHistoryPDFAndClearsCompletedRecheckAttempt`, 1.330 s.
+- UI: correctly disabled for N8; no UI test, result bundle, or screenshot was required or accepted.
+
+### Acceptance results
+
+- GOLDEN `PASS`: the exact fixture's exterior-light nouns, evidence-purpose displays, issue label, check/recheck stage and outcome displays, acknowledgements, and disclaimer froze into current/history snapshot authority and deterministic PDF inspection through the existing production interfaces.
+- Zero-fork `PASS`: generic `load(data:)` admits only a closed internally valid schema-1 pack, while `loadBundled()` still exact-compares to `.illuminatedSignV1`; the fixture is test-bundle-only and no runtime pack lookup or second-pack production behavior exists.
+- ALT-1 `PASS`: unknown members and registry substitutions fail closed; exact supplied-mutation replay remains idempotent; after a completed recheck the same coordinator creates a fresh no-visible check rather than reusing stale recheck identifiers.
+- Renderer/authority `PASS`: canonical snapshot validation bound the fixture ID/version and stored copy; repeated PDF renders from the validator-issued value were byte-identical after the in-memory registry variable changed to the production pack.
+
+### Candidate recovery provenance
+
+- Run `31876686374` / job `94993367208` at I built and executed both tests; loader proof passed and the full flow completed, but three test-only PDF text assertions compared across renderer line-wrap fragments. Direct-child I2 normalized only layout whitespace.
+- Run `31876991684` / job `94994102314` at I2 built and executed both tests; three assertions still expected title case for every noun word and did not account for a legal line break after a hyphen. Direct-child E aligned those exact expectations with `posixTitle` and the renderer's wrapped inspection representation without changing product code or accepted copy.
+- No failed run ID was rerun or accepted.
+
+### Known bugs, blockers, and next task
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S8.1 product/card blockers: `NONE`.
+- The prior mandatory S8.1 integration revisit is resolved: `finalizationAttempt` now survives in-flight retry/replay but clears only after authoritative finalization/report proof and diagnostics, and the accepted deterministic recheck→fresh-check regression passes.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
+- Next unstarted task: `S8.2`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S8.2 `CURRENT_TASK.md`, then must run fresh S8.2 G0. Do not mutate main.
