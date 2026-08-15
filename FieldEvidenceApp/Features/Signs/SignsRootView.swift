@@ -277,14 +277,14 @@ struct SignsRootView: View {
                     Button {
                         path.append(Route.settings)
                     } label: {
-                        Image(systemName: "gearshape")
+                        Label("Settings", systemImage: "gearshape")
+                            .labelStyle(.iconOnly)
                             .frame(
                                 minWidth: DesignTokens.Control.minimumHitSize,
                                 minHeight: DesignTokens.Control.minimumHitSize
                             )
                             .contentShape(Rectangle())
                     }
-                    .accessibilityLabel("Settings")
                     .accessibilityIdentifier(AppShellView.settingsButtonAccessibilityIdentifier)
                 }
             }
