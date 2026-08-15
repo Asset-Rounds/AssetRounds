@@ -275,6 +275,7 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
         XCTAssertTrue(element("s3.preflight.screen", in: app)
             .waitForExistence(timeout: 20))
         setToggle("s3.preflight.after-dark", in: app)
+        app.swipeUp()
         setToggle("s3.preflight.safe-position", in: app)
         let begin = element("s3.preflight.begin", in: app)
         scroll(begin, in: app)
