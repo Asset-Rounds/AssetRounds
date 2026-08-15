@@ -2132,3 +2132,56 @@ The exact implementation envelope is nine production paths, two test paths, and 
 - Mandatory S8.1 integration revisit remains: a same-session fresh check after a completed recheck can reuse the prior `CheckRunnerCoordinator.finalizationAttempt`, misclassify supplied no-visible identifiers as recheck identifiers, and show `Check not saved`; S8.1 must exercise and correct that reusable seam before release.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
 - Next unstarted task: `S7.5`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S7.5 `CURRENT_TASK.md`, then must run fresh S7.5 G0. Do not mutate main before the S7.5 phase boundary.
+
+## `S7.5` — `complete` — `2026-08-15T04:26:51-04:00`
+
+- Phase / branch / position / boundary: `S7` / `phase/s7-commerce` / `5 of 5` / `yes`.
+- Outcome: proved that former-paid inactivity blocks only new sign/check/work/recheck value while preserving every existing-data right and one exact stored-draft completion; proved that Erase removes only device-local commerce/evaluation/data authority without calling StoreKit sync, cancel, manage, or finish; and proved that an ordinary cold processor refresh can rediscover still-active verified access while the erased seven-model generation remains empty.
+- Immutable phase-main base: `P=5f50551f61bc363b430d4e877e462cb47865065d`; remote `main` remained exactly P throughout S7.5 implementation and accepted product verification.
+- Integrated/card base and predecessor: `M=826b1c2193869c7282611300df31a56c51a56da9`; accepted S7.4 run `31870467506` / job `94978205243`, F25/UI enabled, build plus `4/4` units plus `1/1` UI green.
+- Observed task-start authority: `A=a094dead7f30513a44c6337e73278765bf945fcf`; `A^=M`, and `M..A` changed only append-only `docs/execution/HANDOFF.md` plus immediate-next `docs/execution/CURRENT_TASK.md`.
+- First implementation: `I=11ca338da6449d86e4843c0727580f03ec4614d1`; corrections `I2=ce2733622124d48f09f3f93b4bbe592c906c8894` and `I3=7e8e897c3b1ad5778eee00bf738e9cb563a509b3`; accepted implementation and exact verification head `E=56db1fc1a65b847502d1109df47cbbf1f9a6c357`; no distinct infrastructure K.
+- Exact selector: S7.5 F25/UI enabled; compact JSON plus LF, 349 bytes, SHA-256 `C87DCB47F4B18FB3B6E4F637FAB459CB7F026DC35F606505E5CC61307673C62F`; exact selectors `FieldEvidenceAppTests/S7_5DataRightsIntegrationTests` and `FieldEvidenceAppUITests/S7_5LapseRightsUITests`.
+- Accepted run/job/URLs: `31873770338` / `94986281264`; `https://github.com/palatis3/AssetRounds/actions/runs/31873770338`; `https://github.com/palatis3/AssetRounds/actions/runs/31873770338/job/94986281264`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.2; UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`; initial Simulator state `Shutdown`.
+- Budgets: setup `24/300` s; Simulator readiness `80/900` s; build step `220/900` s; unit step `162/1200` s with selected tests `0.434` s; UI step `410/1800` s with selected test `345.419` s; artifact `1` s and setup-plus-artifact `25/300` s; selected total `825/4500` s; all watchdogs passed.
+- Artifact: `ios-ci-31873770338-1`, ID `9244316093`, size `5613424`, GitHub digest `sha256:cd5806374c8f4933a2474cea43884a03d3659739789fcaeee602e133edc65c21`; `SHA256SUMS.txt` SHA-256 `F4377E0C45E030ED8A5C22F1772C098C2B8214D43D500B716A63A7D5B0D95EBA`; all `95/95` listed payloads independently matched with no malformed, duplicate, unsafe, missing, mismatched, extra, or unlisted payload.
+- Accepted logs: `build-smoke.log` SHA-256 `9D6D4F70E4664C14C035FDF212B895E6314694A5DE09A7B4279CA49173E705C1`; `test-smoke.log` `EBE0B44A80161D328A006DE4C86C802F70717DC575EF7F1433FC063431481705`; `ui-smoke.log` `49D71A06ED5F043A7EFEA1AF4C9A6958EEE96CA668204FF1B9C209B623B8BA82`.
+- Terminal evidence: `ui-final.png`, `1206×2622`, 417478 bytes, SHA-256 `4C0987498E88C6D38B253BA30EC7A568837547B44F86D4380216E605D0B2EC92`; visual PASS at Accessibility XXXL showed the terminal Erase All independence confirmation with reachable controls and no error, keyboard, or external sheet.
+- Exact commands: `bash Scripts/run-with-timeout.sh 900 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 1200 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 1800 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift`
+- `FieldEvidenceAppTests/S7_5DataRightsIntegrationTests.swift`
+- `FieldEvidenceAppUITests/S7_5LapseRightsUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact implementation envelope is two production paths, two test paths, and the standing selector exception. Production added only a source-compatible injected entitlement runtime for deterministic ordinary-refresh proof and capture-root configuration on every freshly constructed check runner; no entitlement reducer/store/product, access policy, report/backup/delete/Erase authority, schema, fixture, project, capability, signing, deployment, or release behavior changed.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`2/2`): `testActiveEraseClearsLocalAuthorityThenOrdinaryRefreshRediscovers`; `testFormerPaidBlocksOnlyNewValueAndKeepsExactDraftAndDataServices`.
+- UI `PASS` (`1/1`): `testLapseKeepsExistingRightsAndDraftThenShowsEraseIndependenceAtXXXL`, 345.419 s.
+
+### Acceptance results
+
+- GOLDEN `PASS`: former-paid inactive authority blocked new signs and new check/work/recheck value through the same closable paywall while read/history/preview/share/Files export/backup/PDF retry/correction/delete remained reachable and the exact pre-existing draft completed to a report.
+- ALT-1 `PASS`: active-subscriber Erase made zero sync/cancel/manage/finish calls, cleared local commerce/evaluation and the seven-model generation, then an ordinary cold current-entitlement refresh durably restored entitled access without restoring any erased Asset, Report, EvidenceFile, or counted root.
+- Existing-data/repository `PASS`: exact draft continuation remained repository validated; whole-sign deletion and backup/report services stayed commerce-agnostic; Erase removed local cache and diagnostics without altering Apple subscription state.
+- UI/accessibility `PASS`: the bounded Accessibility XXXL flow purchased, lapsed, completed its retained draft, exercised existing-data surfaces, proved new-value paywalls and Erase independence, retained 44-point reachability, and produced exactly one terminal in-app screenshot.
+- Scope `PASS`: no automatic `AppStore.sync()`, subscription cancellation/account/remote erase, guessed offline entitlement, entitlement import, existing-data gate, evaluation preservation, new product/price/schema/capability, S8 behavior, signing, TestFlight, submission, deployment, or release change was added.
+
+### Candidate recovery provenance
+
+- Run `31871780684` / job `94981452338` at I built, then the active-Erase unit threw `.writeFailed` because raw sub-millisecond `Date()` values could not equal the entitlement store's canonical millisecond reopen; direct-child I2 used one canonical whole-second fixture instant.
+- Run `31872413835` / job `94982998175` at I2 built, then the same unit threw `.invalidAuthority` because the test supplied a random UserDefaults suite instead of the canonical app bundle ID required by Erase; direct-child I3 supplied `com.palatis3.fieldrecord`.
+- Run `31872838760` / job `94983995567` at I3 built and passed `2/2` units, then UI receipt save failed with AX truth **Check not saved**: a lifecycle refresh had rebuilt an unconfigured runner while the persisted draft route remained open. Direct-child E configures each newly constructed runner with the retained generation capture root. No failed run ID was rerun or accepted.
+
+### Known bugs, blockers, and boundary state
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S7.5 product/card blockers: `NONE`.
+- Mandatory S8.1 integration revisit remains: a prior-card `CheckRunnerCoordinator.finalizationAttempt` can survive a completed recheck and misclassify a same-session fresh check; S8.1 must exercise and correct that reusable seam before release.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future phase-close commit.
+- Next unstarted task: `S8.1`. Program autopilot must first commit and non-force push this HANDOFF-only S7 phase-close, accept exact-head phase CI, non-force fast-forward `main` to that exact green verification head, accept exact-main UI-enabled CI, reprove both refs, create `phase/s8-quality` from green main, hydrate only S8.1, and run fresh S8.1 G0.
