@@ -152,7 +152,6 @@ struct NewSignView: View {
                         .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                     }
-                    .accessibilityIdentifier(Self.newSiteAccessibilityIdentifier)
                 } else if let selectedSite {
                     WorklightCard {
                         Text("Using \(selectedSite.label)")
