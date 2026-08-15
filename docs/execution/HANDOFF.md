@@ -2291,3 +2291,60 @@ The exact accepted envelope is three mechanically authorized accessibility corre
 - `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S8.2 product/card blockers: `NONE`.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
 - Next unstarted task: `S8.3`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S8.3 `CURRENT_TASK.md`, then must run fresh S8.3 G0. Do not mutate main.
+
+## `S8.3` — `complete` — `2026-08-15T12:59:01-04:00`
+
+- Phase / branch / position / boundary: `S8` / `phase/s8-quality` / `3 of 4` / `no`.
+- Outcome: added privacy-safe fixed-message logging seams, a bounded MetricKit summary adapter, and an owner-invoked Settings diagnostics preview/Files export whose canonical JSON contains only the six frozen top-level keys and explicitly non-authoritative lower-bound counters.
+- Immutable phase-main base: `P=0b1e506dd71ba704cbfb48787d6cfa1731024d83`; remote `main` remained exactly P throughout S8.3.
+- Integrated/card base and predecessor: `M=38e831412bc55389b76bf1ca17a4ee549ae6ef60`; accepted S8.2 run `31894016378` / job `95034408297`, F25/UI enabled, build plus `1/1` unit plus `1/1` UI green.
+- Observed task-start authority: `A=131129d0d027709257fdf2a7271656c38afbea85`; `A^=M`, and `M..A` changed only append-only `docs/execution/HANDOFF.md` plus immediate-next `docs/execution/CURRENT_TASK.md`.
+- First implementation: `I=76436c6cc32cb2881e6afc67818b148b89ebaba5`; accepted test-only correction and exact verification head `I2=E=721acf69c74224919fa30fa9019a0e2dd1ffb0c4`; no distinct infrastructure K.
+- Exact selector: S8.3 P12/UI enabled; compact JSON plus LF, 348 bytes, SHA-256 `A3F9897C658B273AC991A30CFFF880458953682BF57516AEA552C4292F3A7626`; exact selectors `FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests` and `FieldEvidenceAppUITests/S8_3DiagnosticExportUITests`.
+- Accepted run/job/URLs: `31896497197` / `95040508518`; `https://github.com/palatis3/AssetRounds/actions/runs/31896497197`; `https://github.com/palatis3/AssetRounds/actions/runs/31896497197/job/95040508518`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.2 build `23C54`; UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`; initial Simulator state `Shutdown`.
+- Budgets: setup `16/300` s; Simulator readiness `82/900` s; build step `290/600` s; unit step `45/900` s with selected tests about `0.030` s; UI step `121/900` s with selected test `72.736` s; artifact `1` s and setup-plus-artifact `17/300` s; selected total `477/3300` s; all watchdogs passed.
+- Artifact: `ios-ci-31896497197-1`, ID `9250030547`, size `1590841`, GitHub digest `sha256:933f6ec44dc71fbdf617e5e8404b0a2de741764b035bc5bd1819ad147322a3b6`, expires `2026-08-29T16:55:50Z`; `SHA256SUMS.txt` SHA-256 `7B9640A2FF8DBD159DC1154BE740574917A84A7FA92134F5D7B91872D2739998`; all `95/95` listed payloads independently matched.
+- Accepted logs: `build-smoke.log` SHA-256 `AE3019678EF02EC63721112D2161DF096433E19FEB6BF687F2E3E7F66FAE4CCB`; `test-smoke.log` `3BB650CBC515A49B48769316C7A405953FB1D9D1CF6A9BC639F80BC381B6B585`; `ui-smoke.log` `E4A8142E18999C73606589F8A45F2F31AE4B71063159D3007E1B362DD17D3D55`.
+- Terminal evidence: exactly one `ui-final.png`, `1206x2622`, 334398 bytes, SHA-256 `C7125AC5F402D877816042F263A3BC46189F8F29335EEB2B916C64DF28D749B6`; visual PASS showed the terminal in-app Diagnostics preview in Accessibility XXXL Dark with the best-effort/non-authoritative copy and no error, keyboard, upload, or external sheet.
+- Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
+- `FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift`
+- `FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsLogger.swift`
+- `FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift`
+- `FieldEvidenceApp/Infrastructure/Diagnostics/MetricKitDiagnosticsAdapter.swift`
+- `FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests.swift`
+- `FieldEvidenceAppUITests/S8_3DiagnosticExportUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact accepted envelope is eight production paths, two test paths, and the standing selector exception. No analytics/third-party SDK, remote logging/upload, OSLog readback, raw MetricKit persistence/export, domain/payment/access decision, schema/entity/dependency/permission, feedback/mail/support-address behavior, signing, deployment, or release behavior was added.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`2/2`): `testBoundedMetricsAndFailedCountersRemainNonAuthoritative`, 0.025 s; `testCanonicalExportContainsOnlyAllowedControlledValues`, 0.005 s.
+- UI `PASS` (`1/1`): `testOwnerReviewsMinimalDiagnosticsThenOpensFilesAtXXXL`, 72.736 s.
+
+### Acceptance results
+
+- GOLDEN `PASS`: controlled counter, system, and MetricKit values produced byte-stable canonical allowed keys; hostile customer/path/hash/report/transaction strings were absent; injected counter persistence failure remained non-authoritative and did not gate or roll back app truth.
+- ALT-1 `PASS`: zero counters plus nil MetricKit produced a valid minimal preview/export with explicit best-effort lower-bound copy and no exact-once, cohort, paid-state, or completeness claim.
+- Privacy `PASS`: app-authored logger events are a closed no-string set; MetricKit reduction retains only bounded crash/hang, four launch-time buckets, and maximum peak bytes; export contains exactly `app,counters,device,diagnosticSchemaVersion,generatedAt,metricKit` and never reads or exports OSLog/raw payloads.
+- Owner invocation/UI `PASS`: Settings alone opened the deterministic preview; the user explicitly invoked the real system Files route; no package was written before that action, and the relaunched terminal in-app screen supplied exactly one screenshot at Accessibility XXXL Dark.
+- Scope `PASS`: S8.3 reused existing diagnostics/Settings/Files seams and made no S8.4 feedback, mail, attachment-consent, support-address, or fallback change.
+
+### Candidate recovery provenance
+
+- Before I, static compile gating found the unit expectation still named removed logger case `.invalidMetricValueDiscarded`; the test was corrected to the exact `.metricValueDiscarded` case before dispatch.
+- Run `31895943753` / job `95039163086` at I built and passed `2/2` units, then UI proved the Files exporter appeared but delayed before tapping a transient app-owned `Cancel` query that had moved/disappeared; evidence validation failed only derivatively. Direct-child E retained the exact Files-route existence proof, terminated, relaunched, reopened the same diagnostics preview, and took the required terminal in-app screenshot without weakening export acceptance. No failed run ID was rerun or accepted.
+
+### Known bugs, blockers, and next task
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S8.3 product/card blockers: `NONE`.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
+- Next unstarted task: `S8.4`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S8.4 `CURRENT_TASK.md`, then must run fresh S8.4 G0. Do not mutate main before accepted S8.4 boundary integration.
