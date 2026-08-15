@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A00000000000000000000014 /* FieldEvidence.storekit in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000013 /* FieldEvidence.storekit */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		A00000000000000000000040 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -241,6 +245,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A00000000000000000000014 /* FieldEvidence.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

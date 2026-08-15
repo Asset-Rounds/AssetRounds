@@ -1,11 +1,24 @@
 import CoreGraphics
+import StoreKitTest
 import XCTest
 
 final class S7_2PaywallUITests: XCTestCase {
+    private var storeKitSession: SKTestSession?
+
     override func setUpWithError() throws { continueAfterFailure = false }
 
     @MainActor
     func testMonthlyPaywallPurchasePreservesLocalHistoryAtXXXL() throws {
+        let fixtureURL = try XCTUnwrap(Bundle(for: Self.self).url(
+            forResource: "FieldEvidence",
+            withExtension: "storekit"
+        ))
+        let session = try SKTestSession(contentsOf: fixtureURL)
+        session.resetToDefaultState()
+        session.clearTransactions()
+        session.disableDialogs = false
+        storeKitSession = session
+
         let app = XCUIApplication()
         app.launchArguments = [
             "-AppleInterfaceStyle", "Light",
