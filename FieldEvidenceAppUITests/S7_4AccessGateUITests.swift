@@ -184,8 +184,24 @@ private extension S7_4AccessGateUITests {
     func toggle(_ id: String, in app: XCUIApplication) {
         let value = element(id, in: app)
         scroll(value, in: app)
-        value.tap()
-        waitForValue("1", element: value, timeout: 10)
+        value.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)
+        ).tap()
+        if XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "1"),
+            object: value
+        )], timeout: 10) == .completed {
+            return
+        }
+
+        let retry = element(id, in: app)
+        scroll(retry, in: app)
+        if retry.value as? String != "1" {
+            retry.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)
+            ).tap()
+        }
+        waitForValue("1", element: retry, timeout: 10)
     }
 
     @MainActor
