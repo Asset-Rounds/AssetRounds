@@ -102,6 +102,7 @@ struct SignsRootView: View {
                 injectsLowStorageFailureOnceForUITest,
             draftAccessState: { lifecycleCoordinator.draftAccessState }
         )
+        runnerCoordinator.configureCapture(generationRootURL: generationRootURL)
         checkRunnerCoordinator = runnerCoordinator
         let deliveryCoordinator = try? ReportDeliveryCoordinator(
             modelContext: modelContext,
