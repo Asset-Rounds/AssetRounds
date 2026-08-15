@@ -33,6 +33,7 @@ final class S7_2PaywallUITests: XCTestCase {
             .waitForExistence(timeout: 30))
         tap("s2.welcome.add-first-sign", in: app)
         enter("Paywall Site", into: "s2.new-sign.site-label", in: app)
+        dismissKeyboard(in: app)
         enter("Paywall Sign", into: "s2.new-sign.sign-label", in: app)
         dismissKeyboard(in: app)
         tap("s2.new-sign.save", in: app)
