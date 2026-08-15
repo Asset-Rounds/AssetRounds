@@ -142,6 +142,14 @@ struct NewSignView: View {
                             .autocorrectionDisabled()
 
                             Toggle("I confirm this exact time-zone identifier", isOn: $isTimeZoneConfirmed)
+                                .frame(
+                                    minWidth: DesignTokens.Control.minimumHitSize,
+                                    maxWidth: .infinity,
+                                    minHeight: DesignTokens.Control.minimumHitSize,
+                                    alignment: .leading
+                                )
+                                .contentShape(.interaction, Rectangle())
+                                .contentShape(.accessibility, Rectangle())
                                 .tint(DesignTokens.Colors.interactionAccent)
                                 .accessibilityIdentifier(Self.timeZoneConfirmAccessibilityIdentifier)
                                 .accessibilityFocused(
