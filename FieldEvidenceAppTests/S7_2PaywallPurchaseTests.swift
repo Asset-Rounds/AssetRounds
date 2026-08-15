@@ -189,6 +189,38 @@ final class S7_2PaywallPurchaseTests: XCTestCase {
         let failedDiagnostics = await failedHarness.diagnostics.snapshot()
         XCTAssertEqual(failedDiagnostics, .zero)
     }
+
+    func testStoreKitReservationPublishesAfterPresentationAndCancelsStaleState() async throws {
+        let harness = try makeHarness("storekit-reservation")
+        defer { try? FileManager.default.removeItem(at: harness.root) }
+
+        let published = makeCoordinator(harness.diagnostics)
+        await published.present(token: UUID())
+        XCTAssertTrue(published.storeKitPurchaseStarted(
+            productID: EntitlementReducerV1.productID
+        ))
+        XCTAssertFalse(published.isPurchasing)
+        XCTAssertEqual(published.purchaseState, .idle)
+        XCTAssertFalse(published.storeKitPurchaseStarted(
+            productID: EntitlementReducerV1.productID
+        ))
+        try await Task.sleep(nanoseconds: 600_000_000)
+        XCTAssertTrue(published.isPurchasing)
+        XCTAssertEqual(published.purchaseState, .purchasing)
+        await published.complete(.cancelled)
+        XCTAssertFalse(published.isPurchasing)
+        XCTAssertEqual(published.purchaseState, .cancelled)
+
+        let completedEarly = makeCoordinator(harness.diagnostics)
+        await completedEarly.present(token: UUID())
+        XCTAssertTrue(completedEarly.storeKitPurchaseStarted(
+            productID: EntitlementReducerV1.productID
+        ))
+        await completedEarly.complete(.pending)
+        try await Task.sleep(nanoseconds: 600_000_000)
+        XCTAssertFalse(completedEarly.isPurchasing)
+        XCTAssertEqual(completedEarly.purchaseState, .pending)
+    }
 }
 
 private extension S7_2PaywallPurchaseTests {

@@ -109,6 +109,13 @@ enum PaywallPurchaseAttemptV1 {
 
 @MainActor
 final class StoreKitPurchaseCoordinator: ObservableObject {
+    private struct PurchaseReservation: Equatable {
+        let id: UUID
+        let productID: String
+    }
+
+    private static let purchasePresentationDelayNanoseconds: UInt64 = 500_000_000
+
     typealias PresentationLoader = @MainActor () async throws
         -> PaywallProductPresentationV1
     typealias VerifiedTransactionProcessor = @MainActor (Transaction) async
@@ -128,7 +135,8 @@ final class StoreKitPurchaseCoordinator: ObservableObject {
 
     private var presentationTokens = Set<UUID>()
     private var isLoading = false
-    private var acceptsPurchaseCompletion = false
+    private var purchaseReservation: PurchaseReservation?
+    private var purchaseStatePublicationTask: Task<Void, Never>?
 
     init(
         processor: StoreKitTransactionProcessor?,
@@ -169,36 +177,71 @@ final class StoreKitPurchaseCoordinator: ObservableObject {
         await diagnosticsStore.increment(.paywallPresented)
         purchaseState = .idle
         isPurchasing = false
-        acceptsPurchaseCompletion = false
+        clearPurchaseReservation()
         await reloadProduct()
     }
 
     func retryProductLoad() async {
+        clearPurchaseReservation()
+        isPurchasing = false
         purchaseState = .idle
         await reloadProduct()
     }
 
     @discardableResult
     func purchaseStarted(productID: String) -> Bool {
+        guard let reservation = reservePurchase(productID: productID) else {
+            return false
+        }
+        publishPurchasing(for: reservation)
+        return true
+    }
+
+    @discardableResult
+    func storeKitPurchaseStarted(productID: String) -> Bool {
+        guard let reservation = reservePurchase(productID: productID) else {
+            return false
+        }
+        purchaseStatePublicationTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(
+                    nanoseconds: Self.purchasePresentationDelayNanoseconds
+                )
+            } catch {
+                return
+            }
+            self?.publishPurchasing(for: reservation)
+        }
+        return true
+    }
+
+    private func reservePurchase(productID: String) -> PurchaseReservation? {
         guard productID == EntitlementReducerV1.productID,
               loadState == .available,
               productPresentation?.productID == productID,
               catalogLinks != nil,
               hasInstalledProcessor,
+              purchaseReservation == nil,
               !isPurchasing else {
-            return false
+            return nil
         }
-        isPurchasing = true
-        acceptsPurchaseCompletion = true
+        let reservation = PurchaseReservation(id: UUID(), productID: productID)
+        purchaseReservation = reservation
+        return reservation
+    }
+
+    private func publishPurchasing(for reservation: PurchaseReservation) {
+        guard purchaseReservation == reservation else { return }
+        purchaseStatePublicationTask = nil
         purchaseState = .purchasing
-        return true
+        isPurchasing = true
     }
 
     func handleStoreKitCompletion(
         productID: String,
         result: Result<Product.PurchaseResult, any Error>
     ) async {
-        guard productID == EntitlementReducerV1.productID else {
+        guard purchaseReservation?.productID == productID else {
             await complete(.unverified)
             return
         }
@@ -228,8 +271,13 @@ final class StoreKitPurchaseCoordinator: ObservableObject {
     }
 
     func complete(_ result: PaywallPurchaseAttemptV1) async {
-        guard acceptsPurchaseCompletion else { return }
-        acceptsPurchaseCompletion = false
+        guard purchaseReservation != nil else { return }
+        clearPurchaseReservation()
+
+        if case .verified = result {
+            purchaseState = .purchasing
+            isPurchasing = true
+        }
 
         let state: PaywallPurchaseStateV1
         let diagnostic: PurchaseResult
@@ -263,6 +311,12 @@ final class StoreKitPurchaseCoordinator: ObservableObject {
         purchaseState = state
         isPurchasing = false
         await diagnosticsStore.incrementPurchaseResult(diagnostic)
+    }
+
+    private func clearPurchaseReservation() {
+        purchaseStatePublicationTask?.cancel()
+        purchaseStatePublicationTask = nil
+        purchaseReservation = nil
     }
 
     private func reloadProduct() async {

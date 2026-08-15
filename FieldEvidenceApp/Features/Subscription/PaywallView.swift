@@ -121,11 +121,7 @@ struct PaywallView: View {
         .subscriptionStoreButtonLabel(.multiline)
         .storeButton(.hidden, for: .restorePurchases)
         .onInAppPurchaseStart { product in
-            let productID = product.id
-            Task { @MainActor in
-                await Task.yield()
-                _ = coordinator.purchaseStarted(productID: productID)
-            }
+            _ = await coordinator.storeKitPurchaseStarted(productID: product.id)
         }
         .onInAppPurchaseCompletion { product, result in
             await coordinator.handleStoreKitCompletion(
