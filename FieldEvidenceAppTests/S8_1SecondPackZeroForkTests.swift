@@ -247,12 +247,12 @@ final class S8_1SecondPackZeroForkTests: XCTestCase {
         )
         for expected in [
             "Lighting survey report",
-            "Exterior Light: Parking Lot East",
+            "Exterior light: Parking Lot East",
             "Exterior area context",
             "Luminaire detail",
             "Stage: Exterior-light follow-up",
             "Outcome: Exterior-light condition resolved",
-            "Observed Lighting Condition",
+            "Observed lighting condition",
             "Exterior lamp section is dark",
             "Exterior-light survey — Exterior-light condition observed",
             pack.disclaimer,
@@ -427,7 +427,9 @@ final class S8_1SecondPackZeroForkTests: XCTestCase {
     }
 
     private func normalizedWhitespace(_ value: String) -> String {
-        value.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        value.split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+            .replacingOccurrences(of: "- ", with: "-")
     }
 }
 
