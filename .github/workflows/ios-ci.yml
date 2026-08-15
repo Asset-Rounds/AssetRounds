@@ -18,17 +18,17 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: macos-26
+    runs-on: macos-15
     timeout-minutes: 90
     env:
-      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
-      EXPECTED_XCODE_VERSION: "Xcode 26.6"
-      EXPECTED_XCODE_BUILD: "Build version 17F113"
+      DEVELOPER_DIR: /Applications/Xcode_26.1.1.app/Contents/Developer
+      EXPECTED_XCODE_VERSION: "Xcode 26.1.1"
+      EXPECTED_XCODE_BUILD: "Build version 17B100"
       EXPECTED_MINIMUM_IOS: "18.0"
       PROJECT_PATH: FieldEvidenceApp.xcodeproj
       SCHEME: FieldEvidenceApp
       CONFIGURATION: Debug
-      SIMULATOR_RUNTIME: iOS 26.2
+      SIMULATOR_RUNTIME: iOS 26.1
       SIMULATOR_NAME: iPhone 17
       CI_SIMULATOR_BOOT_TIMEOUT_SECONDS: "900"
       CODE_SIGNING_ALLOWED: "NO"
