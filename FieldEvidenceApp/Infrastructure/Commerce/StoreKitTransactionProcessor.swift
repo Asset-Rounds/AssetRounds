@@ -394,16 +394,9 @@ private enum StoreKitRuntimeAdapterV1 {
             revocationAt = nil
         } else if status.state == .revoked,
                   let date = transaction.revocationDate {
-            if #available(iOS 26.4, *) {
-                let type = transaction.revocationType
-                state = type == .fullRefund || type == .proratedRefund
-                    ? .refunded
-                    : .revoked
-            } else {
-                state = transaction.revocationReason == nil
-                    ? .revoked
-                    : .refunded
-            }
+            state = transaction.revocationReason == nil
+                ? .revoked
+                : .refunded
             graceExpirationAt = nil
             revocationAt = date
         } else {
