@@ -121,21 +121,17 @@ struct PaywallView: View {
         .subscriptionStoreButtonLabel(.multiline)
         .storeButton(.hidden, for: .restorePurchases)
         .onInAppPurchaseStart { product in
-            _ = await coordinator.purchaseStarted(productID: product.id)
+            let productID = product.id
+            Task { @MainActor in
+                await Task.yield()
+                _ = coordinator.purchaseStarted(productID: productID)
+            }
         }
         .onInAppPurchaseCompletion { product, result in
             await coordinator.handleStoreKitCompletion(
                 productID: product.id,
                 result: result
             )
-        }
-        .overlay {
-            if coordinator.isPurchasing {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture { }
-                    .accessibilityHidden(true)
-            }
         }
         .accessibilityValue(coordinator.isPurchasing ? "Purchasing" : "Ready")
         .accessibilityIdentifier(Self.storeAccessibilityIdentifier)
