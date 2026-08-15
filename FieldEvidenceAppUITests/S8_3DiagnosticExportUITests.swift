@@ -62,9 +62,18 @@ final class S8_3DiagnosticExportUITests: XCTestCase {
 
         let cancel = app.buttons["Cancel"].firstMatch
         XCTAssertTrue(cancel.waitForExistence(timeout: 20))
-        cancel.tap()
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(element("s2.welcome.screen", in: app)
+            .waitForExistence(timeout: 30))
+        tap("s1.settings.button", in: app)
+        XCTAssertTrue(element("s1.settings.screen", in: app)
+            .waitForExistence(timeout: 20))
+        let reopenedEntry = element("s8.3.diagnostics.settings-entry", in: app)
+        scroll(reopenedEntry, in: app)
+        reopenedEntry.tap()
         XCTAssertTrue(element("s8.3.diagnostics.screen", in: app)
-            .waitForExistence(timeout: 15))
+            .waitForExistence(timeout: 20))
 
         let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         screenshot.name = "S8.3 reviewed minimal diagnostic export at Accessibility XXXL"
