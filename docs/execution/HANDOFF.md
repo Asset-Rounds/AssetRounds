@@ -2236,3 +2236,58 @@ The exact implementation envelope is two narrowly activated reusable production 
 - The prior mandatory S8.1 integration revisit is resolved: `finalizationAttempt` now survives in-flight retry/replay but clears only after authoritative finalization/report proof and diagnostics, and the accepted deterministic recheck→fresh-check regression passes.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
 - Next unstarted task: `S8.2`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S8.2 `CURRENT_TASK.md`, then must run fresh S8.2 G0. Do not mutate main.
+
+## `S8.2` — `complete` — `2026-08-15T12:17:49-04:00`
+
+- Phase / branch / position / boundary: `S8` / `phase/s8-quality` / `2 of 4` / `no`.
+- Outcome: completed one bounded fresh-install first-sign→check→report→visible-Issue→work→evidence-bearing-recheck→Settings→monthly-paywall accessibility proof in default Light and Accessibility XXXL Dark; corrected only the exact production accessibility defects exposed by that unchanged proof.
+- Immutable phase-main base: `P=0b1e506dd71ba704cbfb48787d6cfa1731024d83`; remote `main` remained exactly P throughout S8.2.
+- Integrated/card base and predecessor: `M=d0e8762fffbcaf6e6f9076c26ed50e5de2bf254e`; accepted S8.1 run `31877304310` / job `94994834315`, N8/UI disabled, build plus `2/2` units green.
+- Observed task-start authority: `A=c1fb4578bda9f6dcff3faf5c618e1547882ae711`; `A^=M`, and `M..A` changed only append-only `docs/execution/HANDOFF.md` plus immediate-next `docs/execution/CURRENT_TASK.md`.
+- First implementation: `I=8d372190641332f5daf4ccf9792f1b2d705b05c6`; successive direct-child task-scoped corrections remained inside the mechanically authorized proof/production paths; accepted implementation and exact verification head `E=38e831412bc55389b76bf1ca17a4ee549ae6ef60`; no distinct infrastructure K.
+- Exact selector: S8.2 F25/UI enabled; compact JSON plus LF, 355 bytes, SHA-256 `56ED06D4189ECDA0D643F680BC0291E78631F999207E896BAE6F8045FFD14807`; exact selectors `FieldEvidenceAppTests/S8_2GoldenAccessibilityTests` and `FieldEvidenceAppUITests/S8_2GoldenAccessibilityUITests`.
+- Accepted run/job/URLs: `31894016378` / `95034408297`; `https://github.com/palatis3/AssetRounds/actions/runs/31894016378`; `https://github.com/palatis3/AssetRounds/actions/runs/31894016378/job/95034408297`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.2 build `23C54`; UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`; initial Simulator state `Shutdown`.
+- Budgets: setup `15/300` s; Simulator readiness `103/900` s (`113` s boot step); build `322/900` s; unit `43/1200` s with selected test `0.003` s; UI `615/1800` s with selected test `572.645` s; setup-plus-artifact `16/300` s; total about `1034/4500` s; all watchdogs passed.
+- Artifact: `ios-ci-31894016378-1`, ID `9249494957`, size `11854010`, GitHub digest `sha256:daaed8fa813f49807de291741b4d0271c17082198da7e94940c365c4427aa518`; `SHA256SUMS.txt` SHA-256 `38E303F988262809E01BD3D412043E4D832283BED74CF7C2FC833D9B11F4E6F0`; all `93/93` listed payloads independently matched with no malformed, duplicate, unsafe, missing, mismatched, extra, or unlisted payload.
+- Accepted logs: `build-smoke.log` SHA-256 `0294AF4E998AE7ECB56EEF5F013887A78395794223370FB0490E21DF60AC45BC`; `test-smoke.log` `F254185DBB2927B279A4220430F6E32AD370629615B00D5972A586B5C5B7B48C`; `ui-smoke.log` `E2A103BD2DEAA081F385738925AA7E5EC5BC119458FED25C5D247EB1210D4F1A`.
+- Terminal evidence: exactly one `ui-final.png`, 208384 bytes, SHA-256 `238A35984922554921ECAAA285CFFC2DC0298F48450EF38A573CB0CA2CED47A2`; visual PASS showed the in-app Subscription screen in Accessibility XXXL Dark with the localized monthly/trial disclosure and reachable Close control.
+- Exact commands: `bash Scripts/run-with-timeout.sh 900 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 1200 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 1800 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp/Features/CheckRunner/PreflightView.swift`
+- `FieldEvidenceApp/Features/Signs/NewSignView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceAppTests/S8_2GoldenAccessibilityTests.swift`
+- `FieldEvidenceAppUITests/S8_2GoldenAccessibilityUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact accepted envelope is three mechanically authorized accessibility corrections, one bounded unit class, one bounded UI class, and the standing selector exception. No visual redesign, new token/route/service/schema/dependency/fixture/product result, broad matrix, commerce/data-right mutation, signing, deployment, or release behavior was added.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`1/1`): `testGoldenFlowAccessibilitySpineAndControlMetricsAreExact`, 0.003 s.
+- UI `PASS` (`1/1`): `testFreshGoldenFlowIsAccessibleInDefaultLightAndXXXLDark`, 572.645 s.
+
+### Acceptance results
+
+- GOLDEN `PASS`: the bounded production route completed in default Light and then Accessibility XXXL Dark with exact primary labels/identifiers/traits/order, non-color state, progress/selection semantics, reachable actions, and one terminal screenshot.
+- ALT-1 `PASS`: a truthful pre-save validation retained prior inputs and route authority, exposed exact non-color blocked copy, moved the actionable recovery target, and recovered into the same successful flow.
+- Layout/target `PASS`: every required action was scroll-reachable and at least 44×44 points; evidence previews remained production aspect-fit/untinted surfaces; the test made no device/locale/orientation or physical spoken-VoiceOver claim.
+- Accessibility-tree `PASS`: deterministic public AX identifier order replaced pixel coincidence; exact labels/types/values and the supported focus evidence were asserted without private SwiftUI hierarchy.
+- Scope `PASS`: verification stayed bounded to one unit and one UI class; each production correction was first authorized by exact hosted evidence and exercised by the unchanged S8.2 selector.
+
+### Candidate recovery provenance
+
+- Runs `31878378543`, `31878779505`, `31879297939`, `31879799936`, and `31880481756` exposed pinned-XCUI focus API/target ambiguity and lazy-materialization defects; direct children corrected the proof to public supported semantics and a deterministic noneditable recovery surface.
+- Runs `31881179721`, `31881592791`, `31882087738`, and `31882535287` exposed the preflight Toggle's surfaced target and sub-44-point AX bounds; direct children applied the exact native-control identity/shape corrections without changing workflow behavior.
+- Runs `31883080426`, `31883711119`, `31884286555`, `31884914468`, `31885598626`, `31886437667`, and `31887010378` disproved ReportCorrection focus proxies and exposed the new-sign child-label/identifier masking; direct children restored the bounded new-sign recovery proof and exact child semantics.
+- Runs `31887427898`, `31888211690`, and `31888754366` established that Simulator `hasFocus` was not a physical-VoiceOver oracle and corrected only deterministic focus wording/XXXL positioning before authorizing the exact Settings path.
+- Runs `31889495226`, `31890255254`, `31891369262`, `31892195595`, and `31893154803` proved the system toolbar surfaced the Settings node as `.Other` and then clamped the corrected native Button to `37.334` points despite frame/accessibility shapes; E moved the same route/action to a normal-content design-system Button whose AX geometry passed. No failed run ID was rerun or accepted.
+
+### Known bugs, blockers, and next task
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S8.2 product/card blockers: `NONE`.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
+- Next unstarted task: `S8.3`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S8.3 `CURRENT_TASK.md`, then must run fresh S8.3 G0. Do not mutate main.
