@@ -46,7 +46,9 @@ final class S7_3LifecycleRestoreTests: XCTestCase {
             XCTAssertEqual(value.tone, tone)
             XCTAssertEqual(value.badge, badge)
             XCTAssertEqual(value.title, title)
-            XCTAssertTrue(value.detail.contains("data") || state == .grace(until: expiry))
+            let retainsDataCopy = value.detail.contains("data")
+                || value.detail.contains("sign details, photos, and reports")
+            XCTAssertTrue(retainsDataCopy || state == .grace(until: expiry))
         }
 
         let restoreRows: [(StoreKitRestoreStateV1, String?)] = [
