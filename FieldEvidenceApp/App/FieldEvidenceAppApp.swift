@@ -22,6 +22,10 @@ struct FieldEvidenceAppApp: App {
         "--s6-5-ui-test-replacement-restore"
     private static let paywallUITestLaunchArgument =
         "--s7-2-ui-test-paywall"
+    private static let feedbackMailAvailableUITestLaunchArgument =
+        "--s8-4-ui-test-mail-available"
+    private static let feedbackMailUnavailableUITestLaunchArgument =
+        "--s8-4-ui-test-mail-unavailable"
 
     @StateObject private var startupRouter: StartupRouter
 
@@ -35,6 +39,8 @@ struct FieldEvidenceAppApp: App {
     private let selectedRestorePackageForUITest: URL?
     private let paywallCatalogLinks: PaywallCatalogLinksV1?
     private let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
+    private let feedbackConfiguration: FeedbackConfigurationV1
+    private let mailComposerAdapter: MailComposerAdapter
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -44,6 +50,23 @@ struct FieldEvidenceAppApp: App {
         paywallCatalogLinks = arguments.contains(Self.paywallUITestLaunchArgument)
             ? .uiTestFixture
             : nil
+        let usesAvailableFeedbackFixture = arguments.contains(
+            Self.feedbackMailAvailableUITestLaunchArgument
+        )
+        let usesUnavailableFeedbackFixture = arguments.contains(
+            Self.feedbackMailUnavailableUITestLaunchArgument
+        )
+        feedbackConfiguration = usesAvailableFeedbackFixture
+            || usesUnavailableFeedbackFixture
+            ? .uiTestFixture
+            : .production
+        if usesAvailableFeedbackFixture && !usesUnavailableFeedbackFixture {
+            mailComposerAdapter = .uiTest
+        } else if usesUnavailableFeedbackFixture {
+            mailComposerAdapter = .unavailable
+        } else {
+            mailComposerAdapter = .live
+        }
         let applicationSupportURL = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -154,7 +177,9 @@ struct FieldEvidenceAppApp: App {
                 applicationSupportURL: applicationSupportURL,
                 selectedRestorePackageForUITest: selectedRestorePackageForUITest,
                 paywallCatalogLinks: paywallCatalogLinks,
-                metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter
+                metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
+                feedbackConfiguration: feedbackConfiguration,
+                mailComposerAdapter: mailComposerAdapter
             )
             .preferredColorScheme(preferredColorScheme)
         }
@@ -173,6 +198,8 @@ private struct StartupRootView: View {
     let selectedRestorePackageForUITest: URL?
     let paywallCatalogLinks: PaywallCatalogLinksV1?
     let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
+    let feedbackConfiguration: FeedbackConfigurationV1
+    let mailComposerAdapter: MailComposerAdapter
 
     var body: some View {
         Group {
@@ -214,7 +241,9 @@ private struct StartupRootView: View {
                     selectedRestorePackageForUITest:
                         selectedRestorePackageForUITest,
                     paywallCatalogLinks: paywallCatalogLinks,
-                    metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter
+                    metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
+                    feedbackConfiguration: feedbackConfiguration,
+                    mailComposerAdapter: mailComposerAdapter
                 )
 
             case .eraseCleanupPending:
@@ -248,6 +277,8 @@ private struct ReadyAppView: View {
     let selectedRestorePackageForUITest: URL?
     let paywallCatalogLinks: PaywallCatalogLinksV1?
     let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
+    let feedbackConfiguration: FeedbackConfigurationV1
+    let mailComposerAdapter: MailComposerAdapter
 
     @State private var restorePresentation: RestorePresentation?
     @State private var showsEraseAll = false
@@ -261,6 +292,8 @@ private struct ReadyAppView: View {
                 modelContext: coordinator.modelContext,
                 diagnosticsStore: diagnosticsStore,
                 metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
+                feedbackConfiguration: feedbackConfiguration,
+                mailComposerAdapter: mailComposerAdapter,
                 generationRootURL: coordinator.generationRootURL,
                 usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
                 injectsLowStorageFailureOnceForUITest:

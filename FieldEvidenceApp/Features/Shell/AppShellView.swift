@@ -38,6 +38,8 @@ struct AppShellView: View {
     let modelContext: ModelContext
     let diagnosticsStore: DiagnosticsStore
     let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
+    let feedbackConfiguration: FeedbackConfigurationV1
+    let mailComposerAdapter: MailComposerAdapter
     let generationRootURL: URL
     let usesImportedCaptureFixturesForUITest: Bool
     let injectsLowStorageFailureOnceForUITest: Bool
@@ -57,6 +59,8 @@ struct AppShellView: View {
         modelContext: ModelContext,
         diagnosticsStore: DiagnosticsStore,
         metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter,
+        feedbackConfiguration: FeedbackConfigurationV1,
+        mailComposerAdapter: MailComposerAdapter,
         generationRootURL: URL,
         usesImportedCaptureFixturesForUITest: Bool = false,
         injectsLowStorageFailureOnceForUITest: Bool = false,
@@ -72,6 +76,8 @@ struct AppShellView: View {
         self.modelContext = modelContext
         self.diagnosticsStore = diagnosticsStore
         self.metricKitDiagnosticsAdapter = metricKitDiagnosticsAdapter
+        self.feedbackConfiguration = feedbackConfiguration
+        self.mailComposerAdapter = mailComposerAdapter
         self.generationRootURL = generationRootURL
         self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
         self.injectsLowStorageFailureOnceForUITest =
@@ -122,6 +128,8 @@ struct AppShellView: View {
                 modelContext: modelContext,
                 diagnosticsStore: diagnosticsStore,
                 metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
+                feedbackConfiguration: feedbackConfiguration,
+                mailComposerAdapter: mailComposerAdapter,
                 pack: pack,
                 generationRootURL: generationRootURL,
                 usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
@@ -176,6 +184,8 @@ struct AppShellView: View {
                     generationRootURL: generationRootURL,
                     diagnosticsStore: diagnosticsStore,
                     metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
+                    feedbackConfiguration: feedbackConfiguration,
+                    mailComposerAdapter: mailComposerAdapter,
                     purchaseCoordinator: purchaseCoordinator,
                     lifecycleCoordinator: lifecycleCoordinator,
                     restoreDataBackup: replaceDataBackup
@@ -364,6 +374,8 @@ struct SettingsPlaceholderView: View {
     let generationRootURL: URL
     let diagnosticsStore: DiagnosticsStore
     let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
+    let feedbackConfiguration: FeedbackConfigurationV1
+    let mailComposerAdapter: MailComposerAdapter
     let restoreDataBackup: @MainActor () -> Void
 
     @State private var paywallPresentation: PaywallPresentation?
@@ -374,6 +386,8 @@ struct SettingsPlaceholderView: View {
         generationRootURL: URL,
         diagnosticsStore: DiagnosticsStore,
         metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter,
+        feedbackConfiguration: FeedbackConfigurationV1,
+        mailComposerAdapter: MailComposerAdapter,
         purchaseCoordinator: StoreKitPurchaseCoordinator,
         lifecycleCoordinator: StoreKitLifecycleCoordinator,
         restoreDataBackup: @escaping @MainActor () -> Void = {}
@@ -382,6 +396,8 @@ struct SettingsPlaceholderView: View {
         self.generationRootURL = generationRootURL
         self.diagnosticsStore = diagnosticsStore
         self.metricKitDiagnosticsAdapter = metricKitDiagnosticsAdapter
+        self.feedbackConfiguration = feedbackConfiguration
+        self.mailComposerAdapter = mailComposerAdapter
         self.purchaseCoordinator = purchaseCoordinator
         self.lifecycleCoordinator = lifecycleCoordinator
         self.restoreDataBackup = restoreDataBackup
@@ -446,6 +462,22 @@ struct SettingsPlaceholderView: View {
                 )
                 .accessibilityIdentifier(
                     DiagnosticExportView.settingsEntryAccessibilityIdentifier
+                )
+
+                NavigationLink("Send feedback") {
+                    FeedbackView(
+                        diagnosticsStore: diagnosticsStore,
+                        metricKitAdapter: metricKitDiagnosticsAdapter,
+                        configuration: feedbackConfiguration,
+                        mailComposer: mailComposerAdapter
+                    )
+                }
+                .buttonStyle(WorklightSecondaryButtonStyle())
+                .accessibilityHint(
+                    "Reviews privacy-safe diagnostics and asks before attaching them to editable feedback"
+                )
+                .accessibilityIdentifier(
+                    FeedbackView.settingsEntryAccessibilityIdentifier
                 )
 
                 Text("Inspection data and photos are device-local and do not sync with the subscription.")

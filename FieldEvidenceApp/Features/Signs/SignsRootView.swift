@@ -40,6 +40,8 @@ struct SignsRootView: View {
     let modelContext: ModelContext
     let diagnosticsStore: DiagnosticsStore
     let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
+    let feedbackConfiguration: FeedbackConfigurationV1
+    let mailComposerAdapter: MailComposerAdapter
     let usesImportedCaptureFixturesForUITest: Bool
     let cameraAdapter: CameraAdapter
     let restoreDataBackup: @MainActor () -> Void
@@ -71,6 +73,8 @@ struct SignsRootView: View {
         modelContext: ModelContext,
         diagnosticsStore: DiagnosticsStore,
         metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter,
+        feedbackConfiguration: FeedbackConfigurationV1,
+        mailComposerAdapter: MailComposerAdapter,
         pack: SignPack,
         generationRootURL: URL,
         usesImportedCaptureFixturesForUITest: Bool = false,
@@ -86,6 +90,8 @@ struct SignsRootView: View {
         self.modelContext = modelContext
         self.diagnosticsStore = diagnosticsStore
         self.metricKitDiagnosticsAdapter = metricKitDiagnosticsAdapter
+        self.feedbackConfiguration = feedbackConfiguration
+        self.mailComposerAdapter = mailComposerAdapter
         self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
         self.cameraAdapter = cameraAdapter
         self.purchaseCoordinator = purchaseCoordinator
@@ -210,6 +216,8 @@ struct SignsRootView: View {
                         generationRootURL: generationRootURL,
                         diagnosticsStore: diagnosticsStore,
                         metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
+                        feedbackConfiguration: feedbackConfiguration,
+                        mailComposerAdapter: mailComposerAdapter,
                         purchaseCoordinator: purchaseCoordinator,
                         lifecycleCoordinator: lifecycleCoordinator,
                         restoreDataBackup: replaceDataBackup
