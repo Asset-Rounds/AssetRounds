@@ -209,9 +209,14 @@ struct PreflightView: View {
                     errorMessage = nil
                 }
 
-            Toggle("I confirm this is the site's time zone.", isOn: $isTimeZoneConfirmed)
+            Toggle(isOn: $isTimeZoneConfirmed) {
+                Text("I confirm this is the site's time zone.")
+                    .frame(
+                        minHeight: DesignTokens.Control.minimumHitSize,
+                        alignment: .leading
+                    )
+            }
                 .disabled(!hasValidEnteredTimeZone)
-                .frame(minHeight: DesignTokens.Control.minimumHitSize)
                 .accessibilityHint(
                     hasValidEnteredTimeZone
                         ? "Confirms the entered time zone for this site"
