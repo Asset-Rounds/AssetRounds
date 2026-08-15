@@ -191,10 +191,9 @@ private extension S7_2PaywallUITests {
 
     @MainActor
     func confirmStoreKitPurchase(in app: XCUIApplication) {
-        let sheet = app.sheets.firstMatch
-        XCTAssertTrue(sheet.waitForExistence(timeout: 20))
-        let confirm = sheet.buttons.matching(NSPredicate(
-            format: "label CONTAINS[c] 'Subscribe' OR label CONTAINS[c] 'Confirm'"
+        let systemUI = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let confirm = systemUI.buttons.matching(NSPredicate(
+            format: "label CONTAINS[c] 'Subscribe' OR label CONTAINS[c] 'Confirm' OR label CONTAINS[c] 'Purchase'"
         )).firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 20))
         XCTAssertTrue(confirm.isHittable)
@@ -203,9 +202,8 @@ private extension S7_2PaywallUITests {
 
     @MainActor
     func cancelStoreKitPurchase(in app: XCUIApplication) {
-        let sheet = app.sheets.firstMatch
-        XCTAssertTrue(sheet.waitForExistence(timeout: 20))
-        let cancel = sheet.buttons["Cancel"]
+        let systemUI = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let cancel = systemUI.buttons["Cancel"]
         XCTAssertTrue(cancel.waitForExistence(timeout: 20))
         XCTAssertTrue(cancel.isHittable)
         cancel.tap()
