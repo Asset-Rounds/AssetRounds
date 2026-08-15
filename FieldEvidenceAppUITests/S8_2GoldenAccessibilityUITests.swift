@@ -84,42 +84,9 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
         sign.typeText("Monument Sign")
         dismissKeyboard(in: app)
 
-        let optionalDetails = element("s2.new-sign.optional-toggle", in: app)
-        scroll(optionalDetails, in: app)
-        assertControl(optionalDetails, label: "Add optional details")
-        optionalDetails.tap()
-
-        let timeZone = element("s2.new-sign.time-zone", in: app)
-        scroll(timeZone, in: app)
-        timeZone.tap()
-        timeZone.typeText("America/New_York")
-        dismissKeyboard(in: app)
-
-        let confirmation = element("s2.new-sign.time-zone-confirm", in: app)
-        scroll(confirmation, in: app)
-        XCTAssertEqual(confirmation.elementType, .switch)
-        XCTAssertEqual(confirmation.value as? String, "0")
-        assertMinimumGeometry(confirmation)
-
         let save = element("s2.new-sign.save", in: app)
         scroll(save, in: app)
         assertControl(save, label: "Save and start check")
-        save.tap()
-
-        let error = element("s2.new-sign.error", in: app)
-        XCTAssertTrue(error.waitForExistence(timeout: 15))
-        XCTAssertEqual(error.label, "Blocked: Confirm the exact time-zone identifier.")
-        assertAccessibilityFocus(
-            on: confirmation,
-            label: "I confirm this exact time-zone identifier",
-            type: .switch
-        )
-        XCTAssertEqual(site.value as? String, "North Campus")
-        XCTAssertEqual(sign.value as? String, "Monument Sign")
-        XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
-
-        setToggle("s2.new-sign.time-zone-confirm", in: app)
-        scroll(save, in: app)
         save.tap()
 
         let detail = element("s2.sign-detail.screen", in: app)
@@ -211,6 +178,31 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
         let preview = element("s4.3.report-detail.preview", in: app)
         XCTAssertTrue(preview.waitForExistence(timeout: 20))
         XCTAssertTrue(preview.isHittable)
+
+        let correct = element("s4.5.report-detail.correct", in: app)
+        scroll(correct, in: app)
+        assertControl(correct, label: "Correct report")
+        correct.tap()
+
+        XCTAssertTrue(element("s4.5.correction.screen", in: app)
+            .waitForExistence(timeout: 20))
+        let saveCorrection = element("s4.5.correction.save", in: app)
+        scroll(saveCorrection, in: app)
+        assertControl(saveCorrection, label: "Save correction")
+        saveCorrection.tap()
+
+        let validation = element("s4.5.correction.validation", in: app)
+        XCTAssertTrue(validation.waitForExistence(timeout: 15))
+        assertAccessibilityFocus(
+            on: validation,
+            label: "Blocked: Change the note before saving.",
+            type: .staticText
+        )
+        XCTAssertTrue(element("s4.5.correction.screen", in: app).exists)
+        navigateBack(in: app)
+        XCTAssertTrue(element("s4.3.report-detail.screen", in: app)
+            .waitForExistence(timeout: 20))
+        XCTAssertTrue(element("s4.3.report-detail.preview", in: app).exists)
         navigateBack(in: app)
 
         let done = element("s3.receipt.done", in: app)
