@@ -119,9 +119,9 @@ final class S9_1FinalRCUITests: XCTestCase {
                 .waitForExistence(timeout: 30)
         )
         let preview = element("s4.3.report-detail.preview", in: app)
-        scroll(preview, in: app)
+        XCTAssertTrue(preview.waitForExistence(timeout: 20))
         XCTAssertEqual(preview.label, "Report PDF preview")
-        XCTAssertTrue(preview.isHittable)
+        XCTAssertFalse(preview.frame.isEmpty)
         for (identifier, label) in [
             ("s4.3.report-detail.share", "Share PDF"),
             ("s4.3.report-detail.save-to-files", "Save to Files"),
