@@ -37,6 +37,7 @@ struct AppShellView: View {
     let exposesColorSchemeForUITest: Bool
     let modelContext: ModelContext
     let diagnosticsStore: DiagnosticsStore
+    let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
     let generationRootURL: URL
     let usesImportedCaptureFixturesForUITest: Bool
     let injectsLowStorageFailureOnceForUITest: Bool
@@ -55,6 +56,7 @@ struct AppShellView: View {
         exposesColorSchemeForUITest: Bool = false,
         modelContext: ModelContext,
         diagnosticsStore: DiagnosticsStore,
+        metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter,
         generationRootURL: URL,
         usesImportedCaptureFixturesForUITest: Bool = false,
         injectsLowStorageFailureOnceForUITest: Bool = false,
@@ -69,6 +71,7 @@ struct AppShellView: View {
         self.exposesColorSchemeForUITest = exposesColorSchemeForUITest
         self.modelContext = modelContext
         self.diagnosticsStore = diagnosticsStore
+        self.metricKitDiagnosticsAdapter = metricKitDiagnosticsAdapter
         self.generationRootURL = generationRootURL
         self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
         self.injectsLowStorageFailureOnceForUITest =
@@ -118,6 +121,7 @@ struct AppShellView: View {
             SignsRootView(
                 modelContext: modelContext,
                 diagnosticsStore: diagnosticsStore,
+                metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
                 pack: pack,
                 generationRootURL: generationRootURL,
                 usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
@@ -170,6 +174,8 @@ struct AppShellView: View {
                 SettingsPlaceholderView(
                     modelContext: modelContext,
                     generationRootURL: generationRootURL,
+                    diagnosticsStore: diagnosticsStore,
+                    metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
                     purchaseCoordinator: purchaseCoordinator,
                     lifecycleCoordinator: lifecycleCoordinator,
                     restoreDataBackup: replaceDataBackup
@@ -356,6 +362,8 @@ struct SettingsPlaceholderView: View {
 
     let modelContext: ModelContext
     let generationRootURL: URL
+    let diagnosticsStore: DiagnosticsStore
+    let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
     let restoreDataBackup: @MainActor () -> Void
 
     @State private var paywallPresentation: PaywallPresentation?
@@ -364,12 +372,16 @@ struct SettingsPlaceholderView: View {
     init(
         modelContext: ModelContext,
         generationRootURL: URL,
+        diagnosticsStore: DiagnosticsStore,
+        metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter,
         purchaseCoordinator: StoreKitPurchaseCoordinator,
         lifecycleCoordinator: StoreKitLifecycleCoordinator,
         restoreDataBackup: @escaping @MainActor () -> Void = {}
     ) {
         self.modelContext = modelContext
         self.generationRootURL = generationRootURL
+        self.diagnosticsStore = diagnosticsStore
+        self.metricKitDiagnosticsAdapter = metricKitDiagnosticsAdapter
         self.purchaseCoordinator = purchaseCoordinator
         self.lifecycleCoordinator = lifecycleCoordinator
         self.restoreDataBackup = restoreDataBackup
@@ -420,6 +432,20 @@ struct SettingsPlaceholderView: View {
                 )
                 .accessibilityIdentifier(
                     SubscriptionStatusView.settingsRestoreAccessibilityIdentifier
+                )
+
+                NavigationLink("View diagnostics") {
+                    DiagnosticExportView(
+                        diagnosticsStore: diagnosticsStore,
+                        metricKitAdapter: metricKitDiagnosticsAdapter
+                    )
+                }
+                .buttonStyle(WorklightSecondaryButtonStyle())
+                .accessibilityHint(
+                    "Previews privacy-safe local counters and bounded system diagnostics before saving"
+                )
+                .accessibilityIdentifier(
+                    DiagnosticExportView.settingsEntryAccessibilityIdentifier
                 )
 
                 Text("Inspection data and photos are device-local and do not sync with the subscription.")

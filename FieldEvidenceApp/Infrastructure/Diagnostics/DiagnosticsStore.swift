@@ -1,5 +1,4 @@
 import Foundation
-import OSLog
 
 enum Counter: Sendable {
     case firstSignCreated
@@ -83,20 +82,17 @@ struct DiagnosticsV1: Codable, Equatable, Sendable {
 }
 
 actor DiagnosticsStore {
-    private static let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "FieldEvidenceApp",
-        category: "DiagnosticsStore"
-    )
-
     private let directoryURL: URL
     private let countersURL: URL
     private let fileManager: FileManager
+    private let logger: DiagnosticsLogger
     private var counters = DiagnosticsV1.zero
     private var isPrepared = false
 
     init(
         applicationSupportURL: URL,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        logger: DiagnosticsLogger = .live
     ) {
         let directoryURL = applicationSupportURL.appendingPathComponent(
             "FieldEvidenceDiagnostics",
@@ -108,6 +104,7 @@ actor DiagnosticsStore {
             isDirectory: false
         )
         self.fileManager = fileManager
+        self.logger = logger
     }
 
     func prepare() {
@@ -129,7 +126,7 @@ actor DiagnosticsStore {
             }
             counters = decoded
         } catch {
-            Self.logger.fault("Invalid diagnostics counters were reset.")
+            logger.record(.invalidCountersReset)
             _ = persist(.zero)
         }
     }
@@ -216,7 +213,7 @@ actor DiagnosticsStore {
             try canonicalData(for: candidate).write(to: countersURL, options: .atomic)
             return true
         } catch {
-            Self.logger.fault("Diagnostics counters could not be saved.")
+            logger.record(.countersWriteFailed)
             return false
         }
     }

@@ -38,6 +38,8 @@ struct SignsRootView: View {
     let pack: SignPack
     let generationRootURL: URL
     let modelContext: ModelContext
+    let diagnosticsStore: DiagnosticsStore
+    let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
     let usesImportedCaptureFixturesForUITest: Bool
     let cameraAdapter: CameraAdapter
     let restoreDataBackup: @MainActor () -> Void
@@ -68,6 +70,7 @@ struct SignsRootView: View {
     init(
         modelContext: ModelContext,
         diagnosticsStore: DiagnosticsStore,
+        metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter,
         pack: SignPack,
         generationRootURL: URL,
         usesImportedCaptureFixturesForUITest: Bool = false,
@@ -81,6 +84,8 @@ struct SignsRootView: View {
         self.pack = pack
         self.generationRootURL = generationRootURL
         self.modelContext = modelContext
+        self.diagnosticsStore = diagnosticsStore
+        self.metricKitDiagnosticsAdapter = metricKitDiagnosticsAdapter
         self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
         self.cameraAdapter = cameraAdapter
         self.purchaseCoordinator = purchaseCoordinator
@@ -203,6 +208,8 @@ struct SignsRootView: View {
                     SettingsPlaceholderView(
                         modelContext: modelContext,
                         generationRootURL: generationRootURL,
+                        diagnosticsStore: diagnosticsStore,
+                        metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
                         purchaseCoordinator: purchaseCoordinator,
                         lifecycleCoordinator: lifecycleCoordinator,
                         restoreDataBackup: replaceDataBackup

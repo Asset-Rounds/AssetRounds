@@ -34,9 +34,13 @@ struct FieldEvidenceAppApp: App {
     private let cameraAdapter: CameraAdapter
     private let selectedRestorePackageForUITest: URL?
     private let paywallCatalogLinks: PaywallCatalogLinksV1?
+    private let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
+        let metricKitDiagnosticsAdapter = MetricKitDiagnosticsAdapter()
+        metricKitDiagnosticsAdapter.start()
+        self.metricKitDiagnosticsAdapter = metricKitDiagnosticsAdapter
         paywallCatalogLinks = arguments.contains(Self.paywallUITestLaunchArgument)
             ? .uiTestFixture
             : nil
@@ -149,7 +153,8 @@ struct FieldEvidenceAppApp: App {
                 cameraAdapter: cameraAdapter,
                 applicationSupportURL: applicationSupportURL,
                 selectedRestorePackageForUITest: selectedRestorePackageForUITest,
-                paywallCatalogLinks: paywallCatalogLinks
+                paywallCatalogLinks: paywallCatalogLinks,
+                metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter
             )
             .preferredColorScheme(preferredColorScheme)
         }
@@ -167,6 +172,7 @@ private struct StartupRootView: View {
     let applicationSupportURL: URL
     let selectedRestorePackageForUITest: URL?
     let paywallCatalogLinks: PaywallCatalogLinksV1?
+    let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
 
     var body: some View {
         Group {
@@ -207,7 +213,8 @@ private struct StartupRootView: View {
                     router: router,
                     selectedRestorePackageForUITest:
                         selectedRestorePackageForUITest,
-                    paywallCatalogLinks: paywallCatalogLinks
+                    paywallCatalogLinks: paywallCatalogLinks,
+                    metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter
                 )
 
             case .eraseCleanupPending:
@@ -240,6 +247,7 @@ private struct ReadyAppView: View {
     @ObservedObject var router: StartupRouter
     let selectedRestorePackageForUITest: URL?
     let paywallCatalogLinks: PaywallCatalogLinksV1?
+    let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
 
     @State private var restorePresentation: RestorePresentation?
     @State private var showsEraseAll = false
@@ -252,6 +260,7 @@ private struct ReadyAppView: View {
                 exposesColorSchemeForUITest: exposesColorSchemeForUITest,
                 modelContext: coordinator.modelContext,
                 diagnosticsStore: diagnosticsStore,
+                metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
                 generationRootURL: coordinator.generationRootURL,
                 usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
                 injectsLowStorageFailureOnceForUITest:
