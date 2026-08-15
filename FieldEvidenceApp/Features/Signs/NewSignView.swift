@@ -10,6 +10,8 @@ struct NewSignView: View {
     static let timeZoneConfirmAccessibilityIdentifier = "s2.new-sign.time-zone-confirm"
     static let errorAccessibilityIdentifier = "s2.new-sign.error"
     static let saveAccessibilityIdentifier = "s2.new-sign.save"
+    static let siteChoiceAccessibilityIdentifier = "s7.4.new-sign.site-choice"
+    static let newSiteAccessibilityIdentifier = "s7.4.new-sign.new-site"
 
     private enum Field: Hashable {
         case siteLabel
@@ -18,7 +20,14 @@ struct NewSignView: View {
         case timeZoneConfirmation
     }
 
+    private enum SiteChoice: Hashable {
+        case new
+        case existing(UUID)
+    }
+
     let coordinator: FirstSignCoordinator
+    let siteOptions: [FirstSignSiteOption]
+    let accessBlocked: (DraftAccessDecisionV1) -> Void
     let didSave: (FirstSignSnapshot) -> Void
 
     @State private var siteLabel = ""
@@ -29,31 +38,68 @@ struct NewSignView: View {
     @State private var isTimeZoneConfirmed = false
     @State private var errorMessage: String?
     @State private var isSaving = false
+    @State private var siteChoice: SiteChoice
     @FocusState private var focusedField: Field?
     @AccessibilityFocusState private var accessibilityFocusedField: Field?
+
+    init(
+        coordinator: FirstSignCoordinator,
+        siteOptions: [FirstSignSiteOption] = [],
+        accessBlocked: @escaping (DraftAccessDecisionV1) -> Void = { _ in },
+        didSave: @escaping (FirstSignSnapshot) -> Void
+    ) {
+        self.coordinator = coordinator
+        self.siteOptions = siteOptions
+        self.accessBlocked = accessBlocked
+        self.didSave = didSave
+        _siteChoice = State(
+            initialValue: siteOptions.first.map { .existing($0.id) } ?? .new
+        )
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                 WorklightCard {
-                    Text("Add your first sign")
+                    Text(siteOptions.isEmpty ? "Add your first sign" : "Add sign")
                         .font(.title2.weight(.bold))
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                         .accessibilityAddTraits(.isHeader)
 
-                    Text("Name the customer or site and the sign you check there.")
+                    Text("Choose a customer or site, then name the sign you check there.")
                         .font(.body)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
+                if !siteOptions.isEmpty {
+                    WorklightCard {
+                        Text("Customer / site")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(DesignTokens.Colors.primaryText)
+
+                        Picker("Customer / site", selection: $siteChoice) {
+                            ForEach(siteOptions) { option in
+                                Text(option.label)
+                                    .tag(SiteChoice.existing(option.id))
+                            }
+                            Text("New site")
+                                .tag(SiteChoice.new)
+                        }
+                        .pickerStyle(.menu)
+                        .accessibilityIdentifier(Self.siteChoiceAccessibilityIdentifier)
+                    }
+                }
+
                 WorklightCard {
-                    labeledField(
-                        label: "Customer / site name",
-                        text: $siteLabel,
-                        field: .siteLabel,
-                        identifier: Self.siteLabelAccessibilityIdentifier
-                    )
+                    if siteChoice == .new {
+                        labeledField(
+                            label: "Customer / site name",
+                            text: $siteLabel,
+                            field: .siteLabel,
+                            identifier: Self.siteLabelAccessibilityIdentifier
+                        )
+                    }
 
                     labeledField(
                         label: "Sign name",
@@ -63,7 +109,8 @@ struct NewSignView: View {
                     )
                 }
 
-                WorklightCard {
+                if siteChoice == .new {
+                    WorklightCard {
                     Button {
                         withAnimation { showsOptionalDetails.toggle() }
                     } label: {
@@ -103,6 +150,19 @@ struct NewSignView: View {
                                 )
                         }
                         .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                    }
+                    .accessibilityIdentifier(Self.newSiteAccessibilityIdentifier)
+                } else if let selectedSite {
+                    WorklightCard {
+                        Text("Using \(selectedSite.label)")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(DesignTokens.Colors.primaryText)
+                        if let address = selectedSite.address {
+                            Text(address)
+                                .font(.subheadline)
+                                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                        }
                     }
                 }
 
@@ -162,6 +222,7 @@ struct NewSignView: View {
         isSaving = true
 
         let input = FirstSignInput(
+            existingSiteID: selectedSite?.id,
             siteLabel: siteLabel,
             signLabel: signLabel,
             address: address,
@@ -190,9 +251,16 @@ struct NewSignView: View {
             focus(field)
         case .firstSignAlreadyExists:
             errorMessage = "The first sign has already been added."
+        case let .accessDenied(decision):
+            accessBlocked(decision)
         case .storedDataInvalid, .saveFailed:
             errorMessage = "The sign could not be saved. Try again."
         }
+    }
+
+    private var selectedSite: FirstSignSiteOption? {
+        guard case let .existing(id) = siteChoice else { return nil }
+        return siteOptions.first { $0.id == id }
     }
 
     private func focus(_ field: FirstSignValidationField) {

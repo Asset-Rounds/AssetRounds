@@ -121,6 +121,8 @@ struct StoreKitEntitlementRuntimeV1: @unchecked Sendable {
 final class StoreKitTransactionProcessor: ObservableObject {
     @Published private(set) var state: EntitlementAccessStateV1 = .loading
     @Published private(set) var latestVerifiedFact: VerifiedEntitlementFactV1?
+    @Published private(set) var draftAccessState: DraftAccessNormalizedStateV1 =
+        .loading(.priorPaidWithoutValidCache)
 
     private let store: EntitlementStore
     private let runtime: StoreKitEntitlementRuntimeV1
@@ -158,11 +160,20 @@ final class StoreKitTransactionProcessor: ObservableObject {
                     cache: cache,
                     now: now()
                 )
+                if cache == nil {
+                    draftAccessState = .loading(.neverPaidWithoutCache)
+                } else if case .entitled = state {
+                    draftAccessState = .loading(.validCachedEntitlement)
+                } else {
+                    publishDraftAccessState(from: state)
+                }
             } else {
                 state = .loading
+                draftAccessState = .loading(.priorPaidWithoutValidCache)
             }
         } catch {
             state = .loading
+            draftAccessState = .loading(.priorPaidWithoutValidCache)
         }
         latestVerifiedFact = nil
         isStarted = true
@@ -243,12 +254,14 @@ final class StoreKitTransactionProcessor: ObservableObject {
                 guard StoreKitPaidGraceAuthorityV1.accepts(cache) else {
                     state = .loading
                     latestVerifiedFact = nil
+                    draftAccessState = .loading(.priorPaidWithoutValidCache)
                     return .failed
                 }
                 state = try EntitlementReducerV1.offlineState(
                     cache: cache,
                     now: now()
                 )
+                publishDraftAccessState(from: state)
                 latestVerifiedFact = nil
                 return sawUnverified
                     ? .unverified
@@ -266,8 +279,10 @@ final class StoreKitTransactionProcessor: ObservableObject {
                     cache: cache,
                     now: now()
                 )
+                publishDraftAccessState(from: state)
             } catch {
                 state = .loading
+                draftAccessState = .loading(.priorPaidWithoutValidCache)
             }
             latestVerifiedFact = nil
             return .failed
@@ -320,6 +335,7 @@ private extension StoreKitTransactionProcessor {
             let durable = try store.persist(replacement)
             guard durable == replacement else { return false }
             state = reduction.state
+            publishDraftAccessState(from: state)
             latestVerifiedFact = selectedFact(
                 in: events.map(\.fact),
                 matching: replacement
@@ -348,6 +364,7 @@ private extension StoreKitTransactionProcessor {
                     cache: durable,
                     now: now()
                 )
+                publishDraftAccessState(from: state)
                 latestVerifiedFact = standaloneCache == durable
                     ? selectedFact(
                         in: events.map(\.fact),
@@ -385,6 +402,19 @@ private extension StoreKitTransactionProcessor {
             return ($0.expirationAt ?? .distantPast)
                 > ($1.expirationAt ?? .distantPast)
         }.first { $0.verifiedAt == cache.verifiedAt }
+    }
+
+    func publishDraftAccessState(from state: EntitlementAccessStateV1) {
+        switch state {
+        case .loading:
+            draftAccessState = .loading(.priorPaidWithoutValidCache)
+        case .entitled:
+            draftAccessState = .entitled
+        case .neverPaid:
+            draftAccessState = .neverPaid
+        case .formerPaidInactive:
+            draftAccessState = .formerPaidInactive
+        }
     }
 }
 

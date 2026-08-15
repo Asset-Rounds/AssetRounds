@@ -19,6 +19,8 @@ struct SignDetailView: View {
     static let deleteMessageAccessibilityIdentifier = "s6.1.delete.message"
     static let deleteCancelAccessibilityIdentifier = "s6.1.delete.cancel"
     static let deleteConfirmAccessibilityIdentifier = "s6.1.delete.confirm"
+    static let allSignsAccessibilityIdentifier = "s7.4.sign-detail.all-signs"
+    static let addSignAccessibilityIdentifier = "s7.4.sign-detail.add-sign"
 
     let snapshot: FirstSignSnapshot
     let checkNotice: String?
@@ -30,6 +32,8 @@ struct SignDetailView: View {
     let recordWork: () -> Void
     let refreshIssue: () -> Void
     let startCheck: () -> Void
+    let showAllSigns: () -> Void
+    let addSign: () -> Void
     let deleteSign: () async throws -> Void
 
     @State private var isConfirmingDeletion = false
@@ -73,6 +77,14 @@ struct SignDetailView: View {
                 }
 
                 WorklightCard {
+                    Button("All signs", action: showAllSigns)
+                        .buttonStyle(WorklightSecondaryButtonStyle())
+                        .accessibilityIdentifier(Self.allSignsAccessibilityIdentifier)
+
+                    Button("Add sign", action: addSign)
+                        .buttonStyle(WorklightSecondaryButtonStyle())
+                        .accessibilityIdentifier(Self.addSignAccessibilityIdentifier)
+
                     if let activeIssue {
                         if activeIssue.canRecordWork {
                             Button("Record work", action: recordWork)

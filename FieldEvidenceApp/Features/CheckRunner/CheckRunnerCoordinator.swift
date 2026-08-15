@@ -44,6 +44,7 @@ enum CheckRunnerCoordinatorError: Error, Equatable {
     case finalizationNotConfigured
     case finalizationFailed
     case saveFailed
+    case accessDenied(DraftAccessDecisionV1)
 }
 
 enum CheckOutcomeSelection: Equatable, Sendable {
@@ -192,6 +193,7 @@ final class CheckRunnerCoordinator {
     private let evidenceSaveFailureInjection: CheckRunnerCoordinatorFailureInjection?
     private let finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection?
     private let finalizationServiceFailureInjection: FinalizationServiceFailureInjection?
+    private let draftAccessState: (@MainActor () -> DraftAccessNormalizedStateV1)?
     private var captureGenerationRootURL: URL?
     private var evidenceBundleStore: EvidenceBundleStore?
     private var reportDeliveryCoordinator: ReportDeliveryCoordinator?
@@ -217,7 +219,8 @@ final class CheckRunnerCoordinator {
         evidenceSaveFailureInjection: CheckRunnerCoordinatorFailureInjection? = nil,
         finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
         finalizationServiceFailureInjection: FinalizationServiceFailureInjection? = nil,
-        injectsLowStorageFailureOnceForUITest: Bool = false
+        injectsLowStorageFailureOnceForUITest: Bool = false,
+        draftAccessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil
     ) {
         self.modelContext = modelContext
         self.signPack = signPack
@@ -226,6 +229,7 @@ final class CheckRunnerCoordinator {
         self.evidenceSaveFailureInjection = evidenceSaveFailureInjection
         self.finalizationStoreFailureInjection = finalizationStoreFailureInjection
         self.finalizationServiceFailureInjection = finalizationServiceFailureInjection
+        self.draftAccessState = draftAccessState
         if injectsLowStorageFailureOnceForUITest {
             var shouldFail = true
             self.storagePreflight = StoragePreflightService { _ in
@@ -909,17 +913,65 @@ final class CheckRunnerCoordinator {
         return draft
     }
 
-    func requestRecheck(assetID: UUID, issueID: UUID) throws {
-        if try existingDraft(assetID: assetID) != nil {
-            pendingRecheckRequest = nil
-            return
+    func accessDecision(
+        assetID: UUID,
+        requestedStage: WorkflowStage,
+        issueID: UUID?
+    ) throws -> DraftAccessDecisionV1 {
+        guard !modelContext.hasChanges else {
+            throw CheckRunnerCoordinatorError.invalidLineage
         }
+        guard let requestedEntry = draftAccessEntry(for: requestedStage) else {
+            return .blockInvalidRequest
+        }
+        let gateCheckedAt = Date()
+        if let draft = try existingDraft(assetID: assetID) {
+            guard draftAccessEntry(for: draft) == requestedEntry,
+                  draft.issueID == issueID,
+                  let proof = validatedDraftProof(
+                    draft,
+                    entry: requestedEntry,
+                    gateCheckedAt: gateCheckedAt
+                  ) else {
+                return .blockInvalidRequest
+            }
+            if let draftAccessState {
+                return try evaluateDraftAccess(
+                    state: draftAccessState(),
+                    entry: requestedEntry,
+                    existingDraft: proof
+                )
+            }
+            return .continueExisting
+        }
+
         _ = try requiredAsset(id: assetID)
         _ = try validatedParentRecordID(
+            assetID: assetID,
+            requestedStage: requestedStage,
+            issueID: issueID
+        )
+        guard let draftAccessState else { return .allow }
+        return try evaluateDraftAccess(
+            state: draftAccessState(),
+            entry: requestedEntry,
+            existingDraft: nil
+        )
+    }
+
+    func requestRecheck(assetID: UUID, issueID: UUID) throws {
+        let decision = try accessDecision(
             assetID: assetID,
             requestedStage: .recheck,
             issueID: issueID
         )
+        if decision == .continueExisting {
+            pendingRecheckRequest = nil
+            return
+        }
+        guard decision == .allow else {
+            throw CheckRunnerCoordinatorError.accessDenied(decision)
+        }
         pendingRecheckRequest = (assetID, issueID)
     }
 
@@ -953,8 +1005,20 @@ final class CheckRunnerCoordinator {
         requestedStage: WorkflowStage,
         issueID: UUID?
     ) throws -> WorkflowRecord {
+        let decision = try accessDecision(
+            assetID: assetID,
+            requestedStage: requestedStage,
+            issueID: issueID
+        )
         if let draft = try existingDraft(assetID: assetID) {
+            guard decision == .continueExisting else {
+                throw CheckRunnerCoordinatorError.accessDenied(decision)
+            }
             return draft
+        }
+
+        guard decision == .allow else {
+            throw CheckRunnerCoordinatorError.accessDenied(decision)
         }
 
         let asset = try requiredAsset(id: assetID)
@@ -982,8 +1046,21 @@ final class CheckRunnerCoordinator {
     func beginOrResumeDraft(
         _ submission: BeginDraftSubmission
     ) throws -> WorkflowRecord {
+        let decision = try accessDecision(
+            assetID: submission.assetID,
+            requestedStage: submission.requestedStage,
+            issueID: submission.issueID
+        )
         if let draft = try existingDraft(assetID: submission.assetID) {
+            guard decision == .continueExisting else {
+                throw CheckRunnerCoordinatorError.accessDenied(decision)
+            }
             return draft
+        }
+
+
+        guard decision == .allow else {
+            throw CheckRunnerCoordinatorError.accessDenied(decision)
         }
 
         let asset = try requiredAsset(id: submission.assetID)
@@ -1043,6 +1120,132 @@ final class CheckRunnerCoordinator {
                 startedAt: observedAtUTC
             )
         }
+    }
+
+    private func evaluateDraftAccess(
+        state: DraftAccessNormalizedStateV1,
+        entry: DraftAccessEntryV1,
+        existingDraft: RepositoryValidatedDraftV1?
+    ) throws -> DraftAccessDecisionV1 {
+        let assets = try modelContext.fetch(FetchDescriptor<Asset>())
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>())
+        guard Set(assets.map(\.id)).count == assets.count,
+              assets.allSatisfy({
+                $0.schemaVersion == 1
+                    && $0.updatedAt >= $0.createdAt
+                    && !$0.label.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    ).isEmpty
+              }),
+              Set(packets.map(\.id)).count == packets.count,
+              Set(packets.map(\.stableRootID)).count == packets.count,
+              packets.allSatisfy({ packet in
+                guard packet.schemaVersion == 1 else { return false }
+                if packet.currentRecordID == nil {
+                    return packet.contentDeletedAt.map {
+                        $0 >= packet.createdAt
+                    } ?? false
+                }
+                return packet.contentDeletedAt == nil
+              }) else {
+            return .blockInvalidRequest
+        }
+        return DraftAccessPolicy.evaluate(
+            DraftAccessPolicyInputV1(
+                accessState: state,
+                liveAssetCount: assets.count,
+                countedStableRootIDs: Set(
+                    packets.lazy
+                        .filter(\.evaluationCounted)
+                        .map(\.stableRootID)
+                ),
+                requestedEntry: entry,
+                existingDraft: existingDraft
+            )
+        )
+    }
+
+    private func draftAccessEntry(
+        for stage: WorkflowStage
+    ) -> DraftAccessEntryV1? {
+        switch stage {
+        case .check: return .check
+        case .work: return .work
+        case .recheck: return .recheck
+        }
+    }
+
+    private func draftAccessEntry(
+        for draft: WorkflowRecord
+    ) -> DraftAccessEntryV1? {
+        guard let stage = WorkflowStage(rawValue: draft.stage) else {
+            return nil
+        }
+        return draftAccessEntry(for: stage)
+    }
+
+    private func validatedDraftProof(
+        _ draft: WorkflowRecord,
+        entry: DraftAccessEntryV1,
+        gateCheckedAt: Date
+    ) -> RepositoryValidatedDraftV1? {
+        guard draft.schemaVersion == 1,
+              draft.state == WorkflowState.draft.rawValue,
+              draft.revisionKind == WorkflowRevisionKind.original.rawValue,
+              draft.recordRevisionRootID == draft.id,
+              draft.packetID == nil,
+              draft.revisesRecordID == nil,
+              draft.evidenceSourceRecordID == nil,
+              draft.completedAt == nil,
+              draft.outcomeKey == nil,
+              draft.finalizationMutationID == nil,
+              draft.startedAt < gateCheckedAt,
+              let asset = try? requiredAsset(id: draft.assetID),
+              asset.packID == draft.packID,
+              asset.packSchemaVersion == draft.packSchemaVersion,
+              asset.packContentVersion == draft.packContentVersion else {
+            return nil
+        }
+
+        switch entry {
+        case .check:
+            guard draft.stage == WorkflowStage.check.rawValue,
+                  draft.issueID == nil,
+                  draft.parentRecordID == nil else {
+                return nil
+            }
+        case .work, .recheck:
+            guard draft.stage == entry.rawValue,
+                  let issueID = draft.issueID,
+                  let requestedStage = WorkflowStage(rawValue: draft.stage),
+                  let expectedParent = try? validatedParentRecordID(
+                    assetID: draft.assetID,
+                    requestedStage: requestedStage,
+                    issueID: issueID
+                  ),
+                  draft.parentRecordID == expectedParent else {
+                return nil
+            }
+            let issues = (try? modelContext.fetch(FetchDescriptor<Issue>()))?
+                .filter { $0.id == issueID } ?? []
+            guard issues.count == 1,
+                  issues[0].schemaVersion == 1,
+                  issues[0].assetID == draft.assetID,
+                  issues[0].updatedAt <= draft.startedAt else {
+                return nil
+            }
+        case .createSign:
+            return nil
+        }
+
+        return RepositoryValidatedDraftV1(
+            draftID: draft.id,
+            assetID: draft.assetID,
+            issueID: draft.issueID,
+            entry: entry,
+            createdAt: draft.startedAt,
+            gateCheckedAt: gateCheckedAt
+        )
     }
 
     private func requiredAsset(id: UUID) throws -> Asset {

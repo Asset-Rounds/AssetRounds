@@ -3,6 +3,7 @@ import SwiftData
 import SwiftUI
 
 struct FirstSignInput: Equatable, Sendable {
+    let existingSiteID: UUID?
     let siteLabel: String
     let signLabel: String
     let address: String
@@ -10,18 +11,27 @@ struct FirstSignInput: Equatable, Sendable {
     let isTimeZoneConfirmed: Bool
 
     init(
+        existingSiteID: UUID? = nil,
         siteLabel: String,
         signLabel: String,
         address: String = "",
         timeZoneID: String = "",
         isTimeZoneConfirmed: Bool = false
     ) {
+        self.existingSiteID = existingSiteID
         self.siteLabel = siteLabel
         self.signLabel = signLabel
         self.address = address
         self.timeZoneID = timeZoneID
         self.isTimeZoneConfirmed = isTimeZoneConfirmed
     }
+}
+
+struct FirstSignSiteOption: Identifiable, Equatable, Sendable {
+    let id: UUID
+    let label: String
+    let address: String?
+    let timeZoneID: String?
 }
 
 struct FirstSignSnapshot: Identifiable, Equatable, Sendable {
@@ -48,6 +58,7 @@ enum FirstSignValidationField: String, Equatable, Sendable {
 enum FirstSignCoordinatorError: Error, Equatable {
     case validation(FirstSignValidationField)
     case firstSignAlreadyExists
+    case accessDenied(DraftAccessDecisionV1)
     case storedDataInvalid
     case saveFailed
 }
@@ -57,57 +68,122 @@ final class FirstSignCoordinator: ObservableObject {
     private let modelContext: ModelContext
     private let diagnosticsStore: DiagnosticsStore
     private let signPack: SignPack
+    private let accessState: (@MainActor () -> DraftAccessNormalizedStateV1)?
 
     init(
         modelContext: ModelContext,
         diagnosticsStore: DiagnosticsStore,
-        signPack: SignPack
+        signPack: SignPack,
+        accessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil
     ) {
         self.modelContext = modelContext
         self.diagnosticsStore = diagnosticsStore
         self.signPack = signPack
+        self.accessState = accessState
     }
 
     func load() throws -> FirstSignSnapshot? {
-        var assetDescriptor = FetchDescriptor<Asset>()
-        assetDescriptor.fetchLimit = 2
-        let assets = try modelContext.fetch(assetDescriptor)
-
-        guard let asset = assets.first else {
-            return nil
-        }
-        guard assets.count == 1 else {
+        let values = try loadAll()
+        guard values.count <= 1 else {
             throw FirstSignCoordinatorError.storedDataInvalid
         }
+        return values.first
+    }
 
-        let siteID = asset.siteID
-        let siteDescriptor = FetchDescriptor<Site>(
-            predicate: #Predicate { $0.id == siteID }
+    func loadAll() throws -> [FirstSignSnapshot] {
+        guard !modelContext.hasChanges else {
+            throw FirstSignCoordinatorError.storedDataInvalid
+        }
+        let assets = try modelContext.fetch(FetchDescriptor<Asset>())
+        let sites = try validatedSites()
+        let sitesByID = Dictionary(uniqueKeysWithValues: sites.map { ($0.id, $0) })
+        guard Set(assets.map(\.id)).count == assets.count else {
+            throw FirstSignCoordinatorError.storedDataInvalid
+        }
+        return try assets.map { asset in
+            guard asset.schemaVersion == 1,
+                  asset.label == trimmed(asset.label),
+                  !asset.label.isEmpty,
+                  asset.updatedAt >= asset.createdAt,
+                  asset.packID == signPack.packID,
+                  asset.packSchemaVersion == signPack.schemaVersion,
+                  asset.packContentVersion == signPack.contentVersion,
+                  let site = sitesByID[asset.siteID] else {
+                throw FirstSignCoordinatorError.storedDataInvalid
+            }
+            return snapshot(site: site, asset: asset)
+        }.sorted {
+            if $0.signLabel != $1.signLabel {
+                return $0.signLabel.localizedStandardCompare($1.signLabel)
+                    == .orderedAscending
+            }
+            return $0.assetID.uuidString < $1.assetID.uuidString
+        }
+    }
+
+    func siteOptions() throws -> [FirstSignSiteOption] {
+        try validatedSites().map {
+            FirstSignSiteOption(
+                id: $0.id,
+                label: $0.label,
+                address: $0.address,
+                timeZoneID: $0.timeZoneID
+            )
+        }.sorted {
+            if $0.label != $1.label {
+                return $0.label.localizedStandardCompare($1.label)
+                    == .orderedAscending
+            }
+            return $0.id.uuidString < $1.id.uuidString
+        }
+    }
+
+    func accessDecisionForCreateSign() throws -> DraftAccessDecisionV1 {
+        let assets = try validatedAccessAssets()
+        guard let accessState else {
+            return assets.isEmpty ? .allow : .blockEvaluation
+        }
+        return DraftAccessPolicy.evaluate(
+            DraftAccessPolicyInputV1(
+                accessState: accessState(),
+                liveAssetCount: assets.count,
+                countedStableRootIDs: try countedStableRootIDs(),
+                requestedEntry: .createSign
+            )
         )
-        let sites = try modelContext.fetch(siteDescriptor)
-        guard sites.count == 1, let site = sites.first else {
-            throw FirstSignCoordinatorError.storedDataInvalid
-        }
-
-        return snapshot(site: site, asset: asset)
     }
 
     func create(_ input: FirstSignInput) async throws -> FirstSignSnapshot {
         let normalized = try validated(input)
 
-        var assetDescriptor = FetchDescriptor<Asset>()
-        assetDescriptor.fetchLimit = 1
-        guard try modelContext.fetch(assetDescriptor).isEmpty else {
-            throw FirstSignCoordinatorError.firstSignAlreadyExists
+        let assetCountBefore = try validatedAccessAssets().count
+        let decision = try accessDecisionForCreateSign()
+        guard decision == .allow else {
+            if case nil = accessState, assetCountBefore > 0 {
+                throw FirstSignCoordinatorError.firstSignAlreadyExists
+            }
+            throw FirstSignCoordinatorError.accessDenied(decision)
         }
 
         let now = Date()
-        let site = Site(
-            label: normalized.siteLabel,
-            address: normalized.address,
-            timeZoneID: normalized.timeZoneID,
-            createdAt: now
-        )
+        let site: Site
+        let insertsSite: Bool
+        if let existingSiteID = normalized.existingSiteID {
+            let matches = try validatedSites().filter { $0.id == existingSiteID }
+            guard matches.count == 1, let existing = matches.first else {
+                throw FirstSignCoordinatorError.storedDataInvalid
+            }
+            site = existing
+            insertsSite = false
+        } else {
+            site = Site(
+                label: normalized.siteLabel,
+                address: normalized.address,
+                timeZoneID: normalized.timeZoneID,
+                createdAt: now
+            )
+            insertsSite = true
+        }
         let asset = Asset(
             siteID: site.id,
             packID: signPack.packID,
@@ -117,7 +193,9 @@ final class FirstSignCoordinator: ObservableObject {
             createdAt: now
         )
 
-        modelContext.insert(site)
+        if insertsSite {
+            modelContext.insert(site)
+        }
         modelContext.insert(asset)
 
         do {
@@ -127,19 +205,35 @@ final class FirstSignCoordinator: ObservableObject {
             throw FirstSignCoordinatorError.saveFailed
         }
 
-        await diagnosticsStore.increment(.firstSignCreated)
+        if (await diagnosticsStore.snapshot()).firstSignCreated == 0 {
+            await diagnosticsStore.increment(.firstSignCreated)
+        }
         return snapshot(site: site, asset: asset)
     }
 
     private func validated(_ input: FirstSignInput) throws -> NormalizedFirstSignInput {
-        let siteLabel = trimmed(input.siteLabel)
-        guard !siteLabel.isEmpty else {
-            throw FirstSignCoordinatorError.validation(.siteLabel)
-        }
-
         let signLabel = trimmed(input.signLabel)
         guard !signLabel.isEmpty else {
             throw FirstSignCoordinatorError.validation(.signLabel)
+        }
+
+        if let existingSiteID = input.existingSiteID {
+            let matches = try validatedSites().filter { $0.id == existingSiteID }
+            guard matches.count == 1 else {
+                throw FirstSignCoordinatorError.storedDataInvalid
+            }
+            return NormalizedFirstSignInput(
+                existingSiteID: existingSiteID,
+                siteLabel: "",
+                signLabel: signLabel,
+                address: nil,
+                timeZoneID: nil
+            )
+        }
+
+        let siteLabel = trimmed(input.siteLabel)
+        guard !siteLabel.isEmpty else {
+            throw FirstSignCoordinatorError.validation(.siteLabel)
         }
 
         let address = optionalTrimmed(input.address)
@@ -155,11 +249,71 @@ final class FirstSignCoordinator: ObservableObject {
         }
 
         return NormalizedFirstSignInput(
+            existingSiteID: nil,
             siteLabel: siteLabel,
             signLabel: signLabel,
             address: address,
             timeZoneID: timeZoneID
         )
+    }
+
+    private func validatedAccessAssets() throws -> [Asset] {
+        guard !modelContext.hasChanges else {
+            throw FirstSignCoordinatorError.storedDataInvalid
+        }
+        let assets = try modelContext.fetch(FetchDescriptor<Asset>())
+        guard Set(assets.map(\.id)).count == assets.count,
+              assets.allSatisfy({
+                $0.schemaVersion == 1
+                    && $0.updatedAt >= $0.createdAt
+                    && $0.label == trimmed($0.label)
+                    && !$0.label.isEmpty
+              }) else {
+            throw FirstSignCoordinatorError.storedDataInvalid
+        }
+        return assets
+    }
+
+    private func countedStableRootIDs() throws -> Set<UUID> {
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>())
+        guard Set(packets.map(\.id)).count == packets.count,
+              Set(packets.map(\.stableRootID)).count == packets.count,
+              packets.allSatisfy({ packet in
+                guard packet.schemaVersion == 1 else { return false }
+                if packet.currentRecordID == nil {
+                    return packet.contentDeletedAt != nil
+                        && packet.contentDeletedAt! >= packet.createdAt
+                }
+                return packet.contentDeletedAt == nil
+              }) else {
+            throw FirstSignCoordinatorError.storedDataInvalid
+        }
+        return Set(
+            packets.lazy.filter(\.evaluationCounted).map(\.stableRootID)
+        )
+    }
+
+    private func validatedSites() throws -> [Site] {
+        guard !modelContext.hasChanges else {
+            throw FirstSignCoordinatorError.storedDataInvalid
+        }
+        let sites = try modelContext.fetch(FetchDescriptor<Site>())
+        guard Set(sites.map(\.id)).count == sites.count,
+              sites.allSatisfy({ site in
+                site.schemaVersion == 1
+                    && site.label == trimmed(site.label)
+                    && !site.label.isEmpty
+                    && site.address.map {
+                        $0 == trimmed($0) && !$0.isEmpty
+                    } ?? true
+                    && site.timeZoneID.map {
+                        TimeZone.knownTimeZoneIdentifiers.contains($0)
+                    } ?? true
+                    && site.updatedAt >= site.createdAt
+              }) else {
+            throw FirstSignCoordinatorError.storedDataInvalid
+        }
+        return sites
     }
 
     private func snapshot(site: Site, asset: Asset) -> FirstSignSnapshot {
@@ -187,6 +341,7 @@ final class FirstSignCoordinator: ObservableObject {
 }
 
 private struct NormalizedFirstSignInput {
+    let existingSiteID: UUID?
     let siteLabel: String
     let signLabel: String
     let address: String?

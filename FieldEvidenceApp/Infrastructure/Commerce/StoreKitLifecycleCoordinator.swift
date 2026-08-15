@@ -42,6 +42,7 @@ struct StoreKitRestoreRuntimeV1: @unchecked Sendable {
 final class StoreKitLifecycleCoordinator: ObservableObject {
     @Published private(set) var lifecycleState: SubscriptionLifecycleStateV1
     @Published private(set) var latestVerifiedFact: VerifiedEntitlementFactV1?
+    @Published private(set) var draftAccessState: DraftAccessNormalizedStateV1
     @Published private(set) var restoreState: StoreKitRestoreStateV1 = .idle
     @Published private(set) var isRestoring = false
 
@@ -49,6 +50,7 @@ final class StoreKitLifecycleCoordinator: ObservableObject {
     private let runtime: StoreKitRestoreRuntimeV1
     private var stateObservation: AnyCancellable?
     private var factObservation: AnyCancellable?
+    private var draftAccessObservation: AnyCancellable?
 
     init(
         processor: StoreKitTransactionProcessor?,
@@ -60,12 +62,18 @@ final class StoreKitLifecycleCoordinator: ObservableObject {
             from: processor?.state ?? .loading
         )
         latestVerifiedFact = processor?.latestVerifiedFact
+        draftAccessState = processor?.draftAccessState
+            ?? .loading(.neverPaidWithoutCache)
         stateObservation = processor?.$state.sink { [weak self] state in
             self?.lifecycleState = Self.lifecycleState(from: state)
         }
         factObservation = processor?.$latestVerifiedFact.sink {
             [weak self] fact in
             self?.latestVerifiedFact = fact
+        }
+        draftAccessObservation = processor?.$draftAccessState.sink {
+            [weak self] state in
+            self?.draftAccessState = state
         }
     }
 

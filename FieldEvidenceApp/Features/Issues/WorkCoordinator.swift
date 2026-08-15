@@ -54,6 +54,7 @@ enum WorkCoordinatorError: Error, Equatable {
     case mediaInvalid
     case saveFailed
     case cleanupFailed
+    case accessDenied(DraftAccessDecisionV1)
 }
 
 enum WorkCoordinatorFailurePoint: Equatable, Sendable {
@@ -168,6 +169,11 @@ final class WorkCoordinator {
                 requestedStage: .work,
                 issueID: issueID
             )
+        } catch let error as CheckRunnerCoordinatorError {
+            if case let .accessDenied(decision) = error {
+                throw WorkCoordinatorError.accessDenied(decision)
+            }
+            throw WorkCoordinatorError.invalidAuthority
         } catch {
             throw WorkCoordinatorError.invalidAuthority
         }

@@ -11,8 +11,16 @@ struct SignsRootView: View {
     static let restorePurchasesAccessibilityIdentifier = "s2.welcome.restore-purchases"
     static let sampleScreenAccessibilityIdentifier = "s2.sample.screen"
     static let sampleBackAccessibilityIdentifier = "s2.sample.back"
+    static let signSelectionAccessibilityIdentifier = "s7.4.signs.selection"
+    static let signRowAccessibilityIdentifier = "s7.4.signs.row"
+    static let addSignAccessibilityIdentifier = "s7.4.signs.add-sign"
+    static let accessNoticeAccessibilityIdentifier = "s7.4.signs.access-notice"
 
     private struct LifecyclePresentation: Identifiable {
+        let id = UUID()
+    }
+
+    private struct PaywallPresentation: Identifiable {
         let id = UUID()
     }
 
@@ -44,6 +52,8 @@ struct SignsRootView: View {
     private let workCoordinator: WorkCoordinator?
     private let deletionService: WholeSignDeletionService
     @State private var snapshot: FirstSignSnapshot?
+    @State private var snapshots = [FirstSignSnapshot]()
+    @State private var showsSignSelection = false
     @State private var readyReport: ReportDeliveryValue?
     @State private var path = NavigationPath()
     @State private var didLoad = false
@@ -51,6 +61,7 @@ struct SignsRootView: View {
     @State private var checkNotice: String?
     @State private var activeIssue: WorkIssuePresentationValue?
     @State private var lifecyclePresentation: LifecyclePresentation?
+    @State private var paywallPresentation: PaywallPresentation?
     @AccessibilityFocusState private var welcomeTitleFocused: Bool
 
     init(
@@ -79,7 +90,8 @@ struct SignsRootView: View {
             wrappedValue: FirstSignCoordinator(
                 modelContext: modelContext,
                 diagnosticsStore: diagnosticsStore,
-                signPack: pack
+                signPack: pack,
+                accessState: { lifecycleCoordinator.draftAccessState }
             )
         )
         let runnerCoordinator = CheckRunnerCoordinator(
@@ -87,7 +99,8 @@ struct SignsRootView: View {
             signPack: pack,
             diagnosticsStore: diagnosticsStore,
             injectsLowStorageFailureOnceForUITest:
-                injectsLowStorageFailureOnceForUITest
+                injectsLowStorageFailureOnceForUITest,
+            draftAccessState: { lifecycleCoordinator.draftAccessState }
         )
         checkRunnerCoordinator = runnerCoordinator
         let deliveryCoordinator = try? ReportDeliveryCoordinator(
@@ -118,7 +131,9 @@ struct SignsRootView: View {
     var body: some View {
         NavigationStack(path: $path) {
             Group {
-                if let snapshot {
+                if showsSignSelection, !snapshots.isEmpty {
+                    signSelection
+                } else if let snapshot {
                     SignDetailView(
                         snapshot: snapshot,
                         checkNotice: checkNotice,
@@ -134,10 +149,10 @@ struct SignsRootView: View {
                         recordWork: beginRecordWork,
                         refreshIssue: { refreshActiveIssue() },
                         startCheck: {
-                            checkRunnerCoordinator.clearPendingRecheckRequest()
-                            checkNotice = nil
-                            path.append(Route.check)
+                            beginCheck()
                         },
+                        showAllSigns: showAllSigns,
+                        addSign: beginAddSign,
                         deleteSign: {
                             try await deleteCurrentSign(assetID: snapshot.assetID)
                         }
@@ -153,9 +168,18 @@ struct SignsRootView: View {
                 case .sample:
                     sample
                 case .newSign:
-                    NewSignView(coordinator: coordinator) { savedSnapshot in
-                        snapshot = savedSnapshot
-                        path = NavigationPath()
+                    NewSignView(
+                        coordinator: coordinator,
+                        siteOptions: (try? coordinator.siteOptions()) ?? [],
+                        accessBlocked: handleAccessDecision
+                    ) { savedSnapshot in
+                        do {
+                            snapshots = try coordinator.loadAll()
+                            select(savedSnapshot)
+                            path = NavigationPath()
+                        } catch {
+                            loadErrorMessage = "Saved sign data could not be opened."
+                        }
                     }
                 case .check:
                     if let snapshot {
@@ -266,14 +290,15 @@ struct SignsRootView: View {
             didLoad = true
 
             do {
-                let loadedSnapshot = try coordinator.load()
-                snapshot = loadedSnapshot
-                refreshReadyReport()
-                refreshActiveIssue()
-
-                if let loadedSnapshot,
-                   try checkRunnerCoordinator.existingDraft(assetID: loadedSnapshot.assetID) != nil {
-                    path.append(Route.check)
+                snapshots = try coordinator.loadAll()
+                if snapshots.count == 1, let loadedSnapshot = snapshots.first {
+                    select(loadedSnapshot)
+                    _ = try resumeExistingDraftIfPresent(
+                        assetID: loadedSnapshot.assetID
+                    )
+                } else if snapshots.count > 1 {
+                    snapshot = nil
+                    showsSignSelection = true
                 }
             } catch {
                 loadErrorMessage = "Saved sign data could not be opened."
@@ -288,6 +313,13 @@ struct SignsRootView: View {
                 )
             }
         }
+        .sheet(item: $paywallPresentation) { presentation in
+            PaywallView(
+                coordinator: purchaseCoordinator,
+                presentationToken: presentation.id,
+                close: { paywallPresentation = nil }
+            )
+        }
     }
 
     private func refreshReadyReport() {
@@ -297,6 +329,117 @@ struct SignsRootView: View {
             return
         }
         readyReport = try? reportDeliveryCoordinator.onlyReadyReport(assetID: assetID)
+    }
+
+    private func select(_ value: FirstSignSnapshot) {
+        snapshot = value
+        showsSignSelection = false
+        readyReport = nil
+        activeIssue = nil
+        checkNotice = nil
+        refreshReadyReport()
+        refreshActiveIssue(preferRetained: false)
+    }
+
+    private func showAllSigns() {
+        path = NavigationPath()
+        showsSignSelection = true
+        checkNotice = nil
+    }
+
+    private func selectAndResume(_ value: FirstSignSnapshot) {
+        select(value)
+        do {
+            _ = try resumeExistingDraftIfPresent(assetID: value.assetID)
+        } catch {
+            checkNotice = "The saved draft could not be resumed safely."
+        }
+    }
+
+    private func beginAddSign() {
+        do {
+            handleEntryDecision(
+                try coordinator.accessDecisionForCreateSign(),
+                allowed: { path.append(Route.newSign) }
+            )
+        } catch {
+            checkNotice = "A new sign could not be started safely."
+        }
+    }
+
+    private func beginCheck() {
+        guard let snapshot else { return }
+        do {
+            if try resumeExistingDraftIfPresent(assetID: snapshot.assetID) {
+                return
+            }
+            let decision = try checkRunnerCoordinator.accessDecision(
+                assetID: snapshot.assetID,
+                requestedStage: .check,
+                issueID: nil
+            )
+            handleEntryDecision(decision) {
+                checkRunnerCoordinator.clearPendingRecheckRequest()
+                checkNotice = nil
+                path.append(Route.check)
+            }
+        } catch {
+            checkNotice = "A new check could not be started safely."
+        }
+    }
+
+    private func handleEntryDecision(
+        _ decision: DraftAccessDecisionV1,
+        allowed: () -> Void
+    ) {
+        switch decision {
+        case .allow, .continueExisting:
+            allowed()
+        case .blockPaid, .blockEvaluation:
+            paywallPresentation = PaywallPresentation()
+        case .waitForStore:
+            checkNotice = "Checking your subscription. Try again shortly."
+        case .blockInvalidRequest:
+            checkNotice = "This action could not be started safely."
+        }
+    }
+
+    private func handleAccessDecision(_ decision: DraftAccessDecisionV1) {
+        handleEntryDecision(decision, allowed: {})
+    }
+
+    @discardableResult
+    private func resumeExistingDraftIfPresent(assetID: UUID) throws -> Bool {
+        guard let draft = try checkRunnerCoordinator.existingDraft(
+            assetID: assetID
+        ),
+              let stage = WorkflowStage(rawValue: draft.stage) else {
+            return false
+        }
+        let decision = try checkRunnerCoordinator.accessDecision(
+            assetID: assetID,
+            requestedStage: stage,
+            issueID: draft.issueID
+        )
+        guard decision == .continueExisting else {
+            handleAccessDecision(decision)
+            return true
+        }
+        switch stage {
+        case .check, .recheck:
+            path.append(Route.check)
+        case .work:
+            guard let issueID = draft.issueID else {
+                throw CheckRunnerCoordinatorError.invalidLineage
+            }
+            path.append(Route.work(WorkDraftValue(
+                recordID: draft.id,
+                issueID: issueID,
+                assetID: draft.assetID,
+                startedAt: draft.startedAt
+            )))
+        }
+        return true
     }
 
     private func refreshActiveIssue(
@@ -316,6 +459,7 @@ struct SignsRootView: View {
                 issueID: retained.id
                ),
                status == .resolved {
+                guard snapshot?.assetID == assetID else { return }
                 activeIssue = WorkIssuePresentationValue(
                     id: retained.id,
                     assetID: retained.assetID,
@@ -324,6 +468,7 @@ struct SignsRootView: View {
                     records: retained.records
                 )
             } else if let loaded = try? await workCoordinator.activeIssue(assetID: assetID) {
+                guard snapshot?.assetID == assetID else { return }
                 activeIssue = loaded
                 if openLoadedIssue {
                     path.append(Route.issue(loaded.id))
@@ -333,6 +478,7 @@ struct SignsRootView: View {
                         assetID: assetID,
                         issueID: retained.id
                       ) {
+                guard snapshot?.assetID == assetID else { return }
                 activeIssue = WorkIssuePresentationValue(
                     id: retained.id,
                     assetID: retained.assetID,
@@ -341,6 +487,7 @@ struct SignsRootView: View {
                     records: retained.records
                 )
             } else {
+                guard snapshot?.assetID == assetID else { return }
                 activeIssue = nil
             }
         }
@@ -352,30 +499,50 @@ struct SignsRootView: View {
     }
 
     private func beginRecordWork() {
-        guard let activeIssue,
+        guard let snapshot,
+              let activeIssue,
               activeIssue.canRecordWork,
               let workCoordinator else {
             return
         }
         do {
+            if try resumeExistingDraftIfPresent(assetID: snapshot.assetID) {
+                return
+            }
             let draft = try workCoordinator.beginWork(issueID: activeIssue.id)
             path.append(Route.work(draft))
+        } catch let error as WorkCoordinatorError {
+            if case let .accessDenied(decision) = error {
+                handleAccessDecision(decision)
+                return
+            }
+            refreshActiveIssue()
         } catch {
             refreshActiveIssue()
         }
     }
 
     private func beginRecheck() {
-        guard let activeIssue,
+        guard let snapshot,
+              let activeIssue,
               activeIssue.status == .recheckDue else {
             return
         }
         do {
+            if try resumeExistingDraftIfPresent(assetID: snapshot.assetID) {
+                return
+            }
             try checkRunnerCoordinator.requestRecheck(
                 assetID: activeIssue.assetID,
                 issueID: activeIssue.id
             )
             path.append(Route.check)
+        } catch let error as CheckRunnerCoordinatorError {
+            if case let .accessDenied(decision) = error {
+                handleAccessDecision(decision)
+                return
+            }
+            refreshActiveIssue()
         } catch {
             refreshActiveIssue()
         }
@@ -406,9 +573,18 @@ struct SignsRootView: View {
         activeIssue = nil
         checkNotice = nil
         loadErrorMessage = nil
-        snapshot = try coordinator.load()
+        snapshots = try coordinator.loadAll()
+        if snapshots.count == 1, let remaining = snapshots.first {
+            select(remaining)
+        } else if snapshots.isEmpty {
+            snapshot = nil
+            showsSignSelection = false
+        } else {
+            snapshot = nil
+            showsSignSelection = true
+        }
         await Task.yield()
-        welcomeTitleFocused = true
+        welcomeTitleFocused = snapshots.isEmpty
     }
 
     private var reportUnavailable: some View {
@@ -473,7 +649,7 @@ struct SignsRootView: View {
                 }
 
                 Button("Add first sign") {
-                    path.append(Route.newSign)
+                    beginAddSign()
                 }
                 .buttonStyle(WorklightPrimaryButtonStyle())
                 .accessibilityIdentifier(Self.addFirstSignAccessibilityIdentifier)
@@ -505,6 +681,57 @@ struct SignsRootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.welcomeScreenAccessibilityIdentifier)
+    }
+
+    private var signSelection: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
+                WorklightCard {
+                    Text("Signs")
+                        .font(.largeTitle.weight(.bold))
+                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .accessibilityAddTraits(.isHeader)
+
+                    Text("Choose a sign to view its checks, issues, and reports.")
+                        .font(.body)
+                        .foregroundStyle(DesignTokens.Colors.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                ForEach(snapshots) { value in
+                    Button {
+                        selectAndResume(value)
+                    } label: {
+                        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+                            Text(value.signLabel)
+                                .font(.headline)
+                            Text(value.siteLabel)
+                                .font(.subheadline)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .accessibilityLabel("\(value.signLabel), \(value.siteLabel)")
+                    .accessibilityIdentifier(
+                        "\(Self.signRowAccessibilityIdentifier).\(value.assetID.uuidString.lowercased())"
+                    )
+                }
+
+                Button("Add sign", action: beginAddSign)
+                    .buttonStyle(WorklightPrimaryButtonStyle())
+                    .accessibilityIdentifier(Self.addSignAccessibilityIdentifier)
+
+                if let checkNotice {
+                    WorklightStatusBadge(kind: .information, text: checkNotice)
+                        .accessibilityIdentifier(Self.accessNoticeAccessibilityIdentifier)
+                }
+            }
+            .padding(DesignTokens.Spacing.medium)
+        }
+        .navigationTitle("Signs")
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DesignTokens.Colors.canvas)
+        .accessibilityIdentifier(Self.signSelectionAccessibilityIdentifier)
     }
 
     private var sample: some View {
