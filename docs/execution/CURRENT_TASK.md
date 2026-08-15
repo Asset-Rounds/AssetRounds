@@ -22,9 +22,10 @@
 - Plan: `docs/product/BUILD_PLAN_V4.md` / SHA-256 `0477672A3F97E02E229A8DC84B3F27AAF60A3B535FD51B68DADA94ADF410FF4D` / S10 brand-system refresh plus Sections 11, 16, and 18.
 - Runbook: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / SHA-256 `E3C5D9EF6CDCFE9D32D20BD5AF9567C6C8F5BA5D8B5BAFB3E8ABBF8998AC8B46` / selected card S10.1 only.
 - Contract: `docs/execution/CODEX_EXECUTION_CONTRACT_V4.md` / SHA-256 `0D09F319EB729A2D57F05515B400B400FF0B753A2E373E7BB8A0AB0561A50BB6`.
-- Activation: `docs/design/s10/s10-activation.json` / SHA-256 `3340E379310AAEAC20F39B461C40934041B27858F02AEFB409AD8B68C0223FEB`.
-- Frozen package: `docs/design/s10/authority/assetrounds-brand-assets-v4.1-20260815.zip` / SHA-256 `595D6A8CFD7BF1ECF810472F0DFA4DFA46CC3967D6B8B358984119913A1A4C69`.
-- External manifest anchor: `docs/design/s10/authority/asset-manifest.json` / SHA-256 `DD553EEE6D8D908388CF35C2FA688F16990496F574C22C1DBC2764346FAF77ED`.
+- Activation: `docs/design/s10/s10-activation.json` / SHA-256 `584093F2426369A8C97BDE4616BCC896354FF94BC0CB207AE4AEA108DC210157`.
+- Frozen package: `docs/design/s10/authority/assetrounds-brand-assets-v4.1-20260815.zip` / SHA-256 `D05ACDC8195B1C7C05230BCBD0AC59E436681D93FCA9AC12108B2BE98A408400`.
+- External manifest anchor: `docs/design/s10/authority/asset-manifest.json` / SHA-256 `F771EB8FBD3D42960FC4B8C0A516A05E8B0FD16EBA2C88107ADD6A4E0D74F551`.
+- Owner-directed activation correction: the package validator's two unresolved-placeholder scans use case-sensitive `-cmatch`, preventing the legitimate lowercase `required_pseudolanguages` key from being misclassified as an uppercase `REQUIRED_*` value. Only the validator member, its manifest row, package bytes, activation digests, and these pins changed; all brand/runtime image bytes remain unchanged.
 - Route/state: `replace_unpublished_candidate / unpublished`. No TestFlight or published-release evidence exists.
 - Owner use grant: accepted for the AssetRounds project/app/marketing/distribution by repository owner `palatis3`; this is not trademark, title, claim, or URL clearance. Trademark clearance remains `NOT_CLEARED` and blocks S10.6 release readiness.
 - Physical bridge plan: owner-signed development install to a named physical iPhone, tied to exact product E by git SHA, bundle ID/version/build, and signed artifact SHA-256. The owner operates signing/install later; Codex does not sign, upload, or fabricate physical evidence.

@@ -707,8 +707,8 @@
     {
       "path": "Tools/validate-s10-contracts.ps1",
       "role": "reproducible_validation",
-      "byte_length": 30430,
-      "sha256": "B3EB530E257BB7B46BD694F3A07213D6F58160A89DF4E7A8B414A15476E0A76E"
+      "byte_length": 30432,
+      "sha256": "01758757075941E35C298CB692C17A82C90167A283BBBEC0AF1CC05C963266D7"
     },
     {
       "path": "VERSION_HISTORY.md",
