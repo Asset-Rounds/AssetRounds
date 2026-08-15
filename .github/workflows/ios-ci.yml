@@ -28,7 +28,7 @@ jobs:
       PROJECT_PATH: FieldEvidenceApp.xcodeproj
       SCHEME: FieldEvidenceApp
       CONFIGURATION: Debug
-      SIMULATOR_RUNTIME: iOS 26.5
+      SIMULATOR_RUNTIME: iOS 26.2
       SIMULATOR_NAME: iPhone 17
       CI_SIMULATOR_BOOT_TIMEOUT_SECONDS: "900"
       CODE_SIGNING_ALLOWED: "NO"

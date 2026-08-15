@@ -22,6 +22,7 @@
 - Owner-copy authority: the owner approved all four exact recovery messages on `2026-08-14`. The direct-child CURRENT_TASK-only authority correction `A2` is observed after it exists at fresh G0; this file deliberately never self-records that future SHA.
 - Required `A..A2`: exactly one direct-child commit changing only `docs/execution/CURRENT_TASK.md`; remote `phase/s7-commerce=A2`, remote `main=P`, and no other dirty path at fresh G0.
 - Diagnosed recovery authority: after exact-head run `31847380324` proved the existing StoreKit configuration is unavailable to the scheme Test action, the owner approved `FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme` as the one additional S7.2 project path on `2026-08-14`. The authority commit changes only this file; the following correction may attach only the existing `TestFixtures/StoreKit/FieldEvidence.storekit` reference to the Test action without changing the fixture, product, selector, workflow, or pinned environment.
+- Hosted StoreKit recovery authority: exact-head run `31848808616` at `42330f3a12e9bf5f445e7d5fee072b2b456a5126` passed build plus `4/4` units but reproduced the same first-product-lookup failure after the scheme Test action correction, establishing the pinned iOS 26.5 headless StoreKit-test runtime failure rather than a product/test defect. The owner authorized an infrastructure-only iOS 26.2 trial on `2026-08-14`, with iOS 26.1 fallback only if 26.2 reproduces the same signature; Xcode 26.6, iPhone 17, product/project/test/fixture/selector semantics, and acceptance remain unchanged. This correction changes only this file plus `.github/workflows/ios-ci.yml`.
 
 ## Pinned authority
 
@@ -29,7 +30,7 @@
 - S7.2 plan anchors: `## 7. Free evaluation, subscriptions, and payments` → sole monthly product, explicit paywall, StoreKit-localized price/duration/eligibility, required purchase states, exact data/no-sync boundary, durable-before-finish entitlement truth, existing-data visibility, and no annual/external purchase path; `## 11. Build slices and release gates` → S7.2 first purchase UI; global execution anchors remain `## 16` and `## 18`.
 - Runbook: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / `41622B8AE241FDFCBA3A03A430D27069A29DBE39EB508C6E155D687BA8A6AA79` / selected card S7.2 only.
 - Execution contract: `docs/execution/CODEX_EXECUTION_CONTRACT_V4.md` / `9E7F3ABD2CC6FB15F33E4E56C95474BFEAC79C7148D7D125C75FBF88DB9F8A93`.
-- Workflow: `.github/workflows/ios-ci.yml` / `9FFEA51ADB2620B01FE250412716487F6102DAC7E93AEA0471943AF66C1BC2AC` / `workflow_dispatch`.
+- Workflow: `.github/workflows/ios-ci.yml` / `BCD64E2A42752D28844435241B5ABFCA911D04190375CBBDBFC10B45ACBA97D7` / `workflow_dispatch`.
 - Selector at G0 remains accepted S7.1 compact JSON plus LF, 288 bytes, SHA-256 `5EDA4846E62842DBC2933A65706B335C6B6431D067DF38F46DFA1443E528DE08`; after a complete G0 the first support mutation replaces it with the exact S7.2 object below, 337 bytes, SHA-256 `3E2E10AB82C3EABCA1FCC68C2F08D95BC56A1B9BFA33AD33AEC609B81F65CB1B`.
 
 ## Outcome and acceptance
@@ -52,7 +53,7 @@
 - Route / repository / refs: Windows authoring → exact GitHub Actions macOS verification; `palatis3/AssetRounds / public / main / phase/s7-commerce`; never run or claim Windows Xcode/Simulator results.
 - Required posture: `sandbox_mode=danger-full-access / approval_policy=never / command network enabled`; trusted repository configuration active; XcodeBuildMCP and owner-operated Mac unnecessary.
 - Runner / Xcode / project: `macos-26 / Xcode 26.6 Build version 17F113 / /Applications/Xcode_26.6.app/Contents/Developer / FieldEvidenceApp.xcodeproj / FieldEvidenceApp / Debug / iOS 18.0`.
-- Simulator selector: `iPhone 17 / iOS 26.5`; resolve exactly one ephemeral-job UDID.
+- Simulator selector: `iPhone 17 / iOS 26.2`; resolve exactly one ephemeral-job UDID.
 - Tier / UI input: `P12 / run_ui_smoke=true`.
 - Exact selector: `{"schemaVersion":1,"taskID":"S7.2","tier":"P12","runUISmoke":true,"setupArtifactTimeoutSeconds":300,"buildTimeoutSeconds":600,"testTimeoutSeconds":900,"uiTimeoutSeconds":900,"totalBudgetSeconds":3300,"unitTestSelectors":["FieldEvidenceAppTests/S7_2PaywallPurchaseTests"],"uiTestSelectors":["FieldEvidenceAppUITests/S7_2PaywallUITests"]}` plus exactly one LF; 337 UTF-8 bytes, no BOM; SHA-256 `3E2E10AB82C3EABCA1FCC68C2F08D95BC56A1B9BFA33AD33AEC609B81F65CB1B`.
 - Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`.
@@ -87,5 +88,6 @@ No other implementation, model, project, resource, fixture, script, workflow, au
 ## G0 and verification
 
 - Fresh recovery G0 must additionally prove the owner-approved CURRENT_TASK-only authority commit directly parents exact failed head `b7601c50e669ea7f34349da65e5e38fd1555fad8`, remote `main=P`, all pins and selector bytes remain unchanged, and the nine-production/project/two-test expanded envelope remains inside the default 10/5 cap.
+- Fresh hosted-runtime recovery G0 must prove this two-path correction directly parents exact failed head `42330f3a12e9bf5f445e7d5fee072b2b456a5126`, changes only `docs/execution/CURRENT_TASK.md` plus `.github/workflows/ios-ci.yml`, pins the installed iOS 26.2 runtime and updated workflow hash above, preserves the exact selector object and all product/project/test/fixture bytes, and leaves remote `main=P`.
 - After complete G0, replace only `Scripts/ci-selection.json` with the frozen S7.2 object, then implement exactly this card. Candidate recovery follows the persistent evidence-driven direct-child loop without weakening acceptance or expanding paths.
 - After accepted exact-head S7.2 CI, read `KNOWN_BUGS.md`, append the immutable S7.2 HANDOFF, and—only with phase autopilot still enabled—commit/push exactly that append plus immediate-next S7.3 CURRENT_TASK. Run fresh S7.3 G0; do not mutate `main` during a same-phase transition.
