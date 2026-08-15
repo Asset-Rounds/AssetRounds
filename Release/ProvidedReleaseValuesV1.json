@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "values": {
+    "appBundleID": "com.palatis3.fieldrecord",
+    "monthlyProductID": "com.palatis3.fieldrecord.sub.solo.monthly.v1",
+    "uiTestBundleID": "com.palatis3.fieldrecord.uitests",
+    "unitTestBundleID": "com.palatis3.fieldrecord.tests"
+  }
+}

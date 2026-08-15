@@ -1,0 +1,238 @@
+{
+  "finalRCSmoke": {
+    "evidenceStatus": "pending_current_s9_1_ci",
+    "selector": "FieldEvidenceAppUITests/S9_1FinalRCUITests"
+  },
+  "phaseBaseSHA": "2e9f8a1bdade83f4510c6c6ff6bd18cefc7343a9",
+  "schemaVersion": 1,
+  "smokes": [
+    {
+      "automatedStatus": "passed",
+      "evidence": [
+        {
+          "card": "S8.2",
+          "headSHA": "38e831412bc55389b76bf1ca17a4ee549ae6ef60",
+          "runID": 31894016378,
+          "source": "docs/execution/HANDOFF.md"
+        }
+      ],
+      "id": 1,
+      "key": "fresh_install_offline_report",
+      "ownerVerificationStatus": "pending_s9_2"
+    },
+    {
+      "automatedStatus": "passed",
+      "evidence": [
+        {
+          "card": "S3.4",
+          "headSHA": "54aee71a6d824b8550af739ff538172dbf2d0a05",
+          "runID": 31650769537,
+          "source": "docs/execution/HANDOFF.md"
+        }
+      ],
+      "id": 2,
+      "key": "runner_resume_without_loss_or_duplicate",
+      "ownerVerificationStatus": "pending_s9_2"
+    },
+    {
+      "automatedStatus": "passed",
+      "evidence": [
+        {
+          "card": "S3.6",
+          "headSHA": "86fd3a3576cd77889c15a0f6501deb55a33fb9c1",
+          "runID": 31655122900,
+          "source": "docs/execution/HANDOFF.md"
+        }
+      ],
+      "id": 3,
+      "key": "camera_denial_photos_settings_safe_exit",
+      "ownerVerificationStatus": "pending_s9_2"
+    },
+    {
+      "automatedStatus": "passed",
+      "evidence": [
+        {
+          "card": "S3.5",
+          "headSHA": "3d082f530797262baf4964a349dfec0bed8c767f",
+          "runID": 31653492893,
+          "source": "docs/execution/HANDOFF.md"
+        },
+        {
+          "card": "S4.2",
+          "headSHA": "acdb3248c8ced353cb1d706663e9232b5332fa9f",
+          "runID": 31669480211,
+          "source": "docs/execution/HANDOFF.md"
+        },
+        {
+          "card": "S6.4",
+          "headSHA": "d1e2aae38f96c37e5b395bc3fa1ccc9fac3f3d40",
+          "runID": 31801293840,
+          "source": "docs/execution/HANDOFF.md"
+        },
+        {
+          "card": "S6.6",
+          "headSHA": "198d577cba3e51c2380b16d5e07ed4f213067882",
+          "runID": 31834072656,
+          "source": "docs/execution/HANDOFF.md"
+        }
+      ],
+      "id": 4,
+      "key": "low_storage_write_interruption_recovery",
+      "ownerVerificationStatus": "pending_s9_2"
+    },
+    {
+      "automatedStatus": "passed",
+      "evidence": [
+        {
+          "card": "S3.1",
+          "headSHA": "770785cbf890501b4df21cab86fafd804f00c6c6",
+          "runID": 31638832689,
+          "source": "docs/execution/HANDOFF.md"
+        }
+      ],
+      "id": 5,
+      "key": "historical_time_zone_dst_truth",
+      "ownerVerificationStatus": "pending_s9_2"
+    },
+    {
+      "automatedStatus": "passed",
+      "evidence": [
+        {
+          "card": "S3.7",
+          "headSHA": "755554c3442cc6ceda7947a6c4fa891c5f366e68",
+          "runID": 31657482877,
+          "source": "docs/execution/HANDOFF.md"
+        }
+      ],
+      "id": 6,
+      "key": "could_not_verify_never_accepts",
+      "ownerVerificationStatus": "pending_s9_2"
+    },
+    {
+      "automatedStatus": "passed",
+      "evidence": [
+        {
+          "card": "S5.1",
+          "headSHA": "fc3de1772297cdcac9134be3594187e0abc39c24",
+          "runID": 31753067635,
+          "source": "docs/execution/HANDOFF.md"
+        },
+        {
+          "card": "S5.2",
+          "headSHA": "bbc5d7b69ce5107efffcde5032060050b2b3e88c",
+          "runID": 31761221175,
+          "source": "docs/execution/HANDOFF.md"
+        }
+      ],
+      "id": 7,
+      "key": "work_never_resolves_recheck_uses_new_evidence",
+      "ownerVerificationStatus": "pending_s9_2"
+    },
+    {
+      "automatedStatus": "passed",
+      "evidence": [
+        {
+          "card": "S4.5",
+          "headSHA": "8e14858d0fc047203ef31ba01c57a527383d3307",
+          "runID": 31739621721,
+          "source": "docs/execution/HANDOFF.md"
+        }
+      ],
+      "id": 8,
+      "key": "report_correction_forward_replacement",
+      "ownerVerificationStatus": "pending_s9_2"
+    },
+    {
+      "automatedStatus": "passed",
+      "evidence": [
+        {
+          "card": "S6.1",
+          "headSHA": "97a29dd8da93718d5e0e29e8e67ff4d6f43c6915",
+          "runID": 31777874383,
+          "source": "docs/execution/HANDOFF.md"
+        },
+        {
+          "card": "S6.3",
+          "headSHA": "2a6c5316112f90902f05a55e1fa4b0c67ece457c",
+          "runID": 31794139948,
+          "source": "docs/execution/HANDOFF.md"
+        },
+        {
+          "card": "S6.4",
+          "headSHA": "d1e2aae38f96c37e5b395bc3fa1ccc9fac3f3d40",
+          "runID": 31801293840,
+          "source": "docs/execution/HANDOFF.md"
+        },
+        {
+          "card": "S6.6",
+          "headSHA": "198d577cba3e51c2380b16d5e07ed4f213067882",
+          "runID": 31834072656,
+          "source": "docs/execution/HANDOFF.md"
+        }
+      ],
+      "id": 9,
+      "key": "delete_backup_restore_erase_tombstone_truth",
+      "ownerVerificationStatus": "pending_s9_2"
+    },
+    {
+      "automatedStatus": "passed",
+      "evidence": [
+        {
+          "card": "S7.1",
+          "headSHA": "f1d22d248a5d76dd2ac66bb2c57e7f06d0d177bc",
+          "runID": 31841797858,
+          "source": "docs/execution/HANDOFF.md"
+        },
+        {
+          "card": "S7.2",
+          "headSHA": "f09ddd11b10371b237f6e60bc2211b7ccb1b8739",
+          "runID": 31863494463,
+          "source": "docs/execution/HANDOFF.md"
+        },
+        {
+          "card": "S7.3",
+          "headSHA": "a21b456ec72de192aa0144129773e4008c980e18",
+          "runID": 31866590332,
+          "source": "docs/execution/HANDOFF.md"
+        },
+        {
+          "card": "S7.5",
+          "headSHA": "56db1fc1a65b847502d1109df47cbbf1f9a6c357",
+          "runID": 31873770338,
+          "source": "docs/execution/HANDOFF.md"
+        }
+      ],
+      "id": 10,
+      "key": "storekit_lifecycle_restore_offline_data_rights",
+      "ownerVerificationStatus": "pending_s9_2"
+    },
+    {
+      "automatedStatus": "passed",
+      "evidence": [
+        {
+          "card": "S8.1",
+          "headSHA": "d0e8762fffbcaf6e6f9076c26ed50e5de2bf254e",
+          "runID": 31877304310,
+          "source": "docs/execution/HANDOFF.md"
+        }
+      ],
+      "id": 11,
+      "key": "second_pack_zero_fork_snapshot_pdf",
+      "ownerVerificationStatus": "pending_s9_2"
+    },
+    {
+      "automatedStatus": "passed",
+      "evidence": [
+        {
+          "card": "S8.2",
+          "headSHA": "38e831412bc55389b76bf1ca17a4ee549ae6ef60",
+          "runID": 31894016378,
+          "source": "docs/execution/HANDOFF.md"
+        }
+      ],
+      "id": 12,
+      "key": "accessibility_dynamic_type_noncolor_targets_light_dark",
+      "ownerVerificationStatus": "pending_s9_2"
+    }
+  ]
+}

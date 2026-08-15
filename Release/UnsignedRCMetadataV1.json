@@ -1,0 +1,40 @@
+{
+  "app": {
+    "appBundleID": "com.palatis3.fieldrecord",
+    "candidateAppStoreTitle": "AssetRounds: Sign Inspection",
+    "candidateTitleClearanceStatus": "pending",
+    "currentDisplayName": "AssetRounds",
+    "currentMarketingVersion": "1.0",
+    "currentProjectBuildNumber": "1",
+    "finalAppStoreTitle": null,
+    "finalReleaseBuildNumber": null,
+    "finalReleaseBuildStatus": "pending",
+    "finalReleaseMarketingVersion": null,
+    "finalReleaseVersionStatus": "pending",
+    "minimumIOSVersion": "18.0",
+    "uiTestBundleID": "com.palatis3.fieldrecord.uitests",
+    "unitTestBundleID": "com.palatis3.fieldrecord.tests"
+  },
+  "commerce": {
+    "localFixtureIsReleaseAuthority": false,
+    "monthlyProductID": "com.palatis3.fieldrecord.sub.solo.monthly.v1",
+    "productionConfigurationStatus": "pending"
+  },
+  "nonClaims": [
+    "No signing was performed.",
+    "No archive or export was performed.",
+    "No TestFlight or App Store upload was performed.",
+    "No live URL, support email, title clearance, App Store record, privacy answer, credential, or signing value was invented.",
+    "The checked-in StoreKit configuration is CI-only and is not production product evidence."
+  ],
+  "phaseBaseSHA": "2e9f8a1bdade83f4510c6c6ff6bd18cefc7343a9",
+  "privacy": {
+    "appStorePrivacyAnswersStatus": "pending",
+    "collectedDataTypesDeclaredByApp": [],
+    "manifestPath": "FieldEvidenceApp/PrivacyInfo.xcprivacy",
+    "tracking": false
+  },
+  "releaseReady": false,
+  "schemaVersion": 1,
+  "unsigned": true
+}
