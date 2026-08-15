@@ -12,6 +12,10 @@ struct SignsRootView: View {
     static let sampleScreenAccessibilityIdentifier = "s2.sample.screen"
     static let sampleBackAccessibilityIdentifier = "s2.sample.back"
 
+    private struct LifecyclePresentation: Identifiable {
+        let id = UUID()
+    }
+
     private enum Route: Hashable {
         case sample
         case newSign
@@ -31,6 +35,7 @@ struct SignsRootView: View {
     let replaceDataBackup: @MainActor () -> Void
 
     @ObservedObject var purchaseCoordinator: StoreKitPurchaseCoordinator
+    @ObservedObject var lifecycleCoordinator: StoreKitLifecycleCoordinator
 
     @StateObject private var coordinator: FirstSignCoordinator
     private let checkRunnerCoordinator: CheckRunnerCoordinator
@@ -45,6 +50,7 @@ struct SignsRootView: View {
     @State private var loadErrorMessage: String?
     @State private var checkNotice: String?
     @State private var activeIssue: WorkIssuePresentationValue?
+    @State private var lifecyclePresentation: LifecyclePresentation?
     @AccessibilityFocusState private var welcomeTitleFocused: Bool
 
     init(
@@ -56,6 +62,7 @@ struct SignsRootView: View {
         injectsLowStorageFailureOnceForUITest: Bool = false,
         cameraAdapter: CameraAdapter = .live,
         purchaseCoordinator: StoreKitPurchaseCoordinator,
+        lifecycleCoordinator: StoreKitLifecycleCoordinator,
         restoreDataBackup: @escaping @MainActor () -> Void = {},
         replaceDataBackup: @escaping @MainActor () -> Void = {}
     ) {
@@ -65,6 +72,7 @@ struct SignsRootView: View {
         self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
         self.cameraAdapter = cameraAdapter
         self.purchaseCoordinator = purchaseCoordinator
+        self.lifecycleCoordinator = lifecycleCoordinator
         self.restoreDataBackup = restoreDataBackup
         self.replaceDataBackup = replaceDataBackup
         _coordinator = StateObject(
@@ -237,6 +245,7 @@ struct SignsRootView: View {
                             modelContext: modelContext,
                             generationRootURL: generationRootURL,
                             purchaseCoordinator: purchaseCoordinator,
+                            lifecycleCoordinator: lifecycleCoordinator,
                             restoreDataBackup: replaceDataBackup
                         )
                     } label: {
@@ -268,6 +277,15 @@ struct SignsRootView: View {
                 }
             } catch {
                 loadErrorMessage = "Saved sign data could not be opened."
+            }
+        }
+        .sheet(item: $lifecyclePresentation) { _ in
+            NavigationStack {
+                SubscriptionStatusView(
+                    coordinator: lifecycleCoordinator,
+                    startsRestoreOnAppear: true,
+                    close: { lifecyclePresentation = nil }
+                )
             }
         }
     }
@@ -471,10 +489,13 @@ struct SignsRootView: View {
                         .buttonStyle(WorklightSecondaryButtonStyle())
                         .accessibilityIdentifier(Self.restoreDataAccessibilityIdentifier)
 
-                    Button("Restore Purchases") {}
+                    Button("Restore Purchases") {
+                        lifecyclePresentation = LifecyclePresentation()
+                    }
                         .buttonStyle(WorklightSecondaryButtonStyle())
-                        .disabled(true)
-                        .accessibilityHint("Unavailable in this version")
+                        .accessibilityHint(
+                            "Checks Apple purchase history without restoring inspection data"
+                        )
                         .accessibilityIdentifier(Self.restorePurchasesAccessibilityIdentifier)
                 }
             }

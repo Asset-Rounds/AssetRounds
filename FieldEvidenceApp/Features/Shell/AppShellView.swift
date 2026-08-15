@@ -46,6 +46,7 @@ struct AppShellView: View {
     let eraseAll: @MainActor () -> Void
 
     @StateObject private var purchaseCoordinator: StoreKitPurchaseCoordinator
+    @StateObject private var lifecycleCoordinator: StoreKitLifecycleCoordinator
 
     @State private var selectedTab: Tab = .signs
 
@@ -78,6 +79,11 @@ struct AppShellView: View {
                 processor: entitlementProcessor,
                 diagnosticsStore: diagnosticsStore,
                 catalogLinks: paywallCatalogLinks
+            )
+        )
+        _lifecycleCoordinator = StateObject(
+            wrappedValue: StoreKitLifecycleCoordinator(
+                processor: entitlementProcessor
             )
         )
         self.restoreDataBackup = restoreDataBackup
@@ -119,6 +125,7 @@ struct AppShellView: View {
                     injectsLowStorageFailureOnceForUITest,
                 cameraAdapter: cameraAdapter,
                 purchaseCoordinator: purchaseCoordinator,
+                lifecycleCoordinator: lifecycleCoordinator,
                 restoreDataBackup: restoreDataBackup,
                 replaceDataBackup: replaceDataBackup
             )
@@ -164,6 +171,7 @@ struct AppShellView: View {
                     modelContext: modelContext,
                     generationRootURL: generationRootURL,
                     purchaseCoordinator: purchaseCoordinator,
+                    lifecycleCoordinator: lifecycleCoordinator,
                     restoreDataBackup: replaceDataBackup
                 )
             } label: {
@@ -337,25 +345,33 @@ struct SettingsPlaceholderView: View {
         let id = UUID()
     }
 
+    private struct LifecyclePresentation: Identifiable {
+        let id = UUID()
+    }
+
     @Environment(\.eraseAllAction) private var eraseAllAction
 
     @ObservedObject var purchaseCoordinator: StoreKitPurchaseCoordinator
+    @ObservedObject var lifecycleCoordinator: StoreKitLifecycleCoordinator
 
     let modelContext: ModelContext
     let generationRootURL: URL
     let restoreDataBackup: @MainActor () -> Void
 
     @State private var paywallPresentation: PaywallPresentation?
+    @State private var lifecyclePresentation: LifecyclePresentation?
 
     init(
         modelContext: ModelContext,
         generationRootURL: URL,
         purchaseCoordinator: StoreKitPurchaseCoordinator,
+        lifecycleCoordinator: StoreKitLifecycleCoordinator,
         restoreDataBackup: @escaping @MainActor () -> Void = {}
     ) {
         self.modelContext = modelContext
         self.generationRootURL = generationRootURL
         self.purchaseCoordinator = purchaseCoordinator
+        self.lifecycleCoordinator = lifecycleCoordinator
         self.restoreDataBackup = restoreDataBackup
     }
 
@@ -395,6 +411,17 @@ struct SettingsPlaceholderView: View {
                     PaywallView.settingsEntryAccessibilityIdentifier
                 )
 
+                Button("Restore Purchases") {
+                    lifecyclePresentation = LifecyclePresentation()
+                }
+                .buttonStyle(WorklightSecondaryButtonStyle())
+                .accessibilityHint(
+                    "Checks Apple purchase history without restoring inspection data"
+                )
+                .accessibilityIdentifier(
+                    SubscriptionStatusView.settingsRestoreAccessibilityIdentifier
+                )
+
                 Text("Inspection data and photos are device-local and do not sync with the subscription.")
                     .font(.subheadline)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
@@ -419,6 +446,15 @@ struct SettingsPlaceholderView: View {
                 presentationToken: presentation.id,
                 close: { paywallPresentation = nil }
             )
+        }
+        .sheet(item: $lifecyclePresentation) { _ in
+            NavigationStack {
+                SubscriptionStatusView(
+                    coordinator: lifecycleCoordinator,
+                    startsRestoreOnAppear: true,
+                    close: { lifecyclePresentation = nil }
+                )
+            }
         }
     }
 }

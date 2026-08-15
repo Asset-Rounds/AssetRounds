@@ -18,6 +18,31 @@ struct VerifiedEntitlementProcessorEventV1: @unchecked Sendable {
     }
 }
 
+enum StoreKitPaidGraceAuthorityV1 {
+    static let maximumDuration: TimeInterval = 16 * 24 * 60 * 60
+
+    static func accepts(_ fact: VerifiedEntitlementFactV1) -> Bool {
+        guard fact.state == .grace else { return true }
+        guard !fact.isIntroductoryOffer,
+              let expirationAt = fact.expirationAt,
+              let graceExpirationAt = fact.graceExpirationAt else {
+            return false
+        }
+        let duration = graceExpirationAt.timeIntervalSince(expirationAt)
+        return duration > 0 && duration <= maximumDuration
+    }
+
+    static func accepts(_ cache: EntitlementCacheV1?) -> Bool {
+        guard let cache, cache.state == .grace else { return true }
+        guard let expirationAt = cache.expirationAt,
+              let graceExpirationAt = cache.graceExpirationAt else {
+            return false
+        }
+        let duration = graceExpirationAt.timeIntervalSince(expirationAt)
+        return duration > 0 && duration <= maximumDuration
+    }
+}
+
 enum EntitlementProcessorEventV1: @unchecked Sendable {
     case verified(VerifiedEntitlementProcessorEventV1)
     case pending
@@ -28,6 +53,13 @@ enum EntitlementProcessorEventV1: @unchecked Sendable {
 
 enum StoreKitVerifiedPurchaseProcessingResultV1: Equatable, Sendable {
     case verified
+    case unverified
+    case failed
+}
+
+enum StoreKitEntitlementRefreshResultV1: Equatable, Sendable {
+    case verified
+    case noVerifiedCurrentEntitlement
     case unverified
     case failed
 }
@@ -88,6 +120,7 @@ struct StoreKitEntitlementRuntimeV1: @unchecked Sendable {
 @MainActor
 final class StoreKitTransactionProcessor: ObservableObject {
     @Published private(set) var state: EntitlementAccessStateV1 = .loading
+    @Published private(set) var latestVerifiedFact: VerifiedEntitlementFactV1?
 
     private let store: EntitlementStore
     private let runtime: StoreKitEntitlementRuntimeV1
@@ -118,11 +151,20 @@ final class StoreKitTransactionProcessor: ObservableObject {
 
     func start() async throws {
         guard !isStarted else { return }
-        let cache = try store.load()
-        state = try EntitlementReducerV1.loadingState(
-            cache: cache,
-            now: now()
-        )
+        do {
+            let cache = try store.load()
+            if StoreKitPaidGraceAuthorityV1.accepts(cache) {
+                state = try EntitlementReducerV1.loadingState(
+                    cache: cache,
+                    now: now()
+                )
+            } else {
+                state = .loading
+            }
+        } catch {
+            state = .loading
+        }
+        latestVerifiedFact = nil
         isStarted = true
 
         let runtime = self.runtime
@@ -139,7 +181,7 @@ final class StoreKitTransactionProcessor: ObservableObject {
             }
         }
         initialRefreshTask = Task { [weak self] in
-            await self?.refreshInitialFacts()
+            _ = await self?.refreshCurrentFacts()
         }
     }
 
@@ -179,30 +221,47 @@ final class StoreKitTransactionProcessor: ObservableObject {
         }
         return await applyVerified([event]) ? .verified : .failed
     }
-}
 
-private extension StoreKitTransactionProcessor {
-    func refreshInitialFacts() async {
+    /// Refreshes ordinary verified StoreKit authority without invoking
+    /// `AppStore.sync()`. Explicit restore owns that user-initiated call and
+    /// then invokes this same durable processing path.
+    func refreshCurrentFacts() async -> StoreKitEntitlementRefreshResultV1 {
+        guard isStarted else { return .failed }
         do {
             let events = try await runtime.initialEvents()
-            guard !Task.isCancelled, isStarted else { return }
+            guard !Task.isCancelled, isStarted else { return .failed }
             let verified = events.compactMap { event in
                 if case let .verified(value) = event { return value }
                 return nil
             }
             if verified.isEmpty {
+                let sawUnverified = events.contains { event in
+                    if case .unverified = event { return true }
+                    return false
+                }
                 let cache = try store.load()
+                guard StoreKitPaidGraceAuthorityV1.accepts(cache) else {
+                    state = .loading
+                    latestVerifiedFact = nil
+                    return .failed
+                }
                 state = try EntitlementReducerV1.offlineState(
                     cache: cache,
                     now: now()
                 )
-            } else {
-                _ = await applyVerified(verified)
+                latestVerifiedFact = nil
+                return sawUnverified
+                    ? .unverified
+                    : .noVerifiedCurrentEntitlement
             }
+            return await applyVerified(verified) ? .verified : .failed
         } catch {
-            guard !Task.isCancelled, isStarted else { return }
+            guard !Task.isCancelled, isStarted else { return .failed }
             do {
                 let cache = try store.load()
+                guard StoreKitPaidGraceAuthorityV1.accepts(cache) else {
+                    throw EntitlementReductionErrorV1.invalidCache
+                }
                 state = try EntitlementReducerV1.offlineState(
                     cache: cache,
                     now: now()
@@ -210,13 +269,21 @@ private extension StoreKitTransactionProcessor {
             } catch {
                 state = .loading
             }
+            latestVerifiedFact = nil
+            return .failed
         }
     }
+}
 
+private extension StoreKitTransactionProcessor {
     func applyVerified(
         _ events: [VerifiedEntitlementProcessorEventV1]
     ) async -> Bool {
-        guard !events.isEmpty, isStarted else { return false }
+        guard !events.isEmpty,
+              isStarted,
+              events.allSatisfy({ StoreKitPaidGraceAuthorityV1.accepts($0.fact) }) else {
+            return false
+        }
         let finishable = events.filter { value in
             guard let transactionID = value.transactionID,
                   value.finish != nil else {
@@ -236,6 +303,9 @@ private extension StoreKitTransactionProcessor {
 
         do {
             let prior = try store.load()
+            guard StoreKitPaidGraceAuthorityV1.accepts(prior) else {
+                return false
+            }
             _ = try EntitlementReducerV1.reduce(
                 verifiedFacts: events.map(\.fact),
                 priorCache: nil,
@@ -250,6 +320,10 @@ private extension StoreKitTransactionProcessor {
             let durable = try store.persist(replacement)
             guard durable == replacement else { return false }
             state = reduction.state
+            latestVerifiedFact = selectedFact(
+                in: events.map(\.fact),
+                matching: replacement
+            )
             await finish(finishable)
             return true
         } catch {
@@ -263,6 +337,7 @@ private extension StoreKitTransactionProcessor {
                     return false
                 }
                 guard let durable = try store.load(),
+                      StoreKitPaidGraceAuthorityV1.accepts(durable),
                       durable.hasEverVerifiedPaid,
                       standaloneCache.verifiedAt <= durable.verifiedAt,
                       standaloneCache.verifiedAt < durable.verifiedAt
@@ -273,6 +348,12 @@ private extension StoreKitTransactionProcessor {
                     cache: durable,
                     now: now()
                 )
+                latestVerifiedFact = standaloneCache == durable
+                    ? selectedFact(
+                        in: events.map(\.fact),
+                        matching: standaloneCache
+                    )
+                    : nil
                 await finish(finishable)
                 return true
             } catch {
@@ -291,6 +372,19 @@ private extension StoreKitTransactionProcessor {
             await finish()
             finishedTransactionIDs.insert(transactionID)
         }
+    }
+
+    func selectedFact(
+        in facts: [VerifiedEntitlementFactV1],
+        matching cache: EntitlementCacheV1
+    ) -> VerifiedEntitlementFactV1? {
+        facts.sorted {
+            if $0.purchaseAt != $1.purchaseAt {
+                return $0.purchaseAt > $1.purchaseAt
+            }
+            return ($0.expirationAt ?? .distantPast)
+                > ($1.expirationAt ?? .distantPast)
+        }.first { $0.verifiedAt == cache.verifiedAt }
     }
 }
 
@@ -403,7 +497,7 @@ private enum StoreKitRuntimeAdapterV1 {
             return nil
         }
 
-        return VerifiedEntitlementFactV1(
+        let fact = VerifiedEntitlementFactV1(
             productID: transaction.productID,
             purchaseAt: transaction.purchaseDate,
             expirationAt: transaction.expirationDate,
@@ -414,5 +508,6 @@ private enum StoreKitRuntimeAdapterV1 {
             isIntroductoryOffer: transaction.offer?.type == .introductory,
             willAutoRenew: renewal.willAutoRenew
         )
+        return StoreKitPaidGraceAuthorityV1.accepts(fact) ? fact : nil
     }
 }
