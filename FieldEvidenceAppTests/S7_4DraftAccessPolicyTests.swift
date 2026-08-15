@@ -91,7 +91,8 @@ final class S7_4DraftAccessPolicyTests: XCTestCase {
         XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<Site>()), 2)
         XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<Asset>()), 3)
         XCTAssertEqual(Set(try coordinator.loadAll().map(\.assetID)), [first.assetID, second.assetID, third.assetID])
-        XCTAssertEqual((await diagnostics.snapshot()).firstSignCreated, 1)
+        let diagnosticsAfterPaidCreation = await diagnostics.snapshot()
+        XCTAssertEqual(diagnosticsAfterPaidCreation.firstSignCreated, 1)
 
         let reopened = FirstSignCoordinator(
             modelContext: session.modelContext,
@@ -130,7 +131,8 @@ final class S7_4DraftAccessPolicyTests: XCTestCase {
             siteLabel: "Replacement Site",
             signLabel: "Replacement Sign"
         ))
-        XCTAssertEqual((await diagnostics.snapshot()).firstSignCreated, 1)
+        let diagnosticsAfterReplacement = await diagnostics.snapshot()
+        XCTAssertEqual(diagnosticsAfterReplacement.firstSignCreated, 1)
 
         try deleteSignRows(replacement, in: context)
         insertTombstones(1, into: context, createdAt: createdAt.addingTimeInterval(10))
