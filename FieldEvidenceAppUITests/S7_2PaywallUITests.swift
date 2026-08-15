@@ -47,7 +47,7 @@ final class S7_2PaywallUITests: XCTestCase {
             .waitForExistence(timeout: 30))
         assertText("s7.2.paywall.product-name", "Solo Access Monthly", in: app)
         assertText("s7.2.paywall.price", "$59.99", in: app)
-        assertText("s7.2.paywall.duration", "1 month", in: app)
+        assertText("s7.2.paywall.duration", "one month", in: app)
         assertText("s7.2.paywall.trial", "14 days free", in: app)
         XCTAssertTrue(element("s7.2.paywall.renewal", in: app).label
             .contains("$59.99"))
