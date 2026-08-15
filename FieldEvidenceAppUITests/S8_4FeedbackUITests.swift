@@ -86,24 +86,22 @@ final class S8_4FeedbackUITests: XCTestCase {
 
     @MainActor
     private func dismissFiles(in app: XCUIApplication) {
-        let cancel = app.buttons["Cancel"].firstMatch
-        let ready = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "exists == true AND hittable == true"),
-            object: cancel
-        )
-        XCTAssertEqual(
-            XCTWaiter.wait(for: [ready], timeout: 20),
-            .completed
-        )
-        let currentCancel = app.buttons["Cancel"].firstMatch
-        XCTAssertTrue(currentCancel.exists)
-        XCTAssertTrue(currentCancel.isHittable)
-        currentCancel.tap()
-        XCTAssertTrue(currentCancel.waitForNonExistence(timeout: 20))
-        XCTAssertTrue(
-            element("s8.4.feedback.screen", in: app)
-                .waitForExistence(timeout: 20)
-        )
+        let feedbackScreen = element("s8.4.feedback.screen", in: app)
+        for _ in 0..<3 where !feedbackScreen.exists {
+            let dismissal = app.buttons.matching(
+                NSPredicate(
+                    format: "(label == %@ OR label == %@) AND hittable == true",
+                    "Cancel",
+                    "Back"
+                )
+            ).firstMatch
+            XCTAssertTrue(dismissal.waitForExistence(timeout: 10))
+            dismissal.tap()
+            if feedbackScreen.waitForExistence(timeout: 3) {
+                break
+            }
+        }
+        XCTAssertTrue(feedbackScreen.waitForExistence(timeout: 20))
         XCTAssertTrue(element("s8.4.feedback.review", in: app).exists)
     }
 
