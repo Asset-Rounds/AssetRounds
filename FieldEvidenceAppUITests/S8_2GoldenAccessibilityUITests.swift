@@ -186,6 +186,9 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
 
         XCTAssertTrue(element("s4.5.correction.screen", in: app)
             .waitForExistence(timeout: 20))
+        let correctionNote = element("s4.5.correction.note", in: app)
+        XCTAssertTrue(correctionNote.waitForExistence(timeout: 15))
+        let retainedCorrectionNote = correctionNote.value as? String
         let saveCorrection = element("s4.5.correction.save", in: app)
         scroll(saveCorrection, in: app)
         assertControl(saveCorrection, label: "Save correction")
@@ -193,11 +196,20 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
 
         let validation = element("s4.5.correction.validation", in: app)
         XCTAssertTrue(validation.waitForExistence(timeout: 15))
+        XCTAssertEqual(validation.label, "Blocked: Change the note before saving.")
+        XCTAssertEqual(validation.elementType, .other)
         assertAccessibilityFocus(
-            on: validation,
-            label: "Blocked: Change the note before saving.",
-            type: .other
+            on: correctionNote,
+            label: "Correction note",
+            type: .textField
         )
+        XCTAssertTrue(wait(
+            for: correctionNote,
+            predicate: "hasKeyboardFocus == true",
+            timeout: 10
+        ))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(correctionNote.value as? String, retainedCorrectionNote)
         XCTAssertTrue(element("s4.5.correction.screen", in: app).exists)
         navigateBack(in: app)
         XCTAssertTrue(element("s4.3.report-detail.screen", in: app)

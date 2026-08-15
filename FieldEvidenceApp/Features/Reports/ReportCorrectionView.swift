@@ -16,7 +16,6 @@ struct ReportCorrectionView: View {
     private enum FocusTarget: Hashable {
         case header
         case note
-        case validation
         case saving
         case failure
         case ready
@@ -129,9 +128,6 @@ struct ReportCorrectionView: View {
                 if let validationMessage {
                     WorklightStatusBadge(kind: .blocked, text: validationMessage)
                         .accessibilityIdentifier(Self.validationAccessibilityIdentifier)
-                        .focusable()
-                        .focused($keyboardFocus, equals: .validation)
-                        .accessibilityFocused($accessibilityFocus, equals: .validation)
                 }
 
                 stateContent
@@ -318,8 +314,8 @@ struct ReportCorrectionView: View {
             keyboardFocus = nil
             accessibilityFocus = nil
             await Task.yield()
-            keyboardFocus = .validation
-            accessibilityFocus = .validation
+            keyboardFocus = .note
+            accessibilityFocus = .note
         }
     }
 
