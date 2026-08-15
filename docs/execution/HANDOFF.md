@@ -2348,3 +2348,58 @@ The exact accepted envelope is eight production paths, two test paths, and the s
 - `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S8.3 product/card blockers: `NONE`.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
 - Next unstarted task: `S8.4`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S8.4 `CURRENT_TASK.md`, then must run fresh S8.4 G0. Do not mutate main before accepted S8.4 boundary integration.
+
+## `S8.4` — `complete` — `2026-08-15T13:52:09-04:00`
+
+- Phase / branch / position / boundary: `S8` / `phase/s8-quality` / `4 of 4` / `yes`.
+- Outcome: added one Settings **Send feedback** flow with a validated injectable support address, exact S8.3 diagnostic review, explicit **Attach** / **Don't Attach** consent, a user-controlled editable system-mail adapter, and honest Copy/Files fallbacks when mail is unavailable; production remains fail-closed until S9.1 supplies release configuration.
+- Immutable phase-main base: `P=0b1e506dd71ba704cbfb48787d6cfa1731024d83`; remote `main` remained exactly P throughout S8.4 implementation and accepted product verification.
+- Integrated/card base and predecessor: `M=721acf69c74224919fa30fa9019a0e2dd1ffb0c4`; accepted S8.3 run `31896497197` / job `95040508518`, P12/UI enabled, build plus `2/2` units plus `1/1` UI green.
+- Observed task-start authority: `A=cfdd069ab0628057c4c9dadc6270f8b99ea81ddb`; `A^=M`, and `M..A` changed only append-only `docs/execution/HANDOFF.md` plus immediate-next `docs/execution/CURRENT_TASK.md`.
+- First implementation: `I=6a7812a7791e782ce7b1ad827c3accc23eeb3fb5`; accepted direct-child UI correction and exact verification head `I2=E=0459a23671800b4501a66938bc3237edda239d0c`; no distinct infrastructure K.
+- Exact selector: S8.4 P12/UI enabled; compact JSON plus LF, 338 bytes, SHA-256 `F886AB7AACB19223029540EA811D7E049B15A98CF6D7FB7B7FA11D7ADB443544`; exact selectors `FieldEvidenceAppTests/S8_4FeedbackConsentTests` and `FieldEvidenceAppUITests/S8_4FeedbackUITests`.
+- Accepted run/job/URLs: `31898599699` / `95045619381`; `https://github.com/palatis3/AssetRounds/actions/runs/31898599699`; `https://github.com/palatis3/AssetRounds/actions/runs/31898599699/job/95045619381`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.2 build `23C54`; UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`; initial Simulator state `Shutdown`.
+- Budgets: setup `18/300` s; Simulator readiness `121/900` s; build step `491/600` s; unit step `81/900` s with selected tests about `0.020` s; UI step `366/900` s with selected test `299.749` s; artifact `1` s and setup-plus-artifact `19/300` s; selected total `961/3300` s; all watchdogs passed.
+- Artifact: `ios-ci-31898599699-1`, ID `9250653396`, size `4719978`, GitHub digest `sha256:fabf90bc9b14d3670348c7f2b12978e2a99b8b682bb98e5e99707547024bcc87`, expires `2026-08-29T17:48:41Z`; `SHA256SUMS.txt` SHA-256 `50282E5295A70450F9E0EFE8F7151D69ADA9F969A7A24EF93A17D7889DDD4397`; all `95/95` listed payloads independently matched.
+- Accepted logs: `build-smoke.log` SHA-256 `2D7D3A710B4F434D23D58F8576BF88F23AA1778B604432736271641BA53017A9`; `test-smoke.log` `F6C2265E303321A62EF17A28D6515A07BE18D5034D8CDD262C484326DCD168DE`; `ui-smoke.log` `237FFA702BD32FD41A4A739E04F35F6015BBC825A594244C42B90000A215AC53`.
+- Terminal evidence: exactly one `ui-final.png`, `1206x2622`, 337638 bytes, SHA-256 `A94CD5277CBE9A557FE7703E87D3010553E5984A3AA4989097D55A4BED92DA49`; visual PASS showed the returned in-app Feedback screen at Accessibility XXXL with honest unavailable-mail copy and reachable Copy support address / Save diagnostics to Files actions, with no external sheet, keyboard, or error.
+- Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
+- `FieldEvidenceApp/Domain/Feedback/FeedbackConfigurationV1.swift`
+- `FieldEvidenceApp/Features/Settings/FeedbackView.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift`
+- `FieldEvidenceAppTests/S8_4FeedbackConsentTests.swift`
+- `FieldEvidenceAppUITests/S8_4FeedbackUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact accepted envelope is six changed production paths, two test paths, and the standing selector exception. The authorized `DiagnosticExportView` seam was reused unchanged. No production support-address value, automatic attachment/send, customer-content prefill, provider/web/mailto transport, background upload, raw diagnostic/domain payload, schema/entity/dependency/permission/capability, rating prompt, signing, deployment, or release behavior was added.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`2/2`): `testAttachAndDontAttachUseExactReviewedBytesAndSafeEditableContext`, 0.018 s; `testConfigurationAndUnavailableFallbackFailClosedWithoutTransport`, 0.0023 s.
+- UI `PASS` (`1/1`): `testExplicitAttachmentConsentAndUnavailableFallbackAtXXXL`, 299.749 s.
+
+### Acceptance results
+
+- GOLDEN `PASS`: the controlled test address and available adapter presented the exact sanitized diagnostic before consent; **Attach** supplied exactly one byte-identical `application/json` file named `field-record-diagnostics.json` to the same editable composer and safe app/version/device-only context.
+- ALT-1 `PASS`: **Don't Attach** supplied zero attachments; unavailable mail exposed only explicit Copy support address and Save diagnostics to Files actions; missing, empty, malformed, or unsafe configuration failed closed without transport or pasteboard mutation.
+- Privacy/consent `PASS`: the diagnostic choice was never inferred or remembered, customer/site/sign/address/note/photo/path/hash/report/backup/StoreKit content was absent, and neither adapter nor UI claimed or performed delivery.
+- UI/accessibility `PASS`: one bounded Accessibility XXXL Settings flow exercised both consent states, unavailable Copy/Files fallback, system Files dismissal, return to the exact in-app review, 44-point controls, and exactly one terminal screenshot.
+- Scope `PASS`: production configuration remains absent for S9.1; no diagnostics mutation, raw OSLog/MetricKit/database/media/report/backup attachment, new capability/dependency/schema, or release action was introduced.
+
+### Candidate recovery provenance
+
+- Run `31897875396` / job `95043894621` at I built and passed `2/2` units, then opened the real Files picker but waited for a text **Cancel** control while iOS 26.2 exposed the dismissal as a top-left **Back** chevron; required-evidence validation failed only derivatively.
+- Direct-child E changed only the bounded UI picker helper to unwind through the exact available **Cancel** or **Back** system control, require the picker to disappear, and re-prove the unchanged in-app Feedback review before the sole screenshot. No failed run ID was rerun or accepted.
+
+### Known bugs, blockers, and boundary state
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S8.4 product/card blockers: `NONE`.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future phase-close commit.
+- Next unstarted task: `S9.1`. Program autopilot must first commit and non-force push this HANDOFF-only S8 phase-close, accept exact-head P12/UI-enabled phase CI, non-force fast-forward `main` to that exact green verification head, accept exact-main UI-enabled CI, reprove both refs, create `phase/s9-release` from green main, hydrate only S9.1, and run fresh S9.1 G0. S9.2/S9.3 remain owner-only.
