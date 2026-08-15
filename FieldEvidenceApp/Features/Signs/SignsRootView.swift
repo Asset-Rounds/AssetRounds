@@ -275,12 +275,12 @@ struct SignsRootView: View {
                         )
                     } label: {
                         Image(systemName: "gearshape")
+                            .frame(
+                                minWidth: DesignTokens.Control.minimumHitSize,
+                                minHeight: DesignTokens.Control.minimumHitSize
+                            )
+                            .contentShape(Rectangle())
                     }
-                    .frame(
-                        minWidth: DesignTokens.Control.minimumHitSize,
-                        minHeight: DesignTokens.Control.minimumHitSize
-                    )
-                    .contentShape(Rectangle())
                     .accessibilityLabel("Settings")
                     .accessibilityIdentifier(AppShellView.settingsButtonAccessibilityIdentifier)
                 }
