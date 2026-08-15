@@ -38,6 +38,16 @@ final class S7_3LifecycleUITests: XCTestCase {
         tap("s7.2.settings.paywall", in: app)
         XCTAssertTrue(element("s7.2.paywall.screen", in: app)
             .waitForExistence(timeout: 30))
+        let store = element("s7.2.paywall.store", in: app)
+        XCTAssertTrue(store.waitForExistence(timeout: 30))
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "value == %@", "Ready"),
+                object: store
+            )], timeout: 30),
+            .completed
+        )
+        XCTAssertTrue(store.isEnabled)
         let purchase = firstPurchaseButton(in: app)
         scroll(purchase, in: app)
         purchase.tap()
