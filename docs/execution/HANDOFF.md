@@ -1953,3 +1953,65 @@ The exact implementation envelope is nine production/project/fixture paths, one 
 - Mandatory S8.1 integration revisit remains: a same-session fresh check after a completed recheck can reuse the prior `CheckRunnerCoordinator.finalizationAttempt`, misclassify supplied no-visible identifiers as recheck identifiers, and show `Check not saved`; S8.1 must exercise and correct that reusable seam before release.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
 - Next unstarted task: `S7.2`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S7.2 `CURRENT_TASK.md`, then must run fresh S7.2 G0. The pinned sources require exact recovery copy for cancelled/pending/unverified/failed purchases but do not provide those four strings; S7.2 must hold read-only at G0 until owner-frozen copy is incorporated into its authority. Do not mutate main.
+
+## `S7.2` — `complete` — `2026-08-15T00:21:28-04:00`
+
+- Phase / branch / position / boundary: `S7` / `phase/s7-commerce` / `2 of 5` / `no`.
+- Outcome: added the sole monthly purchasable `SubscriptionStoreView`, StoreKit-localized product/trial/renewal disclosure, exact device-local/no-sync truth, injected safe catalog links, one modal-token diagnostic, one guarded purchase coordinator, durable verified processing through the installed S7.1 processor, exact cancelled/pending/unverified/failed recovery states, and visible Close back to unchanged sign history.
+- Immutable phase-main base: `P=5f50551f61bc363b430d4e877e462cb47865065d`; remote `main` remained exactly P throughout S7.2.
+- Integrated/card base and predecessor: `M=f1d22d248a5d76dd2ac66bb2c57e7f06d0d177bc`; accepted S7.1 run `31841797858` / job `94900070630`, N8/UI disabled, build plus `5/5` units green.
+- Observed task-start authorities: transition `A=02b9aa17c7c29c9614a0cd3b4f9f0ca0e4996013`, with `A^=M` and `M..A` exactly append-only `docs/execution/HANDOFF.md` plus S7.2 `docs/execution/CURRENT_TASK.md`; owner-copy authority `A2=c92eed3b2405355656dc559fecbd2dd76026834e`, with `A2^=A` and only CURRENT_TASK changed.
+- First implementation: `I=5f0adbbcef7645b6b51a2d6464e244485d184d07`. Accepted product/test implementation and exact verification head: `E=f09ddd11b10371b237f6e60bc2211b7ccb1b8739`. Final owner-approved infrastructure authority was `K5=9fb0f8d9e183e0f6bcae141110a9db84a81233d5`; E directly parents K5 and changes only the S7.2 UI-test path.
+- Exact selector: S7.2 P12/UI enabled; compact JSON plus LF, 337 bytes, SHA-256 `3E2E10AB82C3EABCA1FCC68C2F08D95BC56A1B9BFA33AD33AEC609B81F65CB1B`; exact selectors `FieldEvidenceAppTests/S7_2PaywallPurchaseTests` and `FieldEvidenceAppUITests/S7_2PaywallUITests`.
+- Accepted run/job/URLs: `31863494463` / `94960691821`; `https://github.com/palatis3/AssetRounds/actions/runs/31863494463`; `https://github.com/palatis3/AssetRounds/actions/runs/31863494463/job/94960691821`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.2; UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`; initial Simulator state `Shutdown`.
+- Budgets: setup `47/300` s; Simulator readiness `113/900` s; build step `383/600` s; unit step `64/900` s with selected tests `1.289` s; UI step `250/900` s with selected test `191.899` s; artifact `1` s and setup-plus-artifact `48/300` s; job total `779/3300` s; all watchdogs passed.
+- Artifact: `ios-ci-31863494463-1`, ID `9241454169`, size `2959789`, GitHub digest `sha256:fd21cb0055ab72b1885d5a6c765cd826e968bde2475336ff63e6a6441b35fc36`; `SHA256SUMS.txt` SHA-256 `30F04B96907544C7B8CD292036457B52A810C893B0989D09D9DCF011E16F0BA7`; all `101/101` listed payloads independently matched.
+- Accepted logs: `build-smoke.log` SHA-256 `6152CDB37F9C82BB57C0768C6D3D60B3BC8B23276F5809BFD7CBB416711F8D3E`; `test-smoke.log` `05EB0FE3634E0D16577845D852D9AD4D8F5E77787F917EABFB0C58C5FFA8AF43`; `ui-smoke.log` `EFD6923E5B066F4BF614D92DA03AFFD42D886DC20DD2AEB048CBEF0A0E746BD2`.
+- Terminal evidence: `ui-final.png`, `1206×2622`, 378892 bytes, SHA-256 `637752EA062F2498F581027071A78DA6ED6DCA122433FAA79326343164195E9B`; visual PASS at Accessibility XXXL showed the unchanged saved Paywall Sign and Paywall Site, Report history, Signs/Reports navigation, and no error, loading state, keyboard, or external sheet.
+- Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp.xcodeproj/project.pbxproj`
+- `FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme`
+- `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Features/Subscription/PaywallView.swift`
+- `FieldEvidenceApp/Infrastructure/Commerce/StoreKitProductLoader.swift`
+- `FieldEvidenceApp/Infrastructure/Commerce/StoreKitPurchaseCoordinator.swift`
+- `FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift`
+- `FieldEvidenceAppTests/S7_2PaywallPurchaseTests.swift`
+- `FieldEvidenceAppUITests/S7_2PaywallUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact implementation envelope is nine production/project paths, two test paths, and the standing selector exception. Diagnosed hosted verification additionally changed only `.github/workflows/ios-ci.yml` and `docs/execution/CURRENT_TASK.md`. No product ID/fixture fact, entitlement schema, annual/external purchase, Restore Purchases, Manage Subscription, access gating, backend/account, signing, deployment, or release behavior changed.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`5/5`): `testLocalizedPresentationLinksEligibilityAndPresentationTokenOnce`; `testStoreKitReservationPublishesAfterPresentationAndCancelsStaleState`; `testTerminalPurchaseTableHasExactCopyOneBucketAndReleasesLock`; `testVerifiedAwaitsDurabilityAndCountsExactlyOnce`; `testWrongDoubleUnavailableAndCounterFailureFailClosed`.
+- UI `PASS` (`1/1`): `testMonthlyPaywallPurchasePreservesLocalHistoryAtXXXL`, 191.899 s.
+
+### Acceptance results
+
+- GOLDEN `PASS`: the only monthly fixture supplied the exact localized name, one-month duration, price, 14-day trial and renewal disclosure; one real dialog-suppressed `SubscriptionStoreView` purchase produced an exact verified transaction, durably reopened entitlement authority, one finish, one verified diagnostic bucket, and unchanged local sign history.
+- Terminal-state `PASS`: table-driven cancelled, pending, unverified, and failed outcomes retained existing history, released the reservation/lock, created no paid authority, emitted the owner-frozen exact copy, and attempted only their matching diagnostics bucket.
+- ALT-1 `PASS`: missing/unsafe links, unavailable/wrong product, duplicate reservation, early completion, counter failure, and unverified/failure paths never guessed StoreKit facts, unlocked, finished invalid authority, opened an external checkout, or hid data.
+- UI/accessibility `PASS`: localized StoreKit truth, 44-point Close/Terms/Privacy/Support controls, non-color Ready/verified/unavailable state, production missing-link Retry/Close, Accessibility XXXL reachability, visible history return, and one terminal screenshot all passed.
+- Hosted-verification authority `PASS`: repeated exact-head evidence across iOS 26.2, 26.1, 18.6, and 18.5 proved the CLI-hosted StoreKit dialog service absent; the owner-approved final test suppressed only that unavailable dialog while retaining the real catalog, `SubscriptionStoreView` tap, verified StoreKit transaction, installed durable processor, and exact unit coverage for every nonverified state.
+
+### Candidate recovery provenance
+
+- Runs `31844949874`, `31846226910`, and `31847380324` successively exposed the undersized toolbar Close target, an in-test relaunch that lost StoreKit presentation, and a scheme TestAction without the StoreKit configuration. Direct children moved Close to the design-system content control, made the StoreKit-backed flow the first launch, and attached the existing configuration to TestAction.
+- Runs `31848808616` and `31852593106` proved headless scheme activation still did not seed the catalog on iOS 26.5/26.2. Direct children bundled the unchanged fixture only in UI-test Resources and retained an explicit `SKTestSession`; `31853408157` then isolated the StoreKit-localized duration spelling and the next child asserted exact `one month`.
+- Runs `31853962973`, `31854610306`, and `31855173723` reached real purchase initiation but found no dialog through the app, SpringBoard, or `com.apple.ios.StoreKitUIService`. Runs `31855879343` and `31856109582` then exposed only deployment-compatible revocation API and keyboard fixture issues, corrected narrowly without changing commerce truth.
+- Runs `31856783263`, `31857376231`, `31858129090`, and `31858746641` proved that keeping the StoreKit subtree enabled, querying alternate AX owners, and removing app hit-test interference still did not create the hosted dialog. Runtime repins followed the recorded infrastructure policy rather than synthetic purchase completion.
+- Runs `31859401967`, `31859942073`, `31860651032`, and `31861664882` reproduced the absent pid-0 StoreKit UI service on iOS 18.6 and 18.5, after immediate, deferred, and bounded-quarantined app state publication. No failed run ID was rerun or accepted. Owner-approved E then used dialog-suppressed real StoreKit verification and passed on its first exact-head candidate.
+
+### Known bugs, blockers, and next task
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S7.2 product/card blockers: `NONE`.
+- Mandatory S8.1 integration revisit remains: a same-session fresh check after a completed recheck can reuse the prior `CheckRunnerCoordinator.finalizationAttempt`, misclassify supplied no-visible identifiers as recheck identifiers, and show `Check not saved`; S8.1 must exercise and correct that reusable seam before release.
+- Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future transition commit.
+- Next unstarted task: `S7.3`. Same-phase autopilot may commit and non-force push exactly this append plus immediate-next S7.3 `CURRENT_TASK.md`, then must run fresh S7.3 G0. Do not mutate main.
