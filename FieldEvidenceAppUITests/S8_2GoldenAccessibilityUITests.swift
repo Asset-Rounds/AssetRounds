@@ -76,6 +76,31 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
         XCTAssertTrue(sign.waitForExistence(timeout: 15))
         XCTAssertLessThan(site.frame.minY, sign.frame.minY)
 
+        site.tap()
+        site.typeText("North Campus")
+        dismissKeyboard(in: app)
+        scroll(sign, in: app)
+        sign.tap()
+        sign.typeText("Monument Sign")
+        dismissKeyboard(in: app)
+
+        let optionalDetails = element("s2.new-sign.optional-toggle", in: app)
+        scroll(optionalDetails, in: app)
+        assertControl(optionalDetails, label: "Add optional details")
+        optionalDetails.tap()
+
+        let timeZone = element("s2.new-sign.time-zone", in: app)
+        scroll(timeZone, in: app)
+        timeZone.tap()
+        timeZone.typeText("America/New_York")
+        dismissKeyboard(in: app)
+
+        let confirmation = element("s2.new-sign.time-zone-confirm", in: app)
+        scroll(confirmation, in: app)
+        XCTAssertEqual(confirmation.elementType, .switch)
+        XCTAssertEqual(confirmation.value as? String, "0")
+        assertMinimumGeometry(confirmation)
+
         let save = element("s2.new-sign.save", in: app)
         scroll(save, in: app)
         assertControl(save, label: "Save and start check")
@@ -83,33 +108,17 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
 
         let error = element("s2.new-sign.error", in: app)
         XCTAssertTrue(error.waitForExistence(timeout: 15))
-        XCTAssertEqual(error.label, "Blocked: Enter a sign name.")
-        XCTAssertTrue(wait(
-            for: sign,
-            predicate: "hasKeyboardFocus == true",
-            timeout: 10
-        ))
-        XCTAssertTrue(app.keyboards.firstMatch.exists)
-        XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
-        dismissKeyboard(in: app)
-        XCTAssertTrue(wait(
-            for: sign,
-            predicate: "hasKeyboardFocus == false",
-            timeout: 10
-        ))
+        XCTAssertEqual(error.label, "Blocked: Confirm the exact time-zone identifier.")
         assertAccessibilityFocus(
-            on: sign,
-            label: "Sign name",
-            type: .textField
+            on: confirmation,
+            label: "I confirm this exact time-zone identifier",
+            type: .switch
         )
+        XCTAssertEqual(site.value as? String, "North Campus")
+        XCTAssertEqual(sign.value as? String, "Monument Sign")
+        XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
 
-        sign.tap()
-        sign.typeText("Monument Sign")
-        dismissKeyboard(in: app)
-        scroll(site, in: app)
-        site.tap()
-        site.typeText("North Campus")
-        dismissKeyboard(in: app)
+        setToggle("s2.new-sign.time-zone-confirm", in: app)
         scroll(save, in: app)
         save.tap()
 
