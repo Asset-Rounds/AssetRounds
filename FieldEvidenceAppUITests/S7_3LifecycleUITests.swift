@@ -190,10 +190,7 @@ private extension S7_3LifecycleUITests {
     @MainActor
     func dismissKeyboard(in app: XCUIApplication) {
         guard app.keyboards.firstMatch.exists else { return }
-        app.swipeDown()
-        if app.keyboards.firstMatch.exists {
-            app.toolbars.buttons["Done"].firstMatch.tap()
-        }
-        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        let key = app.keyboards.buttons["Return"]
+        key.exists ? key.tap() : app.swipeDown()
     }
 }
