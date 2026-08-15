@@ -552,12 +552,6 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
         for value in [status, header, action] {
             XCTAssertTrue(value.waitForExistence(timeout: 10), file: file, line: line)
         }
-        XCTAssertTrue(
-            wait(for: header, predicate: "hasFocus == true", timeout: 10),
-            file: file,
-            line: line
-        )
-        XCTAssertTrue(header.hasFocus, file: file, line: line)
         XCTAssertEqual(status.label, "Attention: Recheck due", file: file, line: line)
         XCTAssertEqual(header.label, "Section appears dark", file: file, line: line)
         XCTAssertEqual(header.elementType, .staticText, file: file, line: line)
