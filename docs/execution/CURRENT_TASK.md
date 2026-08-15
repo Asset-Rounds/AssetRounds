@@ -23,6 +23,7 @@
 - Required `A..A2`: exactly one direct-child commit changing only `docs/execution/CURRENT_TASK.md`; remote `phase/s7-commerce=A2`, remote `main=P`, and no other dirty path at fresh G0.
 - Diagnosed recovery authority: after exact-head run `31847380324` proved the existing StoreKit configuration is unavailable to the scheme Test action, the owner approved `FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme` as the one additional S7.2 project path on `2026-08-14`. The authority commit changes only this file; the following correction may attach only the existing `TestFixtures/StoreKit/FieldEvidence.storekit` reference to the Test action without changing the fixture, product, selector, workflow, or pinned environment.
 - Hosted StoreKit recovery authority: exact-head run `31848808616` at `42330f3a12e9bf5f445e7d5fee072b2b456a5126` passed build plus `4/4` units but reproduced the same first-product-lookup failure after the scheme Test action correction, establishing the pinned iOS 26.5 headless StoreKit-test runtime failure rather than a product/test defect. The owner authorized an infrastructure-only iOS 26.2 trial on `2026-08-14`, with iOS 26.1 fallback only if 26.2 reproduces the same signature; Xcode 26.6, iPhone 17, product/project/test/fixture/selector semantics, and acceptance remain unchanged. This correction changes only this file plus `.github/workflows/ios-ci.yml`.
+- Explicit StoreKit-test recovery authority: exact-head run `31852593106` at infrastructure head `396c6fe743cfb763fb50e7050c98bcabcc6bbadb` passed build plus `4/4` units on iOS 26.2 but reproduced the same first-product-lookup failure, proving that the scheme reference alone does not seed the headless catalog. The owner authorized the diagnosed explicit-session correction on `2026-08-14`: add the unchanged existing `TestFixtures/StoreKit/FieldEvidence.storekit` only to the UI-test Resources phase through `FieldEvidenceApp.xcodeproj/project.pbxproj`, then retain an `SKTestSession` initialized from that bundled fixture before the first UI-test app launch. The fixture, app Resources phase, StoreKit product truth, selector, workflow, pinned iOS 26.2 environment, and real `SubscriptionStoreView` cancel/confirm acceptance remain unchanged.
 
 ## Pinned authority
 
@@ -72,6 +73,7 @@ Production/project paths:
 - `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
 - `FieldEvidenceApp/Features/Shell/AppShellView.swift`
 - `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp.xcodeproj/project.pbxproj`
 - `FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme`
 
 Test paths:
@@ -89,5 +91,6 @@ No other implementation, model, project, resource, fixture, script, workflow, au
 
 - Fresh recovery G0 must additionally prove the owner-approved CURRENT_TASK-only authority commit directly parents exact failed head `b7601c50e669ea7f34349da65e5e38fd1555fad8`, remote `main=P`, all pins and selector bytes remain unchanged, and the nine-production/project/two-test expanded envelope remains inside the default 10/5 cap.
 - Fresh hosted-runtime recovery G0 must prove this two-path correction directly parents exact failed head `42330f3a12e9bf5f445e7d5fee072b2b456a5126`, changes only `docs/execution/CURRENT_TASK.md` plus `.github/workflows/ios-ci.yml`, pins the installed iOS 26.2 runtime and updated workflow hash above, preserves the exact selector object and all product/project/test/fixture bytes, and leaves remote `main=P`.
+- Fresh explicit-session recovery G0 must prove the owner-authorized CURRENT_TASK-only authority commit directly parents exact failed infrastructure head `396c6fe743cfb763fb50e7050c98bcabcc6bbadb`, changes only `docs/execution/CURRENT_TASK.md`, leaves remote `main=P`, preserves every pin and selector byte, and expands the envelope only by `FieldEvidenceApp.xcodeproj/project.pbxproj` for UI-test-only fixture resource membership.
 - After complete G0, replace only `Scripts/ci-selection.json` with the frozen S7.2 object, then implement exactly this card. Candidate recovery follows the persistent evidence-driven direct-child loop without weakening acceptance or expanding paths.
 - After accepted exact-head S7.2 CI, read `KNOWN_BUGS.md`, append the immutable S7.2 HANDOFF, and—only with phase autopilot still enabled—commit/push exactly that append plus immediate-next S7.3 CURRENT_TASK. Run fresh S7.3 G0; do not mutate `main` during a same-phase transition.
