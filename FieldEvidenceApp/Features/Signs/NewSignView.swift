@@ -210,11 +210,13 @@ struct NewSignView: View {
                 TextField(label, text: text)
                     .textFieldStyle(.roundedBorder)
                     .focused($focusedField, equals: field)
+                    .accessibilityLabel(label)
                     .accessibilityIdentifier(identifier)
                     .accessibilityFocused($accessibilityFocusedField, equals: field)
             } else {
                 TextField(label, text: text)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel(label)
                     .accessibilityIdentifier(identifier)
             }
         }
