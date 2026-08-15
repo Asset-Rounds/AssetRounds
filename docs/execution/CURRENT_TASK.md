@@ -67,6 +67,10 @@ Exact hosted-evidence production correction path authorized by failed exact-head
 
 - `FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift`
 
+Exact hosted-evidence production correction path authorized by failed exact-head run `31880481756`:
+
+- `FieldEvidenceApp/Features/Signs/NewSignView.swift`
+
 Standing selector exception:
 
 - `Scripts/ci-selection.json`
