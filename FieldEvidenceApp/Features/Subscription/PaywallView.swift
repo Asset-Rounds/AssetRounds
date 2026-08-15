@@ -129,7 +129,14 @@ struct PaywallView: View {
                 result: result
             )
         }
-        .allowsHitTesting(!coordinator.isPurchasing)
+        .overlay {
+            if coordinator.isPurchasing {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { }
+                    .accessibilityHidden(true)
+            }
+        }
         .accessibilityValue(coordinator.isPurchasing ? "Purchasing" : "Ready")
         .accessibilityIdentifier(Self.storeAccessibilityIdentifier)
     }
