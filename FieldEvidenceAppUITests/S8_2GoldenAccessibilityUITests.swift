@@ -83,9 +83,9 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
 
         let error = element("s2.new-sign.error", in: app)
         XCTAssertTrue(error.waitForExistence(timeout: 15))
-        XCTAssertEqual(error.label, "Blocked: Enter a customer or site name.")
+        XCTAssertEqual(error.label, "Blocked: Enter a sign name.")
         XCTAssertTrue(wait(
-            for: site,
+            for: sign,
             predicate: "hasKeyboardFocus == true",
             timeout: 10
         ))
@@ -93,22 +93,22 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
         XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
         dismissKeyboard(in: app)
         XCTAssertTrue(wait(
-            for: site,
+            for: sign,
             predicate: "hasKeyboardFocus == false",
             timeout: 10
         ))
         assertAccessibilityFocus(
-            on: site,
-            label: "Customer / site name",
+            on: sign,
+            label: "Sign name",
             type: .textField
         )
 
-        site.tap()
-        site.typeText("North Campus")
-        dismissKeyboard(in: app)
-        scroll(sign, in: app)
         sign.tap()
         sign.typeText("Monument Sign")
+        dismissKeyboard(in: app)
+        scroll(site, in: app)
+        site.tap()
+        site.typeText("North Campus")
         dismissKeyboard(in: app)
         scroll(save, in: app)
         save.tap()
