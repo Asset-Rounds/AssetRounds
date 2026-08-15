@@ -129,6 +129,8 @@ struct ReportCorrectionView: View {
                 if let validationMessage {
                     WorklightStatusBadge(kind: .blocked, text: validationMessage)
                         .accessibilityIdentifier(Self.validationAccessibilityIdentifier)
+                        .focusable()
+                        .focused($keyboardFocus, equals: .validation)
                         .accessibilityFocused($accessibilityFocus, equals: .validation)
                 }
 
@@ -313,10 +315,10 @@ struct ReportCorrectionView: View {
         validationMessage = message
         state = .editing
         Task { @MainActor in
-            await Task.yield()
-            keyboardFocus = .note
+            keyboardFocus = nil
             accessibilityFocus = nil
             await Task.yield()
+            keyboardFocus = .validation
             accessibilityFocus = .validation
         }
     }
