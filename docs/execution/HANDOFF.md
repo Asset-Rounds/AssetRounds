@@ -2461,3 +2461,61 @@ The exact accepted envelope is ten release/product paths, two test paths, and th
 - `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S9.1 product/card blockers: `NONE`.
 - Remote phase was freshly verified at E and remote main at P before this append. This entry does not self-record its future HANDOFF-only phase-close commit.
 - Next unstarted gate: owner-only `S9.2`. Program autopilot must first commit/push only this HANDOFF append, accept exact-head F25/UI-enabled S9 phase CI, non-force fast-forward `main` to that exact green verification head, and accept exact-main F25/UI-enabled CI. Coding stops after that exact-main gate; TestFlight dispatch, signing, archive/export/upload, deployment, and S9.2/S9.3 remain owner-only.
+
+## `S10.1` — `accepted E/K; receipt verification pending` — `2026-08-16T08:01:35-04:00`
+
+- Phase / branch / position / boundary: `S10` / `phase/s10-brand-refresh` / `1 of 6` / `no`.
+- Outcome: froze the complete 67-state released-route inventory, token/accessibility/experience/store contracts, and human-approved corrected S9 pre-brand baselines before any S10.2 presentation or runtime-asset mutation. The same card also repaired the hosted-evidenced repeated work/recheck lineage defects and made the pending-PDF recovery baseline deterministic only under the existing UI-test failure argument.
+- Immutable phase-main and integrated/card base: `P=M=01233f789b1cef5a6f56c7ff4caa9271409cd3bc`; accepted S9.1 product `35e87b0d97c732f4c63621cc87f9faf86eef97d3`; S9 phase run `31907266760`; accepted exact-main run `31908483947` / job `95069878862` / artifact `9253163917`.
+- Observed task-start authority: `A=e056fbf55136113cf25f7d152cf6d37ddffc0ee9`; `A^=M`, and `M..A` contains exactly the eight owner-directed S10 authority paths recorded by CURRENT_TASK. Direct-child package-validator correction `7939a92611479a7a89033f7383bae066d320d444` changed only the frozen ZIP, external manifest, activation instance, and CURRENT_TASK pins; runtime image bytes remained unchanged.
+- Accepted product implementation: `E=44e9f9471f8ced9ecdd85f241a79c3750c38412d`. Post-green evidence-sequence authority `H=dfe24aeb02e15b1a3057c5b69512a1b3c28cc5c0` changed only CURRENT_TASK. Human-reviewed visual evidence `K=29a49d0145980bf1cb3c1f6ec260a6af579902d4` directly descends H and changed only `docs/design/s10/s10-visual-regression.json`; E remains the product/test head.
+- Exact selector: S10.1 F25/UI enabled; compact JSON plus LF, 348 bytes, SHA-256 `2845C608EE15C2B53990C613D19981FFA713F02BD034CF2E007B7514573BF012`; exact selectors `FieldEvidenceAppTests/S10_1BrandInventoryTests` and `FieldEvidenceAppUITests/S10_1BrandInventoryUITests`.
+- Accepted product run/job/URLs: `31942339074` / `95153221424`; `https://github.com/palatis3/AssetRounds/actions/runs/31942339074`; `https://github.com/palatis3/AssetRounds/actions/runs/31942339074/job/95153221424`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.2 build `23C54`; UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`; initial Simulator state `Shutdown`.
+- Budgets: setup `22/300` s; Simulator readiness `69/900` s; build `243/900` s; unit step `35/1200` s; UI step `1354/1800` s with selected test `1313.058` s; selected total about `1730/4500` s; all watchdogs passed.
+- Artifact: `ios-ci-31942339074-1`, ID `9262665745`, compressed size `49272973`, digest `sha256:6ba2a87d5afcb87e3f5fba9462069e9d75622e0e2822236e5206b0692e84b5a9`; all `231/231` payloads independently matched `SHA256SUMS.txt`.
+- Accepted artifact hashes: `SHA256SUMS.txt` `AC38360371086F9BEE0A15F35BA1F68D903D3316972C28E63CFA7D076762797B`; `build-smoke.log` `EC299DCB6D4B992F9C539F8BCF7F4E672D3A67162A681E21B7BAC443BE9FA911`; `test-smoke.log` `88DFDC849359B01B073322B9039D2A6E3108F05370D9F6C4D1AE14838FFC5CCD`; `ui-smoke.log` `2909E4367935826E8C97D8F1CC1C23942FD0DBA92F97CFCDEA0A0E8774CD8DE7`; `ui-final.png` `8ED8F471DB2FE76510DF99E8FB9368692D289F288EEFB799AA37BE17F83147C7`.
+- Exact commands: `bash Scripts/run-with-timeout.sh 900 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 1200 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 1800 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted product run.
+
+### Changed paths
+
+- `FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift`
+- `FieldEvidenceApp/Features/Issues/WorkCoordinator.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift`
+- `FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift`
+- `FieldEvidenceAppTests/S10_1BrandInventoryTests.swift`
+- `FieldEvidenceAppUITests/S10_1BrandInventoryUITests.swift`
+- `docs/design/s10/s10-accessibility-common-tasks.json`
+- `docs/design/s10/s10-experience-validation.json`
+- `docs/design/s10/s10-screen-state-inventory.json`
+- `docs/design/s10/s10-stage-checkpoints.json`
+- `docs/design/s10/s10-store-readiness.json`
+- `docs/design/s10/s10-token-coverage.json`
+- `docs/design/s10/s10-visual-regression.json`
+- `Scripts/ci-selection.json`
+
+The exact implementation envelope is eleven product/document paths, two test paths, and the standing selector exception. Owner-directed activation and correction authority additionally changed only the pinned authority paths recorded above and in CURRENT_TASK. No S10.2 runtime asset/token/component migration, route/feature/schema/model change, baseline regeneration after product mutation, signing, upload, TestFlight, App Store action, or fabricated legal/physical evidence occurred.
+
+### Accepted tests and baseline evidence
+
+- Unit `PASS` (`3/3`): `testAccessibilityExperienceAndVisualPlansAreCompleteButUnrun`, 0.011 s; `testFrozenContractsHaveOneUniqueReferentiallyCompleteGraph`, 0.014 s; `testStorePlanAndCISelectorAreExact`, 0.35 s.
+- UI `PASS` (`1/1`): `testCapturesFrozenS9BrandBaselinesAcrossReleasedGoldenFlow`, 1313.058 s.
+- GOLDEN `PASS`: the bounded released flow captured exactly `67/67` unique state IDs in the frozen order across Light/default and Dark/AccessibilityXXXL, including persistence, work/recheck/different-Issue, report failure/retry/history, backup/restore/Erase, commerce, feedback, diagnostics, and data-rights routes.
+- ALT-1 `PASS`: contract tests and the V4.1 validator reject missing/duplicate states, unknown tokens, stale source/fixture references, malformed selector/hash/evidence, unauthorized package members, and fabricated legal/physical/release facts.
+- Human review `APPROVED`: repository owner `palatis3` explicitly approved all 67 S10.1 pre-brand baselines on `2026-08-16`; evidence ID `owner-review-s10.1-baselines-2026-08-16-palatis3`.
+- K evidence `PASS`: all 67 baseline rows carry their exact accepted-run artifact/attachment locators and independently verified PNG SHA-256 values; approval status/reviewer/evidence are exact, candidate fields remain empty, and comparison status remains truthful `NOT_RUN` / `NOT_REVIEWED`. The visual document has SHA-256 `C111BB31056801C996049E94B3B1ACEFCDAAC6BBABD80576644F751799319AB1`.
+- Inventory receipt candidate `PASS` before commit: the single `Inventory` checkpoint binds product E, evidence K, the seven canonical document Git-blob hashes at K, accepted run/artifact evidence, and owner review. The complete V4.1 Inventory/package validator passed using the frozen package member `Handoff/s10-evidence-lock.template.json`; the canonical S10.6 evidence lock was not created early.
+
+### Candidate recovery provenance
+
+- Runs `31914442834` through `31918478037` progressively exposed bounded XCUITest route, visibility, repeated-XXXL preflight, StoreKit ordering, and post-Erase no-entitlement setup defects. Each direct-child correction changed only the authorized S10.1 UI test and preserved the exact 67 IDs/order.
+- Runs `31919914831`, `31921675042`, and `31922598904` exposed accepted-S9 latent behavior defects in repeated `work -> could_not_verify -> issue_still_visible -> work` admission and finalization/recovery. The scoped WorkCoordinator and Finalization reducers now enforce the same closed chain grammar without reopening S9 refs or HANDOFF.
+- Runs `31924339452` through `31932334972` exposed deterministic pending-PDF and retained-navigation/history-route gaps. The test-only receipt deferral leaves normal launches unchanged and proves genuine persisted pending -> startup failed -> explicit retry -> ready behavior.
+- Runs `31933900842` through `31938084185` recorded hosted StoreKit verification nondeterminism and unsuccessful bounded recovery experiments. The final accepted product keeps the strict real one-tap verified-purchase assertion; no synthetic entitlement, weakened label, expanded timeout, or acceptance loop remains.
+- Run `31939291010` reached 65/67 captures but exceeded the bounded UI budget because of a reverse lazy-scroll search. Direct-child E removed only that reverse search. Run `31941307507` at E was a fresh-runner hosted StoreKit failure; fresh candidate `31942339074` at identical E completed every gate. No failed run ID was rerun or accepted.
+
+### Known bugs, blockers, and receipt state
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S10.1 product/evidence blockers: `NONE`.
+- Remote phase and main were freshly checked before receipt mutation; phase equaled K and main remained P. This append and the Inventory checkpoint are the exact receipt-C payload and do not self-record their future C commit SHA or C verification run.
+- Next unstarted card: `S10.2`. Before transition, commit and non-force push this receipt payload, accept exact-head focused S10.1 F25 proof at C, then append the C/run addendum and hydrate only immediate-next S10.2 CURRENT_TASK in one transition commit. Fresh S10.2 G0 is mandatory; S10.3+ remain unstarted.

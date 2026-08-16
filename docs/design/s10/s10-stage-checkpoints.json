@@ -3,5 +3,61 @@
   "document_status": "tracking",
   "activation_id": "assetrounds-s10-brand-handoff-v4.1-2026-08-15",
   "receipt_model": "E_product_K_evidence_C_receipt",
-  "checkpoints": []
+  "checkpoints": [
+    {
+      "stage": "Inventory",
+      "gate_id": "s10.1-inventory",
+      "product_head": "44e9f9471f8ced9ecdd85f241a79c3750c38412d",
+      "evidence_head": "29a49d0145980bf1cb3c1f6ec260a6af579902d4",
+      "evidence_head_role": "K",
+      "documents": [
+        {
+          "document_type": "activation",
+          "path": "docs/design/s10/s10-activation.json",
+          "blob_commit": "29a49d0145980bf1cb3c1f6ec260a6af579902d4",
+          "sha256": "80C6102D703AE836C14F38562E04BDFD28D333DF9EC9848324F4DC34CFBF880D"
+        },
+        {
+          "document_type": "screen_state_inventory",
+          "path": "docs/design/s10/s10-screen-state-inventory.json",
+          "blob_commit": "29a49d0145980bf1cb3c1f6ec260a6af579902d4",
+          "sha256": "40CF1DC0BD5BA1373CEBADE6956FFCDB100B34279764173BBBB2DBE01D524B71"
+        },
+        {
+          "document_type": "accessibility_common_tasks",
+          "path": "docs/design/s10/s10-accessibility-common-tasks.json",
+          "blob_commit": "29a49d0145980bf1cb3c1f6ec260a6af579902d4",
+          "sha256": "B7EDB1DD18BAB6DEE1884DA52C15F63AD5AD06045F58444C61442957558999F0"
+        },
+        {
+          "document_type": "token_coverage",
+          "path": "docs/design/s10/s10-token-coverage.json",
+          "blob_commit": "29a49d0145980bf1cb3c1f6ec260a6af579902d4",
+          "sha256": "7F6310CD68E1EEA01EC4AB47D0AB56BDF5C15644794FD7360C36AB498BD2A428"
+        },
+        {
+          "document_type": "visual_regression",
+          "path": "docs/design/s10/s10-visual-regression.json",
+          "blob_commit": "29a49d0145980bf1cb3c1f6ec260a6af579902d4",
+          "sha256": "C111BB31056801C996049E94B3B1ACEFCDAAC6BBABD80576644F751799319AB1"
+        },
+        {
+          "document_type": "experience_validation",
+          "path": "docs/design/s10/s10-experience-validation.json",
+          "blob_commit": "29a49d0145980bf1cb3c1f6ec260a6af579902d4",
+          "sha256": "804341D6E9E287EE19954576B1E9FB38B887163B6C5C255D94FCCC1EB279F69F"
+        },
+        {
+          "document_type": "store_readiness",
+          "path": "docs/design/s10/s10-store-readiness.json",
+          "blob_commit": "29a49d0145980bf1cb3c1f6ec260a6af579902d4",
+          "sha256": "D8AB503B5864C812E4E808DC214D9351E95BA58DC496D6505905E69408DAEABA"
+        }
+      ],
+      "evidence_ids": [
+        "github-actions-run-31942339074-artifact-9262665745",
+        "owner-review-s10.1-baselines-2026-08-16-palatis3"
+      ]
+    }
+  ]
 }
