@@ -125,7 +125,7 @@ private struct SampleBottomScrollEdgeEffect: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            content.scrollEdgeEffectStyle(.hard, for: .bottom)
+            content.scrollEdgeEffectHidden(true, for: .bottom)
         } else {
             content
         }
