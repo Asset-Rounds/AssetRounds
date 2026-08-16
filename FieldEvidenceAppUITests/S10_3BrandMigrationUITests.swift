@@ -169,6 +169,12 @@ final class S10_3BrandMigrationUITests: XCTestCase {
 
         site.typeText("North Campus")
         dismissKeyboard(in: app)
+        dismissKeyboard(in: app)
+        XCTAssertTrue(wait(
+            for: app.keyboards.firstMatch,
+            predicate: "exists == false",
+            timeout: 10
+        ))
         scroll(save, in: app)
         save.tap()
 
