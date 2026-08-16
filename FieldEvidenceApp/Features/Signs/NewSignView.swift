@@ -69,7 +69,7 @@ struct NewSignView: View {
 
                     Text("Choose a customer or site, then name the sign you check there.")
                         .font(DesignTokens.Typography.primaryBody)
-                        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
