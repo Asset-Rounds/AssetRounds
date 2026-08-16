@@ -1,10 +1,10 @@
-# CURRENT TASK — S10.1 Brand activation, inventory, and S9 baselines
+# CURRENT TASK — S10.1 Brand activation, inventory, and corrected S9 baselines
 
 ## Selection and immutable program authority
 
 - Selected on: `2026-08-15`.
 - Phase / branch / card / global order: `S10 / phase/s10-brand-refresh / S10.1 / 37 of 42`.
-- Card heading: `### S10.1 — Brand activation, released-state inventory, and S9 baselines`.
+- Card heading: `### S10.1 — Brand activation, released-state inventory, and corrected S9 baselines`.
 - Position / boundary / immediate next: `1 of 6 / phase boundary no / S10.2`.
 - Program autopilot / phase autopilot / exact S10 span / boundary integration: `enabled through accepted exact-main S10.6 / enabled / S10.1,S10.2,S10.3,S10.4,S10.5,S10.6 / yes at S10.6`.
 - Frozen phase→branch→card map: `S0->phase/s0-foundation->S0.1; S1->phase/s1-shell-design->S1.1; S2->phase/s2-persistence-signs->S2.1,S2.2; S3->phase/s3-check-runner->S3.1,S3.2,S3.3,S3.4,S3.5,S3.6,S3.7; S4->phase/s4-reports->S4.1,S4.2,S4.3,S4.4,S4.5; S5->phase/s5-work-recheck->S5.1,S5.2,S5.3,S5.4; S6->phase/s6-data-rights->S6.1,S6.2,S6.3,S6.4,S6.5,S6.6; S7->phase/s7-commerce->S7.1,S7.2,S7.3,S7.4,S7.5; S8->phase/s8-quality->S8.1,S8.2,S8.3,S8.4; S9->phase/s9-release->S9.1; S10->phase/s10-brand-refresh->S10.1,S10.2,S10.3,S10.4,S10.5,S10.6`.
@@ -16,16 +16,18 @@
 - At owner-directed S10 activation, `origin/main` and `origin/phase/s9-release` both equal exact M. The S9.1 HANDOFF remains immutable.
 - This owner-directed authority amendment creates A as a direct child of M and changes exactly: `AGENTS.md`, `docs/product/BUILD_PLAN_V4.md`, `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md`, `docs/execution/CODEX_EXECUTION_CONTRACT_V4.md`, this `docs/execution/CURRENT_TASK.md`, `docs/design/s10/s10-activation.json`, `docs/design/s10/authority/assetrounds-brand-assets-v4.1-20260815.zip`, and `docs/design/s10/authority/asset-manifest.json`. Fresh G0 observes A after commit; this file never self-records A.
 - Fresh G0 must prove `M..A` contains exactly those eight authority paths, remote `phase/s10-brand-refresh=A`, remote `main=M`, exact pins/digests, no overlapping dirt, and no product/project/test/fixture/runtime-asset change.
+- Owner-directed post-boundary correction authority: exact-head S10.1 run `31919914831` at `d28108f939efc8fc6db135d9b550fb14fcabd44c` passed build and units, then proved the accepted S9 behavior defect that a valid terminal `issue_still_visible` recheck returns its Issue to `open` but `WorkCoordinator` rejects the same lineage when starting another work record. Preserve S9 refs/HANDOFF and the published S10 ancestry. A direct-child authority commit may change only this file, the pinned runbook, and the activation instance needed to keep its exact path/cap/runbook pin coherent; its direct-child product correction may change only `FieldEvidenceApp/Features/Issues/WorkCoordinator.swift`. The unchanged 67-state S10.1 GOLDEN must then prove the corrected route in its original order; reordering or omitting the path is forbidden.
 
 ## Frozen authority and package
 
 - Plan: `docs/product/BUILD_PLAN_V4.md` / SHA-256 `0477672A3F97E02E229A8DC84B3F27AAF60A3B535FD51B68DADA94ADF410FF4D` / S10 brand-system refresh plus Sections 11, 16, and 18.
-- Runbook: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / SHA-256 `E3C5D9EF6CDCFE9D32D20BD5AF9567C6C8F5BA5D8B5BAFB3E8ABBF8998AC8B46` / selected card S10.1 only.
+- Runbook: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / SHA-256 `08373FCCED13A118991D3C81B3B42AD04E1C41A88BB85A1816589D09C97B2DA1` / selected card S10.1 only.
 - Contract: `docs/execution/CODEX_EXECUTION_CONTRACT_V4.md` / SHA-256 `0D09F319EB729A2D57F05515B400B400FF0B753A2E373E7BB8A0AB0561A50BB6`.
-- Activation: `docs/design/s10/s10-activation.json` / SHA-256 `584093F2426369A8C97BDE4616BCC896354FF94BC0CB207AE4AEA108DC210157`.
+- Activation: `docs/design/s10/s10-activation.json` / SHA-256 `B6D4D59DB3E57477BC2F24DBAED08916F9E26DD648B04B74E7C8DB9D0415EB86`.
 - Frozen package: `docs/design/s10/authority/assetrounds-brand-assets-v4.1-20260815.zip` / SHA-256 `D05ACDC8195B1C7C05230BCBD0AC59E436681D93FCA9AC12108B2BE98A408400`.
 - External manifest anchor: `docs/design/s10/authority/asset-manifest.json` / SHA-256 `F771EB8FBD3D42960FC4B8C0A516A05E8B0FD16EBA2C88107ADD6A4E0D74F551`.
 - Owner-directed activation correction: the package validator's two unresolved-placeholder scans use case-sensitive `-cmatch`, preventing the legitimate lowercase `required_pseudolanguages` key from being misclassified as an uppercase `REQUIRED_*` value. Only the validator member, its manifest row, package bytes, activation digests, and these pins changed; all brand/runtime image bytes remain unchanged.
+- The V4.1 activation instance now mirrors the conditional earlier-card-owned `WorkCoordinator.swift` path, eight-file cap, and corrected runbook pin. The frozen ZIP, external package manifest, runtime images, card list/order, selectors, and brand truth remain byte-for-byte unchanged; this is not a brand-package member, brand mutation, or reusable scope expansion.
 - Route/state: `replace_unpublished_candidate / unpublished`. No TestFlight or published-release evidence exists.
 - Owner use grant: accepted for the AssetRounds project/app/marketing/distribution by repository owner `palatis3`; this is not trademark, title, claim, or URL clearance. Trademark clearance remains `NOT_CLEARED` and blocks S10.6 release readiness.
 - Physical bridge plan: owner-signed development install to a named physical iPhone, tied to exact product E by git SHA, bundle ID/version/build, and signed artifact SHA-256. The owner operates signing/install later; Codex does not sign, upload, or fabricate physical evidence.
@@ -34,7 +36,7 @@
 
 ## Outcome, GOLDEN, and ALT-1
 
-- Outcome: freeze the complete released route/state/common-task inventory, approved token coverage, S9 pre-migration visual baselines, accessibility/device/locale matrices, experience protocol, store-slot plan, and six one-to-one stage checkpoints before any app/product byte changes.
+- Outcome: freeze the complete released route/state/common-task inventory, approved token coverage, corrected S9 pre-migration visual baselines, accessibility/device/locale matrices, experience protocol, store-slot plan, and six one-to-one stage checkpoints before any brand/presentation byte changes.
 - Exact S10 checkpoint order: `Inventory -> ComponentSystem -> Migration -> AutomatedLab -> PhysicalExperience -> Release`.
 - S10 evidence model: E is the accepted product/test implementation; descendant K may add only this card's exact evidence documents and required task pins after CI; later C records receipt/bookkeeping. K/C never replace E or mutate app/project/test/fixture/asset bytes.
 - GOLDEN: one bounded F25 UI class traverses every frozen S9 baseline-capture scenario on the unchanged app and produces exact screenshots. One unit class plus the V4.1 validator prove exact state↔token↔baseline coverage, source/fixture reachability, complete common tasks, device/locale/pseudolanguage/accessibility matrices, store screenshot slots, selector hashes, and all six checkpoints.
@@ -42,7 +44,7 @@
 
 ## Exact card envelope
 
-Product/document cap is exactly 7; test cap is exactly 2. Allowed implementation paths:
+Product/document cap is exactly 8; test cap is exactly 2. Allowed implementation paths:
 
 1. `docs/design/s10/s10-stage-checkpoints.json`
 2. `docs/design/s10/s10-screen-state-inventory.json`
@@ -51,13 +53,14 @@ Product/document cap is exactly 7; test cap is exactly 2. Allowed implementation
 5. `docs/design/s10/s10-visual-regression.json`
 6. `docs/design/s10/s10-experience-validation.json`
 7. `docs/design/s10/s10-store-readiness.json`
-8. `FieldEvidenceAppTests/S10_1BrandInventoryTests.swift`
-9. `FieldEvidenceAppUITests/S10_1BrandInventoryUITests.swift`
+8. `FieldEvidenceApp/Features/Issues/WorkCoordinator.swift`
+9. `FieldEvidenceAppTests/S10_1BrandInventoryTests.swift`
+10. `FieldEvidenceAppUITests/S10_1BrandInventoryUITests.swift`
 
 - `Scripts/ci-selection.json` remains the sole standing implementation-support exception.
 - `docs/execution/HANDOFF.md` remains append-only bookkeeping only after accepted evidence.
 - Activation/package authority files are read-only during S10.1 implementation.
-- No app, project, resource, runtime asset, feature, coordinator, model, service, schema, fixture, release metadata, workflow, CI harness, or unrelated documentation path may change.
+- The only app/coordinator change is the exact `WorkCoordinator.swift` terminal `issue_still_visible` open-lineage correction diagnosed by run `31919914831`. No other app, project, resource, runtime asset, feature, coordinator, model, service, schema, fixture, release metadata, workflow, CI harness, or unrelated documentation path may change.
 - Forbidden: S10.2 asset/token/component work; S10.3 migration; baseline regeneration after product mutation; Figma/prototype substitution; new route/feature/copy/data behavior; signing/archive/upload/TestFlight/App Store action; secrets/settings/PR/merge/force push; fabricated legal/physical evidence.
 
 ## Environment, workflow, selector, and GitHub authority
@@ -76,8 +79,9 @@ Product/document cap is exactly 7; test cap is exactly 2. Allowed implementation
 
 1. Commit/push the eight-path owner-directed authority amendment as A and perform fresh G0.
 2. Replace only `Scripts/ci-selection.json` with the exact S10.1 selector as the first support mutation.
-3. Implement the seven canonical instances and two bounded tests; validate package, schemas, Inventory contract, diff, and exact path count.
-4. Commit/push product E, dispatch exactly one F25 candidate, inspect full evidence, and correct persistently until exact-head green.
-5. If screenshots/document evidence must be committed after E, create only the descendant evidence K allowed above, revalidate without product-byte changes, and accept exact-head CI at K while retaining E.
-6. Read `docs/execution/KNOWN_BUGS.md`; append S10.1 HANDOFF; hydrate only S10.2 through exact HANDOFF-plus-CURRENT_TASK transition; run fresh G0.
-7. Immediate next card: `S10.2 — Brand assets, semantic tokens, and reusable components`.
+3. Commit/push the three-path owner-directed correction authority as a direct child of `d28108f939efc8fc6db135d9b550fb14fcabd44c`, then perform a fresh correction preflight without changing refs other than the exact non-force phase advance.
+4. Correct only the diagnosed `WorkCoordinator.swift` lineage predicate. Preserve the seven canonical instances, the two bounded tests, the unchanged selector, and the exact 67-state traversal order; validate package, schemas, Inventory contract, diff, and exact path count.
+5. Commit/push product E, dispatch exactly one F25 candidate, inspect full evidence, and correct persistently until exact-head green.
+6. If screenshots/document evidence must be committed after E, create only the descendant evidence K allowed above, revalidate without product-byte changes, and accept exact-head CI at K while retaining E.
+7. Read `docs/execution/KNOWN_BUGS.md`; append S10.1 HANDOFF; record the latent-S9 correction and accepted evidence; hydrate only S10.2 through exact HANDOFF-plus-CURRENT_TASK transition; run fresh G0.
+8. Immediate next card: `S10.2 — Brand assets, semantic tokens, and reusable components`.

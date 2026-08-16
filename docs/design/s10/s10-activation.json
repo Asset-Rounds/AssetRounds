@@ -41,7 +41,7 @@
     "pinned_plan_path": "docs/product/BUILD_PLAN_V4.md",
     "pinned_plan_sha256": "0477672A3F97E02E229A8DC84B3F27AAF60A3B535FD51B68DADA94ADF410FF4D",
     "pinned_runbook_path": "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
-    "pinned_runbook_sha256": "E3C5D9EF6CDCFE9D32D20BD5AF9567C6C8F5BA5D8B5BAFB3E8ABBF8998AC8B46",
+    "pinned_runbook_sha256": "08373FCCED13A118991D3C81B3B42AD04E1C41A88BB85A1816589D09C97B2DA1",
     "allowed_remote_operations": [
       "fetch",
       "read_refs",
@@ -137,12 +137,13 @@
         "docs/design/s10/s10-visual-regression.json",
         "docs/design/s10/s10-experience-validation.json",
         "docs/design/s10/s10-store-readiness.json",
+        "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
         "FieldEvidenceAppTests/S10_1BrandInventoryTests.swift",
         "FieldEvidenceAppUITests/S10_1BrandInventoryUITests.swift"
       ],
-      "product_file_cap": 7,
+      "product_file_cap": 8,
       "test_file_cap": 2,
-      "file_cap_override_reason": "Seven canonical inventory contracts and two bounded tests are required to freeze all S9 states and screenshot baselines before product mutation.",
+      "file_cap_override_reason": "Seven canonical inventory contracts, one diagnosed prebaseline WorkCoordinator lineage correction, and two bounded tests are required to freeze all corrected S9 states and screenshot baselines before brand mutation.",
       "selector": {
         "tier": "F25",
         "run_ui_smoke": true,
