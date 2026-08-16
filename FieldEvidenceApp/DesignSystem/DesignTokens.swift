@@ -111,7 +111,7 @@ enum DesignTokens {
         static let completed = AssetRoundsBrandColorAsset.checkpointGreen.color
         static let warning = Color(uiColor: .systemOrange)
         static let error = Color(uiColor: .systemRed)
-        static let unavailable = Color(uiColor: .secondaryLabel)
+        static let unavailable = Color(uiColor: .label)
         static let selected = AssetRoundsBrandColorAsset.accentTeal.color
         static let disabled = Color(uiColor: .tertiaryLabel)
     }
