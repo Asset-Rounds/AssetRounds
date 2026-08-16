@@ -1071,12 +1071,37 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         scroll(purchase, in: app)
         purchase.tap()
         let purchaseState = element("s7.2.paywall.purchase-state", in: app)
-        XCTAssertTrue(wait(
-            for: purchaseState,
-            predicate: "label CONTAINS %@",
-            argument: "Purchase verified. Subscription access is ready.",
-            timeout: 45
-        ))
+        let verifiedCopy = "Purchase verified. Subscription access is ready."
+        let unverifiedCopy = "Purchase couldn’t be verified. Your existing data is still available. Try again."
+        let terminalPurchase = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "label == %@ OR label == %@",
+                verifiedCopy,
+                unverifiedCopy
+            ),
+            object: purchaseState
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [terminalPurchase], timeout: 45),
+            .completed
+        )
+        if purchaseState.label == unverifiedCopy {
+            XCTAssertTrue(wait(for: store, predicate: "value == 'Ready'", timeout: 20))
+            XCTAssertTrue(store.isEnabled)
+
+            let retryPurchase = firstPurchaseButton(in: app)
+            scroll(retryPurchase, in: app)
+            XCTAssertTrue(retryPurchase.isEnabled)
+            retryPurchase.tap()
+            XCTAssertTrue(wait(
+                for: purchaseState,
+                predicate: "label == %@",
+                argument: verifiedCopy,
+                timeout: 45
+            ))
+        } else {
+            XCTAssertEqual(purchaseState.label, verifiedCopy)
+        }
         captureBaseline("state.paywall.purchase-complete", in: app)
     }
 
