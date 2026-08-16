@@ -77,6 +77,7 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         app.launch()
 
         completeWorkAndResolvedRecheckAtXXXL(in: app)
+        captureNoEntitlementBeforeEvaluationLimit(in: app)
         captureAlternativeCompletedCheckStates(in: app)
         app.terminate()
         app.launchArguments.append("--s4-2-ui-test-render-failure-once")
@@ -529,7 +530,7 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         captureBaseline("state.check-review.no-visible-issue", in: app)
         saveCheckAndReturnToSign(in: app)
 
-        beginFreshCheck(in: app)
+        purchaseBlockedEvaluationAndBeginFreshCheck(in: app)
         acceptImportedPhotoWithoutBaseline(
             in: app,
             heading: "1 of 2 · Wide view"
@@ -586,6 +587,60 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         begin.tap()
         XCTAssertTrue(element("s3.capture.screen", in: app)
             .waitForExistence(timeout: 20))
+    }
+
+    @MainActor
+    private func captureNoEntitlementBeforeEvaluationLimit(
+        in app: XCUIApplication
+    ) {
+        let settings = element("s1.settings.button", in: app)
+        assertControl(settings, label: "Settings")
+        settings.tap()
+        XCTAssertTrue(element("s1.settings.screen", in: app)
+            .waitForExistence(timeout: 20))
+
+        let lifecycle = element("s7.3.settings.restore-purchases", in: app)
+        scroll(lifecycle, in: app)
+        assertControl(lifecycle, label: "Restore Purchases")
+        lifecycle.tap()
+        XCTAssertTrue(element("s7.3.lifecycle.screen", in: app)
+            .waitForExistence(timeout: 30))
+        XCTAssertTrue(element("s7.3.lifecycle.restore-result", in: app)
+            .waitForExistence(timeout: 60))
+        captureBaseline("state.subscription.no-entitlement", in: app)
+
+        let close = element("s7.3.lifecycle.close", in: app)
+        scroll(close, in: app)
+        XCTAssertTrue(close.waitForExistence(timeout: 30))
+        XCTAssertTrue(wait(for: close, predicate: "enabled == true", timeout: 30))
+        assertControl(close, label: "Close")
+        close.tap()
+        XCTAssertTrue(element("s1.settings.screen", in: app)
+            .waitForExistence(timeout: 20))
+        navigateBack(in: app)
+        XCTAssertTrue(element("s2.sign-detail.screen", in: app)
+            .waitForExistence(timeout: 20))
+    }
+
+    @MainActor
+    private func purchaseBlockedEvaluationAndBeginFreshCheck(
+        in app: XCUIApplication
+    ) {
+        let start = element("s2.sign-detail.start-check", in: app)
+        scroll(start, in: app)
+        assertControl(start, label: "Start Check")
+        start.tap()
+        XCTAssertTrue(element("s7.2.paywall.screen", in: app)
+            .waitForExistence(timeout: 30))
+        captureAvailablePaywallAndPurchase(in: app)
+
+        let close = element("s7.2.paywall.close", in: app)
+        scroll(close, in: app)
+        assertControl(close, label: "Close")
+        close.tap()
+        XCTAssertTrue(element("s2.sign-detail.screen", in: app)
+            .waitForExistence(timeout: 20))
+        beginFreshCheck(in: app)
     }
 
     @MainActor
@@ -969,23 +1024,9 @@ final class S10_1BrandInventoryUITests: XCTestCase {
     }
 
     @MainActor
-    private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) {
-        let settings = element("s1.settings.button", in: app)
-        assertControl(settings, label: "Settings")
-        settings.tap()
-        XCTAssertTrue(element("s1.settings.screen", in: app)
-            .waitForExistence(timeout: 20))
-        captureBaseline("state.settings.hub", in: app)
-
-        captureSettingsDataSurfaces(in: app)
-
-        let entry = element("s7.2.settings.paywall", in: app)
-        scroll(entry, in: app)
-        assertControl(entry, label: "View subscription")
-        entry.tap()
-        XCTAssertTrue(element("s7.2.paywall.screen", in: app)
-            .waitForExistence(timeout: 30))
-
+    private func captureAvailablePaywallAndPurchase(
+        in app: XCUIApplication
+    ) {
         let productName = element("s7.2.paywall.product-name", in: app)
         let duration = element("s7.2.paywall.duration", in: app)
         let price = element("s7.2.paywall.price", in: app)
@@ -1036,10 +1077,6 @@ final class S10_1BrandInventoryUITests: XCTestCase {
             XCTAssertTrue(control.isEnabled)
         }
 
-        let close = element("s7.2.paywall.close", in: app)
-        scroll(close, in: app)
-        assertControl(close, label: "Close")
-
         let purchase = firstPurchaseButton(in: app)
         scroll(purchase, in: app)
         purchase.tap()
@@ -1051,10 +1088,18 @@ final class S10_1BrandInventoryUITests: XCTestCase {
             timeout: 45
         ))
         captureBaseline("state.paywall.purchase-complete", in: app)
-        scroll(close, in: app)
-        close.tap()
+    }
+
+    @MainActor
+    private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) {
+        let settings = element("s1.settings.button", in: app)
+        assertControl(settings, label: "Settings")
+        settings.tap()
         XCTAssertTrue(element("s1.settings.screen", in: app)
             .waitForExistence(timeout: 20))
+        captureBaseline("state.settings.hub", in: app)
+
+        captureSettingsDataSurfaces(in: app)
 
         let lifecycle = element("s7.3.settings.restore-purchases", in: app)
         scroll(lifecycle, in: app)
@@ -1186,24 +1231,6 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         cancelRestore.tap()
         XCTAssertTrue(element("s1.settings.screen", in: app)
             .waitForExistence(timeout: 30))
-
-        let lifecycle = element("s7.3.settings.restore-purchases", in: app)
-        scroll(lifecycle, in: app)
-        assertControl(lifecycle, label: "Restore Purchases")
-        lifecycle.tap()
-        XCTAssertTrue(element("s7.3.lifecycle.screen", in: app)
-            .waitForExistence(timeout: 30))
-        XCTAssertTrue(element("s7.3.lifecycle.restore-result", in: app)
-            .waitForExistence(timeout: 60))
-        captureBaseline("state.subscription.no-entitlement", in: app)
-        let closeLifecycle = element("s7.3.lifecycle.close", in: app)
-        scroll(closeLifecycle, in: app)
-        XCTAssertTrue(closeLifecycle.waitForExistence(timeout: 30))
-        XCTAssertTrue(wait(for: closeLifecycle, predicate: "enabled == true", timeout: 30))
-        assertControl(closeLifecycle, label: "Close")
-        closeLifecycle.tap()
-        XCTAssertTrue(element("s1.settings.screen", in: app)
-            .waitForExistence(timeout: 20))
     }
 
     @MainActor
