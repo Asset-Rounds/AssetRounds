@@ -4,7 +4,139 @@ import Foundation
 import StoreKitTest
 import XCTest
 
-final class S10_3BrandMigrationUITests: XCTestCase {
+class S10BrandMigrationRouteUITestCase: XCTestCase {
+    private struct AutomationShard {
+        let ordinal: Int
+        let shardID: String
+        let requirementID: String
+        let deviceProfileID: String
+        let accessibilityFeature: String
+        let appearance: String
+        let contrast: String
+        let contentSizeCategory: String
+        let locale: String
+        let layoutDirection: String
+        let differentiateWithoutColor: Bool
+        let reduceMotion: Bool
+        let reduceTransparency: Bool
+
+        var expectedEnvironment: [String: String] {
+            let isMinimum = deviceProfileID == "iphone-se-3-ios-18.0-minimum"
+            return [
+                "CI_S10_4_SHARD_ID": shardID,
+                "CI_S10_4_PROVISION_RUNTIME": isMinimum ? "true" : "false",
+                "CI_S10_4_RUNTIME_DOWNLOAD_VERSION": isMinimum ? "18.0" : "",
+                "CI_S10_4_DEVICE_PROFILE_ID": deviceProfileID,
+                "CI_S10_4_SHARD_ORDINAL": String(ordinal),
+                "CI_S10_4_REQUIREMENT_ID": requirementID,
+                "CI_S10_4_ACCESSIBILITY_FEATURE": accessibilityFeature,
+                "CI_S10_4_ACCESSIBILITY_FEATURES": accessibilityFeature,
+                "CI_S10_4_APPEARANCE": appearance,
+                "CI_S10_4_CONTRAST": contrast,
+                "CI_S10_4_CONTENT_SIZE_CATEGORY": contentSizeCategory,
+                "CI_S10_4_LOCALE": locale,
+                "CI_S10_4_LAYOUT_DIRECTION": layoutDirection,
+                "CI_S10_4_DIFFERENTIATE_WITHOUT_COLOR": String(differentiateWithoutColor),
+                "CI_S10_4_REDUCE_MOTION": String(reduceMotion),
+                "CI_S10_4_REDUCE_TRANSPARENCY": String(reduceTransparency),
+            ]
+        }
+    }
+
+    private enum AutomationConfigurationError: Error, CustomStringConvertible {
+        case invalid(String)
+
+        var description: String {
+            switch self {
+            case .invalid(let message): return message
+            }
+        }
+    }
+
+    private static let automationShards: [AutomationShard] = [
+        AutomationShard(ordinal: 1, shardID: "s10.4.current.default-light", requirementID: "default_light", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "voiceover", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-release", layoutDirection: "left_to_right", differentiateWithoutColor: false, reduceMotion: false, reduceTransparency: false),
+        AutomationShard(ordinal: 2, shardID: "s10.4.current.default-dark", requirementID: "default_dark", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "dark_interface", appearance: "dark", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-release", layoutDirection: "left_to_right", differentiateWithoutColor: false, reduceMotion: false, reduceTransparency: false),
+        AutomationShard(ordinal: 3, shardID: "s10.4.current.increased-contrast", requirementID: "increased_contrast", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "sufficient_contrast", appearance: "light", contrast: "increased", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-release", layoutDirection: "left_to_right", differentiateWithoutColor: false, reduceMotion: false, reduceTransparency: false),
+        AutomationShard(ordinal: 4, shardID: "s10.4.current.ax-text", requirementID: "ax_text", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "larger_text", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryAccessibilityXXXL", locale: "en-US-release", layoutDirection: "left_to_right", differentiateWithoutColor: false, reduceMotion: false, reduceTransparency: false),
+        AutomationShard(ordinal: 5, shardID: "s10.4.current.differentiate-without-color", requirementID: "differentiate_without_color", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "differentiate_without_color", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-release", layoutDirection: "left_to_right", differentiateWithoutColor: true, reduceMotion: false, reduceTransparency: false),
+        AutomationShard(ordinal: 6, shardID: "s10.4.current.reduce-motion", requirementID: "reduce_motion", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "reduced_motion", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-release", layoutDirection: "left_to_right", differentiateWithoutColor: false, reduceMotion: true, reduceTransparency: false),
+        AutomationShard(ordinal: 7, shardID: "s10.4.current.reduce-transparency", requirementID: "reduce_transparency", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "voice_control", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-release", layoutDirection: "left_to_right", differentiateWithoutColor: false, reduceMotion: false, reduceTransparency: true),
+        AutomationShard(ordinal: 8, shardID: "s10.4.minimum.minimum-os", requirementID: "minimum_os", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "voiceover", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-release", layoutDirection: "left_to_right", differentiateWithoutColor: false, reduceMotion: false, reduceTransparency: false),
+        AutomationShard(ordinal: 9, shardID: "s10.4.minimum.double-length", requirementID: "double_length", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "larger_text", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryAccessibilityXXXL", locale: "en-US-double-length", layoutDirection: "left_to_right", differentiateWithoutColor: false, reduceMotion: false, reduceTransparency: false),
+        AutomationShard(ordinal: 10, shardID: "s10.4.minimum.rtl", requirementID: "rtl", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "dark_interface", appearance: "dark", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "ar-RTL", layoutDirection: "right_to_left", differentiateWithoutColor: false, reduceMotion: false, reduceTransparency: false),
+        AutomationShard(ordinal: 11, shardID: "s10.4.minimum.rtl-string", requirementID: "rtl_string", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "voice_control", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "ar-RTL-string", layoutDirection: "right_to_left", differentiateWithoutColor: false, reduceMotion: false, reduceTransparency: false),
+        AutomationShard(ordinal: 12, shardID: "s10.4.minimum.tall", requirementID: "tall", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "reduced_motion", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-tall", layoutDirection: "left_to_right", differentiateWithoutColor: false, reduceMotion: true, reduceTransparency: false),
+        AutomationShard(ordinal: 13, shardID: "s10.4.minimum.accented", requirementID: "accented", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "sufficient_contrast", appearance: "light", contrast: "increased", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-accented", layoutDirection: "left_to_right", differentiateWithoutColor: false, reduceMotion: false, reduceTransparency: false),
+        AutomationShard(ordinal: 14, shardID: "s10.4.minimum.bounded", requirementID: "bounded", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "differentiate_without_color", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-bounded", layoutDirection: "left_to_right", differentiateWithoutColor: true, reduceMotion: false, reduceTransparency: false),
+    ]
+
+    private static let commonTaskStateIDs: [(taskID: String, stateIDs: [String])] = [
+        ("one_handed_start", [
+            "state.check-preflight.ready", "state.new-sign.editing",
+            "state.new-sign.validation-error", "state.pack.unavailable",
+            "state.paywall.available", "state.paywall.purchase-complete",
+            "state.paywall.unavailable", "state.sign-detail.ready",
+            "state.sign-selection.ready", "state.welcome.empty",
+        ]),
+        ("capture_and_review", [
+            "state.capture.camera-denied", "state.capture.close-preview",
+            "state.capture.close-ready", "state.capture.low-storage-error",
+            "state.capture.wide-preview", "state.capture.wide-ready",
+            "state.check-outcome.could-not-verify", "state.check-outcome.no-visible-issue",
+            "state.check-outcome.visible-issue", "state.check-preflight.ready",
+            "state.check-review.could-not-verify", "state.check-review.no-visible-issue",
+            "state.check-review.visible-issue", "state.receipt.report-saved",
+            "state.report-detail.ready",
+        ]),
+        ("force_quit_draft_resume", [
+            "state.capture.camera-denied", "state.capture.close-preview",
+            "state.capture.close-ready", "state.capture.low-storage-error",
+            "state.capture.wide-preview", "state.capture.wide-ready",
+            "state.check-preflight.ready", "state.check-review.could-not-verify",
+            "state.check-review.no-visible-issue", "state.check-review.visible-issue",
+            "state.recheck-capture.close-preview", "state.recheck-capture.close-ready",
+            "state.recheck-capture.wide-preview", "state.recheck-capture.wide-ready",
+            "state.recheck-preflight.ready", "state.recheck-review.could-not-verify",
+            "state.recheck-review.different-issue", "state.recheck-review.issue-still-visible",
+            "state.recheck-review.resolved", "state.work.editing",
+            "state.work.saving", "state.work.validation-error",
+        ]),
+        ("history_recovery", [
+            "state.backup.ready", "state.diagnostics.ready",
+            "state.erase.confirmation", "state.feedback.blocked",
+            "state.feedback.review-ready", "state.report-comparison.ready",
+            "state.report-correction.completed", "state.report-correction.editing",
+            "state.report-correction.saving", "state.report-correction.validation-error",
+            "state.report-detail.ready", "state.report-history.ready",
+            "state.report-pdf.failed", "state.reports-index.empty",
+            "state.reports-index.ready", "state.restore.choose-backup",
+            "state.settings.hub", "state.sign-detail.delete-confirmation",
+            "state.subscription.active", "state.subscription.no-entitlement",
+        ]),
+        ("work_and_recheck", [
+            "state.issue.different-open", "state.issue.open",
+            "state.issue.recheck-due", "state.issue.resolved",
+            "state.recheck-capture.close-preview", "state.recheck-capture.close-ready",
+            "state.recheck-capture.wide-preview", "state.recheck-capture.wide-ready",
+            "state.recheck-outcome.could-not-verify", "state.recheck-outcome.different-issue",
+            "state.recheck-outcome.issue-still-visible", "state.recheck-outcome.resolved",
+            "state.recheck-preflight.ready", "state.recheck-receipt.saved",
+            "state.recheck-report-detail.ready", "state.recheck-review.could-not-verify",
+            "state.recheck-review.different-issue", "state.recheck-review.issue-still-visible",
+            "state.recheck-review.resolved", "state.sign-detail.open-issue",
+            "state.work.editing", "state.work.saving", "state.work.validation-error",
+        ]),
+        ("report_comprehension", [
+            "state.receipt.report-saved", "state.recheck-receipt.saved",
+            "state.recheck-report-detail.ready", "state.report-comparison.ready",
+            "state.report-correction.completed", "state.report-correction.editing",
+            "state.report-correction.saving", "state.report-correction.validation-error",
+            "state.report-detail.ready", "state.report-history.ready",
+            "state.report-pdf.failed", "state.reports-index.empty",
+            "state.reports-index.ready", "state.sample-report.ready",
+        ]),
+    ]
+
     private enum AlternativeRecheckOutcome: Equatable {
         case couldNotVerify
         case issueStillVisible
@@ -13,13 +145,70 @@ final class S10_3BrandMigrationUITests: XCTestCase {
 
     private var storeKitSession: SKTestSession?
     private var migratedStateIDs: [String] = []
+    private var automationShard: AutomationShard?
+    private var automationAXTreeDigests: [String: String] = [:]
+    private var pseudoLabelSentinelValidated = false
 
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
+    func configureAutomatedBrandLabShardFromEnvironment() throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["CI_TASK_ID"] == "S10.4" else {
+            throw AutomationConfigurationError.invalid("CI_TASK_ID must equal S10.4")
+        }
+        guard let shardID = environment["CI_S10_4_SHARD_ID"],
+              let shard = Self.automationShards.first(where: { $0.shardID == shardID }) else {
+            throw AutomationConfigurationError.invalid("CI_S10_4_SHARD_ID is not a frozen shard")
+        }
+        let observed = Dictionary(uniqueKeysWithValues: environment
+            .filter { $0.key.hasPrefix("CI_S10_4_") }
+            .map { ($0.key, $0.value) })
+        guard observed == shard.expectedEnvironment else {
+            let keys = Set(observed.keys)
+                .symmetricDifference(Set(shard.expectedEnvironment.keys))
+                .sorted()
+                .joined(separator: ",")
+            throw AutomationConfigurationError.invalid(
+                "CI_S10_4_* environment differs from the frozen shard; key delta=\(keys)"
+            )
+        }
+
+        let isMinimum = shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
+        let expectedRuntime = isMinimum ? "iOS 18.0" : "iOS 26.2"
+        let expectedBuild = isMinimum ? "22A3354" : "23C54"
+        let expectedDevice = isMinimum ? "iPhone SE (3rd generation)" : "iPhone 17"
+        guard environment["SIMULATOR_RUNTIME"] == expectedRuntime,
+              environment["SIMULATOR_RUNTIME_BUILD"] == expectedBuild,
+              environment["SIMULATOR_NAME"] == expectedDevice,
+              let udid = environment["CI_SIMULATOR_UDID"],
+              !udid.isEmpty else {
+            throw AutomationConfigurationError.invalid(
+                "Resolved Simulator runtime/build/name/UDID does not match the shard profile"
+            )
+        }
+        automationShard = shard
+        automationAXTreeDigests.removeAll()
+        pseudoLabelSentinelValidated = false
+    }
+
     @MainActor
-    func testAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift() throws {
+    private func applyDeviceAppearance(fallbackIsDark: Bool) {
+        guard let shard = automationShard else {
+            XCUIDevice.shared.appearance = fallbackIsDark ? .dark : .light
+            return
+        }
+        XCUIDevice.shared.appearance = shard.appearance == "dark" ? .dark : .light
+    }
+
+    private func effectiveAppearanceName(fallback: String) -> String {
+        guard let shard = automationShard else { return fallback }
+        return shard.appearance == "dark" ? "Dark" : "Light"
+    }
+
+    @MainActor
+    func runAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift() throws {
         let fixtureURL = try XCTUnwrap(Bundle(for: Self.self).url(
             forResource: "FieldEvidence",
             withExtension: "storekit"
@@ -30,7 +219,7 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         session.disableDialogs = true
         storeKitSession = session
 
-        XCUIDevice.shared.appearance = .light
+        applyDeviceAppearance(fallbackIsDark: false)
         let unavailableApp = try configuredApplication(
             appearance: "Light",
             appearanceFlag: "--s1-ui-test-light-mode",
@@ -68,7 +257,7 @@ final class S10_3BrandMigrationUITests: XCTestCase {
             $0 == "--s3-5-ui-test-low-storage-once"
                 || $0 == "--s3-6-ui-test-camera-denied-once"
         }
-        XCUIDevice.shared.appearance = .dark
+        applyDeviceAppearance(fallbackIsDark: true)
         configure(
             app,
             appearance: "Dark",
@@ -95,9 +284,13 @@ final class S10_3BrandMigrationUITests: XCTestCase {
     ) {
         let shell = element("s1.shell.screen", in: app)
         XCTAssertTrue(shell.waitForExistence(timeout: 30))
-        XCTAssertEqual(shell.value as? String, "Light")
+        XCTAssertEqual(shell.value as? String, effectiveAppearanceName(fallback: "Light"))
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 30))
+        assertLocalizedLabel(
+            element("s2.welcome.title", in: app),
+            equals: "Turn tonight's sign check into a clear report."
+        )
         captureBaseline("state.welcome.empty", in: app)
 
         let reportsTab = element("s1.tab.reports", in: app)
@@ -123,7 +316,7 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         captureBaseline("state.sample-report.ready", in: app)
         let sampleBack = element("s2.sample.back", in: app)
         XCTAssertTrue(sampleBack.waitForExistence(timeout: 20))
-        XCTAssertEqual(sampleBack.label, "Back")
+        assertLocalizedLabel(sampleBack, equals: "Back")
         XCTAssertEqual(sampleBack.elementType, .button)
         XCTAssertTrue(sampleBack.isHittable)
         sampleBack.tap()
@@ -156,14 +349,14 @@ final class S10_3BrandMigrationUITests: XCTestCase {
 
         let error = element("s2.new-sign.error", in: app)
         XCTAssertTrue(error.waitForExistence(timeout: 15))
-        XCTAssertEqual(error.label, "Blocked: Enter a customer or site name.")
-        XCTAssertEqual(site.label, "Customer / site name")
+        assertLocalizedLabel(error, equals: "Blocked: Enter a customer or site name.")
+        assertLocalizedLabel(site, equals: "Customer / site name")
         XCTAssertEqual(site.elementType, .textField)
         XCTAssertTrue(
             wait(for: site, predicate: "hasKeyboardFocus == true", timeout: 10)
         )
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 10))
-        XCTAssertEqual(sign.value as? String, "Monument Sign")
+        assertLocalizedValue(sign, equals: "Monument Sign")
         XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
         captureBaseline("state.new-sign.validation-error", in: app)
 
@@ -180,9 +373,11 @@ final class S10_3BrandMigrationUITests: XCTestCase {
 
         let detail = element("s2.sign-detail.screen", in: app)
         XCTAssertTrue(detail.waitForExistence(timeout: 30))
-        XCTAssertEqual(element("s2.sign-detail.sign-label", in: app).label, "Monument Sign")
-        XCTAssertTrue(labelledElement("Complete: Sign saved", in: app)
-            .waitForExistence(timeout: 10))
+        assertLocalizedLabel(
+            element("s2.sign-detail.sign-label", in: app),
+            equals: "Monument Sign"
+        )
+        assertUnidentifiedLocalizedLabel("Complete: Sign saved", in: app)
         captureBaseline("state.sign-detail.ready", in: app)
 
         let delete = element("s6.1.delete.action", in: app)
@@ -210,8 +405,7 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         let preflight = element("s3.preflight.screen", in: app)
         XCTAssertTrue(preflight.waitForExistence(timeout: 20))
         recordMetric("start_check_to_preflight", since: startCheckAt)
-        XCTAssertTrue(labelledElement("Information: Ready for night check", in: app)
-            .waitForExistence(timeout: 10))
+        assertUnidentifiedLocalizedLabel("Information: Ready for night check", in: app)
         captureBaseline("state.check-preflight.ready", in: app)
 
         let zone = element("s3.preflight.time-zone", in: app)
@@ -249,15 +443,27 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         let visible = element("s3.outcome.visible-issue", in: app)
         scroll(visible, in: app)
         assertControl(visible, label: "Visible issue")
-        XCTAssertEqual(visible.value as? String, "Not selected")
+        assertLocalizedValue(visible, equals: "Not selected")
+        let visiblePriorValue = (visible.value as? String) ?? ""
         visible.tap()
-        XCTAssertTrue(wait(for: visible, predicate: "value == 'Selected'", timeout: 10))
+        waitForLocalizedSelection(
+            visible,
+            changedFrom: visiblePriorValue,
+            selectedReleaseValue: "Selected",
+            timeout: 10
+        )
 
         let issue = element("s3.outcome.issue.dark_section", in: app)
         scroll(issue, in: app)
         assertControl(issue, label: "Section appears dark")
+        let issuePriorValue = (issue.value as? String) ?? ""
         issue.tap()
-        XCTAssertTrue(wait(for: issue, predicate: "value == 'Selected'", timeout: 10))
+        waitForLocalizedSelection(
+            issue,
+            changedFrom: issuePriorValue,
+            selectedReleaseValue: "Selected",
+            timeout: 10
+        )
         captureBaseline("state.check-outcome.visible-issue", in: app)
 
         let continueButton = element("s3.outcome.continue", in: app)
@@ -269,7 +475,7 @@ final class S10_3BrandMigrationUITests: XCTestCase {
             .waitForExistence(timeout: 20))
         let reviewOutcome = element("s3.review.outcome", in: app)
         XCTAssertTrue(reviewOutcome.waitForExistence(timeout: 10))
-        XCTAssertTrue(reviewOutcome.label.contains("Visible issue"))
+        assertLocalizedLabelContains(reviewOutcome, "Visible issue")
         XCTAssertTrue(element("s3.review.evidence.wide", in: app)
             .waitForExistence(timeout: 10))
         XCTAssertTrue(element("s3.review.evidence.close", in: app)
@@ -286,11 +492,10 @@ final class S10_3BrandMigrationUITests: XCTestCase {
     private func assertFirstReceiptAndReport(in app: XCUIApplication) {
         XCTAssertTrue(element("s3.receipt.screen", in: app)
             .waitForExistence(timeout: 40))
-        XCTAssertTrue(labelledElement("Complete: Check complete", in: app)
-            .waitForExistence(timeout: 15))
+        assertUnidentifiedLocalizedLabel("Complete: Check complete", in: app)
         let saved = element("s3.receipt.saved", in: app)
         XCTAssertTrue(saved.waitForExistence(timeout: 15))
-        XCTAssertEqual(saved.label, "Report saved on this device.")
+        assertLocalizedLabel(saved, equals: "Report saved on this device.")
         captureBaseline("state.receipt.report-saved", in: app)
 
         let viewReport = element("s3.receipt.view-report", in: app)
@@ -350,7 +555,7 @@ final class S10_3BrandMigrationUITests: XCTestCase {
     ) {
         let shell = element("s1.shell.screen", in: app)
         XCTAssertTrue(shell.waitForExistence(timeout: 30))
-        XCTAssertEqual(shell.value as? String, "Dark")
+        XCTAssertEqual(shell.value as? String, effectiveAppearanceName(fallback: "Dark"))
         let signDetail = element("s2.sign-detail.screen", in: app)
         XCTAssertTrue(signDetail.waitForExistence(timeout: 30))
         captureBaseline("state.sign-detail.open-issue", in: app)
@@ -369,7 +574,7 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         saveWork.tap()
         let validation = element("s5.1.work.validation", in: app)
         XCTAssertTrue(validation.waitForExistence(timeout: 10))
-        XCTAssertEqual(validation.label, "Short description")
+        assertLocalizedLabel(validation, equals: "Short description")
         captureBaseline("state.work.validation-error", in: app)
         scroll(description, in: app)
         assertMinimumGeometry(description)
@@ -393,14 +598,14 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         saveWork.tap()
         let progress = element("s5.1.work.saving", in: app)
         XCTAssertTrue(progress.waitForExistence(timeout: 10))
-        XCTAssertEqual(progress.label, "Record work")
+        assertLocalizedLabel(progress, equals: "Record work")
         captureBaseline("state.work.saving", in: app)
 
         let issueScreen = element("s5.1.issue.screen", in: app)
         XCTAssertTrue(issueScreen.waitForExistence(timeout: 40))
         let dueStatus = element("s5.1.issue.status", in: app)
         XCTAssertTrue(dueStatus.waitForExistence(timeout: 10))
-        XCTAssertEqual(dueStatus.label, "Attention: Recheck due")
+        assertLocalizedLabel(dueStatus, equals: "Attention: Recheck due")
         captureBaseline("state.issue.recheck-due", in: app)
         navigateBack(in: app)
 
@@ -453,9 +658,15 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         let resolved = element("s5.2.outcome.resolved", in: app)
         scroll(resolved, in: app)
         assertControl(resolved, label: "Resolved")
-        XCTAssertEqual(resolved.value as? String, "Not selected")
+        assertLocalizedValue(resolved, equals: "Not selected")
+        let resolvedPriorValue = (resolved.value as? String) ?? ""
         resolved.tap()
-        XCTAssertTrue(wait(for: resolved, predicate: "value == 'Selected'", timeout: 10))
+        waitForLocalizedSelection(
+            resolved,
+            changedFrom: resolvedPriorValue,
+            selectedReleaseValue: "Selected",
+            timeout: 10
+        )
         captureBaseline("state.recheck-outcome.resolved", in: app)
 
         let continueButton = element("s3.outcome.continue", in: app)
@@ -467,7 +678,7 @@ final class S10_3BrandMigrationUITests: XCTestCase {
             .waitForExistence(timeout: 20))
         let reviewOutcome = element("s3.review.outcome", in: app)
         XCTAssertTrue(reviewOutcome.waitForExistence(timeout: 10))
-        XCTAssertTrue(reviewOutcome.label.contains("Resolved"))
+        assertLocalizedLabelContains(reviewOutcome, "Resolved")
         captureBaseline("state.recheck-review.resolved", in: app)
         let save = element("s3.review.save-report", in: app)
         scroll(save, in: app)
@@ -478,7 +689,7 @@ final class S10_3BrandMigrationUITests: XCTestCase {
             .waitForExistence(timeout: 40))
         let saved = element("s3.receipt.saved", in: app)
         XCTAssertTrue(saved.waitForExistence(timeout: 15))
-        XCTAssertEqual(saved.label, "Report saved on this device.")
+        assertLocalizedLabel(saved, equals: "Report saved on this device.")
         captureBaseline("state.recheck-receipt.saved", in: app)
         let viewReport = element("s3.receipt.view-report", in: app)
         scroll(viewReport, in: app)
@@ -504,7 +715,7 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         XCTAssertTrue(issueScreen.waitForExistence(timeout: 20))
         let resolvedStatus = element("s5.1.issue.status", in: app)
         XCTAssertTrue(resolvedStatus.waitForExistence(timeout: 10))
-        XCTAssertEqual(resolvedStatus.label, "Complete: Resolved")
+        assertLocalizedLabel(resolvedStatus, equals: "Complete: Resolved")
         XCTAssertFalse(element("s5.2.issue.start-recheck", in: app).exists)
         captureBaseline("state.issue.resolved", in: app)
         navigateBack(in: app)
@@ -541,12 +752,11 @@ final class S10_3BrandMigrationUITests: XCTestCase {
             heading: "1 of 2 · Wide view"
         )
         let closeHeading = element("s3.capture.heading", in: app)
-        XCTAssertTrue(wait(
-            for: closeHeading,
-            predicate: "label == %@",
-            argument: "2 of 2 · Close view",
+        waitForLocalizedLabel(
+            closeHeading,
+            equals: "2 of 2 · Close view",
             timeout: 20
-        ))
+        )
         let cannotComplete = element("s3.capture.cannot-complete", in: app)
         scroll(cannotComplete, in: app)
         assertControl(cannotComplete, label: "Cannot complete")
@@ -627,12 +837,7 @@ final class S10_3BrandMigrationUITests: XCTestCase {
     ) {
         let headingElement = element("s3.capture.heading", in: app)
         XCTAssertTrue(headingElement.waitForExistence(timeout: 20))
-        XCTAssertTrue(wait(
-            for: headingElement,
-            predicate: "label == %@",
-            argument: heading,
-            timeout: 20
-        ))
+        waitForLocalizedLabel(headingElement, equals: heading, timeout: 20)
         let importPhoto = element("s3.capture.import-fixture", in: app)
         scroll(importPhoto, in: app)
         assertControl(importPhoto, label: "Import test photo")
@@ -675,19 +880,21 @@ final class S10_3BrandMigrationUITests: XCTestCase {
     private func selectCouldNotVerifyReason(in app: XCUIApplication) {
         let couldNotVerify = element("s3.outcome.could-not-verify", in: app)
         XCTAssertTrue(couldNotVerify.waitForExistence(timeout: 20))
-        XCTAssertEqual(couldNotVerify.label, "Could not verify")
+        assertLocalizedLabel(couldNotVerify, equals: "Could not verify")
         let reason = element(
             "s3.outcome.cnv.reason.conditions_changed",
             in: app
         )
         scroll(reason, in: app)
         assertControl(reason, label: "Conditions changed")
+        let reasonPriorValue = (reason.value as? String) ?? ""
         reason.tap()
-        XCTAssertTrue(wait(
-            for: reason,
-            predicate: "value == 'Selected'",
+        waitForLocalizedSelection(
+            reason,
+            changedFrom: reasonPriorValue,
+            selectedReleaseValue: "Selected",
             timeout: 10
-        ))
+        )
     }
 
     @MainActor
@@ -824,7 +1031,7 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         if leavesPendingReceipt {
             let saved = element("s3.receipt.saved", in: app)
             XCTAssertTrue(saved.waitForExistence(timeout: 15))
-            XCTAssertEqual(saved.label, "Report saved on this device.")
+            assertLocalizedLabel(saved, equals: "Report saved on this device.")
             XCTAssertTrue(element("s4.3.receipt.preparing", in: app)
                 .waitForExistence(timeout: 10))
             XCTAssertFalse(element("s3.receipt.view-report", in: app).exists)
@@ -867,12 +1074,11 @@ final class S10_3BrandMigrationUITests: XCTestCase {
             .waitForExistence(timeout: 20))
         navigateBack(in: app)
         let freshHeader = element("s5.1.issue.header", in: app)
-        XCTAssertTrue(wait(
-            for: freshHeader,
-            predicate: "label == %@",
-            argument: "Visible physical damage",
+        waitForLocalizedLabel(
+            freshHeader,
+            equals: "Visible physical damage",
             timeout: 20
-        ))
+        )
         captureBaseline("state.issue.different-open", in: app)
         navigateBack(in: app)
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
@@ -924,7 +1130,7 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         save.tap()
         let validation = element("s4.5.correction.validation", in: app)
         XCTAssertTrue(validation.waitForExistence(timeout: 10))
-        XCTAssertTrue(validation.label.contains("Change the note before saving."))
+        assertLocalizedLabelContains(validation, "Change the note before saving.")
         captureBaseline("state.report-correction.validation-error", in: app)
 
         let note = element("s4.5.correction.note", in: app)
@@ -1051,14 +1257,19 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         captureBaseline("state.paywall.available", in: app)
         let renewal = element("s7.2.paywall.renewal", in: app)
         scroll(renewal, in: app)
-        XCTAssertTrue(renewal.label.contains("$59.99"))
+        assertLocalizedLabelContains(renewal, "$59.99")
         let noSync = element("s7.2.paywall.no-sync", in: app)
         scroll(noSync, in: app)
-        XCTAssertTrue(noSync.label.contains("do not sync"))
+        assertLocalizedLabelContains(noSync, "do not sync")
 
         let store = element("s7.2.paywall.store", in: app)
         XCTAssertTrue(store.waitForExistence(timeout: 30))
-        XCTAssertTrue(wait(for: store, predicate: "value == 'Ready'", timeout: 20))
+        if usesPseudolanguage {
+            XCTAssertTrue(wait(for: store, predicate: "enabled == true", timeout: 20))
+            assertLocalizedValue(store, equals: "Ready")
+        } else {
+            XCTAssertTrue(wait(for: store, predicate: "value == 'Ready'", timeout: 20))
+        }
         XCTAssertTrue(store.isEnabled)
 
         for identifier in [
@@ -1081,12 +1292,11 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         scroll(purchase, in: app)
         purchase.tap()
         let purchaseState = element("s7.2.paywall.purchase-state", in: app)
-        XCTAssertTrue(wait(
-            for: purchaseState,
-            predicate: "label CONTAINS %@",
-            argument: "Purchase verified. Subscription access is ready.",
+        waitForLocalizedLabel(
+            purchaseState,
+            containing: "Purchase verified. Subscription access is ready.",
             timeout: 45
-        ))
+        )
         captureBaseline("state.paywall.purchase-complete", in: app)
     }
 
@@ -1106,18 +1316,23 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         assertControl(lifecycle, label: "Restore Purchases")
         lifecycle.tap()
         let restored = element("s7.3.lifecycle.restore-result", in: app)
-        XCTAssertTrue(wait(
-            for: restored,
-            predicate: "label CONTAINS %@",
-            argument: "Purchases restored. Subscription access is updated.",
+        waitForLocalizedLabel(
+            restored,
+            containing: "Purchases restored. Subscription access is updated.",
             timeout: 45
-        ))
-        XCTAssertTrue(wait(
-            for: element("s7.3.lifecycle.status-title", in: app),
-            predicate: "label BEGINSWITH %@",
-            argument: "Active until",
-            timeout: 20
-        ))
+        )
+        let activeStatus = element("s7.3.lifecycle.status-title", in: app)
+        if usesPseudolanguage {
+            XCTAssertTrue(activeStatus.waitForExistence(timeout: 20))
+            assertLocalizedLabelContains(activeStatus, "Active until")
+        } else {
+            XCTAssertTrue(wait(
+                for: activeStatus,
+                predicate: "label BEGINSWITH %@",
+                argument: "Active until",
+                timeout: 20
+            ))
+        }
         captureBaseline("state.subscription.active", in: app)
         let closeLifecycle = element("s7.3.lifecycle.close", in: app)
         scroll(closeLifecycle, in: app)
@@ -1206,17 +1421,19 @@ final class S10_3BrandMigrationUITests: XCTestCase {
             .waitForExistence(timeout: 30))
         XCTAssertTrue(element("s7.3.lifecycle.restore-result", in: app)
             .waitForExistence(timeout: 60))
-        XCTAssertTrue(wait(
-            for: element("s7.3.lifecycle.status-title", in: app),
-            predicate: "label == %@",
-            argument: "No subscription found",
+        waitForLocalizedLabel(
+            element("s7.3.lifecycle.status-title", in: app),
+            equals: "No subscription found",
             timeout: 20
-        ))
+        )
         captureBaseline("state.subscription.no-entitlement", in: app)
         assertMigrationStateCoverage()
+        emitAutomatedLabAccessibilityRowsIfNeeded()
 
         let terminal = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        terminal.name = "S10.3 terminal migrated no-entitlement at XXXL Dark"
+        terminal.name = automationShard.map {
+            "S10.4 terminal \($0.shardID) migrated no-entitlement"
+        } ?? "S10.3 terminal migrated no-entitlement at XXXL Dark"
         terminal.lifetime = .keepAlways
         add(terminal)
     }
@@ -1302,12 +1519,7 @@ final class S10_3BrandMigrationUITests: XCTestCase {
     ) {
         let headingElement = element("s3.capture.heading", in: app)
         XCTAssertTrue(headingElement.waitForExistence(timeout: 25))
-        XCTAssertTrue(wait(
-            for: headingElement,
-            predicate: "label == %@",
-            argument: heading,
-            timeout: 20
-        ))
+        waitForLocalizedLabel(headingElement, equals: heading, timeout: 20)
 
         let importPhoto = element("s3.capture.import-fixture", in: app)
         scroll(importPhoto, in: app)
@@ -1315,10 +1527,11 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         importPhoto.tap()
 
         if capturesLowStorageFailure {
-            let recovery = app.staticTexts[
-                "Free space is too low. Free space, then try again."
-            ]
-            XCTAssertTrue(recovery.waitForExistence(timeout: 15))
+            assertUnidentifiedLocalizedLabel(
+                "Free space is too low. Free space, then try again.",
+                in: app,
+                timeout: 15
+            )
             XCTAssertFalse(element("s3.capture.preview", in: app).exists)
             captureBaseline("state.capture.low-storage-error", in: app)
             importPhoto.tap()
@@ -1326,7 +1539,7 @@ final class S10_3BrandMigrationUITests: XCTestCase {
 
         let preview = element("s3.capture.preview", in: app)
         XCTAssertTrue(preview.waitForExistence(timeout: 20))
-        XCTAssertEqual(preview.label, "Imported photo preview")
+        assertLocalizedLabel(preview, equals: "Imported photo preview")
         captureBaseline(stateID, in: app)
         let usePhoto = element("s3.capture.use-photo", in: app)
         scroll(usePhoto, in: app)
@@ -1334,12 +1547,11 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         let durableAdvanceAt = Date()
         usePhoto.tap()
         if heading.contains("Wide") {
-            XCTAssertTrue(wait(
-                for: headingElement,
-                predicate: "label == %@",
-                argument: "2 of 2 · Close view",
+            waitForLocalizedLabel(
+                headingElement,
+                equals: "2 of 2 · Close view",
                 timeout: 30
-            ))
+            )
         } else if stateID.contains("recheck") {
             XCTAssertTrue(element("s3.outcome.screen", in: app)
                 .waitForExistence(timeout: 30))
@@ -1364,10 +1576,11 @@ final class S10_3BrandMigrationUITests: XCTestCase {
 
         let settings = element("s3.capture.open-settings", in: app)
         XCTAssertTrue(settings.waitForExistence(timeout: 15))
-        XCTAssertEqual(settings.label, "Open Settings")
-        XCTAssertTrue(app.staticTexts[
-            "Choose a photo, open Settings, or leave this check incomplete and return later."
-        ].exists)
+        assertLocalizedLabel(settings, equals: "Open Settings")
+        assertUnidentifiedLocalizedLabel(
+            "Choose a photo, open Settings, or leave this check incomplete and return later.",
+            in: app
+        )
         captureBaseline("state.capture.camera-denied", in: app)
 
         let cannotComplete = element("s3.capture.cannot-complete", in: app)
@@ -1379,19 +1592,18 @@ final class S10_3BrandMigrationUITests: XCTestCase {
             .waitForExistence(timeout: 20))
         let couldNotVerify = element("s3.outcome.could-not-verify", in: app)
         XCTAssertTrue(couldNotVerify.waitForExistence(timeout: 10))
-        XCTAssertEqual(couldNotVerify.value as? String, "Selected")
+        assertLocalizedValue(couldNotVerify, equals: "Selected")
 
         app.terminate()
         app.launch()
         XCTAssertTrue(element("s3.capture.screen", in: app)
             .waitForExistence(timeout: 30))
         let heading = element("s3.capture.heading", in: app)
-        XCTAssertTrue(wait(
-            for: heading,
-            predicate: "label == %@",
-            argument: "1 of 2 · Wide view",
+        waitForLocalizedLabel(
+            heading,
+            equals: "1 of 2 · Wide view",
             timeout: 20
-        ))
+        )
     }
 
     @MainActor
@@ -1400,9 +1612,9 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         XCTAssertTrue(failure.waitForExistence(timeout: 30))
         let headline = element("s4.pdf-failure.headline", in: app)
         XCTAssertTrue(headline.waitForExistence(timeout: 10))
-        XCTAssertEqual(
-            headline.label,
-            "This report was saved, but its PDF is not available."
+        assertLocalizedLabel(
+            headline,
+            equals: "This report was saved, but its PDF is not available."
         )
         captureBaseline("state.report-pdf.failed", in: app)
         let retry = element("s4.pdf-failure.retry", in: app)
@@ -1438,6 +1650,79 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         XCTAssertTrue(app.state == .runningForeground, file: file, line: line)
         migratedStateIDs.append(stateID)
         print("S10_MIGRATION_STATE state=\(stateID)")
+
+        guard let shard = automationShard else { return }
+        do {
+            try app.performAccessibilityAudit(for: .contrast)
+            let axTreeDigest = try accessibilityTreeDigest(in: app)
+            automationAXTreeDigests[stateID] = axTreeDigest
+
+            let contrastEvidenceID = "s10.4-contrast-\(shard.shardID)-\(stateID)"
+            printJSONLine(prefix: "S10_4_CONTRAST", object: [
+                "stateID": stateID,
+                "requirementID": shard.requirementID,
+                "result": "PASS",
+                "evidenceID": contrastEvidenceID,
+                "axTreeSHA256": axTreeDigest,
+                "audit": "XCUIAccessibilityAuditType.contrast",
+            ])
+
+            let pngData = XCUIScreen.main.screenshot().pngRepresentation
+            let pngSignature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+            XCTAssertTrue(
+                pngData.starts(with: pngSignature),
+                file: file,
+                line: line
+            )
+            let candidate = XCTAttachment(
+                data: pngData,
+                uniformTypeIdentifier: "public.data"
+            )
+            candidate.name = "S10.4 candidate \(shard.shardID) \(stateID)"
+            candidate.lifetime = .keepAlways
+            add(candidate)
+        } catch {
+            XCTFail(
+                "S10.4 contrast/AX evidence failed closed for \(stateID): \(error)",
+                file: file,
+                line: line
+            )
+        }
+    }
+
+    @MainActor
+    private func accessibilityTreeDigest(in app: XCUIApplication) throws -> String {
+        let stableElement = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier != ''"))
+            .firstMatch
+        guard stableElement.exists, !stableElement.identifier.isEmpty else {
+            throw AutomationConfigurationError.invalid(
+                "The state accessibility tree contains no stable identifiers"
+            )
+        }
+        let tree = app.debugDescription
+        guard !tree.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              tree.contains(stableElement.identifier) else {
+            throw AutomationConfigurationError.invalid(
+                "The raw accessibility tree is empty or omits its stable sentinel"
+            )
+        }
+        return SHA256.hash(data: Data(tree.utf8))
+            .map { String(format: "%02X", $0) }
+            .joined()
+    }
+
+    private func printJSONLine(prefix: String, object: [String: Any]) {
+        do {
+            let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+            guard let value = String(data: data, encoding: .utf8), !value.contains("\n") else {
+                XCTFail("\(prefix) evidence did not encode as one UTF-8 JSON line")
+                return
+            }
+            print("\(prefix) \(value)")
+        } catch {
+            XCTFail("\(prefix) evidence JSON encoding failed: \(error)")
+        }
     }
 
     private func assertMigrationStateCoverage(
@@ -1457,6 +1742,73 @@ final class S10_3BrandMigrationUITests: XCTestCase {
             file: file,
             line: line
         )
+    }
+
+    private func emitAutomatedLabAccessibilityRowsIfNeeded(
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let shard = automationShard else { return }
+        XCTAssertEqual(automationAXTreeDigests.count, 67, file: file, line: line)
+        XCTAssertEqual(
+            Set(automationAXTreeDigests.keys),
+            Set(migratedStateIDs),
+            "Every captured candidate state must have one AX-tree digest",
+            file: file,
+            line: line
+        )
+        if usesPseudolanguage {
+            XCTAssertTrue(
+                pseudoLabelSentinelValidated,
+                "The pseudolanguage must transform at least one stable-ID label",
+                file: file,
+                line: line
+            )
+        }
+
+        XCTAssertEqual(Self.commonTaskStateIDs.count, 6, file: file, line: line)
+        for task in Self.commonTaskStateIDs {
+            let sortedStateIDs = task.stateIDs.sorted()
+            XCTAssertEqual(
+                Set(sortedStateIDs).count,
+                sortedStateIDs.count,
+                "Common-task state IDs must be unique for \(task.taskID)",
+                file: file,
+                line: line
+            )
+            let stateEvidence = sortedStateIDs.map { stateID in
+                let digest = automationAXTreeDigests[stateID] ?? ""
+                XCTAssertFalse(
+                    digest.isEmpty,
+                    "Missing AX-tree digest for \(task.taskID) state \(stateID)",
+                    file: file,
+                    line: line
+                )
+                return ["stateID": stateID, "axTreeSHA256": digest]
+            }
+            let canonicalEvidence = stateEvidence
+                .map { "\($0["stateID"] ?? "")|\($0["axTreeSHA256"] ?? "")" }
+                .joined(separator: "\n")
+            let aggregateDigest = SHA256.hash(data: Data(canonicalEvidence.utf8))
+                .map { String(format: "%02X", $0) }
+                .joined()
+            let stateSetDigest = SHA256.hash(
+                data: Data(sortedStateIDs.joined(separator: "\n").utf8)
+            )
+                .map { String(format: "%02X", $0) }
+                .joined()
+            printJSONLine(prefix: "S10_4_AX", object: [
+                "taskID": task.taskID,
+                "deviceProfileID": shard.deviceProfileID,
+                "feature": shard.accessibilityFeature,
+                "automatedStatus": "PASS",
+                "evidenceID": "s10.4-ax-\(shard.shardID)-\(task.taskID)",
+                "stateCount": stateEvidence.count,
+                "stateSetSHA256": stateSetDigest,
+                "aggregateAXTreeSHA256": aggregateDigest,
+                "stateAXTreeDigests": stateEvidence,
+            ])
+        }
     }
 
     private func recordMetric(_ metricID: String, since startedAt: Date) {
@@ -1507,6 +1859,31 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         appearanceFlag: String,
         usesAccessibilityXXXL: Bool
     ) {
+        if let shard = automationShard {
+            applyDeviceAppearance(fallbackIsDark: false)
+            let effectiveAppearance = shard.appearance == "dark" ? "Dark" : "Light"
+            let effectiveAppearanceFlag = shard.appearance == "dark"
+                ? "--s1-ui-test-dark-mode"
+                : "--s1-ui-test-light-mode"
+            app.launchArguments = [
+                "-AppleInterfaceStyle", effectiveAppearance,
+                effectiveAppearanceFlag,
+                "--s3-2-ui-test-imported-fixtures",
+                "--s7-2-ui-test-paywall",
+                "-UIPreferredContentSizeCategoryName", shard.contentSizeCategory,
+                "-UIAccessibilityDarkerSystemColorsEnabled",
+                shard.contrast == "increased" ? "YES" : "NO",
+                "-UIAccessibilityDifferentiateWithoutColor",
+                shard.differentiateWithoutColor ? "YES" : "NO",
+                "-UIAccessibilityReduceMotionEnabled",
+                shard.reduceMotion ? "YES" : "NO",
+                "-UIAccessibilityReduceTransparencyEnabled",
+                shard.reduceTransparency ? "YES" : "NO",
+            ]
+            app.launchArguments += localizationArguments(for: shard)
+            return
+        }
+
         app.launchArguments = [
             "-AppleInterfaceStyle", appearance,
             appearanceFlag,
@@ -1519,6 +1896,34 @@ final class S10_3BrandMigrationUITests: XCTestCase {
                 "UICTContentSizeCategoryAccessibilityXXXL",
             ]
         }
+    }
+
+    private func localizationArguments(for shard: AutomationShard) -> [String] {
+        let language = shard.layoutDirection == "right_to_left" ? "ar" : "en"
+        let locale = shard.layoutDirection == "right_to_left" ? "ar" : "en_US"
+        var arguments = [
+            "-AppleLanguages", "(\(language))",
+            "-AppleLocale", locale,
+            "-AppleTextDirection",
+            shard.layoutDirection == "right_to_left" ? "YES" : "NO",
+        ]
+        switch shard.locale {
+        case "en-US-release", "ar-RTL":
+            break
+        case "en-US-double-length":
+            arguments += ["-NSDoubleLocalizedStrings", "YES"]
+        case "ar-RTL-string":
+            arguments += ["-NSForceRightToLeftLocalizedStrings", "YES"]
+        case "en-US-tall":
+            arguments += ["-NSTallLocalizedStrings", "YES"]
+        case "en-US-accented":
+            arguments += ["-NSAccentuateLocalizedStrings", "YES"]
+        case "en-US-bounded":
+            arguments += ["-NSSurroundLocalizedStrings", "YES"]
+        default:
+            XCTFail("Unhandled frozen locale profile \(shard.locale)")
+        }
+        return arguments
     }
 
     @MainActor
@@ -1541,11 +1946,191 @@ final class S10_3BrandMigrationUITests: XCTestCase {
     ) {
         let value = element(identifier, in: app)
         scroll(value, in: app)
-        XCTAssertEqual(value.label, expected)
+        assertLocalizedLabel(value, equals: expected)
+    }
+
+    private var usesPseudolanguage: Bool {
+        guard let shard = automationShard else { return false }
+        return shard.locale != "en-US-release"
+    }
+
+    @MainActor
+    private func assertUnidentifiedLocalizedLabel(
+        _ releaseLabel: String,
+        in app: XCUIApplication,
+        timeout: TimeInterval = 10,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard usesPseudolanguage else {
+            XCTAssertTrue(
+                labelledElement(releaseLabel, in: app).waitForExistence(timeout: timeout),
+                file: file,
+                line: line
+            )
+            return
+        }
+        XCTAssertTrue(
+            pseudoLabelSentinelValidated,
+            "A stable-ID label must prove the active pseudolanguage before querying an unidentified label",
+            file: file,
+            line: line
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any).allElementsBoundByIndex.contains {
+                !$0.identifier.isEmpty
+                    && !$0.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            },
+            file: file,
+            line: line
+        )
+    }
+
+    @MainActor
+    private func assertLocalizedLabel(
+        _ value: XCUIElement,
+        equals expected: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertTrue(value.waitForExistence(timeout: 20), file: file, line: line)
+        guard usesPseudolanguage else {
+            XCTAssertEqual(value.label, expected, file: file, line: line)
+            return
+        }
+        XCTAssertFalse(value.identifier.isEmpty, "Pseudo checks require a stable identifier", file: file, line: line)
+        XCTAssertFalse(value.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, file: file, line: line)
+        if value.label != expected {
+            pseudoLabelSentinelValidated = true
+        }
+    }
+
+    @MainActor
+    private func assertLocalizedLabelContains(
+        _ value: XCUIElement,
+        _ expected: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertTrue(value.waitForExistence(timeout: 20), file: file, line: line)
+        guard usesPseudolanguage else {
+            XCTAssertTrue(value.label.contains(expected), file: file, line: line)
+            return
+        }
+        XCTAssertFalse(value.identifier.isEmpty, "Pseudo checks require a stable identifier", file: file, line: line)
+        XCTAssertFalse(value.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, file: file, line: line)
+        if !value.label.contains(expected) {
+            pseudoLabelSentinelValidated = true
+        }
+    }
+
+    @MainActor
+    private func waitForLocalizedLabel(
+        _ value: XCUIElement,
+        equals expected: String,
+        timeout: TimeInterval,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        if usesPseudolanguage {
+            XCTAssertTrue(value.waitForExistence(timeout: timeout), file: file, line: line)
+            assertLocalizedLabel(value, equals: expected, file: file, line: line)
+        } else {
+            XCTAssertTrue(wait(
+                for: value,
+                predicate: "label == %@",
+                argument: expected,
+                timeout: timeout
+            ), file: file, line: line)
+        }
+    }
+
+    @MainActor
+    private func waitForLocalizedLabel(
+        _ value: XCUIElement,
+        containing expected: String,
+        timeout: TimeInterval,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        if usesPseudolanguage {
+            XCTAssertTrue(value.waitForExistence(timeout: timeout), file: file, line: line)
+            assertLocalizedLabelContains(value, expected, file: file, line: line)
+        } else {
+            XCTAssertTrue(wait(
+                for: value,
+                predicate: "label CONTAINS %@",
+                argument: expected,
+                timeout: timeout
+            ), file: file, line: line)
+        }
+    }
+
+    @MainActor
+    private func assertLocalizedValue(
+        _ value: XCUIElement,
+        equals expected: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let observed = (value.value as? String) ?? ""
+        guard usesPseudolanguage else {
+            XCTAssertEqual(observed, expected, file: file, line: line)
+            return
+        }
+        XCTAssertFalse(value.identifier.isEmpty, file: file, line: line)
+        XCTAssertFalse(observed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, file: file, line: line)
+        if observed != expected {
+            pseudoLabelSentinelValidated = true
+        }
+    }
+
+    @MainActor
+    private func waitForLocalizedSelection(
+        _ value: XCUIElement,
+        changedFrom priorValue: String,
+        selectedReleaseValue: String,
+        timeout: TimeInterval,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        if usesPseudolanguage {
+            XCTAssertTrue(wait(
+                for: value,
+                predicate: "value != %@ AND value != ''",
+                argument: priorValue,
+                timeout: timeout
+            ), file: file, line: line)
+            assertLocalizedValue(value, equals: selectedReleaseValue, file: file, line: line)
+        } else {
+            XCTAssertEqual(selectedReleaseValue, "Selected", file: file, line: line)
+            XCTAssertTrue(wait(
+                for: value,
+                predicate: "value == 'Selected'",
+                timeout: timeout
+            ), file: file, line: line)
+        }
     }
 
     @MainActor
     private func firstPurchaseButton(in app: XCUIApplication) -> XCUIElement {
+        if usesPseudolanguage {
+            let store = element("s7.2.paywall.store", in: app)
+            XCTAssertTrue(store.waitForExistence(timeout: 30))
+            let scopedButtons = store.descendants(matching: .button)
+            for index in 0..<scopedButtons.count {
+                let candidate = scopedButtons.element(boundBy: index)
+                if candidate.identifier != "s7.2.paywall.close",
+                   candidate.isEnabled,
+                   candidate.isHittable,
+                   !candidate.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    return candidate
+                }
+            }
+            XCTFail("The pseudolocalized StoreKit view has no enabled labelled purchase button")
+            return scopedButtons.firstMatch
+        }
+
         let candidates = app.buttons.matching(NSPredicate(
             format: "label CONTAINS[c] 'Subscribe' OR label CONTAINS[c] 'Trial' OR label CONTAINS[c] '$59.99'"
         ))
@@ -1566,7 +2151,7 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         line: UInt = #line
     ) {
         XCTAssertTrue(control.waitForExistence(timeout: 20), file: file, line: line)
-        XCTAssertEqual(control.label, label, file: file, line: line)
+        assertLocalizedLabel(control, equals: label, file: file, line: line)
         XCTAssertEqual(control.elementType, .button, file: file, line: line)
         XCTAssertTrue(control.isEnabled, file: file, line: line)
         XCTAssertTrue(control.isHittable, file: file, line: line)
@@ -1596,10 +2181,10 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         for value in [status, header, action] {
             XCTAssertTrue(value.waitForExistence(timeout: 10), file: file, line: line)
         }
-        XCTAssertEqual(status.label, "Attention: Recheck due", file: file, line: line)
-        XCTAssertEqual(header.label, "Section appears dark", file: file, line: line)
+        assertLocalizedLabel(status, equals: "Attention: Recheck due", file: file, line: line)
+        assertLocalizedLabel(header, equals: "Section appears dark", file: file, line: line)
         XCTAssertEqual(header.elementType, .staticText, file: file, line: line)
-        XCTAssertEqual(action.label, "Start recheck", file: file, line: line)
+        assertLocalizedLabel(action, equals: "Start recheck", file: file, line: line)
         XCTAssertEqual(action.elementType, .button, file: file, line: line)
         assertAccessibilityOrder(
             [
@@ -1711,5 +2296,20 @@ final class S10_3BrandMigrationUITests: XCTestCase {
     @MainActor
     private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+}
+
+final class S10_3BrandMigrationUITests: S10BrandMigrationRouteUITestCase {
+    @MainActor
+    func testAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift() throws {
+        try runAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift()
+    }
+}
+
+final class S10_4AutomatedBrandLabUITests: S10BrandMigrationRouteUITestCase {
+    @MainActor
+    func testAutomatedBrandLabShard() throws {
+        try configureAutomatedBrandLabShardFromEnvironment()
+        try runAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift()
     }
 }
