@@ -58,6 +58,26 @@
         "github-actions-run-31942339074-artifact-9262665745",
         "owner-review-s10.1-baselines-2026-08-16-palatis3"
       ]
+    },
+    {
+      "stage": "ComponentSystem",
+      "gate_id": "s10.2-component-system",
+      "product_head": "28c5851a432db026251012de1e396a5896c9f91f",
+      "evidence_head": "5e7763e14922d96f209350f95e80e1c95856679e",
+      "evidence_head_role": "K",
+      "documents": [
+        {
+          "document_type": "token_coverage",
+          "path": "docs/design/s10/s10-token-coverage.json",
+          "blob_commit": "5e7763e14922d96f209350f95e80e1c95856679e",
+          "sha256": "D52B72B86D40AB93EE58BD467A0B83834D7F58ABAB39C08096DFBF094719B476"
+        }
+      ],
+      "evidence_ids": [
+        "github-actions-run-31952398978-artifact-9265131233",
+        "appicon-primary-build-setting",
+        "runtime-asset-count-12"
+      ]
     }
   ]
 }

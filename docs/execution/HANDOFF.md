@@ -2532,3 +2532,75 @@ The exact implementation envelope is eleven product/document paths, two test pat
 - Receipt candidates `31946066463` and `31947205730` passed build/units but failed at the strict real StoreKit verification checkpoint; candidate `31948070092` passed build/units but failed a transient startup AX query for the Reports tab. Their evidence failures were derivative, their uploaded checksums matched, and none was rerun or accepted. Because C changed only evidence/bookkeeping and identical product/test bytes were already green at E, no product/test weakening or correction was made; the persistent fresh-runner loop produced accepted run `31948530000`.
 - S10.1 is complete with `E=44e9f9471f8ced9ecdd85f241a79c3750c38412d`, `H=dfe24aeb02e15b1a3057c5b69512a1b3c28cc5c0`, `K=29a49d0145980bf1cb3c1f6ec260a6af579902d4`, and `C=fc26103d120eff3a632d353cce4f0d9168a35040`. Remote main remained P. This addendum does not self-record its future S10.2 transition commit.
 - Next unstarted card: `S10.2 — Brand assets, semantic tokens, and reusable components`. Same-phase autopilot may commit/push exactly this append plus immediate-next CURRENT_TASK hydration, then must run fresh S10.2 G0 before selector, asset, project, source, or test mutation.
+
+## `S10.2` — `accepted E/K; receipt candidate` — `2026-08-16T10:33:32-04:00`
+
+- Phase / branch / position / boundary: `S10` / `phase/s10-brand-refresh` / `2 of 6` / `no`.
+- Outcome: installed the exact twelve approved runtime brand files, three AppIcon appearances, original/template AssetRounds symbols, six semantic color catalogs, the frozen 45-token design vocabulary, and nine isolated reusable components without migrating a released feature screen.
+- Immutable phase-main base: `P=01233f789b1cef5a6f56c7ff4caa9271409cd3bc`; remote `main` remained exactly P throughout S10.2.
+- Integrated/card base and predecessor: `M=fc26103d120eff3a632d353cce4f0d9168a35040`, the accepted S10.1 receipt commit; accepted receipt run `31948530000` / job `95168285969` / artifact `9264458516`.
+- Observed task-start authority: `A=857c5a5e32dc2649175a020cc05b72f8a3dff879`; `A^=M`, and `M..A` changed only append-only `docs/execution/HANDOFF.md` plus immediate-next `docs/execution/CURRENT_TASK.md`.
+- First implementation: `I=cf53436d90a2c3baf679d5708b8b537d64f3bea7`; accepted direct-child test correction and product implementation `I2=E=28c5851a432db026251012de1e396a5896c9f91f`.
+- Descendant evidence head: `K=5e7763e14922d96f209350f95e80e1c95856679e`; `E..K` changes only `docs/design/s10/s10-token-coverage.json`. All nine components are exact evidenced `PASS`; all 67 screen rows remain truthful `NOT_RUN`, and E remains the product/test head.
+- Exact selector: S10.2 P12/UI enabled; compact JSON plus LF, 346 bytes, SHA-256 `55236E8C1FD515B5517BC1813CD6B065320DEDD0380CC51257426696969BBD88`; exact selectors `FieldEvidenceAppTests/S10_2BrandComponentTests` and `FieldEvidenceAppUITests/S10_2BrandComponentUITests`.
+- Accepted run/job/URLs: `31952398978` / `95177784723`; `https://github.com/palatis3/AssetRounds/actions/runs/31952398978`; `https://github.com/palatis3/AssetRounds/actions/runs/31952398978/job/95177784723`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; iPhone 17 / iOS 26.2 build `23C54`; UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`; initial Simulator state `Shutdown`.
+- Budgets: setup-plus-artifact `85/300` s; Simulator boot step `102/900` s; build step `326/600` s; unit step `43/900` s with selected tests `1.015` s; UI step `96/900` s with selected test `51.447` s; total job about `566/3300` s; every watchdog passed.
+- Artifact: `ios-ci-31952398978-1`, ID `9265131233`, size `1417733`, digest `sha256:e71473fc11ee7449dbeed6b3af78705a8cad34c13b16eb3fa799ca4504e328f7`, expires `2026-08-30T14:29:21Z`; all `99/99` listed payloads independently matched `SHA256SUMS.txt`.
+- Accepted artifact hashes: `SHA256SUMS.txt` `291C93A72A072647E8BF50429A6FCAC30B891B0037EBB5C88F02328D90E6DB23`; `build-smoke.log` `9D26B9E60017DE16373299346B600BBA74D7B7C11D6735FAC47ACB4BEA093E9A`; `test-smoke.log` `0117DD177967A0433A05E047F5D49E8E3473259D5D5B09EBA31F1E4B57BF3EB2`; `ui-smoke.log` `0CB8D6C9866BC7FC67600D88B3C7C23408F2FB9488B361B83F3143B185C62D8F`.
+- Terminal evidence: exactly one `ui-final.png`, `1206x2622`, 315722 bytes, SHA-256 `79543BD00C2750F905E150653A43ACAE963F6711D4775B8E114C11F22FBD1DE4`; visual inspection confirmed the terminal in-app Dark/AccessibilityXXXL welcome state with intact layout, branded color roles, native actions, and no external sheet or error.
+- Exact commands: `bash Scripts/run-with-timeout.sh 600 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 900 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp.xcodeproj/project.pbxproj`
+- `FieldEvidenceApp/DesignSystem/DesignTokens.swift`
+- `FieldEvidenceApp/DesignSystem/WorklightComponents.swift`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark-1024.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Default-1024.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Tinted-1024.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsAccentTeal.colorset/Contents.json`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandCanvas.colorset/Contents.json`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-1x.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-2x.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-3x.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/Contents.json`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-1x.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-2x.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-3x.png`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/Contents.json`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsCheckpointGreen.colorset/Contents.json`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsDeepTeal.colorset/Contents.json`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsInk.colorset/Contents.json`
+- `FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsSlate.colorset/Contents.json`
+- `FieldEvidenceAppTests/S10_2BrandComponentTests.swift`
+- `FieldEvidenceAppUITests/S10_2BrandComponentUITests.swift`
+- `Scripts/ci-selection.json`
+
+The exact accepted envelope is 21 product/project/runtime-asset paths, two test paths, and the standing selector exception. No released feature-view migration, navigation/copy/schema/model/service/commerce/report/backup behavior, custom font, package dependency, decorative glass, signing, upload, deployment, submission, or fabricated legal/physical evidence was added.
+
+### Accepted exact test methods
+
+- Unit `PASS` (`4/4`): `testCatalogMetadataPixelsColorsAndPrimaryIconSettingAreExact`, 0.821 s; `testClosedTokenAndNineComponentSystemRendersAcrossEnvironments`, 0.171 s; `testExactSelectorEnvelopeAndApprovedBaselinesRemainFrozen`, 0.006 s; `testFrozenPackageAndExactTwelveRuntimeAssetsMatch`, 0.016 s.
+- UI `PASS` (`1/1`): `testSharedComponentsRemainBaselineEquivalentAndAccessibleBeforeMigration`, 51.447 s.
+
+### Acceptance results
+
+- Asset/catalog `PASS`: every installed PNG byte, dimension, alpha/grayscale intent, AppIcon appearance, symbol rendering mode, and six semantic color catalogs match the frozen V4.1 handoff; Debug and Release both select `AppIcon`.
+- Component `PASS`: all 45 tokens and nine component roles render through the shared system with Light/Dark, increased-contrast traits, Dynamic Type, 44-point targets, non-color status meaning, Reduce Motion/Transparency-safe behavior, and restrained original/template symbol use.
+- Baseline preservation `PASS`: S10.1's 67 owner-approved pre-brand baselines and released feature sources remained unchanged; screen migration stays explicitly `NOT_RUN` until S10.3.
+- ALT-1 `PASS`: package/member/hash/catalog/build-setting/token/state mutations are rejected by bounded tests without installing extra assets, promoting screen coverage, or weakening accepted baselines.
+- Scope `PASS`: no feature view was migrated and no domain, persistence, finalization, commerce, backup, deletion, reporting, or release behavior changed.
+
+### Candidate recovery provenance
+
+- Run `31951943665` / job `95176660633` at I built and passed all `4/4` unit tests. The UI successfully opened `s2.sample.screen`, but the parent screen accessibility identifier masked the nested `s1.sample.scroll` identifier, causing a redundant child-query failure; evidence validation then failed only derivatively.
+- Direct-child E changed only `S10_2BrandComponentUITests.swift` to retain the authoritative sample screen, exact **Illuminated sign pack** content, native Back route, full component checks, and screenshot while removing only the masked nested-scroll assertion. No product code, selector, timeout, or acceptance behavior was weakened.
+
+### Known bugs, blockers, and receipt state
+
+- `docs/execution/KNOWN_BUGS.md` was read and contains only its empty template. Known-bug entries: `NONE`. S10.2 product/evidence blockers: `NONE`.
+- Remote phase was freshly verified at K and remote main at P before receipt mutation. The new `ComponentSystem` checkpoint binds product E, evidence K, the historical token-coverage blob hash, accepted run/artifact, primary AppIcon build setting, and exact twelve-runtime-asset evidence.
+- This append plus `docs/design/s10/s10-stage-checkpoints.json` is the exact receipt-C payload and does not self-record its future C SHA. Complete V4.1 `ComponentSystem` validation is required at C before transition.
+- Next unstarted card: `S10.3 — Full released-state visual migration`. Same-phase autopilot may append the accepted C/validator addendum and hydrate only immediate-next S10.3 CURRENT_TASK after receipt validation, then must run fresh S10.3 G0.
