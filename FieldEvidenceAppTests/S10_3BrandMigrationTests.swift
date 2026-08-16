@@ -76,18 +76,20 @@ final class S10_3BrandMigrationTests: XCTestCase {
         let routes = try rows(inventory, "routes")
         let states = try routes.flatMap { try rows($0, "states") }
         let stateIDs = try states.map { try string($0, "state_id") }
+        let migrationOrder = try strings(inventory, "migration_order")
         XCTAssertEqual(stateIDs.count, 67)
         XCTAssertEqual(Set(stateIDs).count, 67)
 
         let authorized = Set(productionPaths)
         for route in routes {
+            let routeID = try string(route, "route_id")
             let slice = try string(route, "migration_slice_id")
-            XCTAssertTrue(try strings(inventory, "migration_order").contains(slice))
+            XCTAssertTrue(migrationOrder.contains(slice))
             let sources = try strings(route, "source_paths")
             XCTAssertFalse(sources.isEmpty)
             XCTAssertTrue(
                 sources.contains { authorized.contains($0) },
-                "Route has no S10.3-authorized migrated source: \(try string(route, "route_id"))"
+                "Route has no S10.3-authorized migrated source: \(routeID)"
             )
             for source in sources {
                 XCTAssertTrue(
