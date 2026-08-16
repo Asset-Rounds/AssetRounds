@@ -897,11 +897,8 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         navigateBack(in: app)
         XCTAssertTrue(element("s4.4.history.screen", in: app)
             .waitForExistence(timeout: 20))
-        navigateBack(in: app)
-        XCTAssertTrue(element("s2.sign-detail.screen", in: app)
-            .waitForExistence(timeout: 20))
 
-        let viewReport = element("s4.3.sign-detail.view-report", in: app)
+        let viewReport = element("s4.4.reports.view-report", in: app)
         scroll(viewReport, in: app)
         assertControl(viewReport, label: "View report")
         viewReport.tap()
@@ -944,6 +941,9 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         scroll(close, in: app)
         assertControl(close, label: "Close")
         close.tap()
+        XCTAssertTrue(element("s4.4.history.screen", in: app)
+            .waitForExistence(timeout: 20))
+        navigateBack(in: app)
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
             .waitForExistence(timeout: 20))
     }
