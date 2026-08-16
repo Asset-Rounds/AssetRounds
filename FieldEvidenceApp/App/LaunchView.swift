@@ -7,26 +7,37 @@ struct LaunchView: View {
     static let titleAccessibilityIdentifier = "s0.launch.title"
 
     var body: some View {
-        VStack(spacing: 12) {
-            Text(Self.titleText)
-                .font(.largeTitle.weight(.bold))
-                .multilineTextAlignment(.center)
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilitySortPriority(1)
-                .accessibilityIdentifier(Self.titleAccessibilityIdentifier)
+        AssetRoundsScreenFoundation {
+            VStack(spacing: DesignTokens.Spacing.space12) {
+                Image(AssetRoundsBrandImageAsset.originalSymbol.rawValue)
+                    .resizable()
+                    .renderingMode(.original)
+                    .scaledToFit()
+                    .frame(
+                        width: DesignTokens.Spacing.space32,
+                        height: DesignTokens.Spacing.space32
+                    )
+                    .accessibilityHidden(true)
 
-            Text(Self.subtitleText)
-                .font(.title2)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
+                Text(Self.titleText)
+                    .font(DesignTokens.Typography.screenTitle)
+                    .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilitySortPriority(1)
+                    .accessibilityIdentifier(Self.titleAccessibilityIdentifier)
+
+                Text(Self.subtitleText)
+                    .font(DesignTokens.Typography.sectionHeading)
+                    .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(uiColor: .systemBackground))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
     }

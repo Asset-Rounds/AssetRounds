@@ -21,6 +21,7 @@ struct SignDetailView: View {
     static let deleteConfirmAccessibilityIdentifier = "s6.1.delete.confirm"
     static let allSignsAccessibilityIdentifier = "s7.4.sign-detail.all-signs"
     static let addSignAccessibilityIdentifier = "s7.4.sign-detail.add-sign"
+    private static let startCheckTitle: LocalizedStringKey = "Start Check"
 
     let snapshot: FirstSignSnapshot
     let checkNotice: String?
@@ -41,14 +42,17 @@ struct SignDetailView: View {
     @AccessibilityFocusState private var deletionMessageFocused: Bool
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-                WorklightCard {
-                    WorklightStatusBadge(kind: .complete, text: "Sign saved")
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+                AssetRoundsEvidenceCard {
+                    AssetRoundsStateLabel(kind: .completed, "Sign saved")
+                        .accessibilityLabel("Complete: Sign saved")
+                        .accessibilityValue(Text(verbatim: String()))
 
                     Text(snapshot.signLabel)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.screenTitle)
+                        .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier(Self.signLabelAccessibilityIdentifier)
                         .accessibilityAddTraits(.isHeader)
@@ -76,31 +80,31 @@ struct SignDetailView: View {
                     }
                 }
 
-                WorklightCard {
-                    Button("All signs", action: showAllSigns)
-                        .buttonStyle(WorklightSecondaryButtonStyle())
+                AssetRoundsEvidenceCard {
+                    AssetRoundsSecondaryAction("All signs", action: showAllSigns)
+                        .accessibilityLabel("All signs")
                         .accessibilityIdentifier(Self.allSignsAccessibilityIdentifier)
 
-                    Button("Add sign", action: addSign)
-                        .buttonStyle(WorklightSecondaryButtonStyle())
+                    AssetRoundsSecondaryAction("Add sign", action: addSign)
+                        .accessibilityLabel("Add sign")
                         .accessibilityIdentifier(Self.addSignAccessibilityIdentifier)
 
                     if let activeIssue {
                         if activeIssue.canRecordWork {
-                            Button("Record work", action: recordWork)
-                                .buttonStyle(WorklightPrimaryButtonStyle())
+                            AssetRoundsPrimaryAction("Record work", action: recordWork)
+                                .accessibilityLabel("Record work")
                                 .accessibilityIdentifier(
                                     Self.recordWorkAccessibilityIdentifier
                                 )
                         } else if activeIssue.status == .recheckDue {
-                            Button("Recheck due", action: openIssue)
-                                .buttonStyle(WorklightSecondaryButtonStyle())
+                            AssetRoundsSecondaryAction("Recheck due", action: openIssue)
+                                .accessibilityLabel("Recheck due")
                                 .accessibilityIdentifier(
                                     Self.recheckDueAccessibilityIdentifier
                                 )
                         } else {
-                            Button("Resolved", action: openIssue)
-                                .buttonStyle(WorklightSecondaryButtonStyle())
+                            AssetRoundsSecondaryAction("Resolved", action: openIssue)
+                                .accessibilityLabel("Resolved")
                                 .accessibilityIdentifier(
                                     Self.resolvedIssueAccessibilityIdentifier
                                 )
@@ -108,25 +112,35 @@ struct SignDetailView: View {
                     }
 
                     if let openReport {
-                        Button("View report", action: openReport)
-                            .buttonStyle(WorklightSecondaryButtonStyle())
+                        AssetRoundsSecondaryAction("View report", action: openReport)
+                            .accessibilityLabel("View report")
                             .accessibilityHint("Opens the saved report for this sign")
                             .accessibilityIdentifier(Self.viewReportAccessibilityIdentifier)
                     }
 
-                    Button("Report history", action: openReportHistory)
-                        .buttonStyle(WorklightSecondaryButtonStyle())
+                    AssetRoundsSecondaryAction("Report history", action: openReportHistory)
+                        .accessibilityLabel("Report history")
                         .accessibilityHint("Opens report history for this sign")
                         .accessibilityIdentifier(Self.reportHistoryAccessibilityIdentifier)
 
-                    Button("Start Check", action: startCheck)
-                        .buttonStyle(WorklightPrimaryButtonStyle())
-                        .accessibilityIdentifier(Self.startCheckAccessibilityIdentifier)
+                    Group {
+                        if activeIssue?.canRecordWork == true {
+                            AssetRoundsSecondaryAction(action: startCheck) {
+                                Text(Self.startCheckTitle)
+                            }
+                        } else {
+                            AssetRoundsPrimaryAction(action: startCheck) {
+                                Text(Self.startCheckTitle)
+                            }
+                        }
+                    }
+                    .accessibilityLabel("Start Check")
+                    .accessibilityIdentifier(Self.startCheckAccessibilityIdentifier)
 
                     if let checkNotice {
                         Label(checkNotice, systemImage: "info.circle.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(DesignTokens.Colors.informationText)
+                            .font(DesignTokens.Typography.secondaryBody)
+                            .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityElement(children: .combine)
                             .accessibilityLabel(checkNotice)
@@ -134,53 +148,51 @@ struct SignDetailView: View {
                     }
                 }
 
-                if isConfirmingDeletion {
-                    WorklightCard {
-                        Text("Delete sign")
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(DesignTokens.Colors.primaryText)
+                    if isConfirmingDeletion {
+                        AssetRoundsEvidenceCard {
+                        AssetRoundsStateLabel(kind: .warning, "Delete sign")
+                            .accessibilityLabel("Delete sign")
+                            .accessibilityValue(Text(verbatim: String()))
                             .accessibilityAddTraits(.isHeader)
                             .accessibilityIdentifier(Self.deleteScreenAccessibilityIdentifier)
 
                         Text("Delete this sign, its photos, and its reports from this app? This cannot be undone. Your free-report count will not reset. Erase All removes the remaining anonymous count.")
-                            .font(.body)
-                            .foregroundStyle(DesignTokens.Colors.primaryText)
+                            .font(DesignTokens.Typography.primaryBody)
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityFocused($deletionMessageFocused)
                             .accessibilityIdentifier(Self.deleteMessageAccessibilityIdentifier)
 
-                        Button("Cancel") {
+                        AssetRoundsSecondaryAction("Cancel") {
                             isConfirmingDeletion = false
                         }
-                        .buttonStyle(WorklightSecondaryButtonStyle())
+                        .accessibilityLabel("Cancel")
                         .disabled(isDeleting)
                         .accessibilityIdentifier(Self.deleteCancelAccessibilityIdentifier)
 
-                        Button("Delete sign", role: .destructive) {
+                        AssetRoundsDestructiveAction("Delete sign") {
                             performDeletion()
                         }
-                        .buttonStyle(WorklightPrimaryButtonStyle())
+                        .accessibilityLabel("Delete sign")
                         .disabled(isDeleting)
                         .accessibilityIdentifier(Self.deleteConfirmAccessibilityIdentifier)
-                    }
-                } else {
-                    Button("Delete sign", role: .destructive) {
-                        isConfirmingDeletion = true
-                        Task { @MainActor in
-                            await Task.yield()
-                            deletionMessageFocused = true
                         }
+                    } else {
+                        AssetRoundsDestructiveAction("Delete sign") {
+                            isConfirmingDeletion = true
+                            Task { @MainActor in
+                                await Task.yield()
+                                deletionMessageFocused = true
+                            }
+                        }
+                        .accessibilityLabel("Delete sign")
+                        .accessibilityIdentifier(Self.deleteActionAccessibilityIdentifier)
                     }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
-                    .accessibilityIdentifier(Self.deleteActionAccessibilityIdentifier)
                 }
             }
-            .padding(DesignTokens.Spacing.medium)
         }
         .navigationTitle("Sign detail")
         .navigationBarBackButtonHidden(true)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .onAppear {
             refreshReport()
@@ -203,14 +215,14 @@ struct SignDetailView: View {
     }
 
     private func detailRow(title: String, value: String, identifier: String) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .font(DesignTokens.Typography.supportingCaption.weight(.semibold))
+                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
 
             Text(value)
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)

@@ -292,14 +292,20 @@ struct AssetRoundsEvidenceCard<Content: View>: View {
 }
 
 struct AssetRoundsPhotoCapture<Thumbnail: View>: View {
-    private let captureTitle: LocalizedStringKey
+    private enum Presentation {
+        case capture
+        case captured
+        case content
+    }
+
+    private let presentation: Presentation
+    private let captureTitle: LocalizedStringKey?
     private let retakeTitle: LocalizedStringKey?
     private let deleteTitle: LocalizedStringKey?
     private let onCapture: () -> Void
     private let onRetake: (() -> Void)?
     private let onDelete: (() -> Void)?
     private let thumbnail: Thumbnail
-    private let hasCapturedPhoto: Bool
 
     init(
         retakeTitle: LocalizedStringKey,
@@ -308,19 +314,31 @@ struct AssetRoundsPhotoCapture<Thumbnail: View>: View {
         onDelete: @escaping () -> Void,
         @ViewBuilder thumbnail: () -> Thumbnail
     ) {
-        self.captureTitle = retakeTitle
+        self.presentation = .captured
+        self.captureTitle = nil
         self.retakeTitle = retakeTitle
         self.deleteTitle = deleteTitle
         self.onCapture = onRetake
         self.onRetake = onRetake
         self.onDelete = onDelete
         self.thumbnail = thumbnail()
-        self.hasCapturedPhoto = true
+    }
+
+    init(@ViewBuilder content: () -> Thumbnail) {
+        self.presentation = .content
+        self.captureTitle = nil
+        self.retakeTitle = nil
+        self.deleteTitle = nil
+        self.onCapture = {}
+        self.onRetake = nil
+        self.onDelete = nil
+        self.thumbnail = content()
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.space12) {
-            if hasCapturedPhoto {
+            switch presentation {
+            case .captured:
                 thumbnail
                     .frame(maxWidth: .infinity)
                     .accessibilityAddTraits(.isImage)
@@ -336,10 +354,14 @@ struct AssetRoundsPhotoCapture<Thumbnail: View>: View {
                         Label(deleteTitle, systemImage: "trash")
                     }
                 }
-            } else {
-                AssetRoundsPrimaryAction(action: onCapture) {
-                    Label(captureTitle, systemImage: "camera")
+            case .capture:
+                if let captureTitle {
+                    AssetRoundsPrimaryAction(action: onCapture) {
+                        Label(captureTitle, systemImage: "camera")
+                    }
                 }
+            case .content:
+                thumbnail
             }
         }
         .padding(DesignTokens.Spacing.space12)
@@ -351,6 +373,7 @@ struct AssetRoundsPhotoCapture<Thumbnail: View>: View {
 
 extension AssetRoundsPhotoCapture where Thumbnail == EmptyView {
     init(captureTitle: LocalizedStringKey, onCapture: @escaping () -> Void) {
+        self.presentation = .capture
         self.captureTitle = captureTitle
         self.retakeTitle = nil
         self.deleteTitle = nil
@@ -358,7 +381,6 @@ extension AssetRoundsPhotoCapture where Thumbnail == EmptyView {
         self.onRetake = nil
         self.onDelete = nil
         self.thumbnail = EmptyView()
-        self.hasCapturedPhoto = false
     }
 }
 

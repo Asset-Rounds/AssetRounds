@@ -26,13 +26,18 @@ struct ValueReceiptView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-                WorklightCard {
-                    WorklightStatusBadge(kind: .complete, text: "Check complete")
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+                AssetRoundsEvidenceCard {
+                    AssetRoundsStateLabel(
+                        kind: .completed,
+                        text: Text("Check complete")
+                    )
+                    .accessibilityLabel("Complete: Check complete")
+                    .accessibilityValue(Text(verbatim: String()))
 
                     Text("Report saved on this device.")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.screenTitle)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)
                         .accessibilityIdentifier(Self.savedAccessibilityIdentifier)
@@ -45,33 +50,42 @@ struct ValueReceiptView: View {
                     Button("View report") {
                         showsReport = true
                     }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .buttonStyle(.bordered)
+                    .tint(DesignTokens.SemanticColors.primaryAction)
+                    .controlSize(.large)
+                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .accessibilityHint("Opens the report PDF stored on this device")
                     .accessibilityIdentifier(Self.viewReportAccessibilityIdentifier)
 
                     Button("Share PDF") {
                         showsShareSheet = true
                     }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .buttonStyle(.bordered)
+                    .tint(DesignTokens.SemanticColors.primaryAction)
+                    .controlSize(.large)
+                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .accessibilityHint("Opens the system share sheet for this report PDF")
                     .accessibilityIdentifier(Self.shareAccessibilityIdentifier)
                 } else if !deliveryUnavailable {
                     ProgressView("Preparing report PDF")
-                        .frame(maxWidth: .infinity, minHeight: DesignTokens.Control.minimumHitSize)
+                        .frame(maxWidth: .infinity, minHeight: DesignTokens.Target.minimumInteractiveHeight)
                         .accessibilityIdentifier("s4.3.receipt.preparing")
                 }
 
                 Button("Done") {
                     dismiss()
                 }
-                .buttonStyle(WorklightPrimaryButtonStyle())
+                .buttonStyle(.borderedProminent)
+                .tint(DesignTokens.SemanticColors.primaryAction)
+                .controlSize(.large)
+                .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                 .accessibilityHint("Returns to this sign")
                 .accessibilityIdentifier(Self.doneAccessibilityIdentifier)
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
         }
         .navigationTitle("Saved")
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .navigationDestination(isPresented: $showsReport) {
             if let delivery, let deliveryCoordinator {
@@ -132,8 +146,8 @@ struct ValueReceiptView: View {
 
     private func receiptStatus(_ copy: String) -> some View {
         Text(copy)
-            .font(.body)
-            .foregroundStyle(DesignTokens.Colors.secondaryText)
+            .font(DesignTokens.Typography.primaryBody)
+            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

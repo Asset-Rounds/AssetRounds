@@ -32,26 +32,26 @@ struct EraseAllView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                WorklightCard {
+                AssetRoundsEvidenceCard {
                     Text(Self.title)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(DesignTokens.Colors.blockedText)
+                        .font(DesignTokens.Typography.screenTitle)
+                        .foregroundStyle(DesignTokens.SemanticColors.error)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)
 
                     Text(Self.warning)
-                        .font(.body)
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text(Self.subscriptionCopy)
-                        .font(.body)
-                        .foregroundStyle(DesignTokens.Colors.secondaryText)
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text("Type ERASE to continue.")
-                        .font(.headline)
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.sectionHeading)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
                     TextField("ERASE", text: $confirmation)
@@ -59,10 +59,10 @@ struct EraseAllView: View {
                         .autocorrectionDisabled()
                         .focused($confirmationFocused)
                         .frame(
-                            minHeight: DesignTokens.Control.minimumHitSize
+                            minHeight: DesignTokens.Target.minimumInteractiveHeight
                         )
-                        .padding(.horizontal, DesignTokens.Spacing.small)
-                        .background(DesignTokens.Colors.canvas)
+                        .padding(.horizontal, DesignTokens.Spacing.space8)
+                        .background(DesignTokens.SemanticColors.workBackground)
                         .clipShape(
                             RoundedRectangle(
                                 cornerRadius: DesignTokens.Radius.standard
@@ -73,8 +73,8 @@ struct EraseAllView: View {
                                 cornerRadius: DesignTokens.Radius.standard
                             )
                             .stroke(
-                                DesignTokens.Colors.essentialControlStroke,
-                                lineWidth: 1
+                                DesignTokens.SemanticColors.separator,
+                                lineWidth: DesignTokens.Stroke.standard
                             )
                         }
                         .accessibilityLabel("Type ERASE")
@@ -83,28 +83,28 @@ struct EraseAllView: View {
                         )
 
                     if let errorMessage {
-                        Text(errorMessage)
-                            .font(.body)
-                            .foregroundStyle(DesignTokens.Colors.blockedText)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityAddTraits(.isHeader)
+                        AssetRoundsStateLabel(
+                            kind: .error,
+                            text: Text(errorMessage)
+                        )
+                            .accessibilityLabel(Text(errorMessage))
+                            .accessibilityValue(Text(verbatim: String()))
                             .accessibilityIdentifier(
                                 Self.errorAccessibilityIdentifier
                             )
                     }
 
-                    Button("Cancel") {
+                    AssetRoundsSecondaryAction("Cancel") {
                         dismiss()
                     }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
                     .disabled(isErasing)
                     .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)
 
-                    Button {
+                    AssetRoundsDestructiveAction(action: {
                         beginErase()
-                    } label: {
+                    }) {
                         if isErasing {
-                            HStack(spacing: DesignTokens.Spacing.small) {
+                            HStack(spacing: DesignTokens.Spacing.space8) {
                                 ProgressView()
                                 Text("Erasing local data")
                             }
@@ -114,7 +114,6 @@ struct EraseAllView: View {
                                 .frame(maxWidth: .infinity)
                         }
                     }
-                    .buttonStyle(EraseDestructiveButtonStyle())
                     .disabled(
                         isErasing
                             || confirmation
@@ -122,12 +121,12 @@ struct EraseAllView: View {
                     )
                     .accessibilityIdentifier(Self.eraseAccessibilityIdentifier)
                 }
-                .padding(DesignTokens.Spacing.medium)
+                .padding(DesignTokens.Spacing.space16)
             }
             .navigationTitle(Self.title)
             .navigationBarTitleDisplayMode(.inline)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(DesignTokens.Colors.canvas)
+            .background(DesignTokens.SemanticColors.workBackground)
             .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         }
         .interactiveDismissDisabled(isErasing)
@@ -179,44 +178,5 @@ struct EraseAllView: View {
                 onFailure()
             }
         }
-    }
-}
-
-private struct EraseDestructiveButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.headline)
-            .multilineTextAlignment(.center)
-            .foregroundStyle(
-                isEnabled
-                    ? DesignTokens.Colors.blockedText
-                    : DesignTokens.Colors.secondaryText
-            )
-            .padding(.horizontal, DesignTokens.Spacing.medium)
-            .frame(
-                maxWidth: .infinity,
-                minHeight: DesignTokens.Control.minimumHitSize
-            )
-            .background(
-                isEnabled
-                    ? DesignTokens.Colors.blockedContainer
-                    : DesignTokens.Colors.raisedSurface
-            )
-            .clipShape(
-                RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
-                    .stroke(
-                        DesignTokens.Colors.essentialControlStroke,
-                        lineWidth: 1
-                    )
-            }
-            .brightness(configuration.isPressed && isEnabled ? -0.08 : 0)
-            .contentShape(
-                RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
-            )
     }
 }

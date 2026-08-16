@@ -49,18 +49,18 @@ struct FeedbackView: View {
 
     var body: some View {
         ScrollView {
-            WorklightCard {
+            AssetRoundsEvidenceCard {
                 Text("Send feedback")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .font(DesignTokens.Typography.screenTitle)
+                    .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier(Self.headingAccessibilityIdentifier)
 
                 Text(
                     "Your message stays editable. Only app version, build, device model, and iOS version are prefilled; customer and inspection content is never prefilled."
                 )
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier(Self.privacyAccessibilityIdentifier)
 
@@ -68,14 +68,15 @@ struct FeedbackView: View {
                     diagnosticReview(prepared)
                     routeControls(prepared)
                 } else if let errorMessage {
-                    WorklightStatusBadge(
-                        kind: .blocked,
-                        text: errorMessage
+                    AssetRoundsStateLabel(
+                        kind: .error,
+                        text: Text(errorMessage)
                     )
-                    Button("Retry") {
+                    .accessibilityLabel(Text("Blocked: \(errorMessage)"))
+                    .accessibilityValue(Text(verbatim: String()))
+                    AssetRoundsSecondaryAction("Retry") {
                         Task { await prepare(force: true) }
                     }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
                     .accessibilityIdentifier(Self.retryAccessibilityIdentifier)
                 } else {
                     ProgressView("Preparing privacy-safe feedback context")
@@ -83,20 +84,24 @@ struct FeedbackView: View {
                 }
 
                 if prepared != nil, let errorMessage {
-                    WorklightStatusBadge(kind: .blocked, text: errorMessage)
+                    AssetRoundsStateLabel(kind: .error, text: Text(errorMessage))
+                        .accessibilityLabel(Text("Blocked: \(errorMessage)"))
+                        .accessibilityValue(Text(verbatim: String()))
                 }
 
                 if let statusMessage {
-                    WorklightStatusBadge(kind: .complete, text: statusMessage)
+                    AssetRoundsStateLabel(kind: .completed, text: Text(statusMessage))
+                        .accessibilityLabel(Text("Complete: \(statusMessage)"))
+                        .accessibilityValue(Text(verbatim: String()))
                         .accessibilityIdentifier(Self.statusAccessibilityIdentifier)
                 }
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
         }
         .navigationTitle("Feedback")
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .sheet(item: $mailPresentation) { presentation in
             MailComposerSheet(
@@ -147,9 +152,9 @@ struct FeedbackView: View {
         _ prepared: PreparedDiagnosticExportV1
     ) -> some View {
         let value = prepared.value
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text("Review diagnostics before choosing")
-                .font(.headline)
+                .font(DesignTokens.Typography.sectionHeading)
             Text("File: field-record-diagnostics.json")
             Text("Size: \(prepared.canonicalData.count) bytes")
             Text("App \(value.app.version) (\(value.app.build))")
@@ -185,10 +190,10 @@ struct FeedbackView: View {
             Text(
                 "This reviewed JSON never includes customer or sign details, addresses, notes, photos, reports, backups, paths, hashes, StoreKit details, credentials, or logs."
             )
-            .foregroundStyle(DesignTokens.Colors.secondaryText)
+            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
         }
-        .font(.body)
-        .foregroundStyle(DesignTokens.Colors.primaryText)
+        .font(DesignTokens.Typography.primaryBody)
+        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(Self.reviewAccessibilityIdentifier)
@@ -202,50 +207,55 @@ struct FeedbackView: View {
             mailComposerAvailable: mailComposer.isAvailable
         ) {
         case .blocked:
-            WorklightStatusBadge(
-                kind: .blocked,
-                text: "Feedback is unavailable because a support address has not been configured. No app data changed."
+            AssetRoundsStateLabel(
+                kind: .unavailable,
+                "Feedback is unavailable because a support address has not been configured. No app data changed."
             )
-            Button("Retry") {
+            .accessibilityLabel(
+                "Blocked: Feedback is unavailable because a support address has not been configured. No app data changed."
+            )
+            .accessibilityValue(Text(verbatim: String()))
+            AssetRoundsSecondaryAction("Retry") {
                 Task { await prepare(force: true) }
             }
-            .buttonStyle(WorklightSecondaryButtonStyle())
             .accessibilityIdentifier(Self.retryAccessibilityIdentifier)
 
         case .composer:
             Text(
                 "Choose Attach to include exactly this reviewed JSON, or Don't Attach to open the same editable composer without it."
             )
-            .font(.body)
-            .foregroundStyle(DesignTokens.Colors.primaryText)
+            .font(DesignTokens.Typography.primaryBody)
+            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier(Self.consentAccessibilityIdentifier)
 
-            Button("Attach") {
+            AssetRoundsPrimaryAction("Attach") {
                 presentMail(prepared, choice: .attach)
             }
-            .buttonStyle(WorklightPrimaryButtonStyle())
             .accessibilityHint(
                 "Opens the editable system composer with one reviewed diagnostic JSON attachment"
             )
             .accessibilityIdentifier(Self.attachAccessibilityIdentifier)
 
-            Button("Don't Attach") {
+            AssetRoundsSecondaryAction("Don't Attach") {
                 presentMail(prepared, choice: .doNotAttach)
             }
-            .buttonStyle(WorklightSecondaryButtonStyle())
             .accessibilityHint(
                 "Opens the same editable system composer with no diagnostic attachment"
             )
             .accessibilityIdentifier(Self.doNotAttachAccessibilityIdentifier)
 
         case .unavailableFallback:
-            WorklightStatusBadge(
-                kind: .attention,
-                text: "Mail is unavailable on this device. Nothing was sent."
+            AssetRoundsStateLabel(
+                kind: .warning,
+                "Mail is unavailable on this device. Nothing was sent."
             )
+            .accessibilityLabel(
+                "Attention: Mail is unavailable on this device. Nothing was sent."
+            )
+            .accessibilityValue(Text(verbatim: String()))
 
-            Button("Copy support address") {
+            AssetRoundsSecondaryAction("Copy support address") {
                 guard let address = configuration.validatedSupportAddress else {
                     errorMessage = "The support address is unavailable. Nothing was copied."
                     return
@@ -253,14 +263,12 @@ struct FeedbackView: View {
                 UIPasteboard.general.string = address
                 statusMessage = "Support address copied."
             }
-            .buttonStyle(WorklightSecondaryButtonStyle())
             .accessibilityIdentifier(Self.copyAddressAccessibilityIdentifier)
 
-            Button("Save diagnostics to Files") {
+            AssetRoundsSecondaryAction("Save diagnostics to Files") {
                 statusMessage = nil
                 showsExporter = true
             }
-            .buttonStyle(WorklightSecondaryButtonStyle())
             .accessibilityHint(
                 "Opens the system Files destination picker for the reviewed diagnostic JSON"
             )

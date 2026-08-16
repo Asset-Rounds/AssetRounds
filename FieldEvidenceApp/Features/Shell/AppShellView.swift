@@ -170,8 +170,8 @@ struct AppShellView: View {
                     .accessibilityIdentifier(Self.reportsTabAccessibilityIdentifier)
             }
         }
-        .tint(DesignTokens.Colors.interactionAccent)
-        .background(DesignTokens.Colors.canvas)
+        .tint(DesignTokens.SemanticColors.primaryAction)
+        .background(DesignTokens.SemanticColors.workBackground)
         .environment(\.eraseAllAction, EraseAllAction(call: eraseAll))
     }
 
@@ -194,8 +194,8 @@ struct AppShellView: View {
                 Image(systemName: "gearshape")
             }
             .frame(
-                minWidth: DesignTokens.Control.minimumHitSize,
-                minHeight: DesignTokens.Control.minimumHitSize
+                minWidth: DesignTokens.Target.minimumInteractiveWidth,
+                minHeight: DesignTokens.Target.minimumInteractiveHeight
             )
             .contentShape(Rectangle())
             .accessibilityLabel("Settings")
@@ -221,7 +221,7 @@ private struct S6_3BackupValidationUITestHost: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .task {
             guard !didStart else { return }
             didStart = true
@@ -404,12 +404,13 @@ struct SettingsPlaceholderView: View {
     }
 
     var body: some View {
-        ScrollView {
-            WorklightCard {
-                Text("Settings")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
-                    .accessibilityAddTraits(.isHeader)
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                AssetRoundsEvidenceCard {
+                    Text("Settings")
+                        .font(DesignTokens.Typography.screenTitle)
+                        .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
+                        .accessibilityAddTraits(.isHeader)
 
                 NavigationLink("Back up current data") {
                     BackupExportView(
@@ -417,21 +418,24 @@ struct SettingsPlaceholderView: View {
                         generationRootURL: generationRootURL
                     )
                 }
-                .buttonStyle(WorklightPrimaryButtonStyle())
+                .buttonStyle(.borderedProminent)
+                .tint(DesignTokens.SemanticColors.primaryAction)
+                .controlSize(.large)
+                .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                 .accessibilityIdentifier(
                     BackupExportView.settingsEntryAccessibilityIdentifier
                 )
 
-                Button("Restore data backup", action: restoreDataBackup)
-                    .buttonStyle(WorklightSecondaryButtonStyle())
+                AssetRoundsSecondaryAction("Restore data backup", action: restoreDataBackup)
+                    .accessibilityLabel("Restore data backup")
                     .accessibilityIdentifier(
                         BackupRestoreProgressView.settingsEntryAccessibilityIdentifier
                     )
 
-                Button("View subscription") {
+                AssetRoundsSecondaryAction("View subscription") {
                     paywallPresentation = PaywallPresentation()
                 }
-                .buttonStyle(WorklightSecondaryButtonStyle())
+                .accessibilityLabel("View subscription")
                 .accessibilityHint(
                     "Shows the monthly subscription without changing existing data"
                 )
@@ -439,10 +443,10 @@ struct SettingsPlaceholderView: View {
                     PaywallView.settingsEntryAccessibilityIdentifier
                 )
 
-                Button("Restore Purchases") {
+                AssetRoundsSecondaryAction("Restore Purchases") {
                     lifecyclePresentation = LifecyclePresentation()
                 }
-                .buttonStyle(WorklightSecondaryButtonStyle())
+                .accessibilityLabel("Restore Purchases")
                 .accessibilityHint(
                     "Checks Apple purchase history without restoring inspection data"
                 )
@@ -456,7 +460,13 @@ struct SettingsPlaceholderView: View {
                         metricKitAdapter: metricKitDiagnosticsAdapter
                     )
                 }
-                .buttonStyle(WorklightSecondaryButtonStyle())
+                .buttonStyle(.bordered)
+                .tint(DesignTokens.SemanticColors.primaryAction)
+                .controlSize(.large)
+                .frame(
+                    minWidth: DesignTokens.Target.minimumInteractiveWidth,
+                    minHeight: DesignTokens.Target.minimumInteractiveHeight
+                )
                 .accessibilityHint(
                     "Previews privacy-safe local counters and bounded system diagnostics before saving"
                 )
@@ -472,7 +482,13 @@ struct SettingsPlaceholderView: View {
                         mailComposer: mailComposerAdapter
                     )
                 }
-                .buttonStyle(WorklightSecondaryButtonStyle())
+                .buttonStyle(.bordered)
+                .tint(DesignTokens.SemanticColors.primaryAction)
+                .controlSize(.large)
+                .frame(
+                    minWidth: DesignTokens.Target.minimumInteractiveWidth,
+                    minHeight: DesignTokens.Target.minimumInteractiveHeight
+                )
                 .accessibilityHint(
                     "Reviews privacy-safe diagnostics and asks before attaching them to editable feedback"
                 )
@@ -481,22 +497,20 @@ struct SettingsPlaceholderView: View {
                 )
 
                 Text("Inspection data and photos are device-local and do not sync with the subscription.")
-                    .font(.subheadline)
-                    .foregroundStyle(DesignTokens.Colors.secondaryText)
+                    .font(DesignTokens.Typography.secondaryBody)
+                    .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Button("Erase All", action: eraseAllAction.call)
-                    .buttonStyle(WorklightSecondaryButtonStyle())
-                    .accessibilityIdentifier(
-                        EraseAllView.settingsEntryAccessibilityIdentifier
-                    )
+                    AssetRoundsSecondaryAction("Erase All", action: eraseAllAction.call)
+                        .accessibilityLabel("Erase All")
+                        .accessibilityIdentifier(
+                            EraseAllView.settingsEntryAccessibilityIdentifier
+                        )
+                }
             }
-            .padding(DesignTokens.Spacing.medium)
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(AppShellView.settingsScreenAccessibilityIdentifier)
         .sheet(item: $paywallPresentation) { presentation in
             PaywallView(
@@ -519,27 +533,28 @@ struct SettingsPlaceholderView: View {
 
 private struct PackUnavailableView: View {
     var body: some View {
-        ScrollView {
-            WorklightCard {
-                Text("Content unavailable")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(DesignTokens.Colors.blockedText)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                AssetRoundsEvidenceCard {
+                    Text("Content unavailable")
+                        .font(DesignTokens.Typography.screenTitle)
+                        .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
 
-                Text("The bundled sign content could not be loaded.")
-                    .font(.body)
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                    Text("The bundled sign content could not be loaded.")
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                Text("No partial or guessed content is shown.")
-                    .font(.subheadline)
-                    .foregroundStyle(DesignTokens.Colors.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                    AssetRoundsStateLabel(
+                        kind: .unavailable,
+                        "No partial or guessed content is shown."
+                    )
+                    .accessibilityLabel("No partial or guessed content is shown.")
+                    .accessibilityValue(Text(verbatim: String()))
+                }
             }
-            .padding(DesignTokens.Spacing.medium)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
     }
 }

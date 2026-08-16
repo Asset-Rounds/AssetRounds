@@ -15,6 +15,10 @@ struct SignsRootView: View {
     static let signRowAccessibilityIdentifier = "s7.4.signs.row"
     static let addSignAccessibilityIdentifier = "s7.4.signs.add-sign"
     static let accessNoticeAccessibilityIdentifier = "s7.4.signs.access-notice"
+    private static let welcomeTitleText =
+        "Turn tonight's sign check into a clear report."
+    private static let welcomeMessageText =
+        "Add the first sign you inspect, or look through the bundled sample before you begin."
 
     private struct LifecyclePresentation: Identifiable {
         let id = UUID()
@@ -179,18 +183,18 @@ struct SignsRootView: View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 HStack {
                     Spacer()
-                    Button {
+                    AssetRoundsSecondaryAction(action: {
                         path.append(Route.settings)
-                    } label: {
+                    }) {
                         Label("Settings", systemImage: "gearshape")
                             .labelStyle(.iconOnly)
                     }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .accessibilityLabel("Settings")
                     .accessibilityIdentifier(AppShellView.settingsButtonAccessibilityIdentifier)
                 }
-                .padding(.horizontal, DesignTokens.Spacing.medium)
-                .padding(.vertical, DesignTokens.Spacing.small)
-                .background(DesignTokens.Colors.canvas)
+                .padding(.horizontal, DesignTokens.Spacing.space16)
+                .padding(.vertical, DesignTokens.Spacing.space8)
+                .background(DesignTokens.SemanticColors.workBackground)
             }
             .navigationDestination(for: Route.self) { route in
                 switch route {
@@ -607,149 +611,162 @@ struct SignsRootView: View {
     }
 
     private var reportUnavailable: some View {
-        ScrollView {
-            WorklightCard {
-                WorklightStatusBadge(kind: .blocked, text: "Report unavailable")
-                Text("The saved report could not be opened.")
-                    .font(.body)
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                AssetRoundsEvidenceCard {
+                    AssetRoundsStateLabel(kind: .unavailable, "Report unavailable")
+                        .accessibilityLabel("Blocked: Report unavailable")
+                        .accessibilityValue(Text(verbatim: String()))
+                    Text("The saved report could not be opened.")
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-            .padding(DesignTokens.Spacing.medium)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
     }
 
     private var reportHistoryUnavailable: some View {
-        ScrollView {
-            WorklightCard {
-                WorklightStatusBadge(kind: .blocked, text: "History unavailable")
-                Text("Report history could not be opened.")
-                    .font(.body)
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                AssetRoundsEvidenceCard {
+                    AssetRoundsStateLabel(kind: .unavailable, "History unavailable")
+                        .accessibilityLabel("Blocked: History unavailable")
+                        .accessibilityValue(Text(verbatim: String()))
+                    Text("Report history could not be opened.")
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-            .padding(DesignTokens.Spacing.medium)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
     }
 
     private var issueUnavailable: some View {
-        ScrollView {
-            WorklightCard {
-                WorklightStatusBadge(kind: .blocked, text: "Record work")
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                AssetRoundsEvidenceCard {
+                    AssetRoundsStateLabel(kind: .unavailable, "Record work")
+                        .accessibilityLabel("Blocked: Record work")
+                        .accessibilityValue(Text(verbatim: String()))
+                }
             }
-            .padding(DesignTokens.Spacing.medium)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
     }
 
     private var welcome: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-                WorklightCard {
-                    WorklightStatusBadge(kind: .information, text: "Field Evidence")
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+                Label("Field Evidence", systemImage: "info.circle.fill")
+                    .font(DesignTokens.Typography.secondaryBody.weight(.semibold))
+                    .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Information: Field Evidence")
 
-                    Text("Turn tonight's sign check into a clear report.")
-                        .font(.largeTitle.weight(.bold))
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier(Self.welcomeTitleAccessibilityIdentifier)
-                        .accessibilityAddTraits(.isHeader)
-                        .accessibilityFocused($welcomeTitleFocused)
+                AssetRoundsEmptyState(
+                    title: Text(Self.welcomeTitleText),
+                    message: Text(Self.welcomeMessageText),
+                    showsBrandSymbol: true
+                )
+                .accessibilityRepresentation {
+                    VStack(alignment: .leading) {
+                        Text(Self.welcomeTitleText)
+                            .accessibilityIdentifier(
+                                Self.welcomeTitleAccessibilityIdentifier
+                            )
+                            .accessibilityAddTraits(.isHeader)
+                            .accessibilityFocused($welcomeTitleFocused)
 
-                    Text("Add the first sign you inspect, or look through the bundled sample before you begin.")
-                        .font(.body)
-                        .foregroundStyle(DesignTokens.Colors.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
+                        Text(Self.welcomeMessageText)
+                    }
                 }
 
-                Button("Add first sign") {
+                AssetRoundsPrimaryAction("Add first sign") {
                     beginAddSign()
                 }
-                .buttonStyle(WorklightPrimaryButtonStyle())
+                .accessibilityLabel("Add first sign")
                 .accessibilityIdentifier(Self.addFirstSignAccessibilityIdentifier)
 
-                Button("View sample") {
+                AssetRoundsSecondaryAction("View sample") {
                     path.append(Route.sample)
                 }
-                .buttonStyle(WorklightSecondaryButtonStyle())
+                .accessibilityLabel("View sample")
                 .accessibilityIdentifier(Self.viewSampleAccessibilityIdentifier)
 
-                WorklightCard {
-                    Button("Restore data backup", action: restoreDataBackup)
-                        .buttonStyle(WorklightSecondaryButtonStyle())
+                    AssetRoundsEvidenceCard {
+                        AssetRoundsSecondaryAction(
+                            "Restore data backup",
+                            action: restoreDataBackup
+                        )
+                        .accessibilityLabel("Restore data backup")
                         .accessibilityIdentifier(Self.restoreDataAccessibilityIdentifier)
 
-                    Button("Restore Purchases") {
-                        lifecyclePresentation = LifecyclePresentation()
-                    }
-                        .buttonStyle(WorklightSecondaryButtonStyle())
+                        AssetRoundsSecondaryAction("Restore Purchases") {
+                            lifecyclePresentation = LifecyclePresentation()
+                        }
+                        .accessibilityLabel("Restore Purchases")
                         .accessibilityHint(
                             "Checks Apple purchase history without restoring inspection data"
                         )
                         .accessibilityIdentifier(Self.restorePurchasesAccessibilityIdentifier)
+                    }
                 }
             }
-            .padding(DesignTokens.Spacing.medium)
         }
         .navigationTitle("Signs")
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.welcomeScreenAccessibilityIdentifier)
     }
 
     private var signSelection: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-                WorklightCard {
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+                AssetRoundsEvidenceCard {
                     Text("Signs")
-                        .font(.largeTitle.weight(.bold))
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.screenTitle)
+                        .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
                         .accessibilityAddTraits(.isHeader)
 
                     Text("Choose a sign to view its checks, issues, and reports.")
-                        .font(.body)
-                        .foregroundStyle(DesignTokens.Colors.secondaryText)
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 ForEach(snapshots) { value in
-                    Button {
+                    AssetRoundsSecondaryAction(action: {
                         selectAndResume(value)
-                    } label: {
-                        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+                    }) {
+                        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
                             Text(value.signLabel)
-                                .font(.headline)
+                                .font(DesignTokens.Typography.sectionHeading)
                             Text(value.siteLabel)
-                                .font(.subheadline)
+                                .font(DesignTokens.Typography.secondaryBody)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
                     .accessibilityLabel("\(value.signLabel), \(value.siteLabel)")
                     .accessibilityIdentifier(
                         "\(Self.signRowAccessibilityIdentifier).\(value.assetID.uuidString.lowercased())"
                     )
                 }
 
-                Button("Add sign", action: beginAddSign)
-                    .buttonStyle(WorklightPrimaryButtonStyle())
+                AssetRoundsPrimaryAction("Add sign", action: beginAddSign)
+                    .accessibilityLabel("Add sign")
                     .accessibilityIdentifier(Self.addSignAccessibilityIdentifier)
 
-                if let checkNotice {
-                    WorklightStatusBadge(kind: .information, text: checkNotice)
-                        .accessibilityIdentifier(Self.accessNoticeAccessibilityIdentifier)
+                    if let checkNotice {
+                        AssetRoundsStateLabel(kind: .warning, text: Text(checkNotice))
+                            .accessibilityLabel("Information: \(checkNotice)")
+                            .accessibilityValue(Text(verbatim: String()))
+                            .accessibilityIdentifier(Self.accessNoticeAccessibilityIdentifier)
+                    }
                 }
             }
-            .padding(DesignTokens.Spacing.medium)
         }
         .navigationTitle("Signs")
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.signSelectionAccessibilityIdentifier)
     }
 
@@ -766,8 +783,8 @@ struct SignsRootView: View {
                         Label("Back", systemImage: "chevron.left")
                     }
                     .frame(
-                        minWidth: DesignTokens.Control.minimumHitSize,
-                        minHeight: DesignTokens.Control.minimumHitSize
+                        minWidth: DesignTokens.Target.minimumInteractiveWidth,
+                        minHeight: DesignTokens.Target.minimumInteractiveHeight
                     )
                     .accessibilityIdentifier(Self.sampleBackAccessibilityIdentifier)
                 }
@@ -776,18 +793,19 @@ struct SignsRootView: View {
     }
 
     private func loadFailure(message: String) -> some View {
-        ScrollView {
-            WorklightCard {
-                WorklightStatusBadge(kind: .blocked, text: "Saved data unavailable")
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                AssetRoundsEvidenceCard {
+                    AssetRoundsStateLabel(kind: .unavailable, "Saved data unavailable")
+                        .accessibilityLabel("Blocked: Saved data unavailable")
+                        .accessibilityValue(Text(verbatim: String()))
 
-                Text(message)
-                    .font(.body)
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                    Text(message)
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-            .padding(DesignTokens.Spacing.medium)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
     }
 }

@@ -37,55 +37,54 @@ struct BackupExportView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-                WorklightCard {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+                AssetRoundsEvidenceCard {
                     if let preview {
                         Text(countLabel(preview.signCount, singular: "sign", plural: "signs"))
-                            .font(.headline)
-                            .foregroundStyle(DesignTokens.Colors.primaryText)
+                            .font(DesignTokens.Typography.sectionHeading)
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                             .accessibilityIdentifier(Self.signCountAccessibilityIdentifier)
                         Text(countLabel(preview.reportCount, singular: "report", plural: "reports"))
-                            .font(.headline)
-                            .foregroundStyle(DesignTokens.Colors.primaryText)
+                            .font(DesignTokens.Typography.sectionHeading)
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                             .accessibilityIdentifier(Self.reportCountAccessibilityIdentifier)
                         Text(countLabel(preview.photoCount, singular: "photo", plural: "photos"))
-                            .font(.headline)
-                            .foregroundStyle(DesignTokens.Colors.primaryText)
+                            .font(DesignTokens.Typography.sectionHeading)
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                             .accessibilityIdentifier(Self.photoCountAccessibilityIdentifier)
                     } else if isWorking {
                         ProgressView()
                     }
 
                     Text(Self.warning)
-                        .font(.body)
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier(Self.warningAccessibilityIdentifier)
                         .accessibilityFocused($warningFocused)
                 }
 
-                Button("Back up current data") {
+                AssetRoundsPrimaryAction("Back up current data") {
                     beginExport()
                 }
-                .buttonStyle(WorklightPrimaryButtonStyle())
                 .disabled(isWorking || preview == nil || exportedPackageName != nil)
                 .accessibilityIdentifier(Self.actionAccessibilityIdentifier)
 
                 if let exportedPackageName {
                     Text(exportedPackageName)
-                        .font(.body.monospaced())
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.numericOrTimestamp)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier(Self.exportedAccessibilityIdentifier)
                         .accessibilityFocused($exportedFocused)
                 }
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
         }
         .navigationTitle("Back up current data")
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .sheet(isPresented: $showsDestinationPicker) {
             BackupDestinationPicker(

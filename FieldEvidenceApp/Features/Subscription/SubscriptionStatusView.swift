@@ -164,15 +164,15 @@ struct SubscriptionStatusView: View {
 
     var body: some View {
         ScrollView {
-            WorklightCard {
+            AssetRoundsEvidenceCard {
                 lifecycleStatus
                 restoreResult
 
-                Button {
+                AssetRoundsPrimaryAction(action: {
                     Task { await coordinator.restorePurchases() }
-                } label: {
+                }) {
                     if coordinator.isRestoring {
-                        HStack(spacing: DesignTokens.Spacing.small) {
+                        HStack(spacing: DesignTokens.Spacing.space8) {
                             ProgressView()
                             Text("Restoring Purchases…")
                         }
@@ -182,38 +182,35 @@ struct SubscriptionStatusView: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
-                .buttonStyle(WorklightPrimaryButtonStyle())
                 .disabled(coordinator.isRestoring)
                 .accessibilityIdentifier(Self.restoreAccessibilityIdentifier)
 
-                Button("Manage Subscription") {
+                AssetRoundsSecondaryAction("Manage Subscription") {
                     showsManageSubscription = true
                 }
-                .buttonStyle(WorklightSecondaryButtonStyle())
                 .disabled(coordinator.isRestoring)
                 .accessibilityHint("Opens Apple subscription management")
                 .accessibilityIdentifier(Self.manageAccessibilityIdentifier)
 
                 Text("Inspection data and photos stay on this device and do not sync with the subscription. Use a data backup to move them.")
-                    .font(.body)
-                    .foregroundStyle(DesignTokens.Colors.secondaryText)
+                    .font(DesignTokens.Typography.primaryBody)
+                    .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Button("Close") {
+                AssetRoundsSecondaryAction("Close") {
                     coordinator.clearRestoreResult()
                     close()
                 }
-                .buttonStyle(WorklightSecondaryButtonStyle())
                 .disabled(coordinator.isRestoring)
                 .accessibilityHint("Returns to your existing data")
                 .accessibilityIdentifier(Self.closeAccessibilityIdentifier)
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
         }
         .navigationTitle("Subscription")
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .interactiveDismissDisabled(coordinator.isRestoring)
         .manageSubscriptionsSheet(isPresented: $showsManageSubscription)
@@ -249,26 +246,32 @@ struct SubscriptionStatusView: View {
         let presentation = lifecyclePresentation
         switch presentation.tone {
         case .information:
-            WorklightStatusBadge(
-                kind: .information,
-                text: presentation.badge
+            AssetRoundsStateLabel(
+                kind: .selected,
+                text: Text(presentation.badge)
             )
+            .accessibilityLabel(Text("Information: \(presentation.badge)"))
+            .accessibilityValue(Text(verbatim: String()))
         case .complete:
-            WorklightStatusBadge(kind: .complete, text: presentation.badge)
+            AssetRoundsStateLabel(kind: .completed, text: Text(presentation.badge))
+                .accessibilityLabel(Text("Complete: \(presentation.badge)"))
+                .accessibilityValue(Text(verbatim: String()))
         case .blocked:
-            WorklightStatusBadge(kind: .blocked, text: presentation.badge)
+            AssetRoundsStateLabel(kind: .unavailable, text: Text(presentation.badge))
+                .accessibilityLabel(Text("Blocked: \(presentation.badge)"))
+                .accessibilityValue(Text(verbatim: String()))
         }
 
         Text(presentation.title)
-            .font(.title2.weight(.bold))
-            .foregroundStyle(DesignTokens.Colors.primaryText)
+            .font(DesignTokens.Typography.screenTitle)
+            .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(Self.statusTitleAccessibilityIdentifier)
 
         Text(presentation.detail)
-            .font(.body)
-            .foregroundStyle(DesignTokens.Colors.secondaryText)
+            .font(DesignTokens.Typography.primaryBody)
+            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier(Self.statusAccessibilityIdentifier)
     }
@@ -280,25 +283,28 @@ struct SubscriptionStatusView: View {
         ) {
             switch presentation.tone {
             case .information:
-                WorklightStatusBadge(
-                    kind: .information,
-                    text: presentation.copy
+                AssetRoundsStateLabel(
+                    kind: .selected,
+                    text: Text(presentation.copy)
                 )
+                .accessibilityLabel(Text("Information: \(presentation.copy)"))
+                .accessibilityValue(Text(verbatim: String()))
                 .accessibilityFocused($restoreResultFocused)
                 .accessibilityIdentifier(
                     Self.restoreResultAccessibilityIdentifier
                 )
             case .complete:
-                WorklightStatusBadge(kind: .complete, text: presentation.copy)
+                AssetRoundsStateLabel(kind: .completed, text: Text(presentation.copy))
+                    .accessibilityLabel(Text("Complete: \(presentation.copy)"))
+                    .accessibilityValue(Text(verbatim: String()))
                     .accessibilityFocused($restoreResultFocused)
                     .accessibilityIdentifier(
                         Self.restoreResultAccessibilityIdentifier
                     )
             case .blocked:
-                Text(presentation.copy)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(DesignTokens.Colors.blockedText)
-                    .fixedSize(horizontal: false, vertical: true)
+                AssetRoundsStateLabel(kind: .error, text: Text(presentation.copy))
+                    .accessibilityLabel(Text(presentation.copy))
+                    .accessibilityValue(Text(verbatim: String()))
                     .accessibilityFocused($restoreResultFocused)
                     .accessibilityIdentifier(
                         Self.restoreResultAccessibilityIdentifier

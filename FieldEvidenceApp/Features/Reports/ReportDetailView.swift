@@ -63,34 +63,46 @@ struct ReportDetailView: View {
         dynamicTypeSize.isAccessibilitySize ? 240 : 520
     }
 
+    @ViewBuilder
+    private var revisionStateLabel: some View {
+        if state.isCurrentReadyRevision {
+            AssetRoundsStateLabel(
+                kind: .completed,
+                text: Text("Current revision")
+            )
+            .accessibilityLabel("Complete: Current revision")
+            .accessibilityValue(Text(verbatim: String()))
+        } else {
+            Label("Prior revision", systemImage: "info.circle.fill")
+                .font(DesignTokens.Typography.secondaryBody.weight(.semibold))
+                .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Information: Prior revision")
+        }
+    }
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-                    WorklightCard {
-                        WorklightStatusBadge(kind: .complete, text: "Report ready")
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+                    AssetRoundsEvidenceCard {
+                        AssetRoundsStateLabel(
+                            kind: .completed,
+                            text: Text("Report ready")
+                        )
+                        .accessibilityLabel("Complete: Report ready")
+                        .accessibilityValue(Text(verbatim: String()))
 
                         if state.isAuthorityResolved {
-                            WorklightStatusBadge(
-                                kind: state.isCurrentReadyRevision ? .complete : .information,
-                                text: state.isCurrentReadyRevision
-                                    ? "Current revision"
-                                    : "Prior revision"
-                            )
+                            revisionStateLabel
                             .accessibilityIdentifier(
                                 Self.revisionStateAccessibilityIdentifier
                             )
                         }
 
-                        Text(delivery.title)
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(DesignTokens.Colors.primaryText)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityAddTraits(.isHeader)
-
-                        Text(delivery.subtitle)
-                            .font(.body)
-                            .foregroundStyle(DesignTokens.Colors.secondaryText)
-                            .fixedSize(horizontal: false, vertical: true)
+                        AssetRoundsReportBrandHeader(
+                            title: Text(delivery.title),
+                            subtitle: Text(delivery.subtitle)
+                        )
 
                         ForEach(Array(delivery.detailLines.enumerated()), id: \.offset) { _, line in
                             detailRow(line)
@@ -98,38 +110,40 @@ struct ReportDetailView: View {
                     }
 
                     if state.unavailableCurrentReportID != nil {
-                        WorklightStatusBadge(
-                            kind: .attention,
-                            text: "Correction saved, but its PDF couldn’t be created. Retry from the saved report."
+                        AssetRoundsStateLabel(
+                            kind: .warning,
+                            text: Text("Correction saved, but its PDF couldn’t be created. Retry from the saved report.")
                         )
+                        .accessibilityLabel("Attention: Correction saved, but its PDF couldn’t be created. Retry from the saved report.")
+                        .accessibilityValue(Text(verbatim: String()))
                         .accessibilityIdentifier(ReportCorrectionView.failureAccessibilityIdentifier)
                     }
 
                     ReportPDFPreview(data: delivery.pdfData)
                         .frame(height: previewMinimumHeight)
-                        .background(DesignTokens.Colors.surface)
+                        .background(DesignTokens.SemanticColors.elevatedSurface)
                         .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
                         .overlay {
                             RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
-                                .stroke(DesignTokens.Colors.essentialControlStroke, lineWidth: 1)
+                                .stroke(DesignTokens.SemanticColors.separator, lineWidth: DesignTokens.Stroke.standard)
                         }
                         .accessibilityLabel("Report PDF preview")
                         .accessibilityIdentifier(Self.previewAccessibilityIdentifier)
 
                     if let exportErrorMessage {
                         Label(exportErrorMessage, systemImage: "exclamationmark.triangle.fill")
-                            .font(.body)
-                            .foregroundStyle(DesignTokens.Colors.blockedText)
+                            .font(DesignTokens.Typography.primaryBody)
+                            .foregroundStyle(DesignTokens.SemanticColors.error)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityIdentifier(Self.deliveryErrorAccessibilityIdentifier)
                     }
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
         }
         .id(state.selectedReportID)
         .navigationTitle("Report")
         .navigationBarTitleDisplayMode(.inline)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .navigationDestination(isPresented: correctionIsPresented) {
             if let source = activeCorrectionSource {
@@ -143,14 +157,17 @@ struct ReportDetailView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            VStack(spacing: DesignTokens.Spacing.small) {
+            VStack(spacing: DesignTokens.Spacing.space8) {
                 revisionActions
 
-                HStack(spacing: DesignTokens.Spacing.small) {
+                HStack(spacing: DesignTokens.Spacing.space8) {
                     Button("Share PDF") {
                         showsShareSheet = true
                     }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .buttonStyle(.bordered)
+                    .tint(DesignTokens.SemanticColors.primaryAction)
+                    .controlSize(.large)
+                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .frame(maxWidth: .infinity)
                     .accessibilityHint("Opens the system share sheet for this report PDF")
                     .accessibilityIdentifier(Self.shareAccessibilityIdentifier)
@@ -158,7 +175,10 @@ struct ReportDetailView: View {
                     Button("Save to Files") {
                         showsFilesExporter = true
                     }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .buttonStyle(.bordered)
+                    .tint(DesignTokens.SemanticColors.primaryAction)
+                    .controlSize(.large)
+                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .frame(maxWidth: .infinity)
                     .accessibilityHint("Choose a Files destination for an identical copy of this report PDF")
                     .accessibilityIdentifier(Self.saveToFilesAccessibilityIdentifier)
@@ -167,13 +187,16 @@ struct ReportDetailView: View {
                 Button("Close") {
                     dismiss()
                 }
-                .buttonStyle(WorklightPrimaryButtonStyle())
+                .buttonStyle(.borderedProminent)
+                .tint(DesignTokens.SemanticColors.primaryAction)
+                .controlSize(.large)
+                .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                 .accessibilityHint("Returns to the saved report receipt")
                 .accessibilityIdentifier(Self.closeAccessibilityIdentifier)
             }
-            .padding(.horizontal, DesignTokens.Spacing.medium)
-            .padding(.vertical, DesignTokens.Spacing.small)
-            .background(DesignTokens.Colors.canvas)
+            .padding(.horizontal, DesignTokens.Spacing.space16)
+            .padding(.vertical, DesignTokens.Spacing.space8)
+            .background(DesignTokens.SemanticColors.workBackground)
         }
         .sheet(isPresented: $showsShareSheet) {
             ReportShareSheet(delivery: delivery, coordinator: coordinator)
@@ -214,13 +237,16 @@ struct ReportDetailView: View {
     @ViewBuilder
     private var revisionActions: some View {
         if hasRevisionActions {
-            VStack(spacing: DesignTokens.Spacing.small) {
+            VStack(spacing: DesignTokens.Spacing.space8) {
                 if let source = state.correctionSource,
                    state.isCurrentReadyRevision {
                     Button("Correct report") {
                         activeCorrectionSource = source
                     }
-                    .buttonStyle(WorklightPrimaryButtonStyle())
+                    .buttonStyle(.bordered)
+                    .tint(DesignTokens.SemanticColors.primaryAction)
+                    .controlSize(.large)
+                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .accessibilityHint("Change only the report note and keep the prior report.")
                     .accessibilityIdentifier(Self.correctAccessibilityIdentifier)
                 }
@@ -229,7 +255,10 @@ struct ReportDetailView: View {
                     Button("View prior report") {
                         selectReport(id: prior.reportID)
                     }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .buttonStyle(.bordered)
+                    .tint(DesignTokens.SemanticColors.primaryAction)
+                    .controlSize(.large)
+                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .accessibilityHint("Opens the immediately prior saved report.")
                     .accessibilityIdentifier(
                         ReportCorrectionView.priorReportAccessibilityIdentifier
@@ -241,7 +270,10 @@ struct ReportDetailView: View {
                     Button("View corrected report") {
                         selectReport(id: state.chain.current.reportID)
                     }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .buttonStyle(.bordered)
+                    .tint(DesignTokens.SemanticColors.primaryAction)
+                    .controlSize(.large)
+                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .accessibilityHint("Opens the current corrected report.")
                     .accessibilityIdentifier(
                         ReportCorrectionView.currentReportAccessibilityIdentifier
@@ -339,8 +371,8 @@ struct ReportDetailView: View {
 
     private func detailRow(_ value: String) -> some View {
         Text(value)
-            .font(.body)
-            .foregroundStyle(DesignTokens.Colors.primaryText)
+            .font(DesignTokens.Typography.primaryBody)
+            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

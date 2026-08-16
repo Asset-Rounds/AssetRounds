@@ -34,65 +34,62 @@ struct StartupMaintenanceView: View {
     }
 
     var body: some View {
-        ScrollView {
-            WorklightCard {
-                Text(Self.titleText)
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
-
-                Text(Self.messageText)
-                    .font(.body)
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Button(action: retryChecks) {
-                    Label(Self.retryButtonText, systemImage: "arrow.clockwise")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(WorklightPrimaryButtonStyle())
-                .accessibilityIdentifier(Self.retryAccessibilityIdentifier)
-
-                if let restoreDataBackup {
-                    Button("Restore data backup", action: restoreDataBackup)
-                        .buttonStyle(WorklightSecondaryButtonStyle())
-                        .accessibilityIdentifier(Self.restoreAccessibilityIdentifier)
-                }
-
-                if let eraseAll {
-                    Button("Erase All", action: eraseAll)
-                        .buttonStyle(WorklightSecondaryButtonStyle())
-                        .accessibilityIdentifier(Self.eraseAccessibilityIdentifier)
-                }
-
-                Button {
-                    showsRecoverySteps.toggle()
-                } label: {
-                    Label(
-                        Self.recoveryButtonText,
-                        systemImage: showsRecoverySteps ? "chevron.up" : "chevron.down"
-                    )
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(WorklightSecondaryButtonStyle())
-                .accessibilityValue(showsRecoverySteps ? "Expanded" : "Collapsed")
-                .accessibilityIdentifier(Self.recoveryButtonAccessibilityIdentifier)
-
-                if showsRecoverySteps {
-                    Text(Self.recoveryStepsText)
-                        .font(.body)
-                        .foregroundStyle(DesignTokens.Colors.secondaryText)
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                AssetRoundsEvidenceCard {
+                    Text(Self.titleText)
+                        .font(DesignTokens.Typography.screenTitle)
+                        .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
                         .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier(Self.recoveryTextAccessibilityIdentifier)
+                        .accessibilityAddTraits(.isHeader)
+
+                    Text(Self.messageText)
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    AssetRoundsPrimaryAction(action: retryChecks) {
+                        Label(Self.retryButtonText, systemImage: "arrow.clockwise")
+                    }
+                    .accessibilityLabel(Self.retryButtonText)
+                    .accessibilityIdentifier(Self.retryAccessibilityIdentifier)
+
+                    if let restoreDataBackup {
+                        AssetRoundsSecondaryAction(
+                            "Restore data backup",
+                            action: restoreDataBackup
+                        )
+                        .accessibilityLabel("Restore data backup")
+                        .accessibilityIdentifier(Self.restoreAccessibilityIdentifier)
+                    }
+
+                    if let eraseAll {
+                        AssetRoundsSecondaryAction("Erase All", action: eraseAll)
+                            .accessibilityLabel("Erase All")
+                            .accessibilityIdentifier(Self.eraseAccessibilityIdentifier)
+                    }
+
+                    AssetRoundsSecondaryAction(action: {
+                        showsRecoverySteps.toggle()
+                    }) {
+                        Label(
+                            Self.recoveryButtonText,
+                            systemImage: showsRecoverySteps ? "chevron.up" : "chevron.down"
+                        )
+                    }
+                    .accessibilityLabel(Self.recoveryButtonText)
+                    .accessibilityValue(showsRecoverySteps ? "Expanded" : "Collapsed")
+                    .accessibilityIdentifier(Self.recoveryButtonAccessibilityIdentifier)
+
+                    if showsRecoverySteps {
+                        Text(Self.recoveryStepsText)
+                            .font(DesignTokens.Typography.primaryBody)
+                            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier(Self.recoveryTextAccessibilityIdentifier)
+                    }
                 }
             }
-            .padding(DesignTokens.Spacing.medium)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background {
-            DesignTokens.Colors.canvas
-                .ignoresSafeArea()
         }
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
     }

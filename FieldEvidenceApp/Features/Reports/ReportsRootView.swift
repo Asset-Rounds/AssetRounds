@@ -53,7 +53,7 @@ struct ReportsRootView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
                 filters
 
                 if let loadErrorMessage {
@@ -69,15 +69,18 @@ struct ReportsRootView: View {
                     }
                 } else {
                     ProgressView("Opening reports")
-                        .frame(maxWidth: .infinity, minHeight: 120)
+                        .frame(
+                            maxWidth: .infinity,
+                            minHeight: DesignTokens.Target.minimumInteractiveHeight
+                        )
                         .accessibilityLabel("Opening reports")
                 }
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
         }
         .navigationTitle("Reports")
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .onAppear(perform: refreshCurrentIndex)
         .navigationDestination(for: ReportHistoryRoute.self) { route in
@@ -86,10 +89,10 @@ struct ReportsRootView: View {
     }
 
     private var filters: some View {
-        WorklightCard {
+        AssetRoundsEvidenceCard {
             Text("Filter reports")
-                .font(.headline)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.sectionHeading)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier(Self.headerAccessibilityIdentifier)
                 .accessibilityFocused($focusedElement, equals: .header)
@@ -125,7 +128,10 @@ struct ReportsRootView: View {
         } label: {
             Label(siteFilterLabel, systemImage: "building.2")
         }
-        .buttonStyle(WorklightSecondaryButtonStyle())
+        .buttonStyle(.bordered)
+        .tint(DesignTokens.SemanticColors.primaryAction)
+        .controlSize(.large)
+        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
         .accessibilityLabel(siteFilterLabel)
         .accessibilityHint("Filters saved reports by site")
         .accessibilityIdentifier(Self.siteFilterAccessibilityIdentifier)
@@ -164,7 +170,10 @@ struct ReportsRootView: View {
         } label: {
             Label(signFilterLabel, systemImage: "signpost.right")
         }
-        .buttonStyle(WorklightSecondaryButtonStyle())
+        .buttonStyle(.bordered)
+        .tint(DesignTokens.SemanticColors.primaryAction)
+        .controlSize(.large)
+        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
         .accessibilityLabel(signFilterLabel)
         .accessibilityHint("Filters saved reports by sign")
         .accessibilityIdentifier(Self.signFilterAccessibilityIdentifier)
@@ -182,13 +191,18 @@ struct ReportsRootView: View {
     }
 
     private var emptyState: some View {
-        WorklightCard {
-            WorklightStatusBadge(kind: .information, text: "Reports")
+        AssetRoundsEmptyState(
+            title: Text("Reports"),
+            message: Text("Saved reports will appear here.")
+        )
+        .accessibilityRepresentation {
+            VStack(alignment: .leading) {
+                Label("Reports", systemImage: "info.circle.fill")
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Information: Reports")
 
-            Text("Saved reports will appear here.")
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
+                Text("Saved reports will appear here.")
+            }
         }
         .accessibilityIdentifier(AppShellView.reportsPlaceholderAccessibilityIdentifier)
     }
@@ -329,7 +343,7 @@ struct SignReportHistoryView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
                 if let loadErrorMessage {
                     ReportHistoryUnavailableView(message: loadErrorMessage)
                         .accessibilityFocused(
@@ -337,30 +351,30 @@ struct SignReportHistoryView: View {
                             equals: .unavailable
                         )
                 } else if let history {
-                    WorklightCard {
+                    AssetRoundsEvidenceCard {
                         Text(history.assetLabel)
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(DesignTokens.Colors.primaryText)
+                            .font(DesignTokens.Typography.screenTitle)
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityAddTraits(.isHeader)
                             .accessibilityIdentifier(Self.headerAccessibilityIdentifier)
                             .accessibilityFocused($focusedElement, equals: .header)
 
                         Text(history.siteLabel)
-                            .font(.body)
-                            .foregroundStyle(DesignTokens.Colors.secondaryText)
+                            .font(DesignTokens.Typography.primaryBody)
+                            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
 
                         Text("Chronological report history")
-                            .font(.subheadline)
-                            .foregroundStyle(DesignTokens.Colors.secondaryText)
+                            .font(DesignTokens.Typography.secondaryBody)
+                            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                     }
 
                     if history.visits.isEmpty {
-                        WorklightCard {
+                        AssetRoundsEvidenceCard {
                             Text("No saved reports for this sign.")
-                                .font(.body)
-                                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                                .font(DesignTokens.Typography.primaryBody)
+                                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     } else {
@@ -371,16 +385,19 @@ struct SignReportHistoryView: View {
                     }
                 } else {
                     ProgressView("Opening report history")
-                        .frame(maxWidth: .infinity, minHeight: 120)
+                        .frame(
+                            maxWidth: .infinity,
+                            minHeight: DesignTokens.Target.minimumInteractiveHeight
+                        )
                         .accessibilityLabel("Opening report history")
                 }
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
         }
         .navigationTitle("Report history")
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .task {
             guard !didLoad else { return }
@@ -450,20 +467,25 @@ private struct ReportVisitList: View {
     let comparableRootIDs: Set<UUID>
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
             ForEach(visits) { visit in
-                WorklightCard {
-                    WorklightStatusBadge(kind: .complete, text: "Current revision")
+                AssetRoundsEvidenceCard {
+                    AssetRoundsStateLabel(
+                        kind: .completed,
+                        text: Text("Current revision")
+                    )
+                    .accessibilityLabel("Complete: Current revision")
+                    .accessibilityValue(Text(verbatim: String()))
 
                     Text(visit.assetLabel)
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.sectionHeading)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)
 
                     Text(visit.siteLabel)
-                        .font(.body)
-                        .foregroundStyle(DesignTokens.Colors.secondaryText)
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
                     ReportVisitFact(label: "Visit", value: visitDate(visit))
@@ -474,7 +496,10 @@ private struct ReportVisitList: View {
                         "View report",
                         value: ReportHistoryRoute.report(visit.reportID)
                     )
-                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .buttonStyle(.bordered)
+                    .tint(DesignTokens.SemanticColors.primaryAction)
+                    .controlSize(.large)
+                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .accessibilityHint("Opens this saved report")
                     .accessibilityIdentifier(
                         ReportsRootView.viewReportAccessibilityIdentifier
@@ -485,7 +510,10 @@ private struct ReportVisitList: View {
                             "Compare with previous",
                             value: ReportHistoryRoute.comparison(visit.stableRootID)
                         )
-                        .buttonStyle(WorklightSecondaryButtonStyle())
+                        .buttonStyle(.bordered)
+                        .tint(DesignTokens.SemanticColors.primaryAction)
+                        .controlSize(.large)
+                        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                         .accessibilityHint(
                             "Compares this visit with the immediately previous visit"
                         )
@@ -510,13 +538,13 @@ private struct ReportVisitFact: View {
     let value: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space4) {
             Text(label)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .font(DesignTokens.Typography.supportingCaption.weight(.semibold))
+                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
             Text(value)
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
@@ -553,7 +581,7 @@ private struct ReportHistoryDetailDestination: View {
             } else {
                 ProgressView("Opening report")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(DesignTokens.Colors.canvas)
+                    .background(DesignTokens.SemanticColors.workBackground)
             }
         }
         .task {
@@ -609,16 +637,19 @@ private struct ReportComparisonView: View {
                     unavailable
                 } else {
                     ProgressView("Opening comparison")
-                        .frame(maxWidth: .infinity, minHeight: 160)
+                        .frame(
+                            maxWidth: .infinity,
+                            minHeight: DesignTokens.Target.minimumInteractiveHeight
+                        )
                         .accessibilityLabel("Opening comparison")
                 }
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
         }
         .navigationTitle("Then and Now")
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .task {
             guard !didLoad else { return }
@@ -664,7 +695,7 @@ private struct ReportComparisonView: View {
                 )
             } else {
                 ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .top, spacing: DesignTokens.Spacing.medium) {
+                    HStack(alignment: .top, spacing: DesignTokens.Spacing.space16) {
                         comparisonSide(
                             heading: "Then",
                             visit: value.then,
@@ -717,7 +748,7 @@ private struct ReportComparisonView: View {
         nowClose: ReportHistoryEvidenceValue,
         nowCloseImage: UIImage
     ) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
             comparisonSide(
                 heading: "Then",
                 visit: value.then,
@@ -749,17 +780,17 @@ private struct ReportComparisonView: View {
         closeImage: UIImage,
         identifierPrefix: String
     ) -> some View {
-        WorklightCard {
+        AssetRoundsPhotoCapture {
             comparisonHeading(heading)
 
             Text("\(visit.localDate) at \(visit.localTime)")
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text("\(visit.stage) · \(visit.outcome)")
-                .font(.subheadline)
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .font(DesignTokens.Typography.secondaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             comparisonImage(
@@ -790,8 +821,8 @@ private struct ReportComparisonView: View {
 
     private func headingText(_ heading: String) -> some View {
         Text(heading)
-            .font(.title2.weight(.bold))
-            .foregroundStyle(DesignTokens.Colors.primaryText)
+            .font(DesignTokens.Typography.screenTitle)
+            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(
                 heading == "Then"
@@ -806,10 +837,10 @@ private struct ReportComparisonView: View {
         accessibilityLabel: String,
         identifier: String
     ) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(caption)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.fieldLabel)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
 
             Image(uiImage: image)
                 .renderingMode(.original)
@@ -849,11 +880,16 @@ private struct ReportHistoryUnavailableView: View {
     let message: String
 
     var body: some View {
-        WorklightCard {
-            WorklightStatusBadge(kind: .blocked, text: "Unavailable")
+        AssetRoundsEvidenceCard {
+            AssetRoundsStateLabel(
+                kind: .unavailable,
+                text: Text("Unavailable")
+            )
+            .accessibilityLabel("Blocked: Unavailable")
+            .accessibilityValue(Text(verbatim: String()))
             Text(message)
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)

@@ -68,11 +68,11 @@ struct BackupRestoreProgressView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-                    WorklightCard {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+                    AssetRoundsEvidenceCard {
                         Text("Restore data backup")
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(DesignTokens.Colors.primaryText)
+                            .font(DesignTokens.Typography.screenTitle)
+                            .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityAddTraits(.isHeader)
                             .accessibilityFocused($headingFocused)
@@ -87,16 +87,18 @@ struct BackupRestoreProgressView: View {
                             }
                         } else {
                             Text("Choose a Field Evidence backup to restore.")
-                                .font(.body)
-                                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                                .font(DesignTokens.Typography.primaryBody)
+                                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
 
                         if let errorMessage {
-                            WorklightStatusBadge(
-                                kind: .blocked,
-                                text: errorMessage
+                            AssetRoundsStateLabel(
+                                kind: .error,
+                                text: Text(errorMessage)
                             )
+                            .accessibilityLabel(Text("Blocked: \(errorMessage)"))
+                            .accessibilityValue(Text(verbatim: String()))
                             .accessibilityIdentifier(Self.errorAccessibilityIdentifier)
                         }
 
@@ -110,43 +112,38 @@ struct BackupRestoreProgressView: View {
                     }
 
                     if validatedPackage == nil {
-                        Button("Choose backup") {
+                        AssetRoundsPrimaryAction("Choose backup") {
                             guard !isBusy else { return }
                             showsImporter = true
                         }
-                        .buttonStyle(WorklightPrimaryButtonStyle())
                         .disabled(isBusy)
                         .accessibilityIdentifier(Self.chooseAccessibilityIdentifier)
                     } else if mode == .replaceExisting {
-                        Button("Back up current data") {
+                        AssetRoundsSecondaryAction("Back up current data") {
                             guard !isBusy else { return }
                             showsCurrentBackup = true
                         }
-                        .buttonStyle(WorklightSecondaryButtonStyle())
                         .disabled(isBusy)
                         .accessibilityIdentifier(Self.backupCurrentAccessibilityIdentifier)
 
-                        Button("Replace current data") {
+                        AssetRoundsPrimaryAction("Replace current data") {
                             confirmRestore()
                         }
-                        .buttonStyle(WorklightPrimaryButtonStyle())
                         .disabled(isBusy)
                         .accessibilityIdentifier(Self.replaceAccessibilityIdentifier)
                     } else {
-                        Button("Restore data backup") { confirmRestore() }
-                        .buttonStyle(WorklightPrimaryButtonStyle())
+                        AssetRoundsPrimaryAction("Restore data backup") { confirmRestore() }
                         .disabled(isBusy)
                         .accessibilityIdentifier(Self.confirmAccessibilityIdentifier)
                     }
 
-                    Button("Cancel") {
+                    AssetRoundsSecondaryAction("Cancel") {
                         cancel()
                     }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
                     .disabled(isBusy)
                     .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)
                 }
-                .padding(DesignTokens.Spacing.medium)
+                .padding(DesignTokens.Spacing.space16)
             }
             .navigationTitle("Restore")
             .navigationBarTitleDisplayMode(.inline)
@@ -158,7 +155,7 @@ struct BackupRestoreProgressView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .interactiveDismissDisabled(validatedPackage != nil || isBusy)
         .fileImporter(
@@ -224,8 +221,8 @@ struct BackupRestoreProgressView: View {
         _ summary: BackupRestoreCurrentSummaryV1
     ) -> some View {
         Text("Current data")
-            .font(.headline)
-            .foregroundStyle(DesignTokens.Colors.primaryText)
+            .font(DesignTokens.Typography.sectionHeading)
+            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(Self.currentSummaryAccessibilityIdentifier)
         Text("\(summary.signCount) \(summary.signCount == 1 ? "sign" : "signs")")
@@ -250,8 +247,8 @@ struct BackupRestoreProgressView: View {
         _ summary: BackupValidationSummaryV1
     ) -> some View {
         Text("Incoming backup")
-            .font(.headline)
-            .foregroundStyle(DesignTokens.Colors.primaryText)
+            .font(DesignTokens.Typography.sectionHeading)
+            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(Self.incomingSummaryAccessibilityIdentifier)
         summaryContent(summary)
@@ -371,8 +368,8 @@ struct BackupRestoreProgressView: View {
 private extension View {
     func summaryLine() -> some View {
         self
-            .font(.headline)
-            .foregroundStyle(DesignTokens.Colors.primaryText)
+            .font(DesignTokens.Typography.sectionHeading)
+            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

@@ -27,20 +27,21 @@ struct ReportFailureView: View {
     var body: some View {
         if let reportID = displayedReportID {
             ZStack {
-                DesignTokens.Colors.canvas
-                    .opacity(0.96)
+                DesignTokens.SemanticColors.workBackground
                     .ignoresSafeArea()
 
                 ScrollView {
-                    WorklightCard {
-                        WorklightStatusBadge(
-                            kind: .blocked,
-                            text: "PDF unavailable"
+                    AssetRoundsEvidenceCard {
+                        AssetRoundsStateLabel(
+                            kind: .error,
+                            text: Text("PDF unavailable")
                         )
+                        .accessibilityLabel("Blocked: PDF unavailable")
+                        .accessibilityValue(Text(verbatim: String()))
 
                         Text("This report was saved, but its PDF is not available.")
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(DesignTokens.Colors.primaryText)
+                            .font(DesignTokens.Typography.screenTitle)
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityAddTraits(.isHeader)
                             .accessibilityFocused($isFailureHeadlineFocused)
@@ -49,14 +50,17 @@ struct ReportFailureView: View {
                             )
 
                         Text("Your completed check and saved report remain on this device. Retry report makes one new PDF attempt.")
-                            .font(.body)
-                            .foregroundStyle(DesignTokens.Colors.secondaryText)
+                            .font(DesignTokens.Typography.primaryBody)
+                            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
 
                         Button(isRetryInProgress ? "Retrying report…" : "Retry report") {
                             retryReport(id: reportID)
                         }
-                        .buttonStyle(WorklightPrimaryButtonStyle())
+                        .buttonStyle(.borderedProminent)
+                        .tint(DesignTokens.SemanticColors.primaryAction)
+                        .controlSize(.large)
+                        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                         .disabled(isRetryInProgress)
                         .accessibilityLabel(
                             isRetryInProgress
@@ -70,7 +74,7 @@ struct ReportFailureView: View {
                         )
                         .accessibilityIdentifier(Self.retryAccessibilityIdentifier)
                     }
-                    .padding(DesignTokens.Spacing.medium)
+                    .padding(DesignTokens.Spacing.space16)
                 }
             }
             .accessibilityIdentifier(Self.screenAccessibilityIdentifier)

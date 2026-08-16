@@ -64,12 +64,16 @@ struct OutcomeReviewView: View {
 
     private var outcomeScreen: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-            WorklightCard {
-                WorklightStatusBadge(kind: .information, text: "Outcome")
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+            AssetRoundsEvidenceCard {
+                Label("Outcome", systemImage: "info.circle.fill")
+                    .font(DesignTokens.Typography.secondaryBody.weight(.semibold))
+                    .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Information: Outcome")
                 Text("What did you observe?")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .font(DesignTokens.Typography.screenTitle)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .accessibilityAddTraits(.isHeader)
 
                 if isRecheck && !startsWithCouldNotVerify {
@@ -148,11 +152,11 @@ struct OutcomeReviewView: View {
             }
 
             if isRecheck && !isChoosingCouldNotVerify {
-                WorklightCard {
+                AssetRoundsEvidenceCard {
                     TextField("Optional note", text: $recheckNote, axis: .vertical)
                         .lineLimit(3...6)
                         .frame(
-                            minHeight: DesignTokens.Control.minimumHitSize,
+                            minHeight: DesignTokens.Target.minimumInteractiveHeight,
                             alignment: .topLeading
                         )
                         .accessibilityIdentifier(Self.recheckNoteAccessibilityIdentifier)
@@ -160,16 +164,16 @@ struct OutcomeReviewView: View {
                             updateRecheckSelection()
                         }
                     Text("\(recheckNote.count) of 1000 characters")
-                        .font(.caption)
-                        .foregroundStyle(DesignTokens.Colors.secondaryText)
+                        .font(DesignTokens.Typography.supportingCaption)
+                        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                 }
             }
 
             if isChoosingVisibleIssue || isChoosingDifferentIssue {
-                WorklightCard {
+                AssetRoundsEvidenceCard {
                     Text("Choose one visible issue")
-                        .font(.headline)
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.sectionHeading)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     ForEach(coordinator.signPackIssueLabels) { label in
                         choiceButton(
                             title: label.display,
@@ -192,10 +196,10 @@ struct OutcomeReviewView: View {
             }
 
             if isChoosingCouldNotVerify {
-                WorklightCard {
+                AssetRoundsEvidenceCard {
                     Text("Why could this check not be completed?")
-                        .font(.headline)
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.sectionHeading)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     ForEach(coordinator.couldNotVerifyReasons) { reason in
                         choiceButton(
                             title: reason.display,
@@ -225,8 +229,8 @@ struct OutcomeReviewView: View {
                     }
 
                     Text("\(couldNotVerifyNote.count) of 1000 characters")
-                        .font(.caption)
-                        .foregroundStyle(DesignTokens.Colors.secondaryText)
+                        .font(DesignTokens.Typography.supportingCaption)
+                        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                 }
             }
 
@@ -235,11 +239,14 @@ struct OutcomeReviewView: View {
             Button("Continue") {
                 prepareReview()
             }
-            .buttonStyle(WorklightPrimaryButtonStyle())
+            .buttonStyle(.borderedProminent)
+            .tint(DesignTokens.SemanticColors.primaryAction)
+            .controlSize(.large)
+            .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
             .disabled(!canContinue)
             .accessibilityIdentifier(Self.continueAccessibilityIdentifier)
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
         }
         .navigationTitle("Outcome")
         .accessibilityIdentifier(Self.outcomeScreenAccessibilityIdentifier)
@@ -247,12 +254,16 @@ struct OutcomeReviewView: View {
 
     private func reviewScreen(_ review: FinalizationReview) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-            WorklightCard {
-                WorklightStatusBadge(kind: .information, text: "Review")
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+            AssetRoundsEvidenceCard {
+                Label("Review", systemImage: "info.circle.fill")
+                    .font(DesignTokens.Typography.secondaryBody.weight(.semibold))
+                    .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Information: Review")
                 Text(isRecheck ? "Review this recheck" : "Review this check")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .font(DesignTokens.Typography.screenTitle)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .accessibilityAddTraits(.isHeader)
 
                 reviewRow(label: "Outcome", value: review.outcomeDisplay)
@@ -288,10 +299,10 @@ struct OutcomeReviewView: View {
                 identifier: Self.closeEvidenceAccessibilityIdentifier
             )
 
-            WorklightCard {
+            AssetRoundsEvidenceCard {
                 Text("Confirmed")
-                    .font(.headline)
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .font(DesignTokens.Typography.sectionHeading)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 Label(review.afterDarkAcknowledgementCopy, systemImage: "checkmark.circle.fill")
                 Label(review.safePositionAcknowledgementCopy, systemImage: "checkmark.circle.fill")
             }
@@ -301,7 +312,10 @@ struct OutcomeReviewView: View {
             Button(isSaving ? "Saving…" : "Save and finish") {
                 finalize()
             }
-            .buttonStyle(WorklightPrimaryButtonStyle())
+            .buttonStyle(.borderedProminent)
+            .tint(DesignTokens.SemanticColors.primaryAction)
+            .controlSize(.large)
+            .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
             .disabled(isSaving)
             .accessibilityIdentifier(Self.saveAccessibilityIdentifier)
 
@@ -309,11 +323,14 @@ struct OutcomeReviewView: View {
                 self.review = nil
                 errorMessage = nil
             }
-            .buttonStyle(WorklightSecondaryButtonStyle())
+            .buttonStyle(.bordered)
+            .tint(DesignTokens.SemanticColors.primaryAction)
+            .controlSize(.large)
+            .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
             .disabled(isSaving)
             .accessibilityIdentifier(Self.backAccessibilityIdentifier)
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
         }
         .navigationTitle("Review")
         .accessibilityIdentifier(Self.reviewScreenAccessibilityIdentifier)
@@ -332,19 +349,22 @@ struct OutcomeReviewView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .buttonStyle(WorklightSecondaryButtonStyle())
+        .buttonStyle(.bordered)
+        .tint(DesignTokens.SemanticColors.primaryAction)
+        .controlSize(.large)
+        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
         .accessibilityIdentifier(identifier)
     }
 
     private func reviewRow(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(label)
-                .font(.caption)
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .font(DesignTokens.Typography.supportingCaption)
+                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
             Text(value)
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
         }
         .accessibilityElement(children: .combine)
     }
@@ -355,7 +375,7 @@ struct OutcomeReviewView: View {
         isMissing: Bool,
         identifier: String
     ) -> some View {
-        WorklightCard {
+        AssetRoundsPhotoCapture {
             if let evidence,
                let data = try? coordinator.reviewThumbnailData(for: evidence),
                let image = UIImage(data: data) {
@@ -370,15 +390,15 @@ struct OutcomeReviewView: View {
                 evidence?.purposeDisplay ?? purposeDisplay,
                 systemImage: evidence == nil ? "photo.badge.exclamationmark" : "photo.fill"
             )
-                .font(.headline)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.sectionHeading)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             Text(
                 isMissing || evidence == nil
                     ? "Not captured — Could not verify"
                     : "Photo saved for this check"
             )
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
         }
         .accessibilityIdentifier(identifier)
     }
@@ -386,10 +406,15 @@ struct OutcomeReviewView: View {
     @ViewBuilder
     private var errorCard: some View {
         if let errorMessage {
-            WorklightCard {
-                WorklightStatusBadge(kind: .blocked, text: "Check not saved")
+            AssetRoundsEvidenceCard {
+                AssetRoundsStateLabel(
+                    kind: .error,
+                    text: Text("Check not saved")
+                )
+                .accessibilityLabel("Blocked: Check not saved")
+                .accessibilityValue(Text(verbatim: String()))
                 Text(errorMessage)
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             }
         }
     }

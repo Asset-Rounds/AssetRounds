@@ -58,25 +58,26 @@ struct NewSignView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-                WorklightCard {
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+                AssetRoundsEvidenceCard {
                     Text(siteOptions.isEmpty ? "Add your first sign" : "Add sign")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .font(DesignTokens.Typography.screenTitle)
+                        .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
                         .accessibilityAddTraits(.isHeader)
 
                     Text("Choose a customer or site, then name the sign you check there.")
-                        .font(.body)
-                        .foregroundStyle(DesignTokens.Colors.secondaryText)
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if !siteOptions.isEmpty {
-                    WorklightCard {
+                    AssetRoundsEvidenceCard {
                         Text("Customer / site")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(DesignTokens.Colors.primaryText)
+                            .font(DesignTokens.Typography.fieldLabel)
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
 
                         Picker("Customer / site", selection: $siteChoice) {
                             ForEach(siteOptions) { option in
@@ -91,7 +92,7 @@ struct NewSignView: View {
                     }
                 }
 
-                WorklightCard {
+                AssetRoundsEvidenceCard {
                     if siteChoice == .new {
                         labeledField(
                             label: "Customer / site name",
@@ -110,87 +111,87 @@ struct NewSignView: View {
                 }
 
                 if siteChoice == .new {
-                    WorklightCard {
-                    Button {
-                        withAnimation { showsOptionalDetails.toggle() }
-                    } label: {
-                        Label(
-                            showsOptionalDetails ? "Hide optional details" : "Add optional details",
-                            systemImage: showsOptionalDetails ? "chevron.up" : "chevron.down"
-                        )
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(WorklightSecondaryButtonStyle())
-                    .accessibilityIdentifier(Self.optionalToggleAccessibilityIdentifier)
-
-                    if showsOptionalDetails {
-                        VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-                            labeledField(
-                                label: "Address (optional)",
-                                text: $address,
-                                field: nil,
-                                identifier: Self.addressAccessibilityIdentifier
+                    AssetRoundsEvidenceCard {
+                        AssetRoundsSecondaryAction(action: {
+                            showsOptionalDetails.toggle()
+                        }) {
+                            Label(
+                                showsOptionalDetails ? "Hide optional details" : "Add optional details",
+                                systemImage: showsOptionalDetails ? "chevron.up" : "chevron.down"
                             )
-
-                            labeledField(
-                                label: "IANA time-zone identifier (optional)",
-                                text: $timeZoneID,
-                                field: .timeZoneID,
-                                identifier: Self.timeZoneAccessibilityIdentifier
-                            )
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-
-                            Toggle("I confirm this exact time-zone identifier", isOn: $isTimeZoneConfirmed)
-                                .frame(
-                                    minWidth: DesignTokens.Control.minimumHitSize,
-                                    maxWidth: .infinity,
-                                    minHeight: DesignTokens.Control.minimumHitSize,
-                                    alignment: .leading
-                                )
-                                .contentShape(.interaction, Rectangle())
-                                .contentShape(.accessibility, Rectangle())
-                                .tint(DesignTokens.Colors.interactionAccent)
-                                .accessibilityIdentifier(Self.timeZoneConfirmAccessibilityIdentifier)
-                                .accessibilityFocused(
-                                    $accessibilityFocusedField,
-                                    equals: .timeZoneConfirmation
-                                )
                         }
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
+                        .accessibilityLabel(
+                            showsOptionalDetails ? "Hide optional details" : "Add optional details"
+                        )
+                        .accessibilityIdentifier(Self.optionalToggleAccessibilityIdentifier)
+
+                        if showsOptionalDetails {
+                            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+                                labeledField(
+                                    label: "Address (optional)",
+                                    text: $address,
+                                    field: nil,
+                                    identifier: Self.addressAccessibilityIdentifier
+                                )
+
+                                labeledField(
+                                    label: "IANA time-zone identifier (optional)",
+                                    text: $timeZoneID,
+                                    field: .timeZoneID,
+                                    identifier: Self.timeZoneAccessibilityIdentifier
+                                )
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+
+                                Toggle("I confirm this exact time-zone identifier", isOn: $isTimeZoneConfirmed)
+                                    .frame(
+                                        minWidth: DesignTokens.Target.minimumInteractiveWidth,
+                                        maxWidth: .infinity,
+                                        minHeight: DesignTokens.Target.minimumInteractiveHeight,
+                                        alignment: .leading
+                                    )
+                                    .contentShape(.interaction, Rectangle())
+                                    .contentShape(.accessibility, Rectangle())
+                                    .tint(DesignTokens.SemanticColors.primaryAction)
+                                    .accessibilityIdentifier(Self.timeZoneConfirmAccessibilityIdentifier)
+                                    .accessibilityFocused(
+                                        $accessibilityFocusedField,
+                                        equals: .timeZoneConfirmation
+                                    )
+                            }
+                        }
                     }
                 } else if let selectedSite {
-                    WorklightCard {
+                    AssetRoundsEvidenceCard {
                         Text("Using \(selectedSite.label)")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(DesignTokens.Colors.primaryText)
+                            .font(DesignTokens.Typography.fieldLabel)
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         if let address = selectedSite.address {
                             Text(address)
-                                .font(.subheadline)
-                                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                                .font(DesignTokens.Typography.secondaryBody)
+                                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                         }
                     }
                 }
 
                 if let errorMessage {
-                    WorklightStatusBadge(kind: .blocked, text: errorMessage)
+                    AssetRoundsStateLabel(kind: .error, text: Text(errorMessage))
+                        .accessibilityLabel("Blocked: \(errorMessage)")
+                        .accessibilityValue(Text(verbatim: String()))
                         .accessibilityIdentifier(Self.errorAccessibilityIdentifier)
                 }
 
-                Button(isSaving ? "Saving…" : "Save and start check") {
-                    save()
+                    AssetRoundsPrimaryAction(action: save) {
+                        Text(isSaving ? "Saving…" : "Save and start check")
+                    }
+                    .accessibilityLabel(isSaving ? "Saving…" : "Save and start check")
+                    .disabled(isSaving)
+                    .accessibilityIdentifier(Self.saveAccessibilityIdentifier)
                 }
-                .buttonStyle(WorklightPrimaryButtonStyle())
-                .disabled(isSaving)
-                .accessibilityIdentifier(Self.saveAccessibilityIdentifier)
             }
-            .padding(DesignTokens.Spacing.medium)
         }
         .navigationTitle("New sign")
         .navigationBarTitleDisplayMode(.inline)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
     }
 
@@ -201,10 +202,10 @@ struct NewSignView: View {
         field: Field?,
         identifier: String
     ) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(label)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.fieldLabel)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
 
             if let field {
                 TextField(label, text: text)

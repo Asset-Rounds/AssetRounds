@@ -34,59 +34,62 @@ struct DiagnosticExportView: View {
 
     var body: some View {
         ScrollView {
-            WorklightCard {
+            AssetRoundsEvidenceCard {
                 Text("Diagnostics preview")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .font(DesignTokens.Typography.screenTitle)
+                    .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier(Self.headingAccessibilityIdentifier)
 
                 Text(
                     "These counters are best-effort lower-bound signals. They may be incomplete and are not payment, access, or cohort authority."
                 )
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier(Self.authorityAccessibilityIdentifier)
 
                 Text(
                     "The export includes only app and device versions, local counters, and bounded system metrics when available. It never includes customer or sign details, addresses, notes, photos, reports, backups, paths, hashes, StoreKit details, credentials, or logs."
                 )
-                .font(.subheadline)
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .font(DesignTokens.Typography.secondaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier(Self.privacyAccessibilityIdentifier)
 
                 if let prepared {
                     preview(prepared.value)
 
-                    Button("Save diagnostics to Files") {
+                    AssetRoundsPrimaryAction("Save diagnostics to Files") {
                         statusMessage = nil
                         showsExporter = true
                     }
-                    .buttonStyle(WorklightPrimaryButtonStyle())
                     .accessibilityHint(
                         "Opens the system Files destination picker for this reviewed diagnostic JSON"
                     )
                     .accessibilityIdentifier(Self.exportAccessibilityIdentifier)
                 } else if let errorMessage {
-                    WorklightStatusBadge(kind: .blocked, text: errorMessage)
+                    AssetRoundsStateLabel(kind: .error, text: Text(errorMessage))
+                        .accessibilityLabel(Text("Blocked: \(errorMessage)"))
+                        .accessibilityValue(Text(verbatim: String()))
                 } else {
                     ProgressView("Preparing privacy-safe diagnostics")
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 if let statusMessage {
-                    WorklightStatusBadge(kind: .complete, text: statusMessage)
+                    AssetRoundsStateLabel(kind: .completed, text: Text(statusMessage))
+                        .accessibilityLabel(Text("Complete: \(statusMessage)"))
+                        .accessibilityValue(Text(verbatim: String()))
                         .accessibilityIdentifier(Self.statusAccessibilityIdentifier)
                 }
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
         }
         .navigationTitle("Diagnostics")
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .fileExporter(
             isPresented: $showsExporter,
@@ -119,19 +122,19 @@ struct DiagnosticExportView: View {
 
     @ViewBuilder
     private func preview(_ value: DiagnosticExportV1) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text("App \(value.app.version) (\(value.app.build))")
             Text("Device \(value.device.model) · iOS \(value.device.osVersion)")
             Text("Generated \(value.generatedAt.formatted(date: .abbreviated, time: .shortened))")
         }
-        .font(.subheadline)
-        .foregroundStyle(DesignTokens.Colors.secondaryText)
+        .font(DesignTokens.Typography.secondaryBody)
+        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
         .fixedSize(horizontal: false, vertical: true)
 
         let counters = value.counters
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text("Local counters")
-                .font(.headline)
+                .font(DesignTokens.Typography.sectionHeading)
             Text("First signs: \(counters.firstSignCreated)")
             Text("Onboarding completions: \(counters.onboardingCompleted)")
             Text("Reports saved: \(counters.reportSaved)")
@@ -142,16 +145,16 @@ struct DiagnosticExportView: View {
                 "Purchase results — verified \(counters.purchaseResult.verified), cancelled \(counters.purchaseResult.cancelled), pending \(counters.purchaseResult.pending), unverified \(counters.purchaseResult.unverified), failed \(counters.purchaseResult.failed)"
             )
         }
-        .font(.body)
-        .foregroundStyle(DesignTokens.Colors.primaryText)
+        .font(DesignTokens.Typography.primaryBody)
+        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(Self.countersAccessibilityIdentifier)
 
         if let metricKit = value.metricKit {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
                 Text("Bounded system summary")
-                    .font(.headline)
+                    .font(DesignTokens.Typography.sectionHeading)
                 Text("Crashes: \(metricKit.crashCount)")
                 Text("Hangs: \(metricKit.hangCount)")
                 if let bytes = metricKit.peakMemoryBytes {
@@ -163,15 +166,15 @@ struct DiagnosticExportView: View {
                     )
                 }
             }
-            .font(.body)
-            .foregroundStyle(DesignTokens.Colors.primaryText)
+            .font(DesignTokens.Typography.primaryBody)
+            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier(Self.metricKitAccessibilityIdentifier)
         } else {
             Text("No recent bounded system summary is available.")
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier(Self.metricKitAccessibilityIdentifier)
         }

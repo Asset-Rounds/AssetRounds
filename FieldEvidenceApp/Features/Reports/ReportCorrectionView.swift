@@ -61,46 +61,42 @@ struct ReportCorrectionView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
-                WorklightCard {
-                    Text("Correct report")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+                AssetRoundsEvidenceCard {
+                    AssetRoundsReportBrandHeader(title: Text("Correct report"))
                         .accessibilityFocused($accessibilityFocus, equals: .header)
                         .accessibilityIdentifier(Self.headerAccessibilityIdentifier)
 
                     Text("Change the note only. Evidence, outcome, time, and report history stay unchanged.")
-                        .font(.body)
-                        .foregroundStyle(DesignTokens.Colors.secondaryText)
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if showsForm {
-                    WorklightCard {
+                    AssetRoundsEvidenceCard {
                         Text("Correction note")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(DesignTokens.Colors.primaryText)
+                            .font(DesignTokens.Typography.fieldLabel)
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                             .accessibilityHidden(true)
 
                         TextField("Correction note", text: $note, axis: .vertical)
                             .lineLimit(4...8)
-                            .padding(.horizontal, DesignTokens.Spacing.small)
+                            .padding(.horizontal, DesignTokens.Spacing.space8)
                             .frame(
                                 maxWidth: .infinity,
-                                minHeight: DesignTokens.Control.minimumHitSize,
+                                minHeight: DesignTokens.Target.minimumInteractiveHeight,
                                 alignment: .topLeading
                             )
-                            .background(DesignTokens.Colors.surface)
+                            .background(DesignTokens.SemanticColors.elevatedSurface)
                             .clipShape(
                                 RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
                             )
                             .overlay {
                                 RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
                                     .stroke(
-                                        DesignTokens.Colors.essentialControlStroke,
-                                        lineWidth: 1
+                                        DesignTokens.SemanticColors.separator,
+                                        lineWidth: DesignTokens.Stroke.standard
                                     )
                             }
                             .textInputAutocapitalization(.sentences)
@@ -115,11 +111,11 @@ struct ReportCorrectionView: View {
                             }
 
                         Text("\(normalizedCharacterCount) of 1,000 characters")
-                            .font(.caption)
+                            .font(DesignTokens.Typography.supportingCaption)
                             .foregroundStyle(
                                 normalizedCharacterCount > 1_000
-                                    ? DesignTokens.Colors.blockedText
-                                    : DesignTokens.Colors.secondaryText
+                                    ? DesignTokens.SemanticColors.error
+                                    : DesignTokens.SemanticColors.secondaryText
                             )
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityIdentifier(Self.countAccessibilityIdentifier)
@@ -127,7 +123,12 @@ struct ReportCorrectionView: View {
                 }
 
                 if let validationMessage {
-                    WorklightStatusBadge(kind: .blocked, text: validationMessage)
+                    AssetRoundsStateLabel(
+                        kind: .error,
+                        text: Text(validationMessage)
+                    )
+                        .accessibilityLabel(Text("Blocked: \(validationMessage)"))
+                        .accessibilityValue(Text(verbatim: String()))
                         .accessibilityFocused($accessibilityFocus, equals: .validation)
                         .accessibilityIdentifier(Self.validationAccessibilityIdentifier)
                 }
@@ -136,18 +137,21 @@ struct ReportCorrectionView: View {
 
                 if showsForm {
                     Button("Save correction", action: save)
-                        .buttonStyle(WorklightPrimaryButtonStyle())
+                        .buttonStyle(.borderedProminent)
+                        .tint(DesignTokens.SemanticColors.primaryAction)
+                        .controlSize(.large)
+                        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                         .disabled(state == .saving)
                         .accessibilityHint("Creates a new report revision and keeps the prior report.")
                         .accessibilityIdentifier(Self.saveAccessibilityIdentifier)
                 }
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
         }
         .navigationTitle("Correct report")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(hidesBackNavigation)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .onAppear {
             moveAccessibilityFocus(to: .header)
@@ -177,17 +181,19 @@ struct ReportCorrectionView: View {
         case .editing:
             EmptyView()
         case .saving:
-            WorklightCard {
+            AssetRoundsEvidenceCard {
                 ProgressView("Saving correction")
-                    .frame(maxWidth: .infinity, minHeight: DesignTokens.Control.minimumHitSize)
+                    .frame(maxWidth: .infinity, minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .accessibilityFocused($accessibilityFocus, equals: .saving)
                     .accessibilityIdentifier(Self.savingAccessibilityIdentifier)
             }
         case .failed:
-            WorklightStatusBadge(
-                kind: .blocked,
-                text: "Correction couldn’t be saved. Nothing changed."
+            AssetRoundsStateLabel(
+                kind: .error,
+                text: Text("Correction couldn’t be saved. Nothing changed.")
             )
+            .accessibilityLabel("Blocked: Correction couldn’t be saved. Nothing changed.")
+            .accessibilityValue(Text(verbatim: String()))
             .accessibilityFocused($accessibilityFocus, equals: .failure)
             .accessibilityIdentifier(Self.failureAccessibilityIdentifier)
         case .ready(let currentReportID, let priorReportID):
@@ -196,11 +202,13 @@ struct ReportCorrectionView: View {
                 priorReportID: priorReportID
             )
         case .deliveryFailed(let reportID, let priorReportID):
-            WorklightCard {
-                WorklightStatusBadge(
-                    kind: .attention,
-                    text: "Correction saved, but its PDF couldn’t be created. Retry from the saved report."
+            AssetRoundsEvidenceCard {
+                AssetRoundsStateLabel(
+                    kind: .warning,
+                    text: Text("Correction saved, but its PDF couldn’t be created. Retry from the saved report.")
                 )
+                .accessibilityLabel("Attention: Correction saved, but its PDF couldn’t be created. Retry from the saved report.")
+                .accessibilityValue(Text(verbatim: String()))
                 .accessibilityFocused($accessibilityFocus, equals: .failure)
                 .accessibilityIdentifier(Self.failureAccessibilityIdentifier)
 
@@ -209,7 +217,10 @@ struct ReportCorrectionView: View {
                     didSelectReport(priorReportID)
                     dismiss()
                 }
-                .buttonStyle(WorklightSecondaryButtonStyle())
+                .buttonStyle(.bordered)
+                .tint(DesignTokens.SemanticColors.primaryAction)
+                .controlSize(.large)
+                .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                 .accessibilityHint("Opens the immediately prior saved report.")
                 .accessibilityIdentifier(Self.priorReportAccessibilityIdentifier)
             }
@@ -220,12 +231,17 @@ struct ReportCorrectionView: View {
         currentReportID: UUID,
         priorReportID: UUID?
     ) -> some View {
-        WorklightCard {
-            WorklightStatusBadge(kind: .complete, text: "Correction saved")
+        AssetRoundsEvidenceCard {
+            AssetRoundsStateLabel(
+                kind: .completed,
+                text: Text("Correction saved")
+            )
+            .accessibilityLabel("Complete: Correction saved")
+            .accessibilityValue(Text(verbatim: String()))
 
             Text("The prior report and evidence remain unchanged.")
-                .font(.body)
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityFocused($accessibilityFocus, equals: .ready)
                 .accessibilityIdentifier(Self.readyAccessibilityIdentifier)
@@ -235,7 +251,10 @@ struct ReportCorrectionView: View {
                     didSelectReport(priorReportID)
                     dismiss()
                 }
-                .buttonStyle(WorklightSecondaryButtonStyle())
+                .buttonStyle(.bordered)
+                .tint(DesignTokens.SemanticColors.primaryAction)
+                .controlSize(.large)
+                .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                 .accessibilityHint("Opens the immediately prior saved report.")
                 .accessibilityIdentifier(Self.priorReportAccessibilityIdentifier)
             }
@@ -244,7 +263,10 @@ struct ReportCorrectionView: View {
                 didSelectReport(currentReportID)
                 dismiss()
             }
-            .buttonStyle(WorklightPrimaryButtonStyle())
+            .buttonStyle(.borderedProminent)
+            .tint(DesignTokens.SemanticColors.primaryAction)
+            .controlSize(.large)
+            .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
             .accessibilityHint("Opens the current corrected report.")
             .accessibilityIdentifier(Self.currentReportAccessibilityIdentifier)
         }
