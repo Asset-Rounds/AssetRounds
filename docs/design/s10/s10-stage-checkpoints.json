@@ -78,6 +78,32 @@
         "appicon-primary-build-setting",
         "runtime-asset-count-12"
       ]
+    },
+    {
+      "stage": "Migration",
+      "gate_id": "s10.3-migration",
+      "product_head": "e1004c9cfeff932e904046e0ad1aa31d2bb2c139",
+      "evidence_head": "9461a8ef52cdd2a1a49a95d34c7e7ea8abd9d284",
+      "evidence_head_role": "K",
+      "documents": [
+        {
+          "document_type": "token_coverage",
+          "path": "docs/design/s10/s10-token-coverage.json",
+          "blob_commit": "9461a8ef52cdd2a1a49a95d34c7e7ea8abd9d284",
+          "sha256": "904BFF5904E25C43C3101038AA3836BDD9C66CE0E83E342A36F563D54988BBEE"
+        },
+        {
+          "document_type": "experience_validation",
+          "path": "docs/design/s10/s10-experience-validation.json",
+          "blob_commit": "9461a8ef52cdd2a1a49a95d34c7e7ea8abd9d284",
+          "sha256": "74D8BC51E00A864AC081398B45DE18D9DD81A36BBC5921E32F166795F167CF52"
+        }
+      ],
+      "evidence_ids": [
+        "github-actions-run-31966468925-artifact-9268967312",
+        "screen-state-count-67",
+        "untracked-visual-constant-count-0"
+      ]
     }
   ]
 }

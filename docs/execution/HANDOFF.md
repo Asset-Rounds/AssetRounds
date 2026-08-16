@@ -2611,3 +2611,79 @@ The exact accepted envelope is 21 product/project/runtime-asset paths, two test 
 - Complete frozen-package validation `PASS`: `validate-s10-contracts.ps1 -Mode ComponentSystem` accepted the ordered Inventory and ComponentSystem checkpoints, E→K ancestry, historical token-coverage SHA-256 `D52B72B86D40AB93EE58BD467A0B83834D7F58ABAB39C08096DFBF094719B476`, all nine evidenced component rows, all 67 truthful `NOT_RUN` screen rows, AppIcon primary-build-setting evidence, and exact twelve-runtime-asset evidence.
 - S10.2 is complete with `E=28c5851a432db026251012de1e396a5896c9f91f`, `K=5e7763e14922d96f209350f95e80e1c95856679e`, and `C=f8df05fb1c07ee67d1f83f49336f85a309b5195b`. Remote `main` remained immutable phase base `P=01233f789b1cef5a6f56c7ff4caa9271409cd3bc`.
 - Next unstarted card: `S10.3 — Full released-state visual migration`. Same-phase autopilot may commit/push exactly this addendum plus immediate-next S10.3 CURRENT_TASK hydration, then must run fresh S10.3 G0 before selector, source, test, or evidence mutation.
+
+## `S10.3` — `accepted E/K; receipt candidate` — `2026-08-16T15:39:07-04:00`
+
+- Phase / branch / position / boundary: `S10` / `phase/s10-brand-refresh` / `3 of 6` / `no`.
+- Outcome: migrated every one of the frozen 67 released app states across the exact 26 SwiftUI sources to the accepted AssetRounds semantic component system, including the conditionally authorized content-preserving photo composition seam, while preserving copy, native controls, accessibility identifiers, navigation, persistence, commerce, evidence, report, and backup behavior.
+- Immutable phase-main base: `P=01233f789b1cef5a6f56c7ff4caa9271409cd3bc`; remote `main` remained exactly P throughout S10.3.
+- Integrated/card base and predecessor: `M=f8df05fb1c07ee67d1f83f49336f85a309b5195b`, the accepted S10.2 receipt commit; accepted S10.2 product `28c5851a432db026251012de1e396a5896c9f91f`, evidence `5e7763e14922d96f209350f95e80e1c95856679e`, product run `31952398978`, artifact `9265131233`, and complete `ComponentSystem` validation remain immutable.
+- Observed task-start authority: `A=64b193807b2c508b5c8e480da32b59e62ea01281`; `A^=M`, and `M..A` changed exactly append-only `docs/execution/HANDOFF.md` plus immediate-next `docs/execution/CURRENT_TASK.md`. Owner-authorized direct-child authority correction `5ad577e35e22ca005bbcc0e75dca742bfc349241` changed only CURRENT_TASK and the S10.3 runbook card to admit the diagnosed content-preserving `AssetRoundsPhotoCapture` initializer.
+- First product implementation: `I=a5054f4038944eb19335541dd2212edeacc25b41`. Accepted direct-child implementation sequence and product head: `E=e1004c9cfeff932e904046e0ad1aa31d2bb2c139`.
+- Descendant evidence head: `K=9461a8ef52cdd2a1a49a95d34c7e7ea8abd9d284`; `K^=E`, and `E..K` changes exactly `docs/design/s10/s10-token-coverage.json` and `docs/design/s10/s10-experience-validation.json`. Token coverage is `migrated`, every `67/67` screen row is exact-evidence `PASS`, `untracked_visual_constant_count=0`, all nine accepted component rows and `component_system_product_head` are preserved, and experience changes only `product_head=E` while remaining truthfully `planned`.
+- Exact selector: S10.3 F25/UI enabled; compact JSON plus LF, 348 bytes, SHA-256 `5EFEF5082CD41316FF7FFA13663B4F6A641A536B8D93DF3DCCAB8C0196F217B5`; exact selectors `FieldEvidenceAppTests/S10_3BrandMigrationTests` and `FieldEvidenceAppUITests/S10_3BrandMigrationUITests`.
+- Accepted run/job/URLs: `31966468925` / `95212275453`; `https://github.com/palatis3/AssetRounds/actions/runs/31966468925`; `https://github.com/palatis3/AssetRounds/actions/runs/31966468925/job/95212275453`; attempt 1; terminal `success`; exact `head_sha=E`.
+- Runner/toolchain/destination: `macos26` image `20260728.0273.1`; Xcode 26.6 build `17F113`; SDK `iphonesimulator26.5` build `23F81a`; iPhone 17 / iOS 26.2 build `23C54`; UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`; initial Simulator state `Shutdown`.
+- Budgets: setup-plus-artifact `17/300` s; Simulator boot `70/900` s; build `192/900` s; targeted-test step `56/1200` s; UI step `1380/1800` s with selected test `1327.957` s; total job `1660/4500` s; every watchdog passed.
+- Artifact: `ios-ci-31966468925-1`, ID `9268967312`, size `31135810`, digest `sha256:42c871456fa009ce3254723f30855fb4c5af563352cda2ba4f5983744fb7d17c`, expires `2026-08-30T19:31:41Z`; all `99/99` listed payload checksums independently matched `SHA256SUMS.txt`.
+- Accepted artifact hashes: `SHA256SUMS.txt` `F61718F54E1A5B22A5A08D309E56A7B23FB7342B75FD2488680971460C036A88`; `build-smoke.log` `5E8DE269121C4598E2753EA8C6FA07CD2E2283B371AA1EBC322187FE1104B9B0`; `test-smoke.log` `330733218F8454E0DD22ADBDC2811FDFBA2B1394B9F7E8D398B96BAC061593E9`; `ui-smoke.log` `5129503331839EA35C3376B057938860BAC0AAAAEC2C4AA7A687CA60E168D7D4`; `ui-final.png` `322FF82D9D26D3979563B0885FF82ADDE32191845FD216D833E9F254BC4ECABA`.
+- Exact commands: `bash Scripts/run-with-timeout.sh 900 bash Scripts/build-smoke.sh`; `bash Scripts/run-with-timeout.sh 1200 bash Scripts/test-smoke.sh`; `bash Scripts/run-with-timeout.sh 1800 bash Scripts/ui-smoke.sh`; all exited 0 on the accepted run.
+
+### Changed paths
+
+- `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
+- `FieldEvidenceApp/App/LaunchView.swift`
+- `FieldEvidenceApp/DesignSystem/WorklightComponents.swift`
+- `FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift`
+- `FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/PreflightView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift`
+- `FieldEvidenceApp/Features/Issues/IssueDetailView.swift`
+- `FieldEvidenceApp/Features/Issues/RecordWorkView.swift`
+- `FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift`
+- `FieldEvidenceApp/Features/Reports/ReportDetailView.swift`
+- `FieldEvidenceApp/Features/Reports/ReportFailureView.swift`
+- `FieldEvidenceApp/Features/Reports/ReportsRootView.swift`
+- `FieldEvidenceApp/Features/Sample/PackSampleView.swift`
+- `FieldEvidenceApp/Features/Settings/BackupExportView.swift`
+- `FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift`
+- `FieldEvidenceApp/Features/Settings/EraseAllView.swift`
+- `FieldEvidenceApp/Features/Settings/FeedbackView.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift`
+- `FieldEvidenceApp/Features/Signs/NewSignView.swift`
+- `FieldEvidenceApp/Features/Signs/SignDetailView.swift`
+- `FieldEvidenceApp/Features/Signs/SignsRootView.swift`
+- `FieldEvidenceApp/Features/Subscription/PaywallView.swift`
+- `FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift`
+- `FieldEvidenceAppTests/S10_3BrandMigrationTests.swift`
+- `FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift`
+- `Scripts/ci-selection.json`
+
+The accepted product envelope is the exact 26 released SwiftUI sources, the conditionally authorized source-compatible Worklight component seam, two bounded tests, and the standing selector exception. No asset/catalog, domain, model, schema, service, persistence, report/backup output, entitlement policy, copy, route, permission, package, signing, upload, deployment, TestFlight, or App Store behavior changed.
+
+### Accepted exact test and migration evidence
+
+- Unit `PASS` (`4/4`): `testAllReleasedSourcesUseTheClosedBrandSystemWithoutVisualForks()`, 0.297 s; `testCopyIdentifiersImportsAndNativeBehaviorAuthorityStayFrozen()`, 0.065 s; `testExactFrozenInventoryMapsAllSixtySevenStatesToTheMigrationEnvelope()`, 0.014 s; `testSelectorAndPredecessorEvidenceRemainExactAndUnpromoted()`, 0.011 s.
+- UI `PASS` (`1/1`): `testAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift()`, 1327.957 s.
+- GOLDEN `PASS`: `ui-smoke.log` contains exactly `67/67` unique `S10_MIGRATION_STATE` records spanning every frozen route and exception family. The bounded route completed fresh-install, sign/check/report, issue/work/recheck, correction/history/failure, Settings/commerce/data-rights, Light, Dark, and AccessibilityXXXL states with the exact preserved identifiers and outcomes.
+- Migration/static `PASS`: every frozen state maps to the exact authorized source set and accepted component/token vocabulary; the quoted-copy/identifier/import authority digest is `C34DB3D96BC4C43F9B6F5A1DEDF80805C73E57495B9448E1B54DAD84D840B645`; untracked visual constants are exactly zero.
+- Preservation `PASS`: model/report/backup authority and native actions remained unchanged; evidence photos remain untinted and aspect-correct; S10.1's 67 owner-approved pre-brand baselines and S10.2's runtime assets, colors, 45 tokens, nine components, AppIcon settings, and evidence rows were not rewritten.
+- No S10.4 automated comparison/accessibility/localization result, S10.5 physical/manual/durability/performance result, or S10.6 release/store/legal result is claimed. Raw timing markers remain only accepted-run evidence until their authorized later cards.
+
+### Candidate recovery provenance
+
+- Run `31954964082` at I exposed the Swift 5 throwing-autoclosure compile error in the bounded unit test. Direct child `cde534df5047f1cc3eb161c41bae16f86808ce53` prederived that value without changing product acceptance.
+- Runs `31955229297`, `31956026847`, `31957052754`, `31957942181`, and `31958549972` exposed bounded migrated-flow visibility/order, lazy outcome readiness, keyboard-obscured Save, and AccessibilityXXXL photo-action geometry defects. The direct-child sequence `ea36a8890197e93219a1529f9dbef769897c5b38` → `eb82e59b3b8d4bbcfa6296085b3a81924224de73` → `b3897da17e38b3c65e387aa6180bd67a22d2095c` → `ce05e92f88c1c9021d27bc5ec4b7b82d8c3708f5` → `bf915f9f781a86db19df7614a349892d6454257d` corrected only those exact test/presentation causes.
+- Runs `31959627302` and `31960912721` showed, respectively, a hosted StoreKit unverified result and native tab identifiers owned by the wrong subtree. E changed only AppShell's iOS 18 native Tab identifier binding; copy/order/navigation stayed frozen.
+- Exact-E runs `31961651457`, `31962737635`, `31963703829`, and `31964839702` reached the real StoreKit purchase route but returned the exact fail-closed unverified result. Run `31965795062` stopped at a transient early Reports-tab AX lookup. No synthetic entitlement, retry branch, session reset, broader timeout, selector weakening, state omission, or failed run rerun was accepted. Fresh runner `31966468925` at identical E completed all acceptance.
+
+### Evidence and receipt state
+
+- Historical K blobs: token coverage SHA-256 `904BFF5904E25C43C3101038AA3836BDD9C66CE0E83E342A36F563D54988BBEE`; experience validation SHA-256 `74D8BC51E00A864AC081398B45DE18D9DD81A36BBC5921E32F166795F167CF52`.
+- The new ordered `Migration` checkpoint binds E, K, both historical document hashes, `github-actions-run-31966468925-artifact-9268967312`, `screen-state-count-67`, and `untracked-visual-constant-count-0`. The prior Inventory and ComponentSystem rows remain byte-for-byte unchanged.
+- Remote phase was freshly verified at K and remote main at P before receipt mutation. This append plus `docs/design/s10/s10-stage-checkpoints.json` is the exact receipt-C payload and does not self-record its future C SHA. Complete V4.1 `Migration` validation using the frozen package evidence-lock template is required before transition; canonical `docs/design/s10/s10-evidence-lock.json` remains absent until S10.6.
+- `docs/execution/KNOWN_BUGS.md` contains only its empty template. Known-bug entries: `NONE`. S10.3 product/evidence blockers: `NONE`.
+- Next unstarted card: `S10.4 — Automated appearance, accessibility, and localization lab`. Same-phase autopilot may append the accepted C/validator addendum and hydrate only immediate-next S10.4 CURRENT_TASK after receipt validation, then must run fresh S10.4 G0.
