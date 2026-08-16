@@ -1071,54 +1071,12 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         scroll(purchase, in: app)
         purchase.tap()
         let purchaseState = element("s7.2.paywall.purchase-state", in: app)
-        let verifiedCopy = "Purchase verified. Subscription access is ready."
-        let unverifiedCopy = "Purchase couldn’t be verified. Your existing data is still available. Try again."
-        let terminalPurchase = XCTNSPredicateExpectation(
-            predicate: NSPredicate(
-                format: "label CONTAINS %@ OR label == %@",
-                verifiedCopy,
-                unverifiedCopy
-            ),
-            object: purchaseState
-        )
-        XCTAssertEqual(
-            XCTWaiter.wait(for: [terminalPurchase], timeout: 45),
-            .completed
-        )
-        if purchaseState.label == unverifiedCopy {
-            guard let session = storeKitSession else {
-                XCTFail("The retained StoreKit test session is unavailable.")
-                return
-            }
-            app.terminate()
-            session.clearTransactions()
-            app.launch()
-            XCTAssertTrue(element("s2.sign-detail.screen", in: app)
-                .waitForExistence(timeout: 30))
-
-            let blockedStart = element("s2.sign-detail.start-check", in: app)
-            scroll(blockedStart, in: app)
-            assertControl(blockedStart, label: "Start Check")
-            blockedStart.tap()
-            XCTAssertTrue(element("s7.2.paywall.screen", in: app)
-                .waitForExistence(timeout: 30))
-            XCTAssertTrue(store.waitForExistence(timeout: 30))
-            XCTAssertTrue(wait(for: store, predicate: "value == 'Ready'", timeout: 20))
-            XCTAssertTrue(store.isEnabled)
-
-            let retryPurchase = firstPurchaseButton(in: app)
-            scroll(retryPurchase, in: app)
-            XCTAssertTrue(retryPurchase.isEnabled)
-            retryPurchase.tap()
-            XCTAssertTrue(wait(
-                for: purchaseState,
-                predicate: "label CONTAINS %@",
-                argument: verifiedCopy,
-                timeout: 45
-            ))
-        } else {
-            XCTAssertTrue(purchaseState.label.contains(verifiedCopy))
-        }
+        XCTAssertTrue(wait(
+            for: purchaseState,
+            predicate: "label CONTAINS %@",
+            argument: "Purchase verified. Subscription access is ready.",
+            timeout: 45
+        ))
         captureBaseline("state.paywall.purchase-complete", in: app)
     }
 
