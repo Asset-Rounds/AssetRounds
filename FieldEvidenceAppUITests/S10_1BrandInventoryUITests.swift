@@ -77,7 +77,7 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         app.launch()
 
         completeWorkAndResolvedRecheckAtXXXL(in: app)
-        captureNoEntitlementBeforeEvaluationLimit(in: app)
+        captureNoEntitlementAndResetStoreKit(in: app)
         captureAlternativeCompletedCheckStates(in: app)
         app.terminate()
         app.launchArguments.append("--s4-2-ui-test-render-failure-once")
@@ -590,7 +590,7 @@ final class S10_1BrandInventoryUITests: XCTestCase {
     }
 
     @MainActor
-    private func captureNoEntitlementBeforeEvaluationLimit(
+    private func captureNoEntitlementAndResetStoreKit(
         in app: XCUIApplication
     ) {
         let settings = element("s1.settings.button", in: app)
@@ -620,6 +620,18 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         navigateBack(in: app)
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
             .waitForExistence(timeout: 20))
+
+        app.terminate()
+        guard let session = storeKitSession else {
+            XCTFail("The retained StoreKit test session is required")
+            return
+        }
+        session.resetToDefaultState()
+        session.clearTransactions()
+        session.disableDialogs = true
+        app.launch()
+        XCTAssertTrue(element("s2.sign-detail.screen", in: app)
+            .waitForExistence(timeout: 30))
     }
 
     @MainActor
