@@ -1131,37 +1131,48 @@ final class WorkCoordinator {
         terminal: WorkflowRecord,
         chain: [WorkflowRecord]
     ) -> Bool {
-        switch issue.status {
-        case IssueStatus.open.rawValue:
-            let ordinaryOpening = terminal.stage == WorkflowStage.check.rawValue
-                && terminal.outcomeKey == "visible_issue"
-                && terminal.issueID == issue.id
-            let differentIssueOpening = terminal.stage == WorkflowStage.recheck.rawValue
-                && terminal.outcomeKey == "original_resolved_different_issue"
-                && terminal.id == issue.openedByRecordID
-                && terminal.issueID != issue.id
-            return (ordinaryOpening || differentIssueOpening)
-                && terminal.completedAt == issue.updatedAt
-        case IssueStatus.recheckDue.rawValue:
-            let workRecords = chain.filter {
-                $0.stage == WorkflowStage.work.rawValue
-            }
-            let recordsAfterWork = workRecords.first.flatMap { work in
-                chain.firstIndex(where: { $0 === work }).map { index in
-                    Array(chain.dropFirst(index + 1))
-                }
-            } ?? []
-            return workRecords.count == 1
-                && workRecords[0].completedAt == issue.updatedAt
-                && chain.last.map({ $0 === terminal }) == true
-                && recordsAfterWork.allSatisfy({ record in
-                    record.stage == WorkflowStage.recheck.rawValue
-                        && record.outcomeKey == "could_not_verify"
-                        && validCouldNotVerify(record)
-                })
-        default:
+        guard chain.last.map({ $0 === terminal }) == true,
+              let openingCompletedAt = chain.first?.completedAt else {
             return false
         }
+        var expectedStatus = IssueStatus.open.rawValue
+        var expectedResolvedByRecordID: UUID?
+        var expectedUpdatedAt = openingCompletedAt
+        for record in chain.dropFirst() {
+            guard let completedAt = record.completedAt else { return false }
+            switch WorkflowStage(rawValue: record.stage) {
+            case .work:
+                guard expectedStatus == IssueStatus.open.rawValue else {
+                    return false
+                }
+                expectedStatus = IssueStatus.recheckDue.rawValue
+                expectedResolvedByRecordID = nil
+                expectedUpdatedAt = completedAt
+            case .recheck:
+                guard expectedStatus == IssueStatus.recheckDue.rawValue else {
+                    return false
+                }
+                switch record.outcomeKey {
+                case "resolved", "original_resolved_different_issue":
+                    expectedStatus = IssueStatus.resolved.rawValue
+                    expectedResolvedByRecordID = record.id
+                    expectedUpdatedAt = completedAt
+                case "issue_still_visible":
+                    expectedStatus = IssueStatus.open.rawValue
+                    expectedResolvedByRecordID = nil
+                    expectedUpdatedAt = completedAt
+                case "could_not_verify":
+                    break
+                default:
+                    return false
+                }
+            case .check, nil:
+                return false
+            }
+        }
+        return issue.status == expectedStatus
+            && issue.resolvedByRecordID == expectedResolvedByRecordID
+            && issue.updatedAt == expectedUpdatedAt
     }
 
     private func validCompletedWorkText(_ value: String, maximum: Int) -> Bool {
