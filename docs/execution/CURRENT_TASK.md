@@ -15,11 +15,12 @@
 - The immediate-next transition authority creates A as a direct child of M and changes exactly append-only `docs/execution/HANDOFF.md` plus this `docs/execution/CURRENT_TASK.md`. Fresh G0 observes A after commit; this file never self-records A.
 - Fresh G0 must prove `M..A` contains exactly those two authority paths, remote `phase/s10-brand-refresh=A`, remote `main=P`, exact pins/digests, clean owned work, and no product/project/test/fixture/runtime-asset change after S10.2 C.
 - The approved S10.1 67-state pre-brand baselines and the accepted S10.2 runtime assets, colors, tokens, nine components, AppIcon setting, E/K/C ancestry, artifact hashes, and checkpoints are immutable inputs. S10.3 replaces presentation across every frozen state but never rewrites the pre-brand baselines or claims S10.4 comparison evidence.
+- Diagnosed earlier-card recovery: the accepted `AssetRoundsPhotoCapture` API cannot compose the frozen native PhotosPicker, Retake/Use Photo pair, or read-only evidence while preserving actions and accessibility identifiers. The exact introducing path `FieldEvidenceApp/DesignSystem/WorklightComponents.swift` is conditionally authorized only for a content-preserving composition initializer; it is excluded from the 26 migrated-screen cap, and existing component APIs/behavior remain unchanged.
 
 ## Frozen authority and package
 
 - Plan: `docs/product/BUILD_PLAN_V4.md` / SHA-256 `0477672A3F97E02E229A8DC84B3F27AAF60A3B535FD51B68DADA94ADF410FF4D` / S10 brand-system refresh plus Sections 11, 16, and 18.
-- Runbook: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / SHA-256 `0AEA815EE3C427BD34E2A2F30C234866FCA023FDD6BABEB3C277F60606F973CB` / selected card S10.3 only.
+- Runbook: `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md` / SHA-256 `4AD0F8BE1A383BBDF0D6EFF4059D2283EEE51EEDE9E467DE645E1A331DE0C06B` / selected card S10.3 only, including its exact diagnosed S10.2 photo-composition recovery.
 - Contract: `docs/execution/CODEX_EXECUTION_CONTRACT_V4.md` / SHA-256 `0D09F319EB729A2D57F05515B400B400FF0B753A2E373E7BB8A0AB0561A50BB6`.
 - Activation: `docs/design/s10/s10-activation.json` / SHA-256 `80C6102D703AE836C14F38562E04BDFD28D333DF9EC9848324F4DC34CFBF880D`.
 - Frozen package: `docs/design/s10/authority/assetrounds-brand-assets-v4.1-20260815.zip` / SHA-256 `D05ACDC8195B1C7C05230BCBD0AC59E436681D93FCA9AC12108B2BE98A408400`.
@@ -73,6 +74,7 @@ Production file cap is exactly 26; test file cap is exactly 2. Allowed product i
 
 - Product E may change only presentation/style composition in these 26 released SwiftUI sources and the two bounded tests. Preserve all model/coordinator/service calls, side-effect order, validation, focus/accessibility meaning, exact identifiers, copy, routes, and data/report/backup outputs.
 - Reuse `FieldEvidenceApp/DesignSystem/DesignTokens.swift`, `FieldEvidenceApp/DesignSystem/WorklightComponents.swift`, installed assets/colors, existing fixtures, navigation, and native controls unchanged; those accepted S10.2 paths are read-only during ordinary S10.3 implementation.
+- Conditional exception to the preceding read-only rule: `FieldEvidenceApp/DesignSystem/WorklightComponents.swift` may add only the diagnosed source-compatible content-composition initializer for `AssetRoundsPhotoCapture`; no existing initializer, visual contract, action, or accepted S10.2 evidence is replaced.
 - `Scripts/ci-selection.json` is the sole standing implementation-support exception and is excluded from the file cap.
 - Product E must not change any `docs/design/s10/` evidence document or regenerate/replace S10.1 baseline images.
 
@@ -102,7 +104,7 @@ Production file cap is exactly 26; test file cap is exactly 2. Allowed product i
 1. Commit/push exactly the S10.2 receipt-validation addendum plus this immediate-next CURRENT_TASK hydration as A; perform fresh G0 before any other mutation.
 2. Allow predecessor `Scripts/ci-selection.json` at G0, then replace only it with the exact S10.3 selector as the first support mutation.
 3. Revalidate the frozen ZIP/manifest, activation/inventory/component receipts, exact 26+2 envelope, six-slice migration order, all source/fixture references, and clean owned work.
-4. Migrate all 26 authorized released SwiftUI sources together in the frozen six-slice order using only accepted semantic tokens/components, preserving exact copy, identifiers, navigation, state, side effects, native controls, evidence rendering, and durable bytes.
+4. Add only the conditionally authorized content-preserving `AssetRoundsPhotoCapture` composition initializer, then migrate all 26 authorized released SwiftUI sources together in the frozen six-slice order using only accepted semantic tokens/components, preserving exact copy, identifiers, navigation, state, side effects, native controls, evidence rendering, and durable bytes.
 5. Add one bounded unit class and one bounded UI class proving exact 67-state/source/token adoption, zero untracked visual constants, presentation-only behavior preservation, the full Light/Dark representative route, every inventory exception family, and unchanged semantic/durable outcomes. Validate static/API shape, exact paths/caps, no raw/ad hoc visual constants, and `git diff --check`. Never claim a Windows iOS build.
 6. Commit/push direct-child product I and dispatch exactly one F25 candidate. Use the persistent evidence-driven correction/fresh-runner loop until exact-head green E with complete checksummed evidence.
 7. Create descendant evidence K changing only token coverage and experience product binding as frozen above. Create receipt C changing only stage checkpoints plus HANDOFF; run complete `Migration` package validation without replacing product E.
