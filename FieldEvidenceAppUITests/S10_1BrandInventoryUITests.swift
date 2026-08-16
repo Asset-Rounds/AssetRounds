@@ -77,7 +77,6 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         app.launch()
 
         completeWorkAndResolvedRecheckAtXXXL(in: app)
-        captureNoEntitlementAndResetStoreKit(in: app)
         captureAlternativeCompletedCheckStates(in: app)
         app.terminate()
         app.launchArguments.append("--s4-2-ui-test-render-failure-once")
@@ -87,6 +86,7 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         captureReportComparisonAndCorrectionStates(in: app)
         captureUnavailablePaywallAndFeedbackReview(in: app)
         assertMonthlyPaywallAtXXXL(in: app)
+        eraseLocalDataAndCaptureNoEntitlement(in: app)
     }
 
     @MainActor
@@ -587,51 +587,6 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         begin.tap()
         XCTAssertTrue(element("s3.capture.screen", in: app)
             .waitForExistence(timeout: 20))
-    }
-
-    @MainActor
-    private func captureNoEntitlementAndResetStoreKit(
-        in app: XCUIApplication
-    ) {
-        let settings = element("s1.settings.button", in: app)
-        assertControl(settings, label: "Settings")
-        settings.tap()
-        XCTAssertTrue(element("s1.settings.screen", in: app)
-            .waitForExistence(timeout: 20))
-
-        let lifecycle = element("s7.3.settings.restore-purchases", in: app)
-        scroll(lifecycle, in: app)
-        assertControl(lifecycle, label: "Restore Purchases")
-        lifecycle.tap()
-        XCTAssertTrue(element("s7.3.lifecycle.screen", in: app)
-            .waitForExistence(timeout: 30))
-        XCTAssertTrue(element("s7.3.lifecycle.restore-result", in: app)
-            .waitForExistence(timeout: 60))
-        captureBaseline("state.subscription.no-entitlement", in: app)
-
-        let close = element("s7.3.lifecycle.close", in: app)
-        scroll(close, in: app)
-        XCTAssertTrue(close.waitForExistence(timeout: 30))
-        XCTAssertTrue(wait(for: close, predicate: "enabled == true", timeout: 30))
-        assertControl(close, label: "Close")
-        close.tap()
-        XCTAssertTrue(element("s1.settings.screen", in: app)
-            .waitForExistence(timeout: 20))
-        navigateBack(in: app)
-        XCTAssertTrue(element("s2.sign-detail.screen", in: app)
-            .waitForExistence(timeout: 20))
-
-        app.terminate()
-        guard let session = storeKitSession else {
-            XCTFail("The retained StoreKit test session is required")
-            return
-        }
-        session.resetToDefaultState()
-        session.clearTransactions()
-        session.disableDialogs = true
-        app.launch()
-        XCTAssertTrue(element("s2.sign-detail.screen", in: app)
-            .waitForExistence(timeout: 30))
     }
 
     @MainActor
@@ -1166,9 +1121,67 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         XCTAssertTrue(element("s7.4.signs.selection", in: app)
             .waitForExistence(timeout: 25))
         captureBaseline("state.sign-selection.ready", in: app)
+    }
+
+    @MainActor
+    private func eraseLocalDataAndCaptureNoEntitlement(
+        in app: XCUIApplication
+    ) {
+        guard let session = storeKitSession else {
+            XCTFail("The retained StoreKit test session is required")
+            return
+        }
+        session.resetToDefaultState()
+        session.clearTransactions()
+        session.disableDialogs = true
+
+        let settings = element("s1.settings.button", in: app)
+        assertControl(settings, label: "Settings")
+        settings.tap()
+        XCTAssertTrue(element("s1.settings.screen", in: app)
+            .waitForExistence(timeout: 20))
+        let erase = element("s6.6.settings.erase-all", in: app)
+        scroll(erase, in: app)
+        assertControl(erase, label: "Erase All")
+        erase.tap()
+        XCTAssertTrue(element("s6.6.erase.screen", in: app)
+            .waitForExistence(timeout: 30))
+
+        let confirmation = element("s6.6.erase.confirmation", in: app)
+        scroll(confirmation, in: app)
+        confirmation.tap()
+        confirmation.typeText("ERASE")
+        dismissKeyboard(in: app)
+        let confirm = element("s6.6.erase.confirm", in: app)
+        scroll(confirm, in: app)
+        XCTAssertTrue(wait(for: confirm, predicate: "enabled == true", timeout: 10))
+        assertControl(confirm, label: "Erase All")
+        confirm.tap()
+
+        let welcome = element("s2.welcome.screen", in: app)
+        XCTAssertTrue(welcome.waitForExistence(timeout: 90))
+        XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(welcome.waitForExistence(timeout: 45))
+
+        let restore = element("s2.welcome.restore-purchases", in: app)
+        assertControl(restore, label: "Restore Purchases")
+        restore.tap()
+        XCTAssertTrue(element("s7.3.lifecycle.screen", in: app)
+            .waitForExistence(timeout: 30))
+        XCTAssertTrue(element("s7.3.lifecycle.restore-result", in: app)
+            .waitForExistence(timeout: 60))
+        XCTAssertTrue(wait(
+            for: element("s7.3.lifecycle.status-title", in: app),
+            predicate: "label == %@",
+            argument: "No subscription found",
+            timeout: 20
+        ))
+        captureBaseline("state.subscription.no-entitlement", in: app)
 
         let terminal = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        terminal.name = "S10.1 terminal frozen S9 paid sign selection at XXXL Dark"
+        terminal.name = "S10.1 terminal frozen S9 no-entitlement at XXXL Dark"
         terminal.lifetime = .keepAlways
         add(terminal)
     }
