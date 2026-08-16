@@ -606,7 +606,7 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         captureAvailablePaywallAndPurchase(in: app)
 
         let close = element("s7.2.paywall.close", in: app)
-        scroll(close, in: app)
+        scrollDown(close, in: app)
         assertControl(close, label: "Close")
         close.tap()
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
@@ -1062,7 +1062,11 @@ final class S10_1BrandInventoryUITests: XCTestCase {
             "s7.2.paywall.support",
         ] {
             let control = element(identifier, in: app)
-            scroll(control, in: app)
+            if identifier == "s7.2.paywall.close" {
+                scrollDown(control, in: app)
+            } else {
+                scroll(control, in: app)
+            }
             assertMinimumGeometry(control)
             XCTAssertTrue(control.isEnabled)
         }
@@ -1268,7 +1272,7 @@ final class S10_1BrandInventoryUITests: XCTestCase {
             .waitForExistence(timeout: 20))
 
         let restore = element("s6.5.restore.settings-entry", in: app)
-        scroll(restore, in: app)
+        scrollDown(restore, in: app)
         assertControl(restore, label: "Restore data backup")
         restore.tap()
         XCTAssertTrue(element("s6.4.restore.screen", in: app)
@@ -1641,6 +1645,20 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         for _ in 0..<22 {
             if value.exists && value.isHittable { return }
             app.swipeDown()
+        }
+        XCTAssertTrue(value.waitForExistence(timeout: 2))
+        XCTAssertTrue(value.isHittable)
+    }
+
+    @MainActor
+    private func scrollDown(_ value: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<22 {
+            if value.exists && value.isHittable { return }
+            app.swipeDown()
+        }
+        for _ in 0..<22 {
+            if value.exists && value.isHittable { return }
+            app.swipeUp()
         }
         XCTAssertTrue(value.waitForExistence(timeout: 2))
         XCTAssertTrue(value.isHittable)
