@@ -78,10 +78,10 @@ final class S10_1BrandInventoryUITests: XCTestCase {
 
         completeWorkAndResolvedRecheckAtXXXL(in: app)
         captureAlternativeCompletedCheckStates(in: app)
+        captureDifferentIssueStatesBeforeRecovery(in: app)
         app.terminate()
         app.launch()
         recoverInjectedPDFFailureAtXXXL(in: app)
-        captureDifferentIssueStatesAfterRecovery(in: app)
         captureReportComparisonAndCorrectionStates(in: app)
         captureUnavailablePaywallAndFeedbackReview(in: app)
         assertMonthlyPaywallAtXXXL(in: app)
@@ -822,6 +822,15 @@ final class S10_1BrandInventoryUITests: XCTestCase {
             XCTAssertTrue(element("s4.3.receipt.preparing", in: app)
                 .waitForExistence(timeout: 10))
             XCTAssertFalse(element("s3.receipt.view-report", in: app).exists)
+            let done = element("s3.receipt.done", in: app)
+            scroll(done, in: app)
+            assertControl(done, label: "Done")
+            done.tap()
+            XCTAssertTrue(element("s5.1.issue.screen", in: app)
+                .waitForExistence(timeout: 25))
+            navigateBack(in: app)
+            XCTAssertTrue(element("s2.sign-detail.screen", in: app)
+                .waitForExistence(timeout: 25))
             return
         }
         XCTAssertTrue(element("s3.receipt.view-report", in: app)
@@ -841,7 +850,7 @@ final class S10_1BrandInventoryUITests: XCTestCase {
     }
 
     @MainActor
-    private func captureDifferentIssueStatesAfterRecovery(
+    private func captureDifferentIssueStatesBeforeRecovery(
         in app: XCUIApplication
     ) {
         let resolvedOriginal = element("s5.2.sign-detail.resolved", in: app)
