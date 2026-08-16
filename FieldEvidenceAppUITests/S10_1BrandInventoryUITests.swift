@@ -1189,6 +1189,7 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         XCTAssertTrue(welcome.waitForExistence(timeout: 45))
 
         let restore = element("s2.welcome.restore-purchases", in: app)
+        scroll(restore, in: app)
         assertControl(restore, label: "Restore Purchases")
         restore.tap()
         XCTAssertTrue(element("s7.3.lifecycle.screen", in: app)
