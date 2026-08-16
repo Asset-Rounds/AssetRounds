@@ -420,6 +420,13 @@ enum AssetRoundsStateKind: String, CaseIterable {
         case .selected: DesignTokens.SemanticColors.selected
         }
     }
+
+    fileprivate var textForegroundColor: Color {
+        switch self {
+        case .error: DesignTokens.SemanticColors.primaryText
+        default: foregroundColor
+        }
+    }
 }
 
 struct AssetRoundsStateLabel: View {
@@ -440,6 +447,7 @@ struct AssetRoundsStateLabel: View {
     var body: some View {
         Label {
             text
+                .foregroundStyle(kind.textForegroundColor)
                 .fixedSize(horizontal: false, vertical: true)
         } icon: {
             Image(systemName: kind.iconName)
