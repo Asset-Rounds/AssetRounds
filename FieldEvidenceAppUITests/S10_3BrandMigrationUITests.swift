@@ -1653,36 +1653,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         guard let shard = automationShard else { return }
         do {
-            try app.performAccessibilityAudit(for: .contrast) { issue in
-                var diagnostic: [String: Any] = [
-                    "auditTypeRawValue": String(issue.auditType.rawValue),
-                    "compactDescription": issue.compactDescription,
-                    "detailedDescription": issue.detailedDescription,
-                    "applicationFrame": self.auditFrameObject(app.frame),
-                    "sampleScreen": self.auditElementObject(
-                        self.element("s2.sample.screen", in: app)
-                    ),
-                    "sampleScroll": self.auditElementObject(
-                        self.element("s1.sample.scroll", in: app)
-                    ),
-                    "signsTab": self.auditElementObject(
-                        self.element("s1.tab.signs", in: app)
-                    ),
-                    "reportsTab": self.auditElementObject(
-                        self.element("s1.tab.reports", in: app)
-                    ),
-                ]
-                if let auditedElement = issue.element {
-                    diagnostic["auditedElement"] = self.auditElementObject(
-                        auditedElement
-                    )
-                }
-                self.printJSONLine(
-                    prefix: "S10_4_AUDIT_DIAGNOSTIC",
-                    object: diagnostic
-                )
-                return false
-            }
+            try app.performAccessibilityAudit(for: .contrast)
             let axTreeDigest = try accessibilityTreeDigest(in: app)
             automationAXTreeDigests[stateID] = axTreeDigest
 
@@ -1752,26 +1723,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         } catch {
             XCTFail("\(prefix) evidence JSON encoding failed: \(error)")
         }
-    }
-
-    private func auditElementObject(_ element: XCUIElement) -> [String: Any] {
-        let exists = element.exists
-        var value: [String: Any] = ["exists": exists]
-        guard exists else { return value }
-        value["identifier"] = element.identifier
-        value["label"] = element.label
-        value["type"] = String(describing: element.elementType)
-        value["frame"] = auditFrameObject(element.frame)
-        return value
-    }
-
-    private func auditFrameObject(_ frame: CGRect) -> [String: Double] {
-        [
-            "x": Double(frame.origin.x),
-            "y": Double(frame.origin.y),
-            "width": Double(frame.size.width),
-            "height": Double(frame.size.height),
-        ]
     }
 
     private func assertMigrationStateCoverage(

@@ -140,7 +140,7 @@ private struct SampleValue: View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(label)
                 .font(DesignTokens.Typography.supportingCaption.weight(.semibold))
-                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(value)
