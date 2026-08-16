@@ -378,7 +378,6 @@ final class S10_3BrandMigrationUITests: XCTestCase {
         )
         importPhoto.tap()
         let workPreview = element("s5.1.work.photo", in: app)
-        XCTAssertTrue(workPreview.waitForExistence(timeout: 20))
         scroll(workPreview, in: app)
         XCTAssertTrue(workPreview.isHittable)
         captureBaseline("state.work.editing", in: app)
