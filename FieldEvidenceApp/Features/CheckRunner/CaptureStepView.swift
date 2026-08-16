@@ -25,6 +25,7 @@ struct CaptureStepView: View {
     let cameraAdapter: CameraAdapter
     let cannotComplete: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var preparation: CapturePreparation?
     @State private var candidate: CaptureCandidate?
     @State private var isWorking = false
@@ -131,9 +132,16 @@ struct CaptureStepView: View {
                 AssetRoundsPhotoCapture {
                     preview(candidate)
 
-                    HStack(spacing: DesignTokens.Spacing.space16) {
-                        Button("Retake") {
+                    let actionLayout = dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(spacing: DesignTokens.Spacing.space16))
+                        : AnyLayout(HStackLayout(spacing: DesignTokens.Spacing.space16))
+
+                    actionLayout {
+                        Button {
                             retake(candidate)
+                        } label: {
+                            Text("Retake")
+                                .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
                         .tint(DesignTokens.SemanticColors.primaryAction)
@@ -142,8 +150,11 @@ struct CaptureStepView: View {
                         .disabled(isWorking)
                         .accessibilityIdentifier(Self.retakeAccessibilityIdentifier)
 
-                        Button("Use Photo") {
+                        Button {
                             usePhoto(candidate)
+                        } label: {
+                            Text("Use Photo")
+                                .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(DesignTokens.SemanticColors.primaryAction)
