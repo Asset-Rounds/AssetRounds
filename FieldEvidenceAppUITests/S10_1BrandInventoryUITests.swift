@@ -1086,6 +1086,23 @@ final class S10_1BrandInventoryUITests: XCTestCase {
             .completed
         )
         if purchaseState.label == unverifiedCopy {
+            guard let session = storeKitSession else {
+                XCTFail("The retained StoreKit test session is unavailable.")
+                return
+            }
+            app.terminate()
+            session.clearTransactions()
+            app.launch()
+            XCTAssertTrue(element("s2.sign-detail.screen", in: app)
+                .waitForExistence(timeout: 30))
+
+            let blockedStart = element("s2.sign-detail.start-check", in: app)
+            scroll(blockedStart, in: app)
+            assertControl(blockedStart, label: "Start Check")
+            blockedStart.tap()
+            XCTAssertTrue(element("s7.2.paywall.screen", in: app)
+                .waitForExistence(timeout: 30))
+            XCTAssertTrue(store.waitForExistence(timeout: 30))
             XCTAssertTrue(wait(for: store, predicate: "value == 'Ready'", timeout: 20))
             XCTAssertTrue(store.isEnabled)
 
