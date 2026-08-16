@@ -1653,7 +1653,35 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         guard let shard = automationShard else { return }
         do {
-            try app.performAccessibilityAudit(for: .contrast)
+            try app.performAccessibilityAudit(for: .contrast) { issue in
+                var diagnostic: [String: Any] = [
+                    "auditTypeRawValue": String(issue.auditType.rawValue),
+                    "compactDescription": issue.compactDescription,
+                    "detailedDescription": issue.detailedDescription,
+                    "applicationFrame": self.auditFrameObject(app.frame),
+                    "signsTabFrame": self.auditFrameObject(
+                        self.element("s1.tab.signs", in: app).frame
+                    ),
+                    "reportsTabFrame": self.auditFrameObject(
+                        self.element("s1.tab.reports", in: app).frame
+                    ),
+                ]
+                if let auditedElement = issue.element {
+                    diagnostic["elementIdentifier"] = auditedElement.identifier
+                    diagnostic["elementLabel"] = auditedElement.label
+                    diagnostic["elementType"] = String(
+                        describing: auditedElement.elementType
+                    )
+                    diagnostic["elementFrame"] = self.auditFrameObject(
+                        auditedElement.frame
+                    )
+                }
+                self.printJSONLine(
+                    prefix: "S10_4_AUDIT_DIAGNOSTIC",
+                    object: diagnostic
+                )
+                return false
+            }
             let axTreeDigest = try accessibilityTreeDigest(in: app)
             automationAXTreeDigests[stateID] = axTreeDigest
 
@@ -1723,6 +1751,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         } catch {
             XCTFail("\(prefix) evidence JSON encoding failed: \(error)")
         }
+    }
+
+    private func auditFrameObject(_ frame: CGRect) -> [String: Double] {
+        [
+            "x": Double(frame.origin.x),
+            "y": Double(frame.origin.y),
+            "width": Double(frame.size.width),
+            "height": Double(frame.size.height),
+        ]
     }
 
     private func assertMigrationStateCoverage(
