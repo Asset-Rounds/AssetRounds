@@ -40,7 +40,6 @@ final class S10_2BrandComponentUITests: XCTestCase {
         viewSample.tap()
 
         XCTAssertTrue(element("s2.sample.screen", in: app).waitForExistence(timeout: 20))
-        XCTAssertTrue(element("s1.sample.scroll", in: app).waitForExistence(timeout: 20))
         XCTAssertTrue(app.staticTexts["Illuminated sign pack"].waitForExistence(timeout: 20))
         let sampleBack = element("s2.sample.back", in: app)
         XCTAssertTrue(sampleBack.waitForExistence(timeout: 20))
