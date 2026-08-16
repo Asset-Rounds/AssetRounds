@@ -124,51 +124,52 @@ struct AppShellView: View {
 
     private func availableShell(pack: SignPack) -> some View {
         TabView(selection: $selectedTab) {
-            SignsRootView(
-                modelContext: modelContext,
-                diagnosticsStore: diagnosticsStore,
-                metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
-                feedbackConfiguration: feedbackConfiguration,
-                mailComposerAdapter: mailComposerAdapter,
-                pack: pack,
-                generationRootURL: generationRootURL,
-                usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
-                injectsLowStorageFailureOnceForUITest:
-                    injectsLowStorageFailureOnceForUITest,
-                cameraAdapter: cameraAdapter,
-                purchaseCoordinator: purchaseCoordinator,
-                lifecycleCoordinator: lifecycleCoordinator,
-                restoreDataBackup: restoreDataBackup,
-                replaceDataBackup: replaceDataBackup
-            )
-            .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
-            .accessibilityValue(
-                exposesColorSchemeForUITest
-                    ? (colorScheme == .dark ? "Dark" : "Light")
-                    : ""
-            )
-            .tag(Tab.signs)
-            .tabItem {
-                Label("Signs", systemImage: "signpost.right.fill")
-                    .accessibilityIdentifier(Self.signsTabAccessibilityIdentifier)
-            }
-
-            NavigationStack {
-                ReportsRootView(
+            SwiftUI.Tab(value: Tab.signs) {
+                SignsRootView(
                     modelContext: modelContext,
-                    generationRootURL: generationRootURL,
                     diagnosticsStore: diagnosticsStore,
-                    signPack: pack
+                    metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
+                    feedbackConfiguration: feedbackConfiguration,
+                    mailComposerAdapter: mailComposerAdapter,
+                    pack: pack,
+                    generationRootURL: generationRootURL,
+                    usesImportedCaptureFixturesForUITest:
+                        usesImportedCaptureFixturesForUITest,
+                    injectsLowStorageFailureOnceForUITest:
+                        injectsLowStorageFailureOnceForUITest,
+                    cameraAdapter: cameraAdapter,
+                    purchaseCoordinator: purchaseCoordinator,
+                    lifecycleCoordinator: lifecycleCoordinator,
+                    restoreDataBackup: restoreDataBackup,
+                    replaceDataBackup: replaceDataBackup
                 )
+                .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+                .accessibilityValue(
+                    exposesColorSchemeForUITest
+                        ? (colorScheme == .dark ? "Dark" : "Light")
+                        : ""
+                )
+            } label: {
+                Label("Signs", systemImage: "signpost.right.fill")
+            }
+            .accessibilityIdentifier(Self.signsTabAccessibilityIdentifier)
+
+            SwiftUI.Tab(value: Tab.reports) {
+                NavigationStack {
+                    ReportsRootView(
+                        modelContext: modelContext,
+                        generationRootURL: generationRootURL,
+                        diagnosticsStore: diagnosticsStore,
+                        signPack: pack
+                    )
                     .toolbar {
                         settingsToolbar
                     }
-            }
-            .tag(Tab.reports)
-            .tabItem {
+                }
+            } label: {
                 Label("Reports", systemImage: "doc.text.fill")
-                    .accessibilityIdentifier(Self.reportsTabAccessibilityIdentifier)
             }
+            .accessibilityIdentifier(Self.reportsTabAccessibilityIdentifier)
         }
         .tint(DesignTokens.SemanticColors.primaryAction)
         .background(DesignTokens.SemanticColors.workBackground)
