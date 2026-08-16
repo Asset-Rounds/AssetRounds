@@ -1335,6 +1335,8 @@ final class S10_3BrandMigrationUITests: XCTestCase {
                 timeout: 30
             ))
         } else if stateID.contains("recheck") {
+            XCTAssertTrue(element("s3.outcome.screen", in: app)
+                .waitForExistence(timeout: 30))
             let resolved = element("s5.2.outcome.resolved", in: app)
             scroll(resolved, in: app)
         } else {
