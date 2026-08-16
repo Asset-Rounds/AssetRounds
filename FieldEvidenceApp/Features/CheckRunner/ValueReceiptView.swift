@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 struct ValueReceiptView: View {
@@ -7,6 +8,8 @@ struct ValueReceiptView: View {
     static let shareAccessibilityIdentifier = "s3.receipt.share"
     static let doneAccessibilityIdentifier = "s3.receipt.done"
     static let deliveryErrorAccessibilityIdentifier = "s4.3.receipt.delivery-error"
+    private static let defersReceiptPreparationForRecoveryUITest =
+        "--s4-2-ui-test-render-failure-once"
 
     let result: FinalizationResult
     let coordinator: CheckRunnerCoordinator
@@ -95,6 +98,11 @@ struct ValueReceiptView: View {
         .task {
             guard !didPrepareDelivery else { return }
             didPrepareDelivery = true
+            guard !ProcessInfo.processInfo.arguments.contains(
+                Self.defersReceiptPreparationForRecoveryUITest
+            ) else {
+                return
+            }
             do {
                 let preparedCoordinator = try coordinator.makeReportDeliveryCoordinator()
                 deliveryCoordinator = preparedCoordinator

@@ -79,7 +79,6 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         completeWorkAndResolvedRecheckAtXXXL(in: app)
         captureAlternativeCompletedCheckStates(in: app)
         app.terminate()
-        app.launchArguments.append("--s4-2-ui-test-render-failure-once")
         app.launch()
         recoverInjectedPDFFailureAtXXXL(in: app)
         captureDifferentIssueStatesAfterRecovery(in: app)
@@ -559,6 +558,11 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         performAlternativeRecheck(.couldNotVerify, in: app)
         performAlternativeRecheck(.issueStillVisible, in: app)
         recordWorkWithoutBaseline(in: app)
+        app.terminate()
+        app.launchArguments.append("--s4-2-ui-test-render-failure-once")
+        app.launch()
+        XCTAssertTrue(element("s2.sign-detail.screen", in: app)
+            .waitForExistence(timeout: 30))
         performAlternativeRecheck(
             .differentIssue,
             leavesPendingReceipt: true,
@@ -651,6 +655,8 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         save.tap()
         XCTAssertTrue(element("s3.receipt.screen", in: app)
             .waitForExistence(timeout: 40))
+        XCTAssertTrue(element("s3.receipt.view-report", in: app)
+            .waitForExistence(timeout: 30))
         let done = element("s3.receipt.done", in: app)
         scroll(done, in: app)
         assertControl(done, label: "Done")
@@ -813,8 +819,13 @@ final class S10_1BrandInventoryUITests: XCTestCase {
             let saved = element("s3.receipt.saved", in: app)
             XCTAssertTrue(saved.waitForExistence(timeout: 15))
             XCTAssertEqual(saved.label, "Report saved on this device.")
+            XCTAssertTrue(element("s4.3.receipt.preparing", in: app)
+                .waitForExistence(timeout: 10))
+            XCTAssertFalse(element("s3.receipt.view-report", in: app).exists)
             return
         }
+        XCTAssertTrue(element("s3.receipt.view-report", in: app)
+            .waitForExistence(timeout: 30))
         let done = element("s3.receipt.done", in: app)
         scroll(done, in: app)
         assertControl(done, label: "Done")
