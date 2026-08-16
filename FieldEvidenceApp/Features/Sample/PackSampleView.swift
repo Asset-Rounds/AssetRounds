@@ -21,6 +21,7 @@ struct PackSampleView: View {
                     disclaimerCard
                 }
             }
+            .modifier(SampleBottomScrollEdgeEffect())
         }
         .accessibilityIdentifier(Self.scrollAccessibilityIdentifier)
     }
@@ -117,6 +118,17 @@ struct PackSampleView: View {
             .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityAddTraits(.isHeader)
+    }
+}
+
+private struct SampleBottomScrollEdgeEffect: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.scrollEdgeEffectStyle(.hard, for: .bottom)
+        } else {
+            content
+        }
     }
 }
 
