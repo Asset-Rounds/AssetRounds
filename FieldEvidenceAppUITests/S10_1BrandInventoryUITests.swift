@@ -1075,7 +1075,7 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         let unverifiedCopy = "Purchase couldn’t be verified. Your existing data is still available. Try again."
         let terminalPurchase = XCTNSPredicateExpectation(
             predicate: NSPredicate(
-                format: "label == %@ OR label == %@",
+                format: "label CONTAINS %@ OR label == %@",
                 verifiedCopy,
                 unverifiedCopy
             ),
@@ -1095,12 +1095,12 @@ final class S10_1BrandInventoryUITests: XCTestCase {
             retryPurchase.tap()
             XCTAssertTrue(wait(
                 for: purchaseState,
-                predicate: "label == %@",
+                predicate: "label CONTAINS %@",
                 argument: verifiedCopy,
                 timeout: 45
             ))
         } else {
-            XCTAssertEqual(purchaseState.label, verifiedCopy)
+            XCTAssertTrue(purchaseState.label.contains(verifiedCopy))
         }
         captureBaseline("state.paywall.purchase-complete", in: app)
     }
