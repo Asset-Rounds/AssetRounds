@@ -218,7 +218,7 @@ struct SignDetailView: View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(title)
                 .font(DesignTokens.Typography.supportingCaption.weight(.semibold))
-                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
 
             Text(value)
                 .font(DesignTokens.Typography.primaryBody)
