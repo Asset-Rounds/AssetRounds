@@ -1,9 +1,9 @@
 {
   "schema_version": "4.1.0",
-  "document_status": "planned",
+  "document_status": "components_implemented",
   "token_catalog_path": "Brand/brand-tokens.json",
   "token_catalog_sha256": "2F044E9EAB2705F4265685B6F9370B07E0C1F6807D792744C8E4A35F6551E679",
-  "component_system_product_head": "REQUIRED_AFTER_S10_COMPONENT_SYSTEM",
+  "component_system_product_head": "28c5851a432db026251012de1e396a5896c9f91f",
   "migration_product_head": "REQUIRED_AFTER_S10_MIGRATION",
   "components": [
     {
@@ -28,8 +28,10 @@
       "isolated_test_selectors": [
         "FieldEvidenceAppTests/S10_2BrandComponentTests"
       ],
-      "status": "NOT_RUN",
-      "evidence_ids": []
+      "status": "PASS",
+      "evidence_ids": [
+        "github-actions-run-31952398978-artifact-9265131233"
+      ]
     },
     {
       "component_id": "component.primary-action",
@@ -48,8 +50,10 @@
       "isolated_test_selectors": [
         "FieldEvidenceAppTests/S10_2BrandComponentTests"
       ],
-      "status": "NOT_RUN",
-      "evidence_ids": []
+      "status": "PASS",
+      "evidence_ids": [
+        "github-actions-run-31952398978-artifact-9265131233"
+      ]
     },
     {
       "component_id": "component.secondary-action",
@@ -67,8 +71,10 @@
       "isolated_test_selectors": [
         "FieldEvidenceAppTests/S10_2BrandComponentTests"
       ],
-      "status": "NOT_RUN",
-      "evidence_ids": []
+      "status": "PASS",
+      "evidence_ids": [
+        "github-actions-run-31952398978-artifact-9265131233"
+      ]
     },
     {
       "component_id": "component.destructive-action",
@@ -85,8 +91,10 @@
       "isolated_test_selectors": [
         "FieldEvidenceAppTests/S10_2BrandComponentTests"
       ],
-      "status": "NOT_RUN",
-      "evidence_ids": []
+      "status": "PASS",
+      "evidence_ids": [
+        "github-actions-run-31952398978-artifact-9265131233"
+      ]
     },
     {
       "component_id": "component.evidence-card",
@@ -106,8 +114,10 @@
       "isolated_test_selectors": [
         "FieldEvidenceAppTests/S10_2BrandComponentTests"
       ],
-      "status": "NOT_RUN",
-      "evidence_ids": []
+      "status": "PASS",
+      "evidence_ids": [
+        "github-actions-run-31952398978-artifact-9265131233"
+      ]
     },
     {
       "component_id": "component.photo-capture",
@@ -125,8 +135,10 @@
       "isolated_test_selectors": [
         "FieldEvidenceAppTests/S10_2BrandComponentTests"
       ],
-      "status": "NOT_RUN",
-      "evidence_ids": []
+      "status": "PASS",
+      "evidence_ids": [
+        "github-actions-run-31952398978-artifact-9265131233"
+      ]
     },
     {
       "component_id": "component.state-label",
@@ -147,8 +159,10 @@
       "isolated_test_selectors": [
         "FieldEvidenceAppTests/S10_2BrandComponentTests"
       ],
-      "status": "NOT_RUN",
-      "evidence_ids": []
+      "status": "PASS",
+      "evidence_ids": [
+        "github-actions-run-31952398978-artifact-9265131233"
+      ]
     },
     {
       "component_id": "component.empty-state",
@@ -167,8 +181,10 @@
       "isolated_test_selectors": [
         "FieldEvidenceAppTests/S10_2BrandComponentTests"
       ],
-      "status": "NOT_RUN",
-      "evidence_ids": []
+      "status": "PASS",
+      "evidence_ids": [
+        "github-actions-run-31952398978-artifact-9265131233"
+      ]
     },
     {
       "component_id": "component.report-brand-header",
@@ -186,8 +202,10 @@
       "isolated_test_selectors": [
         "FieldEvidenceAppTests/S10_2BrandComponentTests"
       ],
-      "status": "NOT_RUN",
-      "evidence_ids": []
+      "status": "PASS",
+      "evidence_ids": [
+        "github-actions-run-31952398978-artifact-9265131233"
+      ]
     }
   ],
   "coverage": [
