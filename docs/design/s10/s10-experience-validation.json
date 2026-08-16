@@ -2,7 +2,7 @@
   "schema_version": "4.1.0",
   "document_status": "planned",
   "activation_id": "assetrounds-s10-brand-handoff-v4.1-2026-08-15",
-  "product_head": "REQUIRED_AFTER_S10_MIGRATION",
+  "product_head": "e1004c9cfeff932e904046e0ad1aa31d2bb2c139",
   "plan": {
     "minimum_physical_sessions": 5,
     "minimum_distinct_roles": 3,
