@@ -8,6 +8,11 @@ on:
         required: true
         default: false
         type: boolean
+      s10_4_shard_id:
+        description: Exact S10.4 shard ID from Scripts/s10-4-shards.json; all other cards use none
+        required: true
+        default: none
+        type: string
 
 permissions:
   contents: read
@@ -54,6 +59,7 @@ jobs:
         shell: bash
         env:
           DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}
+          DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
         run: |
           set -euo pipefail
           test -f Scripts/ci-selection.json
@@ -145,6 +151,242 @@ jobs:
           CI_UI_TIMEOUT_SECONDS="$(jq -r '.uiTimeoutSeconds' Scripts/ci-selection.json)"
           CI_TOTAL_BUDGET_SECONDS="$(jq -r '.totalBudgetSeconds' Scripts/ci-selection.json)"
 
+          CI_S10_4_SHARD_ID="none"
+          CI_ARTIFACT_SUFFIX=""
+          if test "$CI_TASK_ID" = "S10.4"; then
+            test "$DISPATCH_S10_4_SHARD_ID" != "none"
+            test -f Scripts/s10-4-shards.json
+            jq -e '
+              def exact_keys($expected):
+                ($expected | sort) == (keys | sort);
+              def nonempty_string:
+                type == "string" and test("\\S");
+              def exact_environment_keys:
+                exact_keys([
+                  "appearance",
+                  "contrast",
+                  "contentSizeCategory",
+                  "locale",
+                  "layoutDirection",
+                  "differentiateWithoutColor",
+                  "reduceMotion",
+                  "reduceTransparency"
+                ]);
+              [
+                "voiceover",
+                "voice_control",
+                "larger_text",
+                "dark_interface",
+                "differentiate_without_color",
+                "sufficient_contrast",
+                "reduced_motion"
+              ] as $features
+              | [
+                  "default_light",
+                  "default_dark",
+                  "increased_contrast",
+                  "ax_text",
+                  "differentiate_without_color",
+                  "reduce_motion",
+                  "reduce_transparency",
+                  "minimum_os",
+                  "double_length",
+                  "rtl",
+                  "rtl_string",
+                  "tall",
+                  "accented",
+                  "bounded"
+                ] as $requirements
+              | [
+                  "s10.4.current.default-light",
+                  "s10.4.current.default-dark",
+                  "s10.4.current.increased-contrast",
+                  "s10.4.current.ax-text",
+                  "s10.4.current.differentiate-without-color",
+                  "s10.4.current.reduce-motion",
+                  "s10.4.current.reduce-transparency",
+                  "s10.4.minimum.minimum-os",
+                  "s10.4.minimum.double-length",
+                  "s10.4.minimum.rtl",
+                  "s10.4.minimum.rtl-string",
+                  "s10.4.minimum.tall",
+                  "s10.4.minimum.accented",
+                  "s10.4.minimum.bounded"
+                ] as $shardIDs
+              | exact_keys([
+                  "schemaVersion",
+                  "taskID",
+                  "expectedStateCount",
+                  "expectedVisualCellCount",
+                  "expectedAccessibilityRowCount",
+                  "commonTaskCount",
+                  "deviceProfiles",
+                  "shards"
+                ])
+                and (.schemaVersion == 1)
+                and (.taskID == "S10.4")
+                and (.expectedStateCount == 67)
+                and (.expectedVisualCellCount == 938)
+                and (.expectedAccessibilityRowCount == 84)
+                and (.commonTaskCount == 6)
+                and (.deviceProfiles == [
+                  {
+                    deviceProfileID: "iphone-17-ios-26.2-current",
+                    simulatorRuntime: "iOS 26.2",
+                    simulatorRuntimeBuild: "23C54",
+                    simulatorName: "iPhone 17",
+                    provisionRuntime: false,
+                    runtimeDownloadVersion: ""
+                  },
+                  {
+                    deviceProfileID: "iphone-se-3-ios-18.0-minimum",
+                    simulatorRuntime: "iOS 18.0",
+                    simulatorRuntimeBuild: "22A3354",
+                    simulatorName: "iPhone SE (3rd generation)",
+                    provisionRuntime: true,
+                    runtimeDownloadVersion: "18.0"
+                  }
+                ])
+                and (.shards | type == "array" and length == 14)
+                and ([.shards[].shardID] == $shardIDs)
+                and ([.shards[].requirementID] == $requirements)
+                and ([.shards[].ordinal] == [range(1; 15)])
+                and ([.shards[].shardID] | unique | length == 14)
+                and all(.shards[];
+                  exact_keys([
+                    "ordinal",
+                    "shardID",
+                    "requirementID",
+                    "deviceProfileID",
+                    "accessibilityFeatures",
+                    "environment"
+                  ])
+                  and (.ordinal | type == "number" and floor == .)
+                  and (.shardID | type == "string" and test("^s10\\.4\\.(current|minimum)\\.[a-z0-9-]+$"))
+                  and (.requirementID | nonempty_string)
+                  and (.deviceProfileID | IN(
+                    "iphone-17-ios-26.2-current",
+                    "iphone-se-3-ios-18.0-minimum"
+                  ))
+                  and (.accessibilityFeatures | type == "array" and length == 1)
+                  and ((.accessibilityFeatures | unique | length) == (.accessibilityFeatures | length))
+                  and all(.accessibilityFeatures[]; IN($features[]))
+                  and (.environment | exact_environment_keys)
+                  and (.environment.appearance | IN("light", "dark"))
+                  and (.environment.contrast | IN("standard", "increased"))
+                  and (.environment.contentSizeCategory | IN(
+                    "UICTContentSizeCategoryL",
+                    "UICTContentSizeCategoryAccessibilityXXXL"
+                  ))
+                  and (.environment.locale | IN(
+                    "en-US-release",
+                    "en-US-double-length",
+                    "ar-RTL",
+                    "ar-RTL-string",
+                    "en-US-tall",
+                    "en-US-accented",
+                    "en-US-bounded"
+                  ))
+                  and (.environment.layoutDirection | IN("left_to_right", "right_to_left"))
+                  and (.environment.differentiateWithoutColor | type == "boolean")
+                  and (.environment.reduceMotion | type == "boolean")
+                  and (.environment.reduceTransparency | type == "boolean")
+                )
+                and ([
+                  .shards[]
+                  | {
+                      shardID,
+                      deviceProfileID,
+                      accessibilityFeature: .accessibilityFeatures[0]
+                    }
+                ] == [
+                  {shardID: "s10.4.current.default-light", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "voiceover"},
+                  {shardID: "s10.4.current.default-dark", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "dark_interface"},
+                  {shardID: "s10.4.current.increased-contrast", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "sufficient_contrast"},
+                  {shardID: "s10.4.current.ax-text", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "larger_text"},
+                  {shardID: "s10.4.current.differentiate-without-color", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "differentiate_without_color"},
+                  {shardID: "s10.4.current.reduce-motion", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "reduced_motion"},
+                  {shardID: "s10.4.current.reduce-transparency", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "voice_control"},
+                  {shardID: "s10.4.minimum.minimum-os", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "voiceover"},
+                  {shardID: "s10.4.minimum.double-length", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "larger_text"},
+                  {shardID: "s10.4.minimum.rtl", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "dark_interface"},
+                  {shardID: "s10.4.minimum.rtl-string", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "voice_control"},
+                  {shardID: "s10.4.minimum.tall", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "reduced_motion"},
+                  {shardID: "s10.4.minimum.accented", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "sufficient_contrast"},
+                  {shardID: "s10.4.minimum.bounded", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "differentiate_without_color"}
+                ])
+                and ([
+                  .shards[]
+                  | select(.deviceProfileID == "iphone-17-ios-26.2-current")
+                  | .accessibilityFeatures[]
+                ] | sort) == ($features | sort)
+                and ([
+                  .shards[]
+                  | select(.deviceProfileID == "iphone-se-3-ios-18.0-minimum")
+                  | .accessibilityFeatures[]
+                ] | sort) == ($features | sort)
+                and (([.shards[].accessibilityFeatures | length] | add) * .commonTaskCount
+                  == .expectedAccessibilityRowCount)
+                and (.expectedStateCount * (.shards | length) == .expectedVisualCellCount)
+                and (.shards[] | select(.requirementID == "default_dark")
+                  | .environment.appearance == "dark")
+                and (.shards[] | select(.requirementID == "increased_contrast")
+                  | .environment.contrast == "increased")
+                and (.shards[] | select(.requirementID == "ax_text")
+                  | .environment.contentSizeCategory == "UICTContentSizeCategoryAccessibilityXXXL")
+                and (.shards[] | select(.requirementID == "double_length")
+                  | .environment.contentSizeCategory == "UICTContentSizeCategoryAccessibilityXXXL")
+                and (.shards[] | select(.requirementID == "rtl")
+                  | .environment.appearance == "dark")
+                and (.shards[] | select(.requirementID == "tall")
+                  | .environment.reduceMotion == true)
+                and (.shards[] | select(.requirementID == "accented")
+                  | .environment.contrast == "increased")
+                and (.shards[] | select(.requirementID == "bounded")
+                  | .environment.differentiateWithoutColor == true)
+                and (.shards[] | select(.requirementID == "differentiate_without_color")
+                  | .environment.differentiateWithoutColor == true)
+                and (.shards[] | select(.requirementID == "reduce_motion")
+                  | .environment.reduceMotion == true)
+                and (.shards[] | select(.requirementID == "reduce_transparency")
+                  | .environment.reduceTransparency == true)
+            ' Scripts/s10-4-shards.json > /dev/null
+
+            shard_count="$(jq -r --arg shard "$DISPATCH_S10_4_SHARD_ID" \
+              '[.shards[] | select(.shardID == $shard)] | length' Scripts/s10-4-shards.json)"
+            test "$shard_count" -eq 1
+            shard_json="$(jq -cer --arg shard "$DISPATCH_S10_4_SHARD_ID" \
+              '.shards[] | select(.shardID == $shard)' Scripts/s10-4-shards.json)"
+            device_profile_id="$(jq -r '.deviceProfileID' <<< "$shard_json")"
+            profile_json="$(jq -cer --arg profile "$device_profile_id" \
+              '.deviceProfiles[] | select(.deviceProfileID == $profile)' Scripts/s10-4-shards.json)"
+
+            CI_S10_4_SHARD_ID="$DISPATCH_S10_4_SHARD_ID"
+            CI_ARTIFACT_SUFFIX="-$CI_S10_4_SHARD_ID"
+            SIMULATOR_RUNTIME="$(jq -r '.simulatorRuntime' <<< "$profile_json")"
+            SIMULATOR_RUNTIME_BUILD="$(jq -r '.simulatorRuntimeBuild' <<< "$profile_json")"
+            SIMULATOR_NAME="$(jq -r '.simulatorName' <<< "$profile_json")"
+            CI_S10_4_PROVISION_RUNTIME="$(jq -r '.provisionRuntime | tostring' <<< "$profile_json")"
+            CI_S10_4_RUNTIME_DOWNLOAD_VERSION="$(jq -r '.runtimeDownloadVersion' <<< "$profile_json")"
+            CI_S10_4_DEVICE_PROFILE_ID="$device_profile_id"
+            CI_S10_4_SHARD_ORDINAL="$(jq -r '.ordinal' <<< "$shard_json")"
+            CI_S10_4_REQUIREMENT_ID="$(jq -r '.requirementID' <<< "$shard_json")"
+            CI_S10_4_ACCESSIBILITY_FEATURE="$(jq -er \
+              '.accessibilityFeatures | if length == 1 then .[0] else error("expected one feature") end' \
+              <<< "$shard_json")"
+            CI_S10_4_ACCESSIBILITY_FEATURES="$(jq -r '.accessibilityFeatures | join(",")' <<< "$shard_json")"
+            CI_S10_4_APPEARANCE="$(jq -r '.environment.appearance' <<< "$shard_json")"
+            CI_S10_4_CONTRAST="$(jq -r '.environment.contrast' <<< "$shard_json")"
+            CI_S10_4_CONTENT_SIZE_CATEGORY="$(jq -r '.environment.contentSizeCategory' <<< "$shard_json")"
+            CI_S10_4_LOCALE="$(jq -r '.environment.locale' <<< "$shard_json")"
+            CI_S10_4_LAYOUT_DIRECTION="$(jq -r '.environment.layoutDirection' <<< "$shard_json")"
+            CI_S10_4_DIFFERENTIATE_WITHOUT_COLOR="$(jq -r '.environment.differentiateWithoutColor | tostring' <<< "$shard_json")"
+            CI_S10_4_REDUCE_MOTION="$(jq -r '.environment.reduceMotion | tostring' <<< "$shard_json")"
+            CI_S10_4_REDUCE_TRANSPARENCY="$(jq -r '.environment.reduceTransparency | tostring' <<< "$shard_json")"
+          else
+            test "$DISPATCH_S10_4_SHARD_ID" = "none"
+          fi
+
           printf '%s\n' \
             "CI_TASK_ID=$CI_TASK_ID" \
             "CI_TIER=$CI_TIER" \
@@ -154,10 +396,37 @@ jobs:
             "CI_TEST_TIMEOUT_SECONDS=$CI_TEST_TIMEOUT_SECONDS" \
             "CI_UI_TIMEOUT_SECONDS=$CI_UI_TIMEOUT_SECONDS" \
             "CI_TOTAL_BUDGET_SECONDS=$CI_TOTAL_BUDGET_SECONDS" \
+            "CI_S10_4_SHARD_ID=$CI_S10_4_SHARD_ID" \
+            "CI_ARTIFACT_SUFFIX=$CI_ARTIFACT_SUFFIX" \
             >> "$GITHUB_ENV"
+          if test "$CI_TASK_ID" = "S10.4"; then
+            printf '%s\n' \
+              "SIMULATOR_RUNTIME=$SIMULATOR_RUNTIME" \
+              "SIMULATOR_RUNTIME_BUILD=$SIMULATOR_RUNTIME_BUILD" \
+              "SIMULATOR_NAME=$SIMULATOR_NAME" \
+              "CI_S10_4_PROVISION_RUNTIME=$CI_S10_4_PROVISION_RUNTIME" \
+              "CI_S10_4_RUNTIME_DOWNLOAD_VERSION=$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" \
+              "CI_S10_4_DEVICE_PROFILE_ID=$CI_S10_4_DEVICE_PROFILE_ID" \
+              "CI_S10_4_SHARD_ORDINAL=$CI_S10_4_SHARD_ORDINAL" \
+              "CI_S10_4_REQUIREMENT_ID=$CI_S10_4_REQUIREMENT_ID" \
+              "CI_S10_4_ACCESSIBILITY_FEATURE=$CI_S10_4_ACCESSIBILITY_FEATURE" \
+              "CI_S10_4_ACCESSIBILITY_FEATURES=$CI_S10_4_ACCESSIBILITY_FEATURES" \
+              "CI_S10_4_APPEARANCE=$CI_S10_4_APPEARANCE" \
+              "CI_S10_4_CONTRAST=$CI_S10_4_CONTRAST" \
+              "CI_S10_4_CONTENT_SIZE_CATEGORY=$CI_S10_4_CONTENT_SIZE_CATEGORY" \
+              "CI_S10_4_LOCALE=$CI_S10_4_LOCALE" \
+              "CI_S10_4_LAYOUT_DIRECTION=$CI_S10_4_LAYOUT_DIRECTION" \
+              "CI_S10_4_DIFFERENTIATE_WITHOUT_COLOR=$CI_S10_4_DIFFERENTIATE_WITHOUT_COLOR" \
+              "CI_S10_4_REDUCE_MOTION=$CI_S10_4_REDUCE_MOTION" \
+              "CI_S10_4_REDUCE_TRANSPARENCY=$CI_S10_4_REDUCE_TRANSPARENCY" \
+              >> "$GITHUB_ENV"
+          fi
           cp Scripts/ci-selection.json "$CI_ARTIFACT_DIR/ci-selection.json"
-          printf 'task_id=%s\ntier=%s\ndispatch_run_ui_smoke=%s\n' \
-            "$CI_TASK_ID" "$CI_TIER" "$DISPATCH_RUN_UI_SMOKE" \
+          if test "$CI_TASK_ID" = "S10.4"; then
+            cp Scripts/s10-4-shards.json "$CI_ARTIFACT_DIR/s10-4-shards.json"
+          fi
+          printf 'task_id=%s\ntier=%s\ndispatch_run_ui_smoke=%s\ns10_4_shard_id=%s\n' \
+            "$CI_TASK_ID" "$CI_TIER" "$DISPATCH_RUN_UI_SMOKE" "$CI_S10_4_SHARD_ID" \
             | tee "$CI_ARTIFACT_DIR/ci-selection-validation.txt"
 
       - name: Verify pinned toolchain, shared scheme, and simulator
@@ -196,15 +465,48 @@ jobs:
           target_count="$(printf '%s\n' "$deployment_targets" | sed '/^$/d' | wc -l | tr -d ' ')"
           test "$target_count" -eq 1
           test "$deployment_targets" = "$EXPECTED_MINIMUM_IOS"
+
+          if test "${CI_TASK_ID:-}" = "S10.4" && \
+             test "${CI_S10_4_PROVISION_RUNTIME:-}" = "true"; then
+            test "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" = "18.0"
+            setup_elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
+            runtime_provision_budget_seconds="$(( CI_SETUP_ARTIFACT_TIMEOUT_SECONDS - setup_elapsed_seconds ))"
+            test "$runtime_provision_budget_seconds" -gt 0
+            bash Scripts/run-with-timeout.sh "$runtime_provision_budget_seconds" \
+              xcodebuild -downloadPlatform iOS \
+                -buildVersion "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" \
+              2>&1 | tee "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+          fi
+
           xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
           xcrun simctl list devices available -j > "$CI_ARTIFACT_DIR/simulator-devices.json"
           runtime_id="$(jq -r --arg name "$SIMULATOR_RUNTIME" \
-            '.runtimes[] | select(.name == $name and .isAvailable == true) | .identifier' \
+            --arg build "${SIMULATOR_RUNTIME_BUILD:-}" \
+            '.runtimes[]
+              | select(
+                  .name == $name
+                  and .isAvailable == true
+                  and ($build == "" or .buildversion == $build)
+                )
+              | .identifier' \
             "$CI_ARTIFACT_DIR/simulator-runtimes.json" | head -n 1)"
           test -n "$runtime_id"
           simulator_udid="$(jq -r --arg runtime "$runtime_id" --arg name "$SIMULATOR_NAME" \
             '.devices[$runtime][] | select(.name == $name and .isAvailable == true) | .udid' \
             "$CI_ARTIFACT_DIR/simulator-devices.json" | head -n 1)"
+          if test -z "$simulator_udid" && \
+             test "${CI_TASK_ID:-}" = "S10.4" && \
+             test "${CI_S10_4_PROVISION_RUNTIME:-}" = "true"; then
+            xcrun simctl list devicetypes -j > "$CI_ARTIFACT_DIR/simulator-device-types.json"
+            simulator_device_type_id="$(jq -r --arg name "$SIMULATOR_NAME" \
+              '.devicetypes[] | select(.name == $name) | .identifier' \
+              "$CI_ARTIFACT_DIR/simulator-device-types.json" | head -n 1)"
+            test -n "$simulator_device_type_id"
+            simulator_udid="$(xcrun simctl create \
+              "$SIMULATOR_NAME" "$simulator_device_type_id" "$runtime_id")"
+            test -n "$simulator_udid"
+            xcrun simctl list devices available -j > "$CI_ARTIFACT_DIR/simulator-devices.json"
+          fi
           test -n "$simulator_udid"
           simulator_state="$(jq -er --arg runtime "$runtime_id" --arg udid "$simulator_udid" '
             [.devices[$runtime][] | select(.udid == $udid) | .state]
@@ -216,8 +518,15 @@ jobs:
             Shutdown | Booted) ;;
             *) exit 1 ;;
           esac
-          printf 'runtime=%s\nname=%s\nudid=%s\ninitial_state=%s\n' \
-            "$SIMULATOR_RUNTIME" "$SIMULATOR_NAME" "$simulator_udid" "$simulator_state" \
+          selected_runtime_build="$(jq -er --arg runtime "$runtime_id" \
+            '.runtimes[] | select(.identifier == $runtime) | .buildversion' \
+            "$CI_ARTIFACT_DIR/simulator-runtimes.json")"
+          if test "${CI_TASK_ID:-}" = "S10.4"; then
+            test "$selected_runtime_build" = "$SIMULATOR_RUNTIME_BUILD"
+          fi
+          printf 'runtime=%s\nruntime_build=%s\nname=%s\nudid=%s\ninitial_state=%s\n' \
+            "$SIMULATOR_RUNTIME" "$selected_runtime_build" "$SIMULATOR_NAME" \
+            "$simulator_udid" "$simulator_state" \
             | tee "$CI_ARTIFACT_DIR/simulator-selection.txt"
           printf 'CI_DESTINATION=platform=iOS Simulator,id=%s\nCI_SIMULATOR_UDID=%s\nCI_SIMULATOR_INITIAL_STATE=%s\n' \
             "$simulator_udid" "$simulator_udid" "$simulator_state" >> "$GITHUB_ENV"
@@ -329,6 +638,185 @@ jobs:
           set -euo pipefail
           bash Scripts/run-with-timeout.sh "$CI_UI_TIMEOUT_SECONDS" \
             bash Scripts/ui-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/ui-smoke.log"
+
+      - name: Retain S10.4 shard evidence
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CI_TASK_ID" = "S10.4"
+          test "$CI_S10_4_SHARD_ID" = "${{ inputs.s10_4_shard_id }}"
+          test -d "$RUNNER_TEMP/FieldEvidenceUISmokeAttachments"
+          attachment_export_path="$RUNNER_TEMP/FieldEvidenceUISmokeAttachments"
+          attachment_manifest_path="$attachment_export_path/manifest.json"
+          test -s "$attachment_manifest_path"
+
+          shard_evidence_path="$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID"
+          candidate_path="$shard_evidence_path/candidates"
+          mkdir -p "$candidate_path"
+          cp "$attachment_manifest_path" "$shard_evidence_path/xcresult-attachment-manifest.json"
+
+          candidate_prefix="S10.4 candidate $CI_S10_4_SHARD_ID "
+          jq -e \
+            --arg prefix "$candidate_prefix" '
+              [
+                .[]
+                | select(
+                    type == "object"
+                    and (.testIdentifier | type == "string")
+                    and (.testIdentifier | startswith("S10_4AutomatedBrandLabUITests/"))
+                    and (.attachments | type == "array")
+                  )
+                | .attachments[]
+                | select(
+                    type == "object"
+                    and .isAssociatedWithFailure == false
+                    and (.suggestedHumanReadableName | type == "string")
+                    and (.suggestedHumanReadableName | startswith($prefix))
+                    and (.exportedFileName | type == "string")
+                    and (.exportedFileName | test("^[A-Za-z0-9._-]+$"))
+                  )
+                | {
+                    stateID: (.suggestedHumanReadableName | ltrimstr($prefix)),
+                    exportedFileName: .exportedFileName
+                  }
+              ]
+              | if length == 67 then .
+                else error("expected exactly 67 S10.4 candidate PNG-data attachments")
+                end
+              | if ([.[].stateID] | unique | length) == 67 then .
+                else error("duplicate S10.4 candidate state attachment")
+                end
+              | if ([.[].exportedFileName] | unique | length) == 67 then .
+                else error("duplicate S10.4 exported candidate file")
+                end
+            ' "$attachment_manifest_path" > "$shard_evidence_path/candidate-exports.json"
+
+          jq '[.routes[].states[].state_id] | sort' \
+            docs/design/s10/s10-screen-state-inventory.json \
+            > "$RUNNER_TEMP/s10-4-expected-states.json"
+          jq '[.[].stateID] | sort' "$shard_evidence_path/candidate-exports.json" \
+            > "$RUNNER_TEMP/s10-4-observed-states.json"
+          cmp -s "$RUNNER_TEMP/s10-4-expected-states.json" \
+            "$RUNNER_TEMP/s10-4-observed-states.json"
+
+          : > "$RUNNER_TEMP/s10-4-candidate-files.tsv"
+          while IFS=$'\t' read -r state_id exported_file_name; do
+            test -n "$state_id"
+            test -n "$exported_file_name"
+            case "$state_id" in state.*) ;; *) exit 1 ;; esac
+            source_path="$attachment_export_path/$exported_file_name"
+            destination_name="$state_id.png"
+            destination_path="$candidate_path/$destination_name"
+            test -f "$source_path"
+            test ! -L "$source_path"
+            test "$(LC_ALL=C od -An -tx1 -N8 "$source_path" \
+              | tr -d '[:space:]' \
+              | tr '[:upper:]' '[:lower:]')" = "89504e470d0a1a0a"
+            cp "$source_path" "$destination_path"
+            cmp -s "$source_path" "$destination_path"
+            candidate_sha256="$(shasum -a 256 "$destination_path" | awk '{print toupper($1)}')"
+            candidate_bytes="$(stat -f '%z' "$destination_path")"
+            printf '%s\t%s\t%s\t%s\n' \
+              "$state_id" "candidates/$destination_name" \
+              "$candidate_sha256" "$candidate_bytes" \
+              >> "$RUNNER_TEMP/s10-4-candidate-files.tsv"
+          done < <(jq -r '.[] | [.stateID, .exportedFileName] | @tsv' \
+            "$shard_evidence_path/candidate-exports.json")
+
+          jq -Rn '
+            [
+              inputs
+              | split("\t")
+              | {
+                  stateID: .[0],
+                  artifactPath: .[1],
+                  sha256: .[2],
+                  bytes: (.[3] | tonumber)
+                }
+            ]
+          ' < "$RUNNER_TEMP/s10-4-candidate-files.tsv" \
+            > "$shard_evidence_path/candidate-files.json"
+          test "$(jq 'length' "$shard_evidence_path/candidate-files.json")" -eq 67
+
+          sed -n 's/^S10_4_AX //p' "$CI_ARTIFACT_DIR/ui-smoke.log" \
+            > "$shard_evidence_path/accessibility.ndjson"
+          jq -s '.' "$shard_evidence_path/accessibility.ndjson" \
+            > "$shard_evidence_path/accessibility.json"
+          expected_accessibility_rows="$(( \
+            $(if test -z "$CI_S10_4_ACCESSIBILITY_FEATURES"; then printf '0'; \
+              else awk -F',' '{print NF}' <<< "$CI_S10_4_ACCESSIBILITY_FEATURES"; fi) * 6 \
+          ))"
+          test "$(jq 'length' "$shard_evidence_path/accessibility.json")" \
+            -eq "$expected_accessibility_rows"
+          jq -e \
+            --arg profile "$CI_S10_4_DEVICE_PROFILE_ID" \
+            --arg features "$CI_S10_4_ACCESSIBILITY_FEATURES" \
+            --slurpfile contract docs/design/s10/s10-accessibility-common-tasks.json '
+              ($features | if length == 0 then [] else split(",") end) as $expectedFeatures
+              | ($contract[0].tasks | map(.task_id)) as $expectedTasks
+              | all(.[];
+                  type == "object"
+                  and (.taskID | type == "string" and IN($expectedTasks[]))
+                  and (.deviceProfileID == $profile)
+                  and (.feature | type == "string" and IN($expectedFeatures[]))
+                  and (.automatedStatus | IN("PASS", "NOT_APPLICABLE", "EXCEPTION"))
+                  and (.evidenceID | type == "string" and test("\\S"))
+                )
+                and ([.[] | [.taskID, .deviceProfileID, .feature] | join("|")] as $keys
+                  | ($keys | unique | length) == ($keys | length))
+                and ([.[] | .taskID] | unique | sort) ==
+                  (if ($expectedFeatures | length) == 0 then [] else ($expectedTasks | sort) end)
+                and ([.[] | .feature] | unique | sort) == ($expectedFeatures | sort)
+            ' "$shard_evidence_path/accessibility.json" > /dev/null
+
+          sed -n 's/^S10_4_CONTRAST //p' "$CI_ARTIFACT_DIR/ui-smoke.log" \
+            > "$shard_evidence_path/contrast.ndjson"
+          jq -s '.' "$shard_evidence_path/contrast.ndjson" \
+            > "$shard_evidence_path/contrast.json"
+          test "$(jq 'length' "$shard_evidence_path/contrast.json")" -eq 67
+          jq -e \
+            --arg requirement "$CI_S10_4_REQUIREMENT_ID" \
+            --slurpfile inventory docs/design/s10/s10-screen-state-inventory.json '
+              ($inventory[0] | [.routes[].states[].state_id] | sort) as $expectedStates
+              | all(.[];
+                  type == "object"
+                  and (.stateID | type == "string" and IN($expectedStates[]))
+                  and (.requirementID == $requirement)
+                  and (.result == "PASS")
+                  and (.evidenceID | type == "string" and test("\\S"))
+                )
+                and ([.[].stateID] | unique | length == 67)
+                and ([.[].stateID] | sort) == $expectedStates
+            ' "$shard_evidence_path/contrast.json" > /dev/null
+
+          jq -n \
+            --arg taskID "$CI_TASK_ID" \
+            --arg shardID "$CI_S10_4_SHARD_ID" \
+            --arg requirementID "$CI_S10_4_REQUIREMENT_ID" \
+            --arg deviceProfileID "$CI_S10_4_DEVICE_PROFILE_ID" \
+            --arg runtime "$SIMULATOR_RUNTIME" \
+            --arg runtimeBuild "$SIMULATOR_RUNTIME_BUILD" \
+            --arg simulatorName "$SIMULATOR_NAME" \
+            --arg productHead "$GITHUB_SHA" \
+            --argjson candidateCount 67 \
+            --argjson accessibilityRowCount "$expected_accessibility_rows" \
+            --argjson contrastRowCount 67 '
+              {
+                schemaVersion: 1,
+                taskID: $taskID,
+                shardID: $shardID,
+                requirementID: $requirementID,
+                deviceProfileID: $deviceProfileID,
+                runtime: $runtime,
+                runtimeBuild: $runtimeBuild,
+                simulatorName: $simulatorName,
+                productHead: $productHead,
+                candidateCount: $candidateCount,
+                accessibilityRowCount: $accessibilityRowCount,
+                contrastRowCount: $contrastRowCount
+              }
+            ' > "$shard_evidence_path/shard-receipt.json"
 
       - name: Begin evidence-finalization budget
         if: always()
@@ -442,6 +930,24 @@ jobs:
             verify_executed_selectors \
               "$CI_ARTIFACT_DIR/UISmoke.xcresult" \
               uiTestSelectors "UI test bundle" ui
+            if test "${CI_TASK_ID:-}" = "S10.4"; then
+              test "${CI_S10_4_SHARD_ID:-none}" != "none"
+              shard_evidence_path="$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID"
+              require_nonempty_directory "$shard_evidence_path/candidates"
+              test "$(find "$shard_evidence_path/candidates" -type f -name 'state.*.png' \
+                | wc -l | tr -d ' ')" -eq 67
+              test -s "$shard_evidence_path/xcresult-attachment-manifest.json"
+              test -s "$shard_evidence_path/candidate-exports.json"
+              test -s "$shard_evidence_path/candidate-files.json"
+              test -s "$shard_evidence_path/accessibility.ndjson"
+              test -s "$shard_evidence_path/accessibility.json"
+              test -s "$shard_evidence_path/contrast.ndjson"
+              test -s "$shard_evidence_path/contrast.json"
+              test -s "$shard_evidence_path/shard-receipt.json"
+              test "$(jq 'length' "$shard_evidence_path/candidate-files.json")" -eq 67
+              test "$(jq 'length' "$shard_evidence_path/accessibility.json")" -eq 6
+              test "$(jq 'length' "$shard_evidence_path/contrast.json")" -eq 67
+            fi
           else
             test "${CI_RUN_UI_SMOKE:-}" = "false"
             test ! -e "$CI_ARTIFACT_DIR/ui-smoke.log"
@@ -510,7 +1016,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ios-ci-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) }}
           path: ${{ runner.temp }}/FieldEvidenceCI
           if-no-files-found: error
           retention-days: 14

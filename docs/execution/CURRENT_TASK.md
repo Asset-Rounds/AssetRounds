@@ -12,8 +12,10 @@
 - Immutable S10 phase-main base: `P=01233f789b1cef5a6f56c7ff4caa9271409cd3bc`.
 - Integrated/card base: `M=d4661ef2096fb55c824842965bee06630cc0aeb7`, the accepted S10.3 receipt C.
 - Accepted predecessor product/evidence/receipt: S10.3 `E=e1004c9cfeff932e904046e0ad1aa31d2bb2c139`, `K=9461a8ef52cdd2a1a49a95d34c7e7ea8abd9d284`, `C=M`; accepted product run `31966468925`, job `95212275453`, artifact `9268967312` / `ios-ci-31966468925-1` / digest `sha256:42c871456fa009ce3254723f30855fb4c5af563352cda2ba4f5983744fb7d17c`; complete `Migration` validator PASS.
-- The immediate-next transition authority creates A as a direct child of M and changes exactly append-only `docs/execution/HANDOFF.md` plus this `docs/execution/CURRENT_TASK.md`. Fresh G0 observes A after commit; this file never self-records A.
-- Fresh G0 must prove `M..A` contains exactly those two authority paths, remote `phase/s10-brand-refresh=A`, remote `main=P`, exact pins/digests, clean owned work, and no product/project/fixture/runtime-asset/baseline mutation after S10.3 C.
+- Observed task-start authority: `A=9a4b27479cd347d340d800aa5c52ccdaf256d9f8`, a direct child of M; `M..A` changes exactly append-only `docs/execution/HANDOFF.md` plus this `docs/execution/CURRENT_TASK.md`. Remote `phase/s10-brand-refresh=A` and remote `main=P` were re-fetched before the correction below.
+- Owner-directed S10.4 automation correction: the original single iPhone 17/iOS 26.2 lane cannot truthfully produce the frozen iPhone SE 3/iOS 18.0 evidence, the accepted 67-state route already consumes most of one F25 UI lane, and the V4.1 visual schema has only one candidate slot per baseline instead of 938 candidate cells. The owner explicitly authorized the smallest truthful authority/CI correction while preserving all product, baseline, acceptance, and watchdog truth.
+- Correction authority H is the direct child of A and changes exactly this file, `.github/workflows/ios-ci.yml`, `Scripts/s10-4-shards.json`, and the four fully expanded files under `docs/design/s10/authority/s10.4-automation-amendment-v1/` named below. H is observed only after commit and is never self-recorded in its own bytes.
+- Fresh amended G0 must prove `A..H` contains exactly those seven authority/support paths, remote `phase/s10-brand-refresh=H`, remote `main=P`, all old and new pins/digests, clean owned work, the accepted predecessor selector only, and no product/project/fixture/runtime-asset/baseline mutation after S10.3 C.
 - S10.3's migrated product E remains the exact candidate product under review. S10.4 may add bounded verification tests and descendant evidence but must not silently replace the 67 approved S9 baselines, the migrated app, or the accepted S10.2 component system.
 
 ## Frozen authority and package
@@ -24,6 +26,12 @@
 - Activation: `docs/design/s10/s10-activation.json` / SHA-256 `80C6102D703AE836C14F38562E04BDFD28D333DF9EC9848324F4DC34CFBF880D`.
 - Frozen package: `docs/design/s10/authority/assetrounds-brand-assets-v4.1-20260815.zip` / SHA-256 `D05ACDC8195B1C7C05230BCBD0AC59E436681D93FCA9AC12108B2BE98A408400`.
 - External manifest anchor: `docs/design/s10/authority/asset-manifest.json` / SHA-256 `F771EB8FBD3D42960FC4B8C0A516A05E8B0FD16EBA2C88107ADD6A4E0D74F551`.
+- Append-only automation amendment manifest: `docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json` / 15,394 bytes / SHA-256 `52283E0BF7D56A1FF5247540BD83CBB13D4FB0A40D1341C93F0B39FC8BE565EF`.
+- Append-only visual overlay schema: `docs/design/s10/authority/s10.4-automation-amendment-v1/s10-visual-regression.schema.json` / 18,485 bytes / SHA-256 `F4D9F531428EE09068492D3A0C5473B48A5EC7FA8F4314A8305DE63FE5A33139`.
+- Append-only accessibility overlay schema: `docs/design/s10/authority/s10.4-automation-amendment-v1/s10-accessibility-common-tasks.schema.json` / 7,108 bytes / SHA-256 `E0893E86636F9F558103FED7173432998F18A459613EECAAB9A4B0CD65CEA0E3`.
+- Append-only overlay validator: `docs/design/s10/authority/s10.4-automation-amendment-v1/validate-s10-contracts.ps1` / 39,724 bytes / SHA-256 `CBBD31C68C156E58207F12B49233CAC3DF3975621B6578B3B85B0F556AE2E483`.
+- Exact automation shard contract: `Scripts/s10-4-shards.json` / 6,678 bytes / SHA-256 `358D3716A01800EB8FB29E415C33572D94FF188B65C71B512F0E0B0754D1F3D9`.
+- The amendment supersedes only S10.4 candidate-cell shape, shard execution, and automated evidence binding. The V4.1 ZIP, activation, external manifest, plan, runbook, 67 S10.1 baselines, S10.2 components, S10.3 product/evidence/receipt, route/publication state, and every non-S10.4 product invariant remain byte-for-byte authoritative.
 - Frozen candidate product: S10.3 `E=e1004c9cfeff932e904046e0ad1aa31d2bb2c139`; exactly 67 migrated states, zero untracked visual constants, quoted-copy/identifier/import digest `C34DB3D96BC4C43F9B6F5A1DEDF80805C73E57495B9448E1B54DAD84D840B645`.
 - Exact device profiles: `iphone-17-ios-26.2-current` and `iphone-se-3-ios-18.0-minimum`.
 - Exact release locale profile: `en-US-release`. Exact pseudolanguage profiles: `en-US-double-length`, `ar-RTL`, `ar-RTL-string`, `en-US-tall`, `en-US-accented`, and `en-US-bounded`.
@@ -52,36 +60,49 @@ Evidence/receipt paths, fully expanded:
 Test paths:
 
 5. `FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift`
-6. `FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests.swift`
+6. `FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift`
 
 - Explicit cap: four evidence documents and two tests.
-- Product/test E may create or change only the two bounded S10.4 test files. All app, project, runtime-asset, fixture, package, S10.1 baseline, S10.2 component, S10.3 product, and canonical evidence documents remain read-only until accepted exact-head test evidence exists.
+- Product/test E may create the bounded S10.4 unit file and make only a source-compatible shared-route test refactor in the accepted S10.3 UI file. That file must retain the original `S10_3BrandMigrationUITests` selector/behavior and add the exact `S10_4AutomatedBrandLabUITests.testAutomatedBrandLabShard` class/method without copying the 67-state route. All app, project, runtime-asset, fixture, package, S10.1 baseline, S10.2 component, S10.3 product, and canonical evidence documents remain read-only until accepted exact-head test evidence exists. `FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests.swift` is not created.
 - `Scripts/ci-selection.json` is the sole standing implementation-support exception and is excluded from the cap.
 - After exact-head green E, descendant evidence K may update only `docs/design/s10/s10-accessibility-common-tasks.json`, `docs/design/s10/s10-token-coverage.json`, and `docs/design/s10/s10-visual-regression.json`. Accessibility becomes `automated_evaluated` with exact automated results while manual fields remain unclaimed. Visual regression becomes `automated_evaluated`, preserves every baseline field, binds candidate evidence to migrated S10.3 E, and records genuine human review. Token coverage must remain `migrated`, preserve both component/migration heads, mappings, nine component rows, 67 PASS rows, and zero count; it may add only exact S10.4 artifact evidence required by the accepted matrix.
 - Later receipt C may change exactly `docs/design/s10/s10-stage-checkpoints.json` plus append-only `docs/execution/HANDOFF.md`: append the fourth ordered `AutomatedLab` E/K row, preserve the first three rows byte-for-byte, bind historical accessibility/token/visual blobs, and include accepted CI plus exact matrix/review evidence IDs.
 - Run complete V4.1 `AutomatedLab` validation after K/C using frozen package member `Handoff/s10-evidence-lock.template.json` as `-EvidenceLockPath`; do not create canonical `docs/design/s10/s10-evidence-lock.json` before S10.6.
 - Forbidden: product/app/project/asset/fixture mutation without an exact diagnosed recovery amendment; baseline erasure/regeneration; manual/physical/durability/performance promotion; release/store/privacy/legal lock; new feature/copy/route/model/service/schema/dependency/capability/permission; signing/archive/upload/TestFlight/App Store mutation; secret/settings/PR/merge/force push; invented review or exception evidence.
 
+Authority/support amendment H paths, excluded from the ordinary four-evidence/two-test cap and immutable after H:
+
+1. `docs/execution/CURRENT_TASK.md`
+2. `.github/workflows/ios-ci.yml`
+3. `Scripts/s10-4-shards.json`
+4. `docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json`
+5. `docs/design/s10/authority/s10.4-automation-amendment-v1/s10-visual-regression.schema.json`
+6. `docs/design/s10/authority/s10.4-automation-amendment-v1/s10-accessibility-common-tasks.schema.json`
+7. `docs/design/s10/authority/s10.4-automation-amendment-v1/validate-s10-contracts.ps1`
+
 ## Environment, workflow, selector, and GitHub authority
 
-- Workflow: `.github/workflows/ios-ci.yml` / SHA-256 `BCD64E2A42752D28844435241B5ABFCA911D04190375CBBDBFC10B45ACBA97D7` / ref `phase/s10-brand-refresh`.
+- Workflow after H: `.github/workflows/ios-ci.yml` / 50,665 bytes / SHA-256 `73137A29B46C0A89548C622E9092822ABB956667DD9E04E7543269C5C2768A91` / ref `phase/s10-brand-refresh`. The pre-H workflow hash `BCD64E2A42752D28844435241B5ABFCA911D04190375CBBDBFC10B45ACBA97D7` remains immutable provenance.
 - Runner/toolchain: `macos-26`; image `macos26-20260728.0273.1`; `/Applications/Xcode_26.6.app/Contents/Developer`; Xcode `26.6` build `17F113`; SDK `iphonesimulator26.5` build `23F81a`; Swift language mode 5.
 - Project/scheme/configuration/minimum: `FieldEvidenceApp.xcodeproj / FieldEvidenceApp / Debug / iOS 18.0`.
-- Simulator selector: `iOS 26.2 / iPhone 17`; each job resolves a fresh UDID. The frozen minimum profile is separately proven by the exact S10.4 test contract without repinning this selector.
+- Simulator selectors are shard-bound and exact: current shards use `iOS 26.2` build `23C54` / `iPhone 17`; minimum shards use provisioned `iOS 18.0` build `22A3354` / `iPhone SE (3rd generation)`. Each run resolves or creates one fresh exact-profile UDID. Minimum runtime provisioning uses the pinned Xcode command `xcodebuild -downloadPlatform iOS -buildVersion 18.0`; absence, wrong build, or watchdog overrun is non-green evidence, never a substitute runtime.
+- The exact workflow input is `s10_4_shard_id`; all non-S10.4 cards require/default `none`. S10.4 requires one exact shard ID from the pinned JSON. The 14 sequential shards are seven current and seven minimum, one requirement and one accessibility feature per shard: current `default_light→voiceover`, `default_dark→dark_interface`, `increased_contrast→sufficient_contrast`, `ax_text→larger_text`, `differentiate_without_color→differentiate_without_color`, `reduce_motion→reduced_motion`, `reduce_transparency→voice_control`; minimum `minimum_os→voiceover`, `double_length→larger_text`, `rtl→dark_interface`, `rtl_string→voice_control`, `tall→reduced_motion`, `accented→sufficient_contrast`, `bounded→differentiate_without_color`. Combined environments are exact in the pinned shard JSON and must not be normalized away.
 - Exact selector after G0: `{"schemaVersion":1,"taskID":"S10.4","tier":"F25","runUISmoke":true,"setupArtifactTimeoutSeconds":300,"buildTimeoutSeconds":900,"testTimeoutSeconds":1200,"uiTimeoutSeconds":1800,"totalBudgetSeconds":4500,"unitTestSelectors":["FieldEvidenceAppTests/S10_4AutomatedBrandLabTests"],"uiTestSelectors":["FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests"]}` plus one LF; 354 bytes; SHA-256 `571AC854A230A95F90368EC50CA625AD13B170AFC06DFF503D1C9F99796EF7D5`.
 - Activation selector SHA-256 over its compact ordered snake-case object: `79F30EE86E96F27D9AD5550F38599A1D7ECF0C30DD1FEF1038FD03C0E54F568D`.
 - F25 watchdogs: setup/evidence 300s, build 900s, tests 1200s, UI 1800s, total 4500s; Simulator readiness 900s; job watchdog 90 minutes; UI enabled with exactly one selector.
-- Allowed GitHub operations: read/fetch/ref/run/workflow/artifact inspection; exact-path staging/commits; non-force phase push; exact `ios-ci.yml` dispatch on the phase branch with `run_ui_smoke=true`; exact run observation/download. No PR, merge commit, force/ref rewrite, settings/secrets, release workflow, signing, upload, deployment, submission, or S9.2/S9.3.
+- One shard is one F25 workflow run using the unchanged selector and watchdogs. Dispatch shards in pinned ordinal order, with at most one candidate queued/running. Every accepted run must use the same exact E head, expected shard input, exact device/runtime/build, 67 named PNG-data candidate attachments, six task/feature AX rows, 67 contrast rows, one shard receipt, complete checksums, and the sole terminal PNG. Any product correction creates a new exact E descendant and invalidates every earlier shard for final matrix acceptance; rerun all 14 at the new E.
+- Allowed GitHub operations: read/fetch/ref/run/workflow/artifact inspection; exact-path staging/commits; non-force phase push; exact `ios-ci.yml` dispatch on the phase branch with `run_ui_smoke=true` and one pinned `s10_4_shard_id`; exact run observation/download. No PR, merge commit, force/ref rewrite, settings/secrets, release workflow, signing, upload, deployment, submission, or S9.2/S9.3.
 - On failure, use the persistent one-candidate evidence loop and smallest direct-child correction inside this exact envelope. Never weaken the 938 visual cells, 84 accessibility rows, human review, selector, evidence binding, or baseline-preservation acceptance.
 
 ## Ordered execution and next
 
-1. Commit/push exactly the S10.3 receipt-validation addendum plus this immediate-next CURRENT_TASK hydration as A; perform fresh G0 before any other mutation.
-2. Allow predecessor `Scripts/ci-selection.json` at G0, then replace only it with the exact S10.4 selector as the first support mutation.
-3. Revalidate the frozen ZIP/manifest, activation, four existing checkpoints/contracts, exact 67-state/14-requirement and 6-task/2-device/7-feature matrices, all baseline hashes/review evidence, source/fixture references, and clean owned work.
-4. Add only one bounded unit class and one bounded UI lab class. Exercise every frozen matrix cell against the exact migrated product without changing product/app/project/asset/fixture/evidence bytes before CI. Validate static/API shape, exact paths/caps, baseline immutability, and `git diff --check`; never claim a Windows iOS build.
-5. Commit/push direct-child implementation I and dispatch exactly one F25 candidate. Use the persistent evidence-driven correction/fresh-runner loop until exact-head green E with complete checksummed screenshots, AX/contrast/localization results, and comparison evidence.
-6. Create descendant evidence K changing only the three post-E evidence paths as frozen above. Do not claim manual/physical results or invent human review; any unavailable required reviewer/evidence is an explicit hold.
-7. Create receipt C changing only stage checkpoints plus HANDOFF; run complete `AutomatedLab` package validation without replacing migrated S10.3 product E.
-8. Read `docs/execution/KNOWN_BUGS.md`; record S10.4 E/K/C, exact CI/artifact and review evidence, every defect/recovery, immutable S10.1 baselines, S10.2 components, and S10.3 migration. Hydrate only S10.5 through exact HANDOFF-plus-CURRENT_TASK transition and run fresh G0.
-9. Immediate next card: `S10.5 — Owner-bridged physical experience evidence`.
+1. Commit/push direct-child H containing exactly the seven authority/support amendment paths, then perform fresh amended G0 before any test or selector mutation. Run the overlay validator in `AuthorityH` mode and require exact PASS.
+2. Allow predecessor `Scripts/ci-selection.json` at amended G0, then replace only it with the unchanged exact S10.4 selector as the first implementation-support mutation.
+3. Revalidate the frozen ZIP/manifest, activation, amendment overlay, four existing checkpoints/contracts, exact 67-state/14-requirement and 6-task/2-device/7-feature derivations, all baseline hashes/review evidence, source/fixture references, and clean owned work.
+4. Add one bounded unit class and add the bounded S10.4 UI lab class through the authorized shared S10.3 route file. Exercise every frozen matrix cell against the exact migrated product without changing product/app/project/asset/fixture/evidence bytes before CI. Validate static/API shape, exact paths/caps, baseline immutability, and `git diff --check`; never claim a Windows iOS build.
+5. Commit/push direct-child implementation I. Dispatch and accept all 14 F25 shards sequentially at the same exact head. Use the persistent evidence-driven correction/fresh-runner loop per shard until exact-head green E has complete checksummed screenshots, AX/contrast/localization results, and comparison evidence for all 938/84 cells.
+6. Download and independently hash all 14 artifacts, reconstruct the exact candidate matrix, and present review boards/contact sheets to the owner. Genuine owner approval/rejection must name the candidate E and artifact evidence; never infer approval from S10.1 baseline approval or fabricate a reviewer.
+7. After genuine review approval, create descendant evidence K changing only the three post-E evidence paths as frozen above. Run the overlay validator in `EvidenceK` mode; do not claim manual/physical results or invent exceptions.
+8. Create receipt C changing only stage checkpoints plus HANDOFF; run overlay `ReceiptC` and complete V4.1 `AutomatedLab` validation without replacing migrated S10.3 product E.
+9. Read `docs/execution/KNOWN_BUGS.md`; record S10.4 E/K/C, all 14 exact CI/artifact/review evidence rows, every defect/recovery, immutable S10.1 baselines, S10.2 components, and S10.3 migration. Hydrate only S10.5 through exact HANDOFF-plus-CURRENT_TASK transition and run fresh G0.
+10. Immediate next card: `S10.5 — Owner-bridged physical experience evidence`.
