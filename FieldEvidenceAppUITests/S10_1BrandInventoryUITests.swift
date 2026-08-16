@@ -578,6 +578,7 @@ final class S10_1BrandInventoryUITests: XCTestCase {
             setToggle("s3.preflight.time-zone-confirmed", in: app)
         }
         setToggle("s3.preflight.after-dark", in: app)
+        app.swipeUp()
         setToggle("s3.preflight.safe-position", in: app)
         let begin = element("s3.preflight.begin", in: app)
         scroll(begin, in: app)
@@ -718,6 +719,7 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         XCTAssertTrue(element("s3.preflight.screen", in: app)
             .waitForExistence(timeout: 20))
         setToggle("s3.preflight.after-dark", in: app)
+        app.swipeUp()
         setToggle("s3.preflight.safe-position", in: app)
         let begin = element("s3.preflight.begin", in: app)
         scroll(begin, in: app)
