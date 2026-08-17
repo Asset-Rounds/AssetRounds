@@ -115,6 +115,7 @@ struct NewSignView: View {
                         .accessibilityLabel("Blocked: \(errorMessage)")
                         .accessibilityValue(Text(verbatim: String()))
                         .accessibilityIdentifier(Self.errorAccessibilityIdentifier)
+                        .padding(.bottom, DesignTokens.Spacing.space16)
                 }
 
                 if siteChoice == .new {
