@@ -199,6 +199,7 @@ struct PaywallView: View {
                     .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .accessibilityIdentifier(Self.supportAccessibilityIdentifier)
             }
+            .padding(.top, DesignTokens.Spacing.space8)
             .font(DesignTokens.Typography.sectionHeading)
             .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
         }
