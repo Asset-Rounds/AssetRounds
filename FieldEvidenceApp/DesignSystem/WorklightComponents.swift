@@ -451,10 +451,10 @@ struct AssetRoundsStateLabel: View {
                 .fixedSize(horizontal: false, vertical: true)
         } icon: {
             Image(systemName: kind.iconName)
+                .foregroundStyle(kind.foregroundColor)
                 .accessibilityHidden(true)
         }
         .font(DesignTokens.Typography.secondaryBody.weight(.semibold))
-        .foregroundStyle(kind.foregroundColor)
         .padding(.horizontal, DesignTokens.Spacing.space12)
         .padding(.vertical, DesignTokens.Spacing.space8)
         .background(DesignTokens.SemanticColors.elevatedSurface)
