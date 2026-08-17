@@ -359,9 +359,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         assertLocalizedValue(sign, equals: "Monument Sign")
         XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
         let keyboard = app.keyboards.firstMatch
+        let navigationBottom = app.navigationBars.firstMatch.frame.maxY
         for _ in 0..<12 {
             if error.exists,
-               error.isHittable,
+               error.frame.minY >= navigationBottom,
                error.frame.maxY <= keyboard.frame.minY {
                 break
             }
@@ -371,7 +372,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             wait(for: site, predicate: "hasKeyboardFocus == true", timeout: 10)
         )
         XCTAssertTrue(keyboard.waitForExistence(timeout: 10))
-        XCTAssertTrue(error.isHittable)
+        XCTAssertGreaterThanOrEqual(error.frame.minY, navigationBottom)
         XCTAssertLessThanOrEqual(error.frame.maxY, keyboard.frame.minY)
         captureBaseline("state.new-sign.validation-error", in: app)
 
