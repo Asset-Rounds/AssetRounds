@@ -151,8 +151,8 @@ struct AppShellView: View {
                 )
             } label: {
                 Label("Signs", systemImage: "signpost.right.fill")
+                    .accessibilityIdentifier(Self.signsTabAccessibilityIdentifier)
             }
-            .accessibilityIdentifier(Self.signsTabAccessibilityIdentifier)
 
             SwiftUI.Tab(value: Tab.reports) {
                 NavigationStack {
@@ -168,8 +168,8 @@ struct AppShellView: View {
                 }
             } label: {
                 Label("Reports", systemImage: "doc.text.fill")
+                    .accessibilityIdentifier(Self.reportsTabAccessibilityIdentifier)
             }
-            .accessibilityIdentifier(Self.reportsTabAccessibilityIdentifier)
         }
         .tint(DesignTokens.SemanticColors.primaryAction)
         .background(DesignTokens.SemanticColors.workBackground)
