@@ -1056,9 +1056,20 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 let navigationBottom = app.navigationBars.firstMatch.frame.maxY
                 let outcomeScreen = element("s3.outcome.screen", in: app)
                 let viewportBottom = outcomeScreen.frame.maxY
+                let resolved = element("s5.2.outcome.resolved", in: app)
+                let issueStillVisible = element(
+                    "s5.2.outcome.issue-still-visible",
+                    in: app
+                )
                 for _ in 0..<4 {
-                    let minimumShift = navigationBottom - value.frame.minY
-                    let maximumShift = viewportBottom - label.frame.maxY
+                    let minimumShift = max(
+                        navigationBottom - issueStillVisible.frame.minY,
+                        navigationBottom - value.frame.minY
+                    )
+                    let maximumShift = min(
+                        navigationBottom - resolved.frame.maxY,
+                        viewportBottom - label.frame.maxY
+                    )
                     if minimumShift <= 0, maximumShift >= 0 {
                         break
                     }
@@ -1072,8 +1083,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     )
                     dragStart.press(forDuration: 0.05, thenDragTo: dragEnd)
                 }
+                XCTAssertLessThanOrEqual(resolved.frame.maxY, navigationBottom)
+                XCTAssertGreaterThanOrEqual(
+                    issueStillVisible.frame.minY,
+                    navigationBottom
+                )
                 XCTAssertGreaterThanOrEqual(value.frame.minY, navigationBottom)
                 XCTAssertLessThanOrEqual(label.frame.maxY, viewportBottom)
+                XCTAssertTrue(value.isHittable)
                 XCTAssertTrue(label.isHittable)
                 captureBaseline("state.recheck-outcome.different-issue", in: app)
             case .couldNotVerify:
