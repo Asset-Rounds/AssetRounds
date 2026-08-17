@@ -257,6 +257,11 @@ struct PreflightView: View {
                         : "Enter a valid IANA time zone first"
                 )
                 .accessibilityIdentifier(Self.timeZoneConfirmationAccessibilityIdentifier)
+                .onChange(of: isTimeZoneConfirmed) { _, isConfirmed in
+                    if isConfirmed {
+                        focusedField = nil
+                    }
+                }
         }
     }
 
