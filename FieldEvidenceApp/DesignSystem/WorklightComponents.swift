@@ -173,6 +173,7 @@ struct AssetRoundsPrimaryAction<Label: View>: View {
         Button(action: action) {
             label
                 .font(DesignTokens.Typography.sectionHeading)
+                .foregroundStyle(DesignTokens.Colors.onAccent)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
         }
