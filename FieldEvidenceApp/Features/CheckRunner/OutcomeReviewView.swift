@@ -165,7 +165,7 @@ struct OutcomeReviewView: View {
                         }
                     Text("\(recheckNote.count) of 1000 characters")
                         .font(DesignTokens.Typography.supportingCaption)
-                        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 }
             }
 
@@ -230,7 +230,7 @@ struct OutcomeReviewView: View {
 
                     Text("\(couldNotVerifyNote.count) of 1000 characters")
                         .font(DesignTokens.Typography.supportingCaption)
-                        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 }
             }
 
