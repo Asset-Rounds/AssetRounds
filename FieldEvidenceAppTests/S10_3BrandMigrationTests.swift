@@ -189,7 +189,7 @@ final class S10_3BrandMigrationTests: XCTestCase {
         }
         XCTAssertEqual(
             importDigest,
-            "6B37CDF27E86605132E99096705683254DA21B3A37E93C02CF75730E72AC2957",
+            "22CBACD7A96A1F16BD28263D4F7C9F33AE72C03AA116B0AC0B8A2C4CA86E2535",
             "Presentation-only migration changed the dependency/import surface"
         )
 

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import UIKit
 
 private struct EraseAllAction {
     let call: @MainActor () -> Void
@@ -170,6 +171,16 @@ struct AppShellView: View {
                 Label("Reports", systemImage: "doc.text.fill")
                     .accessibilityIdentifier(Self.reportsTabAccessibilityIdentifier)
             }
+        }
+        .background {
+            NativeTabAccessibilityIdentifierBinder(
+                identifiers: [
+                    Self.signsTabAccessibilityIdentifier,
+                    Self.reportsTabAccessibilityIdentifier,
+                ]
+            )
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
         }
         .tint(DesignTokens.SemanticColors.primaryAction)
         .background(DesignTokens.SemanticColors.workBackground)
@@ -528,6 +539,79 @@ struct SettingsPlaceholderView: View {
                     close: { lifecyclePresentation = nil }
                 )
             }
+        }
+    }
+}
+
+private struct NativeTabAccessibilityIdentifierBinder:
+    UIViewControllerRepresentable
+{
+    let identifiers: [String]
+
+    func makeUIViewController(context: Context) -> Controller {
+        Controller(identifiers: identifiers)
+    }
+
+    func updateUIViewController(
+        _ uiViewController: Controller,
+        context: Context
+    ) {
+        uiViewController.identifiers = identifiers
+        uiViewController.bindAccessibilityIdentifiers()
+    }
+
+    final class Controller: UIViewController {
+        var identifiers: [String]
+
+        init(identifiers: [String]) {
+            self.identifiers = identifiers
+            super.init(nibName: nil, bundle: nil)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            fatalError()
+        }
+
+        override func didMove(toParent parent: UIViewController?) {
+            super.didMove(toParent: parent)
+            bindAccessibilityIdentifiers()
+        }
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            bindAccessibilityIdentifiers()
+            DispatchQueue.main.async { [weak self] in
+                self?.bindAccessibilityIdentifiers()
+            }
+        }
+
+        override func viewDidLayoutSubviews() {
+            super.viewDidLayoutSubviews()
+            bindAccessibilityIdentifiers()
+        }
+
+        func bindAccessibilityIdentifiers() {
+            guard let tabBar = tabBarController?.tabBar
+                    ?? findTabBar(in: view.window),
+                  let items = tabBar.items,
+                  items.count == identifiers.count else {
+                return
+            }
+            for (item, identifier) in zip(items, identifiers) {
+                item.accessibilityIdentifier = identifier
+            }
+        }
+
+        private func findTabBar(in view: UIView?) -> UITabBar? {
+            guard let view else { return nil }
+            if let tabBar = view as? UITabBar { return tabBar }
+            for subview in view.subviews {
+                if let tabBar = findTabBar(in: subview) {
+                    return tabBar
+                }
+            }
+            return nil
         }
     }
 }
