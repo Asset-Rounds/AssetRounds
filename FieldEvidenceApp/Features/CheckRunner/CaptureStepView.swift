@@ -109,6 +109,7 @@ struct CaptureStepView: View {
         }
         .navigationTitle("Capture")
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+        .modifier(CaptureTabBarVisibility())
     }
 
     @ViewBuilder
@@ -462,6 +463,17 @@ struct CaptureStepView: View {
                 errorMessage = "The photo could not be saved. Try again."
             }
             isWorking = false
+        }
+    }
+}
+
+private struct CaptureTabBarVisibility: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.toolbar(.hidden, for: .tabBar)
+        } else {
+            content
         }
     }
 }
