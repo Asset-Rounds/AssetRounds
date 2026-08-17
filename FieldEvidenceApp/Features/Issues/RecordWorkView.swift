@@ -218,7 +218,9 @@ struct RecordWorkView: View {
                     .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .disabled(isSaving)
                     .accessibilityIdentifier(Self.saveAccessibilityIdentifier)
-                    .accessibilityHidden(showsDescriptionValidation && fieldFocus)
+                    .accessibilityHidden(
+                        isSaving || (showsDescriptionValidation && fieldFocus)
+                    )
             }
             .padding(DesignTokens.Spacing.space16)
         }
