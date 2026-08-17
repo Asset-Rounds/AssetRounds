@@ -191,12 +191,18 @@ struct PaywallView: View {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
                 Link("Terms", destination: links.terms)
                     .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+                    .contentShape(.interaction, Rectangle())
+                    .contentShape(.accessibility, Rectangle())
                     .accessibilityIdentifier(Self.termsAccessibilityIdentifier)
                 Link("Privacy", destination: links.privacy)
                     .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+                    .contentShape(.interaction, Rectangle())
+                    .contentShape(.accessibility, Rectangle())
                     .accessibilityIdentifier(Self.privacyAccessibilityIdentifier)
                 Link("Support", destination: links.support)
                     .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+                    .contentShape(.interaction, Rectangle())
+                    .contentShape(.accessibility, Rectangle())
                     .accessibilityIdentifier(Self.supportAccessibilityIdentifier)
             }
             .padding(.top, DesignTokens.Spacing.space8)
