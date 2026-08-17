@@ -186,13 +186,7 @@ struct PreflightView: View {
                 }
             }
 
-            Button("Begin check") {
-                begin()
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(DesignTokens.SemanticColors.primaryAction)
-            .controlSize(.large)
-            .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+            AssetRoundsPrimaryAction("Begin check", action: begin)
             .disabled(!canBegin || isBeginning)
             .accessibilityHint(canBegin ? "Creates or resumes this sign's check" : beginDisabledHint)
             .accessibilityIdentifier(Self.beginAccessibilityIdentifier)

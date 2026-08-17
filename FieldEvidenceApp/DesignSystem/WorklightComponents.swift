@@ -93,18 +93,18 @@ struct WorklightPrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.headline)
+            .font(DesignTokens.Typography.sectionHeading)
             .multilineTextAlignment(.center)
             .foregroundStyle(isEnabled ? DesignTokens.Colors.onAccent : DesignTokens.Colors.secondaryText)
-            .padding(.horizontal, DesignTokens.Spacing.medium)
-            .frame(maxWidth: .infinity, minHeight: DesignTokens.Control.minimumHitSize)
-            .background(isEnabled ? DesignTokens.Colors.interactionAccent : DesignTokens.Colors.raisedSurface)
+            .padding(.horizontal, DesignTokens.Spacing.space16)
+            .frame(maxWidth: .infinity, minHeight: DesignTokens.Target.minimumInteractiveHeight)
+            .background(isEnabled ? DesignTokens.SemanticColors.primaryAction : DesignTokens.Colors.raisedSurface)
             .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
             .overlay {
                 RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
                     .stroke(
-                        isEnabled ? DesignTokens.Colors.interactionAccent : DesignTokens.Colors.essentialControlStroke,
-                        lineWidth: 1
+                        isEnabled ? DesignTokens.SemanticColors.primaryAction : DesignTokens.Colors.essentialControlStroke,
+                        lineWidth: DesignTokens.Stroke.standard
                     )
             }
             .brightness(configuration.isPressed && isEnabled ? -0.08 : 0)
@@ -172,15 +172,8 @@ struct AssetRoundsPrimaryAction<Label: View>: View {
     var body: some View {
         Button(action: action) {
             label
-                .font(DesignTokens.Typography.sectionHeading)
-                .foregroundStyle(DesignTokens.Colors.onAccent)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(DesignTokens.SemanticColors.primaryAction)
-        .controlSize(.large)
-        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+        .buttonStyle(WorklightPrimaryButtonStyle())
     }
 }
 
