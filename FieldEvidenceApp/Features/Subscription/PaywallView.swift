@@ -116,7 +116,7 @@ struct PaywallView: View {
         SubscriptionStoreView(productIDs: [EntitlementReducerV1.productID]) {
             marketingContent(presentation: presentation, links: links)
         }
-        .subscriptionStoreButtonLabel(.action)
+        .subscriptionStoreControlStyle(AssetRoundsSubscriptionControlStyle())
         .storeButton(.hidden, for: .restorePurchases)
         .onInAppPurchaseStart { product in
             _ = await coordinator.storeKitPurchaseStarted(productID: product.id)
@@ -201,6 +201,7 @@ struct PaywallView: View {
             }
             .padding(.top, DesignTokens.Spacing.space8)
             .font(DesignTokens.Typography.sectionHeading)
+            .buttonStyle(.plain)
             .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
         }
         .padding(DesignTokens.Spacing.space16)
@@ -245,6 +246,14 @@ struct PaywallView: View {
                         Self.purchaseStateAccessibilityIdentifier
                     )
             }
+        }
+    }
+}
+
+private struct AssetRoundsSubscriptionControlStyle: SubscriptionStoreControlStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        ForEach(configuration.options) { option in
+            AssetRoundsPrimaryAction("Subscribe", action: option.subscribe)
         }
     }
 }

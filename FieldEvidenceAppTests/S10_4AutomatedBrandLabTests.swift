@@ -526,7 +526,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             Data(canonical.utf8).sha256,
-            "9762A3C3CF8704E078C20EA0C5EF8A440265C8233539493346010176CC8052C6"
+            "B27F236391630C9A8AFD02F1CDF6517EE16DAF406E64DE481D7DADAB711F8126"
         )
     }
 

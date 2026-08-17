@@ -208,7 +208,7 @@ final class S10_3BrandMigrationTests: XCTestCase {
         }
         XCTAssertEqual(
             literalDigest,
-            "C34DB3D96BC4C43F9B6F5A1DEDF80805C73E57495B9448E1B54DAD84D840B645",
+            "B27F236391630C9A8AFD02F1CDF6517EE16DAF406E64DE481D7DADAB711F8126",
             "Released copy, accessibility identifiers, symbols, or fixed product facts drifted"
         )
 
