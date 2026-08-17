@@ -1081,7 +1081,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     let dragEnd = dragStart.withOffset(
                         CGVector(dx: 0, dy: dragDistance)
                     )
-                    dragStart.press(forDuration: 0.05, thenDragTo: dragEnd)
+                    dragStart.press(
+                        forDuration: 0.2,
+                        thenDragTo: dragEnd,
+                        withVelocity: .slow,
+                        thenHoldForDuration: 0.2
+                    )
                 }
                 XCTAssertLessThanOrEqual(resolved.frame.maxY, navigationBottom)
                 XCTAssertGreaterThanOrEqual(
