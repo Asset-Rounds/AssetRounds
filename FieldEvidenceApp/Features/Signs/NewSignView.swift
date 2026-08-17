@@ -188,6 +188,7 @@ struct NewSignView: View {
                     .disabled(isSaving)
                     .accessibilityIdentifier(Self.saveAccessibilityIdentifier)
                 }
+                .padding(.bottom, DesignTokens.Spacing.space16)
             }
             .scrollDismissesKeyboard(.never)
         }
