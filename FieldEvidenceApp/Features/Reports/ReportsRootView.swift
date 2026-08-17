@@ -367,7 +367,7 @@ struct SignReportHistoryView: View {
 
                         Text("Chronological report history")
                             .font(DesignTokens.Typography.secondaryBody)
-                            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     }
 
                     if history.visits.isEmpty {
