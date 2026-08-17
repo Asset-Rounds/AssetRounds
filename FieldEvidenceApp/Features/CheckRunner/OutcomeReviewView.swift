@@ -398,7 +398,7 @@ struct OutcomeReviewView: View {
                     : "Photo saved for this check"
             )
                 .font(DesignTokens.Typography.primaryBody)
-                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
         }
         .accessibilityIdentifier(identifier)
     }
