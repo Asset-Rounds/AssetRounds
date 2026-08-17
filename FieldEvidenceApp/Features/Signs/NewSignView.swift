@@ -110,6 +110,13 @@ struct NewSignView: View {
                     )
                 }
 
+                if let errorMessage {
+                    AssetRoundsStateLabel(kind: .error, text: Text(errorMessage))
+                        .accessibilityLabel("Blocked: \(errorMessage)")
+                        .accessibilityValue(Text(verbatim: String()))
+                        .accessibilityIdentifier(Self.errorAccessibilityIdentifier)
+                }
+
                 if siteChoice == .new {
                     AssetRoundsEvidenceCard {
                         AssetRoundsSecondaryAction(action: {
@@ -172,13 +179,6 @@ struct NewSignView: View {
                                 .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                         }
                     }
-                }
-
-                if let errorMessage {
-                    AssetRoundsStateLabel(kind: .error, text: Text(errorMessage))
-                        .accessibilityLabel("Blocked: \(errorMessage)")
-                        .accessibilityValue(Text(verbatim: String()))
-                        .accessibilityIdentifier(Self.errorAccessibilityIdentifier)
                 }
 
                     AssetRoundsPrimaryAction(action: save) {
