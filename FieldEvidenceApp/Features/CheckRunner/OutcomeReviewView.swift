@@ -361,7 +361,7 @@ struct OutcomeReviewView: View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(label)
                 .font(DesignTokens.Typography.supportingCaption)
-                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             Text(value)
                 .font(DesignTokens.Typography.primaryBody)
                 .foregroundStyle(DesignTokens.SemanticColors.primaryText)
