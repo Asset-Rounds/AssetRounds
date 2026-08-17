@@ -132,6 +132,10 @@ struct NewSignView: View {
                             showsOptionalDetails ? "Hide optional details" : "Add optional details"
                         )
                         .accessibilityIdentifier(Self.optionalToggleAccessibilityIdentifier)
+                        .accessibilityHidden(
+                            errorMessage != nil &&
+                                (focusedField == .siteLabel || focusedField == .signLabel)
+                        )
 
                         if showsOptionalDetails {
                             VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
