@@ -360,13 +360,31 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
         let keyboard = app.keyboards.firstMatch
         let navigationBottom = app.navigationBars.firstMatch.frame.maxY
+        let scrollView = app.scrollViews.firstMatch
+        XCTAssertTrue(scrollView.waitForExistence(timeout: 10))
+        let scrollFrame = scrollView.frame
+        let visibleTop = max(scrollFrame.minY, navigationBottom)
+        let visibleBottom = min(scrollFrame.maxY, keyboard.frame.minY)
+        let dragInset: CGFloat = 24
+        let dragStartOffsetY = visibleBottom - scrollFrame.minY - dragInset
+        let dragEndOffsetY = visibleTop - scrollFrame.minY + dragInset
+        XCTAssertGreaterThan(dragStartOffsetY, dragEndOffsetY)
+        let scrollOrigin = scrollView.coordinate(
+            withNormalizedOffset: CGVector(dx: 0, dy: 0)
+        )
+        let dragStart = scrollOrigin.withOffset(
+            CGVector(dx: scrollFrame.width / 2, dy: dragStartOffsetY)
+        )
+        let dragEnd = scrollOrigin.withOffset(
+            CGVector(dx: scrollFrame.width / 2, dy: dragEndOffsetY)
+        )
         for _ in 0..<12 {
             if error.exists,
                error.frame.minY >= navigationBottom,
                error.frame.maxY <= keyboard.frame.minY {
                 break
             }
-            app.swipeUp()
+            dragStart.press(forDuration: 0.05, thenDragTo: dragEnd)
         }
         XCTAssertTrue(
             wait(for: site, predicate: "hasKeyboardFocus == true", timeout: 10)
