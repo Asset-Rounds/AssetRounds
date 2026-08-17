@@ -147,7 +147,7 @@ struct ValueReceiptView: View {
     private func receiptStatus(_ copy: String) -> some View {
         Text(copy)
             .font(DesignTokens.Typography.primaryBody)
-            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             .fixedSize(horizontal: false, vertical: true)
     }
 }
