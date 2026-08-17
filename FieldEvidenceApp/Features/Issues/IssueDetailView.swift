@@ -42,11 +42,7 @@ struct IssueDetailView: View {
                             .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                             .accessibilityIdentifier(Self.recordWorkAccessibilityIdentifier)
                     } else if issue.status == .recheckDue {
-                        Button("Start recheck", action: startRecheck)
-                            .buttonStyle(.borderedProminent)
-                            .tint(DesignTokens.SemanticColors.primaryAction)
-                            .controlSize(.large)
-                            .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+                        AssetRoundsPrimaryAction("Start recheck", action: startRecheck)
                             .accessibilityIdentifier(Self.startRecheckAccessibilityIdentifier)
                     }
                 }
