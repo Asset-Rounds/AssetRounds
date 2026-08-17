@@ -53,6 +53,7 @@ struct CaptureStepView: View {
                 captureScroll
             }
         }
+        .modifier(CaptureTabBarVisibility())
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -109,7 +110,6 @@ struct CaptureStepView: View {
         }
         .navigationTitle("Capture")
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
-        .modifier(CaptureTabBarVisibility())
     }
 
     @ViewBuilder
