@@ -423,7 +423,7 @@ enum AssetRoundsStateKind: String, CaseIterable {
 
     fileprivate var textForegroundColor: Color {
         switch self {
-        case .error: DesignTokens.SemanticColors.primaryText
+        case .warning, .error: DesignTokens.SemanticColors.primaryText
         default: foregroundColor
         }
     }
