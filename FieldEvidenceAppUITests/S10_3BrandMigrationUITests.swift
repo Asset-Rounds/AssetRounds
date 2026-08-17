@@ -630,6 +630,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let workPreview = element("s5.1.work.photo", in: app)
         scroll(workPreview, in: app)
         XCTAssertTrue(workPreview.isHittable)
+        let dateLabel = app.staticTexts["Date"].firstMatch
+        for _ in 0..<4 {
+            if !dateLabel.exists || dateLabel.frame.maxY <= app.frame.minY {
+                break
+            }
+            app.swipeUp()
+        }
+        XCTAssertTrue(!dateLabel.exists || dateLabel.frame.maxY <= app.frame.minY)
+        XCTAssertTrue(workPreview.isHittable)
         captureBaseline("state.work.editing", in: app)
 
         scroll(saveWork, in: app)
