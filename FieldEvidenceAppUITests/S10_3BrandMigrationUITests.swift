@@ -1053,6 +1053,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 scroll(label, in: app)
                 assertControl(label, label: "Visible physical damage")
                 label.tap()
+                for _ in 0..<4 {
+                    if !value.exists || value.frame.maxY <= app.frame.minY {
+                        break
+                    }
+                    app.swipeUp()
+                }
+                XCTAssertTrue(!value.exists || value.frame.maxY <= app.frame.minY)
+                XCTAssertTrue(label.isHittable)
                 captureBaseline("state.recheck-outcome.different-issue", in: app)
             case .couldNotVerify:
                 XCTFail("Handled by the partial-evidence branch")
