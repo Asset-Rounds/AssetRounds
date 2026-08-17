@@ -196,6 +196,7 @@ struct PreflightView: View {
             .disabled(!canBegin || isBeginning)
             .accessibilityHint(canBegin ? "Creates or resumes this sign's check" : beginDisabledHint)
             .accessibilityIdentifier(Self.beginAccessibilityIdentifier)
+            .accessibilityHidden(focusedField == .timeZone)
 
             Button("Cancel — no check started", action: cancel)
                 .buttonStyle(.bordered)
@@ -203,6 +204,7 @@ struct PreflightView: View {
                 .controlSize(.large)
                 .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                 .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)
+                .accessibilityHidden(focusedField == .timeZone)
         }
     }
 
@@ -218,6 +220,9 @@ struct PreflightView: View {
                 .textContentType(.none)
                 .submitLabel(.done)
                 .focused($focusedField, equals: .timeZone)
+                .onSubmit {
+                    focusedField = nil
+                }
                 .padding(.horizontal, DesignTokens.Spacing.space8)
                 .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                 .background(DesignTokens.SemanticColors.elevatedSurface)
