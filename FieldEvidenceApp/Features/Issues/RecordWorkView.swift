@@ -64,7 +64,7 @@ struct RecordWorkView: View {
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
                         Text("Short description")
                             .font(DesignTokens.Typography.supportingCaption.weight(.semibold))
-                            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
 
                         TextField("Short description", text: $description, axis: .vertical)
                             .lineLimit(2 ... 5)
@@ -99,7 +99,7 @@ struct RecordWorkView: View {
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
                         Text("Note")
                             .font(DesignTokens.Typography.supportingCaption.weight(.semibold))
-                            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
 
                         TextField("Note", text: $note, axis: .vertical)
                             .lineLimit(2 ... 5)
