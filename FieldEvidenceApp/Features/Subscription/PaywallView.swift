@@ -182,7 +182,7 @@ struct PaywallView: View {
 
             Text("Inspection data and photos stay on this device and do not sync with the subscription. Use a data backup to move them to another device.")
                 .font(DesignTokens.Typography.primaryBody)
-                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier(Self.noSyncAccessibilityIdentifier)
 
