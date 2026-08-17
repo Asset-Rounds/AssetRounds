@@ -360,7 +360,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
         let keyboard = app.keyboards.firstMatch
         let navigationBottom = app.navigationBars.firstMatch.frame.maxY
-        let scrollView = app.scrollViews.firstMatch
+        let newSignScrollViews = app.scrollViews.containing(
+            .textField,
+            identifier: "s2.new-sign.site-label"
+        )
+        XCTAssertEqual(newSignScrollViews.count, 1)
+        let scrollView = newSignScrollViews.firstMatch
         XCTAssertTrue(scrollView.waitForExistence(timeout: 10))
         let scrollFrame = scrollView.frame
         let visibleTop = max(scrollFrame.minY, navigationBottom)
