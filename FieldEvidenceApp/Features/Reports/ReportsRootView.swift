@@ -362,7 +362,7 @@ struct SignReportHistoryView: View {
 
                         Text(history.siteLabel)
                             .font(DesignTokens.Typography.primaryBody)
-                            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                             .fixedSize(horizontal: false, vertical: true)
 
                         Text("Chronological report history")
@@ -485,7 +485,7 @@ private struct ReportVisitList: View {
 
                     Text(visit.siteLabel)
                         .font(DesignTokens.Typography.primaryBody)
-                        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
                     ReportVisitFact(label: "Visit", value: visitDate(visit))
