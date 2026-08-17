@@ -69,11 +69,11 @@ struct RecordWorkView: View {
                         TextField("Short description", text: $description, axis: .vertical)
                             .lineLimit(2 ... 5)
                             .focused($fieldFocus)
+                            .padding(DesignTokens.Spacing.space16)
                             .frame(
                                 minHeight: DesignTokens.Target.minimumInteractiveHeight,
                                 alignment: .topLeading
                             )
-                            .padding(DesignTokens.Spacing.space16)
                             .background(DesignTokens.SemanticColors.elevatedSurface)
                             .clipShape(
                                 RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
@@ -87,6 +87,8 @@ struct RecordWorkView: View {
                                         lineWidth: showsDescriptionValidation ? DesignTokens.Stroke.selected : DesignTokens.Stroke.standard
                                     )
                             }
+                            .contentShape(.interaction, Rectangle())
+                            .contentShape(.accessibility, Rectangle())
                             .accessibilityLabel("Short description")
                             .accessibilityHint("Required")
                             .accessibilityIdentifier(Self.descriptionAccessibilityIdentifier)
