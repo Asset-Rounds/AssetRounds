@@ -94,6 +94,22 @@ struct RecordWorkView: View {
                                 $accessibilityFocus,
                                 equals: .description
                             )
+
+                        if showsDescriptionValidation {
+                            Label {
+                                Text("Short description")
+                                    .foregroundStyle(
+                                        DesignTokens.SemanticColors.primaryText
+                                    )
+                            } icon: {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .foregroundStyle(
+                                        DesignTokens.SemanticColors.warning
+                                    )
+                            }
+                            .font(DesignTokens.Typography.primaryBody.weight(.semibold))
+                            .accessibilityIdentifier(Self.validationAccessibilityIdentifier)
+                        }
                     }
 
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
@@ -169,13 +185,7 @@ struct RecordWorkView: View {
                             .accessibilityIdentifier(Self.photoAccessibilityIdentifier)
                     }
                 }
-
-                if showsDescriptionValidation {
-                    Label("Short description", systemImage: "exclamationmark.circle.fill")
-                        .font(DesignTokens.Typography.primaryBody.weight(.semibold))
-                        .foregroundStyle(DesignTokens.SemanticColors.warning)
-                        .accessibilityIdentifier(Self.validationAccessibilityIdentifier)
-                }
+                .accessibilityHidden(showsDescriptionValidation && fieldFocus)
 
                 if isSaving {
                     ProgressView("Record work")
@@ -199,6 +209,7 @@ struct RecordWorkView: View {
                     .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .disabled(isSaving)
                     .accessibilityIdentifier(Self.saveAccessibilityIdentifier)
+                    .accessibilityHidden(showsDescriptionValidation && fieldFocus)
             }
             .padding(DesignTokens.Spacing.space16)
         }
