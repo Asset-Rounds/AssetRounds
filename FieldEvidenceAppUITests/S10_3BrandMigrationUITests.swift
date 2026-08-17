@@ -358,6 +358,21 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 10))
         assertLocalizedValue(sign, equals: "Monument Sign")
         XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
+        let keyboard = app.keyboards.firstMatch
+        for _ in 0..<12 {
+            if error.exists,
+               error.isHittable,
+               error.frame.maxY <= keyboard.frame.minY {
+                break
+            }
+            app.swipeUp()
+        }
+        XCTAssertTrue(
+            wait(for: site, predicate: "hasKeyboardFocus == true", timeout: 10)
+        )
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 10))
+        XCTAssertTrue(error.isHittable)
+        XCTAssertLessThanOrEqual(error.frame.maxY, keyboard.frame.minY)
         captureBaseline("state.new-sign.validation-error", in: app)
 
         site.typeText("North Campus")

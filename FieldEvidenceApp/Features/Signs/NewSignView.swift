@@ -189,6 +189,7 @@ struct NewSignView: View {
                     .accessibilityIdentifier(Self.saveAccessibilityIdentifier)
                 }
             }
+            .scrollDismissesKeyboard(.never)
         }
         .navigationTitle("New sign")
         .navigationBarTitleDisplayMode(.inline)
