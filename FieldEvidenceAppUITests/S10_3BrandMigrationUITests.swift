@@ -1054,11 +1054,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 assertControl(label, label: "Visible physical damage")
                 label.tap()
                 let navigationBottom = app.navigationBars.firstMatch.frame.maxY
-                let tabTop = app.tabBars.firstMatch.frame.minY
                 let outcomeScreen = element("s3.outcome.screen", in: app)
+                let viewportBottom = outcomeScreen.frame.maxY
                 for _ in 0..<4 {
                     let minimumShift = navigationBottom - value.frame.minY
-                    let maximumShift = tabTop - label.frame.maxY
+                    let maximumShift = viewportBottom - label.frame.maxY
                     if minimumShift <= 0, maximumShift >= 0 {
                         break
                     }
@@ -1073,7 +1073,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     dragStart.press(forDuration: 0.05, thenDragTo: dragEnd)
                 }
                 XCTAssertGreaterThanOrEqual(value.frame.minY, navigationBottom)
-                XCTAssertLessThanOrEqual(label.frame.maxY, tabTop)
+                XCTAssertLessThanOrEqual(label.frame.maxY, viewportBottom)
                 XCTAssertTrue(label.isHittable)
                 captureBaseline("state.recheck-outcome.different-issue", in: app)
             case .couldNotVerify:
