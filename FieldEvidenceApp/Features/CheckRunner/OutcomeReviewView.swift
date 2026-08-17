@@ -248,6 +248,7 @@ struct OutcomeReviewView: View {
             }
             .padding(DesignTokens.Spacing.space16)
         }
+        .clipped()
         .navigationTitle("Outcome")
         .accessibilityIdentifier(Self.outcomeScreenAccessibilityIdentifier)
     }
