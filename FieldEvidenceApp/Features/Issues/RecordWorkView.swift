@@ -69,6 +69,15 @@ struct RecordWorkView: View {
                         TextField("Short description", text: $description, axis: .vertical)
                             .lineLimit(3 ... 5)
                             .focused($fieldFocus)
+                            .onChange(of: description) { _, value in
+                                guard showsDescriptionValidation else { return }
+                                let normalizedValue = value
+                                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !normalizedValue.isEmpty,
+                                   normalizedValue.count <= 160 {
+                                    showsDescriptionValidation = false
+                                }
+                            }
                             .padding(DesignTokens.Spacing.space16)
                             .frame(
                                 minHeight: DesignTokens.Target.minimumInteractiveHeight,
