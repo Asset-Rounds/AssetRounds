@@ -790,7 +790,7 @@ private struct ReportComparisonView: View {
 
             Text("\(visit.stage) · \(visit.outcome)")
                 .font(DesignTokens.Typography.secondaryBody)
-                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             comparisonImage(
