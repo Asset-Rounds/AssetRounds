@@ -249,6 +249,7 @@ struct OutcomeReviewView: View {
             .padding(DesignTokens.Spacing.space16)
         }
         .clipped()
+        .modifier(OutcomeTopScrollEdgeVisibility())
         .navigationTitle("Outcome")
         .accessibilityIdentifier(Self.outcomeScreenAccessibilityIdentifier)
     }
@@ -557,6 +558,17 @@ struct OutcomeReviewView: View {
                 errorMessage = "The report could not be saved. Your check is still available to retry."
             }
             isSaving = false
+        }
+    }
+}
+
+private struct OutcomeTopScrollEdgeVisibility: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.scrollEdgeEffectHidden(true, for: .top)
+        } else {
+            content
         }
     }
 }
