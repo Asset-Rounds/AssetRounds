@@ -35,11 +35,7 @@ struct IssueDetailView: View {
                         .accessibilityFocused($focusesHeader)
 
                     if issue.canRecordWork {
-                        Button("Record work", action: recordWork)
-                            .buttonStyle(.borderedProminent)
-                            .tint(DesignTokens.SemanticColors.primaryAction)
-                            .controlSize(.large)
-                            .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+                        AssetRoundsPrimaryAction("Record work", action: recordWork)
                             .accessibilityIdentifier(Self.recordWorkAccessibilityIdentifier)
                     } else if issue.status == .recheckDue {
                         AssetRoundsPrimaryAction("Start recheck", action: startRecheck)
