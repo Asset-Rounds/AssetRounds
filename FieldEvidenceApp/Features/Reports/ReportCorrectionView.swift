@@ -69,7 +69,7 @@ struct ReportCorrectionView: View {
 
                     Text("Change the note only. Evidence, outcome, time, and report history stay unchanged.")
                         .font(DesignTokens.Typography.primaryBody)
-                        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -115,7 +115,7 @@ struct ReportCorrectionView: View {
                             .foregroundStyle(
                                 normalizedCharacterCount > 1_000
                                     ? DesignTokens.SemanticColors.error
-                                    : DesignTokens.SemanticColors.secondaryText
+                                    : DesignTokens.SemanticColors.primaryText
                             )
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityIdentifier(Self.countAccessibilityIdentifier)
