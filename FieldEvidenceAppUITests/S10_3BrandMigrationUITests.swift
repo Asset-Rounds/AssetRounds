@@ -1803,7 +1803,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let dismissalTarget = springboard.coordinate(
             withNormalizedOffset: CGVector(dx: 0.5, dy: 0.01)
         )
-        notification.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12))
             .press(forDuration: 0.05, thenDragTo: dismissalTarget)
         XCTAssertTrue(
             notification.waitForNonExistence(timeout: 5),
