@@ -190,7 +190,7 @@ struct FeedbackView: View {
             Text(
                 "This reviewed JSON never includes customer or sign details, addresses, notes, photos, reports, backups, paths, hashes, StoreKit details, credentials, or logs."
             )
-            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
         }
         .font(DesignTokens.Typography.primaryBody)
         .foregroundStyle(DesignTokens.SemanticColors.primaryText)
