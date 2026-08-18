@@ -1303,6 +1303,50 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let copyAddress = element("s8.4.feedback.copy-address", in: app)
         XCTAssertTrue(copyAddress.exists)
         scroll(copyAddress, in: app)
+        let appMetadata = app.staticTexts
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "App "))
+            .firstMatch
+        let navigationBar = app.navigationBars.firstMatch
+        let signsTab = element("s1.tab.signs", in: app)
+        XCTAssertTrue(appMetadata.waitForExistence(timeout: 5))
+        XCTAssertTrue(navigationBar.exists)
+        XCTAssertTrue(signsTab.exists)
+        let topClearance: CGFloat = 44
+        let bottomClearance: CGFloat = 16
+        for _ in 0..<2 {
+            let requiredShift = navigationBar.frame.maxY
+                + topClearance
+                - appMetadata.frame.minY
+            if requiredShift <= 0 { break }
+            let availableShift = signsTab.frame.minY
+                - bottomClearance
+                - copyAddress.frame.maxY
+            XCTAssertGreaterThanOrEqual(availableShift, requiredShift)
+            let dragDistance = min(
+                availableShift,
+                max(requiredShift, topClearance)
+            )
+            let dragStart = app.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)
+            )
+            let dragEnd = dragStart.withOffset(
+                CGVector(dx: 0, dy: dragDistance)
+            )
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+        }
+        XCTAssertGreaterThanOrEqual(
+            appMetadata.frame.minY,
+            navigationBar.frame.maxY + topClearance
+        )
+        XCTAssertLessThanOrEqual(
+            copyAddress.frame.maxY,
+            signsTab.frame.minY - bottomClearance
+        )
         captureBaseline("state.feedback.review-ready", in: app)
         navigateBack(in: app)
         XCTAssertTrue(element("s1.settings.screen", in: app)
