@@ -279,9 +279,13 @@ struct RecordWorkView: View {
             photos: photos,
             completedAt: now
         )
+        let minimumSavingPresentationNanoseconds: UInt64 =
+            usesImportedFixtureForUITest ? 15_000_000_000 : 5_000_000_000
         Task {
             let minimumSavingPresentation = Task<Void, Never> {
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                try? await Task.sleep(
+                    nanoseconds: minimumSavingPresentationNanoseconds
+                )
             }
             do {
                 let issue = try await coordinator.saveWork(
