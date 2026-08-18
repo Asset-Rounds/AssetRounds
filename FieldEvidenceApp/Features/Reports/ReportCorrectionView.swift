@@ -241,7 +241,7 @@ struct ReportCorrectionView: View {
 
             Text("The prior report and evidence remain unchanged.")
                 .font(DesignTokens.Typography.primaryBody)
-                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityFocused($accessibilityFocus, equals: .ready)
                 .accessibilityIdentifier(Self.readyAccessibilityIdentifier)
