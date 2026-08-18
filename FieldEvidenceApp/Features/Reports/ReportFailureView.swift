@@ -51,16 +51,14 @@ struct ReportFailureView: View {
 
                         Text("Your completed check and saved report remain on this device. Retry report makes one new PDF attempt.")
                             .font(DesignTokens.Typography.primaryBody)
-                            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                             .fixedSize(horizontal: false, vertical: true)
 
-                        Button(isRetryInProgress ? "Retrying report…" : "Retry report") {
+                        AssetRoundsPrimaryAction(action: {
                             retryReport(id: reportID)
+                        }) {
+                            Text(isRetryInProgress ? "Retrying report…" : "Retry report")
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(DesignTokens.SemanticColors.primaryAction)
-                        .controlSize(.large)
-                        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                         .disabled(isRetryInProgress)
                         .accessibilityLabel(
                             isRetryInProgress
