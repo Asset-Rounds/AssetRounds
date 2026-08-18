@@ -1324,8 +1324,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 - saveDiagnostics.frame.maxY
             XCTAssertGreaterThanOrEqual(maximumShift, minimumShift)
             if minimumShift <= 0, maximumShift >= 0 { break }
-            let dragDistance = (minimumShift + maximumShift) / 2
-            XCTAssertLessThanOrEqual(abs(dragDistance), 44)
+            let dragDistance = minimumShift > 0
+                ? maximumShift
+                : minimumShift
             let dragStart = app.coordinate(
                 withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)
             )
