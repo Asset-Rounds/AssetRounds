@@ -1062,8 +1062,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     in: app
                 )
                 for _ in 0..<6 {
+                    let issueStillVisibleTopClearance =
+                        issueStillVisible.frame.height / 2
                     let minimumShift = max(
-                        navigationBottom - issueStillVisible.frame.minY,
+                        navigationBottom + issueStillVisibleTopClearance
+                            - issueStillVisible.frame.minY,
                         navigationBottom - value.frame.minY
                     )
                     let maximumShift = min(
@@ -1091,7 +1094,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTAssertLessThanOrEqual(resolved.frame.maxY, navigationBottom)
                 XCTAssertGreaterThanOrEqual(
                     issueStillVisible.frame.minY,
-                    navigationBottom
+                    navigationBottom + issueStillVisible.frame.height / 2
                 )
                 XCTAssertGreaterThanOrEqual(value.frame.minY, navigationBottom)
                 XCTAssertLessThanOrEqual(label.frame.maxY, viewportBottom)
