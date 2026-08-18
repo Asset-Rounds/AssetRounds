@@ -92,7 +92,7 @@ struct PaywallView: View {
 
                 Text("Your existing sign details, photos, and reports remain available. No price or trial information has been guessed.")
                     .font(DesignTokens.Typography.primaryBody)
-                    .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
                 AssetRoundsPrimaryAction("Retry") {
