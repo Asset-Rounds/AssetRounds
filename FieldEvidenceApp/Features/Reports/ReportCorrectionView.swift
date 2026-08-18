@@ -259,14 +259,10 @@ struct ReportCorrectionView: View {
                 .accessibilityIdentifier(Self.priorReportAccessibilityIdentifier)
             }
 
-            Button("View corrected report") {
+            AssetRoundsPrimaryAction("View corrected report") {
                 didSelectReport(currentReportID)
                 dismiss()
             }
-            .buttonStyle(.borderedProminent)
-            .tint(DesignTokens.SemanticColors.primaryAction)
-            .controlSize(.large)
-            .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
             .accessibilityHint("Opens the current corrected report.")
             .accessibilityIdentifier(Self.currentReportAccessibilityIdentifier)
         }
