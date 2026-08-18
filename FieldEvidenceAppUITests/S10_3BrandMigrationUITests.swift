@@ -1315,7 +1315,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(signsTab.exists)
         let topClearance: CGFloat = 24
         let bottomClearance: CGFloat = 16
-        for _ in 0..<2 {
+        var measuredUndertravel: CGFloat = 0
+        var compensatedDirection: CGFloat = 0
+        for _ in 0..<4 {
             let minimumShift = navigationBar.frame.maxY
                 + topClearance
                 - appMetadata.frame.minY
@@ -1324,9 +1326,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 - saveDiagnostics.frame.maxY
             XCTAssertGreaterThanOrEqual(maximumShift, minimumShift)
             if minimumShift <= 0, maximumShift >= 0 { break }
-            let dragDistance = minimumShift > 0
+            let targetDistance = minimumShift > 0
                 ? maximumShift
                 : minimumShift
+            let direction: CGFloat = targetDistance > 0 ? 1 : -1
+            if compensatedDirection != direction {
+                measuredUndertravel = 0
+            }
+            let dragDistance = targetDistance
+                + direction * measuredUndertravel
+            let metadataBeforeDrag = appMetadata.frame.minY
             let dragStart = app.coordinate(
                 withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)
             )
@@ -1339,6 +1348,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 withVelocity: .slow,
                 thenHoldForDuration: 0.2
             )
+            let actualDistance = appMetadata.frame.minY - metadataBeforeDrag
+            measuredUndertravel = actualDistance * direction > 0
+                ? max(0, abs(dragDistance) - abs(actualDistance))
+                : abs(dragDistance)
+            compensatedDirection = direction
         }
         XCTAssertGreaterThanOrEqual(
             appMetadata.frame.minY,
