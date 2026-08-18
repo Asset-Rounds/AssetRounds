@@ -1744,6 +1744,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         print("S10_MIGRATION_STATE state=\(stateID)")
 
         guard let shard = automationShard else { return }
+        dismissHostedAppleIntelligenceNotificationIfPresent(
+            in: app,
+            file: file,
+            line: line
+        )
         do {
             try app.performAccessibilityAudit(for: .contrast)
             let axTreeDigest = try accessibilityTreeDigest(in: app)
@@ -1780,6 +1785,33 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 line: line
             )
         }
+    }
+
+    @MainActor
+    private func dismissHostedAppleIntelligenceNotificationIfPresent(
+        in app: XCUIApplication,
+        file: StaticString,
+        line: UInt
+    ) {
+        let notificationTitle = "Ready for Apple Intelligence"
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let notification = springboard.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH %@", notificationTitle))
+            .firstMatch
+        guard notification.exists else { return }
+
+        let dismissalTarget = springboard.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.01)
+        )
+        notification.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: dismissalTarget)
+        XCTAssertTrue(
+            notification.waitForNonExistence(timeout: 5),
+            "The exact hosted Apple Intelligence notification did not dismiss",
+            file: file,
+            line: line
+        )
+        XCTAssertTrue(app.state == .runningForeground, file: file, line: line)
     }
 
     @MainActor
