@@ -1303,6 +1303,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let copyAddress = element("s8.4.feedback.copy-address", in: app)
         XCTAssertTrue(copyAddress.exists)
         scroll(copyAddress, in: app)
+        let saveDiagnostics = element("s8.4.feedback.save-diagnostics", in: app)
+        XCTAssertTrue(saveDiagnostics.exists)
         let appMetadata = app.staticTexts
             .matching(NSPredicate(format: "label BEGINSWITH %@", "App "))
             .firstMatch
@@ -1311,21 +1313,19 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(appMetadata.waitForExistence(timeout: 5))
         XCTAssertTrue(navigationBar.exists)
         XCTAssertTrue(signsTab.exists)
-        let topClearance: CGFloat = 44
+        let topClearance: CGFloat = 24
         let bottomClearance: CGFloat = 16
         for _ in 0..<2 {
-            let requiredShift = navigationBar.frame.maxY
+            let minimumShift = navigationBar.frame.maxY
                 + topClearance
                 - appMetadata.frame.minY
-            if requiredShift <= 0 { break }
-            let availableShift = signsTab.frame.minY
+            let maximumShift = signsTab.frame.minY
                 - bottomClearance
-                - copyAddress.frame.maxY
-            XCTAssertGreaterThanOrEqual(availableShift, requiredShift)
-            let dragDistance = min(
-                availableShift,
-                max(requiredShift, topClearance)
-            )
+                - saveDiagnostics.frame.maxY
+            XCTAssertGreaterThanOrEqual(maximumShift, minimumShift)
+            if minimumShift <= 0, maximumShift >= 0 { break }
+            let dragDistance = (minimumShift + maximumShift) / 2
+            XCTAssertLessThanOrEqual(abs(dragDistance), 44)
             let dragStart = app.coordinate(
                 withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)
             )
@@ -1344,7 +1344,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             navigationBar.frame.maxY + topClearance
         )
         XCTAssertLessThanOrEqual(
-            copyAddress.frame.maxY,
+            saveDiagnostics.frame.maxY,
             signsTab.frame.minY - bottomClearance
         )
         captureBaseline("state.feedback.review-ready", in: app)
