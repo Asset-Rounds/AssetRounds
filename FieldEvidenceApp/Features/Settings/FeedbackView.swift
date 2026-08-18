@@ -98,6 +98,7 @@ struct FeedbackView: View {
             }
             .padding(DesignTokens.Spacing.space16)
         }
+        .modifier(FeedbackTopScrollEdgeVisibility())
         .navigationTitle("Feedback")
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -314,6 +315,17 @@ struct FeedbackView: View {
             prepared = try await diagnosticService.prepare()
         } catch {
             errorMessage = "Privacy-safe diagnostics are unavailable right now. No app data changed."
+        }
+    }
+}
+
+private struct FeedbackTopScrollEdgeVisibility: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.scrollEdgeEffectHidden(true, for: .top)
+        } else {
+            content
         }
     }
 }
