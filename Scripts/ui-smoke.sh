@@ -7,6 +7,7 @@ result_bundle_path="${CI_ARTIFACT_DIR:?}/UISmoke.xcresult"
 screenshot_path="$CI_ARTIFACT_DIR/ui-final.png"
 attachment_export_path="${RUNNER_TEMP:?}/FieldEvidenceUISmokeAttachments"
 attachment_manifest_path="$attachment_export_path/manifest.json"
+failure_attachment_export_path="$CI_ARTIFACT_DIR/ui-failure-attachments"
 expected_destination="platform=iOS Simulator,id=${CI_SIMULATOR_UDID:?}"
 app_bundle_id="com.palatis3.fieldrecord"
 
@@ -43,6 +44,7 @@ if xcrun simctl get_app_container "$CI_SIMULATOR_UDID" "$app_bundle_id" app >/de
   xcrun simctl uninstall "$CI_SIMULATOR_UDID" "$app_bundle_id"
 fi
 
+set +e
 xcodebuild \
   -project "${PROJECT_PATH:?}" \
   -scheme "${SCHEME:?}" \
@@ -53,6 +55,23 @@ xcodebuild \
   "${only_testing_args[@]}" \
   CODE_SIGNING_ALLOWED=NO \
   test-without-building
+xcodebuild_status=$?
+set -e
+
+if [ "$xcodebuild_status" -ne 0 ]; then
+  if [ -d "$result_bundle_path" ] && \
+     [ -n "$(find "$result_bundle_path" -mindepth 1 -print -quit)" ]; then
+    test ! -e "$failure_attachment_export_path"
+    test ! -L "$failure_attachment_export_path"
+    mkdir -p "$failure_attachment_export_path"
+    if ! xcrun xcresulttool export attachments \
+      --path "$result_bundle_path" \
+      --output-path "$failure_attachment_export_path"; then
+      printf 'failed to export non-accepting UI failure attachments\n' >&2
+    fi
+  fi
+  exit "$xcodebuild_status"
+fi
 
 test -d "$result_bundle_path"
 test -n "$(find "$result_bundle_path" -mindepth 1 -print -quit)"
