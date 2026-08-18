@@ -135,7 +135,7 @@ struct ReportCorrectionView: View {
 
                 stateContent
 
-                if showsForm {
+                if showsForm && state != .saving {
                     Button("Save correction", action: save)
                         .buttonStyle(.borderedProminent)
                         .tint(DesignTokens.SemanticColors.primaryAction)
