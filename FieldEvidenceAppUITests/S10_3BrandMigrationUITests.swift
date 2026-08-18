@@ -1061,7 +1061,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     "s5.2.outcome.issue-still-visible",
                     in: app
                 )
-                for _ in 0..<4 {
+                for _ in 0..<6 {
                     let minimumShift = max(
                         navigationBottom - issueStillVisible.frame.minY,
                         navigationBottom - value.frame.minY
