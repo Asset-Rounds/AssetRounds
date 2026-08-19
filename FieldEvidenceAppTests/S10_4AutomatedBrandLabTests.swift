@@ -104,8 +104,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             ".github/workflows/ios-ci.yml",
-            byteCount: 53_754,
-            sha256: "422912493B8DEBE021F4C6DEE6EA6DD99C3E62D58E21A25C07860CA1BC2F4F6F"
+            byteCount: 55_764,
+            sha256: "4C350B9E9DAB3870CE36BDA87342301D194E030D38DD77B7FB2011868B75A607"
         )
 
         let manifest = try json(manifestPath)
