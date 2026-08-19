@@ -1614,6 +1614,73 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             .waitForExistence(timeout: 30))
         XCTAssertTrue(element("s8.3.diagnostics.counters", in: app)
             .waitForExistence(timeout: 20))
+        let diagnosticsHeading = element("s8.3.diagnostics.heading", in: app)
+        let diagnosticsAuthority = element("s8.3.diagnostics.authority", in: app)
+        let diagnosticsExport = element("s8.3.diagnostics.export", in: app)
+        let navigationBar = app.navigationBars.firstMatch
+        let signsTab = element("s1.tab.signs", in: app)
+        XCTAssertTrue(diagnosticsHeading.waitForExistence(timeout: 10))
+        XCTAssertTrue(diagnosticsAuthority.waitForExistence(timeout: 10))
+        XCTAssertTrue(diagnosticsExport.waitForExistence(timeout: 10))
+        XCTAssertTrue(navigationBar.exists)
+        XCTAssertTrue(signsTab.exists)
+        let topClearance: CGFloat = 16
+        let bottomClearance: CGFloat = 16
+        var measuredUndertravel: CGFloat = 0
+        var compensatedDirection: CGFloat = 0
+        for _ in 0..<4 {
+            let minimumShift = navigationBar.frame.maxY
+                + topClearance
+                - diagnosticsAuthority.frame.minY
+            let maximumShift = min(
+                navigationBar.frame.maxY - diagnosticsHeading.frame.maxY,
+                signsTab.frame.minY
+                    - bottomClearance
+                    - diagnosticsExport.frame.maxY
+            )
+            XCTAssertGreaterThanOrEqual(maximumShift, minimumShift)
+            if minimumShift <= 0, maximumShift >= 0 { break }
+            let targetDistance = minimumShift > 0
+                ? maximumShift
+                : minimumShift
+            let direction: CGFloat = targetDistance > 0 ? 1 : -1
+            if compensatedDirection != direction {
+                measuredUndertravel = 0
+            }
+            let dragDistance = targetDistance
+                + direction * measuredUndertravel
+            let authorityBeforeDrag = diagnosticsAuthority.frame.minY
+            let dragStart = app.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)
+            )
+            let dragEnd = dragStart.withOffset(
+                CGVector(dx: 0, dy: dragDistance)
+            )
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            let actualDistance = diagnosticsAuthority.frame.minY
+                - authorityBeforeDrag
+            measuredUndertravel = actualDistance * direction > 0
+                ? max(0, abs(dragDistance) - abs(actualDistance))
+                : abs(dragDistance)
+            compensatedDirection = direction
+        }
+        XCTAssertLessThanOrEqual(
+            diagnosticsHeading.frame.maxY,
+            navigationBar.frame.maxY
+        )
+        XCTAssertGreaterThanOrEqual(
+            diagnosticsAuthority.frame.minY,
+            navigationBar.frame.maxY + topClearance
+        )
+        XCTAssertLessThanOrEqual(
+            diagnosticsExport.frame.maxY,
+            signsTab.frame.minY - bottomClearance
+        )
         captureBaseline("state.diagnostics.ready", in: app)
         navigateBack(in: app)
         XCTAssertTrue(element("s1.settings.screen", in: app)
