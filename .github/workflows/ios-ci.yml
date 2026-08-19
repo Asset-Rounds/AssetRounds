@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ios-ci-${{ github.ref }}
+  group: ios-ci-${{ github.ref }}-${{ inputs.s10_4_shard_id }}
   cancel-in-progress: false
 
 jobs:
