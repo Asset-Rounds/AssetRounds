@@ -180,6 +180,7 @@ private struct SampleRegistryRow: View {
             }
         }
         .padding(.vertical, DesignTokens.Spacing.space8)
+        .background(DesignTokens.SemanticColors.elevatedSurface)
         .accessibilityElement(children: .combine)
     }
 }
