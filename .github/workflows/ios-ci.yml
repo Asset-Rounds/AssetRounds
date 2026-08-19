@@ -505,53 +505,59 @@ jobs:
             printf '\nprovision_exit=%s\nprovision_tee_exit=%s\n' \
               "${provision_pipeline_status[0]}" "${provision_pipeline_status[1]}" \
               | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
-            if test "${provision_pipeline_status[0]}" -ne 0; then
+            if test "${provision_pipeline_status[1]}" -ne 0; then
+              exit "${provision_pipeline_status[1]}"
+            fi
+            xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
+            exact_runtime_available=false
+            if jq -e --arg name "$SIMULATOR_RUNTIME" \
+              --arg build "${SIMULATOR_RUNTIME_BUILD:-}" \
+              'any(.runtimes[]; .name == $name and .isAvailable == true and ($build == "" or .buildversion == $build))' \
+              "$CI_ARTIFACT_DIR/simulator-runtimes.json" > /dev/null; then
+              exact_runtime_available=true
+            fi
+            if test "$exact_runtime_available" != true && \
+               test -n "${SIMULATOR_RUNTIME_BUILD:-}"; then
+              setup_elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
+              runtime_recovery_budget_seconds="$(( CI_SETUP_ARTIFACT_TIMEOUT_SECONDS - setup_elapsed_seconds ))"
+              test "$runtime_recovery_budget_seconds" -gt 0
+              set +e
+              bash Scripts/run-with-timeout.sh "$runtime_recovery_budget_seconds" \
+                xcodebuild -downloadPlatform iOS \
+                  -buildVersion "$SIMULATOR_RUNTIME_BUILD" \
+                  -architectureVariant universal \
+                2>&1 | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+              recovery_pipeline_status=( "${PIPESTATUS[@]}" )
+              set -e
+              if test "${#recovery_pipeline_status[@]}" -ne 2; then
+                exit 1
+              fi
+              printf 'recovery_provision_exit=%s\nrecovery_provision_tee_exit=%s\n' \
+                "${recovery_pipeline_status[0]}" "${recovery_pipeline_status[1]}" \
+                | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+              if test "${recovery_pipeline_status[1]}" -ne 0; then
+                exit "${recovery_pipeline_status[1]}"
+              fi
               xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
-              exact_runtime_available=false
               if jq -e --arg name "$SIMULATOR_RUNTIME" \
                 --arg build "${SIMULATOR_RUNTIME_BUILD:-}" \
                 'any(.runtimes[]; .name == $name and .isAvailable == true and ($build == "" or .buildversion == $build))' \
                 "$CI_ARTIFACT_DIR/simulator-runtimes.json" > /dev/null; then
                 exact_runtime_available=true
               fi
-              if test "$exact_runtime_available" != true && \
-                 test -n "${SIMULATOR_RUNTIME_BUILD:-}"; then
-                setup_elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
-                runtime_recovery_budget_seconds="$(( CI_SETUP_ARTIFACT_TIMEOUT_SECONDS - setup_elapsed_seconds ))"
-                test "$runtime_recovery_budget_seconds" -gt 0
-                set +e
-                bash Scripts/run-with-timeout.sh "$runtime_recovery_budget_seconds" \
-                  xcodebuild -downloadPlatform iOS \
-                    -buildVersion "$SIMULATOR_RUNTIME_BUILD" \
-                    -architectureVariant universal \
-                  2>&1 | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
-                recovery_pipeline_status=( "${PIPESTATUS[@]}" )
-                set -e
-                if test "${#recovery_pipeline_status[@]}" -ne 2; then
-                  exit 1
-                fi
-                printf 'recovery_provision_exit=%s\nrecovery_provision_tee_exit=%s\n' \
-                  "${recovery_pipeline_status[0]}" "${recovery_pipeline_status[1]}" \
-                  | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
-                if test "${recovery_pipeline_status[1]}" -ne 0; then
-                  exit "${recovery_pipeline_status[1]}"
-                fi
-                xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
-                if jq -e --arg name "$SIMULATOR_RUNTIME" \
-                  --arg build "${SIMULATOR_RUNTIME_BUILD:-}" \
-                  'any(.runtimes[]; .name == $name and .isAvailable == true and ($build == "" or .buildversion == $build))' \
-                  "$CI_ARTIFACT_DIR/simulator-runtimes.json" > /dev/null; then
-                  exact_runtime_available=true
-                fi
-              fi
-              if test "$exact_runtime_available" != true; then
+            fi
+            if test "$exact_runtime_available" != true; then
+              if test "${provision_pipeline_status[0]}" -ne 0; then
                 exit "${provision_pipeline_status[0]}"
               fi
+              exit 70
+            fi
+            if test "${provision_pipeline_status[0]}" -ne 0; then
               printf 'provision_nonzero_but_exact_runtime_available=true\n' \
                 | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
-            fi
-            if test "${provision_pipeline_status[1]}" -ne 0; then
-              exit "${provision_pipeline_status[1]}"
+            else
+              printf 'provision_zero_but_exact_runtime_verified=true\n' \
+                | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
             fi
           fi
 
