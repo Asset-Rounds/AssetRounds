@@ -424,16 +424,12 @@ struct SettingsPlaceholderView: View {
                         .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
                         .accessibilityAddTraits(.isHeader)
 
-                NavigationLink("Back up current data") {
+                AssetRoundsPrimaryNavigationLink("Back up current data") {
                     BackupExportView(
                         modelContext: modelContext,
                         generationRootURL: generationRootURL
                     )
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(DesignTokens.SemanticColors.primaryAction)
-                .controlSize(.large)
-                .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                 .accessibilityIdentifier(
                     BackupExportView.settingsEntryAccessibilityIdentifier
                 )
@@ -510,7 +506,7 @@ struct SettingsPlaceholderView: View {
 
                 Text("Inspection data and photos are device-local and do not sync with the subscription.")
                     .font(DesignTokens.Typography.secondaryBody)
-                    .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
                     AssetRoundsSecondaryAction("Erase All", action: eraseAllAction.call)

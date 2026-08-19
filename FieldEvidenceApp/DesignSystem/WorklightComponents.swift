@@ -185,6 +185,39 @@ extension AssetRoundsPrimaryAction where Label == Text {
     }
 }
 
+struct AssetRoundsPrimaryNavigationLink<Destination: View, Label: View>: View {
+    private let destination: Destination
+    private let label: Label
+
+    init(
+        @ViewBuilder destination: () -> Destination,
+        @ViewBuilder label: () -> Label
+    ) {
+        self.destination = destination()
+        self.label = label()
+    }
+
+    var body: some View {
+        NavigationLink {
+            destination
+        } label: {
+            label
+        }
+        .buttonStyle(WorklightPrimaryButtonStyle())
+    }
+}
+
+extension AssetRoundsPrimaryNavigationLink where Label == Text {
+    init(
+        _ titleKey: LocalizedStringKey,
+        @ViewBuilder destination: () -> Destination
+    ) {
+        self.init(destination: destination) {
+            Text(titleKey)
+        }
+    }
+}
+
 private struct AssetRoundsSecondaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
