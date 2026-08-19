@@ -53,7 +53,7 @@ struct DiagnosticExportView: View {
                     "The export includes only app and device versions, local counters, and bounded system metrics when available. It never includes customer or sign details, addresses, notes, photos, reports, backups, paths, hashes, StoreKit details, credentials, or logs."
                 )
                 .font(DesignTokens.Typography.secondaryBody)
-                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier(Self.privacyAccessibilityIdentifier)
 
@@ -128,7 +128,7 @@ struct DiagnosticExportView: View {
             Text("Generated \(value.generatedAt.formatted(date: .abbreviated, time: .shortened))")
         }
         .font(DesignTokens.Typography.secondaryBody)
-        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
         .fixedSize(horizontal: false, vertical: true)
 
         let counters = value.counters
@@ -174,7 +174,7 @@ struct DiagnosticExportView: View {
         } else {
             Text("No recent bounded system summary is available.")
                 .font(DesignTokens.Typography.primaryBody)
-                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier(Self.metricKitAccessibilityIdentifier)
         }
