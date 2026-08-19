@@ -216,6 +216,7 @@ struct NewSignView: View {
 
             if let field {
                 TextField(
+                    LocalizedStringKey(label),
                     text: text,
                     prompt: Text(label)
                         .foregroundStyle(DesignTokens.SemanticColors.primaryText)
@@ -227,6 +228,7 @@ struct NewSignView: View {
                     .accessibilityFocused($accessibilityFocusedField, equals: field)
             } else {
                 TextField(
+                    LocalizedStringKey(label),
                     text: text,
                     prompt: Text(label)
                         .foregroundStyle(DesignTokens.SemanticColors.primaryText)
