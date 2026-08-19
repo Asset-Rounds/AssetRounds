@@ -88,7 +88,7 @@ struct BackupRestoreProgressView: View {
                         } else {
                             Text("Choose a Field Evidence backup to restore.")
                                 .font(DesignTokens.Typography.primaryBody)
-                                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
 
