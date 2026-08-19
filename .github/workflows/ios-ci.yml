@@ -700,7 +700,7 @@ jobs:
                     and (.exportedFileName | test("^[A-Za-z0-9._-]+$"))
                   )
                 | {
-                    stateID: (.suggestedHumanReadableName | ltrimstr($prefix)),
+                    stateID: (.suggestedHumanReadableName | ltrimstr($prefix) | sub("_0_[0-9A-Fa-f-]{36}\\."; ".")),
                     exportedFileName: .exportedFileName
                   }
               ]
