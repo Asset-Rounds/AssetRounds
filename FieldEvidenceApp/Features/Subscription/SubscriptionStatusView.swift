@@ -194,7 +194,7 @@ struct SubscriptionStatusView: View {
 
                 Text("Inspection data and photos stay on this device and do not sync with the subscription. Use a data backup to move them.")
                     .font(DesignTokens.Typography.primaryBody)
-                    .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
                 AssetRoundsSecondaryAction("Close") {
@@ -271,7 +271,7 @@ struct SubscriptionStatusView: View {
 
         Text(presentation.detail)
             .font(DesignTokens.Typography.primaryBody)
-            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier(Self.statusAccessibilityIdentifier)
     }
