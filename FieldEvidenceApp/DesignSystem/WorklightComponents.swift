@@ -185,6 +185,37 @@ extension AssetRoundsPrimaryAction where Label == Text {
     }
 }
 
+private struct AssetRoundsSecondaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(DesignTokens.Typography.sectionHeading)
+            .multilineTextAlignment(.center)
+            .foregroundStyle(
+                isEnabled ? DesignTokens.SemanticColors.primaryAction : DesignTokens.Colors.secondaryText
+            )
+            .padding(.horizontal, DesignTokens.Spacing.space16)
+            .frame(
+                minWidth: DesignTokens.Target.minimumInteractiveWidth,
+                minHeight: DesignTokens.Target.minimumInteractiveHeight
+            )
+            .background(DesignTokens.Colors.raisedSurface)
+            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
+            .overlay {
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
+                    .stroke(
+                        isEnabled
+                            ? DesignTokens.SemanticColors.primaryAction
+                            : DesignTokens.Colors.essentialControlStroke,
+                        lineWidth: DesignTokens.Stroke.standard
+                    )
+            }
+            .brightness(configuration.isPressed && isEnabled ? -0.05 : 0)
+            .contentShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
+    }
+}
+
 struct AssetRoundsSecondaryAction<Label: View>: View {
     private let action: () -> Void
     private let label: Label
@@ -197,16 +228,8 @@ struct AssetRoundsSecondaryAction<Label: View>: View {
     var body: some View {
         Button(action: action) {
             label
-                .font(DesignTokens.Typography.sectionHeading)
-                .multilineTextAlignment(.center)
         }
-        .buttonStyle(.bordered)
-        .tint(DesignTokens.SemanticColors.primaryAction)
-        .controlSize(.large)
-        .frame(
-            minWidth: DesignTokens.Target.minimumInteractiveWidth,
-            minHeight: DesignTokens.Target.minimumInteractiveHeight
-        )
+        .buttonStyle(AssetRoundsSecondaryButtonStyle())
     }
 }
 
