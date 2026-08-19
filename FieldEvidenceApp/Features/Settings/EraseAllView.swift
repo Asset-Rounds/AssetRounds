@@ -46,7 +46,7 @@ struct EraseAllView: View {
 
                     Text(Self.subscriptionCopy)
                         .font(DesignTokens.Typography.primaryBody)
-                        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text("Type ERASE to continue.")
