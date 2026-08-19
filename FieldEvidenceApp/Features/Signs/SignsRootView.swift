@@ -731,7 +731,7 @@ struct SignsRootView: View {
 
                     Text("Choose a sign to view its checks, issues, and reports.")
                         .font(DesignTokens.Typography.primaryBody)
-                        .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
