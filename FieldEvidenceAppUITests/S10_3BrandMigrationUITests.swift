@@ -1624,7 +1624,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(diagnosticsExport.waitForExistence(timeout: 10))
         XCTAssertTrue(navigationBar.exists)
         XCTAssertTrue(signsTab.exists)
-        let topClearance: CGFloat = 16
+        let topClearance: CGFloat = 12
         let bottomClearance: CGFloat = 16
         var measuredUndertravel: CGFloat = 0
         var compensatedDirection: CGFloat = 0
