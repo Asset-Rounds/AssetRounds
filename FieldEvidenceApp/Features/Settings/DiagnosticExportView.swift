@@ -86,6 +86,7 @@ struct DiagnosticExportView: View {
             }
             .padding(DesignTokens.Spacing.space16)
         }
+        .modifier(DiagnosticExportScrollEdgeVisibility())
         .navigationTitle("Diagnostics")
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -177,6 +178,19 @@ struct DiagnosticExportView: View {
                 .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier(Self.metricKitAccessibilityIdentifier)
+        }
+    }
+}
+
+private struct DiagnosticExportScrollEdgeVisibility: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .scrollEdgeEffectHidden(true, for: .top)
+                .scrollEdgeEffectHidden(true, for: .bottom)
+        } else {
+            content
         }
     }
 }
