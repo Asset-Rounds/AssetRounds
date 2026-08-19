@@ -215,14 +215,22 @@ struct NewSignView: View {
                 .foregroundStyle(DesignTokens.SemanticColors.primaryText)
 
             if let field {
-                TextField(label, text: text)
+                TextField(
+                    text: text,
+                    prompt: Text(label)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                )
                     .textFieldStyle(.roundedBorder)
                     .focused($focusedField, equals: field)
                     .accessibilityLabel(label)
                     .accessibilityIdentifier(identifier)
                     .accessibilityFocused($accessibilityFocusedField, equals: field)
             } else {
-                TextField(label, text: text)
+                TextField(
+                    text: text,
+                    prompt: Text(label)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                )
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel(label)
                     .accessibilityIdentifier(identifier)
