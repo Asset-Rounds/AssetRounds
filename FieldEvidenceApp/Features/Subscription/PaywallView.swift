@@ -116,7 +116,10 @@ struct PaywallView: View {
         SubscriptionStoreView(productIDs: [EntitlementReducerV1.productID]) {
             marketingContent(presentation: presentation, links: links)
         }
-        .subscriptionStoreControlStyle(AssetRoundsSubscriptionControlStyle())
+        .subscriptionStoreControlStyle(
+            AssetRoundsSubscriptionControlStyle(),
+            placement: .scrollView
+        )
         .storeButton(.hidden, for: .restorePurchases)
         .onInAppPurchaseStart { product in
             _ = await coordinator.storeKitPurchaseStarted(productID: product.id)

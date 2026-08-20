@@ -379,8 +379,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "FieldEvidenceApp/Features/Subscription/PaywallView.swift"
         try assertFile(
             paywallSourcePath,
-            byteCount: 13_418,
-            sha256: "689093009BBB21F39EB1A931A085ADD17DD9D34BACF5002C9F6439314BDCAFB8"
+            byteCount: 13_476,
+            sha256: "8C3D3F67C003B8A91B07068C99665752D2F02F18D42BAD1AF7A27EF88E75BFA6"
         )
         let paywallSource = try text(paywallSourcePath)
         let purchaseStatusSlotCallsite =
@@ -605,12 +605,43 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             paywallSource.components(separatedBy: legalLinkStack).count - 1,
             1
         )
+        let scrollViewSubscriptionControlStyle =
+            "        .subscriptionStoreControlStyle(\n" +
+                "            AssetRoundsSubscriptionControlStyle(),\n" +
+                "            placement: .scrollView\n" +
+                "        )"
+        XCTAssertEqual(
+            paywallSource.components(
+                separatedBy: scrollViewSubscriptionControlStyle
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            paywallSource.components(
+                separatedBy: ".subscriptionStoreControlStyle("
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            paywallSource.components(separatedBy: "placement: .scrollView").count - 1,
+            1
+        )
+        for forbiddenPlacement in [
+            "placement: .automatic",
+            "placement: .bottomBar",
+        ] {
+            XCTAssertEqual(
+                paywallSource.components(
+                    separatedBy: forbiddenPlacement
+                ).count - 1,
+                0,
+                forbiddenPlacement
+            )
+        }
         let storeKitContracts = [
             "SubscriptionStoreView(productIDs: " +
                 "[EntitlementReducerV1.productID]) {",
             "marketingContent(presentation: presentation, links: links)",
-            ".subscriptionStoreControlStyle(" +
-                "AssetRoundsSubscriptionControlStyle())",
             ".storeButton(.hidden, for: .restorePurchases)",
             "_ = await coordinator.storeKitPurchaseStarted(productID: product.id)",
             "await coordinator.handleStoreKitCompletion(",
