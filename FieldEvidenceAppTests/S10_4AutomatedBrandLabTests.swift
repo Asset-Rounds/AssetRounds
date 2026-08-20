@@ -1432,8 +1432,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "FieldEvidenceApp/Features/Shell/AppShellView.swift",
-                25_794,
-                "D791C50C2812F53B9BEBF128CE71A0C2A7C8EC0644C3EFC5CFA8C6F939A23535",
+                25_864,
+                "E6324CBF7BC93564FC05CD9307E01BBC15F161B1970E4B3F231D4EC71F6F9C43",
                 [
                     #"AssetRoundsPrimaryNavigationLink("Back up current data") {"#,
                     #"AssetRoundsSecondaryAction("Restore data backup", action: restoreDataBackup)"#,
@@ -1500,6 +1500,38 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 owner.path
             )
         }
+
+        let appShellSourcePath =
+            "FieldEvidenceApp/Features/Shell/AppShellView.swift"
+        let appShellSource = try text(appShellSourcePath)
+        let verbatimColorSchemeSentinel =
+            "                .accessibilityValue(\n" +
+                "                    Text(\n" +
+                "                        verbatim: exposesColorSchemeForUITest\n" +
+                #"                            ? (colorScheme == .dark ? "Dark" : "Light")"# +
+                "\n" +
+                #"                            : """# + "\n" +
+                "                    )\n" +
+                "                )"
+        XCTAssertEqual(
+            appShellSource.components(
+                separatedBy: verbatimColorSchemeSentinel
+            ).count - 1,
+            1
+        )
+        let formerBareColorSchemeSentinel =
+            "                .accessibilityValue(\n" +
+                "                    exposesColorSchemeForUITest\n" +
+                #"                        ? (colorScheme == .dark ? "Dark" : "Light")"# +
+                "\n" +
+                #"                        : """# + "\n" +
+                "                )"
+        XCTAssertEqual(
+            appShellSource.components(
+                separatedBy: formerBareColorSchemeSentinel
+            ).count - 1,
+            0
+        )
 
         let deleteViewportDiagnosticLocks = [
             #"let runsAXTextDeleteConfirmationDiagnostic ="#,

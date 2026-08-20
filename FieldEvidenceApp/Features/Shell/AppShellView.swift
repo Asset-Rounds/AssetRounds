@@ -146,9 +146,11 @@ struct AppShellView: View {
                 )
                 .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
                 .accessibilityValue(
-                    exposesColorSchemeForUITest
-                        ? (colorScheme == .dark ? "Dark" : "Light")
-                        : ""
+                    Text(
+                        verbatim: exposesColorSchemeForUITest
+                            ? (colorScheme == .dark ? "Dark" : "Light")
+                            : ""
+                    )
                 )
             } label: {
                 Label("Signs", systemImage: "signpost.right.fill")
