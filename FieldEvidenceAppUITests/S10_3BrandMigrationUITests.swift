@@ -775,6 +775,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         )
         setToggle("s3.preflight.time-zone-confirmed", in: app)
         setToggle("s3.preflight.after-dark", in: app)
+        app.swipeUp()
         setToggle("s3.preflight.safe-position", in: app)
 
         let begin = element("s3.preflight.begin", in: app)

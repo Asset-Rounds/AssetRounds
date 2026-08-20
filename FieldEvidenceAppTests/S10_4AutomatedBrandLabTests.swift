@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 150_617,
-            sha256: "307B757635869DB2D9B2FC9D8DD8E6F830F13CE28414CC87CA6CFFFCBA9AD7C8"
+            byteCount: 150_639,
+            sha256: "69C78ED57C135CB9FB8687C5F8B2D1C5DDF840D738FA4C3974981B3D438A2C7D"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -305,12 +305,33 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"        setToggle("s3.preflight.time-zone-confirmed", in: app)"# +
                 "\n" +
                 #"        setToggle("s3.preflight.after-dark", in: app)"# + "\n" +
+                "        app.swipeUp()\n" +
                 #"        setToggle("s3.preflight.safe-position", in: app)"#
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: freshPreflightKeyboardDismissal
             ).count - 1,
             1
+        )
+
+        let positionedSafePositionToggle =
+            #"        setToggle("s3.preflight.after-dark", in: app)"# + "\n" +
+                "        app.swipeUp()\n" +
+                #"        setToggle("s3.preflight.safe-position", in: app)"#
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: positionedSafePositionToggle
+            ).count - 1,
+            4
+        )
+        let unpositionedSafePositionToggle =
+            #"        setToggle("s3.preflight.after-dark", in: app)"# + "\n" +
+                #"        setToggle("s3.preflight.safe-position", in: app)"#
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: unpositionedSafePositionToggle
+            ).count - 1,
+            0
         )
 
         let unchangedGlobalSetToggleHelper =
