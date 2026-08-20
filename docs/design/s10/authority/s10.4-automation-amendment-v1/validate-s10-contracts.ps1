@@ -252,6 +252,7 @@ $expectedProductDeltaAllowlist = @(
     "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
     "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
     "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
     "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
     "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
     "FieldEvidenceApp/Features/Sample/PackSampleView.swift",
