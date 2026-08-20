@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 144_940,
-            sha256: "19D3A7893BCA2496F4C5A52E5E9DAC400A537860B0ACCB77FBBAA87D62797B12"
+            byteCount: 150_617,
+            sha256: "307B757635869DB2D9B2FC9D8DD8E6F830F13CE28414CC87CA6CFFFCBA9AD7C8"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -347,6 +347,255 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+
+        let reportCorrectionSourcePath =
+            "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift"
+        let reportCorrectionSource = try text(reportCorrectionSourcePath)
+        let reportCorrectionOuterScrollComposition =
+            "            .padding(DesignTokens.Spacing.space16)\n" +
+                "        }\n" +
+                "        .scrollDismissesKeyboard(.never)\n" +
+                #"        .navigationTitle("Correct report")"#
+        XCTAssertEqual(
+            reportCorrectionSource.components(
+                separatedBy: reportCorrectionOuterScrollComposition
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            reportCorrectionSource.components(
+                separatedBy: ".scrollDismissesKeyboard(.never)"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            reportCorrectionSource.components(
+                separatedBy: #"AssetRoundsPrimaryAction("Save correction", action: save)"#
+            ).count - 1,
+            1
+        )
+        let unchangedReportCorrectionValidationFocusChain =
+            "    private func showValidation(_ message: String) {\n" +
+                "        validationMessage = message\n" +
+                "        state = .editing\n" +
+                "        Task { @MainActor in\n" +
+                "            await Task.yield()\n" +
+                "            keyboardFocus = .note\n" +
+                "            accessibilityFocus = nil\n" +
+                "            await Task.yield()\n" +
+                "            accessibilityFocus = .validation\n" +
+                "        }\n" +
+                "    }"
+        XCTAssertEqual(
+            reportCorrectionSource.components(
+                separatedBy: unchangedReportCorrectionValidationFocusChain
+            ).count - 1,
+            1
+        )
+
+        let correctionValidationStart =
+            #"captureBaseline("state.report-correction.editing", in: app)"#
+        let correctionValidationEnd =
+            #"let saving = element("s4.5.correction.saving", in: app)"#
+        XCTAssertEqual(
+            uiSource.components(separatedBy: correctionValidationStart).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: correctionValidationEnd).count - 1,
+            1
+        )
+        guard let correctionValidationStartRange = uiSource.range(
+            of: correctionValidationStart
+        ) else {
+            XCTFail("Missing Report correction validation route start")
+            return
+        }
+        let correctionValidationTail = uiSource[
+            correctionValidationStartRange.upperBound...
+        ]
+        guard let correctionValidationEndRange = correctionValidationTail.range(
+            of: correctionValidationEnd
+        ) else {
+            XCTFail("Missing Report correction validation route end")
+            return
+        }
+        let correctionValidationSource = String(
+            uiSource[
+                correctionValidationStartRange.lowerBound..<correctionValidationEndRange.lowerBound
+            ]
+        )
+        let correctionValidationOrderedLocks = [
+            #"let save = element("s4.5.correction.save", in: app)"# + "\n" +
+                "        scroll(save, in: app)\n" +
+                #"        assertControl(save, label: "Save correction")"# + "\n" +
+                "        save.tap()\n" +
+                #"        let validation = element("s4.5.correction.validation", in: app)"# +
+                "\n" +
+                "        XCTAssertTrue(validation.waitForExistence(timeout: 10))\n" +
+                #"        assertLocalizedLabelContains(validation, "Change the note before saving.")"#,
+            #"let note = element("s4.5.correction.note", in: app)"# + "\n" +
+                "        guard note.waitForExistence(timeout: 10) else {\n" +
+                #"            XCTFail("Report correction note did not appear after validation.")"# +
+                "\n" +
+                "            return\n" +
+                "        }\n" +
+                "        guard wait(\n" +
+                "            for: note,\n" +
+                #"            predicate: "hasKeyboardFocus == true","# + "\n" +
+                "            timeout: 10\n" +
+                "        ) else {\n" +
+                #"            XCTFail("Report correction validation did not retain note focus.")"# +
+                "\n" +
+                "            return\n" +
+                "        }",
+            "let keyboard = app.keyboards.firstMatch\n" +
+                "        let navigationBar = app.navigationBars.firstMatch\n" +
+                "        guard keyboard.waitForExistence(timeout: 10),\n" +
+                "              navigationBar.waitForExistence(timeout: 10) else {\n" +
+                #"            XCTFail("Report correction keyboard or navigation bar is missing.")"# +
+                "\n" +
+                "            return\n" +
+                "        }",
+            "let correctionScrollViews = app.scrollViews.containing(\n" +
+                "            .button,\n" +
+                #"            identifier: "s4.5.correction.save""# + "\n" +
+                "        )\n" +
+                "        guard correctionScrollViews.count == 1 else {\n" +
+                #"            XCTFail("Report correction must have one Save-containing ScrollView.")"# +
+                "\n" +
+                "            return\n" +
+                "        }\n" +
+                "        let correctionScrollView = correctionScrollViews.firstMatch\n" +
+                "        guard correctionScrollView.waitForExistence(timeout: 10) else {\n" +
+                #"            XCTFail("Report correction Save-containing ScrollView is missing.")"# +
+                "\n" +
+                "            return\n" +
+                "        }",
+            "let dragInset: CGFloat = 24\n" +
+                "        let minimumGestureDistance: CGFloat = 44\n" +
+                "        for _ in 0..<4 {\n" +
+                "            let scrollFrame = correctionScrollView.frame\n" +
+                "            let visibleTop = max(scrollFrame.minY, navigationBar.frame.maxY)\n" +
+                "            let visibleBottom = min(scrollFrame.maxY, keyboard.frame.minY)\n" +
+                "            guard visibleBottom > visibleTop else {\n" +
+                #"                XCTFail("Report correction has no visible keyboard-safe interval.")"# +
+                "\n" +
+                "                return\n" +
+                "            }",
+            "let validationFrame = validation.frame\n" +
+                "            let saveFrame = save.frame\n" +
+                "            if validationFrame.minY >= visibleTop,\n" +
+                "               validationFrame.maxY <= visibleBottom,\n" +
+                "               saveFrame.minY >= visibleTop,\n" +
+                "               saveFrame.maxY <= visibleBottom {\n" +
+                "                break\n" +
+                "            }",
+            "let minimumShift = max(\n" +
+                "                visibleTop - validationFrame.minY,\n" +
+                "                visibleTop - saveFrame.minY\n" +
+                "            )\n" +
+                "            let maximumShift = min(\n" +
+                "                visibleBottom - validationFrame.maxY,\n" +
+                "                visibleBottom - saveFrame.maxY\n" +
+                "            )\n" +
+                "            guard minimumShift <= maximumShift else {\n" +
+                #"                XCTFail("Report correction validation and Save cannot share the viewport.")"# +
+                "\n" +
+                "                return\n" +
+                "            }",
+            "let farFeasibleShift = abs(minimumShift) >= abs(maximumShift)\n" +
+                "                ? minimumShift\n" +
+                "                : maximumShift\n" +
+                "            let maximumGestureDistance = visibleBottom\n" +
+                "                - visibleTop\n" +
+                "                - (2 * dragInset)\n" +
+                "            guard maximumGestureDistance >= minimumGestureDistance else {\n" +
+                #"                XCTFail("Report correction viewport cannot fit a recognized gesture.")"# +
+                "\n" +
+                "                return\n" +
+                "            }\n" +
+                "            let dragDistance = max(\n" +
+                "                -maximumGestureDistance,\n" +
+                "                min(farFeasibleShift, maximumGestureDistance)\n" +
+                "            )\n" +
+                "            guard abs(dragDistance) >= minimumGestureDistance else {\n" +
+                #"                XCTFail("Report correction feasible shift is below gesture recognition.")"# +
+                "\n" +
+                "                return\n" +
+                "            }",
+            "let scrollOrigin = correctionScrollView.coordinate(\n" +
+                "                withNormalizedOffset: CGVector(dx: 0, dy: 0)\n" +
+                "            )\n" +
+                "            let dragStartOffsetY = dragDistance > 0\n" +
+                "                ? visibleTop - scrollFrame.minY + dragInset\n" +
+                "                : visibleBottom - scrollFrame.minY - dragInset\n" +
+                "            let dragStart = scrollOrigin.withOffset(\n" +
+                "                CGVector(dx: scrollFrame.width / 2, dy: dragStartOffsetY)\n" +
+                "            )\n" +
+                "            let dragEnd = dragStart.withOffset(\n" +
+                "                CGVector(dx: 0, dy: dragDistance)\n" +
+                "            )\n" +
+                "            let saveBeforeDrag = save.frame.minY\n" +
+                "            dragStart.press(forDuration: 0.05, thenDragTo: dragEnd)\n" +
+                "            let observedShift = save.frame.minY - saveBeforeDrag\n" +
+                "            guard observedShift * dragDistance > 0 else {\n" +
+                #"                XCTFail("Report correction positioning gesture was not recognized.")"# +
+                "\n" +
+                "                return\n" +
+                "            }\n" +
+                "        }",
+            "let finalFocusPreserved = wait(\n" +
+                "            for: note,\n" +
+                #"            predicate: "hasKeyboardFocus == true","# + "\n" +
+                "            timeout: 10\n" +
+                "        )\n" +
+                "        let finalKeyboardExists = keyboard.waitForExistence(timeout: 10)\n" +
+                "        let finalValidationExists = validation.waitForExistence(timeout: 10)\n" +
+                "        let finalSaveExists = save.waitForExistence(timeout: 10)\n" +
+                "        let finalScrollFrame = correctionScrollView.frame\n" +
+                "        let finalVisibleTop = max(finalScrollFrame.minY, navigationBar.frame.maxY)\n" +
+                "        let finalVisibleBottom = finalKeyboardExists\n" +
+                "            ? min(finalScrollFrame.maxY, keyboard.frame.minY)\n" +
+                "            : -CGFloat.greatestFiniteMagnitude\n" +
+                "        let finalValidationContained = finalValidationExists\n" +
+                "            && validation.frame.minY >= finalVisibleTop\n" +
+                "            && validation.frame.maxY <= finalVisibleBottom\n" +
+                "        let finalSaveContained = finalSaveExists\n" +
+                "            && save.frame.minY >= finalVisibleTop\n" +
+                "            && save.frame.maxY <= finalVisibleBottom",
+            "guard finalFocusPreserved,\n" +
+                "              finalKeyboardExists,\n" +
+                "              finalValidationExists,\n" +
+                "              finalSaveExists,\n" +
+                "              finalValidationContained,\n" +
+                "              finalSaveContained,\n" +
+                "              save.isHittable else {\n" +
+                "            XCTFail(\n" +
+                #"                "Report correction validation and Save did not remain fully actionable.""# +
+                "\n" +
+                "            )\n" +
+                "            return\n" +
+                "        }\n" +
+                #"        captureBaseline("state.report-correction.validation-error", in: app)"# +
+                "\n\n" +
+                #"        note.typeText("Verified connector label")"#,
+        ]
+        var orderedCorrectionValidationTail = correctionValidationSource
+        for lock in correctionValidationOrderedLocks {
+            XCTAssertEqual(
+                correctionValidationSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+            guard let lockRange = orderedCorrectionValidationTail.range(of: lock) else {
+                XCTFail("Report correction validation locks are out of order: \(lock)")
+                return
+            }
+            orderedCorrectionValidationTail = String(
+                orderedCorrectionValidationTail[lockRange.upperBound...]
+            )
+        }
 
         let feedbackSourcePath =
             "FieldEvidenceApp/Features/Settings/FeedbackView.swift"
@@ -1097,8 +1346,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
-                15_114,
-                "96E6B5F37BA346E4ACC803DB7F85A76BF75DD7A38940AC420595A74CD067C28D",
+                15_155,
+                "1D29B91790C54A1432F6BE9F4F1CA3E486CDAE87E1F19BE0445737BFC7982568",
                 [
                     #"AssetRoundsPrimaryAction("Save correction", action: save)"#,
                     "AssetRoundsSecondaryAction(\"View prior report\") {\n" +

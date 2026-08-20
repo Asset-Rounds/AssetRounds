@@ -1544,10 +1544,145 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let validation = element("s4.5.correction.validation", in: app)
         XCTAssertTrue(validation.waitForExistence(timeout: 10))
         assertLocalizedLabelContains(validation, "Change the note before saving.")
+        let note = element("s4.5.correction.note", in: app)
+        guard note.waitForExistence(timeout: 10) else {
+            XCTFail("Report correction note did not appear after validation.")
+            return
+        }
+        guard wait(
+            for: note,
+            predicate: "hasKeyboardFocus == true",
+            timeout: 10
+        ) else {
+            XCTFail("Report correction validation did not retain note focus.")
+            return
+        }
+        let keyboard = app.keyboards.firstMatch
+        let navigationBar = app.navigationBars.firstMatch
+        guard keyboard.waitForExistence(timeout: 10),
+              navigationBar.waitForExistence(timeout: 10) else {
+            XCTFail("Report correction keyboard or navigation bar is missing.")
+            return
+        }
+        let correctionScrollViews = app.scrollViews.containing(
+            .button,
+            identifier: "s4.5.correction.save"
+        )
+        guard correctionScrollViews.count == 1 else {
+            XCTFail("Report correction must have one Save-containing ScrollView.")
+            return
+        }
+        let correctionScrollView = correctionScrollViews.firstMatch
+        guard correctionScrollView.waitForExistence(timeout: 10) else {
+            XCTFail("Report correction Save-containing ScrollView is missing.")
+            return
+        }
+
+        let dragInset: CGFloat = 24
+        let minimumGestureDistance: CGFloat = 44
+        for _ in 0..<4 {
+            let scrollFrame = correctionScrollView.frame
+            let visibleTop = max(scrollFrame.minY, navigationBar.frame.maxY)
+            let visibleBottom = min(scrollFrame.maxY, keyboard.frame.minY)
+            guard visibleBottom > visibleTop else {
+                XCTFail("Report correction has no visible keyboard-safe interval.")
+                return
+            }
+
+            let validationFrame = validation.frame
+            let saveFrame = save.frame
+            if validationFrame.minY >= visibleTop,
+               validationFrame.maxY <= visibleBottom,
+               saveFrame.minY >= visibleTop,
+               saveFrame.maxY <= visibleBottom {
+                break
+            }
+
+            let minimumShift = max(
+                visibleTop - validationFrame.minY,
+                visibleTop - saveFrame.minY
+            )
+            let maximumShift = min(
+                visibleBottom - validationFrame.maxY,
+                visibleBottom - saveFrame.maxY
+            )
+            guard minimumShift <= maximumShift else {
+                XCTFail("Report correction validation and Save cannot share the viewport.")
+                return
+            }
+            let farFeasibleShift = abs(minimumShift) >= abs(maximumShift)
+                ? minimumShift
+                : maximumShift
+            let maximumGestureDistance = visibleBottom
+                - visibleTop
+                - (2 * dragInset)
+            guard maximumGestureDistance >= minimumGestureDistance else {
+                XCTFail("Report correction viewport cannot fit a recognized gesture.")
+                return
+            }
+            let dragDistance = max(
+                -maximumGestureDistance,
+                min(farFeasibleShift, maximumGestureDistance)
+            )
+            guard abs(dragDistance) >= minimumGestureDistance else {
+                XCTFail("Report correction feasible shift is below gesture recognition.")
+                return
+            }
+
+            let scrollOrigin = correctionScrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStartOffsetY = dragDistance > 0
+                ? visibleTop - scrollFrame.minY + dragInset
+                : visibleBottom - scrollFrame.minY - dragInset
+            let dragStart = scrollOrigin.withOffset(
+                CGVector(dx: scrollFrame.width / 2, dy: dragStartOffsetY)
+            )
+            let dragEnd = dragStart.withOffset(
+                CGVector(dx: 0, dy: dragDistance)
+            )
+            let saveBeforeDrag = save.frame.minY
+            dragStart.press(forDuration: 0.05, thenDragTo: dragEnd)
+            let observedShift = save.frame.minY - saveBeforeDrag
+            guard observedShift * dragDistance > 0 else {
+                XCTFail("Report correction positioning gesture was not recognized.")
+                return
+            }
+        }
+
+        let finalFocusPreserved = wait(
+            for: note,
+            predicate: "hasKeyboardFocus == true",
+            timeout: 10
+        )
+        let finalKeyboardExists = keyboard.waitForExistence(timeout: 10)
+        let finalValidationExists = validation.waitForExistence(timeout: 10)
+        let finalSaveExists = save.waitForExistence(timeout: 10)
+        let finalScrollFrame = correctionScrollView.frame
+        let finalVisibleTop = max(finalScrollFrame.minY, navigationBar.frame.maxY)
+        let finalVisibleBottom = finalKeyboardExists
+            ? min(finalScrollFrame.maxY, keyboard.frame.minY)
+            : -CGFloat.greatestFiniteMagnitude
+        let finalValidationContained = finalValidationExists
+            && validation.frame.minY >= finalVisibleTop
+            && validation.frame.maxY <= finalVisibleBottom
+        let finalSaveContained = finalSaveExists
+            && save.frame.minY >= finalVisibleTop
+            && save.frame.maxY <= finalVisibleBottom
+        guard finalFocusPreserved,
+              finalKeyboardExists,
+              finalValidationExists,
+              finalSaveExists,
+              finalValidationContained,
+              finalSaveContained,
+              save.isHittable else {
+            XCTFail(
+                "Report correction validation and Save did not remain fully actionable."
+            )
+            return
+        }
         captureBaseline("state.report-correction.validation-error", in: app)
 
-        let note = element("s4.5.correction.note", in: app)
-        XCTAssertTrue(note.waitForExistence(timeout: 10))
         note.typeText("Verified connector label")
         dismissKeyboard(in: app)
         scroll(save, in: app)
