@@ -105,10 +105,47 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             workflowPath,
-            byteCount: 79_338,
-            sha256: "6D45D79DEFDA8F313A1E25AC5F47D4368A0028339ECD3FBFE7665D7995E6664A"
+            byteCount: 79_411,
+            sha256: "D648AC3C59E36036757E4F2D8D24FD9E2310B21D21671F164386B2E031BCB36F"
         )
         let workflowSource = try text(workflowPath)
+        let retainStepMarker = "      - name: Retain S10.4 shard evidence\n"
+        let retainBoundaryMarker =
+            "      - name: Begin evidence-finalization budget\n"
+        let retainStepParts = workflowSource.components(separatedBy: retainStepMarker)
+        guard retainStepParts.count == 2 else {
+            XCTFail("The workflow must contain exactly one S10.4 retention step")
+            return
+        }
+        let retainTail = retainStepParts[1]
+        guard let retainBoundary = retainTail.range(of: retainBoundaryMarker) else {
+            XCTFail("The S10.4 retention step has no exact finalization boundary")
+            return
+        }
+        let retainStepSource = String(retainTail[..<retainBoundary.lowerBound])
+        let retainRunMarker = "        run: |\n"
+        let retainRunParts = retainStepSource.components(separatedBy: retainRunMarker)
+        guard retainRunParts.count == 2 else {
+            XCTFail("The S10.4 retention step must contain exactly one run block")
+            return
+        }
+        let retainEnvironmentHandoff =
+            "        env:\n" +
+                #"          DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}"# +
+                "\n        run: |"
+        XCTAssertEqual(
+            retainStepSource.components(separatedBy: retainEnvironmentHandoff).count - 1,
+            1
+        )
+        let retainRunSource = retainRunParts[1]
+        XCTAssertEqual(
+            retainRunSource.components(
+                separatedBy:
+                    #"test "$CI_S10_4_SHARD_ID" = "$DISPATCH_S10_4_SHARD_ID""#
+            ).count - 1,
+            1
+        )
+        XCTAssertFalse(retainRunSource.contains("${{"))
 
         let manifest = try json(manifestPath)
         XCTAssertEqual(try string(manifest, "schema_version"), "1.0.0")

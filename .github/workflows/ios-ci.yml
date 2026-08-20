@@ -728,10 +728,12 @@ jobs:
       - name: Retain S10.4 shard evidence
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' }}
         shell: bash
+        env:
+          DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
         run: |
           set -euo pipefail
           test "$CI_TASK_ID" = "S10.4"
-          test "$CI_S10_4_SHARD_ID" = "${{ inputs.s10_4_shard_id }}"
+          test "$CI_S10_4_SHARD_ID" = "$DISPATCH_S10_4_SHARD_ID"
           test -d "$RUNNER_TEMP/FieldEvidenceUISmokeAttachments"
           attachment_export_path="$RUNNER_TEMP/FieldEvidenceUISmokeAttachments"
           attachment_manifest_path="$attachment_export_path/manifest.json"
