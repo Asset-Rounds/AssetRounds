@@ -530,6 +530,48 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(keyboard.waitForExistence(timeout: 10))
         XCTAssertGreaterThanOrEqual(error.frame.minY, navigationBottom)
         XCTAssertLessThanOrEqual(error.frame.maxY, keyboard.frame.minY)
+        if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+            let preActionSiteValue = site.value as? String
+            let preActionErrorLabel = error.label
+            let preActionErrorValue = error.value as? String
+            let returnKey = app.keyboards.buttons["Return"]
+            if !returnKey.waitForExistence(timeout: 1) {
+                let expectedKeyboardFrame = CGRect(
+                    x: 0,
+                    y: 451,
+                    width: 375,
+                    height: 216
+                )
+                let observedKeyboardFrame = keyboard.frame
+                guard observedKeyboardFrame == expectedKeyboardFrame else {
+                    XCTFail("The iOS 18 keyboard frame does not match the frozen QuickPath tutorial evidence.")
+                    return
+                }
+                keyboard.coordinate(
+                    withNormalizedOffset: CGVector(
+                        dx: 0.5,
+                        dy: 0.8425925925925926
+                    )
+                ).tap()
+                let restoredKeyboard = app.keyboards.firstMatch
+                guard returnKey.waitForExistence(timeout: 10),
+                      restoredKeyboard.waitForExistence(timeout: 10),
+                      restoredKeyboard.frame == observedKeyboardFrame,
+                      wait(
+                          for: site,
+                          predicate: "hasKeyboardFocus == true",
+                          timeout: 10
+                      ),
+                      error.waitForExistence(timeout: 10),
+                      (site.value as? String) == preActionSiteValue,
+                      error.label == preActionErrorLabel,
+                      (error.value as? String) == preActionErrorValue,
+                      app.state == .runningForeground else {
+                    XCTFail("The new-sign validation state or content was not restored after dismissing the QuickPath tutorial.")
+                    return
+                }
+            }
+        }
         captureBaseline("state.new-sign.validation-error", in: app)
 
         site.typeText("North Campus")

@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 150_639,
-            sha256: "69C78ED57C135CB9FB8687C5F8B2D1C5DDF840D738FA4C3974981B3D438A2C7D"
+            byteCount: 152_679,
+            sha256: "5BC851E7DED1493ECE43F844CD5035FC47D91E0861C2B0E5D71BADD54B106C0E"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -311,6 +311,153 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(
                 separatedBy: freshPreflightKeyboardDismissal
             ).count - 1,
+            1
+        )
+
+        let quickPathViewportTail =
+            "        XCTAssertLessThanOrEqual(error.frame.maxY, keyboard.frame.minY)"
+        let quickPathCapture =
+            #"        captureBaseline("state.new-sign.validation-error", in: app)"#
+        XCTAssertEqual(
+            uiSource.components(separatedBy: quickPathViewportTail).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: quickPathCapture).count - 1,
+            1
+        )
+        guard let quickPathViewportRange = uiSource.range(of: quickPathViewportTail) else {
+            XCTFail("Missing the new-sign validation viewport tail")
+            return
+        }
+        let uiSourceAfterQuickPathViewport = uiSource[quickPathViewportRange.upperBound...]
+        guard let quickPathCaptureRange = uiSourceAfterQuickPathViewport.range(
+            of: quickPathCapture
+        ) else {
+            XCTFail("Missing the new-sign validation capture after QuickPath recovery")
+            return
+        }
+        let quickPathViewportToCaptureSource = String(
+            uiSource[quickPathViewportRange.upperBound..<quickPathCaptureRange.lowerBound]
+        )
+        let quickPathProfileGuard =
+            #"        if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {"#
+        XCTAssertEqual(
+            quickPathViewportToCaptureSource.components(
+                separatedBy: quickPathProfileGuard
+            ).count - 1,
+            1
+        )
+        let quickPathSemanticSnapshots = [
+            "            let preActionSiteValue = site.value as? String",
+            "            let preActionErrorLabel = error.label",
+            "            let preActionErrorValue = error.value as? String",
+        ]
+        for lock in quickPathSemanticSnapshots {
+            XCTAssertEqual(
+                quickPathViewportToCaptureSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        XCTAssertEqual(quickPathSemanticSnapshots.count, 3)
+        let quickPathReturnProbe =
+            #"            let returnKey = app.keyboards.buttons["Return"]"# + "\n" +
+                #"            if !returnKey.waitForExistence(timeout: 1) {"#
+        XCTAssertEqual(
+            quickPathViewportToCaptureSource.components(separatedBy: quickPathReturnProbe).count - 1,
+            1
+        )
+        XCTAssertFalse(quickPathViewportToCaptureSource.contains("returnKey.exists"))
+        let quickPathExpectedFrame =
+            "                let expectedKeyboardFrame = CGRect(\n" +
+                "                    x: 0,\n" +
+                "                    y: 451,\n" +
+                "                    width: 375,\n" +
+                "                    height: 216\n" +
+                "                )"
+        XCTAssertEqual(
+            quickPathViewportToCaptureSource.components(separatedBy: quickPathExpectedFrame).count - 1,
+            1
+        )
+        let quickPathObservedFrame =
+            "                let observedKeyboardFrame = keyboard.frame\n" +
+                "                guard observedKeyboardFrame == expectedKeyboardFrame else {"
+        XCTAssertEqual(
+            quickPathViewportToCaptureSource.components(separatedBy: quickPathObservedFrame).count - 1,
+            1
+        )
+        let quickPathFrameFailure =
+            "                    XCTFail(\"The iOS 18 keyboard frame does not match the frozen QuickPath tutorial evidence.\")\n" +
+                "                    return\n" +
+                "                }"
+        XCTAssertEqual(
+            quickPathViewportToCaptureSource.components(separatedBy: quickPathFrameFailure).count - 1,
+            1
+        )
+        let quickPathNormalizedCoordinate =
+            "                keyboard.coordinate(\n" +
+                "                    withNormalizedOffset: CGVector(\n" +
+                "                        dx: 0.5,\n" +
+                "                        dy: 0.8425925925925926\n" +
+                "                    )\n" +
+                "                ).tap()"
+        XCTAssertEqual(
+            quickPathViewportToCaptureSource.components(
+                separatedBy: quickPathNormalizedCoordinate
+            ).count - 1,
+            1
+        )
+        let quickPathRestoredKeyboard =
+            "                let restoredKeyboard = app.keyboards.firstMatch\n" +
+                "                guard returnKey.waitForExistence(timeout: 10),\n" +
+                "                      restoredKeyboard.waitForExistence(timeout: 10),\n" +
+                "                      restoredKeyboard.frame == observedKeyboardFrame,"
+        XCTAssertEqual(
+            quickPathViewportToCaptureSource.components(
+                separatedBy: quickPathRestoredKeyboard
+            ).count - 1,
+            1
+        )
+        let quickPathRestorationLocks = [
+            "                      wait(\n" +
+                "                          for: site,\n" +
+                #"                          predicate: "hasKeyboardFocus == true","# + "\n" +
+                "                          timeout: 10\n" +
+                "                      ),",
+            "                      error.waitForExistence(timeout: 10),",
+            "                      (site.value as? String) == preActionSiteValue,",
+            "                      error.label == preActionErrorLabel,",
+            "                      (error.value as? String) == preActionErrorValue,",
+            "                      app.state == .runningForeground else {",
+        ]
+        for lock in quickPathRestorationLocks {
+            XCTAssertEqual(
+                quickPathViewportToCaptureSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        let quickPathRestorationFailure =
+            "                    XCTFail(\"The new-sign validation state or content was not restored after dismissing the QuickPath tutorial.\")\n" +
+                "                    return\n" +
+                "                }"
+        XCTAssertEqual(
+            quickPathViewportToCaptureSource.components(separatedBy: quickPathRestorationFailure).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            quickPathViewportToCaptureSource.components(separatedBy: "XCTFail(").count - 1,
+            2
+        )
+        XCTAssertEqual(
+            quickPathViewportToCaptureSource.components(separatedBy: "                    return\n").count - 1,
+            2
+        )
+        let quickPathCapturePrecededByRestoration =
+            quickPathRestorationFailure + "\n            }\n        }\n" + quickPathCapture
+        XCTAssertEqual(
+            uiSource.components(separatedBy: quickPathCapturePrecededByRestoration).count - 1,
             1
         )
 
