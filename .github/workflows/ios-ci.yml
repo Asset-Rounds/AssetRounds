@@ -863,6 +863,32 @@ jobs:
               },
               {
                 shardID: "s10.4.current.ax-text",
+                stateID: "state.check-preflight.ready",
+                taskID: "one_handed_start",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN",
+                exceptionOwner: "palatis3",
+                exceptionExpiresAt: "2026-11-20",
+                exceptionRationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Before you begin while the frozen public node frame is bottom-clipped outside the 402x874 application frame in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
+                ignoredAuditIssues: [
+                  {
+                    auditTypeRawValue: "1",
+                    compactDescription: "Contrast failed",
+                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+                    elementIdentifier: "",
+                    elementLabel: "Before you begin",
+                    elementType: "XCUIElementType(rawValue: 48)",
+                    elementFrame: {
+                      x: 32,
+                      y: 844.33333333333337,
+                      width: 231,
+                      height: 125.33333333333326
+                    },
+                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}
+                  }
+                ]
+              },
+              {
+                shardID: "s10.4.current.ax-text",
                 stateID: "state.new-sign.editing",
                 taskID: "one_handed_start",
                 exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME",
@@ -889,7 +915,41 @@ jobs:
               }
             ]
           ' > "$contrast_exception_authority_path"
-          test "$(jq 'length' "$contrast_exception_authority_path")" -eq 2
+          jq -e --arg today "$(date -u +%F)" '
+            length == 3
+            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 3
+            and ([.[].exceptionIssueID] | unique | length) == 3
+            and ([.[] | {shardID, stateID, taskID}] | sort_by(.shardID, .stateID)) == ([
+              {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.check-preflight.ready",
+                taskID: "one_handed_start"
+              },
+              {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.new-sign.editing",
+                taskID: "one_handed_start"
+              },
+              {
+                shardID: "s10.4.current.default-dark",
+                stateID: "state.sample-report.ready",
+                taskID: "report_comprehension"
+              }
+            ] | sort_by(.shardID, .stateID))
+            and all(.[];
+              ((keys | sort) == ([
+                "shardID", "stateID", "taskID", "exceptionIssueID",
+                "exceptionOwner", "exceptionExpiresAt", "exceptionRationale",
+                "ignoredAuditIssues"
+              ] | sort))
+              and (.exceptionIssueID | type == "string" and length > 0)
+              and (.exceptionOwner == "palatis3")
+              and (.exceptionExpiresAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"))
+              and ($today <= .exceptionExpiresAt)
+              and (.exceptionRationale | type == "string" and length > 0)
+              and (.ignoredAuditIssues | type == "array" and length == 1)
+            )
+          ' "$contrast_exception_authority_path" > /dev/null
 
           sed -n 's/^S10_4_CONTRAST //p' "$CI_ARTIFACT_DIR/ui-smoke.log" \
             > "$shard_evidence_path/contrast.ndjson"
@@ -911,6 +971,7 @@ jobs:
             --arg profile "$CI_S10_4_DEVICE_PROFILE_ID" \
             --arg features "$CI_S10_4_ACCESSIBILITY_FEATURES" \
             --arg shard "$CI_S10_4_SHARD_ID" \
+            --arg today "$(date -u +%F)" \
             --slurpfile contract docs/design/s10/s10-accessibility-common-tasks.json \
             --slurpfile contrasts "$shard_evidence_path/contrast.json" \
             --slurpfile exceptions "$contrast_exception_authority_path" '
@@ -920,24 +981,57 @@ jobs:
                 "s10.4-target-size-" + $shardID + "-" + $taskID,
                 "s10.4-contrast-" + $shardID + "-" + $taskID
               ];
+              def exceptionEvidence: {
+                exceptionIssueID,
+                exceptionOwner,
+                exceptionExpiresAt,
+                exceptionRationale,
+                ignoredAuditIssues
+              };
               ($features | if length == 0 then [] else split(",") end) as $expectedFeatures
               | ($contract[0].tasks | map(.task_id)) as $expectedTasks
-              | ($contrasts[0] | map(select(.result == "EXCEPTION"))) as $stateExceptions
-              | ($stateExceptions
-                  | if length == 0 then null
-                    elif length == 1 then .[0]
-                    else error("more than one contrast exception in one shard")
-                    end) as $stateException
+              | ($contrasts[0]
+                  | map(select(.result == "EXCEPTION"))
+                  | sort_by(.stateID)) as $stateExceptions
               | ($exceptions[0]
-                  | map(select(
-                      .shardID == $stateException.shardID
-                      and .stateID == $stateException.stateID
-                    ))
-                  | .[0] // null) as $exceptionAuthority
-              | (($stateException == null) or ($exceptionAuthority != null))
-                and all(.[];
+                  | map(select(.shardID == $shard))
+                  | sort_by(.stateID)) as $shardAuthorities
+              | (if ([ $stateExceptions[].stateID ] | unique | length) != ($stateExceptions | length) then
+                   error("duplicate contrast exception state")
+                 elif $shard == "s10.4.current.default-dark" and ($stateExceptions | length) > 1 then
+                   error("more than one default-dark contrast exception")
+                 elif $shard == "s10.4.current.ax-text" and ($stateExceptions | length) > 2 then
+                   error("more than two AX-text contrast exceptions")
+                 elif $shard != "s10.4.current.default-dark"
+                      and $shard != "s10.4.current.ax-text"
+                      and ($stateExceptions | length) != 0 then
+                   error("contrast exception on ineligible shard")
+                 else
+                   $stateExceptions
+                 end) as $boundedStateExceptions
+              | ($boundedStateExceptions | map(
+                  . as $stateException
+                  | ($shardAuthorities
+                      | map(select(.stateID == $stateException.stateID))) as $matches
+                  | if ($matches | length) != 1 then
+                      error("unmatched or ambiguous contrast exception authority")
+                    elif ($matches[0].exceptionExpiresAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$") | not)
+                         or $today > $matches[0].exceptionExpiresAt then
+                      error("expired or malformed contrast exception authority")
+                    elif (($stateException | exceptionEvidence) != ($matches[0] | exceptionEvidence)) then
+                      error("contrast exception metadata drift")
+                    else
+                      $matches[0]
+                    end
+                )) as $matchedAuthorities
+              | all(.[];
                   . as $row
                   | .taskID as $taskID
+                  | ($matchedAuthorities
+                      | map(select(.taskID == $taskID))
+                      | sort_by(.stateID)) as $taskExceptions
+                  | ($taskExceptions | map(.exceptionOwner) | unique) as $exceptionOwners
+                  | ($taskExceptions | map(.exceptionExpiresAt) | unique) as $exceptionExpiries
                   | type == "object"
                   and ((keys | sort) == ([
                     "taskID", "shardID", "deviceProfileID", "feature",
@@ -960,19 +1054,36 @@ jobs:
                   and (.aggregateAXTreeSHA256 | type == "string" and test("^[0-9A-F]{64}$"))
                   and (.stateCount | type == "number" and . > 0)
                   and (
-                    if $exceptionAuthority != null and $taskID == $exceptionAuthority.taskID then
+                    if ($taskExceptions | length) > 0 then
                       (.automatedStatus == "EXCEPTION")
                       and (.automatedEvidenceIDs == (
                         baseEvidence($shard; $taskID)
-                        + ["s10.4-contrast-" + $shard + "-" + $stateException.stateID]
+                        + ($taskExceptions | map(
+                            "s10.4-contrast-" + $shard + "-" + .stateID
+                          ))
                       ))
-                      and (.exceptionIssueID == $stateException.exceptionIssueID)
-                      and (.exceptionOwner == $stateException.exceptionOwner)
-                      and (.exceptionExpiresAt == $stateException.exceptionExpiresAt)
-                      and (.exceptionRationale == $stateException.exceptionRationale)
-                      and (.exceptionStateIDs == [$stateException.stateID])
-                      and (.rationale == "All task states produced AX-tree, focus-order, and target-size evidence; the sole Apple contrast issue is bound to the named, expiring exception.")
-                      and (.stateAXTreeDigests | map(.stateID) | index($stateException.stateID) != null)
+                      and (.exceptionIssueID == ($taskExceptions
+                        | map(.exceptionIssueID) | join(" | ")))
+                      and ($exceptionOwners | length) == 1
+                      and (.exceptionOwner == $exceptionOwners[0])
+                      and ($exceptionExpiries | length) == 1
+                      and (.exceptionExpiresAt == $exceptionExpiries[0])
+                      and ($today <= .exceptionExpiresAt)
+                      and (.exceptionRationale == ($taskExceptions
+                        | map(.exceptionRationale) | join(" | ")))
+                      and (.exceptionStateIDs == ($taskExceptions | map(.stateID)))
+                      and (.rationale == (
+                        if ($taskExceptions | length) == 1 then
+                          "All task states produced AX-tree, focus-order, and target-size evidence; the sole Apple contrast issue is bound to the named, expiring exception."
+                        else
+                          "All task states produced AX-tree, focus-order, and target-size evidence; the exact Apple contrast issues are bound to the named, expiring exceptions."
+                        end
+                      ))
+                      and all($taskExceptions[];
+                        .stateID as $exceptionStateID
+                        | ($row.stateAXTreeDigests | map(.stateID)
+                          | index($exceptionStateID)) != null
+                      )
                     else
                       (.automatedStatus == "PASS")
                       and (.automatedEvidenceIDs == baseEvidence($shard; $taskID))
@@ -1096,7 +1207,26 @@ jobs:
                 )
                 and ([.[].stateID] | unique | length == 67)
                 and ([.[].stateID] | sort) == $expectedStates
-                and ([.[] | select(.result == "EXCEPTION")] | length) <= 1
+                and (
+                  ([.[] | select(.result == "EXCEPTION")]
+                    | sort_by(.stateID)) as $stateExceptions
+                  | all($stateExceptions[];
+                      . as $stateException
+                      | any($exceptions[0][];
+                          .shardID == $shard
+                          and .stateID == $stateException.stateID
+                        )
+                    )
+                    and (
+                      if $shard == "s10.4.current.default-dark" then
+                        ($stateExceptions | length) <= 1
+                      elif $shard == "s10.4.current.ax-text" then
+                        ($stateExceptions | length) <= 2
+                      else
+                        ($stateExceptions | length) == 0
+                      end
+                    )
+                )
             ' "$shard_evidence_path/contrast.json" > /dev/null
 
           while IFS= read -r contrast_row; do

@@ -105,8 +105,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             workflowPath,
-            byteCount: 72_776,
-            sha256: "9C6DAAF582405157FE146924846163F00593846111FBB220F94948A8D41C0214"
+            byteCount: 79_338,
+            sha256: "6D45D79DEFDA8F313A1E25AC5F47D4368A0028339ECD3FBFE7665D7995E6664A"
         )
         let workflowSource = try text(workflowPath)
 
@@ -239,8 +239,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 132_796,
-            sha256: "2F785FCFBA693FCACF6B122A774E60D29FD70812F172FB45C2DBBEA3D6785FAD"
+            byteCount: 133_901,
+            sha256: "ECA3936274F1965F95D55A77CCAD18DDB1F88DE2CBE8EA138B40C0557DA4DDA2"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -713,32 +713,55 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let exceptionIDs = [
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME",
+            "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN",
         ]
         let exceptionRationales = [
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Wide view even though the audit-owned crop visibly renders white text on the dark elevated Sample card; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Customer / site name even though the audit-owned crop visibly renders black text on white and the public node is bound to the top navigation-region frame; the exception is limited to the frozen public issue signature.",
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Before you begin while the frozen public node frame is bottom-clipped outside the 402x874 application frame in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
         ]
         for lock in exceptionIDs + exceptionRationales {
             XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1, lock)
             XCTAssertEqual(workflowSource.components(separatedBy: lock).count - 1, 1, lock)
         }
+        let axTaskExceptionStateIDs = [
+            "state.check-preflight.ready",
+            "state.new-sign.editing",
+        ]
+        for stateID in axTaskExceptionStateIDs {
+            let lock = #"stateID: "\#(stateID)""#
+            XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1, lock)
+            XCTAssertEqual(workflowSource.components(separatedBy: lock).count - 1, 2, lock)
+        }
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: #"issueID: "S10.4-XCUI-CONTRAST-FP-""#
+            ).count - 1,
+            3
+        )
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-""#
+            ).count - 1,
+            3
+        )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"owner: "palatis3""#).count - 1,
-            2
+            3
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionOwner: "palatis3""#)
                 .count - 1,
-            2
+            3
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"expiresAt: "2026-11-20""#).count - 1,
-            2
+            3
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionExpiresAt: "2026-11-20""#)
                 .count - 1,
-            2
+            3
         )
 
         let signatureLocks = [
@@ -746,15 +769,34 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"taskID: "one_handed_start""#,
             #"elementLabel: "Wide view""#,
             #"elementLabel: "Customer / site name""#,
+            #"elementLabel: "Before you begin""#,
             #"elementTypeDescription: "XCUIElementType(rawValue: 48)""#,
             "y: 810.33333333333337",
             "height: 20.333333333333258",
             "width: 251.66666666666663",
             "height: 116.66666666666663",
+            "y: 844.33333333333337",
+            "width: 231",
+            "height: 125.33333333333326",
             "applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)",
         ]
         for lock in signatureLocks {
             XCTAssertTrue(uiSource.contains(lock), lock)
+        }
+        let workflowPreflightSignatureLocks = [
+            #"auditTypeRawValue: "1""#,
+            #"compactDescription: "Contrast failed""#,
+            #"detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode""#,
+            #"elementIdentifier: """#,
+            #"elementLabel: "Before you begin""#,
+            #"elementType: "XCUIElementType(rawValue: 48)""#,
+            "y: 844.33333333333337",
+            "width: 231",
+            "height: 125.33333333333326",
+            "applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
+        ]
+        for lock in workflowPreflightSignatureLocks {
+            XCTAssertTrue(workflowSource.contains(lock), lock)
         }
 
         let failClosedHandlerLocks = [
@@ -783,58 +825,92 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(uiSource.contains(#""ignoredAuditIssues": matchedException.map"#))
         XCTAssertTrue(uiSource.contains(#""result": "PASS""#))
         XCTAssertTrue(uiSource.contains("automationContrastExceptions[stateID] = matchedException"))
-        XCTAssertTrue(uiSource.contains("automatedEvidenceIDs.append("))
         XCTAssertTrue(uiSource.contains(#""automatedStatus": taskExceptions.isEmpty ? "PASS" : "EXCEPTION""#))
-        XCTAssertTrue(uiSource.contains(#"taskEvidence["exceptionStateIDs"] = [taskException.stateID]"#))
-        XCTAssertTrue(uiSource.contains(#"taskEvidence["exceptionIssueID"] = taskException.issueID"#))
-        XCTAssertTrue(uiSource.contains(#"taskEvidence["exceptionOwner"] = taskException.owner"#))
-        XCTAssertTrue(uiSource.contains(#"taskEvidence["exceptionExpiresAt"] = taskException.expiresAt"#))
-        XCTAssertTrue(uiSource.contains(#"taskEvidence["exceptionRationale"] = taskException.rationale"#))
-
-        let preflightDiagnosticLocks = [
+        let taskExceptionLocks = [
+            #".filter { $0.taskID == task.taskID }"#,
+            #".sorted { $0.stateID < $1.stateID }"#,
+            #"let allowsTwoTaskExceptions ="#,
             #"shard.shardID == "s10.4.current.ax-text""#,
-            #"stateID == "state.check-preflight.ready""#,
-            #"prefix: "S10_4_AUDIT_DIAGNOSTIC""#,
-            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
-            #""compactDescription": issue.compactDescription"#,
-            #""detailedDescription": issue.detailedDescription"#,
-            #""applicationFrame": self.auditFrameObject(app.frame)"#,
-            #"diagnostic["elementIdentifier"] = auditedElement.identifier"#,
-            #"diagnostic["elementLabel"] = auditedElement.label"#,
-            #"diagnostic["elementType"] = String("#,
-            #"diagnostic["elementFrame"] = self.auditFrameObject("#,
-            #""S10.4 AX-text preflight diagnostic unexpectedly passed""#,
+            #"&& task.taskID == "one_handed_start""#,
+            #"let taskExceptionLimit = allowsTwoTaskExceptions ? 2 : 1"#,
+            #"guard taskExceptions.count <= taskExceptionLimit else"#,
+            #"A common task exceeded its exact contrast exception limit"#,
+            #"let exceptionStateIDs = taskExceptions.map(\.stateID)"#,
+            #"let exceptionIssueIDs = taskExceptions.map(\.issueID)"#,
+            #"let expectedUniqueMetadataCount = taskExceptions.isEmpty ? 0 : 1"#,
+            #"guard Set(exceptionStateIDs).count == exceptionStateIDs.count"#,
+            #"Set(exceptionIssueIDs).count == exceptionIssueIDs.count"#,
+            #"Set(taskExceptions.map(\.owner)).count"#,
+            #"== expectedUniqueMetadataCount"#,
+            #"Set(taskExceptions.map(\.expiresAt)).count"#,
+            #"taskExceptions.allSatisfy({ task.stateIDs.contains($0.stateID) })"#,
+            #"taskExceptions.allSatisfy({ isActive($0) })"#,
+            #"!(automationAXTreeDigests[$0.stateID] ?? "").isEmpty"#,
+            #"A common task has ambiguous, expired, or missing contrast exception evidence"#,
+            #"automatedEvidenceIDs.append(contentsOf: exceptionStateIDs.map {"#,
+            #""s10.4-contrast-\(shard.shardID)-\($0)""#,
+            #"taskEvidence["exceptionIssueID"] = exceptionIssueIDs.joined("#,
+            #"separator: " | ""#,
+            #"taskEvidence["exceptionOwner"] = firstTaskException.owner"#,
+            #"taskEvidence["exceptionExpiresAt"] = firstTaskException.expiresAt"#,
+            #"taskEvidence["exceptionRationale"] = taskExceptions"#,
+            #".joined(separator: " | ")"#,
+            #"taskEvidence["exceptionStateIDs"] = exceptionStateIDs"#,
+            #"the sole Apple contrast issue is bound to the named, expiring exception."#,
+            #"the exact Apple contrast issues are bound to the named, expiring exceptions."#,
         ]
-        for lock in preflightDiagnosticLocks {
+        for lock in taskExceptionLocks {
             XCTAssertTrue(uiSource.contains(lock), lock)
         }
-        XCTAssertEqual(
-            uiSource.components(separatedBy: "S10_4_AUDIT_DIAGNOSTIC").count - 1,
-            1
-        )
-        XCTAssertTrue(uiSource.contains(
-            "prefix: \"S10_4_AUDIT_DIAGNOSTIC\",\n" +
-                "                        object: diagnostic\n" +
-                "                    )\n" +
-                "                    return false"
-        ))
-        XCTAssertTrue(uiSource.contains(
-            "throw AutomationConfigurationError.invalid(\n" +
-                "                    \"S10.4 AX-text preflight diagnostic unexpectedly passed\""
-        ))
+        XCTAssertFalse(uiSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
+        XCTAssertFalse(uiSource.contains("S10.4 AX-text preflight diagnostic unexpectedly passed"))
 
         let workflowProtocolLocks = [
             "contrast_exception_authority_path=",
             #"if .result == "PASS" then"#,
             #"elif .result == "EXCEPTION" then"#,
             "$today <= $authorizedException.exceptionExpiresAt",
-            #"and ([.[] | select(.result == "EXCEPTION")] | length) <= 1"#,
-            "if $exceptionAuthority != null and $taskID == $exceptionAuthority.taskID then",
+            #"length == 3"#,
+            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 3"#,
+            #"and ([.[].exceptionIssueID] | unique | length) == 3"#,
+            #"and (.exceptionOwner == "palatis3")"#,
+            #"and (.exceptionExpiresAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"))"#,
+            #"and ($today <= .exceptionExpiresAt)"#,
+            #"and (.ignoredAuditIssues | type == "array" and length == 1)"#,
+            #"| map(select(.result == "EXCEPTION"))"#,
+            #"| sort_by(.stateID)) as $stateExceptions"#,
+            #"error("duplicate contrast exception state")"#,
+            #"error("more than one default-dark contrast exception")"#,
+            #"error("more than two AX-text contrast exceptions")"#,
+            #"error("contrast exception on ineligible shard")"#,
+            #"if ($matches | length) != 1 then"#,
+            #"error("unmatched or ambiguous contrast exception authority")"#,
+            #"error("expired or malformed contrast exception authority")"#,
+            #"error("contrast exception metadata drift")"#,
+            #"| map(select(.taskID == $taskID))"#,
+            #"| sort_by(.stateID)) as $taskExceptions"#,
+            #"| ($taskExceptions | map(.exceptionOwner) | unique) as $exceptionOwners"#,
+            #"| ($taskExceptions | map(.exceptionExpiresAt) | unique) as $exceptionExpiries"#,
             #"(.automatedStatus == "EXCEPTION")"#,
             #"(.automatedStatus == "PASS")"#,
-            #"+ ["s10.4-contrast-" + $shard + "-" + $stateException.stateID]"#,
-            #"and (.exceptionStateIDs == [$stateException.stateID])"#,
+            #"+ ($taskExceptions | map("#,
+            #""s10.4-contrast-" + $shard + "-" + .stateID"#,
+            #"| map(.exceptionIssueID) | join(" | "))"#,
+            #"and ($exceptionOwners | length) == 1"#,
+            #"and (.exceptionOwner == $exceptionOwners[0])"#,
+            #"and ($exceptionExpiries | length) == 1"#,
+            #"and (.exceptionExpiresAt == $exceptionExpiries[0])"#,
+            #"| map(.exceptionRationale) | join(" | "))"#,
+            #"and (.exceptionStateIDs == ($taskExceptions | map(.stateID)))"#,
             "the sole Apple contrast issue is bound to the named, expiring exception.",
+            "the exact Apple contrast issues are bound to the named, expiring exceptions.",
+            #"and all($taskExceptions[];"#,
+            #"| index($exceptionStateID)) != null"#,
+            #"if $shard == "s10.4.current.default-dark" then"#,
+            #"($stateExceptions | length) <= 1"#,
+            #"elif $shard == "s10.4.current.ax-text" then"#,
+            #"($stateExceptions | length) <= 2"#,
+            #"($stateExceptions | length) == 0"#,
             "strict Apple contrast evidence.",
         ]
         for lock in workflowProtocolLocks {
