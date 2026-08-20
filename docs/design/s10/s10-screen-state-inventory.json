@@ -27,7 +27,7 @@
       "device_profile_id": "iphone-se-3-ios-18.0-minimum",
       "device": "iPhone SE (3rd generation)",
       "os": "iOS 18.0",
-      "os_build": "22A3354",
+      "os_build": "22A3351",
       "orientation": "portrait",
       "os_roles": [
         "minimum_supported"

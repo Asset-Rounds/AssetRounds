@@ -7,7 +7,7 @@
   "commonTaskCount": 6,
   "deviceProfiles": [
     {"deviceProfileID":"iphone-17-ios-26.2-current","simulatorRuntime":"iOS 26.2","simulatorRuntimeBuild":"23C54","simulatorName":"iPhone 17","provisionRuntime":false,"runtimeDownloadVersion":""},
-    {"deviceProfileID":"iphone-se-3-ios-18.0-minimum","simulatorRuntime":"iOS 18.0","simulatorRuntimeBuild":"22A3354","simulatorName":"iPhone SE (3rd generation)","provisionRuntime":true,"runtimeDownloadVersion":"18.0"}
+    {"deviceProfileID":"iphone-se-3-ios-18.0-minimum","simulatorRuntime":"iOS 18.0","simulatorRuntimeBuild":"22A3351","simulatorName":"iPhone SE (3rd generation)","provisionRuntime":true,"runtimeDownloadVersion":"18.0"}
   ],
   "shards": [
     {"ordinal":1,"shardID":"s10.4.current.default-light","requirementID":"default_light","deviceProfileID":"iphone-17-ios-26.2-current","accessibilityFeatures":["voiceover"],"environment":{"appearance":"light","contrast":"standard","contentSizeCategory":"UICTContentSizeCategoryL","locale":"en-US-release","layoutDirection":"left_to_right","differentiateWithoutColor":false,"reduceMotion":false,"reduceTransparency":false}},
