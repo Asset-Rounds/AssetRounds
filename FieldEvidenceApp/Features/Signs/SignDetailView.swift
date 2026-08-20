@@ -189,6 +189,10 @@ struct SignDetailView: View {
                         .accessibilityIdentifier(Self.deleteActionAccessibilityIdentifier)
                     }
                 }
+                .padding(
+                    .bottom,
+                    isConfirmingDeletion ? DesignTokens.Spacing.space16 : 0
+                )
             }
         }
         .navigationTitle("Sign detail")

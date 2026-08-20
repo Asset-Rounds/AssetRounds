@@ -239,8 +239,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 130_947,
-            sha256: "C0B417AE1B52BEB380E8FFBEC4FD406ECD1AF90A8B07D4C3730A09DC8FD4F7CF"
+            byteCount: 131_111,
+            sha256: "114FC5127F2A9A736F82D59D30E0669FE7D6BBDC3D7947331E4D1EA9C5D55557"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -281,7 +281,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "&& deleteMessage.frame.minY >= viewportTop",
             "&& deleteMessage.frame.maxY <= viewportBottom",
             "let fallbackComposition = siteLabel.frame.maxY <= viewportTop",
-            "&& deleteMessage.frame.maxY <= viewportTop",
+            "&& deleteScreen.frame.maxY <= viewportTop\n" +
+                "            && deleteMessage.frame.minY >= viewportTop\n" +
+                "            && deleteMessage.frame.maxY <= viewportBottom",
             "&& cancelDelete.isHittable",
             "&& confirmDelete.isHittable",
             "XCTAssertTrue(preferredComposition || fallbackComposition)",
@@ -296,6 +298,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             2
         )
+
+        let signDetailSourcePath =
+            "FieldEvidenceApp/Features/Signs/SignDetailView.swift"
+        try assertFile(
+            signDetailSourcePath,
+            byteCount: 11_435,
+            sha256: "E0244763E542717E19E74BCDB9D7F2C29CCFF24F5EC23764841F2B07B41C73F8"
+        )
+        let signDetailSource = try text(signDetailSourcePath)
+        XCTAssertTrue(signDetailSource.contains(
+            ".padding(\n" +
+                "                    .bottom,\n" +
+                "                    isConfirmingDeletion ? DesignTokens.Spacing.space16 : 0\n" +
+                "                )"
+        ))
 
         let exceptionIDs = [
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",

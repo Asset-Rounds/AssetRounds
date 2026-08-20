@@ -527,15 +527,18 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 )
             )
             let fallbackMinimumShift = max(
-                viewportTop - cancelDelete.frame.minY,
-                viewportTop - confirmDelete.frame.minY
+                viewportTop - deleteMessage.frame.minY,
+                max(
+                    viewportTop - cancelDelete.frame.minY,
+                    viewportTop - confirmDelete.frame.minY
+                )
             )
             let fallbackMaximumShift = min(
                 viewportTop - siteLabel.frame.maxY,
                 min(
                     viewportTop - deleteScreen.frame.maxY,
                     min(
-                        viewportTop - deleteMessage.frame.maxY,
+                        viewportBottom - deleteMessage.frame.maxY,
                         min(
                             viewportBottom - cancelDelete.frame.maxY,
                             viewportBottom - confirmDelete.frame.maxY
@@ -629,7 +632,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             && confirmDelete.isHittable
         let fallbackComposition = siteLabel.frame.maxY <= viewportTop
             && deleteScreen.frame.maxY <= viewportTop
-            && deleteMessage.frame.maxY <= viewportTop
+            && deleteMessage.frame.minY >= viewportTop
+            && deleteMessage.frame.maxY <= viewportBottom
             && cancelDelete.frame.minY >= viewportTop
             && cancelDelete.frame.maxY <= viewportBottom
             && confirmDelete.frame.minY >= viewportTop
