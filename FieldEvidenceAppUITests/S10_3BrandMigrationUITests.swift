@@ -490,10 +490,77 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         scroll(delete, in: app)
         assertControl(delete, label: "Delete sign")
         delete.tap()
-        XCTAssertTrue(element("s6.1.delete.screen", in: app)
-            .waitForExistence(timeout: 15))
+        let deleteScreen = element("s6.1.delete.screen", in: app)
+        XCTAssertTrue(deleteScreen.waitForExistence(timeout: 15))
         let cancelDelete = element("s6.1.delete.cancel", in: app)
         scroll(cancelDelete, in: app)
+        let confirmDelete = element("s6.1.delete.confirm", in: app)
+        let siteLabel = element("s2.sign-detail.site-label", in: app)
+        XCTAssertTrue(confirmDelete.waitForExistence(timeout: 5))
+        XCTAssertTrue(siteLabel.waitForExistence(timeout: 5))
+        var measuredUndertravel: CGFloat = 0
+        var compensatedDirection: CGFloat = 0
+        for _ in 0..<4 {
+            let viewportTop = detail.frame.minY
+            let viewportBottom = detail.frame.maxY
+            let minimumShift = max(
+                viewportTop - deleteScreen.frame.minY,
+                max(
+                    viewportTop - cancelDelete.frame.minY,
+                    viewportTop - confirmDelete.frame.minY
+                )
+            )
+            let maximumShift = min(
+                viewportTop - siteLabel.frame.maxY,
+                min(
+                    viewportBottom - deleteScreen.frame.maxY,
+                    min(
+                        viewportBottom - cancelDelete.frame.maxY,
+                        viewportBottom - confirmDelete.frame.maxY
+                    )
+                )
+            )
+            XCTAssertLessThanOrEqual(minimumShift, maximumShift)
+            if minimumShift <= 0, maximumShift >= 0 { break }
+            let targetDistance = maximumShift < 0
+                ? maximumShift
+                : minimumShift
+            let direction: CGFloat = targetDistance > 0 ? 1 : -1
+            if compensatedDirection != direction {
+                measuredUndertravel = 0
+            }
+            let dragDistance = targetDistance
+                + direction * measuredUndertravel
+            let siteLabelBeforeDrag = siteLabel.frame.maxY
+            let dragStart = detail.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+            )
+            let dragEnd = dragStart.withOffset(
+                CGVector(dx: 0, dy: dragDistance)
+            )
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            let actualDistance = siteLabel.frame.maxY - siteLabelBeforeDrag
+            measuredUndertravel = actualDistance * direction > 0
+                ? max(0, abs(dragDistance) - abs(actualDistance))
+                : abs(dragDistance)
+            compensatedDirection = direction
+        }
+        let viewportTop = detail.frame.minY
+        let viewportBottom = detail.frame.maxY
+        XCTAssertLessThanOrEqual(siteLabel.frame.maxY, viewportTop)
+        XCTAssertGreaterThanOrEqual(deleteScreen.frame.minY, viewportTop)
+        XCTAssertGreaterThanOrEqual(cancelDelete.frame.minY, viewportTop)
+        XCTAssertGreaterThanOrEqual(confirmDelete.frame.minY, viewportTop)
+        XCTAssertLessThanOrEqual(deleteScreen.frame.maxY, viewportBottom)
+        XCTAssertLessThanOrEqual(cancelDelete.frame.maxY, viewportBottom)
+        XCTAssertLessThanOrEqual(confirmDelete.frame.maxY, viewportBottom)
+        XCTAssertTrue(cancelDelete.isHittable)
+        XCTAssertTrue(confirmDelete.isHittable)
         captureBaseline("state.sign-detail.delete-confirmation", in: app)
         assertControl(cancelDelete, label: "Cancel")
         cancelDelete.tap()

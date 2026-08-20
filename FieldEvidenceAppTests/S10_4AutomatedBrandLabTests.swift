@@ -239,8 +239,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 123_113,
-            sha256: "48430B44209D0B8AB1E3D663717B32534981AB5F16EC93C90D45EE27D624E6F8"
+            byteCount: 126_257,
+            sha256: "A3D54E00F575DB11B7B8EA6386120A27A30FB90582501457FC5BE193EF6D9003"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -253,6 +253,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(uiSource.contains("s10.4-target-size-"))
         XCTAssertTrue(uiSource.contains("automatedEvidenceIDs"))
         XCTAssertTrue(uiSource.contains("22A3351"))
+
+        let deleteViewportLocks = [
+            "viewportTop - deleteScreen.frame.minY",
+            "viewportTop - siteLabel.frame.maxY",
+            "let dragStart = detail.coordinate(",
+            "measuredUndertravel = actualDistance * direction > 0",
+            "XCTAssertLessThanOrEqual(siteLabel.frame.maxY, viewportTop)",
+            "XCTAssertGreaterThanOrEqual(confirmDelete.frame.minY, viewportTop)",
+            "XCTAssertLessThanOrEqual(confirmDelete.frame.maxY, viewportBottom)",
+        ]
+        for lock in deleteViewportLocks {
+            XCTAssertTrue(uiSource.contains(lock), lock)
+        }
 
         let exceptionIDs = [
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",
