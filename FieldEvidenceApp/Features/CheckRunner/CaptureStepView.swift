@@ -138,16 +138,12 @@ struct CaptureStepView: View {
                         : AnyLayout(HStackLayout(spacing: DesignTokens.Spacing.space16))
 
                     actionLayout {
-                        Button {
+                        AssetRoundsSecondaryAction(action: {
                             retake(candidate)
-                        } label: {
+                        }) {
                             Text("Retake")
                                 .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.bordered)
-                        .tint(DesignTokens.SemanticColors.primaryAction)
-                        .controlSize(.large)
-                        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                         .disabled(isWorking)
                         .accessibilityIdentifier(Self.retakeAccessibilityIdentifier)
 
@@ -196,10 +192,7 @@ struct CaptureStepView: View {
             Text("Choose from Photos")
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.bordered)
-        .tint(DesignTokens.SemanticColors.primaryAction)
-        .controlSize(.large)
-        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+        .buttonStyle(WorklightSecondaryButtonStyle())
         .disabled(isWorking)
         .accessibilityIdentifier(Self.choosePhotosAccessibilityIdentifier)
 
@@ -217,35 +210,23 @@ struct CaptureStepView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button("Open Settings") {
+            AssetRoundsSecondaryAction("Open Settings") {
                 openSettings()
             }
-            .buttonStyle(.bordered)
-            .tint(DesignTokens.SemanticColors.primaryAction)
-            .controlSize(.large)
-            .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
             .accessibilityIdentifier(Self.openSettingsAccessibilityIdentifier)
         }
 
-        Button("Cannot complete") {
+        AssetRoundsSecondaryAction("Cannot complete") {
             showsCouldNotVerify = true
         }
-        .buttonStyle(.bordered)
-        .tint(DesignTokens.SemanticColors.primaryAction)
-        .controlSize(.large)
-        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
         .disabled(isWorking)
         .accessibilityHint("Opens the reason flow to save this check as incomplete")
         .accessibilityIdentifier(Self.cannotCompleteAccessibilityIdentifier)
 
         if usesImportedCaptureFixturesForUITest {
-            Button("Import test photo") {
+            AssetRoundsSecondaryAction("Import test photo") {
                 importFixture(for: step)
             }
-            .buttonStyle(.bordered)
-            .tint(DesignTokens.SemanticColors.primaryAction)
-            .controlSize(.large)
-            .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
             .disabled(isWorking)
             .accessibilityIdentifier(Self.fixtureImportAccessibilityIdentifier)
         }
@@ -282,14 +263,10 @@ struct CaptureStepView: View {
                 .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Button("Retry") {
+            AssetRoundsSecondaryAction("Retry") {
                 errorMessage = nil
                 loadPreparation()
             }
-            .buttonStyle(.bordered)
-            .tint(DesignTokens.SemanticColors.primaryAction)
-            .controlSize(.large)
-            .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
         }
     }
 

@@ -314,25 +314,109 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                )"
         ))
 
+        let captureSourcePath =
+            "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift"
+        try assertFile(
+            captureSourcePath,
+            byteCount: 17_147,
+            sha256: "C99AF8E4D573E447F834282754CB5F65560737B090626EB836C6844FE2251223"
+        )
+        let captureSource = try text(captureSourcePath)
+        let capturePrimaryOwners = [
+            "AssetRoundsPrimaryAction(action: {\n" +
+                "                            usePhoto(candidate)\n" +
+                "                        }) {\n" +
+                "                            Text(\"Use Photo\")\n" +
+                "                                .frame(maxWidth: .infinity)\n" +
+                "                        }\n" +
+                "                        .disabled(isWorking)\n" +
+                "                        .accessibilityIdentifier(Self.usePhotoAccessibilityIdentifier)",
+            "AssetRoundsPrimaryAction(\"Take photo\") {\n" +
+                "            takePhoto(for: step)\n" +
+                "        }\n" +
+                "        .disabled(isWorking)\n" +
+                "        .accessibilityIdentifier(Self.takePhotoAccessibilityIdentifier)",
+        ]
+        let captureSecondaryOwners = [
+            "AssetRoundsSecondaryAction(action: {\n" +
+                "                            retake(candidate)\n" +
+                "                        }) {\n" +
+                "                            Text(\"Retake\")\n" +
+                "                                .frame(maxWidth: .infinity)\n" +
+                "                        }\n" +
+                "                        .disabled(isWorking)\n" +
+                "                        .accessibilityIdentifier(Self.retakeAccessibilityIdentifier)",
+            "AssetRoundsSecondaryAction(\"Open Settings\") {\n" +
+                "                openSettings()\n" +
+                "            }\n" +
+                "            .accessibilityIdentifier(Self.openSettingsAccessibilityIdentifier)",
+            "AssetRoundsSecondaryAction(\"Cannot complete\") {\n" +
+                "            showsCouldNotVerify = true\n" +
+                "        }\n" +
+                "        .disabled(isWorking)\n" +
+                "        .accessibilityHint(\"Opens the reason flow to save this check as incomplete\")\n" +
+                "        .accessibilityIdentifier(Self.cannotCompleteAccessibilityIdentifier)",
+            "AssetRoundsSecondaryAction(\"Import test photo\") {\n" +
+                "                importFixture(for: step)\n" +
+                "            }\n" +
+                "            .disabled(isWorking)\n" +
+                "            .accessibilityIdentifier(Self.fixtureImportAccessibilityIdentifier)",
+            "AssetRoundsSecondaryAction(\"Retry\") {\n" +
+                "                errorMessage = nil\n" +
+                "                loadPreparation()\n" +
+                "            }",
+        ]
+        for owner in capturePrimaryOwners + captureSecondaryOwners {
+            XCTAssertEqual(
+                captureSource.components(separatedBy: owner).count - 1,
+                1,
+                owner
+            )
+        }
+        XCTAssertEqual(
+            captureSource.components(separatedBy: "AssetRoundsPrimaryAction").count - 1,
+            2
+        )
+        XCTAssertEqual(
+            captureSource.components(separatedBy: "AssetRoundsSecondaryAction").count - 1,
+            5
+        )
+        let capturePhotosPickerOwner =
+            "PhotosPicker(selection: $selectedPhotoItem, matching: .images) {\n" +
+                "            Text(\"Choose from Photos\")\n" +
+                "                .frame(maxWidth: .infinity)\n" +
+                "        }\n" +
+                "        .buttonStyle(WorklightSecondaryButtonStyle())\n" +
+                "        .disabled(isWorking)\n" +
+                "        .accessibilityIdentifier(Self.choosePhotosAccessibilityIdentifier)"
+        XCTAssertEqual(
+            captureSource.components(separatedBy: capturePhotosPickerOwner).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            captureSource.components(
+                separatedBy: ".buttonStyle(WorklightSecondaryButtonStyle())"
+            ).count - 1,
+            1
+        )
+        for forbidden in [
+            ".buttonStyle(.bordered)",
+            ".buttonStyle(.borderedProminent)",
+            ".tint(DesignTokens.SemanticColors.primaryAction)",
+        ] {
+            XCTAssertEqual(
+                captureSource.components(separatedBy: forbidden).count - 1,
+                0,
+                forbidden
+            )
+        }
+
         let canonicalActionOwners: [(
             path: String,
             byteCount: Int,
             sha256: String,
             fragments: [String]
         )] = [
-            (
-                "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
-                18_243,
-                "785F240576D8E732AF8F83476D22D9A1C3F681FD9CCEC963382CB2E2043FB42D",
-                [
-                    "AssetRoundsPrimaryAction(action: {\n" +
-                        "                            usePhoto(candidate)\n" +
-                        "                        }) {",
-                    "AssetRoundsPrimaryAction(\"Take photo\") {\n" +
-                        "            takePhoto(for: step)\n" +
-                        "        }",
-                ]
-            ),
             (
                 "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
                 23_282,
