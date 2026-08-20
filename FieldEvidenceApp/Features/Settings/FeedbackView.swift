@@ -323,7 +323,9 @@ private struct FeedbackTopScrollEdgeVisibility: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            content.scrollEdgeEffectHidden(true, for: .top)
+            content
+                .scrollEdgeEffectHidden(true, for: .top)
+                .scrollEdgeEffectHidden(true, for: .bottom)
         } else {
             content
         }
