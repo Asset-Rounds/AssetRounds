@@ -2167,6 +2167,55 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 )
             }
 
+            if shard.shardID == "s10.4.current.ax-text",
+               stateID == "state.check-preflight.ready" {
+                guard let signature = eligibleExceptions.first else {
+                    throw AutomationConfigurationError.invalid(
+                        "S10.4 AX-text preflight diagnostic is missing its sole frozen signature"
+                    )
+                }
+                try app.performAccessibilityAudit(for: .contrast) { issue in
+                    var diagnostic: [String: Any] = [
+                        "auditTypeRawValue": String(issue.auditType.rawValue),
+                        "compactDescription": issue.compactDescription,
+                        "detailedDescription": issue.detailedDescription,
+                        "applicationFrame": self.auditFrameObject(app.frame),
+                    ]
+                    if let auditedElement = issue.element {
+                        diagnostic["elementIdentifier"] = auditedElement.identifier
+                        diagnostic["elementLabel"] = auditedElement.label
+                        diagnostic["elementType"] = String(
+                            describing: auditedElement.elementType
+                        )
+                        diagnostic["elementFrame"] = self.auditFrameObject(
+                            auditedElement.frame
+                        )
+                    }
+                    self.printJSONLine(
+                        prefix: "S10_4_AUDIT_DIAGNOSTIC",
+                        object: diagnostic
+                    )
+
+                    guard self.isActive(signature),
+                          let auditedElement = issue.element,
+                          String(issue.auditType.rawValue) == signature.auditTypeRawValue,
+                          issue.compactDescription == signature.compactDescription,
+                          issue.detailedDescription == signature.detailedDescription,
+                          auditedElement.identifier == signature.elementIdentifier,
+                          auditedElement.label == signature.elementLabel,
+                          String(describing: auditedElement.elementType)
+                            == signature.elementTypeDescription,
+                          auditedElement.frame == signature.elementFrame,
+                          app.frame == signature.applicationFrame else {
+                        return false
+                    }
+                    return true
+                }
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 AX-text preflight multi-issue diagnostic did not encounter an unknown second issue"
+                )
+            }
+
             var matchedException: ContrastAuditExceptionSignature?
             if let signature = eligibleExceptions.first {
                 var observedIssueCount = 0

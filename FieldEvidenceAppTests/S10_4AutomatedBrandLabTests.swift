@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 134_521,
-            sha256: "5C62FE0542BDCE7B01460987B851E1670AA185D331CD32C6CD7B9CC1266B43AE"
+            byteCount: 137_203,
+            sha256: "58E687416210E4EE94B56717FFC1E5ABBD630DD5269DD889DF0B6DDEFA399162"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -940,7 +940,107 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for lock in taskExceptionLocks {
             XCTAssertTrue(uiSource.contains(lock), lock)
         }
-        XCTAssertFalse(uiSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
+        let diagnosticStartMarker =
+            #"            if shard.shardID == "s10.4.current.ax-text","# + "\n" +
+                #"               stateID == "state.check-preflight.ready" {"#
+        let diagnosticParts = uiSource.components(
+            separatedBy: diagnosticStartMarker
+        )
+        guard diagnosticParts.count == 2 else {
+            XCTFail("The UI source must contain exactly one AX-text preflight diagnostic")
+            return
+        }
+        let diagnosticTail = diagnosticParts[1]
+        let diagnosticBoundary = "\n            var matchedException: ContrastAuditExceptionSignature?"
+        guard let diagnosticEnd = diagnosticTail.range(of: diagnosticBoundary) else {
+            XCTFail("The AX-text preflight diagnostic has no exact generic-handler boundary")
+            return
+        }
+        let diagnosticSlice = diagnosticStartMarker
+            + String(diagnosticTail[..<diagnosticEnd.lowerBound])
+        let diagnosticFieldLocks = [
+            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
+            #""compactDescription": issue.compactDescription"#,
+            #""detailedDescription": issue.detailedDescription"#,
+            #""applicationFrame": self.auditFrameObject(app.frame)"#,
+            #"diagnostic["elementIdentifier"] = auditedElement.identifier"#,
+            #"diagnostic["elementLabel"] = auditedElement.label"#,
+            #"diagnostic["elementType"] = String("#,
+            #"diagnostic["elementFrame"] = self.auditFrameObject("#,
+        ]
+        for lock in diagnosticFieldLocks {
+            XCTAssertEqual(
+                diagnosticSlice.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        let diagnosticProtocolLocks = [
+            #"guard let signature = eligibleExceptions.first else"#,
+            #"S10.4 AX-text preflight diagnostic is missing its sole frozen signature"#,
+            #"try app.performAccessibilityAudit(for: .contrast) { issue in"#,
+            #"prefix: "S10_4_AUDIT_DIAGNOSTIC""#,
+            #"guard self.isActive(signature)"#,
+            #"String(issue.auditType.rawValue) == signature.auditTypeRawValue"#,
+            #"issue.compactDescription == signature.compactDescription"#,
+            #"issue.detailedDescription == signature.detailedDescription"#,
+            #"auditedElement.identifier == signature.elementIdentifier"#,
+            #"auditedElement.label == signature.elementLabel"#,
+            #"== signature.elementTypeDescription"#,
+            #"auditedElement.frame == signature.elementFrame"#,
+            #"app.frame == signature.applicationFrame else"#,
+            #"S10.4 AX-text preflight multi-issue diagnostic did not encounter an unknown second issue"#,
+        ]
+        for lock in diagnosticProtocolLocks {
+            XCTAssertTrue(diagnosticSlice.contains(lock), lock)
+        }
+        let diagnosticMatchOutcomeLock =
+            "app.frame == signature.applicationFrame else {\n" +
+                "                        return false\n" +
+                "                    }\n" +
+                "                    return true\n" +
+                "                }\n" +
+                "                throw AutomationConfigurationError.invalid(\n" +
+                "                    \"S10.4 AX-text preflight multi-issue diagnostic did not encounter an unknown second issue\"\n" +
+                "                )"
+        XCTAssertEqual(
+            diagnosticSlice.components(separatedBy: diagnosticMatchOutcomeLock).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            diagnosticSlice.components(separatedBy: "return false").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            diagnosticSlice.components(separatedBy: "return true").count - 1,
+            1
+        )
+        let diagnosticLogRange = try XCTUnwrap(
+            diagnosticSlice.range(of: #"prefix: "S10_4_AUDIT_DIAGNOSTIC""#)
+        )
+        let diagnosticMatchRange = try XCTUnwrap(
+            diagnosticSlice.range(of: "guard self.isActive(signature)")
+        )
+        XCTAssertLessThan(
+            diagnosticLogRange.lowerBound,
+            diagnosticMatchRange.lowerBound,
+            "The diagnostic must log every public issue field before matching"
+        )
+        for forbidden in [
+            "accessibilityTreeDigest(in: app)",
+            #"printJSONLine(prefix: "S10_4_AX_STATE""#,
+            #"printJSONLine(prefix: "S10_4_CONTRAST""#,
+            "automationContrastExceptions[stateID]",
+            "automatedEvidenceIDs",
+            "S10.4 candidate ",
+            "shard-receipt",
+        ] {
+            XCTAssertFalse(diagnosticSlice.contains(forbidden), forbidden)
+        }
+        XCTAssertEqual(
+            uiSource.components(separatedBy: "S10_4_AUDIT_DIAGNOSTIC").count - 1,
+            1
+        )
         XCTAssertFalse(uiSource.contains("S10.4 AX-text preflight diagnostic unexpectedly passed"))
 
         let workflowProtocolLocks = [
