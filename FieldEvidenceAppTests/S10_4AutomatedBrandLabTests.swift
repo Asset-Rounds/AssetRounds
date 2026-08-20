@@ -315,7 +315,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         let newSignQuickPathProfileGuard =
-            #"        if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {#
+            #"        if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {"#
         let newSignRouteStart =
             "        let prePositionSiteValue = site.value as? String"
         let newSignFinalGuard =
