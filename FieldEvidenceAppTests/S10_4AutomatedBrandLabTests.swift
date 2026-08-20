@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 156_035,
-            sha256: "08B7469F7F8368CD7F045A4598C0B233252BCF0281ACD4A4A986706CE639C72E"
+            byteCount: 159_423,
+            sha256: "723EB566A7F036758717F99D94C63F94F0D3B38417AB17EB9F7017C4614DF24D"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -865,13 +865,57 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n" +
                 "            return\n" +
                 "        }",
+            "let currentProfileInputViews: XCUIElementQuery?\n" +
+                "        let keyboardInputView: XCUIElement?\n" +
+                "        if automationShard?.deviceProfileID == \"iphone-17-ios-26.2-current\" {\n" +
+                "            let inputViews = app.otherElements.matching(\n" +
+                "                NSPredicate(format: \"identifier == %@\", \"inputView\")\n" +
+                "            )\n" +
+                "            guard inputViews.count == 1 else {\n" +
+                "                XCTFail(\"Report correction must have one current-profile input view.\")\n" +
+                "                return\n" +
+                "            }\n" +
+                "            let inputView = inputViews.firstMatch\n" +
+                "            guard inputView.waitForExistence(timeout: 10) else {\n" +
+                "                XCTFail(\"Report correction current-profile input view is missing.\")\n" +
+                "                return\n" +
+                "            }\n" +
+                "            currentProfileInputViews = inputViews\n" +
+                "            keyboardInputView = inputView\n" +
+                "        } else {\n" +
+                "            currentProfileInputViews = nil\n" +
+                "            keyboardInputView = nil\n" +
+                "        }",
             "let dragInset: CGFloat = 24\n" +
                 "        let minimumGestureDistance: CGFloat = 44\n" +
                 "        for _ in 0..<4 {\n" +
                 "            let scrollFrame = correctionScrollView.frame\n" +
-                "            let visibleTop = max(scrollFrame.minY, navigationBar.frame.maxY)\n" +
-                "            let visibleBottom = min(scrollFrame.maxY, keyboard.frame.minY)\n" +
-                "            guard visibleBottom > visibleTop else {\n" +
+                "            let visibleTop = max(scrollFrame.minY, navigationBar.frame.maxY)",
+            "            let keyboardFrame = keyboard.frame\n" +
+                "            let visibleBottom: CGFloat\n" +
+                "            if let inputViews = currentProfileInputViews,\n" +
+                "               let inputView = keyboardInputView {\n" +
+                "                guard inputViews.count == 1,\n" +
+                "                      inputView.exists else {\n" +
+                "                    XCTFail(\"Report correction current-profile input view changed.\")\n" +
+                "                    return\n" +
+                "                }\n" +
+                "                let inputViewFrame = inputView.frame\n" +
+                "                guard inputViewFrame.minX <= keyboardFrame.minX,\n" +
+                "                      inputViewFrame.maxX >= keyboardFrame.maxX,\n" +
+                "                      inputViewFrame.minY <= keyboardFrame.minY,\n" +
+                "                      inputViewFrame.maxY >= keyboardFrame.maxY else {\n" +
+                "                    XCTFail(\"Report correction input view does not contain the keyboard.\")\n" +
+                "                    return\n" +
+                "                }\n" +
+                "                visibleBottom = min(\n" +
+                "                    scrollFrame.maxY,\n" +
+                "                    min(keyboardFrame.minY, inputViewFrame.minY)\n" +
+                "                )\n" +
+                "            } else {\n" +
+                "                visibleBottom = min(scrollFrame.maxY, keyboardFrame.minY)\n" +
+                "            }",
+            "            guard visibleBottom > visibleTop else {\n" +
                 #"                XCTFail("Report correction has no visible keyboard-safe interval.")"# +
                 "\n" +
                 "                return\n" +
@@ -948,9 +992,34 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        let finalSaveExists = save.waitForExistence(timeout: 10)\n" +
                 "        let finalScrollFrame = correctionScrollView.frame\n" +
                 "        let finalVisibleTop = max(finalScrollFrame.minY, navigationBar.frame.maxY)\n" +
-                "        let finalVisibleBottom = finalKeyboardExists\n" +
-                "            ? min(finalScrollFrame.maxY, keyboard.frame.minY)\n" +
-                "            : -CGFloat.greatestFiniteMagnitude\n" +
+                "        let finalKeyboardFrame = keyboard.frame\n" +
+                "        let finalKeyboardInputViewExists: Bool\n" +
+                "        let finalKeyboardInputViewContainsKeyboard: Bool\n" +
+                "        let finalVisibleBottom: CGFloat\n" +
+                "        if let inputViews = currentProfileInputViews,\n" +
+                "           let inputView = keyboardInputView {\n" +
+                "            finalKeyboardInputViewExists = inputViews.count == 1\n" +
+                "                && inputView.waitForExistence(timeout: 10)\n" +
+                "            let finalInputViewFrame = inputView.frame\n" +
+                "            finalKeyboardInputViewContainsKeyboard = finalKeyboardExists\n" +
+                "                && finalKeyboardInputViewExists\n" +
+                "                && finalInputViewFrame.minX <= finalKeyboardFrame.minX\n" +
+                "                && finalInputViewFrame.maxX >= finalKeyboardFrame.maxX\n" +
+                "                && finalInputViewFrame.minY <= finalKeyboardFrame.minY\n" +
+                "                && finalInputViewFrame.maxY >= finalKeyboardFrame.maxY\n" +
+                "            finalVisibleBottom = finalKeyboardInputViewContainsKeyboard\n" +
+                "                ? min(\n" +
+                "                    finalScrollFrame.maxY,\n" +
+                "                    min(finalKeyboardFrame.minY, finalInputViewFrame.minY)\n" +
+                "                )\n" +
+                "                : -CGFloat.greatestFiniteMagnitude\n" +
+                "        } else {\n" +
+                "            finalKeyboardInputViewExists = true\n" +
+                "            finalKeyboardInputViewContainsKeyboard = true\n" +
+                "            finalVisibleBottom = finalKeyboardExists\n" +
+                "                ? min(finalScrollFrame.maxY, finalKeyboardFrame.minY)\n" +
+                "                : -CGFloat.greatestFiniteMagnitude\n" +
+                "        }\n" +
                 "        let finalValidationContained = finalValidationExists\n" +
                 "            && validation.frame.minY >= finalVisibleTop\n" +
                 "            && validation.frame.maxY <= finalVisibleBottom\n" +
@@ -959,6 +1028,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            && save.frame.maxY <= finalVisibleBottom",
             "guard finalFocusPreserved,\n" +
                 "              finalKeyboardExists,\n" +
+                "              finalKeyboardInputViewExists,\n" +
+                "              finalKeyboardInputViewContainsKeyboard,\n" +
                 "              finalValidationExists,\n" +
                 "              finalSaveExists,\n" +
                 "              finalValidationContained,\n" +
@@ -989,6 +1060,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 orderedCorrectionValidationTail[lockRange.upperBound...]
             )
         }
+        let correctionCurrentProfileGate =
+            #"if automationShard?.deviceProfileID == "iphone-17-ios-26.2-current" {"#
+        XCTAssertEqual(
+            correctionValidationSource.components(
+                separatedBy: correctionCurrentProfileGate
+            ).count - 1,
+            1
+        )
+        let correctionInputViewQueryLiteral =
+            #"NSPredicate(format: "identifier == %@", "inputView")"#
+        XCTAssertEqual(
+            correctionValidationSource.components(
+                separatedBy: correctionInputViewQueryLiteral
+            ).count - 1,
+            1
+        )
 
         let feedbackSourcePath =
             "FieldEvidenceApp/Features/Settings/FeedbackView.swift"

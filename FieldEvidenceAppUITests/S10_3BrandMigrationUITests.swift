@@ -1696,12 +1696,57 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             return
         }
 
+        let currentProfileInputViews: XCUIElementQuery?
+        let keyboardInputView: XCUIElement?
+        if automationShard?.deviceProfileID == "iphone-17-ios-26.2-current" {
+            let inputViews = app.otherElements.matching(
+                NSPredicate(format: "identifier == %@", "inputView")
+            )
+            guard inputViews.count == 1 else {
+                XCTFail("Report correction must have one current-profile input view.")
+                return
+            }
+            let inputView = inputViews.firstMatch
+            guard inputView.waitForExistence(timeout: 10) else {
+                XCTFail("Report correction current-profile input view is missing.")
+                return
+            }
+            currentProfileInputViews = inputViews
+            keyboardInputView = inputView
+        } else {
+            currentProfileInputViews = nil
+            keyboardInputView = nil
+        }
+
         let dragInset: CGFloat = 24
         let minimumGestureDistance: CGFloat = 44
         for _ in 0..<4 {
             let scrollFrame = correctionScrollView.frame
             let visibleTop = max(scrollFrame.minY, navigationBar.frame.maxY)
-            let visibleBottom = min(scrollFrame.maxY, keyboard.frame.minY)
+            let keyboardFrame = keyboard.frame
+            let visibleBottom: CGFloat
+            if let inputViews = currentProfileInputViews,
+               let inputView = keyboardInputView {
+                guard inputViews.count == 1,
+                      inputView.exists else {
+                    XCTFail("Report correction current-profile input view changed.")
+                    return
+                }
+                let inputViewFrame = inputView.frame
+                guard inputViewFrame.minX <= keyboardFrame.minX,
+                      inputViewFrame.maxX >= keyboardFrame.maxX,
+                      inputViewFrame.minY <= keyboardFrame.minY,
+                      inputViewFrame.maxY >= keyboardFrame.maxY else {
+                    XCTFail("Report correction input view does not contain the keyboard.")
+                    return
+                }
+                visibleBottom = min(
+                    scrollFrame.maxY,
+                    min(keyboardFrame.minY, inputViewFrame.minY)
+                )
+            } else {
+                visibleBottom = min(scrollFrame.maxY, keyboardFrame.minY)
+            }
             guard visibleBottom > visibleTop else {
                 XCTFail("Report correction has no visible keyboard-safe interval.")
                 return
@@ -1778,9 +1823,34 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let finalSaveExists = save.waitForExistence(timeout: 10)
         let finalScrollFrame = correctionScrollView.frame
         let finalVisibleTop = max(finalScrollFrame.minY, navigationBar.frame.maxY)
-        let finalVisibleBottom = finalKeyboardExists
-            ? min(finalScrollFrame.maxY, keyboard.frame.minY)
-            : -CGFloat.greatestFiniteMagnitude
+        let finalKeyboardFrame = keyboard.frame
+        let finalKeyboardInputViewExists: Bool
+        let finalKeyboardInputViewContainsKeyboard: Bool
+        let finalVisibleBottom: CGFloat
+        if let inputViews = currentProfileInputViews,
+           let inputView = keyboardInputView {
+            finalKeyboardInputViewExists = inputViews.count == 1
+                && inputView.waitForExistence(timeout: 10)
+            let finalInputViewFrame = inputView.frame
+            finalKeyboardInputViewContainsKeyboard = finalKeyboardExists
+                && finalKeyboardInputViewExists
+                && finalInputViewFrame.minX <= finalKeyboardFrame.minX
+                && finalInputViewFrame.maxX >= finalKeyboardFrame.maxX
+                && finalInputViewFrame.minY <= finalKeyboardFrame.minY
+                && finalInputViewFrame.maxY >= finalKeyboardFrame.maxY
+            finalVisibleBottom = finalKeyboardInputViewContainsKeyboard
+                ? min(
+                    finalScrollFrame.maxY,
+                    min(finalKeyboardFrame.minY, finalInputViewFrame.minY)
+                )
+                : -CGFloat.greatestFiniteMagnitude
+        } else {
+            finalKeyboardInputViewExists = true
+            finalKeyboardInputViewContainsKeyboard = true
+            finalVisibleBottom = finalKeyboardExists
+                ? min(finalScrollFrame.maxY, finalKeyboardFrame.minY)
+                : -CGFloat.greatestFiniteMagnitude
+        }
         let finalValidationContained = finalValidationExists
             && validation.frame.minY >= finalVisibleTop
             && validation.frame.maxY <= finalVisibleBottom
@@ -1789,6 +1859,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             && save.frame.maxY <= finalVisibleBottom
         guard finalFocusPreserved,
               finalKeyboardExists,
+              finalKeyboardInputViewExists,
+              finalKeyboardInputViewContainsKeyboard,
               finalValidationExists,
               finalSaveExists,
               finalValidationContained,
