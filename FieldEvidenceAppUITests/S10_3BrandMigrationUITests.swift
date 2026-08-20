@@ -1719,6 +1719,17 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             containing: "Purchase verified. Subscription access is ready.",
             timeout: 45
         )
+        let terms = element("s7.2.paywall.terms", in: app)
+        let privacy = element("s7.2.paywall.privacy", in: app)
+        let support = element("s7.2.paywall.support", in: app)
+        for control in [terms, privacy, support] {
+            XCTAssertTrue(control.waitForExistence(timeout: 20))
+            assertMinimumGeometry(control)
+            XCTAssertTrue(control.isEnabled)
+        }
+        XCTAssertLessThanOrEqual(purchaseState.frame.maxY, terms.frame.minY)
+        XCTAssertLessThanOrEqual(terms.frame.maxY, privacy.frame.minY)
+        XCTAssertLessThanOrEqual(privacy.frame.maxY, support.frame.minY)
         captureBaseline("state.paywall.purchase-complete", in: app)
     }
 

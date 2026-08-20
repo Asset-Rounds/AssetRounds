@@ -239,8 +239,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 133_901,
-            sha256: "ECA3936274F1965F95D55A77CCAD18DDB1F88DE2CBE8EA138B40C0557DA4DDA2"
+            byteCount: 134_521,
+            sha256: "5C62FE0542BDCE7B01460987B851E1670AA185D331CD32C6CD7B9CC1266B43AE"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -253,6 +253,30 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(uiSource.contains("s10.4-target-size-"))
         XCTAssertTrue(uiSource.contains("automatedEvidenceIDs"))
         XCTAssertTrue(uiSource.contains("22A3351"))
+
+        let postPurchaseExistenceGeometryEnabledGuard =
+            #"let terms = element("s7.2.paywall.terms", in: app)"# + "\n" +
+                #"        let privacy = element("s7.2.paywall.privacy", in: app)"# + "\n" +
+                #"        let support = element("s7.2.paywall.support", in: app)"# + "\n" +
+                "        for control in [terms, privacy, support] {\n" +
+                "            XCTAssertTrue(control.waitForExistence(timeout: 20))\n" +
+                "            assertMinimumGeometry(control)\n" +
+                "            XCTAssertTrue(control.isEnabled)\n" +
+                "        }"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: postPurchaseExistenceGeometryEnabledGuard
+            ).count - 1,
+            1
+        )
+        let postPurchaseNonOverlapOrderGuard =
+            "XCTAssertLessThanOrEqual(purchaseState.frame.maxY, terms.frame.minY)\n" +
+                "        XCTAssertLessThanOrEqual(terms.frame.maxY, privacy.frame.minY)\n" +
+                "        XCTAssertLessThanOrEqual(privacy.frame.maxY, support.frame.minY)"
+        XCTAssertEqual(
+            uiSource.components(separatedBy: postPurchaseNonOverlapOrderGuard).count - 1,
+            1
+        )
 
         let deleteCompositionLocks = [
             #"let deleteMessage = element("s6.1.delete.message", in: app)"#,
@@ -313,6 +337,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    isConfirmingDeletion ? DesignTokens.Spacing.space16 : 0\n" +
                 "                )"
         ))
+
+        let paywallSourcePath =
+            "FieldEvidenceApp/Features/Subscription/PaywallView.swift"
+        try assertFile(
+            paywallSourcePath,
+            byteCount: 12_695,
+            sha256: "D5D79014C097355B66AF3867267E5A2784328D00DAD6F04F125AD4F5F9DAA772"
+        )
+        let paywallSource = try text(paywallSourcePath)
+        let purchaseStatusSlotModifiers =
+            "purchaseStatus\n" +
+                "                .fixedSize(horizontal: false, vertical: true)\n" +
+                "                .frame(maxWidth: .infinity, alignment: .leading)"
+        XCTAssertEqual(
+            paywallSource.components(separatedBy: purchaseStatusSlotModifiers).count - 1,
+            1
+        )
 
         let captureSourcePath =
             "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift"

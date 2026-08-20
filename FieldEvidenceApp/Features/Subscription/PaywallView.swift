@@ -187,6 +187,8 @@ struct PaywallView: View {
                 .accessibilityIdentifier(Self.noSyncAccessibilityIdentifier)
 
             purchaseStatus
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
                 Link("Terms", destination: links.terms)
