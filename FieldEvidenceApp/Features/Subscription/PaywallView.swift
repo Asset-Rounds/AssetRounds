@@ -214,6 +214,7 @@ struct PaywallView: View {
         }
         .padding(DesignTokens.Spacing.space16)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .id(purchaseStatusLayoutIdentity)
     }
 
     private var closeButton: some View {
@@ -221,6 +222,25 @@ struct PaywallView: View {
             .disabled(coordinator.isPurchasing)
             .accessibilityHint("Returns to your existing history")
             .accessibilityIdentifier(Self.closeAccessibilityIdentifier)
+    }
+
+    private var purchaseStatusLayoutIdentity: Int {
+        switch coordinator.purchaseState {
+        case .idle:
+            0
+        case .purchasing:
+            1
+        case .verified:
+            2
+        case .cancelled:
+            3
+        case .pending:
+            4
+        case .unverified:
+            5
+        case .failed:
+            6
+        }
     }
 
     @ViewBuilder

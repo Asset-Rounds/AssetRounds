@@ -379,8 +379,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "FieldEvidenceApp/Features/Subscription/PaywallView.swift"
         try assertFile(
             paywallSourcePath,
-            byteCount: 12_695,
-            sha256: "D5D79014C097355B66AF3867267E5A2784328D00DAD6F04F125AD4F5F9DAA772"
+            byteCount: 13_113,
+            sha256: "6434A07CF971011E786EC5CE9BDBF44C65997EBAD382603260E59EA7455E0344"
         )
         let paywallSource = try text(paywallSourcePath)
         let purchaseStatusSlotModifiers =
@@ -391,6 +391,75 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             paywallSource.components(separatedBy: purchaseStatusSlotModifiers).count - 1,
             1
         )
+        let purchaseStatusRootIdentityCallsite =
+            "        .padding(DesignTokens.Spacing.space16)\n" +
+                "        .frame(maxWidth: .infinity, alignment: .leading)\n" +
+                "        .id(purchaseStatusLayoutIdentity)\n" +
+                "    }\n\n" +
+                "    private var closeButton: some View {"
+        XCTAssertEqual(
+            paywallSource.components(
+                separatedBy: purchaseStatusRootIdentityCallsite
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            paywallSource.components(
+                separatedBy: ".id(purchaseStatusLayoutIdentity)"
+            ).count - 1,
+            1
+        )
+        let purchaseStatusIdentityStart =
+            "    private var purchaseStatusLayoutIdentity: Int {\n"
+        let purchaseStatusIdentityEnd = "\n\n    @ViewBuilder"
+        let purchaseStatusIdentityParts = paywallSource.components(
+            separatedBy: purchaseStatusIdentityStart
+        )
+        guard purchaseStatusIdentityParts.count == 2 else {
+            XCTFail("Paywall must contain exactly one purchase-status layout identity")
+            return
+        }
+        let purchaseStatusIdentityTail = purchaseStatusIdentityParts[1]
+        guard let purchaseStatusIdentityBoundary = purchaseStatusIdentityTail.range(
+            of: purchaseStatusIdentityEnd
+        ) else {
+            XCTFail("Purchase-status layout identity must end before purchaseStatus")
+            return
+        }
+        let purchaseStatusIdentitySlice = purchaseStatusIdentityStart
+            + String(
+                purchaseStatusIdentityTail[
+                    ..<purchaseStatusIdentityBoundary.lowerBound
+                ]
+            )
+        let purchaseStatusIdentityMappings: [(state: String, key: Int)] = [
+            ("idle", 0),
+            ("purchasing", 1),
+            ("verified", 2),
+            ("cancelled", 3),
+            ("pending", 4),
+            ("unverified", 5),
+            ("failed", 6),
+        ]
+        XCTAssertEqual(purchaseStatusIdentityMappings.count, 7)
+        XCTAssertEqual(
+            Set(purchaseStatusIdentityMappings.map { $0.key }),
+            Set(0...6)
+        )
+        for mapping in purchaseStatusIdentityMappings {
+            let lock = "case .\(mapping.state):\n            \(mapping.key)"
+            XCTAssertEqual(
+                purchaseStatusIdentitySlice.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        XCTAssertEqual(
+            purchaseStatusIdentitySlice.components(separatedBy: "case .").count - 1,
+            7
+        )
+        XCTAssertFalse(purchaseStatusIdentitySlice.contains("default:"))
+        XCTAssertFalse(purchaseStatusIdentitySlice.contains("@unknown default"))
 
         let captureSourcePath =
             "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift"
