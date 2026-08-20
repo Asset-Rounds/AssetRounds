@@ -813,13 +813,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(
-                separatedBy: #"issueID: "S10.4-XCUI-CONTRAST-FP-""#
+                separatedBy: #"issueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
             3
         )
         XCTAssertEqual(
             workflowSource.components(
-                separatedBy: #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-""#
+                separatedBy: #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
             3
         )
