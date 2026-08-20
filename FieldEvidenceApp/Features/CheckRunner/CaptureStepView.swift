@@ -151,16 +151,12 @@ struct CaptureStepView: View {
                         .disabled(isWorking)
                         .accessibilityIdentifier(Self.retakeAccessibilityIdentifier)
 
-                        Button {
+                        AssetRoundsPrimaryAction(action: {
                             usePhoto(candidate)
-                        } label: {
+                        }) {
                             Text("Use Photo")
                                 .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(DesignTokens.SemanticColors.primaryAction)
-                        .controlSize(.large)
-                        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                         .disabled(isWorking)
                         .accessibilityIdentifier(Self.usePhotoAccessibilityIdentifier)
                     }
@@ -190,13 +186,9 @@ struct CaptureStepView: View {
 
     @ViewBuilder
     private func captureActions(for step: WorkflowDraftStep) -> some View {
-        Button("Take photo") {
+        AssetRoundsPrimaryAction("Take photo") {
             takePhoto(for: step)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(DesignTokens.SemanticColors.primaryAction)
-        .controlSize(.large)
-        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
         .disabled(isWorking)
         .accessibilityIdentifier(Self.takePhotoAccessibilityIdentifier)
 

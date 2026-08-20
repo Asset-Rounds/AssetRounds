@@ -84,8 +84,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         try assertFile(
             manifestPath,
-            byteCount: 18_973,
-            sha256: "D2F62D7B540E22AD8674ED843C9749AD6DE423CCF75BC2EE4456C7731FB48CE8"
+            byteCount: 19_037,
+            sha256: "7A517533F88A74A6EB2E3676DD3C5BD3D452D271BFC1EDD175F1CC83CAEDDB2E"
         )
         try assertFile(
             visualSchemaPath,
@@ -313,6 +313,101 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    isConfirmingDeletion ? DesignTokens.Spacing.space16 : 0\n" +
                 "                )"
         ))
+
+        let canonicalActionOwners: [(
+            path: String,
+            byteCount: Int,
+            sha256: String,
+            fragments: [String]
+        )] = [
+            (
+                "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+                18_243,
+                "785F240576D8E732AF8F83476D22D9A1C3F681FD9CCEC963382CB2E2043FB42D",
+                [
+                    "AssetRoundsPrimaryAction(action: {\n" +
+                        "                            usePhoto(candidate)\n" +
+                        "                        }) {",
+                    "AssetRoundsPrimaryAction(\"Take photo\") {\n" +
+                        "            takePhoto(for: step)\n" +
+                        "        }",
+                ]
+            ),
+            (
+                "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+                23_282,
+                "5E24EA6F73AB499CED1A6D47C4497D8E623E14EFB9833CD2A1C1EB4831AA766C",
+                [
+                    "AssetRoundsPrimaryAction(\"Continue\") {\n" +
+                        "                prepareReview()\n" +
+                        "            }",
+                    "AssetRoundsPrimaryAction(action: {\n" +
+                        "                finalize()\n" +
+                        "            }) {\n" +
+                        "                Text(isSaving ? \"Saving…\" : \"Save and finish\")\n" +
+                        "            }",
+                ]
+            ),
+            (
+                "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+                6_134,
+                "D5A2A5BF40ED729E568D51199E4D342B78013DBFEF608ABBFE9B1B0B99771237",
+                [
+                    "AssetRoundsPrimaryAction(\"View report\") {\n" +
+                        "                        showsReport = true\n" +
+                        "                    }",
+                    "AssetRoundsSecondaryAction(\"Done\") {\n" +
+                        "                    dismiss()\n" +
+                        "                }",
+                ]
+            ),
+            (
+                "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+                15_200,
+                "77EC3E39731B66D91119DF85ED194DB0124FEECFB7DDBD30FF48E9A77F186383",
+                [#"AssetRoundsPrimaryAction("Record work", action: save)"#]
+            ),
+            (
+                "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+                15_518,
+                "135772FEF225FA32457BCDE9693A22F3CB38D008AD4A03DB7769581F5BE5E5D0",
+                [#"AssetRoundsPrimaryAction("Save correction", action: save)"#]
+            ),
+            (
+                "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+                18_772,
+                "64DA40DD2BBD0B8E623670D1824C2AAE4C71AF0AD70A822B052FF7031A71D5FE",
+                [
+                    "AssetRoundsPrimaryAction(\"Share PDF\") {\n" +
+                        "                        showsShareSheet = true\n" +
+                        "                    }",
+                    "AssetRoundsSecondaryAction(\"Close\") {\n" +
+                        "                    dismiss()\n" +
+                        "                }",
+                ]
+            ),
+        ]
+        for owner in canonicalActionOwners {
+            try assertFile(
+                owner.path,
+                byteCount: owner.byteCount,
+                sha256: owner.sha256
+            )
+            let source = try text(owner.path)
+            XCTAssertEqual(
+                source.components(separatedBy: ".buttonStyle(.borderedProminent)")
+                    .count - 1,
+                0,
+                owner.path
+            )
+            for fragment in owner.fragments {
+                XCTAssertEqual(
+                    source.components(separatedBy: fragment).count - 1,
+                    1,
+                    "\(owner.path): \(fragment)"
+                )
+            }
+        }
 
         let deleteViewportDiagnosticLocks = [
             #"let runsAXTextDeleteConfirmationDiagnostic ="#,

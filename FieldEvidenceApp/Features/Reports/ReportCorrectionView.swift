@@ -136,11 +136,7 @@ struct ReportCorrectionView: View {
                 stateContent
 
                 if showsForm && state != .saving {
-                    Button("Save correction", action: save)
-                        .buttonStyle(.borderedProminent)
-                        .tint(DesignTokens.SemanticColors.primaryAction)
-                        .controlSize(.large)
-                        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+                    AssetRoundsPrimaryAction("Save correction", action: save)
                         .disabled(state == .saving)
                         .accessibilityHint("Creates a new report revision and keeps the prior report.")
                         .accessibilityIdentifier(Self.saveAccessibilityIdentifier)

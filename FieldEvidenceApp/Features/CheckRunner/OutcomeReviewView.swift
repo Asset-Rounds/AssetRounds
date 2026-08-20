@@ -236,13 +236,9 @@ struct OutcomeReviewView: View {
 
             errorCard
 
-            Button("Continue") {
+            AssetRoundsPrimaryAction("Continue") {
                 prepareReview()
             }
-            .buttonStyle(.borderedProminent)
-            .tint(DesignTokens.SemanticColors.primaryAction)
-            .controlSize(.large)
-            .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
             .disabled(!canContinue)
             .accessibilityIdentifier(Self.continueAccessibilityIdentifier)
             }
@@ -311,13 +307,11 @@ struct OutcomeReviewView: View {
 
             errorCard
 
-            Button(isSaving ? "Saving…" : "Save and finish") {
+            AssetRoundsPrimaryAction(action: {
                 finalize()
+            }) {
+                Text(isSaving ? "Saving…" : "Save and finish")
             }
-            .buttonStyle(.borderedProminent)
-            .tint(DesignTokens.SemanticColors.primaryAction)
-            .controlSize(.large)
-            .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
             .disabled(isSaving)
             .accessibilityIdentifier(Self.saveAccessibilityIdentifier)
 

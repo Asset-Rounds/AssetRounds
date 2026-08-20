@@ -47,13 +47,9 @@ struct ValueReceiptView: View {
                 }
 
                 if delivery != nil {
-                    Button("View report") {
+                    AssetRoundsPrimaryAction("View report") {
                         showsReport = true
                     }
-                    .buttonStyle(.bordered)
-                    .tint(DesignTokens.SemanticColors.primaryAction)
-                    .controlSize(.large)
-                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .accessibilityHint("Opens the report PDF stored on this device")
                     .accessibilityIdentifier(Self.viewReportAccessibilityIdentifier)
 
@@ -72,13 +68,9 @@ struct ValueReceiptView: View {
                         .accessibilityIdentifier("s4.3.receipt.preparing")
                 }
 
-                Button("Done") {
+                AssetRoundsSecondaryAction("Done") {
                     dismiss()
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(DesignTokens.SemanticColors.primaryAction)
-                .controlSize(.large)
-                .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                 .accessibilityHint("Returns to this sign")
                 .accessibilityIdentifier(Self.doneAccessibilityIdentifier)
             }

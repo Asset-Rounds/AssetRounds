@@ -211,11 +211,7 @@ struct RecordWorkView: View {
                         .accessibilityFocused($accessibilityFocus, equals: .failure)
                 }
 
-                Button("Record work", action: save)
-                    .buttonStyle(.borderedProminent)
-                    .tint(DesignTokens.SemanticColors.primaryAction)
-                    .controlSize(.large)
-                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+                AssetRoundsPrimaryAction("Record work", action: save)
                     .disabled(isSaving)
                     .accessibilityIdentifier(Self.saveAccessibilityIdentifier)
                     .accessibilityHidden(

@@ -161,13 +161,9 @@ struct ReportDetailView: View {
                 revisionActions
 
                 HStack(spacing: DesignTokens.Spacing.space8) {
-                    Button("Share PDF") {
+                    AssetRoundsPrimaryAction("Share PDF") {
                         showsShareSheet = true
                     }
-                    .buttonStyle(.bordered)
-                    .tint(DesignTokens.SemanticColors.primaryAction)
-                    .controlSize(.large)
-                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .frame(maxWidth: .infinity)
                     .accessibilityHint("Opens the system share sheet for this report PDF")
                     .accessibilityIdentifier(Self.shareAccessibilityIdentifier)
@@ -184,13 +180,9 @@ struct ReportDetailView: View {
                     .accessibilityIdentifier(Self.saveToFilesAccessibilityIdentifier)
                 }
 
-                Button("Close") {
+                AssetRoundsSecondaryAction("Close") {
                     dismiss()
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(DesignTokens.SemanticColors.primaryAction)
-                .controlSize(.large)
-                .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                 .accessibilityHint("Returns to the saved report receipt")
                 .accessibilityIdentifier(Self.closeAccessibilityIdentifier)
             }
