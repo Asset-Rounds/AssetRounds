@@ -832,6 +832,71 @@ jobs:
             > "$shard_evidence_path/candidate-files.json"
           test "$(jq 'length' "$shard_evidence_path/candidate-files.json")" -eq 67
 
+          contrast_exception_authority_path="$RUNNER_TEMP/s10-4-contrast-exceptions.json"
+          jq -n '
+            [
+              {
+                shardID: "s10.4.current.default-dark",
+                stateID: "state.sample-report.ready",
+                taskID: "report_comprehension",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",
+                exceptionOwner: "palatis3",
+                exceptionExpiresAt: "2026-11-20",
+                exceptionRationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Wide view even though the audit-owned crop visibly renders white text on the dark elevated Sample card; the exception is limited to the frozen public issue signature.",
+                ignoredAuditIssues: [
+                  {
+                    auditTypeRawValue: "1",
+                    compactDescription: "Contrast failed",
+                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+                    elementIdentifier: "",
+                    elementLabel: "Wide view",
+                    elementType: "XCUIElementType(rawValue: 48)",
+                    elementFrame: {
+                      x: 32,
+                      y: 810.33333333333337,
+                      width: 80,
+                      height: 20.333333333333258
+                    },
+                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}
+                  }
+                ]
+              },
+              {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.new-sign.editing",
+                taskID: "one_handed_start",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME",
+                exceptionOwner: "palatis3",
+                exceptionExpiresAt: "2026-11-20",
+                exceptionRationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Customer / site name even though the audit-owned crop visibly renders black text on white and the public node is bound to the top navigation-region frame; the exception is limited to the frozen public issue signature.",
+                ignoredAuditIssues: [
+                  {
+                    auditTypeRawValue: "1",
+                    compactDescription: "Contrast failed",
+                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+                    elementIdentifier: "",
+                    elementLabel: "Customer / site name",
+                    elementType: "XCUIElementType(rawValue: 48)",
+                    elementFrame: {
+                      x: 32,
+                      y: 19,
+                      width: 251.66666666666663,
+                      height: 116.66666666666663
+                    },
+                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}
+                  }
+                ]
+              }
+            ]
+          ' > "$contrast_exception_authority_path"
+          test "$(jq 'length' "$contrast_exception_authority_path")" -eq 2
+
+          sed -n 's/^S10_4_CONTRAST //p' "$CI_ARTIFACT_DIR/ui-smoke.log" \
+            > "$shard_evidence_path/contrast.ndjson"
+          jq -s '.' "$shard_evidence_path/contrast.ndjson" \
+            > "$shard_evidence_path/contrast.json"
+          test "$(jq 'length' "$shard_evidence_path/contrast.json")" -eq 67
+
           sed -n 's/^S10_4_AX //p' "$CI_ARTIFACT_DIR/ui-smoke.log" \
             > "$shard_evidence_path/accessibility.ndjson"
           jq -s '.' "$shard_evidence_path/accessibility.ndjson" \
@@ -846,29 +911,79 @@ jobs:
             --arg profile "$CI_S10_4_DEVICE_PROFILE_ID" \
             --arg features "$CI_S10_4_ACCESSIBILITY_FEATURES" \
             --arg shard "$CI_S10_4_SHARD_ID" \
-            --slurpfile contract docs/design/s10/s10-accessibility-common-tasks.json '
+            --slurpfile contract docs/design/s10/s10-accessibility-common-tasks.json \
+            --slurpfile contrasts "$shard_evidence_path/contrast.json" \
+            --slurpfile exceptions "$contrast_exception_authority_path" '
+              def baseEvidence($shardID; $taskID): [
+                "s10.4-ax-" + $shardID + "-" + $taskID,
+                "s10.4-focus-order-" + $shardID + "-" + $taskID,
+                "s10.4-target-size-" + $shardID + "-" + $taskID,
+                "s10.4-contrast-" + $shardID + "-" + $taskID
+              ];
               ($features | if length == 0 then [] else split(",") end) as $expectedFeatures
               | ($contract[0].tasks | map(.task_id)) as $expectedTasks
-              | all(.[];
-                  .taskID as $taskID
+              | ($contrasts[0] | map(select(.result == "EXCEPTION"))) as $stateExceptions
+              | ($stateExceptions
+                  | if length == 0 then null
+                    elif length == 1 then .[0]
+                    else error("more than one contrast exception in one shard")
+                    end) as $stateException
+              | ($exceptions[0]
+                  | map(select(
+                      .shardID == $stateException.shardID
+                      and .stateID == $stateException.stateID
+                    ))
+                  | .[0] // null) as $exceptionAuthority
+              | (($stateException == null) or ($exceptionAuthority != null))
+                and all(.[];
+                  . as $row
+                  | .taskID as $taskID
                   | type == "object"
+                  and ((keys | sort) == ([
+                    "taskID", "shardID", "deviceProfileID", "feature",
+                    "automatedStatus", "automatedReviewer", "evidenceID",
+                    "focusOrderEvidenceID", "targetSizeEvidenceID", "contrastEvidenceID",
+                    "automatedEvidenceIDs", "exceptionIssueID", "exceptionOwner",
+                    "exceptionExpiresAt", "exceptionRationale", "exceptionStateIDs",
+                    "rationale", "aggregateAXTreeSHA256", "stateCount", "stateSetSHA256",
+                    "stateAXTreeDigests"
+                  ] | sort))
                   and (.taskID | type == "string" and IN($expectedTasks[]))
                   and (.shardID == $shard)
                   and (.deviceProfileID == $profile)
                   and (.feature | type == "string" and IN($expectedFeatures[]))
-                  and (.automatedStatus | IN("PASS", "NOT_APPLICABLE", "EXCEPTION"))
+                  and (.automatedReviewer == "FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests")
                   and (.evidenceID == ("s10.4-ax-" + $shard + "-" + $taskID))
                   and (.focusOrderEvidenceID == ("s10.4-focus-order-" + $shard + "-" + $taskID))
                   and (.targetSizeEvidenceID == ("s10.4-target-size-" + $shard + "-" + $taskID))
                   and (.contrastEvidenceID == ("s10.4-contrast-" + $shard + "-" + $taskID))
-                  and ((.automatedEvidenceIDs | sort) == ([
-                    "s10.4-ax-" + $shard + "-" + $taskID,
-                    "s10.4-focus-order-" + $shard + "-" + $taskID,
-                    "s10.4-target-size-" + $shard + "-" + $taskID,
-                    "s10.4-contrast-" + $shard + "-" + $taskID
-                  ] | sort))
                   and (.aggregateAXTreeSHA256 | type == "string" and test("^[0-9A-F]{64}$"))
                   and (.stateCount | type == "number" and . > 0)
+                  and (
+                    if $exceptionAuthority != null and $taskID == $exceptionAuthority.taskID then
+                      (.automatedStatus == "EXCEPTION")
+                      and (.automatedEvidenceIDs == (
+                        baseEvidence($shard; $taskID)
+                        + ["s10.4-contrast-" + $shard + "-" + $stateException.stateID]
+                      ))
+                      and (.exceptionIssueID == $stateException.exceptionIssueID)
+                      and (.exceptionOwner == $stateException.exceptionOwner)
+                      and (.exceptionExpiresAt == $stateException.exceptionExpiresAt)
+                      and (.exceptionRationale == $stateException.exceptionRationale)
+                      and (.exceptionStateIDs == [$stateException.stateID])
+                      and (.rationale == "All task states produced AX-tree, focus-order, and target-size evidence; the sole Apple contrast issue is bound to the named, expiring exception.")
+                      and (.stateAXTreeDigests | map(.stateID) | index($stateException.stateID) != null)
+                    else
+                      (.automatedStatus == "PASS")
+                      and (.automatedEvidenceIDs == baseEvidence($shard; $taskID))
+                      and (.exceptionIssueID == "")
+                      and (.exceptionOwner == "")
+                      and (.exceptionExpiresAt == "")
+                      and (.exceptionRationale == "")
+                      and (.exceptionStateIDs == [])
+                      and (.rationale == "All task states produced AX-tree, focus-order, target-size, and strict Apple contrast evidence.")
+                    end
+                  )
                 )
                 and ([.[] | [.taskID, .deviceProfileID, .feature] | join("|")] as $keys
                   | ($keys | unique | length) == ($keys | length))
@@ -926,30 +1041,62 @@ jobs:
           done < <(jq -c '.[]' "$shard_evidence_path/state-ax.json")
           test "$(find "$state_ax_path" -type f -name 'state.*.json' | wc -l | tr -d ' ')" -eq 67
 
-          sed -n 's/^S10_4_CONTRAST //p' "$CI_ARTIFACT_DIR/ui-smoke.log" \
-            > "$shard_evidence_path/contrast.ndjson"
-          jq -s '.' "$shard_evidence_path/contrast.ndjson" \
-            > "$shard_evidence_path/contrast.json"
-          test "$(jq 'length' "$shard_evidence_path/contrast.json")" -eq 67
           jq -e \
             --arg shard "$CI_S10_4_SHARD_ID" \
             --arg requirement "$CI_S10_4_REQUIREMENT_ID" \
             --arg profile "$CI_S10_4_DEVICE_PROFILE_ID" \
-            --slurpfile inventory docs/design/s10/s10-screen-state-inventory.json '
+            --arg today "$(date -u +%F)" \
+            --slurpfile inventory docs/design/s10/s10-screen-state-inventory.json \
+            --slurpfile exceptions "$contrast_exception_authority_path" '
+              def exceptionEvidence: {
+                exceptionIssueID,
+                exceptionOwner,
+                exceptionExpiresAt,
+                exceptionRationale,
+                ignoredAuditIssues
+              };
               ($inventory[0] | [.routes[].states[].state_id] | sort) as $expectedStates
               | all(.[];
-                  type == "object"
+                  . as $row
+                  | ($exceptions[0]
+                      | map(select(.shardID == $row.shardID and .stateID == $row.stateID))
+                      | .[0] // null) as $authorizedException
+                  | type == "object"
+                  and ((keys | sort) == ([
+                    "shardID", "stateID", "requirementID", "deviceProfileID",
+                    "result", "evidenceID", "axTreeSHA256", "audit",
+                    "exceptionIssueID", "exceptionOwner", "exceptionExpiresAt",
+                    "exceptionRationale", "ignoredAuditIssues"
+                  ] | sort))
                   and (.stateID | type == "string" and IN($expectedStates[]))
                   and (.shardID == $shard)
                   and (.requirementID == $requirement)
                   and (.deviceProfileID == $profile)
-                  and (.result == "PASS")
                   and (.evidenceID == ("s10.4-contrast-" + $shard + "-" + .stateID))
                   and (.axTreeSHA256 | type == "string" and test("^[0-9A-F]{64}$"))
                   and (.audit == "XCUIAccessibilityAuditType.contrast")
+                  and (
+                    if .result == "PASS" then
+                      ((. | exceptionEvidence) == {
+                        exceptionIssueID: "",
+                        exceptionOwner: "",
+                        exceptionExpiresAt: "",
+                        exceptionRationale: "",
+                        ignoredAuditIssues: []
+                      })
+                    elif .result == "EXCEPTION" then
+                      ($authorizedException != null)
+                      and ($authorizedException.exceptionExpiresAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"))
+                      and ($today <= $authorizedException.exceptionExpiresAt)
+                      and ((. | exceptionEvidence) == ($authorizedException | exceptionEvidence))
+                    else
+                      false
+                    end
+                  )
                 )
                 and ([.[].stateID] | unique | length == 67)
                 and ([.[].stateID] | sort) == $expectedStates
+                and ([.[] | select(.result == "EXCEPTION")] | length) <= 1
             ' "$shard_evidence_path/contrast.json" > /dev/null
 
           while IFS= read -r contrast_row; do

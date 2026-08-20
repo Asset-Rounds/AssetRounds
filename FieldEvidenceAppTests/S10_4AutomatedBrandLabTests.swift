@@ -102,11 +102,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             byteCount: 6_678,
             sha256: "C023ADE99CAB0F9ED2984C90BCC0E03B0D05A05643DF7185201CC00772E3C8E4"
         )
+        let workflowPath = ".github/workflows/ios-ci.yml"
         try assertFile(
-            ".github/workflows/ios-ci.yml",
-            byteCount: 64_701,
-            sha256: "6C574B8B57D4179F2C0C03DAEF93A07C6AF8A418AE292FD9A414BBED6EB57BD5"
+            workflowPath,
+            byteCount: 72_776,
+            sha256: "9C6DAAF582405157FE146924846163F00593846111FBB220F94948A8D41C0214"
         )
+        let workflowSource = try text(workflowPath)
 
         let manifest = try json(manifestPath)
         XCTAssertEqual(try string(manifest, "schema_version"), "1.0.0")
@@ -235,6 +237,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let sourceParts = expectedSourceTest.components(separatedBy: "::")
         XCTAssertEqual(sourceParts.count, 2)
+        try assertFile(
+            sourceParts[0],
+            byteCount: 123_113,
+            sha256: "48430B44209D0B8AB1E3D663717B32534981AB5F16EC93C90D45EE27D624E6F8"
+        )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
         XCTAssertTrue(uiSource.contains("func testAutomatedBrandLabShard()"))
@@ -246,6 +253,107 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(uiSource.contains("s10.4-target-size-"))
         XCTAssertTrue(uiSource.contains("automatedEvidenceIDs"))
         XCTAssertTrue(uiSource.contains("22A3351"))
+
+        let exceptionIDs = [
+            "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",
+            "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME",
+        ]
+        let exceptionRationales = [
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Wide view even though the audit-owned crop visibly renders white text on the dark elevated Sample card; the exception is limited to the frozen public issue signature.",
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Customer / site name even though the audit-owned crop visibly renders black text on white and the public node is bound to the top navigation-region frame; the exception is limited to the frozen public issue signature.",
+        ]
+        for lock in exceptionIDs + exceptionRationales {
+            XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1, lock)
+            XCTAssertEqual(workflowSource.components(separatedBy: lock).count - 1, 1, lock)
+        }
+        XCTAssertEqual(
+            uiSource.components(separatedBy: #"owner: "palatis3""#).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            workflowSource.components(separatedBy: #"exceptionOwner: "palatis3""#)
+                .count - 1,
+            2
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: #"expiresAt: "2026-11-20""#).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            workflowSource.components(separatedBy: #"exceptionExpiresAt: "2026-11-20""#)
+                .count - 1,
+            2
+        )
+
+        let signatureLocks = [
+            #"taskID: "report_comprehension""#,
+            #"taskID: "one_handed_start""#,
+            #"elementLabel: "Wide view""#,
+            #"elementLabel: "Customer / site name""#,
+            #"elementTypeDescription: "XCUIElementType(rawValue: 48)""#,
+            "y: 810.33333333333337",
+            "height: 20.333333333333258",
+            "width: 251.66666666666663",
+            "height: 116.66666666666663",
+            "applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)",
+        ]
+        for lock in signatureLocks {
+            XCTAssertTrue(uiSource.contains(lock), lock)
+        }
+
+        let failClosedHandlerLocks = [
+            "guard eligibleExceptions.count <= 1 else",
+            "guard observedIssueCount == 1,",
+            "self.isActive(signature),",
+            "let auditedElement = issue.element,",
+            "String(issue.auditType.rawValue) == signature.auditTypeRawValue,",
+            "issue.compactDescription == signature.compactDescription,",
+            "issue.detailedDescription == signature.detailedDescription,",
+            "auditedElement.identifier == signature.elementIdentifier,",
+            "auditedElement.label == signature.elementLabel,",
+            "== signature.elementTypeDescription,",
+            "auditedElement.frame == signature.elementFrame,",
+            "app.frame == signature.applicationFrame else {",
+            "matchedException = signature",
+            "guard observedIssueCount <= 1 else",
+            "formatter.string(from: Date()) <= signature.expiresAt",
+        ]
+        for lock in failClosedHandlerLocks {
+            XCTAssertTrue(uiSource.contains(lock), lock)
+        }
+        XCTAssertTrue(uiSource.contains("return false\n                    }"))
+        XCTAssertTrue(uiSource.contains("matchedException = signature\n                    return true"))
+        XCTAssertTrue(uiSource.contains(#""result": matchedException == nil ? "PASS" : "EXCEPTION""#))
+        XCTAssertTrue(uiSource.contains(#""ignoredAuditIssues": matchedException.map"#))
+        XCTAssertTrue(uiSource.contains(#""result": "PASS""#))
+        XCTAssertTrue(uiSource.contains("automationContrastExceptions[stateID] = matchedException"))
+        XCTAssertTrue(uiSource.contains("automatedEvidenceIDs.append("))
+        XCTAssertTrue(uiSource.contains(#""automatedStatus": taskExceptions.isEmpty ? "PASS" : "EXCEPTION""#))
+        XCTAssertTrue(uiSource.contains(#"taskEvidence["exceptionStateIDs"] = [taskException.stateID]"#))
+        XCTAssertTrue(uiSource.contains(#"taskEvidence["exceptionIssueID"] = taskException.issueID"#))
+        XCTAssertTrue(uiSource.contains(#"taskEvidence["exceptionOwner"] = taskException.owner"#))
+        XCTAssertTrue(uiSource.contains(#"taskEvidence["exceptionExpiresAt"] = taskException.expiresAt"#))
+        XCTAssertTrue(uiSource.contains(#"taskEvidence["exceptionRationale"] = taskException.rationale"#))
+        XCTAssertFalse(uiSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
+
+        let workflowProtocolLocks = [
+            "contrast_exception_authority_path=",
+            #"if .result == "PASS" then"#,
+            #"elif .result == "EXCEPTION" then"#,
+            "$today <= $authorizedException.exceptionExpiresAt",
+            #"and ([.[] | select(.result == "EXCEPTION")] | length) <= 1"#,
+            "if $exceptionAuthority != null and $taskID == $exceptionAuthority.taskID then",
+            #"(.automatedStatus == "EXCEPTION")"#,
+            #"(.automatedStatus == "PASS")"#,
+            #"+ ["s10.4-contrast-" + $shard + "-" + $stateException.stateID]"#,
+            #"and (.exceptionStateIDs == [$stateException.stateID])"#,
+            "the sole Apple contrast issue is bound to the named, expiring exception.",
+            "strict Apple contrast evidence.",
+        ]
+        for lock in workflowProtocolLocks {
+            XCTAssertTrue(workflowSource.contains(lock), lock)
+        }
+        XCTAssertFalse(workflowSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
         XCTAssertFalse(
             FileManager.default.fileExists(
                 atPath: repositoryRoot

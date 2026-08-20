@@ -43,6 +43,24 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
     }
 
+    private struct ContrastAuditExceptionSignature {
+        let issueID: String
+        let shardID: String
+        let stateID: String
+        let taskID: String
+        let owner: String
+        let expiresAt: String
+        let rationale: String
+        let auditTypeRawValue: String
+        let compactDescription: String
+        let detailedDescription: String
+        let elementIdentifier: String
+        let elementLabel: String
+        let elementTypeDescription: String
+        let elementFrame: CGRect
+        let applicationFrame: CGRect
+    }
+
     private enum AutomationConfigurationError: Error, CustomStringConvertible {
         case invalid(String)
 
@@ -68,6 +86,53 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         AutomationShard(ordinal: 12, shardID: "s10.4.minimum.tall", requirementID: "tall", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "reduced_motion", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-tall", layoutDirection: "left_to_right", differentiateWithoutColor: false, reduceMotion: true, reduceTransparency: false),
         AutomationShard(ordinal: 13, shardID: "s10.4.minimum.accented", requirementID: "accented", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "sufficient_contrast", appearance: "light", contrast: "increased", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-accented", layoutDirection: "left_to_right", differentiateWithoutColor: false, reduceMotion: false, reduceTransparency: false),
         AutomationShard(ordinal: 14, shardID: "s10.4.minimum.bounded", requirementID: "bounded", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "differentiate_without_color", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-bounded", layoutDirection: "left_to_right", differentiateWithoutColor: true, reduceMotion: false, reduceTransparency: false),
+    ]
+
+    private static let contrastAuditExceptionSignatures = [
+        ContrastAuditExceptionSignature(
+            issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",
+            shardID: "s10.4.current.default-dark",
+            stateID: "state.sample-report.ready",
+            taskID: "report_comprehension",
+            owner: "palatis3",
+            expiresAt: "2026-11-20",
+            rationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Wide view even though the audit-owned crop visibly renders white text on the dark elevated Sample card; the exception is limited to the frozen public issue signature.",
+            auditTypeRawValue: "1",
+            compactDescription: "Contrast failed",
+            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+            elementIdentifier: "",
+            elementLabel: "Wide view",
+            elementTypeDescription: "XCUIElementType(rawValue: 48)",
+            elementFrame: CGRect(
+                x: 32,
+                y: 810.33333333333337,
+                width: 80,
+                height: 20.333333333333258
+            ),
+            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
+        ),
+        ContrastAuditExceptionSignature(
+            issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME",
+            shardID: "s10.4.current.ax-text",
+            stateID: "state.new-sign.editing",
+            taskID: "one_handed_start",
+            owner: "palatis3",
+            expiresAt: "2026-11-20",
+            rationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Customer / site name even though the audit-owned crop visibly renders black text on white and the public node is bound to the top navigation-region frame; the exception is limited to the frozen public issue signature.",
+            auditTypeRawValue: "1",
+            compactDescription: "Contrast failed",
+            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+            elementIdentifier: "",
+            elementLabel: "Customer / site name",
+            elementTypeDescription: "XCUIElementType(rawValue: 48)",
+            elementFrame: CGRect(
+                x: 32,
+                y: 19,
+                width: 251.66666666666663,
+                height: 116.66666666666663
+            ),
+            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
+        ),
     ]
 
     private static let commonTaskStateIDs: [(taskID: String, stateIDs: [String])] = [
@@ -147,6 +212,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     private var migratedStateIDs: [String] = []
     private var automationShard: AutomationShard?
     private var automationAXTreeDigests: [String: String] = [:]
+    private var automationContrastExceptions: [String: ContrastAuditExceptionSignature] = [:]
     private var pseudoLabelSentinelValidated = false
 
     override func setUpWithError() throws {
@@ -190,6 +256,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         automationShard = shard
         automationAXTreeDigests.removeAll()
+        automationContrastExceptions.removeAll()
         pseudoLabelSentinelValidated = false
     }
 
@@ -1878,33 +1945,47 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             line: line
         )
         do {
-            if shard.shardID == "s10.4.current.ax-text",
-               stateID == "state.new-sign.editing" {
+            let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
+                $0.shardID == shard.shardID && $0.stateID == stateID
+            }
+            guard eligibleExceptions.count <= 1 else {
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 contrast exception eligibility is ambiguous"
+                )
+            }
+
+            var matchedException: ContrastAuditExceptionSignature?
+            if let signature = eligibleExceptions.first {
+                var observedIssueCount = 0
                 try app.performAccessibilityAudit(for: .contrast) { issue in
-                    var diagnostic: [String: Any] = [
-                        "auditTypeRawValue": String(issue.auditType.rawValue),
-                        "compactDescription": issue.compactDescription,
-                        "detailedDescription": issue.detailedDescription,
-                        "applicationFrame": self.auditFrameObject(app.frame),
-                    ]
-                    if let auditedElement = issue.element {
-                        diagnostic["elementIdentifier"] = auditedElement.identifier
-                        diagnostic["elementLabel"] = auditedElement.label
-                        diagnostic["elementType"] = String(
-                            describing: auditedElement.elementType
-                        )
-                        diagnostic["elementFrame"] = self.auditFrameObject(
-                            auditedElement.frame
-                        )
+                    observedIssueCount += 1
+                    guard observedIssueCount == 1,
+                          self.isActive(signature),
+                          let auditedElement = issue.element,
+                          String(issue.auditType.rawValue) == signature.auditTypeRawValue,
+                          issue.compactDescription == signature.compactDescription,
+                          issue.detailedDescription == signature.detailedDescription,
+                          auditedElement.identifier == signature.elementIdentifier,
+                          auditedElement.label == signature.elementLabel,
+                          String(describing: auditedElement.elementType)
+                            == signature.elementTypeDescription,
+                          auditedElement.frame == signature.elementFrame,
+                          app.frame == signature.applicationFrame else {
+                        return false
                     }
-                    self.printJSONLine(
-                        prefix: "S10_4_AUDIT_DIAGNOSTIC",
-                        object: diagnostic
+                    matchedException = signature
+                    return true
+                }
+                guard observedIssueCount <= 1 else {
+                    throw AutomationConfigurationError.invalid(
+                        "S10.4 contrast exception encountered more than one audit issue"
                     )
-                    return false
                 }
             } else {
                 try app.performAccessibilityAudit(for: .contrast)
+            }
+            if let matchedException {
+                automationContrastExceptions[stateID] = matchedException
             }
             let axTreeDigest = try accessibilityTreeDigest(in: app)
             automationAXTreeDigests[stateID] = axTreeDigest
@@ -1922,16 +2003,30 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             ])
 
             let contrastEvidenceID = "s10.4-contrast-\(shard.shardID)-\(stateID)"
-            printJSONLine(prefix: "S10_4_CONTRAST", object: [
+            var contrastEvidence: [String: Any] = [
                 "shardID": shard.shardID,
                 "stateID": stateID,
                 "requirementID": shard.requirementID,
                 "deviceProfileID": shard.deviceProfileID,
-                "result": "PASS",
+                "result": matchedException == nil ? "PASS" : "EXCEPTION",
                 "evidenceID": contrastEvidenceID,
                 "axTreeSHA256": axTreeDigest,
                 "audit": "XCUIAccessibilityAuditType.contrast",
-            ])
+                "exceptionIssueID": "",
+                "exceptionOwner": "",
+                "exceptionExpiresAt": "",
+                "exceptionRationale": "",
+                "ignoredAuditIssues": matchedException.map {
+                    [self.publicAuditSignatureObject($0)]
+                } ?? [],
+            ]
+            if let matchedException {
+                contrastEvidence["exceptionIssueID"] = matchedException.issueID
+                contrastEvidence["exceptionOwner"] = matchedException.owner
+                contrastEvidence["exceptionExpiresAt"] = matchedException.expiresAt
+                contrastEvidence["exceptionRationale"] = matchedException.rationale
+            }
+            printJSONLine(prefix: "S10_4_CONTRAST", object: contrastEvidence)
 
             let pngData = XCUIScreen.main.screenshot().pngRepresentation
             let pngSignature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
@@ -1954,6 +2049,34 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 line: line
             )
         }
+    }
+
+    private func isActive(_ signature: ContrastAuditExceptionSignature) -> Bool {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard formatter.string(from: Date()) <= signature.expiresAt,
+              formatter.date(from: signature.expiresAt) != nil else {
+            return false
+        }
+        return true
+    }
+
+    private func publicAuditSignatureObject(
+        _ signature: ContrastAuditExceptionSignature
+    ) -> [String: Any] {
+        [
+            "auditTypeRawValue": signature.auditTypeRawValue,
+            "compactDescription": signature.compactDescription,
+            "detailedDescription": signature.detailedDescription,
+            "elementIdentifier": signature.elementIdentifier,
+            "elementLabel": signature.elementLabel,
+            "elementType": signature.elementTypeDescription,
+            "elementFrame": auditFrameObject(signature.elementFrame),
+            "applicationFrame": auditFrameObject(signature.applicationFrame),
+        ]
     }
 
     private func auditFrameObject(_ frame: CGRect) -> [String: Double] {
@@ -2106,27 +2229,68 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 "s10.4-target-size-\(shard.shardID)-\(task.taskID)"
             let contrastEvidenceID =
                 "s10.4-contrast-\(shard.shardID)-\(task.taskID)"
-            printJSONLine(prefix: "S10_4_AX", object: [
+            let taskExceptions = automationContrastExceptions.values.filter {
+                $0.taskID == task.taskID
+            }
+            XCTAssertLessThanOrEqual(
+                taskExceptions.count,
+                1,
+                "A common task may propagate at most one exact contrast exception",
+                file: file,
+                line: line
+            )
+            if let taskException = taskExceptions.first {
+                XCTAssertTrue(
+                    task.stateIDs.contains(taskException.stateID),
+                    "The exact contrast exception state must belong to its common task",
+                    file: file,
+                    line: line
+                )
+            }
+            var automatedEvidenceIDs = [
+                axEvidenceID,
+                focusOrderEvidenceID,
+                targetSizeEvidenceID,
+                contrastEvidenceID,
+            ]
+            if let taskException = taskExceptions.first {
+                automatedEvidenceIDs.append(
+                    "s10.4-contrast-\(shard.shardID)-\(taskException.stateID)"
+                )
+            }
+
+            var taskEvidence: [String: Any] = [
                 "taskID": task.taskID,
                 "shardID": shard.shardID,
                 "deviceProfileID": shard.deviceProfileID,
                 "feature": shard.accessibilityFeature,
-                "automatedStatus": "PASS",
+                "automatedStatus": taskExceptions.isEmpty ? "PASS" : "EXCEPTION",
+                "automatedReviewer": "FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests",
+                "exceptionIssueID": "",
+                "exceptionOwner": "",
+                "exceptionExpiresAt": "",
+                "exceptionRationale": "",
+                "exceptionStateIDs": [String](),
+                "rationale": "All task states produced AX-tree, focus-order, target-size, and strict Apple contrast evidence.",
                 "evidenceID": axEvidenceID,
                 "focusOrderEvidenceID": focusOrderEvidenceID,
                 "targetSizeEvidenceID": targetSizeEvidenceID,
                 "contrastEvidenceID": contrastEvidenceID,
-                "automatedEvidenceIDs": [
-                    axEvidenceID,
-                    focusOrderEvidenceID,
-                    targetSizeEvidenceID,
-                    contrastEvidenceID,
-                ],
+                "automatedEvidenceIDs": automatedEvidenceIDs,
                 "stateCount": stateEvidence.count,
                 "stateSetSHA256": stateSetDigest,
                 "aggregateAXTreeSHA256": aggregateDigest,
                 "stateAXTreeDigests": stateEvidence,
-            ])
+            ]
+            if let taskException = taskExceptions.first {
+                taskEvidence["exceptionIssueID"] = taskException.issueID
+                taskEvidence["exceptionOwner"] = taskException.owner
+                taskEvidence["exceptionExpiresAt"] = taskException.expiresAt
+                taskEvidence["exceptionRationale"] = taskException.rationale
+                taskEvidence["exceptionStateIDs"] = [taskException.stateID]
+                taskEvidence["rationale"] = "All task states produced AX-tree, focus-order, and target-size evidence; the sole Apple contrast issue is bound to the named, expiring exception."
+            }
+            printJSONLine(prefix: "S10_4_AX", object: taskEvidence)
         }
     }
 
