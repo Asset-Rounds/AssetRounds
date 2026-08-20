@@ -241,7 +241,7 @@ jobs:
                   {
                     deviceProfileID: "iphone-se-3-ios-18.0-minimum",
                     simulatorRuntime: "iOS 18.0",
-                    simulatorRuntimeBuild: "22A3354",
+                    simulatorRuntimeBuild: "22A3351",
                     simulatorName: "iPhone SE (3rd generation)",
                     provisionRuntime: true,
                     runtimeDownloadVersion: "18.0"
