@@ -2308,6 +2308,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
                 $0.shardID == shard.shardID && $0.stateID == stateID
             }
+            if shard.shardID == "s10.4.current.default-dark",
+               stateID == "state.feedback.review-ready" {
+                try enumerateFeedbackContrastAuditIssues(
+                    in: app,
+                    eligibleExceptions: eligibleExceptions
+                )
+            }
             let stateIssueLimit =
                 shard.shardID == "s10.4.current.ax-text"
                 && stateID == "state.check-preflight.ready" ? 2 : 1
@@ -2440,6 +2447,191 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 line: line
             )
         }
+    }
+
+    @MainActor
+    private func enumerateFeedbackContrastAuditIssues(
+        in app: XCUIApplication,
+        eligibleExceptions: [ContrastAuditExceptionSignature]
+    ) throws {
+        let feedbackScreen = element("s8.4.feedback.screen", in: app)
+        let feedbackScrollViews = app.scrollViews.allElementsBoundByIndex.filter {
+            $0.descendants(matching: .any)
+                .matching(identifier: "s8.4.feedback.save-diagnostics")
+                .count == 1
+        }
+        guard feedbackScrollViews.count == 1,
+              let feedbackScrollView = feedbackScrollViews.first else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 Feedback diagnostic requires one ScrollView containing Save diagnostics"
+            )
+        }
+        let privacy = element("s8.4.feedback.privacy", in: app)
+        let review = element("s8.4.feedback.review", in: app)
+        let appMetadata = app.staticTexts
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "App "))
+            .firstMatch
+        let copyAddress = element("s8.4.feedback.copy-address", in: app)
+        let saveDiagnostics = feedbackScrollView.descendants(matching: .any)
+            .matching(identifier: "s8.4.feedback.save-diagnostics")
+            .firstMatch
+        let navigationBar = app.navigationBars.firstMatch
+        let signsTab = element("s1.tab.signs", in: app)
+        guard feedbackScreen.exists,
+              feedbackScrollView.exists,
+              privacy.exists,
+              review.exists,
+              appMetadata.exists,
+              copyAddress.exists,
+              saveDiagnostics.exists,
+              navigationBar.exists,
+              signsTab.exists,
+              app.state == .runningForeground else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 Feedback diagnostic live bindings are incomplete"
+            )
+        }
+
+        guard eligibleExceptions.count == 1,
+              let privacyAuthority = eligibleExceptions.first,
+              privacyAuthority.elementIdentifier == privacy.identifier,
+              privacyAuthority.taskID == "history_recovery" else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 Feedback diagnostic requires its sole frozen privacy authority"
+            )
+        }
+        let eligibleIssueIDs = eligibleExceptions.map(\.issueID).sorted()
+        var callbackCount = 0
+        var orderedIssueIdentities: [String] = []
+        try app.performAccessibilityAudit(for: .contrast) { issue in
+            callbackCount += 1
+            let issueIndex = callbackCount
+            let auditedElement = issue.element
+            let auditTypeRawValue = String(issue.auditType.rawValue)
+            let elementIdentifier = auditedElement?.identifier ?? ""
+            let elementLabel = auditedElement?.label ?? ""
+            let elementType = auditedElement.map {
+                String(describing: $0.elementType)
+            } ?? ""
+            let elementFrame = auditedElement?.frame
+            let elementFrameObject: Any
+            if let elementFrame {
+                elementFrameObject = self.auditFrameObject(elementFrame)
+            } else {
+                elementFrameObject = NSNull()
+            }
+            let applicationFrame = app.frame
+            let privacyAuthorityFieldMatches: [String: Bool] = [
+                "auditTypeRawValue": auditTypeRawValue
+                    == privacyAuthority.auditTypeRawValue,
+                "compactDescription": issue.compactDescription
+                    == privacyAuthority.compactDescription,
+                "detailedDescription": issue.detailedDescription
+                    == privacyAuthority.detailedDescription,
+                "elementIdentifier": elementIdentifier
+                    == privacyAuthority.elementIdentifier,
+                "elementLabel": elementLabel == privacyAuthority.elementLabel,
+                "elementType": elementType
+                    == privacyAuthority.elementTypeDescription,
+                "elementFrame": elementFrame == privacyAuthority.elementFrame,
+                "applicationFrame": applicationFrame
+                    == privacyAuthority.applicationFrame,
+            ]
+            let mismatchedPrivacyAuthorityFields = privacyAuthorityFieldMatches
+                .filter { !$0.value }
+                .map(\.key)
+                .sorted()
+            let elementFrameIdentity = elementFrame.map {
+                String(describing: $0)
+            } ?? "nil"
+            let issueIdentity = [
+                "index=\(issueIndex)",
+                "auditTypeRawValue=\(auditTypeRawValue)",
+                "compactDescription=\(issue.compactDescription)",
+                "detailedDescription=\(issue.detailedDescription)",
+                "elementIdentifier=\(elementIdentifier)",
+                "elementLabel=\(elementLabel)",
+                "elementType=\(elementType)",
+                "elementFrame=\(elementFrameIdentity)",
+                "applicationFrame=\(String(describing: applicationFrame))",
+            ].joined(separator: " | ")
+            orderedIssueIdentities.append(issueIdentity)
+
+            self.printJSONLine(
+                prefix: "S10_4_AUDIT_DIAGNOSTIC",
+                object: [
+                    "issueIndex": issueIndex,
+                    "issueIdentity": issueIdentity,
+                    "auditTypeRawValue": auditTypeRawValue,
+                    "compactDescription": issue.compactDescription,
+                    "detailedDescription": issue.detailedDescription,
+                    "elementIdentifier": elementIdentifier,
+                    "elementLabel": elementLabel,
+                    "elementType": elementType,
+                    "elementFrame": elementFrameObject,
+                    "applicationFrame": self.auditFrameObject(applicationFrame),
+                    "liveFeedbackScreenFrame": self.auditFrameObject(
+                        feedbackScreen.frame
+                    ),
+                    "liveFeedbackScrollViewFrame": self.auditFrameObject(
+                        feedbackScrollView.frame
+                    ),
+                    "livePrivacyFrame": self.auditFrameObject(privacy.frame),
+                    "liveReviewFrame": self.auditFrameObject(review.frame),
+                    "liveAppMetadataFrame": self.auditFrameObject(appMetadata.frame),
+                    "liveCopyAddressFrame": self.auditFrameObject(copyAddress.frame),
+                    "liveSaveDiagnosticsFrame": self.auditFrameObject(
+                        saveDiagnostics.frame
+                    ),
+                    "liveNavigationBarFrame": self.auditFrameObject(
+                        navigationBar.frame
+                    ),
+                    "liveSignsTabFrame": self.auditFrameObject(signsTab.frame),
+                    "liveApplicationFrame": self.auditFrameObject(app.frame),
+                    "eligibleIssueIDs": eligibleIssueIDs,
+                    "privacyAuthority": self.publicAuditSignatureObject(
+                        privacyAuthority
+                    ),
+                    "privacyAuthorityFieldMatches": privacyAuthorityFieldMatches,
+                    "privacyAuthorityMatchClassification":
+                        mismatchedPrivacyAuthorityFields.isEmpty
+                        ? "EXACT_MATCH"
+                        : "FIELD_MISMATCH",
+                    "mismatchedPrivacyAuthorityFields":
+                        mismatchedPrivacyAuthorityFields,
+                ]
+            )
+
+            let appAttachment = XCTAttachment(screenshot: app.screenshot())
+            appAttachment.name = String(
+                format: "S10.4 Feedback diagnostic app callback %03d",
+                issueIndex
+            )
+            appAttachment.lifetime = .keepAlways
+            self.add(appAttachment)
+            if let auditedElement {
+                let issueAttachment = XCTAttachment(
+                    screenshot: auditedElement.screenshot()
+                )
+                issueAttachment.name = String(
+                    format: "S10.4 Feedback diagnostic issue callback %03d %@",
+                    issueIndex,
+                    elementIdentifier.isEmpty ? "unidentified" : elementIdentifier
+                )
+                issueAttachment.lifetime = .keepAlways
+                self.add(issueAttachment)
+            }
+            return true
+        }
+        guard callbackCount > 0 else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 Feedback diagnostic returned with callbackCount=0"
+            )
+        }
+        throw AutomationConfigurationError.invalid(
+            "S10.4 Feedback diagnostic enumerated callbackCount=\(callbackCount) "
+                + "orderedIssueIdentities=\(orderedIssueIdentities)"
+        )
     }
 
     private func isActive(_ signature: ContrastAuditExceptionSignature) -> Bool {

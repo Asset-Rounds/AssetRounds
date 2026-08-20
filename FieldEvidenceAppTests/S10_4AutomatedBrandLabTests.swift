@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 144_669,
-            sha256: "6DF94F11F93336C944CF3CD0EE7C4610C482692A8BFFDDB5258347E54F7CDCA6"
+            byteCount: 153_834,
+            sha256: "3B7CB29A51779B1145135AC8D8FF73324A376416E99DC9DC92198D53EF9F9A58"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1424,7 +1424,285 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             2,
             "The two default-dark exception issues must remain bound to separate tasks"
         )
-        XCTAssertFalse(uiSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
+        let feedbackDiagnosticCall =
+            #"            if shard.shardID == "s10.4.current.default-dark","# + "\n" +
+                #"               stateID == "state.feedback.review-ready" {"# + "\n" +
+                "                try enumerateFeedbackContrastAuditIssues(\n" +
+                "                    in: app,\n" +
+                "                    eligibleExceptions: eligibleExceptions\n" +
+                "                )\n" +
+                "            }"
+        XCTAssertEqual(
+            uiSource.components(separatedBy: feedbackDiagnosticCall).count - 1,
+            1
+        )
+        let feedbackDiagnosticCallParts = uiSource.components(
+            separatedBy: feedbackDiagnosticCall
+        )
+        XCTAssertEqual(feedbackDiagnosticCallParts.count, 2)
+        let feedbackDiagnosticCallTail = feedbackDiagnosticCallParts[1]
+        let genericStateIssueLimitMarker = "\n            let stateIssueLimit ="
+        guard let genericStateIssueLimitRange = feedbackDiagnosticCallTail.range(
+            of: genericStateIssueLimitMarker
+        ) else {
+            XCTFail("The Feedback diagnostic call must precede generic issue matching")
+            return
+        }
+        let feedbackDiagnosticCallPrefix = String(
+            feedbackDiagnosticCallTail[..<genericStateIssueLimitRange.lowerBound]
+        )
+        XCTAssertFalse(feedbackDiagnosticCallPrefix.contains("matchedExceptions"))
+        XCTAssertFalse(feedbackDiagnosticCallPrefix.contains("accessibilityTreeDigest"))
+
+        let feedbackDiagnosticStartMarker =
+            "    @MainActor\n" +
+                "    private func enumerateFeedbackContrastAuditIssues("
+        let feedbackDiagnosticParts = uiSource.components(
+            separatedBy: feedbackDiagnosticStartMarker
+        )
+        guard feedbackDiagnosticParts.count == 2 else {
+            XCTFail("The UI source must contain exactly one Feedback enumeration helper")
+            return
+        }
+        let feedbackDiagnosticTail = feedbackDiagnosticParts[1]
+        let feedbackDiagnosticBoundary = "\n    private func isActive("
+        guard let feedbackDiagnosticEnd = feedbackDiagnosticTail.range(
+            of: feedbackDiagnosticBoundary
+        ) else {
+            XCTFail("The Feedback enumeration helper has no exact helper boundary")
+            return
+        }
+        let feedbackDiagnosticSlice = feedbackDiagnosticStartMarker
+            + String(feedbackDiagnosticTail[..<feedbackDiagnosticEnd.lowerBound])
+
+        let feedbackBindingLocks = [
+            #"let feedbackScreen = element("s8.4.feedback.screen", in: app)"#,
+            "let feedbackScrollViews = app.scrollViews.allElementsBoundByIndex.filter {",
+            #".matching(identifier: "s8.4.feedback.save-diagnostics")"#,
+            ".count == 1",
+            "guard feedbackScrollViews.count == 1,",
+            "let feedbackScrollView = feedbackScrollViews.first else",
+            #"let privacy = element("s8.4.feedback.privacy", in: app)"#,
+            #"let review = element("s8.4.feedback.review", in: app)"#,
+            #".matching(NSPredicate(format: "label BEGINSWITH %@", "App "))"#,
+            #"let copyAddress = element("s8.4.feedback.copy-address", in: app)"#,
+            "let saveDiagnostics = feedbackScrollView.descendants(matching: .any)",
+            "let navigationBar = app.navigationBars.firstMatch",
+            #"let signsTab = element("s1.tab.signs", in: app)"#,
+            "S10.4 Feedback diagnostic live bindings are incomplete",
+            "guard eligibleExceptions.count == 1,",
+            "let privacyAuthority = eligibleExceptions.first,",
+            "privacyAuthority.elementIdentifier == privacy.identifier,",
+            #"privacyAuthority.taskID == "history_recovery" else"#,
+        ]
+        for lock in feedbackBindingLocks {
+            XCTAssertTrue(feedbackDiagnosticSlice.contains(lock), lock)
+        }
+        XCTAssertEqual(
+            feedbackDiagnosticSlice.components(
+                separatedBy: #".matching(identifier: "s8.4.feedback.save-diagnostics")"#
+            ).count - 1,
+            2
+        )
+
+        let feedbackPublicFieldLocks = [
+            #""auditTypeRawValue": auditTypeRawValue,"#,
+            #""compactDescription": issue.compactDescription,"#,
+            #""detailedDescription": issue.detailedDescription,"#,
+            #""elementIdentifier": elementIdentifier,"#,
+            #""elementLabel": elementLabel,"#,
+            #""elementType": elementType,"#,
+            #""elementFrame": elementFrameObject,"#,
+            #""applicationFrame": self.auditFrameObject(applicationFrame),"#,
+        ]
+        for lock in feedbackPublicFieldLocks {
+            XCTAssertEqual(
+                feedbackDiagnosticSlice.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        let feedbackLiveFieldLocks = [
+            #""liveFeedbackScreenFrame": self.auditFrameObject("#,
+            #""liveFeedbackScrollViewFrame": self.auditFrameObject("#,
+            #""livePrivacyFrame": self.auditFrameObject(privacy.frame)"#,
+            #""liveReviewFrame": self.auditFrameObject(review.frame)"#,
+            #""liveAppMetadataFrame": self.auditFrameObject(appMetadata.frame)"#,
+            #""liveCopyAddressFrame": self.auditFrameObject(copyAddress.frame)"#,
+            #""liveSaveDiagnosticsFrame": self.auditFrameObject("#,
+            #""liveNavigationBarFrame": self.auditFrameObject("#,
+            #""liveSignsTabFrame": self.auditFrameObject(signsTab.frame)"#,
+            #""liveApplicationFrame": self.auditFrameObject(app.frame)"#,
+        ]
+        for lock in feedbackLiveFieldLocks {
+            XCTAssertEqual(
+                feedbackDiagnosticSlice.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+
+        let feedbackMatchLocks = [
+            #"let eligibleIssueIDs = eligibleExceptions.map(\.issueID).sorted()"#,
+            "var callbackCount = 0",
+            "callbackCount += 1",
+            "let issueIndex = callbackCount",
+            "var orderedIssueIdentities: [String] = []",
+            "orderedIssueIdentities.append(issueIdentity)",
+            "let elementFrameObject: Any",
+            "if let elementFrame {",
+            "elementFrameObject = self.auditFrameObject(elementFrame)",
+            "elementFrameObject = NSNull()",
+            "let privacyAuthorityFieldMatches: [String: Bool] = [",
+            "== privacyAuthority.auditTypeRawValue",
+            "== privacyAuthority.compactDescription",
+            "== privacyAuthority.detailedDescription",
+            "== privacyAuthority.elementIdentifier",
+            "elementLabel == privacyAuthority.elementLabel",
+            "== privacyAuthority.elementTypeDescription",
+            "elementFrame == privacyAuthority.elementFrame",
+            "== privacyAuthority.applicationFrame",
+            "let mismatchedPrivacyAuthorityFields = privacyAuthorityFieldMatches",
+            ".filter { !$0.value }",
+            #".map(\.key)"#,
+            ".sorted()",
+            #""eligibleIssueIDs": eligibleIssueIDs"#,
+            #""privacyAuthority": self.publicAuditSignatureObject("#,
+            #""privacyAuthorityFieldMatches": privacyAuthorityFieldMatches"#,
+            #""privacyAuthorityMatchClassification":"#,
+            #"? "EXACT_MATCH""#,
+            #": "FIELD_MISMATCH""#,
+            #""mismatchedPrivacyAuthorityFields":"#,
+        ]
+        for lock in feedbackMatchLocks {
+            XCTAssertTrue(feedbackDiagnosticSlice.contains(lock), lock)
+        }
+        XCTAssertEqual(
+            feedbackDiagnosticSlice.components(
+                separatedBy: #"prefix: "S10_4_AUDIT_DIAGNOSTIC""#
+            ).count - 1,
+            1
+        )
+
+        let feedbackAttachmentLocks = [
+            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            #"format: "S10.4 Feedback diagnostic app callback %03d""#,
+            "appAttachment.lifetime = .keepAlways",
+            "self.add(appAttachment)",
+            "if let auditedElement {",
+            "let issueAttachment = XCTAttachment(",
+            "screenshot: auditedElement.screenshot()",
+            #"format: "S10.4 Feedback diagnostic issue callback %03d %@""#,
+            "issueAttachment.lifetime = .keepAlways",
+            "self.add(issueAttachment)",
+        ]
+        for lock in feedbackAttachmentLocks {
+            XCTAssertEqual(
+                feedbackDiagnosticSlice.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        XCTAssertEqual(
+            feedbackDiagnosticSlice.components(separatedBy: "XCTAttachment").count - 1,
+            2
+        )
+        XCTAssertEqual(
+            feedbackDiagnosticSlice.components(separatedBy: "return true").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            feedbackDiagnosticSlice.components(separatedBy: "return false").count - 1,
+            0
+        )
+
+        let feedbackDiagnosticTerminalLocks = [
+            "guard callbackCount > 0 else {",
+            "S10.4 Feedback diagnostic returned with callbackCount=0",
+            "S10.4 Feedback diagnostic enumerated callbackCount=\\(callbackCount) ",
+            "+ \"orderedIssueIdentities=\\(orderedIssueIdentities)\"",
+        ]
+        for lock in feedbackDiagnosticTerminalLocks {
+            XCTAssertEqual(
+                feedbackDiagnosticSlice.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        let feedbackDiagnosticPositiveCountGuard =
+            "        guard callbackCount > 0 else {\n" +
+                "            throw AutomationConfigurationError.invalid(\n" +
+                "                \"S10.4 Feedback diagnostic returned with callbackCount=0\"\n" +
+                "            )\n" +
+                "        }"
+        XCTAssertEqual(
+            feedbackDiagnosticSlice.components(
+                separatedBy: feedbackDiagnosticPositiveCountGuard
+            ).count - 1,
+            1
+        )
+        let feedbackDiagnosticUnconditionalThrow =
+            "        throw AutomationConfigurationError.invalid(\n" +
+                "            \"S10.4 Feedback diagnostic enumerated callbackCount=\\(callbackCount) \"\n" +
+                "                + \"orderedIssueIdentities=\\(orderedIssueIdentities)\"\n" +
+                "        )"
+        XCTAssertEqual(
+            feedbackDiagnosticSlice.components(
+                separatedBy: feedbackDiagnosticUnconditionalThrow
+            ).count - 1,
+            1
+        )
+        let auditRange = try XCTUnwrap(
+            feedbackDiagnosticSlice.range(
+                of: "try app.performAccessibilityAudit(for: .contrast) { issue in"
+            )
+        )
+        let appAttachmentRange = try XCTUnwrap(
+            feedbackDiagnosticSlice.range(of: "let appAttachment = XCTAttachment")
+        )
+        let conditionalIssueAttachmentRange = try XCTUnwrap(
+            feedbackDiagnosticSlice.range(of: "if let auditedElement {")
+        )
+        let returnTrueRange = try XCTUnwrap(
+            feedbackDiagnosticSlice.range(of: "return true")
+        )
+        let positiveCountRange = try XCTUnwrap(
+            feedbackDiagnosticSlice.range(of: "guard callbackCount > 0 else {")
+        )
+        let orderedThrowRange = try XCTUnwrap(
+            feedbackDiagnosticSlice.range(
+                of: "S10.4 Feedback diagnostic enumerated callbackCount="
+            )
+        )
+        XCTAssertLessThan(auditRange.lowerBound, appAttachmentRange.lowerBound)
+        XCTAssertLessThan(
+            appAttachmentRange.lowerBound,
+            conditionalIssueAttachmentRange.lowerBound
+        )
+        XCTAssertLessThan(
+            conditionalIssueAttachmentRange.lowerBound,
+            returnTrueRange.lowerBound
+        )
+        XCTAssertLessThan(returnTrueRange.lowerBound, positiveCountRange.lowerBound)
+        XCTAssertLessThan(positiveCountRange.lowerBound, orderedThrowRange.lowerBound)
+
+        for forbidden in [
+            "accessibilityTreeDigest(in: app)",
+            "automationAXTreeDigests",
+            #"printJSONLine(prefix: "S10_4_AX_STATE""#,
+            #"printJSONLine(prefix: "S10_4_CONTRAST""#,
+            "automationContrastExceptions[stateID]",
+            "automatedEvidenceIDs",
+            "matchedExceptions",
+            "S10.4 candidate ",
+            "shard-receipt",
+        ] {
+            XCTAssertFalse(feedbackDiagnosticSlice.contains(forbidden), forbidden)
+        }
+        XCTAssertEqual(
+            uiSource.components(separatedBy: "S10_4_AUDIT_DIAGNOSTIC").count - 1,
+            1
+        )
 
         let workflowProtocolLocks = [
             "contrast_exception_authority_path=",
