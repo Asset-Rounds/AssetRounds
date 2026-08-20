@@ -128,10 +128,7 @@ struct ReportsRootView: View {
         } label: {
             Label(siteFilterLabel, systemImage: "building.2")
         }
-        .buttonStyle(.bordered)
-        .tint(DesignTokens.SemanticColors.primaryAction)
-        .controlSize(.large)
-        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+        .buttonStyle(WorklightSecondaryButtonStyle())
         .accessibilityLabel(siteFilterLabel)
         .accessibilityHint("Filters saved reports by site")
         .accessibilityIdentifier(Self.siteFilterAccessibilityIdentifier)
@@ -170,10 +167,7 @@ struct ReportsRootView: View {
         } label: {
             Label(signFilterLabel, systemImage: "signpost.right")
         }
-        .buttonStyle(.bordered)
-        .tint(DesignTokens.SemanticColors.primaryAction)
-        .controlSize(.large)
-        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+        .buttonStyle(WorklightSecondaryButtonStyle())
         .accessibilityLabel(signFilterLabel)
         .accessibilityHint("Filters saved reports by sign")
         .accessibilityIdentifier(Self.signFilterAccessibilityIdentifier)
@@ -496,10 +490,7 @@ private struct ReportVisitList: View {
                         "View report",
                         value: ReportHistoryRoute.report(visit.reportID)
                     )
-                    .buttonStyle(.bordered)
-                    .tint(DesignTokens.SemanticColors.primaryAction)
-                    .controlSize(.large)
-                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+                    .buttonStyle(WorklightPrimaryButtonStyle())
                     .accessibilityHint("Opens this saved report")
                     .accessibilityIdentifier(
                         ReportsRootView.viewReportAccessibilityIdentifier
@@ -510,10 +501,7 @@ private struct ReportVisitList: View {
                             "Compare with previous",
                             value: ReportHistoryRoute.comparison(visit.stableRootID)
                         )
-                        .buttonStyle(.bordered)
-                        .tint(DesignTokens.SemanticColors.primaryAction)
-                        .controlSize(.large)
-                        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+                        .buttonStyle(WorklightSecondaryButtonStyle())
                         .accessibilityHint(
                             "Compares this visit with the immediately previous visit"
                         )

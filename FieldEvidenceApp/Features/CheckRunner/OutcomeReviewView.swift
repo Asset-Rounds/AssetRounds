@@ -315,14 +315,10 @@ struct OutcomeReviewView: View {
             .disabled(isSaving)
             .accessibilityIdentifier(Self.saveAccessibilityIdentifier)
 
-            Button("Back") {
+            AssetRoundsSecondaryAction("Back") {
                 self.review = nil
                 errorMessage = nil
             }
-            .buttonStyle(.bordered)
-            .tint(DesignTokens.SemanticColors.primaryAction)
-            .controlSize(.large)
-            .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
             .disabled(isSaving)
             .accessibilityIdentifier(Self.backAccessibilityIdentifier)
             }
@@ -338,17 +334,13 @@ struct OutcomeReviewView: View {
         identifier: String,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
+        AssetRoundsSecondaryAction(action: action) {
             HStack {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                 Text(title)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .buttonStyle(.bordered)
-        .tint(DesignTokens.SemanticColors.primaryAction)
-        .controlSize(.large)
-        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
         .accessibilityIdentifier(identifier)
     }

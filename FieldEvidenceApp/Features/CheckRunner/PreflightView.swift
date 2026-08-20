@@ -192,11 +192,7 @@ struct PreflightView: View {
             .accessibilityIdentifier(Self.beginAccessibilityIdentifier)
             .accessibilityHidden(focusedField == .timeZone)
 
-            Button("Cancel — no check started", action: cancel)
-                .buttonStyle(.bordered)
-                .tint(DesignTokens.SemanticColors.primaryAction)
-                .controlSize(.large)
-                .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+            AssetRoundsSecondaryAction("Cancel — no check started", action: cancel)
                 .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)
                 .accessibilityHidden(focusedField == .timeZone)
         }

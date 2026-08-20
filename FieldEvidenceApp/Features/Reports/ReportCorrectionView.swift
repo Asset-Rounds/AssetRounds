@@ -208,15 +208,11 @@ struct ReportCorrectionView: View {
                 .accessibilityFocused($accessibilityFocus, equals: .failure)
                 .accessibilityIdentifier(Self.failureAccessibilityIdentifier)
 
-                Button("View prior report") {
+                AssetRoundsSecondaryAction("View prior report") {
                     acknowledgeDeliveryFailureIfNeeded(reportID: reportID)
                     didSelectReport(priorReportID)
                     dismiss()
                 }
-                .buttonStyle(.bordered)
-                .tint(DesignTokens.SemanticColors.primaryAction)
-                .controlSize(.large)
-                .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                 .accessibilityHint("Opens the immediately prior saved report.")
                 .accessibilityIdentifier(Self.priorReportAccessibilityIdentifier)
             }
@@ -243,14 +239,10 @@ struct ReportCorrectionView: View {
                 .accessibilityIdentifier(Self.readyAccessibilityIdentifier)
 
             if let priorReportID {
-                Button("View prior report") {
+                AssetRoundsSecondaryAction("View prior report") {
                     didSelectReport(priorReportID)
                     dismiss()
                 }
-                .buttonStyle(.bordered)
-                .tint(DesignTokens.SemanticColors.primaryAction)
-                .controlSize(.large)
-                .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                 .accessibilityHint("Opens the immediately prior saved report.")
                 .accessibilityIdentifier(Self.priorReportAccessibilityIdentifier)
             }

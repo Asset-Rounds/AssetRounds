@@ -415,12 +415,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             path: String,
             byteCount: Int,
             sha256: String,
-            fragments: [String]
+            fragments: [String],
+            counts: [Int],
+            primaryTintCount: Int
         )] = [
             (
                 "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
-                23_282,
-                "5E24EA6F73AB499CED1A6D47C4497D8E623E14EFB9833CD2A1C1EB4831AA766C",
+                22_926,
+                "82E2AA1A52DBE6A2D0FA8F61B6983F369B87325E0542E2385774F988F2F7697A",
                 [
                     "AssetRoundsPrimaryAction(\"Continue\") {\n" +
                         "                prepareReview()\n" +
@@ -430,46 +432,196 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                         "            }) {\n" +
                         "                Text(isSaving ? \"Saving…\" : \"Save and finish\")\n" +
                         "            }",
-                ]
+                    "AssetRoundsSecondaryAction(\"Back\") {\n" +
+                        "                self.review = nil\n" +
+                        "                errorMessage = nil\n" +
+                        "            }\n" +
+                        "            .disabled(isSaving)\n" +
+                        "            .accessibilityIdentifier(Self.backAccessibilityIdentifier)",
+                    "AssetRoundsSecondaryAction(action: action) {\n" +
+                        "            HStack {\n" +
+                        "                Image(systemName: isSelected ? \"checkmark.circle.fill\" : \"circle\")\n" +
+                        "                Text(title)\n" +
+                        "                    .frame(maxWidth: .infinity, alignment: .leading)\n" +
+                        "            }\n" +
+                        "        }\n" +
+                        "        .accessibilityValue(isSelected ? \"Selected\" : \"Not selected\")\n" +
+                        "        .accessibilityIdentifier(identifier)",
+                ],
+                [2, 2, 0, 0, 0],
+                0
+            ),
+            (
+                "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+                14_398,
+                "35FA0E666279EE3D8D4B50950860EB99446EAC0C2BC1270C01CEFEF94680F72B",
+                [
+                    #"AssetRoundsPrimaryAction("Begin check", action: begin)"#,
+                    "AssetRoundsSecondaryAction(\"Cancel — no check started\", action: cancel)\n" +
+                        "                .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)\n" +
+                        "                .accessibilityHidden(focusedField == .timeZone)",
+                ],
+                [1, 1, 0, 0, 0],
+                0
             ),
             (
                 "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
-                6_134,
-                "D5A2A5BF40ED729E568D51199E4D342B78013DBFEF608ABBFE9B1B0B99771237",
+                5_916,
+                "59B875E2FB89CAD9AF4BC02A9214686A95896E3E99FF7581BEACA600AF2CCB72",
                 [
                     "AssetRoundsPrimaryAction(\"View report\") {\n" +
                         "                        showsReport = true\n" +
                         "                    }",
+                    "AssetRoundsSecondaryAction(\"Share PDF\") {\n" +
+                        "                        showsShareSheet = true\n" +
+                        "                    }\n" +
+                        "                    .accessibilityHint(\"Opens the system share sheet for this report PDF\")\n" +
+                        "                    .accessibilityIdentifier(Self.shareAccessibilityIdentifier)",
                     "AssetRoundsSecondaryAction(\"Done\") {\n" +
                         "                    dismiss()\n" +
                         "                }",
-                ]
+                ],
+                [1, 2, 0, 0, 0],
+                0
             ),
             (
                 "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
-                15_200,
-                "77EC3E39731B66D91119DF85ED194DB0124FEECFB7DDBD30FF48E9A77F186383",
-                [#"AssetRoundsPrimaryAction("Record work", action: save)"#]
+                14_782,
+                "42134ED62E5CA5B909E02540E5AF4B9458F4723F755AC780845562AF2E6954A3",
+                [
+                    #"AssetRoundsPrimaryAction("Record work", action: save)"#,
+                    "AssetRoundsSecondaryAction(\n" +
+                        "                            \"Add one optional photo showing the work performed.\",\n" +
+                        "                            action: importFixture\n" +
+                        "                        )\n" +
+                        "                        .disabled(isSaving)\n" +
+                        "                        .accessibilityIdentifier(Self.importFixtureAccessibilityIdentifier)",
+                    "PhotosPicker(\n" +
+                        "                            selection: $selectedPhotoItem,\n" +
+                        "                            matching: .images\n" +
+                        "                        ) {\n" +
+                        "                            Text(\"Add one optional photo showing the work performed.\")\n" +
+                        "                                .frame(maxWidth: .infinity)\n" +
+                        "                        }\n" +
+                        "                        .buttonStyle(WorklightSecondaryButtonStyle())\n" +
+                        "                        .disabled(isSaving)",
+                ],
+                [1, 1, 0, 0, 1],
+                0
             ),
             (
                 "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
-                15_518,
-                "135772FEF225FA32457BCDE9693A22F3CB38D008AD4A03DB7769581F5BE5E5D0",
-                [#"AssetRoundsPrimaryAction("Save correction", action: save)"#]
+                15_114,
+                "96E6B5F37BA346E4ACC803DB7F85A76BF75DD7A38940AC420595A74CD067C28D",
+                [
+                    #"AssetRoundsPrimaryAction("Save correction", action: save)"#,
+                    "AssetRoundsSecondaryAction(\"View prior report\") {\n" +
+                        "                    acknowledgeDeliveryFailureIfNeeded(reportID: reportID)\n" +
+                        "                    didSelectReport(priorReportID)\n" +
+                        "                    dismiss()\n" +
+                        "                }\n" +
+                        "                .accessibilityHint(\"Opens the immediately prior saved report.\")\n" +
+                        "                .accessibilityIdentifier(Self.priorReportAccessibilityIdentifier)",
+                    "AssetRoundsSecondaryAction(\"View prior report\") {\n" +
+                        "                    didSelectReport(priorReportID)\n" +
+                        "                    dismiss()\n" +
+                        "                }\n" +
+                        "                .accessibilityHint(\"Opens the immediately prior saved report.\")\n" +
+                        "                .accessibilityIdentifier(Self.priorReportAccessibilityIdentifier)",
+                    "AssetRoundsPrimaryAction(\"View corrected report\") {\n" +
+                        "                didSelectReport(currentReportID)\n" +
+                        "                dismiss()\n" +
+                        "            }",
+                ],
+                [2, 2, 0, 0, 0],
+                0
             ),
             (
                 "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
-                18_772,
-                "64DA40DD2BBD0B8E623670D1824C2AAE4C71AF0AD70A822B052FF7031A71D5FE",
+                17_900,
+                "09B2B7B3A747A4D8FACD20735B53B5B63FEDEE788613EFA3F26FC622D12FC64F",
                 [
                     "AssetRoundsPrimaryAction(\"Share PDF\") {\n" +
                         "                        showsShareSheet = true\n" +
                         "                    }",
+                    "AssetRoundsSecondaryAction(\"Save to Files\") {\n" +
+                        "                        showsFilesExporter = true\n" +
+                        "                    }\n" +
+                        "                    .frame(maxWidth: .infinity)\n" +
+                        "                    .accessibilityHint(\"Choose a Files destination for an identical copy of this report PDF\")\n" +
+                        "                    .accessibilityIdentifier(Self.saveToFilesAccessibilityIdentifier)",
                     "AssetRoundsSecondaryAction(\"Close\") {\n" +
                         "                    dismiss()\n" +
                         "                }",
-                ]
+                    "AssetRoundsSecondaryAction(\"Correct report\") {\n" +
+                        "                        activeCorrectionSource = source\n" +
+                        "                    }\n" +
+                        "                    .accessibilityHint(\"Change only the report note and keep the prior report.\")\n" +
+                        "                    .accessibilityIdentifier(Self.correctAccessibilityIdentifier)",
+                    "AssetRoundsSecondaryAction(\"View prior report\") {\n" +
+                        "                        selectReport(id: prior.reportID)\n" +
+                        "                    }",
+                    "AssetRoundsSecondaryAction(\"View corrected report\") {\n" +
+                        "                        selectReport(id: state.chain.current.reportID)\n" +
+                        "                    }",
+                ],
+                [1, 5, 0, 0, 0],
+                0
             ),
+            (
+                "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+                33_294,
+                "63023BB6107A62F0450304F856B8E7CE796B74D4A08E912380C79DF0D75D58BA",
+                [
+                    "Label(siteFilterLabel, systemImage: \"building.2\")\n" +
+                        "        }\n" +
+                        "        .buttonStyle(WorklightSecondaryButtonStyle())\n" +
+                        "        .accessibilityLabel(siteFilterLabel)",
+                    "Label(signFilterLabel, systemImage: \"signpost.right\")\n" +
+                        "        }\n" +
+                        "        .buttonStyle(WorklightSecondaryButtonStyle())\n" +
+                        "        .accessibilityLabel(signFilterLabel)",
+                    "NavigationLink(\n" +
+                        "                        \"View report\",\n" +
+                        "                        value: ReportHistoryRoute.report(visit.reportID)\n" +
+                        "                    )\n" +
+                        "                    .buttonStyle(WorklightPrimaryButtonStyle())",
+                    "NavigationLink(\n" +
+                        "                            \"Compare with previous\",\n" +
+                        "                            value: ReportHistoryRoute.comparison(visit.stableRootID)\n" +
+                        "                        )\n" +
+                        "                        .buttonStyle(WorklightSecondaryButtonStyle())",
+                ],
+                [0, 0, 0, 1, 3],
+                0
+            ),
+            (
+                "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+                25_794,
+                "D791C50C2812F53B9BEBF128CE71A0C2A7C8EC0644C3EFC5CFA8C6F939A23535",
+                [
+                    #"AssetRoundsPrimaryNavigationLink("Back up current data") {"#,
+                    #"AssetRoundsSecondaryAction("Restore data backup", action: restoreDataBackup)"#,
+                    #"AssetRoundsSecondaryAction("View subscription") {"#,
+                    #"AssetRoundsSecondaryAction("Restore Purchases") {"#,
+                    #"AssetRoundsSecondaryAction("Erase All", action: eraseAllAction.call)"#,
+                    "NavigationLink(\"View diagnostics\") {\n" +
+                        "                    DiagnosticExportView(",
+                    "DiagnosticExportView.settingsEntryAccessibilityIdentifier",
+                    "NavigationLink(\"Send feedback\") {\n" +
+                        "                    FeedbackView(",
+                    "FeedbackView.settingsEntryAccessibilityIdentifier",
+                ],
+                [0, 4, 1, 0, 2],
+                1
+            ),
+        ]
+        let canonicalOwnerMarkers = [
+            "AssetRoundsPrimaryAction",
+            "AssetRoundsSecondaryAction",
+            "AssetRoundsPrimaryNavigationLink",
+            ".buttonStyle(WorklightPrimaryButtonStyle())",
+            ".buttonStyle(WorklightSecondaryButtonStyle())",
         ]
         for owner in canonicalActionOwners {
             try assertFile(
@@ -478,12 +630,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 sha256: owner.sha256
             )
             let source = try text(owner.path)
-            XCTAssertEqual(
-                source.components(separatedBy: ".buttonStyle(.borderedProminent)")
-                    .count - 1,
-                0,
-                owner.path
-            )
             for fragment in owner.fragments {
                 XCTAssertEqual(
                     source.components(separatedBy: fragment).count - 1,
@@ -491,6 +637,33 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     "\(owner.path): \(fragment)"
                 )
             }
+            XCTAssertEqual(owner.counts.count, canonicalOwnerMarkers.count)
+            for (marker, expectedCount) in zip(canonicalOwnerMarkers, owner.counts) {
+                XCTAssertEqual(
+                    source.components(separatedBy: marker).count - 1,
+                    expectedCount,
+                    "\(owner.path): \(marker)"
+                )
+            }
+            for forbidden in [
+                ".buttonStyle(.bordered)",
+                ".buttonStyle(.borderedProminent)",
+                ".buttonStyle(.bordered)\n" +
+                    "                .tint(DesignTokens.SemanticColors.primaryAction)",
+            ] {
+                XCTAssertEqual(
+                    source.components(separatedBy: forbidden).count - 1,
+                    0,
+                    "\(owner.path): \(forbidden)"
+                )
+            }
+            XCTAssertEqual(
+                source.components(
+                    separatedBy: ".tint(DesignTokens.SemanticColors.primaryAction)"
+                ).count - 1,
+                owner.primaryTintCount,
+                owner.path
+            )
         }
 
         let deleteViewportDiagnosticLocks = [

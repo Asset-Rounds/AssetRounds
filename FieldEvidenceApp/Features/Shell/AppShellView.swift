@@ -468,9 +468,7 @@ struct SettingsPlaceholderView: View {
                         metricKitAdapter: metricKitDiagnosticsAdapter
                     )
                 }
-                .buttonStyle(.bordered)
-                .tint(DesignTokens.SemanticColors.primaryAction)
-                .controlSize(.large)
+                .buttonStyle(WorklightSecondaryButtonStyle())
                 .frame(
                     minWidth: DesignTokens.Target.minimumInteractiveWidth,
                     minHeight: DesignTokens.Target.minimumInteractiveHeight
@@ -490,9 +488,7 @@ struct SettingsPlaceholderView: View {
                         mailComposer: mailComposerAdapter
                     )
                 }
-                .buttonStyle(.bordered)
-                .tint(DesignTokens.SemanticColors.primaryAction)
-                .controlSize(.large)
+                .buttonStyle(WorklightSecondaryButtonStyle())
                 .frame(
                     minWidth: DesignTokens.Target.minimumInteractiveWidth,
                     minHeight: DesignTokens.Target.minimumInteractiveHeight

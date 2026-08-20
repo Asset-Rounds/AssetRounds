@@ -53,13 +53,9 @@ struct ValueReceiptView: View {
                     .accessibilityHint("Opens the report PDF stored on this device")
                     .accessibilityIdentifier(Self.viewReportAccessibilityIdentifier)
 
-                    Button("Share PDF") {
+                    AssetRoundsSecondaryAction("Share PDF") {
                         showsShareSheet = true
                     }
-                    .buttonStyle(.bordered)
-                    .tint(DesignTokens.SemanticColors.primaryAction)
-                    .controlSize(.large)
-                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .accessibilityHint("Opens the system share sheet for this report PDF")
                     .accessibilityIdentifier(Self.shareAccessibilityIdentifier)
                 } else if !deliveryUnavailable {

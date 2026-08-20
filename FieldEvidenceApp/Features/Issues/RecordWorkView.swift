@@ -157,14 +157,10 @@ struct RecordWorkView: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     if usesImportedFixtureForUITest {
-                        Button(
+                        AssetRoundsSecondaryAction(
                             "Add one optional photo showing the work performed.",
                             action: importFixture
                         )
-                        .buttonStyle(.bordered)
-                        .tint(DesignTokens.SemanticColors.primaryAction)
-                        .controlSize(.large)
-                        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                         .disabled(isSaving)
                         .accessibilityIdentifier(Self.importFixtureAccessibilityIdentifier)
                     } else {
@@ -175,10 +171,7 @@ struct RecordWorkView: View {
                             Text("Add one optional photo showing the work performed.")
                                 .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.bordered)
-                        .tint(DesignTokens.SemanticColors.primaryAction)
-                        .controlSize(.large)
-                        .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+                        .buttonStyle(WorklightSecondaryButtonStyle())
                         .disabled(isSaving)
                     }
 

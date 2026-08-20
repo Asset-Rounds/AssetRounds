@@ -168,13 +168,9 @@ struct ReportDetailView: View {
                     .accessibilityHint("Opens the system share sheet for this report PDF")
                     .accessibilityIdentifier(Self.shareAccessibilityIdentifier)
 
-                    Button("Save to Files") {
+                    AssetRoundsSecondaryAction("Save to Files") {
                         showsFilesExporter = true
                     }
-                    .buttonStyle(.bordered)
-                    .tint(DesignTokens.SemanticColors.primaryAction)
-                    .controlSize(.large)
-                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .frame(maxWidth: .infinity)
                     .accessibilityHint("Choose a Files destination for an identical copy of this report PDF")
                     .accessibilityIdentifier(Self.saveToFilesAccessibilityIdentifier)
@@ -232,25 +228,17 @@ struct ReportDetailView: View {
             VStack(spacing: DesignTokens.Spacing.space8) {
                 if let source = state.correctionSource,
                    state.isCurrentReadyRevision {
-                    Button("Correct report") {
+                    AssetRoundsSecondaryAction("Correct report") {
                         activeCorrectionSource = source
                     }
-                    .buttonStyle(.bordered)
-                    .tint(DesignTokens.SemanticColors.primaryAction)
-                    .controlSize(.large)
-                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .accessibilityHint("Change only the report note and keep the prior report.")
                     .accessibilityIdentifier(Self.correctAccessibilityIdentifier)
                 }
 
                 if let prior = immediatelyPriorDelivery {
-                    Button("View prior report") {
+                    AssetRoundsSecondaryAction("View prior report") {
                         selectReport(id: prior.reportID)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(DesignTokens.SemanticColors.primaryAction)
-                    .controlSize(.large)
-                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .accessibilityHint("Opens the immediately prior saved report.")
                     .accessibilityIdentifier(
                         ReportCorrectionView.priorReportAccessibilityIdentifier
@@ -259,13 +247,9 @@ struct ReportDetailView: View {
 
                 if !state.isCurrentReadyRevision,
                    state.unavailableCurrentReportID == nil {
-                    Button("View corrected report") {
+                    AssetRoundsSecondaryAction("View corrected report") {
                         selectReport(id: state.chain.current.reportID)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(DesignTokens.SemanticColors.primaryAction)
-                    .controlSize(.large)
-                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .accessibilityHint("Opens the current corrected report.")
                     .accessibilityIdentifier(
                         ReportCorrectionView.currentReportAccessibilityIdentifier
