@@ -177,7 +177,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         let isMinimum = shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
         let expectedRuntime = isMinimum ? "iOS 18.0" : "iOS 26.2"
-        let expectedBuild = isMinimum ? "22A3354" : "23C54"
+        let expectedBuild = isMinimum ? "22A3351" : "23C54"
         let expectedDevice = isMinimum ? "iPhone SE (3rd generation)" : "iPhone 17"
         guard environment["SIMULATOR_RUNTIME"] == expectedRuntime,
               environment["SIMULATOR_RUNTIME_BUILD"] == expectedBuild,
@@ -1882,10 +1882,24 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let axTreeDigest = try accessibilityTreeDigest(in: app)
             automationAXTreeDigests[stateID] = axTreeDigest
 
-            let contrastEvidenceID = "s10.4-contrast-\(shard.shardID)-\(stateID)"
-            printJSONLine(prefix: "S10_4_CONTRAST", object: [
+            let axEvidenceID = "s10.4-ax-\(shard.shardID)-\(stateID)"
+            printJSONLine(prefix: "S10_4_AX_STATE", object: [
+                "shardID": shard.shardID,
                 "stateID": stateID,
                 "requirementID": shard.requirementID,
+                "deviceProfileID": shard.deviceProfileID,
+                "result": "PASS",
+                "evidenceID": axEvidenceID,
+                "axTreeSHA256": axTreeDigest,
+                "capture": "XCUIApplication.debugDescription",
+            ])
+
+            let contrastEvidenceID = "s10.4-contrast-\(shard.shardID)-\(stateID)"
+            printJSONLine(prefix: "S10_4_CONTRAST", object: [
+                "shardID": shard.shardID,
+                "stateID": stateID,
+                "requirementID": shard.requirementID,
+                "deviceProfileID": shard.deviceProfileID,
                 "result": "PASS",
                 "evidenceID": contrastEvidenceID,
                 "axTreeSHA256": axTreeDigest,
@@ -2049,12 +2063,29 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
                 .map { String(format: "%02X", $0) }
                 .joined()
+            let axEvidenceID = "s10.4-ax-\(shard.shardID)-\(task.taskID)"
+            let focusOrderEvidenceID =
+                "s10.4-focus-order-\(shard.shardID)-\(task.taskID)"
+            let targetSizeEvidenceID =
+                "s10.4-target-size-\(shard.shardID)-\(task.taskID)"
+            let contrastEvidenceID =
+                "s10.4-contrast-\(shard.shardID)-\(task.taskID)"
             printJSONLine(prefix: "S10_4_AX", object: [
                 "taskID": task.taskID,
+                "shardID": shard.shardID,
                 "deviceProfileID": shard.deviceProfileID,
                 "feature": shard.accessibilityFeature,
                 "automatedStatus": "PASS",
-                "evidenceID": "s10.4-ax-\(shard.shardID)-\(task.taskID)",
+                "evidenceID": axEvidenceID,
+                "focusOrderEvidenceID": focusOrderEvidenceID,
+                "targetSizeEvidenceID": targetSizeEvidenceID,
+                "contrastEvidenceID": contrastEvidenceID,
+                "automatedEvidenceIDs": [
+                    axEvidenceID,
+                    focusOrderEvidenceID,
+                    targetSizeEvidenceID,
+                    contrastEvidenceID,
+                ],
                 "stateCount": stateEvidence.count,
                 "stateSetSHA256": stateSetDigest,
                 "aggregateAXTreeSHA256": aggregateDigest,
