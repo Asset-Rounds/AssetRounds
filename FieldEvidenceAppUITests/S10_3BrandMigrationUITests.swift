@@ -764,7 +764,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         scroll(zone, in: app)
         zone.tap()
         zone.typeText("America/New_York")
-        dismissKeyboard(in: app)
+        let doneKey = app.keyboards.buttons["Done"]
+        doneKey.exists ? doneKey.tap() : dismissKeyboard(in: app)
+        XCTAssertTrue(
+            wait(
+                for: app.keyboards.firstMatch,
+                predicate: "exists == false",
+                timeout: 10
+            )
+        )
         setToggle("s3.preflight.time-zone-confirmed", in: app)
         setToggle("s3.preflight.after-dark", in: app)
         setToggle("s3.preflight.safe-position", in: app)

@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 144_669,
-            sha256: "6DF94F11F93336C944CF3CD0EE7C4610C482692A8BFFDDB5258347E54F7CDCA6"
+            byteCount: 144_940,
+            sha256: "19D3A7893BCA2496F4C5A52E5E9DAC400A537860B0ACCB77FBBAA87D62797B12"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -290,6 +290,63 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(uiSource.contains("s10.4-target-size-"))
         XCTAssertTrue(uiSource.contains("automatedEvidenceIDs"))
         XCTAssertTrue(uiSource.contains("22A3351"))
+
+        let freshPreflightKeyboardDismissal =
+            #"let doneKey = app.keyboards.buttons["Done"]"# + "\n" +
+                #"        doneKey.exists ? doneKey.tap() : dismissKeyboard(in: app)"# +
+                "\n" +
+                "        XCTAssertTrue(\n" +
+                "            wait(\n" +
+                "                for: app.keyboards.firstMatch,\n" +
+                #"                predicate: "exists == false","# + "\n" +
+                "                timeout: 10\n" +
+                "            )\n" +
+                "        )\n" +
+                #"        setToggle("s3.preflight.time-zone-confirmed", in: app)"# +
+                "\n" +
+                #"        setToggle("s3.preflight.after-dark", in: app)"# + "\n" +
+                #"        setToggle("s3.preflight.safe-position", in: app)"#
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: freshPreflightKeyboardDismissal
+            ).count - 1,
+            1
+        )
+
+        let unchangedGlobalSetToggleHelper =
+            "    @MainActor\n" +
+                "    private func setToggle(_ identifier: String, " +
+                "in app: XCUIApplication) {\n" +
+                "        let toggle = element(identifier, in: app)\n" +
+                "        scroll(toggle, in: app)\n" +
+                "        XCTAssertEqual(toggle.elementType, .switch)\n" +
+                "        assertMinimumGeometry(toggle)\n" +
+                #"        if (toggle.value as? String) != "1" {"# + "\n" +
+                "            toggle.tap()\n" +
+                "        }\n" +
+                #"        XCTAssertTrue(wait(for: toggle, predicate: "value == '1'", timeout: 10))"# +
+                "\n" +
+                "    }"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: unchangedGlobalSetToggleHelper
+            ).count - 1,
+            1
+        )
+
+        let unchangedGlobalDismissKeyboardHelper =
+            "    @MainActor\n" +
+                "    private func dismissKeyboard(in app: XCUIApplication) {\n" +
+                "        guard app.keyboards.firstMatch.exists else { return }\n" +
+                #"        let key = app.keyboards.buttons["Return"]"# + "\n" +
+                "        key.exists ? key.tap() : app.swipeDown()\n" +
+                "    }"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: unchangedGlobalDismissKeyboardHelper
+            ).count - 1,
+            1
+        )
 
         let feedbackSourcePath =
             "FieldEvidenceApp/Features/Settings/FeedbackView.swift"
