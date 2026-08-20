@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 141_461,
-            sha256: "840F805EB3DD7600B1F00280280B44A7061D5A12D0BF62AFFFFF4F56789B5F5C"
+            byteCount: 144_867,
+            sha256: "0CFA146103474E1483D343904190B1BD5EED91BDAFBFCAFCB87143892EAB23A8"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1444,9 +1444,144 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertFalse(diagnosticSlice.contains(forbidden), forbidden)
         }
+
+        let feedbackDiagnosticStartMarker =
+            #"            if shard.shardID == "s10.4.current.default-dark","# + "\n" +
+                #"               stateID == "state.feedback.review-ready" {"#
+        let feedbackDiagnosticParts = uiSource.components(
+            separatedBy: feedbackDiagnosticStartMarker
+        )
+        guard feedbackDiagnosticParts.count == 2 else {
+            XCTFail("The UI source must contain exactly one default-dark Feedback diagnostic")
+            return
+        }
+        let feedbackDiagnosticTail = feedbackDiagnosticParts[1]
+        let feedbackDiagnosticBoundary =
+            "\n            if shard.shardID == \"s10.4.current.ax-text\","
+        guard let feedbackDiagnosticEnd = feedbackDiagnosticTail.range(
+            of: feedbackDiagnosticBoundary
+        ) else {
+            XCTFail("The Feedback diagnostic has no exact AX-text diagnostic boundary")
+            return
+        }
+        let feedbackDiagnosticSlice = feedbackDiagnosticStartMarker
+            + String(feedbackDiagnosticTail[..<feedbackDiagnosticEnd.lowerBound])
+
+        let feedbackPublicDiagnosticFieldLocks = [
+            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
+            #""compactDescription": issue.compactDescription"#,
+            #""detailedDescription": issue.detailedDescription"#,
+            #""elementIdentifier": elementIdentifier"#,
+            #""elementLabel": elementLabel"#,
+            #""elementType": elementType"#,
+            #""elementFrame": elementFrame"#,
+            #""applicationFrame": self.auditFrameObject(app.frame)"#,
+        ]
+        for lock in feedbackPublicDiagnosticFieldLocks {
+            XCTAssertEqual(
+                feedbackDiagnosticSlice.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        let feedbackLiveDiagnosticFieldLocks = [
+            #""livePrivacyFrame": self.auditFrameObject(privacy.frame)"#,
+            #""liveAppMetadataFrame": self.auditFrameObject("#,
+            #""liveNavigationBarFrame": self.auditFrameObject("#,
+            #""liveSaveDiagnosticsFrame": self.auditFrameObject("#,
+            #""liveSignsTabFrame": self.auditFrameObject(signsTab.frame)"#,
+            #""liveApplicationFrame": self.auditFrameObject(app.frame)"#,
+        ]
+        for lock in feedbackLiveDiagnosticFieldLocks {
+            XCTAssertEqual(
+                feedbackDiagnosticSlice.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        for lock in [
+            "appMetadata.frame",
+            "navigationBar.frame",
+            "saveDiagnostics.frame",
+        ] {
+            XCTAssertEqual(
+                feedbackDiagnosticSlice.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+
+        let feedbackDiagnosticProtocolLocks = [
+            #"let privacy = element("s8.4.feedback.privacy", in: app)"#,
+            #".matching(NSPredicate(format: "label BEGINSWITH %@", "App "))"#,
+            "let navigationBar = app.navigationBars.firstMatch",
+            #""s8.4.feedback.save-diagnostics""#,
+            #"let signsTab = element("s1.tab.signs", in: app)"#,
+            "guard privacy.exists,",
+            "appMetadata.exists,",
+            "navigationBar.exists,",
+            "saveDiagnostics.exists,",
+            "signsTab.exists else",
+            "S10.4 default-dark Feedback diagnostic geometry is incomplete",
+            "try app.performAccessibilityAudit(for: .contrast) { issue in",
+            #"prefix: "S10_4_AUDIT_DIAGNOSTIC""#,
+            #"var elementIdentifier = """#,
+            #"var elementLabel = """#,
+            #"var elementType = """#,
+            "var elementFrame: Any = NSNull()",
+            "if let auditedElement = issue.element",
+        ]
+        for lock in feedbackDiagnosticProtocolLocks {
+            XCTAssertTrue(feedbackDiagnosticSlice.contains(lock), lock)
+        }
+        let feedbackDiagnosticNonacceptingOutcome =
+            "                    return false\n" +
+                "                }\n" +
+                "                throw AutomationConfigurationError.invalid(\n" +
+                "                    \"S10.4 default-dark Feedback contrast diagnostic returned without an audit issue\"\n" +
+                "                )"
+        XCTAssertEqual(
+            feedbackDiagnosticSlice.components(
+                separatedBy: feedbackDiagnosticNonacceptingOutcome
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            feedbackDiagnosticSlice.components(separatedBy: "return false").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            feedbackDiagnosticSlice.components(separatedBy: "return true").count - 1,
+            0
+        )
+        let feedbackDiagnosticLogRange = try XCTUnwrap(
+            feedbackDiagnosticSlice.range(of: #"prefix: "S10_4_AUDIT_DIAGNOSTIC""#)
+        )
+        let feedbackDiagnosticFalseRange = try XCTUnwrap(
+            feedbackDiagnosticSlice.range(of: "return false")
+        )
+        XCTAssertLessThan(
+            feedbackDiagnosticLogRange.lowerBound,
+            feedbackDiagnosticFalseRange.lowerBound,
+            "The Feedback diagnostic must log all public and live fields before rejecting the issue"
+        )
+        for forbidden in [
+            "accessibilityTreeDigest(in: app)",
+            "automationAXTreeDigests",
+            #"printJSONLine(prefix: "S10_4_AX_STATE""#,
+            #"printJSONLine(prefix: "S10_4_CONTRAST""#,
+            "automationContrastExceptions[stateID]",
+            "automatedEvidenceIDs",
+            "matchedException",
+            "S10.4 candidate ",
+            "shard-receipt",
+            "XCTAttachment",
+        ] {
+            XCTAssertFalse(feedbackDiagnosticSlice.contains(forbidden), forbidden)
+        }
         XCTAssertEqual(
             uiSource.components(separatedBy: "S10_4_AUDIT_DIAGNOSTIC").count - 1,
-            1
+            2
         )
         XCTAssertFalse(uiSource.contains("S10.4 AX-text preflight diagnostic unexpectedly passed"))
 

@@ -2270,6 +2270,71 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 )
             }
 
+            if shard.shardID == "s10.4.current.default-dark",
+               stateID == "state.feedback.review-ready" {
+                let privacy = element("s8.4.feedback.privacy", in: app)
+                let appMetadata = app.staticTexts
+                    .matching(NSPredicate(format: "label BEGINSWITH %@", "App "))
+                    .firstMatch
+                let navigationBar = app.navigationBars.firstMatch
+                let saveDiagnostics = element(
+                    "s8.4.feedback.save-diagnostics",
+                    in: app
+                )
+                let signsTab = element("s1.tab.signs", in: app)
+                guard privacy.exists,
+                      appMetadata.exists,
+                      navigationBar.exists,
+                      saveDiagnostics.exists,
+                      signsTab.exists else {
+                    throw AutomationConfigurationError.invalid(
+                        "S10.4 default-dark Feedback diagnostic geometry is incomplete"
+                    )
+                }
+
+                try app.performAccessibilityAudit(for: .contrast) { issue in
+                    var elementIdentifier = ""
+                    var elementLabel = ""
+                    var elementType = ""
+                    var elementFrame: Any = NSNull()
+                    if let auditedElement = issue.element {
+                        elementIdentifier = auditedElement.identifier
+                        elementLabel = auditedElement.label
+                        elementType = String(describing: auditedElement.elementType)
+                        elementFrame = self.auditFrameObject(auditedElement.frame)
+                    }
+                    self.printJSONLine(
+                        prefix: "S10_4_AUDIT_DIAGNOSTIC",
+                        object: [
+                            "auditTypeRawValue": String(issue.auditType.rawValue),
+                            "compactDescription": issue.compactDescription,
+                            "detailedDescription": issue.detailedDescription,
+                            "elementIdentifier": elementIdentifier,
+                            "elementLabel": elementLabel,
+                            "elementType": elementType,
+                            "elementFrame": elementFrame,
+                            "applicationFrame": self.auditFrameObject(app.frame),
+                            "livePrivacyFrame": self.auditFrameObject(privacy.frame),
+                            "liveAppMetadataFrame": self.auditFrameObject(
+                                appMetadata.frame
+                            ),
+                            "liveNavigationBarFrame": self.auditFrameObject(
+                                navigationBar.frame
+                            ),
+                            "liveSaveDiagnosticsFrame": self.auditFrameObject(
+                                saveDiagnostics.frame
+                            ),
+                            "liveSignsTabFrame": self.auditFrameObject(signsTab.frame),
+                            "liveApplicationFrame": self.auditFrameObject(app.frame),
+                        ]
+                    )
+                    return false
+                }
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 default-dark Feedback contrast diagnostic returned without an audit issue"
+                )
+            }
+
             if shard.shardID == "s10.4.current.ax-text",
                stateID == "state.check-preflight.ready" {
                 guard let signature = eligibleExceptions.first else {
