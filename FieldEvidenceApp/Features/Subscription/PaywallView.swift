@@ -186,9 +186,7 @@ struct PaywallView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier(Self.noSyncAccessibilityIdentifier)
 
-            purchaseStatus
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            purchaseStatusSlot
 
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
                 Link("Terms", destination: links.terms)
@@ -214,7 +212,6 @@ struct PaywallView: View {
         }
         .padding(DesignTokens.Spacing.space16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .id(purchaseStatusLayoutIdentity)
     }
 
     private var closeButton: some View {
@@ -224,28 +221,28 @@ struct PaywallView: View {
             .accessibilityIdentifier(Self.closeAccessibilityIdentifier)
     }
 
-    private var purchaseStatusLayoutIdentity: Int {
-        switch coordinator.purchaseState {
-        case .idle:
-            0
-        case .purchasing:
-            1
-        case .verified:
-            2
-        case .cancelled:
-            3
-        case .pending:
-            4
-        case .unverified:
-            5
-        case .failed:
-            6
+    private var purchaseStatusSlot: some View {
+        ZStack(alignment: .topLeading) {
+            ZStack(alignment: .topLeading) {
+                verifiedPurchaseStatus
+                recoveryPurchaseStatus(for: .cancelled)
+                recoveryPurchaseStatus(for: .pending)
+                recoveryPurchaseStatus(for: .unverified)
+                recoveryPurchaseStatus(for: .failed)
+            }
+            .hidden()
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
+
+            purchaseStatus(for: coordinator.purchaseState)
         }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
-    private var purchaseStatus: some View {
-        switch coordinator.purchaseState {
+    private func purchaseStatus(for state: PaywallPurchaseStateV1) -> some View {
+        switch state {
         case .idle:
             EmptyView()
         case .purchasing:
@@ -254,26 +251,35 @@ struct PaywallView: View {
                 .accessibilityValue(Text(verbatim: String()))
                 .accessibilityIdentifier(Self.purchaseStateAccessibilityIdentifier)
         case .verified:
-            AssetRoundsStateLabel(
-                kind: .completed,
-                "Purchase verified. Subscription access is ready."
-            )
-            .accessibilityLabel(
-                "Complete: Purchase verified. Subscription access is ready."
-            )
-            .accessibilityValue(Text(verbatim: String()))
-            .accessibilityIdentifier(Self.purchaseStateAccessibilityIdentifier)
+            verifiedPurchaseStatus
         case .cancelled, .pending, .unverified, .failed:
-            if let message = coordinator.purchaseState.recoveryMessage {
-                Text(message)
-                    .font(DesignTokens.Typography.primaryBody.weight(.semibold))
-                    .foregroundStyle(DesignTokens.SemanticColors.error)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityFocused($purchaseStatusFocused)
-                    .accessibilityIdentifier(
-                        Self.purchaseStateAccessibilityIdentifier
-                    )
-            }
+            recoveryPurchaseStatus(for: state)
+                .accessibilityFocused($purchaseStatusFocused)
+                .accessibilityIdentifier(Self.purchaseStateAccessibilityIdentifier)
+        }
+    }
+
+    private var verifiedPurchaseStatus: some View {
+        AssetRoundsStateLabel(
+            kind: .completed,
+            "Purchase verified. Subscription access is ready."
+        )
+        .accessibilityLabel(
+            "Complete: Purchase verified. Subscription access is ready."
+        )
+        .accessibilityValue(Text(verbatim: String()))
+        .accessibilityIdentifier(Self.purchaseStateAccessibilityIdentifier)
+    }
+
+    @ViewBuilder
+    private func recoveryPurchaseStatus(
+        for state: PaywallPurchaseStateV1
+    ) -> some View {
+        if let message = state.recoveryMessage {
+            Text(message)
+                .font(DesignTokens.Typography.primaryBody.weight(.semibold))
+                .foregroundStyle(DesignTokens.SemanticColors.error)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

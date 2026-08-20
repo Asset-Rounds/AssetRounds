@@ -379,87 +379,250 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "FieldEvidenceApp/Features/Subscription/PaywallView.swift"
         try assertFile(
             paywallSourcePath,
-            byteCount: 13_113,
-            sha256: "6434A07CF971011E786EC5CE9BDBF44C65997EBAD382603260E59EA7455E0344"
+            byteCount: 13_418,
+            sha256: "689093009BBB21F39EB1A931A085ADD17DD9D34BACF5002C9F6439314BDCAFB8"
         )
         let paywallSource = try text(paywallSourcePath)
-        let purchaseStatusSlotModifiers =
-            "purchaseStatus\n" +
-                "                .fixedSize(horizontal: false, vertical: true)\n" +
-                "                .frame(maxWidth: .infinity, alignment: .leading)"
+        let purchaseStatusSlotCallsite =
+            "            purchaseStatusSlot\n\n" +
+                "            VStack(alignment: .leading, spacing: " +
+                "DesignTokens.Spacing.space8) {\n" +
+                "                Link(\"Terms\", destination: links.terms)"
         XCTAssertEqual(
-            paywallSource.components(separatedBy: purchaseStatusSlotModifiers).count - 1,
+            paywallSource.components(separatedBy: purchaseStatusSlotCallsite).count - 1,
             1
         )
-        let purchaseStatusRootIdentityCallsite =
-            "        .padding(DesignTokens.Spacing.space16)\n" +
+        let purchaseStatusSlot =
+            "    private var purchaseStatusSlot: some View {\n" +
+                "        ZStack(alignment: .topLeading) {\n" +
+                "            ZStack(alignment: .topLeading) {\n" +
+                "                verifiedPurchaseStatus\n" +
+                "                recoveryPurchaseStatus(for: .cancelled)\n" +
+                "                recoveryPurchaseStatus(for: .pending)\n" +
+                "                recoveryPurchaseStatus(for: .unverified)\n" +
+                "                recoveryPurchaseStatus(for: .failed)\n" +
+                "            }\n" +
+                "            .hidden()\n" +
+                "            .accessibilityHidden(true)\n" +
+                "            .allowsHitTesting(false)\n\n" +
+                "            purchaseStatus(for: coordinator.purchaseState)\n" +
+                "        }\n" +
+                "        .fixedSize(horizontal: false, vertical: true)\n" +
                 "        .frame(maxWidth: .infinity, alignment: .leading)\n" +
-                "        .id(purchaseStatusLayoutIdentity)\n" +
-                "    }\n\n" +
-                "    private var closeButton: some View {"
+                "    }"
         XCTAssertEqual(
-            paywallSource.components(
-                separatedBy: purchaseStatusRootIdentityCallsite
-            ).count - 1,
+            paywallSource.components(separatedBy: purchaseStatusSlot).count - 1,
             1
         )
-        XCTAssertEqual(
-            paywallSource.components(
-                separatedBy: ".id(purchaseStatusLayoutIdentity)"
-            ).count - 1,
-            1
+        let purchaseStatusSlotStart =
+            "    private var purchaseStatusSlot: some View {\n"
+        let purchaseStatusSlotEnd =
+            "\n\n    @ViewBuilder\n" +
+                "    private func purchaseStatus(for state: " +
+                "PaywallPurchaseStateV1) -> some View {"
+        let purchaseStatusSlotParts = paywallSource.components(
+            separatedBy: purchaseStatusSlotStart
         )
-        let purchaseStatusIdentityStart =
-            "    private var purchaseStatusLayoutIdentity: Int {\n"
-        let purchaseStatusIdentityEnd = "\n\n    @ViewBuilder"
-        let purchaseStatusIdentityParts = paywallSource.components(
-            separatedBy: purchaseStatusIdentityStart
-        )
-        guard purchaseStatusIdentityParts.count == 2 else {
-            XCTFail("Paywall must contain exactly one purchase-status layout identity")
+        guard purchaseStatusSlotParts.count == 2 else {
+            XCTFail("Paywall must contain exactly one stable purchase-status slot")
             return
         }
-        let purchaseStatusIdentityTail = purchaseStatusIdentityParts[1]
-        guard let purchaseStatusIdentityBoundary = purchaseStatusIdentityTail.range(
-            of: purchaseStatusIdentityEnd
+        let purchaseStatusSlotTail = purchaseStatusSlotParts[1]
+        guard let purchaseStatusSlotBoundary = purchaseStatusSlotTail.range(
+            of: purchaseStatusSlotEnd
         ) else {
-            XCTFail("Purchase-status layout identity must end before purchaseStatus")
+            XCTFail("Stable purchase-status slot must end before its live renderer")
             return
         }
-        let purchaseStatusIdentitySlice = purchaseStatusIdentityStart
+        let purchaseStatusSlotSlice = purchaseStatusSlotStart
             + String(
-                purchaseStatusIdentityTail[
-                    ..<purchaseStatusIdentityBoundary.lowerBound
+                purchaseStatusSlotTail[
+                    ..<purchaseStatusSlotBoundary.lowerBound
                 ]
             )
-        let purchaseStatusIdentityMappings: [(state: String, key: Int)] = [
-            ("idle", 0),
-            ("purchasing", 1),
-            ("verified", 2),
-            ("cancelled", 3),
-            ("pending", 4),
-            ("unverified", 5),
-            ("failed", 6),
-        ]
-        XCTAssertEqual(purchaseStatusIdentityMappings.count, 7)
-        XCTAssertEqual(
-            Set(purchaseStatusIdentityMappings.map { $0.key }),
-            Set(0...6)
-        )
-        for mapping in purchaseStatusIdentityMappings {
-            let lock = "case .\(mapping.state):\n            \(mapping.key)"
+        for state in ["cancelled", "pending", "unverified", "failed"] {
             XCTAssertEqual(
-                purchaseStatusIdentitySlice.components(separatedBy: lock).count - 1,
+                purchaseStatusSlotSlice.components(
+                    separatedBy: "recoveryPurchaseStatus(for: .\(state))"
+                ).count - 1,
                 1,
-                lock
+                state
             )
         }
         XCTAssertEqual(
-            purchaseStatusIdentitySlice.components(separatedBy: "case .").count - 1,
-            7
+            purchaseStatusSlotSlice.components(
+                separatedBy: "verifiedPurchaseStatus"
+            ).count - 1,
+            1
         )
-        XCTAssertFalse(purchaseStatusIdentitySlice.contains("default:"))
-        XCTAssertFalse(purchaseStatusIdentitySlice.contains("@unknown default"))
+        XCTAssertEqual(
+            purchaseStatusSlotSlice.components(
+                separatedBy: "purchaseStatus(for: coordinator.purchaseState)"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            paywallSource.components(
+                separatedBy: "purchaseStatus(for: coordinator.purchaseState)"
+            ).count - 1,
+            1
+        )
+        for modifier in [
+            ".hidden()",
+            ".accessibilityHidden(true)",
+            ".allowsHitTesting(false)",
+            ".fixedSize(horizontal: false, vertical: true)",
+            ".frame(maxWidth: .infinity, alignment: .leading)",
+        ] {
+            XCTAssertEqual(
+                purchaseStatusSlotSlice.components(separatedBy: modifier).count - 1,
+                1,
+                modifier
+            )
+        }
+        for forbidden in [
+            ".frame(height:",
+            ".frame(minHeight:",
+            "GeometryReader",
+            "PreferenceKey",
+            ".preference(",
+            ".onPreferenceChange(",
+            "DispatchQueue",
+            "Task.sleep",
+            ".task",
+            ".onAppear",
+        ] {
+            XCTAssertFalse(purchaseStatusSlotSlice.contains(forbidden), forbidden)
+        }
+        XCTAssertFalse(paywallSource.contains("purchaseStatusLayoutIdentity"))
+        XCTAssertEqual(
+            paywallSource.components(separatedBy: ".id(").count - 1,
+            0
+        )
+        let livePurchaseStatusRenderer =
+            "    @ViewBuilder\n" +
+                "    private func purchaseStatus(for state: " +
+                "PaywallPurchaseStateV1) -> some View {\n" +
+                "        switch state {\n" +
+                "        case .idle:\n" +
+                "            EmptyView()\n" +
+                "        case .purchasing:\n" +
+                "            AssetRoundsStateLabel(kind: .selected, " +
+                "\"Purchasing…\")\n" +
+                "                .accessibilityLabel(" +
+                "\"Information: Purchasing…\")\n" +
+                "                .accessibilityValue(" +
+                "Text(verbatim: String()))\n" +
+                "                .accessibilityIdentifier(" +
+                "Self.purchaseStateAccessibilityIdentifier)\n" +
+                "        case .verified:\n" +
+                "            verifiedPurchaseStatus\n" +
+                "        case .cancelled, .pending, .unverified, .failed:\n" +
+                "            recoveryPurchaseStatus(for: state)\n" +
+                "                .accessibilityFocused(" +
+                "$purchaseStatusFocused)\n" +
+                "                .accessibilityIdentifier(" +
+                "Self.purchaseStateAccessibilityIdentifier)\n" +
+                "        }\n" +
+                "    }"
+        XCTAssertEqual(
+            paywallSource.components(
+                separatedBy: livePurchaseStatusRenderer
+            ).count - 1,
+            1
+        )
+        let verifiedPurchaseStatusRenderer =
+            "    private var verifiedPurchaseStatus: some View {\n" +
+                "        AssetRoundsStateLabel(\n" +
+                "            kind: .completed,\n" +
+                "            \"Purchase verified. Subscription access is ready.\"\n" +
+                "        )\n" +
+                "        .accessibilityLabel(\n" +
+                "            \"Complete: Purchase verified. " +
+                "Subscription access is ready.\"\n" +
+                "        )\n" +
+                "        .accessibilityValue(Text(verbatim: String()))\n" +
+                "        .accessibilityIdentifier(" +
+                "Self.purchaseStateAccessibilityIdentifier)\n" +
+                "    }"
+        XCTAssertEqual(
+            paywallSource.components(
+                separatedBy: verifiedPurchaseStatusRenderer
+            ).count - 1,
+            1
+        )
+        let recoveryPurchaseStatusRenderer =
+            "    @ViewBuilder\n" +
+                "    private func recoveryPurchaseStatus(\n" +
+                "        for state: PaywallPurchaseStateV1\n" +
+                "    ) -> some View {\n" +
+                "        if let message = state.recoveryMessage {\n" +
+                "            Text(message)\n" +
+                "                .font(DesignTokens.Typography.primaryBody" +
+                ".weight(.semibold))\n" +
+                "                .foregroundStyle(" +
+                "DesignTokens.SemanticColors.error)\n" +
+                "                .fixedSize(horizontal: false, vertical: true)\n" +
+                "        }\n" +
+                "    }"
+        XCTAssertEqual(
+            paywallSource.components(
+                separatedBy: recoveryPurchaseStatusRenderer
+            ).count - 1,
+            1
+        )
+        let legalLinkStack =
+            "            VStack(alignment: .leading, spacing: " +
+                "DesignTokens.Spacing.space8) {\n" +
+                "                Link(\"Terms\", destination: links.terms)\n" +
+                "                    .frame(minHeight: " +
+                "DesignTokens.Target.minimumInteractiveHeight)\n" +
+                "                    .contentShape(.interaction, Rectangle())\n" +
+                "                    .contentShape(.accessibility, Rectangle())\n" +
+                "                    .accessibilityIdentifier(" +
+                "Self.termsAccessibilityIdentifier)\n" +
+                "                Link(\"Privacy\", destination: links.privacy)\n" +
+                "                    .frame(minHeight: " +
+                "DesignTokens.Target.minimumInteractiveHeight)\n" +
+                "                    .contentShape(.interaction, Rectangle())\n" +
+                "                    .contentShape(.accessibility, Rectangle())\n" +
+                "                    .accessibilityIdentifier(" +
+                "Self.privacyAccessibilityIdentifier)\n" +
+                "                Link(\"Support\", destination: links.support)\n" +
+                "                    .frame(minHeight: " +
+                "DesignTokens.Target.minimumInteractiveHeight)\n" +
+                "                    .contentShape(.interaction, Rectangle())\n" +
+                "                    .contentShape(.accessibility, Rectangle())\n" +
+                "                    .accessibilityIdentifier(" +
+                "Self.supportAccessibilityIdentifier)\n" +
+                "            }\n" +
+                "            .padding(.top, DesignTokens.Spacing.space8)\n" +
+                "            .font(DesignTokens.Typography.sectionHeading)\n" +
+                "            .buttonStyle(.plain)\n" +
+                "            .frame(minHeight: " +
+                "DesignTokens.Target.minimumInteractiveHeight)"
+        XCTAssertEqual(
+            paywallSource.components(separatedBy: legalLinkStack).count - 1,
+            1
+        )
+        let storeKitContracts = [
+            "SubscriptionStoreView(productIDs: " +
+                "[EntitlementReducerV1.productID]) {",
+            "marketingContent(presentation: presentation, links: links)",
+            ".subscriptionStoreControlStyle(" +
+                "AssetRoundsSubscriptionControlStyle())",
+            ".storeButton(.hidden, for: .restorePurchases)",
+            "_ = await coordinator.storeKitPurchaseStarted(productID: product.id)",
+            "await coordinator.handleStoreKitCompletion(",
+            "AssetRoundsPrimaryAction(\"Subscribe\", action: option.subscribe)",
+        ]
+        for contract in storeKitContracts {
+            XCTAssertEqual(
+                paywallSource.components(separatedBy: contract).count - 1,
+                1,
+                contract
+            )
+        }
 
         let captureSourcePath =
             "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift"
