@@ -239,8 +239,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 127_756,
-            sha256: "E7EE832696B55AC89F0C80D1D4F344E2B08160FC4D504F76281E57F4614286D1"
+            byteCount: 130_947,
+            sha256: "C0B417AE1B52BEB380E8FFBEC4FD406ECD1AF90A8B07D4C3730A09DC8FD4F7CF"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -254,18 +254,48 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(uiSource.contains("automatedEvidenceIDs"))
         XCTAssertTrue(uiSource.contains("22A3351"))
 
-        let deleteViewportLocks = [
-            "viewportTop - deleteScreen.frame.minY",
-            "viewportTop - siteLabel.frame.maxY",
-            "let dragStart = detail.coordinate(",
-            "measuredUndertravel = actualDistance * direction > 0",
-            "XCTAssertLessThanOrEqual(siteLabel.frame.maxY, viewportTop)",
-            "XCTAssertGreaterThanOrEqual(confirmDelete.frame.minY, viewportTop)",
-            "XCTAssertLessThanOrEqual(confirmDelete.frame.maxY, viewportBottom)",
+        let deleteCompositionLocks = [
+            #"let deleteMessage = element("s6.1.delete.message", in: app)"#,
+            "XCTAssertTrue(deleteMessage.waitForExistence(timeout: 5))",
+            "let preferredMinimumShift = max(",
+            "viewportTop - deleteMessage.frame.minY",
+            "let preferredMaximumShift = min(",
+            "viewportBottom - deleteMessage.frame.maxY",
+            "let fallbackMinimumShift = max(",
+            "let fallbackMaximumShift = min(",
+            "if preferredContainsZero || fallbackContainsZero { break }",
+            "let farPreferredDistance = preferredMaximumShift < 0",
+            "? preferredMinimumShift\n                    : preferredMaximumShift",
+            "if abs(farPreferredDistance) >= 44",
+            "let farFallbackDistance = fallbackMaximumShift < 0",
+            "? fallbackMinimumShift\n                    : fallbackMaximumShift",
+            "if abs(farFallbackDistance) >= 44",
+            "guard let targetDistance else {",
+            "let dragInset: CGFloat = 24",
+            "- 2 * dragInset",
+            "guard maximumGestureDistance >= 44 else",
+            "guard abs(dragDistance) >= 44 else",
+            "Delete confirmation has no feasible recognized positioning gesture",
+            "Delete confirmation viewport cannot fit a recognized gesture",
+            "let preferredComposition = siteLabel.frame.maxY <= viewportTop",
+            "&& deleteMessage.frame.minY >= viewportTop",
+            "&& deleteMessage.frame.maxY <= viewportBottom",
+            "let fallbackComposition = siteLabel.frame.maxY <= viewportTop",
+            "&& deleteMessage.frame.maxY <= viewportTop",
+            "&& cancelDelete.isHittable",
+            "&& confirmDelete.isHittable",
+            "XCTAssertTrue(preferredComposition || fallbackComposition)",
+            "guard preferredComposition || fallbackComposition else { return }",
         ]
-        for lock in deleteViewportLocks {
+        for lock in deleteCompositionLocks {
             XCTAssertTrue(uiSource.contains(lock), lock)
         }
+        XCTAssertEqual(
+            uiSource.components(separatedBy:
+                "Delete confirmation viewport cannot fit a recognized gesture"
+            ).count - 1,
+            2
+        )
 
         let exceptionIDs = [
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",

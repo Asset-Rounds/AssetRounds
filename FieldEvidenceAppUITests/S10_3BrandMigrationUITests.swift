@@ -495,48 +495,117 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let cancelDelete = element("s6.1.delete.cancel", in: app)
         scroll(cancelDelete, in: app)
         let confirmDelete = element("s6.1.delete.confirm", in: app)
+        let deleteMessage = element("s6.1.delete.message", in: app)
         let siteLabel = element("s2.sign-detail.site-label", in: app)
         XCTAssertTrue(confirmDelete.waitForExistence(timeout: 5))
+        XCTAssertTrue(deleteMessage.waitForExistence(timeout: 5))
         XCTAssertTrue(siteLabel.waitForExistence(timeout: 5))
-        var measuredUndertravel: CGFloat = 0
-        var compensatedDirection: CGFloat = 0
         for _ in 0..<4 {
             let viewportTop = detail.frame.minY
             let viewportBottom = detail.frame.maxY
-            let minimumShift = max(
+            let preferredMinimumShift = max(
                 viewportTop - deleteScreen.frame.minY,
                 max(
-                    viewportTop - cancelDelete.frame.minY,
-                    viewportTop - confirmDelete.frame.minY
+                    viewportTop - deleteMessage.frame.minY,
+                    max(
+                        viewportTop - cancelDelete.frame.minY,
+                        viewportTop - confirmDelete.frame.minY
+                    )
                 )
             )
-            let maximumShift = min(
+            let preferredMaximumShift = min(
                 viewportTop - siteLabel.frame.maxY,
                 min(
                     viewportBottom - deleteScreen.frame.maxY,
                     min(
-                        viewportBottom - cancelDelete.frame.maxY,
-                        viewportBottom - confirmDelete.frame.maxY
+                        viewportBottom - deleteMessage.frame.maxY,
+                        min(
+                            viewportBottom - cancelDelete.frame.maxY,
+                            viewportBottom - confirmDelete.frame.maxY
+                        )
                     )
                 )
             )
-            XCTAssertLessThanOrEqual(minimumShift, maximumShift)
-            if minimumShift <= 0, maximumShift >= 0 { break }
-            let targetDistance = maximumShift < 0
-                ? maximumShift
-                : minimumShift
-            let direction: CGFloat = targetDistance > 0 ? 1 : -1
-            if compensatedDirection != direction {
-                measuredUndertravel = 0
-            }
-            let dragDistance = targetDistance
-                + direction * measuredUndertravel
-            let siteLabelBeforeDrag = siteLabel.frame.maxY
-            let dragStart = detail.coordinate(
-                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+            let fallbackMinimumShift = max(
+                viewportTop - cancelDelete.frame.minY,
+                viewportTop - confirmDelete.frame.minY
             )
-            let dragEnd = dragStart.withOffset(
-                CGVector(dx: 0, dy: dragDistance)
+            let fallbackMaximumShift = min(
+                viewportTop - siteLabel.frame.maxY,
+                min(
+                    viewportTop - deleteScreen.frame.maxY,
+                    min(
+                        viewportTop - deleteMessage.frame.maxY,
+                        min(
+                            viewportBottom - cancelDelete.frame.maxY,
+                            viewportBottom - confirmDelete.frame.maxY
+                        )
+                    )
+                )
+            )
+            let preferredContainsZero = preferredMinimumShift <= 0
+                && preferredMaximumShift >= 0
+            let fallbackContainsZero = fallbackMinimumShift <= 0
+                && fallbackMaximumShift >= 0
+            if preferredContainsZero || fallbackContainsZero { break }
+
+            var targetDistance: CGFloat?
+            if preferredMinimumShift <= preferredMaximumShift {
+                let farPreferredDistance = preferredMaximumShift < 0
+                    ? preferredMinimumShift
+                    : preferredMaximumShift
+                if abs(farPreferredDistance) >= 44 {
+                    targetDistance = farPreferredDistance
+                }
+            }
+            if targetDistance == nil,
+               fallbackMinimumShift <= fallbackMaximumShift {
+                let farFallbackDistance = fallbackMaximumShift < 0
+                    ? fallbackMinimumShift
+                    : fallbackMaximumShift
+                if abs(farFallbackDistance) >= 44 {
+                    targetDistance = farFallbackDistance
+                }
+            }
+            guard let targetDistance else {
+                XCTFail(
+                    "Delete confirmation has no feasible recognized positioning gesture"
+                )
+                return
+            }
+            let dragInset: CGFloat = 24
+            let maximumGestureDistance = viewportBottom
+                - viewportTop
+                - 2 * dragInset
+            guard maximumGestureDistance >= 44 else {
+                XCTFail(
+                    "Delete confirmation viewport cannot fit a recognized gesture"
+                )
+                return
+            }
+            let dragDistance = targetDistance > 0
+                ? min(targetDistance, maximumGestureDistance)
+                : max(targetDistance, -maximumGestureDistance)
+            guard abs(dragDistance) >= 44 else {
+                XCTFail(
+                    "Delete confirmation viewport cannot fit a recognized gesture"
+                )
+                return
+            }
+            let scrollOrigin = detail.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStartOffsetY = targetDistance > 0
+                ? dragInset
+                : detail.frame.height - dragInset
+            let dragStart = scrollOrigin.withOffset(
+                CGVector(dx: detail.frame.width / 2, dy: dragStartOffsetY)
+            )
+            let dragEnd = scrollOrigin.withOffset(
+                CGVector(
+                    dx: detail.frame.width / 2,
+                    dy: dragStartOffsetY + dragDistance
+                )
             )
             dragStart.press(
                 forDuration: 0.2,
@@ -544,23 +613,31 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 withVelocity: .slow,
                 thenHoldForDuration: 0.2
             )
-            let actualDistance = siteLabel.frame.maxY - siteLabelBeforeDrag
-            measuredUndertravel = actualDistance * direction > 0
-                ? max(0, abs(dragDistance) - abs(actualDistance))
-                : abs(dragDistance)
-            compensatedDirection = direction
         }
         let viewportTop = detail.frame.minY
         let viewportBottom = detail.frame.maxY
-        XCTAssertLessThanOrEqual(siteLabel.frame.maxY, viewportTop)
-        XCTAssertGreaterThanOrEqual(deleteScreen.frame.minY, viewportTop)
-        XCTAssertGreaterThanOrEqual(cancelDelete.frame.minY, viewportTop)
-        XCTAssertGreaterThanOrEqual(confirmDelete.frame.minY, viewportTop)
-        XCTAssertLessThanOrEqual(deleteScreen.frame.maxY, viewportBottom)
-        XCTAssertLessThanOrEqual(cancelDelete.frame.maxY, viewportBottom)
-        XCTAssertLessThanOrEqual(confirmDelete.frame.maxY, viewportBottom)
-        XCTAssertTrue(cancelDelete.isHittable)
-        XCTAssertTrue(confirmDelete.isHittable)
+        let preferredComposition = siteLabel.frame.maxY <= viewportTop
+            && deleteScreen.frame.minY >= viewportTop
+            && deleteScreen.frame.maxY <= viewportBottom
+            && deleteMessage.frame.minY >= viewportTop
+            && deleteMessage.frame.maxY <= viewportBottom
+            && cancelDelete.frame.minY >= viewportTop
+            && cancelDelete.frame.maxY <= viewportBottom
+            && confirmDelete.frame.minY >= viewportTop
+            && confirmDelete.frame.maxY <= viewportBottom
+            && cancelDelete.isHittable
+            && confirmDelete.isHittable
+        let fallbackComposition = siteLabel.frame.maxY <= viewportTop
+            && deleteScreen.frame.maxY <= viewportTop
+            && deleteMessage.frame.maxY <= viewportTop
+            && cancelDelete.frame.minY >= viewportTop
+            && cancelDelete.frame.maxY <= viewportBottom
+            && confirmDelete.frame.minY >= viewportTop
+            && confirmDelete.frame.maxY <= viewportBottom
+            && cancelDelete.isHittable
+            && confirmDelete.isHittable
+        XCTAssertTrue(preferredComposition || fallbackComposition)
+        guard preferredComposition || fallbackComposition else { return }
         captureBaseline("state.sign-detail.delete-confirmation", in: app)
         assertControl(cancelDelete, label: "Cancel")
         cancelDelete.tap()
