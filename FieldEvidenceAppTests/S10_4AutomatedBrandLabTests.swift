@@ -239,8 +239,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 134_507,
-            sha256: "3C7A704002117F40D905CCD382796E4651D116D68E306542AEAD4DEB35736A61"
+            byteCount: 132_796,
+            sha256: "2F785FCFBA693FCACF6B122A774E60D29FD70812F172FB45C2DBBEA3D6785FAD"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -413,6 +413,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"let runsAXTextDeleteConfirmationDiagnostic ="#,
             #"automationShard?.shardID == "s10.4.current.ax-text""#,
             #"if runsAXTextDeleteConfirmationDiagnostic {"#,
+            #"if !runsAXTextDeleteConfirmationDiagnostic {"#,
             "let expectedDeleteMessage =\n" +
                 "                \"Delete this sign, its photos, and its reports from this app? \" +\n" +
                 "                \"This cannot be undone. Your free-report count will not reset. \" +\n" +
@@ -430,8 +431,25 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "AX-text delete diagnostic requires wholly visible, hittable actions",
             "guard hasExactDeleteMessage,\n" +
                 "                  hasVisibleHittableDeleteActions else { return }",
+            "captureBaseline(deleteConfirmationStateID, in: app)",
         ]
         for lock in deleteViewportDiagnosticLocks {
+            XCTAssertTrue(uiSource.contains(lock), lock)
+        }
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "state.sign-detail.delete-confirmation"
+            ).count - 1,
+            2
+        )
+        let deleteNormalEvidenceLocks = [
+            "let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {",
+            "let axTreeDigest = try accessibilityTreeDigest(in: app)",
+            #"printJSONLine(prefix: "S10_4_AX_STATE""#,
+            #"printJSONLine(prefix: "S10_4_CONTRAST""#,
+            "automatedEvidenceIDs.append(",
+        ]
+        for lock in deleteNormalEvidenceLocks {
             XCTAssertTrue(uiSource.contains(lock), lock)
         }
 
@@ -535,7 +553,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(separatedBy: "S10_4_AUDIT_DIAGNOSTIC").count - 1,
-            2
+            1
         )
         XCTAssertTrue(uiSource.contains(
             "prefix: \"S10_4_AUDIT_DIAGNOSTIC\",\n" +
@@ -547,63 +565,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "throw AutomationConfigurationError.invalid(\n" +
                 "                    \"S10.4 AX-text preflight diagnostic unexpectedly passed\""
         ))
-
-        let deleteAuditScopeOpening =
-            "if shard.shardID == \"s10.4.current.ax-text\",\n" +
-                "               stateID == \"state.sign-detail.delete-confirmation\" {"
-        XCTAssertEqual(
-            uiSource.components(separatedBy: deleteAuditScopeOpening).count - 1,
-            1
-        )
-        let deleteAuditScopeStart = try XCTUnwrap(
-            uiSource.range(of: deleteAuditScopeOpening)
-        )
-        let deleteAuditScopeClosing =
-            "guard observedIssueCount >= 1 else {\n" +
-                "                    throw AutomationConfigurationError.invalid(\n" +
-                "                        \"S10.4 AX-text delete-confirmation diagnostic unexpectedly passed\"\n" +
-                "                    )\n" +
-                "                }\n" +
-                "                return\n" +
-                "            }"
-        let deleteAuditScopeEnd = try XCTUnwrap(
-            uiSource.range(
-                of: deleteAuditScopeClosing,
-                range: deleteAuditScopeStart.lowerBound..<uiSource.endIndex
-            )
-        )
-        let deleteAuditSource = String(
-            uiSource[deleteAuditScopeStart.lowerBound..<deleteAuditScopeEnd.upperBound]
-        )
-        let deleteAuditDiagnosticLocks = [
-            "var observedIssueCount = 0",
-            "observedIssueCount += 1",
-            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
-            #""compactDescription": issue.compactDescription"#,
-            #""detailedDescription": issue.detailedDescription"#,
-            #""applicationFrame": self.auditFrameObject(app.frame)"#,
-            #"diagnostic["elementIdentifier"] = auditedElement.identifier"#,
-            #"diagnostic["elementLabel"] = auditedElement.label"#,
-            #"diagnostic["elementType"] = String("#,
-            #"diagnostic["elementFrame"] = self.auditFrameObject("#,
-            #"prefix: "S10_4_AUDIT_DIAGNOSTIC""#,
-            "object: diagnostic\n" +
-                "                    )\n" +
-                "                    return true",
-            "guard observedIssueCount >= 1 else {",
-            #""S10.4 AX-text delete-confirmation diagnostic unexpectedly passed""#,
-        ]
-        for lock in deleteAuditDiagnosticLocks {
-            XCTAssertTrue(deleteAuditSource.contains(lock), lock)
-        }
-        let firstEvidenceEmission = try XCTUnwrap(
-            uiSource.range(of: "let axTreeDigest = try accessibilityTreeDigest(in: app)")
-        )
-        XCTAssertLessThan(
-            deleteAuditScopeEnd.upperBound,
-            firstEvidenceEmission.lowerBound,
-            "AX-text delete diagnostics must return before accepted state evidence"
-        )
 
         let workflowProtocolLocks = [
             "contrast_exception_authority_path=",

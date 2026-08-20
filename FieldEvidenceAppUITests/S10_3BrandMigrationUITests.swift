@@ -2126,41 +2126,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         )
         do {
             if shard.shardID == "s10.4.current.ax-text",
-               stateID == "state.sign-detail.delete-confirmation" {
-                var observedIssueCount = 0
-                try app.performAccessibilityAudit(for: .contrast) { issue in
-                    observedIssueCount += 1
-                    var diagnostic: [String: Any] = [
-                        "auditTypeRawValue": String(issue.auditType.rawValue),
-                        "compactDescription": issue.compactDescription,
-                        "detailedDescription": issue.detailedDescription,
-                        "applicationFrame": self.auditFrameObject(app.frame),
-                    ]
-                    if let auditedElement = issue.element {
-                        diagnostic["elementIdentifier"] = auditedElement.identifier
-                        diagnostic["elementLabel"] = auditedElement.label
-                        diagnostic["elementType"] = String(
-                            describing: auditedElement.elementType
-                        )
-                        diagnostic["elementFrame"] = self.auditFrameObject(
-                            auditedElement.frame
-                        )
-                    }
-                    self.printJSONLine(
-                        prefix: "S10_4_AUDIT_DIAGNOSTIC",
-                        object: diagnostic
-                    )
-                    return true
-                }
-                guard observedIssueCount >= 1 else {
-                    throw AutomationConfigurationError.invalid(
-                        "S10.4 AX-text delete-confirmation diagnostic unexpectedly passed"
-                    )
-                }
-                return
-            }
-
-            if shard.shardID == "s10.4.current.ax-text",
                stateID == "state.check-preflight.ready" {
                 try app.performAccessibilityAudit(for: .contrast) { issue in
                     var diagnostic: [String: Any] = [
