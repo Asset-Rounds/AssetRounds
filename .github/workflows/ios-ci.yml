@@ -835,7 +835,9 @@ jobs:
           test "$(jq 'length' "$shard_evidence_path/candidate-files.json")" -eq 67
 
           contrast_exception_authority_path="$RUNNER_TEMP/s10-4-contrast-exceptions.json"
-          jq -n '
+          jq -n \
+            --arg timeZoneLabel "I confirm this is the site's time zone." \
+            --arg timeZoneRationale "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the I confirm this is the site's time zone label even though the audit-owned crop contains only the iOS keyboard and the frozen public node frame is fully keyboard-occluded in the AX-text preflight state; the exception is limited to the frozen public issue signature." '
             [
               {
                 shardID: "s10.4.current.default-dark",
@@ -914,30 +916,99 @@ jobs:
                     applicationFrame: {x: 0, y: 0, width: 402, height: 874}
                   }
                 ]
+              },
+              {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.check-preflight.ready",
+                taskID: "one_handed_start",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION",
+                exceptionOwner: "palatis3",
+                exceptionExpiresAt: "2026-11-20",
+                exceptionRationale: $timeZoneRationale,
+                ignoredAuditIssues: [
+                  {
+                    auditTypeRawValue: "1",
+                    compactDescription: "Contrast failed",
+                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+                    elementIdentifier: "",
+                    elementLabel: $timeZoneLabel,
+                    elementType: "XCUIElementType(rawValue: 48)",
+                    elementFrame: {
+                      x: 32,
+                      y: 547,
+                      width: 238.33333333333331,
+                      height: 249.33333333333337
+                    },
+                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}
+                  }
+                ]
+              },
+              {
+                shardID: "s10.4.current.default-dark",
+                stateID: "state.feedback.review-ready",
+                taskID: "history_recovery",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-FEEDBACK-PRIVACY",
+                exceptionOwner: "palatis3",
+                exceptionExpiresAt: "2026-11-20",
+                exceptionRationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Feedback privacy copy while the frozen public node frame is top-clipped outside the 402x874 application frame and its remaining slice is bound to native status/navigation chrome; the live Feedback composition simultaneously preserves the frozen App-metadata and Save-diagnostics clearances, and the audit-owned crop confirms that unobscured primaryText renders white on the dark elevated surface; the exception is limited to the frozen public issue signature.",
+                ignoredAuditIssues: [
+                  {
+                    auditTypeRawValue: "1",
+                    compactDescription: "Contrast failed",
+                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+                    elementIdentifier: "s8.4.feedback.privacy",
+                    elementLabel: "Your message stays editable. Only app version, build, device model, and iOS version are prefilled; customer and inspection content is never prefilled.",
+                    elementType: "XCUIElementType(rawValue: 48)",
+                    elementFrame: {
+                      x: 32,
+                      y: -34.333333333333343,
+                      width: 298.33333333333331,
+                      height: 86.333333333333343
+                    },
+                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}
+                  }
+                ]
               }
             ]
           ' > "$contrast_exception_authority_path"
           jq -e --arg today "$(date -u +%F)" '
-            length == 3
-            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 3
-            and ([.[].exceptionIssueID] | unique | length) == 3
-            and ([.[] | {shardID, stateID, taskID}] | sort_by(.shardID, .stateID)) == ([
+            length == 5
+            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 4
+            and ([.[].exceptionIssueID] | unique | length) == 5
+            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 5
+            and ([.[] | {shardID, stateID, taskID, exceptionIssueID}]
+              | sort_by(.shardID, .stateID, .exceptionIssueID)) == ([
               {
                 shardID: "s10.4.current.ax-text",
                 stateID: "state.check-preflight.ready",
-                taskID: "one_handed_start"
+                taskID: "one_handed_start",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN"
+              },
+              {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.check-preflight.ready",
+                taskID: "one_handed_start",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION"
               },
               {
                 shardID: "s10.4.current.ax-text",
                 stateID: "state.new-sign.editing",
-                taskID: "one_handed_start"
+                taskID: "one_handed_start",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME"
+              },
+              {
+                shardID: "s10.4.current.default-dark",
+                stateID: "state.feedback.review-ready",
+                taskID: "history_recovery",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-FEEDBACK-PRIVACY"
               },
               {
                 shardID: "s10.4.current.default-dark",
                 stateID: "state.sample-report.ready",
-                taskID: "report_comprehension"
+                taskID: "report_comprehension",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW"
               }
-            ] | sort_by(.shardID, .stateID))
+            ] | sort_by(.shardID, .stateID, .exceptionIssueID))
             and all(.[];
               ((keys | sort) == ([
                 "shardID", "stateID", "taskID", "exceptionIssueID",
@@ -950,6 +1021,24 @@ jobs:
               and ($today <= .exceptionExpiresAt)
               and (.exceptionRationale | type == "string" and length > 0)
               and (.ignoredAuditIssues | type == "array" and length == 1)
+              and ((.ignoredAuditIssues[0] | keys | sort) == ([
+                "auditTypeRawValue", "compactDescription", "detailedDescription",
+                "elementIdentifier", "elementLabel", "elementType",
+                "elementFrame", "applicationFrame"
+              ] | sort))
+              and (.ignoredAuditIssues[0].auditTypeRawValue == "1")
+              and (.ignoredAuditIssues[0].compactDescription == "Contrast failed")
+              and (.ignoredAuditIssues[0].detailedDescription
+                == "Contrast failed for SwiftUI.AccessibilityNode")
+              and (.ignoredAuditIssues[0].elementIdentifier | type == "string")
+              and (.ignoredAuditIssues[0].elementLabel | type == "string" and length > 0)
+              and (.ignoredAuditIssues[0].elementType
+                == "XCUIElementType(rawValue: 48)")
+              and ((.ignoredAuditIssues[0].elementFrame | keys | sort)
+                == (["x", "y", "width", "height"] | sort))
+              and all(.ignoredAuditIssues[0].elementFrame[]; type == "number")
+              and (.ignoredAuditIssues[0].applicationFrame
+                == {x: 0, y: 0, width: 402, height: 874})
             )
           ' "$contrast_exception_authority_path" > /dev/null
 
@@ -990,6 +1079,74 @@ jobs:
                 exceptionRationale,
                 ignoredAuditIssues
               };
+              def expectedExceptionEvidence($matched): {
+                exceptionIssueID: ($matched
+                  | map(.exceptionIssueID) | join(" | ")),
+                exceptionOwner: $matched[0].exceptionOwner,
+                exceptionExpiresAt: $matched[0].exceptionExpiresAt,
+                exceptionRationale: ($matched
+                  | map(.exceptionRationale) | join(" | ")),
+                ignoredAuditIssues: ($matched | map(.ignoredAuditIssues[0]))
+              };
+              def matchedStateAuthorities($row; $authorities; $today):
+                ($authorities
+                  | map(select(
+                      .shardID == $row.shardID
+                      and .stateID == $row.stateID
+                    ))) as $eligible
+                | ($row.ignoredAuditIssues // []) as $observedIssues
+                | if ($observedIssues | type) != "array"
+                     or ($observedIssues | length) == 0 then
+                    error("contrast exception state has no observed issues")
+                  else
+                    ([$observedIssues[] as $observedIssue
+                      | ($eligible
+                          | map(select(
+                              .ignoredAuditIssues[0] == $observedIssue
+                            ))) as $issueMatches
+                      | if ($issueMatches | length) != 1 then
+                          error("unmatched or ambiguous contrast exception issue")
+                        else
+                          $issueMatches[0]
+                        end
+                    ] | sort_by(.exceptionIssueID)) as $matched
+                    | if ($matched | map(.exceptionIssueID) | unique | length)
+                         != ($matched | length) then
+                        error("duplicate contrast exception issue")
+                      elif ($observedIssues
+                        != ($matched | map(.ignoredAuditIssues[0]))) then
+                        error("noncanonical contrast exception issue order")
+                      elif ($matched | map(.exceptionOwner) | unique | length) != 1
+                           or ($matched | map(.exceptionExpiresAt) | unique | length) != 1 then
+                        error("contrast exception owner or expiry is ambiguous")
+                      elif any($matched[];
+                        (.exceptionExpiresAt
+                          | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$") | not)
+                        or $today > .exceptionExpiresAt) then
+                        error("expired or malformed contrast exception authority")
+                      elif (($row | exceptionEvidence)
+                        != expectedExceptionEvidence($matched)) then
+                        error("contrast exception state aggregate drift")
+                      else
+                        $matched
+                      end
+                  end;
+              def taskIssueLimit($shardID; $taskID):
+                if $shardID == "s10.4.current.ax-text"
+                   and $taskID == "one_handed_start" then 3
+                elif $shardID == "s10.4.current.default-dark"
+                     and ($taskID == "history_recovery"
+                       or $taskID == "report_comprehension") then 1
+                else 0
+                end;
+              def taskStateLimit($shardID; $taskID):
+                if $shardID == "s10.4.current.ax-text"
+                   and $taskID == "one_handed_start" then 2
+                elif $shardID == "s10.4.current.default-dark"
+                     and ($taskID == "history_recovery"
+                       or $taskID == "report_comprehension") then 1
+                else 0
+                end;
               ($features | if length == 0 then [] else split(",") end) as $expectedFeatures
               | ($contract[0].tasks | map(.task_id)) as $expectedTasks
               | ($contrasts[0]
@@ -997,41 +1154,57 @@ jobs:
                   | sort_by(.stateID)) as $stateExceptions
               | ($exceptions[0]
                   | map(select(.shardID == $shard))
-                  | sort_by(.stateID)) as $shardAuthorities
+                  | sort_by(.stateID, .exceptionIssueID)) as $shardAuthorities
               | (if ([ $stateExceptions[].stateID ] | unique | length) != ($stateExceptions | length) then
                    error("duplicate contrast exception state")
-                 elif $shard == "s10.4.current.default-dark" and ($stateExceptions | length) > 1 then
-                   error("more than one default-dark contrast exception")
-                 elif $shard == "s10.4.current.ax-text" and ($stateExceptions | length) > 2 then
-                   error("more than two AX-text contrast exceptions")
-                 elif $shard != "s10.4.current.default-dark"
-                      and $shard != "s10.4.current.ax-text"
-                      and ($stateExceptions | length) != 0 then
-                   error("contrast exception on ineligible shard")
                  else
                    $stateExceptions
-                 end) as $boundedStateExceptions
-              | ($boundedStateExceptions | map(
-                  . as $stateException
-                  | ($shardAuthorities
-                      | map(select(.stateID == $stateException.stateID))) as $matches
-                  | if ($matches | length) != 1 then
-                      error("unmatched or ambiguous contrast exception authority")
-                    elif ($matches[0].exceptionExpiresAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$") | not)
-                         or $today > $matches[0].exceptionExpiresAt then
-                      error("expired or malformed contrast exception authority")
-                    elif (($stateException | exceptionEvidence) != ($matches[0] | exceptionEvidence)) then
-                      error("contrast exception metadata drift")
-                    else
-                      $matches[0]
-                    end
-                )) as $matchedAuthorities
+                 end) as $uniqueStateExceptions
+              | ($uniqueStateExceptions
+                  | map(. as $stateException
+                    | matchedStateAuthorities(
+                        $stateException;
+                        $shardAuthorities;
+                        $today
+                      ))
+                  | (add // [])
+                  | sort_by(.stateID, .exceptionIssueID)) as $matchedAuthorities
+              | ($matchedAuthorities
+                  | map(.stateID) | unique | sort) as $matchedExceptionStateIDs
+              | (if ($uniqueStateExceptions | length)
+                    != ($matchedExceptionStateIDs | length) then
+                   error("contrast exception state-to-issue cardinality drift")
+                 elif any($matchedAuthorities | group_by(.stateID)[];
+                   length > (
+                     if $shard == "s10.4.current.ax-text"
+                        and .[0].stateID == "state.check-preflight.ready" then 2
+                     else 1
+                     end
+                   )) then
+                   error("contrast exception per-state issue limit exceeded")
+                 elif $shard == "s10.4.current.default-dark"
+                      and (($matchedAuthorities | length) > 2
+                        or ($matchedExceptionStateIDs | length) > 2) then
+                   error("default-dark contrast exception bound exceeded")
+                 elif $shard == "s10.4.current.ax-text"
+                      and (($matchedAuthorities | length) > 3
+                        or ($matchedExceptionStateIDs | length) > 2) then
+                   error("AX-text contrast exception bound exceeded")
+                 elif $shard != "s10.4.current.default-dark"
+                      and $shard != "s10.4.current.ax-text"
+                      and ($matchedAuthorities | length) != 0 then
+                   error("contrast exception on ineligible shard")
+                 else
+                   $matchedAuthorities
+                 end) as $boundedMatchedAuthorities
               | all(.[];
                   . as $row
                   | .taskID as $taskID
-                  | ($matchedAuthorities
+                  | ($boundedMatchedAuthorities
                       | map(select(.taskID == $taskID))
-                      | sort_by(.stateID)) as $taskExceptions
+                      | sort_by(.stateID, .exceptionIssueID)) as $taskExceptions
+                  | ($taskExceptions
+                      | map(.stateID) | unique | sort) as $taskExceptionStateIDs
                   | ($taskExceptions | map(.exceptionOwner) | unique) as $exceptionOwners
                   | ($taskExceptions | map(.exceptionExpiresAt) | unique) as $exceptionExpiries
                   | type == "object"
@@ -1055,13 +1228,17 @@ jobs:
                   and (.contrastEvidenceID == ("s10.4-contrast-" + $shard + "-" + $taskID))
                   and (.aggregateAXTreeSHA256 | type == "string" and test("^[0-9A-F]{64}$"))
                   and (.stateCount | type == "number" and . > 0)
+                  and (($taskExceptions | length)
+                    <= taskIssueLimit($shard; $taskID))
+                  and (($taskExceptionStateIDs | length)
+                    <= taskStateLimit($shard; $taskID))
                   and (
                     if ($taskExceptions | length) > 0 then
                       (.automatedStatus == "EXCEPTION")
                       and (.automatedEvidenceIDs == (
                         baseEvidence($shard; $taskID)
-                        + ($taskExceptions | map(
-                            "s10.4-contrast-" + $shard + "-" + .stateID
+                        + ($taskExceptionStateIDs | map(
+                            "s10.4-contrast-" + $shard + "-" + .
                           ))
                       ))
                       and (.exceptionIssueID == ($taskExceptions
@@ -1073,7 +1250,7 @@ jobs:
                       and ($today <= .exceptionExpiresAt)
                       and (.exceptionRationale == ($taskExceptions
                         | map(.exceptionRationale) | join(" | ")))
-                      and (.exceptionStateIDs == ($taskExceptions | map(.stateID)))
+                      and (.exceptionStateIDs == $taskExceptionStateIDs)
                       and (.rationale == (
                         if ($taskExceptions | length) == 1 then
                           "All task states produced AX-tree, focus-order, and target-size evidence; the sole Apple contrast issue is bound to the named, expiring exception."
@@ -1081,8 +1258,8 @@ jobs:
                           "All task states produced AX-tree, focus-order, and target-size evidence; the exact Apple contrast issues are bound to the named, expiring exceptions."
                         end
                       ))
-                      and all($taskExceptions[];
-                        .stateID as $exceptionStateID
+                      and all($taskExceptionStateIDs[];
+                        . as $exceptionStateID
                         | ($row.stateAXTreeDigests | map(.stateID)
                           | index($exceptionStateID)) != null
                       )
@@ -1168,12 +1345,71 @@ jobs:
                 exceptionRationale,
                 ignoredAuditIssues
               };
+              def expectedExceptionEvidence($matched): {
+                exceptionIssueID: ($matched
+                  | map(.exceptionIssueID) | join(" | ")),
+                exceptionOwner: $matched[0].exceptionOwner,
+                exceptionExpiresAt: $matched[0].exceptionExpiresAt,
+                exceptionRationale: ($matched
+                  | map(.exceptionRationale) | join(" | ")),
+                ignoredAuditIssues: ($matched | map(.ignoredAuditIssues[0]))
+              };
+              def matchedStateAuthorities($row; $authorities; $today):
+                ($authorities
+                  | map(select(
+                      .shardID == $row.shardID
+                      and .stateID == $row.stateID
+                    ))) as $eligible
+                | ($row.ignoredAuditIssues // []) as $observedIssues
+                | if ($observedIssues | type) != "array"
+                     or ($observedIssues | length) == 0 then
+                    error("contrast exception state has no observed issues")
+                  else
+                    ([$observedIssues[] as $observedIssue
+                      | ($eligible
+                          | map(select(
+                              .ignoredAuditIssues[0] == $observedIssue
+                            ))) as $issueMatches
+                      | if ($issueMatches | length) != 1 then
+                          error("unmatched or ambiguous contrast exception issue")
+                        else
+                          $issueMatches[0]
+                        end
+                    ] | sort_by(.exceptionIssueID)) as $matched
+                    | if ($matched | map(.exceptionIssueID) | unique | length)
+                         != ($matched | length) then
+                        error("duplicate contrast exception issue")
+                      elif ($observedIssues
+                        != ($matched | map(.ignoredAuditIssues[0]))) then
+                        error("noncanonical contrast exception issue order")
+                      elif ($matched | map(.exceptionOwner) | unique | length) != 1
+                           or ($matched | map(.exceptionExpiresAt) | unique | length) != 1 then
+                        error("contrast exception owner or expiry is ambiguous")
+                      elif any($matched[];
+                        (.exceptionExpiresAt
+                          | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$") | not)
+                        or $today > .exceptionExpiresAt) then
+                        error("expired or malformed contrast exception authority")
+                      elif (($row | exceptionEvidence)
+                        != expectedExceptionEvidence($matched)) then
+                        error("contrast exception state aggregate drift")
+                      else
+                        $matched
+                      end
+                  end;
+              def stateIssueLimit($shardID; $stateID):
+                if $shardID == "s10.4.current.ax-text"
+                   and $stateID == "state.check-preflight.ready" then 2
+                elif $shardID == "s10.4.current.ax-text"
+                     and $stateID == "state.new-sign.editing" then 1
+                elif $shardID == "s10.4.current.default-dark"
+                     and ($stateID == "state.feedback.review-ready"
+                       or $stateID == "state.sample-report.ready") then 1
+                else 0
+                end;
               ($inventory[0] | [.routes[].states[].state_id] | sort) as $expectedStates
               | all(.[];
                   . as $row
-                  | ($exceptions[0]
-                      | map(select(.shardID == $row.shardID and .stateID == $row.stateID))
-                      | .[0] // null) as $authorizedException
                   | type == "object"
                   and ((keys | sort) == ([
                     "shardID", "stateID", "requirementID", "deviceProfileID",
@@ -1198,10 +1434,10 @@ jobs:
                         ignoredAuditIssues: []
                       })
                     elif .result == "EXCEPTION" then
-                      ($authorizedException != null)
-                      and ($authorizedException.exceptionExpiresAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"))
-                      and ($today <= $authorizedException.exceptionExpiresAt)
-                      and ((. | exceptionEvidence) == ($authorizedException | exceptionEvidence))
+                      matchedStateAuthorities($row; $exceptions[0]; $today) as $matched
+                      | ($matched | length) > 0
+                      and (($matched | length)
+                        <= stateIssueLimit($row.shardID; $row.stateID))
                     else
                       false
                     end
@@ -1212,20 +1448,30 @@ jobs:
                 and (
                   ([.[] | select(.result == "EXCEPTION")]
                     | sort_by(.stateID)) as $stateExceptions
-                  | all($stateExceptions[];
-                      . as $stateException
-                      | any($exceptions[0][];
-                          .shardID == $shard
-                          and .stateID == $stateException.stateID
-                        )
-                    )
+                  | ($stateExceptions
+                      | map(. as $stateException
+                        | matchedStateAuthorities(
+                            $stateException;
+                            $exceptions[0];
+                            $today
+                          ))
+                      | (add // [])
+                      | sort_by(.stateID, .exceptionIssueID)) as $matchedAuthorities
+                  | ($matchedAuthorities
+                      | map(.stateID) | unique | sort) as $matchedExceptionStateIDs
+                  | ($stateExceptions | length) == ($matchedExceptionStateIDs | length)
+                    and all($matchedAuthorities | group_by(.stateID)[];
+                      length <= stateIssueLimit($shard; .[0].stateID))
                     and (
                       if $shard == "s10.4.current.default-dark" then
-                        ($stateExceptions | length) <= 1
+                        ($matchedAuthorities | length) <= 2
+                        and ($matchedExceptionStateIDs | length) <= 2
                       elif $shard == "s10.4.current.ax-text" then
-                        ($stateExceptions | length) <= 2
+                        ($matchedAuthorities | length) <= 3
+                        and ($matchedExceptionStateIDs | length) <= 2
                       else
-                        ($stateExceptions | length) == 0
+                        ($matchedAuthorities | length) == 0
+                        and ($matchedExceptionStateIDs | length) == 0
                       end
                     )
                 )

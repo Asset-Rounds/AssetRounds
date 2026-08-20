@@ -105,8 +105,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             workflowPath,
-            byteCount: 79_411,
-            sha256: "D648AC3C59E36036757E4F2D8D24FD9E2310B21D21671F164386B2E031BCB36F"
+            byteCount: 93_469,
+            sha256: "A11BE2D278A2415B9E19438F972F5597A3294800E08B9A15537E0B160DC122C6"
         )
         let workflowSource = try text(workflowPath)
         let retainStepMarker = "      - name: Retain S10.4 shard evidence\n"
@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 144_867,
-            sha256: "0CFA146103474E1483D343904190B1BD5EED91BDAFBFCAFCB87143892EAB23A8"
+            byteCount: 144_669,
+            sha256: "6DF94F11F93336C944CF3CD0EE7C4610C482692A8BFFDDB5258347E54F7CDCA6"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1199,62 +1199,83 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN",
+            "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION",
+            "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-FEEDBACK-PRIVACY",
         ]
         let exceptionRationales = [
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Wide view even though the audit-owned crop visibly renders white text on the dark elevated Sample card; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Customer / site name even though the audit-owned crop visibly renders black text on white and the public node is bound to the top navigation-region frame; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Before you begin while the frozen public node frame is bottom-clipped outside the 402x874 application frame in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the I confirm this is the site's time zone label even though the audit-owned crop contains only the iOS keyboard and the frozen public node frame is fully keyboard-occluded in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Feedback privacy copy while the frozen public node frame is top-clipped outside the 402x874 application frame and its remaining slice is bound to native status/navigation chrome; the live Feedback composition simultaneously preserves the frozen App-metadata and Save-diagnostics clearances, and the audit-owned crop confirms that unobscured primaryText renders white on the dark elevated surface; the exception is limited to the frozen public issue signature.",
         ]
-        for lock in exceptionIDs + exceptionRationales {
-            XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1, lock)
-            XCTAssertEqual(workflowSource.components(separatedBy: lock).count - 1, 1, lock)
-        }
-        let axTaskExceptionStateIDs = [
-            "state.check-preflight.ready",
-            "state.new-sign.editing",
-        ]
-        for stateID in axTaskExceptionStateIDs {
-            let lock = #"stateID: "\#(stateID)""#
+        for lock in exceptionIDs {
             XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1, lock)
             XCTAssertEqual(workflowSource.components(separatedBy: lock).count - 1, 2, lock)
         }
+        for lock in exceptionRationales {
+            XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1, lock)
+            XCTAssertEqual(workflowSource.components(separatedBy: lock).count - 1, 1, lock)
+        }
+        let uiExceptionStateCounts = [
+            ("state.check-preflight.ready", 2),
+            ("state.new-sign.editing", 1),
+            ("state.sample-report.ready", 1),
+            ("state.feedback.review-ready", 1),
+        ]
+        for (stateID, expectedCount) in uiExceptionStateCounts {
+            let lock = #"stateID: "\#(stateID)""#
+            XCTAssertEqual(
+                uiSource.components(separatedBy: lock).count - 1,
+                expectedCount,
+                lock
+            )
+        }
+        XCTAssertEqual(
+            uiSource.components(separatedBy: "ContrastAuditExceptionSignature(").count - 1,
+            5
+        )
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: #"issueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            3
+            5
         )
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            3
+            10
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"owner: "palatis3""#).count - 1,
-            3
+            5
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionOwner: "palatis3""#)
                 .count - 1,
-            3
+            5
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"expiresAt: "2026-11-20""#).count - 1,
-            3
+            5
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionExpiresAt: "2026-11-20""#)
                 .count - 1,
-            3
+            5
         )
 
         let signatureLocks = [
             #"taskID: "report_comprehension""#,
             #"taskID: "one_handed_start""#,
+            #"taskID: "history_recovery""#,
             #"elementLabel: "Wide view""#,
             #"elementLabel: "Customer / site name""#,
             #"elementLabel: "Before you begin""#,
+            #"elementLabel: "I confirm this is the site's time zone.""#,
+            #"elementIdentifier: "s8.4.feedback.privacy""#,
+            #"elementLabel: "Your message stays editable. Only app version, build, device model, and iOS version are prefilled; customer and inspection content is never prefilled.""#,
             #"elementTypeDescription: "XCUIElementType(rawValue: 48)""#,
             "y: 810.33333333333337",
             "height: 20.333333333333258",
@@ -1263,67 +1284,116 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "y: 844.33333333333337",
             "width: 231",
             "height: 125.33333333333326",
+            "y: 547",
+            "width: 238.33333333333331",
+            "height: 249.33333333333337",
+            "y: -34.333333333333343",
+            "width: 298.33333333333331",
+            "height: 86.333333333333343",
             "applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)",
         ]
         for lock in signatureLocks {
             XCTAssertTrue(uiSource.contains(lock), lock)
         }
-        let workflowPreflightSignatureLocks = [
+        let workflowSignatureLocks = [
+            #"--arg timeZoneLabel "I confirm this is the site's time zone.""#,
+            #"--arg timeZoneRationale "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue"#,
             #"auditTypeRawValue: "1""#,
             #"compactDescription: "Contrast failed""#,
             #"detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode""#,
             #"elementIdentifier: """#,
             #"elementLabel: "Before you begin""#,
+            #"elementLabel: $timeZoneLabel"#,
+            #"elementIdentifier: "s8.4.feedback.privacy""#,
             #"elementType: "XCUIElementType(rawValue: 48)""#,
             "y: 844.33333333333337",
             "width: 231",
             "height: 125.33333333333326",
+            "y: 547",
+            "width: 238.33333333333331",
+            "height: 249.33333333333337",
+            "y: -34.333333333333343",
+            "width: 298.33333333333331",
+            "height: 86.333333333333343",
             "applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
         ]
-        for lock in workflowPreflightSignatureLocks {
+        for lock in workflowSignatureLocks {
             XCTAssertTrue(workflowSource.contains(lock), lock)
         }
 
         let failClosedHandlerLocks = [
-            "guard eligibleExceptions.count <= 1 else",
-            "guard observedIssueCount == 1,",
-            "self.isActive(signature),",
-            "let auditedElement = issue.element,",
-            "String(issue.auditType.rawValue) == signature.auditTypeRawValue,",
-            "issue.compactDescription == signature.compactDescription,",
-            "issue.detailedDescription == signature.detailedDescription,",
-            "auditedElement.identifier == signature.elementIdentifier,",
-            "auditedElement.label == signature.elementLabel,",
-            "== signature.elementTypeDescription,",
-            "auditedElement.frame == signature.elementFrame,",
-            "app.frame == signature.applicationFrame else {",
-            "matchedException = signature",
-            "guard observedIssueCount <= 1 else",
+            "private var automationContrastExceptions: [String: [ContrastAuditExceptionSignature]] = [:]",
+            "let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {",
+            "let stateIssueLimit =",
+            #"shard.shardID == "s10.4.current.ax-text""#,
+            #"&& stateID == "state.check-preflight.ready" ? 2 : 1"#,
+            "guard eligibleExceptions.count <= stateIssueLimit else",
+            "var matchedExceptions: [ContrastAuditExceptionSignature] = []",
+            "if !eligibleExceptions.isEmpty",
+            "var observedIssueCount = 0",
+            "observedIssueCount += 1",
+            "guard observedIssueCount <= stateIssueLimit,",
+            "let auditedElement = issue.element else",
+            "let matchingExceptions = eligibleExceptions.filter { signature in",
+            "self.isActive(signature)",
+            "String(issue.auditType.rawValue)",
+            "== signature.auditTypeRawValue",
+            "issue.compactDescription == signature.compactDescription",
+            "issue.detailedDescription == signature.detailedDescription",
+            "auditedElement.identifier == signature.elementIdentifier",
+            "auditedElement.label == signature.elementLabel",
+            "== signature.elementTypeDescription",
+            "auditedElement.frame == signature.elementFrame",
+            "app.frame == signature.applicationFrame",
+            "guard matchingExceptions.count == 1,",
+            "let matchedException = matchingExceptions.first,",
+            "!matchedExceptions.contains(where:",
+            "$0.issueID == matchedException.issueID",
+            "matchedExceptions.append(matchedException)",
+            "guard observedIssueCount == matchedExceptions.count,",
+            "observedIssueCount <= stateIssueLimit else",
+            "matchedExceptions.sort { $0.issueID < $1.issueID }",
+            #"Set(matchedExceptions.map(\.issueID)).count == matchedExceptions.count"#,
+            "matchedExceptions.allSatisfy({ $0.stateID == stateID })",
+            "matchedExceptions.allSatisfy({ isActive($0) })",
             "formatter.string(from: Date()) <= signature.expiresAt",
         ]
         for lock in failClosedHandlerLocks {
             XCTAssertTrue(uiSource.contains(lock), lock)
         }
-        XCTAssertTrue(uiSource.contains("return false\n                    }"))
-        XCTAssertTrue(uiSource.contains("matchedException = signature\n                    return true"))
-        XCTAssertTrue(uiSource.contains(#""result": matchedException == nil ? "PASS" : "EXCEPTION""#))
-        XCTAssertTrue(uiSource.contains(#""ignoredAuditIssues": matchedException.map"#))
+        XCTAssertTrue(uiSource.contains("matchedExceptions.append(matchedException)\n                    return true"))
+        XCTAssertTrue(uiSource.contains(#""result": matchedExceptions.isEmpty ? "PASS" : "EXCEPTION""#))
+        XCTAssertTrue(uiSource.contains(#""ignoredAuditIssues": matchedExceptions.map"#))
         XCTAssertTrue(uiSource.contains(#""result": "PASS""#))
-        XCTAssertTrue(uiSource.contains("automationContrastExceptions[stateID] = matchedException"))
+        XCTAssertTrue(uiSource.contains("if !matchedExceptions.isEmpty {\n                automationContrastExceptions[stateID] = matchedExceptions"))
+        XCTAssertTrue(uiSource.contains("contrastEvidence[\"exceptionIssueID\"] = matchedExceptions"))
+        XCTAssertTrue(uiSource.contains(".joined(separator: \" | \")"))
+        XCTAssertFalse(uiSource.contains("observedIssueCount == eligibleExceptions.count"))
+        XCTAssertFalse(uiSource.contains("var matchedException: ContrastAuditExceptionSignature?"))
         XCTAssertTrue(uiSource.contains(#""automatedStatus": taskExceptions.isEmpty ? "PASS" : "EXCEPTION""#))
         let taskExceptionLocks = [
+            #".flatMap { $0 }"#,
             #".filter { $0.taskID == task.taskID }"#,
-            #".sorted { $0.stateID < $1.stateID }"#,
-            #"let allowsTwoTaskExceptions ="#,
-            #"shard.shardID == "s10.4.current.ax-text""#,
-            #"&& task.taskID == "one_handed_start""#,
-            #"let taskExceptionLimit = allowsTwoTaskExceptions ? 2 : 1"#,
-            #"guard taskExceptions.count <= taskExceptionLimit else"#,
+            #"if $0.stateID == $1.stateID {"#,
+            #"return $0.issueID < $1.issueID"#,
+            #"let taskIssueLimit: Int"#,
+            #"let taskStateLimit: Int"#,
+            #"let permittedExceptionStateIDs: Set<String>"#,
+            #"switch (shard.shardID, task.taskID)"#,
+            #"case ("s10.4.current.ax-text", "one_handed_start")"#,
+            #"taskIssueLimit = 3"#,
+            #"taskStateLimit = 2"#,
+            #"case ("s10.4.current.default-dark", "report_comprehension")"#,
+            #"permittedExceptionStateIDs = ["state.sample-report.ready"]"#,
+            #"case ("s10.4.current.default-dark", "history_recovery")"#,
+            #"permittedExceptionStateIDs = ["state.feedback.review-ready"]"#,
+            #"guard taskExceptions.count <= taskIssueLimit else"#,
             #"A common task exceeded its exact contrast exception limit"#,
-            #"let exceptionStateIDs = taskExceptions.map(\.stateID)"#,
+            #"let exceptionStateIDs = Array(Set(taskExceptions.map(\.stateID))).sorted()"#,
             #"let exceptionIssueIDs = taskExceptions.map(\.issueID)"#,
             #"let expectedUniqueMetadataCount = taskExceptions.isEmpty ? 0 : 1"#,
-            #"guard Set(exceptionStateIDs).count == exceptionStateIDs.count"#,
+            #"guard exceptionStateIDs.count <= taskStateLimit"#,
+            #"Set(exceptionStateIDs).isSubset(of: permittedExceptionStateIDs)"#,
             #"Set(exceptionIssueIDs).count == exceptionIssueIDs.count"#,
             #"Set(taskExceptions.map(\.owner)).count"#,
             #"== expectedUniqueMetadataCount"#,
@@ -1347,295 +1417,121 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for lock in taskExceptionLocks {
             XCTAssertTrue(uiSource.contains(lock), lock)
         }
-        let diagnosticStartMarker =
-            #"            if shard.shardID == "s10.4.current.ax-text","# + "\n" +
-                #"               stateID == "state.check-preflight.ready" {"#
-        let diagnosticParts = uiSource.components(
-            separatedBy: diagnosticStartMarker
-        )
-        guard diagnosticParts.count == 2 else {
-            XCTFail("The UI source must contain exactly one AX-text preflight diagnostic")
-            return
-        }
-        let diagnosticTail = diagnosticParts[1]
-        let diagnosticBoundary = "\n            var matchedException: ContrastAuditExceptionSignature?"
-        guard let diagnosticEnd = diagnosticTail.range(of: diagnosticBoundary) else {
-            XCTFail("The AX-text preflight diagnostic has no exact generic-handler boundary")
-            return
-        }
-        let diagnosticSlice = diagnosticStartMarker
-            + String(diagnosticTail[..<diagnosticEnd.lowerBound])
-        let diagnosticFieldLocks = [
-            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
-            #""compactDescription": issue.compactDescription"#,
-            #""detailedDescription": issue.detailedDescription"#,
-            #""applicationFrame": self.auditFrameObject(app.frame)"#,
-            #"diagnostic["elementIdentifier"] = auditedElement.identifier"#,
-            #"diagnostic["elementLabel"] = auditedElement.label"#,
-            #"diagnostic["elementType"] = String("#,
-            #"diagnostic["elementFrame"] = self.auditFrameObject("#,
-        ]
-        for lock in diagnosticFieldLocks {
-            XCTAssertEqual(
-                diagnosticSlice.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        let diagnosticProtocolLocks = [
-            #"guard let signature = eligibleExceptions.first else"#,
-            #"S10.4 AX-text preflight diagnostic is missing its sole frozen signature"#,
-            #"try app.performAccessibilityAudit(for: .contrast) { issue in"#,
-            #"prefix: "S10_4_AUDIT_DIAGNOSTIC""#,
-            #"guard self.isActive(signature)"#,
-            #"String(issue.auditType.rawValue) == signature.auditTypeRawValue"#,
-            #"issue.compactDescription == signature.compactDescription"#,
-            #"issue.detailedDescription == signature.detailedDescription"#,
-            #"auditedElement.identifier == signature.elementIdentifier"#,
-            #"auditedElement.label == signature.elementLabel"#,
-            #"== signature.elementTypeDescription"#,
-            #"auditedElement.frame == signature.elementFrame"#,
-            #"app.frame == signature.applicationFrame else"#,
-            #"S10.4 AX-text preflight multi-issue diagnostic did not encounter an unknown second issue"#,
-        ]
-        for lock in diagnosticProtocolLocks {
-            XCTAssertTrue(diagnosticSlice.contains(lock), lock)
-        }
-        let diagnosticMatchOutcomeLock =
-            "app.frame == signature.applicationFrame else {\n" +
-                "                        return false\n" +
-                "                    }\n" +
-                "                    return true\n" +
-                "                }\n" +
-                "                throw AutomationConfigurationError.invalid(\n" +
-                "                    \"S10.4 AX-text preflight multi-issue diagnostic did not encounter an unknown second issue\"\n" +
-                "                )"
         XCTAssertEqual(
-            diagnosticSlice.components(separatedBy: diagnosticMatchOutcomeLock).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            diagnosticSlice.components(separatedBy: "return false").count - 1,
-            1
-        )
-        XCTAssertEqual(
-            diagnosticSlice.components(separatedBy: "return true").count - 1,
-            1
-        )
-        let diagnosticLogRange = try XCTUnwrap(
-            diagnosticSlice.range(of: #"prefix: "S10_4_AUDIT_DIAGNOSTIC""#)
-        )
-        let diagnosticMatchRange = try XCTUnwrap(
-            diagnosticSlice.range(of: "guard self.isActive(signature)")
-        )
-        XCTAssertLessThan(
-            diagnosticLogRange.lowerBound,
-            diagnosticMatchRange.lowerBound,
-            "The diagnostic must log every public issue field before matching"
-        )
-        for forbidden in [
-            "accessibilityTreeDigest(in: app)",
-            #"printJSONLine(prefix: "S10_4_AX_STATE""#,
-            #"printJSONLine(prefix: "S10_4_CONTRAST""#,
-            "automationContrastExceptions[stateID]",
-            "automatedEvidenceIDs",
-            "S10.4 candidate ",
-            "shard-receipt",
-        ] {
-            XCTAssertFalse(diagnosticSlice.contains(forbidden), forbidden)
-        }
-
-        let feedbackDiagnosticStartMarker =
-            #"            if shard.shardID == "s10.4.current.default-dark","# + "\n" +
-                #"               stateID == "state.feedback.review-ready" {"#
-        let feedbackDiagnosticParts = uiSource.components(
-            separatedBy: feedbackDiagnosticStartMarker
-        )
-        guard feedbackDiagnosticParts.count == 2 else {
-            XCTFail("The UI source must contain exactly one default-dark Feedback diagnostic")
-            return
-        }
-        let feedbackDiagnosticTail = feedbackDiagnosticParts[1]
-        let feedbackDiagnosticBoundary =
-            "\n            if shard.shardID == \"s10.4.current.ax-text\","
-        guard let feedbackDiagnosticEnd = feedbackDiagnosticTail.range(
-            of: feedbackDiagnosticBoundary
-        ) else {
-            XCTFail("The Feedback diagnostic has no exact AX-text diagnostic boundary")
-            return
-        }
-        let feedbackDiagnosticSlice = feedbackDiagnosticStartMarker
-            + String(feedbackDiagnosticTail[..<feedbackDiagnosticEnd.lowerBound])
-
-        let feedbackPublicDiagnosticFieldLocks = [
-            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
-            #""compactDescription": issue.compactDescription"#,
-            #""detailedDescription": issue.detailedDescription"#,
-            #""elementIdentifier": elementIdentifier"#,
-            #""elementLabel": elementLabel"#,
-            #""elementType": elementType"#,
-            #""elementFrame": elementFrame"#,
-            #""applicationFrame": self.auditFrameObject(app.frame)"#,
-        ]
-        for lock in feedbackPublicDiagnosticFieldLocks {
-            XCTAssertEqual(
-                feedbackDiagnosticSlice.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        let feedbackLiveDiagnosticFieldLocks = [
-            #""livePrivacyFrame": self.auditFrameObject(privacy.frame)"#,
-            #""liveAppMetadataFrame": self.auditFrameObject("#,
-            #""liveNavigationBarFrame": self.auditFrameObject("#,
-            #""liveSaveDiagnosticsFrame": self.auditFrameObject("#,
-            #""liveSignsTabFrame": self.auditFrameObject(signsTab.frame)"#,
-            #""liveApplicationFrame": self.auditFrameObject(app.frame)"#,
-        ]
-        for lock in feedbackLiveDiagnosticFieldLocks {
-            XCTAssertEqual(
-                feedbackDiagnosticSlice.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        for lock in [
-            "appMetadata.frame",
-            "navigationBar.frame",
-            "saveDiagnostics.frame",
-        ] {
-            XCTAssertEqual(
-                feedbackDiagnosticSlice.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-
-        let feedbackDiagnosticProtocolLocks = [
-            #"let privacy = element("s8.4.feedback.privacy", in: app)"#,
-            #".matching(NSPredicate(format: "label BEGINSWITH %@", "App "))"#,
-            "let navigationBar = app.navigationBars.firstMatch",
-            #""s8.4.feedback.save-diagnostics""#,
-            #"let signsTab = element("s1.tab.signs", in: app)"#,
-            "guard privacy.exists,",
-            "appMetadata.exists,",
-            "navigationBar.exists,",
-            "saveDiagnostics.exists,",
-            "signsTab.exists else",
-            "S10.4 default-dark Feedback diagnostic geometry is incomplete",
-            "try app.performAccessibilityAudit(for: .contrast) { issue in",
-            #"prefix: "S10_4_AUDIT_DIAGNOSTIC""#,
-            #"var elementIdentifier = """#,
-            #"var elementLabel = """#,
-            #"var elementType = """#,
-            "var elementFrame: Any = NSNull()",
-            "if let auditedElement = issue.element",
-        ]
-        for lock in feedbackDiagnosticProtocolLocks {
-            XCTAssertTrue(feedbackDiagnosticSlice.contains(lock), lock)
-        }
-        let feedbackDiagnosticNonacceptingOutcome =
-            "                    return false\n" +
-                "                }\n" +
-                "                throw AutomationConfigurationError.invalid(\n" +
-                "                    \"S10.4 default-dark Feedback contrast diagnostic returned without an audit issue\"\n" +
-                "                )"
-        XCTAssertEqual(
-            feedbackDiagnosticSlice.components(
-                separatedBy: feedbackDiagnosticNonacceptingOutcome
+            uiSource.components(
+                separatedBy: #"case ("s10.4.current.default-dark""#
             ).count - 1,
-            1
+            2,
+            "The two default-dark exception issues must remain bound to separate tasks"
         )
-        XCTAssertEqual(
-            feedbackDiagnosticSlice.components(separatedBy: "return false").count - 1,
-            1
-        )
-        XCTAssertEqual(
-            feedbackDiagnosticSlice.components(separatedBy: "return true").count - 1,
-            0
-        )
-        let feedbackDiagnosticLogRange = try XCTUnwrap(
-            feedbackDiagnosticSlice.range(of: #"prefix: "S10_4_AUDIT_DIAGNOSTIC""#)
-        )
-        let feedbackDiagnosticFalseRange = try XCTUnwrap(
-            feedbackDiagnosticSlice.range(of: "return false")
-        )
-        XCTAssertLessThan(
-            feedbackDiagnosticLogRange.lowerBound,
-            feedbackDiagnosticFalseRange.lowerBound,
-            "The Feedback diagnostic must log all public and live fields before rejecting the issue"
-        )
-        for forbidden in [
-            "accessibilityTreeDigest(in: app)",
-            "automationAXTreeDigests",
-            #"printJSONLine(prefix: "S10_4_AX_STATE""#,
-            #"printJSONLine(prefix: "S10_4_CONTRAST""#,
-            "automationContrastExceptions[stateID]",
-            "automatedEvidenceIDs",
-            "matchedException",
-            "S10.4 candidate ",
-            "shard-receipt",
-            "XCTAttachment",
-        ] {
-            XCTAssertFalse(feedbackDiagnosticSlice.contains(forbidden), forbidden)
-        }
-        XCTAssertEqual(
-            uiSource.components(separatedBy: "S10_4_AUDIT_DIAGNOSTIC").count - 1,
-            2
-        )
-        XCTAssertFalse(uiSource.contains("S10.4 AX-text preflight diagnostic unexpectedly passed"))
+        XCTAssertFalse(uiSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
 
         let workflowProtocolLocks = [
             "contrast_exception_authority_path=",
             #"if .result == "PASS" then"#,
             #"elif .result == "EXCEPTION" then"#,
-            "$today <= $authorizedException.exceptionExpiresAt",
-            #"length == 3"#,
-            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 3"#,
-            #"and ([.[].exceptionIssueID] | unique | length) == 3"#,
+            #"length == 5"#,
+            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 4"#,
+            #"and ([.[].exceptionIssueID] | unique | length) == 5"#,
+            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 5"#,
             #"and (.exceptionOwner == "palatis3")"#,
             #"and (.exceptionExpiresAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"))"#,
             #"and ($today <= .exceptionExpiresAt)"#,
             #"and (.ignoredAuditIssues | type == "array" and length == 1)"#,
+            #"def expectedExceptionEvidence($matched):"#,
+            #"ignoredAuditIssues: ($matched | map(.ignoredAuditIssues[0]))"#,
+            #"def matchedStateAuthorities($row; $authorities; $today):"#,
+            #"($row.ignoredAuditIssues // []) as $observedIssues"#,
+            #"error("contrast exception state has no observed issues")"#,
+            #"[$observedIssues[] as $observedIssue"#,
+            #".ignoredAuditIssues[0] == $observedIssue"#,
+            #"error("unmatched or ambiguous contrast exception issue")"#,
+            #"] | sort_by(.exceptionIssueID)) as $matched"#,
+            #"error("duplicate contrast exception issue")"#,
+            #"error("noncanonical contrast exception issue order")"#,
+            #"error("contrast exception owner or expiry is ambiguous")"#,
+            #"error("expired or malformed contrast exception authority")"#,
+            #"error("contrast exception state aggregate drift")"#,
             #"| map(select(.result == "EXCEPTION"))"#,
             #"| sort_by(.stateID)) as $stateExceptions"#,
             #"error("duplicate contrast exception state")"#,
-            #"error("more than one default-dark contrast exception")"#,
-            #"error("more than two AX-text contrast exceptions")"#,
+            #"error("contrast exception state-to-issue cardinality drift")"#,
+            #"error("contrast exception per-state issue limit exceeded")"#,
+            #"error("default-dark contrast exception bound exceeded")"#,
+            #"error("AX-text contrast exception bound exceeded")"#,
             #"error("contrast exception on ineligible shard")"#,
-            #"if ($matches | length) != 1 then"#,
-            #"error("unmatched or ambiguous contrast exception authority")"#,
-            #"error("expired or malformed contrast exception authority")"#,
-            #"error("contrast exception metadata drift")"#,
+            #"def taskIssueLimit($shardID; $taskID):"#,
+            #"and $taskID == "one_handed_start" then 3"#,
+            #"and ($taskID == "history_recovery""#,
+            #"or $taskID == "report_comprehension") then 1"#,
+            #"def taskStateLimit($shardID; $taskID):"#,
+            #"and $taskID == "one_handed_start" then 2"#,
             #"| map(select(.taskID == $taskID))"#,
-            #"| sort_by(.stateID)) as $taskExceptions"#,
+            #"| sort_by(.stateID, .exceptionIssueID)) as $taskExceptions"#,
+            #"| map(.stateID) | unique | sort) as $taskExceptionStateIDs"#,
             #"| ($taskExceptions | map(.exceptionOwner) | unique) as $exceptionOwners"#,
             #"| ($taskExceptions | map(.exceptionExpiresAt) | unique) as $exceptionExpiries"#,
             #"(.automatedStatus == "EXCEPTION")"#,
             #"(.automatedStatus == "PASS")"#,
-            #"+ ($taskExceptions | map("#,
-            #""s10.4-contrast-" + $shard + "-" + .stateID"#,
+            #"+ ($taskExceptionStateIDs | map("#,
+            #""s10.4-contrast-" + $shard + "-" + ."#,
             #"| map(.exceptionIssueID) | join(" | "))"#,
             #"and ($exceptionOwners | length) == 1"#,
             #"and (.exceptionOwner == $exceptionOwners[0])"#,
             #"and ($exceptionExpiries | length) == 1"#,
             #"and (.exceptionExpiresAt == $exceptionExpiries[0])"#,
             #"| map(.exceptionRationale) | join(" | "))"#,
-            #"and (.exceptionStateIDs == ($taskExceptions | map(.stateID)))"#,
+            #"and (.exceptionStateIDs == $taskExceptionStateIDs)"#,
             "the sole Apple contrast issue is bound to the named, expiring exception.",
             "the exact Apple contrast issues are bound to the named, expiring exceptions.",
-            #"and all($taskExceptions[];"#,
+            #"and all($taskExceptionStateIDs[];"#,
             #"| index($exceptionStateID)) != null"#,
             #"if $shard == "s10.4.current.default-dark" then"#,
-            #"($stateExceptions | length) <= 1"#,
+            #"($matchedAuthorities | length) > 2"#,
+            #"($matchedExceptionStateIDs | length) > 2"#,
             #"elif $shard == "s10.4.current.ax-text" then"#,
-            #"($stateExceptions | length) <= 2"#,
-            #"($stateExceptions | length) == 0"#,
+            #"($matchedAuthorities | length) > 3"#,
+            #"stateIssueLimit($shardID; $stateID)"#,
+            #"and $stateID == "state.check-preflight.ready" then 2"#,
+            #"and $stateID == "state.new-sign.editing" then 1"#,
+            #"and ($stateID == "state.feedback.review-ready""#,
+            #"or $stateID == "state.sample-report.ready") then 1"#,
+            #"matchedStateAuthorities($row; $exceptions[0]; $today) as $matched"#,
+            #"($matched | length) > 0"#,
+            #"<= stateIssueLimit($row.shardID; $row.stateID)"#,
             "strict Apple contrast evidence.",
         ]
         for lock in workflowProtocolLocks {
             XCTAssertTrue(workflowSource.contains(lock), lock)
         }
+        for twiceLocked in [
+            #"def expectedExceptionEvidence($matched):"#,
+            #"def matchedStateAuthorities($row; $authorities; $today):"#,
+            #"error("unmatched or ambiguous contrast exception issue")"#,
+            #"error("duplicate contrast exception issue")"#,
+            #"error("noncanonical contrast exception issue order")"#,
+            #"error("contrast exception owner or expiry is ambiguous")"#,
+            #"error("expired or malformed contrast exception authority")"#,
+            #"error("contrast exception state aggregate drift")"#,
+        ] {
+            XCTAssertEqual(
+                workflowSource.components(separatedBy: twiceLocked).count - 1,
+                2,
+                twiceLocked
+            )
+        }
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: #"taskID: "history_recovery""#
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: #"taskID: "report_comprehension""#
+            ).count - 1,
+            2
+        )
         XCTAssertFalse(workflowSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
         XCTAssertFalse(
             FileManager.default.fileExists(

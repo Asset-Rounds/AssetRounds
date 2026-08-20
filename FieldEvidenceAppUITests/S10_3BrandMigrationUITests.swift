@@ -155,6 +155,50 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             ),
             applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
         ),
+        ContrastAuditExceptionSignature(
+            issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION",
+            shardID: "s10.4.current.ax-text",
+            stateID: "state.check-preflight.ready",
+            taskID: "one_handed_start",
+            owner: "palatis3",
+            expiresAt: "2026-11-20",
+            rationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the I confirm this is the site's time zone label even though the audit-owned crop contains only the iOS keyboard and the frozen public node frame is fully keyboard-occluded in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
+            auditTypeRawValue: "1",
+            compactDescription: "Contrast failed",
+            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+            elementIdentifier: "",
+            elementLabel: "I confirm this is the site's time zone.",
+            elementTypeDescription: "XCUIElementType(rawValue: 48)",
+            elementFrame: CGRect(
+                x: 32,
+                y: 547,
+                width: 238.33333333333331,
+                height: 249.33333333333337
+            ),
+            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
+        ),
+        ContrastAuditExceptionSignature(
+            issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-FEEDBACK-PRIVACY",
+            shardID: "s10.4.current.default-dark",
+            stateID: "state.feedback.review-ready",
+            taskID: "history_recovery",
+            owner: "palatis3",
+            expiresAt: "2026-11-20",
+            rationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Feedback privacy copy while the frozen public node frame is top-clipped outside the 402x874 application frame and its remaining slice is bound to native status/navigation chrome; the live Feedback composition simultaneously preserves the frozen App-metadata and Save-diagnostics clearances, and the audit-owned crop confirms that unobscured primaryText renders white on the dark elevated surface; the exception is limited to the frozen public issue signature.",
+            auditTypeRawValue: "1",
+            compactDescription: "Contrast failed",
+            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+            elementIdentifier: "s8.4.feedback.privacy",
+            elementLabel: "Your message stays editable. Only app version, build, device model, and iOS version are prefilled; customer and inspection content is never prefilled.",
+            elementTypeDescription: "XCUIElementType(rawValue: 48)",
+            elementFrame: CGRect(
+                x: 32,
+                y: -34.333333333333343,
+                width: 298.33333333333331,
+                height: 86.333333333333343
+            ),
+            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
+        ),
     ]
 
     private static let commonTaskStateIDs: [(taskID: String, stateIDs: [String])] = [
@@ -234,7 +278,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     private var migratedStateIDs: [String] = []
     private var automationShard: AutomationShard?
     private var automationAXTreeDigests: [String: String] = [:]
-    private var automationContrastExceptions: [String: ContrastAuditExceptionSignature] = [:]
+    private var automationContrastExceptions: [String: [ContrastAuditExceptionSignature]] = [:]
     private var pseudoLabelSentinelValidated = false
 
     override func setUpWithError() throws {
@@ -2264,158 +2308,71 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
                 $0.shardID == shard.shardID && $0.stateID == stateID
             }
-            guard eligibleExceptions.count <= 1 else {
+            let stateIssueLimit =
+                shard.shardID == "s10.4.current.ax-text"
+                && stateID == "state.check-preflight.ready" ? 2 : 1
+            guard eligibleExceptions.count <= stateIssueLimit else {
                 throw AutomationConfigurationError.invalid(
                     "S10.4 contrast exception eligibility is ambiguous"
                 )
             }
 
-            if shard.shardID == "s10.4.current.default-dark",
-               stateID == "state.feedback.review-ready" {
-                let privacy = element("s8.4.feedback.privacy", in: app)
-                let appMetadata = app.staticTexts
-                    .matching(NSPredicate(format: "label BEGINSWITH %@", "App "))
-                    .firstMatch
-                let navigationBar = app.navigationBars.firstMatch
-                let saveDiagnostics = element(
-                    "s8.4.feedback.save-diagnostics",
-                    in: app
-                )
-                let signsTab = element("s1.tab.signs", in: app)
-                guard privacy.exists,
-                      appMetadata.exists,
-                      navigationBar.exists,
-                      saveDiagnostics.exists,
-                      signsTab.exists else {
-                    throw AutomationConfigurationError.invalid(
-                        "S10.4 default-dark Feedback diagnostic geometry is incomplete"
-                    )
-                }
-
-                try app.performAccessibilityAudit(for: .contrast) { issue in
-                    var elementIdentifier = ""
-                    var elementLabel = ""
-                    var elementType = ""
-                    var elementFrame: Any = NSNull()
-                    if let auditedElement = issue.element {
-                        elementIdentifier = auditedElement.identifier
-                        elementLabel = auditedElement.label
-                        elementType = String(describing: auditedElement.elementType)
-                        elementFrame = self.auditFrameObject(auditedElement.frame)
-                    }
-                    self.printJSONLine(
-                        prefix: "S10_4_AUDIT_DIAGNOSTIC",
-                        object: [
-                            "auditTypeRawValue": String(issue.auditType.rawValue),
-                            "compactDescription": issue.compactDescription,
-                            "detailedDescription": issue.detailedDescription,
-                            "elementIdentifier": elementIdentifier,
-                            "elementLabel": elementLabel,
-                            "elementType": elementType,
-                            "elementFrame": elementFrame,
-                            "applicationFrame": self.auditFrameObject(app.frame),
-                            "livePrivacyFrame": self.auditFrameObject(privacy.frame),
-                            "liveAppMetadataFrame": self.auditFrameObject(
-                                appMetadata.frame
-                            ),
-                            "liveNavigationBarFrame": self.auditFrameObject(
-                                navigationBar.frame
-                            ),
-                            "liveSaveDiagnosticsFrame": self.auditFrameObject(
-                                saveDiagnostics.frame
-                            ),
-                            "liveSignsTabFrame": self.auditFrameObject(signsTab.frame),
-                            "liveApplicationFrame": self.auditFrameObject(app.frame),
-                        ]
-                    )
-                    return false
-                }
-                throw AutomationConfigurationError.invalid(
-                    "S10.4 default-dark Feedback contrast diagnostic returned without an audit issue"
-                )
-            }
-
-            if shard.shardID == "s10.4.current.ax-text",
-               stateID == "state.check-preflight.ready" {
-                guard let signature = eligibleExceptions.first else {
-                    throw AutomationConfigurationError.invalid(
-                        "S10.4 AX-text preflight diagnostic is missing its sole frozen signature"
-                    )
-                }
-                try app.performAccessibilityAudit(for: .contrast) { issue in
-                    var diagnostic: [String: Any] = [
-                        "auditTypeRawValue": String(issue.auditType.rawValue),
-                        "compactDescription": issue.compactDescription,
-                        "detailedDescription": issue.detailedDescription,
-                        "applicationFrame": self.auditFrameObject(app.frame),
-                    ]
-                    if let auditedElement = issue.element {
-                        diagnostic["elementIdentifier"] = auditedElement.identifier
-                        diagnostic["elementLabel"] = auditedElement.label
-                        diagnostic["elementType"] = String(
-                            describing: auditedElement.elementType
-                        )
-                        diagnostic["elementFrame"] = self.auditFrameObject(
-                            auditedElement.frame
-                        )
-                    }
-                    self.printJSONLine(
-                        prefix: "S10_4_AUDIT_DIAGNOSTIC",
-                        object: diagnostic
-                    )
-
-                    guard self.isActive(signature),
-                          let auditedElement = issue.element,
-                          String(issue.auditType.rawValue) == signature.auditTypeRawValue,
-                          issue.compactDescription == signature.compactDescription,
-                          issue.detailedDescription == signature.detailedDescription,
-                          auditedElement.identifier == signature.elementIdentifier,
-                          auditedElement.label == signature.elementLabel,
-                          String(describing: auditedElement.elementType)
-                            == signature.elementTypeDescription,
-                          auditedElement.frame == signature.elementFrame,
-                          app.frame == signature.applicationFrame else {
-                        return false
-                    }
-                    return true
-                }
-                throw AutomationConfigurationError.invalid(
-                    "S10.4 AX-text preflight multi-issue diagnostic did not encounter an unknown second issue"
-                )
-            }
-
-            var matchedException: ContrastAuditExceptionSignature?
-            if let signature = eligibleExceptions.first {
+            var matchedExceptions: [ContrastAuditExceptionSignature] = []
+            if !eligibleExceptions.isEmpty {
                 var observedIssueCount = 0
                 try app.performAccessibilityAudit(for: .contrast) { issue in
                     observedIssueCount += 1
-                    guard observedIssueCount == 1,
-                          self.isActive(signature),
-                          let auditedElement = issue.element,
-                          String(issue.auditType.rawValue) == signature.auditTypeRawValue,
-                          issue.compactDescription == signature.compactDescription,
-                          issue.detailedDescription == signature.detailedDescription,
-                          auditedElement.identifier == signature.elementIdentifier,
-                          auditedElement.label == signature.elementLabel,
-                          String(describing: auditedElement.elementType)
-                            == signature.elementTypeDescription,
-                          auditedElement.frame == signature.elementFrame,
-                          app.frame == signature.applicationFrame else {
+                    guard observedIssueCount <= stateIssueLimit,
+                          let auditedElement = issue.element else {
                         return false
                     }
-                    matchedException = signature
+                    let matchingExceptions = eligibleExceptions.filter { signature in
+                        self.isActive(signature)
+                            && String(issue.auditType.rawValue)
+                                == signature.auditTypeRawValue
+                            && issue.compactDescription == signature.compactDescription
+                            && issue.detailedDescription == signature.detailedDescription
+                            && auditedElement.identifier == signature.elementIdentifier
+                            && auditedElement.label == signature.elementLabel
+                            && String(describing: auditedElement.elementType)
+                                == signature.elementTypeDescription
+                            && auditedElement.frame == signature.elementFrame
+                            && app.frame == signature.applicationFrame
+                    }
+                    guard matchingExceptions.count == 1,
+                          let matchedException = matchingExceptions.first,
+                          !matchedExceptions.contains(where: {
+                              $0.issueID == matchedException.issueID
+                          }) else {
+                        return false
+                    }
+                    matchedExceptions.append(matchedException)
                     return true
                 }
-                guard observedIssueCount <= 1 else {
+                guard observedIssueCount == matchedExceptions.count,
+                      observedIssueCount <= stateIssueLimit else {
                     throw AutomationConfigurationError.invalid(
-                        "S10.4 contrast exception encountered more than one audit issue"
+                        "S10.4 contrast exception exceeded its exact state issue limit"
                     )
                 }
             } else {
                 try app.performAccessibilityAudit(for: .contrast)
             }
-            if let matchedException {
-                automationContrastExceptions[stateID] = matchedException
+            matchedExceptions.sort { $0.issueID < $1.issueID }
+            let expectedUniqueMetadataCount = matchedExceptions.isEmpty ? 0 : 1
+            guard Set(matchedExceptions.map(\.issueID)).count == matchedExceptions.count,
+                  Set(matchedExceptions.map(\.owner)).count
+                    == expectedUniqueMetadataCount,
+                  Set(matchedExceptions.map(\.expiresAt)).count
+                    == expectedUniqueMetadataCount,
+                  matchedExceptions.allSatisfy({ $0.stateID == stateID }),
+                  matchedExceptions.allSatisfy({ isActive($0) }) else {
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 contrast exception aggregation is ambiguous or expired"
+                )
+            }
+            if !matchedExceptions.isEmpty {
+                automationContrastExceptions[stateID] = matchedExceptions
             }
             let axTreeDigest = try accessibilityTreeDigest(in: app)
             automationAXTreeDigests[stateID] = axTreeDigest
@@ -2438,7 +2395,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 "stateID": stateID,
                 "requirementID": shard.requirementID,
                 "deviceProfileID": shard.deviceProfileID,
-                "result": matchedException == nil ? "PASS" : "EXCEPTION",
+                "result": matchedExceptions.isEmpty ? "PASS" : "EXCEPTION",
                 "evidenceID": contrastEvidenceID,
                 "axTreeSHA256": axTreeDigest,
                 "audit": "XCUIAccessibilityAuditType.contrast",
@@ -2446,15 +2403,19 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 "exceptionOwner": "",
                 "exceptionExpiresAt": "",
                 "exceptionRationale": "",
-                "ignoredAuditIssues": matchedException.map {
-                    [self.publicAuditSignatureObject($0)]
-                } ?? [],
+                "ignoredAuditIssues": matchedExceptions.map {
+                    self.publicAuditSignatureObject($0)
+                },
             ]
-            if let matchedException {
-                contrastEvidence["exceptionIssueID"] = matchedException.issueID
-                contrastEvidence["exceptionOwner"] = matchedException.owner
-                contrastEvidence["exceptionExpiresAt"] = matchedException.expiresAt
-                contrastEvidence["exceptionRationale"] = matchedException.rationale
+            if let firstMatchedException = matchedExceptions.first {
+                contrastEvidence["exceptionIssueID"] = matchedExceptions
+                    .map(\.issueID)
+                    .joined(separator: " | ")
+                contrastEvidence["exceptionOwner"] = firstMatchedException.owner
+                contrastEvidence["exceptionExpiresAt"] = firstMatchedException.expiresAt
+                contrastEvidence["exceptionRationale"] = matchedExceptions
+                    .map(\.rationale)
+                    .joined(separator: " | ")
             }
             printJSONLine(prefix: "S10_4_CONTRAST", object: contrastEvidence)
 
@@ -2660,13 +2621,39 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let contrastEvidenceID =
                 "s10.4-contrast-\(shard.shardID)-\(task.taskID)"
             let taskExceptions = automationContrastExceptions.values
+                .flatMap { $0 }
                 .filter { $0.taskID == task.taskID }
-                .sorted { $0.stateID < $1.stateID }
-            let allowsTwoTaskExceptions =
-                shard.shardID == "s10.4.current.ax-text"
-                && task.taskID == "one_handed_start"
-            let taskExceptionLimit = allowsTwoTaskExceptions ? 2 : 1
-            guard taskExceptions.count <= taskExceptionLimit else {
+                .sorted {
+                    if $0.stateID == $1.stateID {
+                        return $0.issueID < $1.issueID
+                    }
+                    return $0.stateID < $1.stateID
+                }
+            let taskIssueLimit: Int
+            let taskStateLimit: Int
+            let permittedExceptionStateIDs: Set<String>
+            switch (shard.shardID, task.taskID) {
+            case ("s10.4.current.ax-text", "one_handed_start"):
+                taskIssueLimit = 3
+                taskStateLimit = 2
+                permittedExceptionStateIDs = [
+                    "state.check-preflight.ready",
+                    "state.new-sign.editing",
+                ]
+            case ("s10.4.current.default-dark", "report_comprehension"):
+                taskIssueLimit = 1
+                taskStateLimit = 1
+                permittedExceptionStateIDs = ["state.sample-report.ready"]
+            case ("s10.4.current.default-dark", "history_recovery"):
+                taskIssueLimit = 1
+                taskStateLimit = 1
+                permittedExceptionStateIDs = ["state.feedback.review-ready"]
+            default:
+                taskIssueLimit = 0
+                taskStateLimit = 0
+                permittedExceptionStateIDs = []
+            }
+            guard taskExceptions.count <= taskIssueLimit else {
                 XCTFail(
                     "A common task exceeded its exact contrast exception limit",
                     file: file,
@@ -2674,10 +2661,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 )
                 return
             }
-            let exceptionStateIDs = taskExceptions.map(\.stateID)
+            let exceptionStateIDs = Array(Set(taskExceptions.map(\.stateID))).sorted()
             let exceptionIssueIDs = taskExceptions.map(\.issueID)
             let expectedUniqueMetadataCount = taskExceptions.isEmpty ? 0 : 1
-            guard Set(exceptionStateIDs).count == exceptionStateIDs.count,
+            guard exceptionStateIDs.count <= taskStateLimit,
+                  Set(exceptionStateIDs).isSubset(of: permittedExceptionStateIDs),
                   Set(exceptionIssueIDs).count == exceptionIssueIDs.count,
                   Set(taskExceptions.map(\.owner)).count
                     == expectedUniqueMetadataCount,
