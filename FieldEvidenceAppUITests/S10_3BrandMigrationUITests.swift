@@ -2012,6 +2012,36 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             line: line
         )
         do {
+            if shard.shardID == "s10.4.current.ax-text",
+               stateID == "state.check-preflight.ready" {
+                try app.performAccessibilityAudit(for: .contrast) { issue in
+                    var diagnostic: [String: Any] = [
+                        "auditTypeRawValue": String(issue.auditType.rawValue),
+                        "compactDescription": issue.compactDescription,
+                        "detailedDescription": issue.detailedDescription,
+                        "applicationFrame": self.auditFrameObject(app.frame),
+                    ]
+                    if let auditedElement = issue.element {
+                        diagnostic["elementIdentifier"] = auditedElement.identifier
+                        diagnostic["elementLabel"] = auditedElement.label
+                        diagnostic["elementType"] = String(
+                            describing: auditedElement.elementType
+                        )
+                        diagnostic["elementFrame"] = self.auditFrameObject(
+                            auditedElement.frame
+                        )
+                    }
+                    self.printJSONLine(
+                        prefix: "S10_4_AUDIT_DIAGNOSTIC",
+                        object: diagnostic
+                    )
+                    return false
+                }
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 AX-text preflight diagnostic unexpectedly passed"
+                )
+            }
+
             let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
                 $0.shardID == shard.shardID && $0.stateID == stateID
             }

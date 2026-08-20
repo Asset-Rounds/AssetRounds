@@ -239,8 +239,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 126_257,
-            sha256: "A3D54E00F575DB11B7B8EA6386120A27A30FB90582501457FC5BE193EF6D9003"
+            byteCount: 127_756,
+            sha256: "E7EE832696B55AC89F0C80D1D4F344E2B08160FC4D504F76281E57F4614286D1"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -347,7 +347,38 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(uiSource.contains(#"taskEvidence["exceptionOwner"] = taskException.owner"#))
         XCTAssertTrue(uiSource.contains(#"taskEvidence["exceptionExpiresAt"] = taskException.expiresAt"#))
         XCTAssertTrue(uiSource.contains(#"taskEvidence["exceptionRationale"] = taskException.rationale"#))
-        XCTAssertFalse(uiSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
+
+        let diagnosticLocks = [
+            #"shard.shardID == "s10.4.current.ax-text""#,
+            #"stateID == "state.check-preflight.ready""#,
+            #"prefix: "S10_4_AUDIT_DIAGNOSTIC""#,
+            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
+            #""compactDescription": issue.compactDescription"#,
+            #""detailedDescription": issue.detailedDescription"#,
+            #""applicationFrame": self.auditFrameObject(app.frame)"#,
+            #"diagnostic["elementIdentifier"] = auditedElement.identifier"#,
+            #"diagnostic["elementLabel"] = auditedElement.label"#,
+            #"diagnostic["elementType"] = String("#,
+            #"diagnostic["elementFrame"] = self.auditFrameObject("#,
+            #""S10.4 AX-text preflight diagnostic unexpectedly passed""#,
+        ]
+        for lock in diagnosticLocks {
+            XCTAssertTrue(uiSource.contains(lock), lock)
+        }
+        XCTAssertEqual(
+            uiSource.components(separatedBy: "S10_4_AUDIT_DIAGNOSTIC").count - 1,
+            1
+        )
+        XCTAssertTrue(uiSource.contains(
+            "prefix: \"S10_4_AUDIT_DIAGNOSTIC\",\n" +
+                "                        object: diagnostic\n" +
+                "                    )\n" +
+                "                    return false"
+        ))
+        XCTAssertTrue(uiSource.contains(
+            "throw AutomationConfigurationError.invalid(\n" +
+                "                    \"S10.4 AX-text preflight diagnostic unexpectedly passed\""
+        ))
 
         let workflowProtocolLocks = [
             "contrast_exception_authority_path=",
