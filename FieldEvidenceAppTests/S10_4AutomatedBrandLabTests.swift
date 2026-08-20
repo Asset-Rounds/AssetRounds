@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 137_203,
-            sha256: "58E687416210E4EE94B56717FFC1E5ABBD630DD5269DD889DF0B6DDEFA399162"
+            byteCount: 141_461,
+            sha256: "840F805EB3DD7600B1F00280280B44A7061D5A12D0BF62AFFFFF4F56789B5F5C"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -312,6 +312,150 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        XCTAssertLessThanOrEqual(privacy.frame.maxY, support.frame.minY)"
         XCTAssertEqual(
             uiSource.components(separatedBy: postPurchaseNonOverlapOrderGuard).count - 1,
+            1
+        )
+
+        let postPurchaseViewportStart =
+            #"        let close = element("s7.2.paywall.close", in: app)"#
+        let postPurchaseCapture =
+            #"        captureBaseline("state.paywall.purchase-complete", in: app)"#
+        guard let nonOverlapRange = uiSource.range(of: postPurchaseNonOverlapOrderGuard) else {
+            XCTFail("Missing the pre-position purchase-complete order guard")
+            return
+        }
+        let sourceAfterNonOverlap = uiSource[nonOverlapRange.upperBound...]
+        guard let viewportStartRange = sourceAfterNonOverlap.range(
+            of: postPurchaseViewportStart
+        ) else {
+            XCTFail("Missing the purchase-complete viewport positioning start")
+            return
+        }
+        let sourceAfterViewportStart = uiSource[viewportStartRange.lowerBound...]
+        guard let captureRange = sourceAfterViewportStart.range(of: postPurchaseCapture) else {
+            XCTFail("Missing the purchase-complete capture after viewport positioning")
+            return
+        }
+        let postPurchaseViewportSource = String(
+            uiSource[viewportStartRange.lowerBound..<captureRange.lowerBound]
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: postPurchaseCapture).count - 1,
+            1
+        )
+
+        let postPurchaseViewportIntervalLocks = [
+            #"let close = element("s7.2.paywall.close", in: app)"#,
+            "guard store.waitForExistence(timeout: 20),\n" +
+                "              close.waitForExistence(timeout: 20),\n" +
+                "              support.waitForExistence(timeout: 20),\n" +
+                "              purchase.waitForExistence(timeout: 20) else",
+            "The purchase-complete viewport controls must exist before positioning.",
+            "var measuredUndertravel: CGFloat = 0",
+            "for _ in 0..<4",
+            "let viewportTop = store.frame.minY",
+            "let viewportBottom = store.frame.maxY",
+            "let minimumShift = max(\n" +
+                "                viewportTop - close.frame.minY,\n" +
+                "                viewportBottom - purchase.frame.minY\n" +
+                "            )",
+            "let maximumShift = viewportBottom - support.frame.maxY",
+            "if minimumShift <= 0, maximumShift >= 0",
+            "guard minimumShift <= maximumShift else",
+            "The purchase-complete viewport has no feasible positioning interval.",
+            "guard maximumShift > 0 else",
+            "The purchase-complete viewport requires a non-positive correction."
+        ]
+        for lock in postPurchaseViewportIntervalLocks {
+            XCTAssertEqual(
+                postPurchaseViewportSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+
+        let postPurchaseViewportGestureLocks = [
+            "let targetDistance = maximumShift",
+            "let requestedDistance = targetDistance + measuredUndertravel",
+            "let dragInset: CGFloat = 24",
+            "let maximumGestureDistance = store.frame.height - 2 * dragInset",
+            "guard maximumGestureDistance >= 44 else",
+            "The Store viewport cannot contain a recognized positioning gesture.",
+            "let dragDistance = min(requestedDistance, maximumGestureDistance)",
+            "guard dragDistance >= 44 else",
+            "The purchase-complete positioning gesture would not be recognized.",
+            "let closeBeforeDrag = close.frame.minY",
+            "let storeOrigin = store.coordinate(\n" +
+                "                withNormalizedOffset: CGVector(dx: 0, dy: 0)\n" +
+                "            )",
+            "let dragStart = storeOrigin.withOffset(\n" +
+                "                CGVector(dx: store.frame.width / 2, dy: dragInset)\n" +
+                "            )",
+            "let dragEnd = storeOrigin.withOffset(\n" +
+                "                CGVector(\n" +
+                "                    dx: store.frame.width / 2,\n" +
+                "                    dy: dragInset + dragDistance\n" +
+                "                )\n" +
+                "            )",
+            "dragStart.press(\n" +
+                "                forDuration: 0.2,\n" +
+                "                thenDragTo: dragEnd,\n" +
+                "                withVelocity: .slow,\n" +
+                "                thenHoldForDuration: 0.2\n" +
+                "            )",
+            "let actualDistance = close.frame.minY - closeBeforeDrag",
+            "guard actualDistance > 0 else",
+            "The purchase-complete positioning gesture was not recognized.",
+            "measuredUndertravel = max(0, dragDistance - actualDistance)"
+        ]
+        for lock in postPurchaseViewportGestureLocks {
+            XCTAssertEqual(
+                postPurchaseViewportSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+
+        let postPurchaseViewportFinalLocks = [
+            "let finalViewportControls = [close, terms, privacy, support]",
+            "guard finalViewportControls.allSatisfy({\n" +
+                "            $0.waitForExistence(timeout: 20)\n" +
+                "        }) else",
+            "The purchase-complete viewport controls must remain present.",
+            "for control in finalViewportControls {\n" +
+                "            assertMinimumGeometry(control)\n" +
+                "            XCTAssertTrue(control.isEnabled)\n" +
+                "            XCTAssertTrue(control.isHittable)\n" +
+                "        }",
+            "guard finalViewportControls.allSatisfy({\n" +
+                "            $0.frame.width + 0.001 >= 44\n" +
+                "                && $0.frame.height + 0.001 >= 44\n" +
+                "                && $0.isEnabled\n" +
+                "                && $0.isHittable\n" +
+                "        }) else",
+            "The purchase-complete viewport controls must remain actionable.",
+            "guard close.frame.minY >= store.frame.minY,\n" +
+                "              close.frame.maxY <= store.frame.maxY,\n" +
+                "              purchaseState.frame.maxY <= terms.frame.minY,\n" +
+                "              terms.frame.maxY <= privacy.frame.minY,\n" +
+                "              privacy.frame.maxY <= support.frame.minY,\n" +
+                "              support.frame.maxY <= store.frame.maxY,\n" +
+                "              purchase.frame.minY >= store.frame.maxY else",
+            "The purchase-complete viewport composition was not reached."
+        ]
+        for lock in postPurchaseViewportFinalLocks {
+            XCTAssertEqual(
+                postPurchaseViewportSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        let postPurchaseFinalGuardAndCapture =
+            "            XCTFail(\"The purchase-complete viewport composition was not reached.\")\n" +
+                "            return\n" +
+                "        }\n" +
+                postPurchaseCapture
+        XCTAssertEqual(
+            uiSource.components(separatedBy: postPurchaseFinalGuardAndCapture).count - 1,
             1
         )
 

@@ -1730,6 +1730,109 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertLessThanOrEqual(purchaseState.frame.maxY, terms.frame.minY)
         XCTAssertLessThanOrEqual(terms.frame.maxY, privacy.frame.minY)
         XCTAssertLessThanOrEqual(privacy.frame.maxY, support.frame.minY)
+
+        let close = element("s7.2.paywall.close", in: app)
+        guard store.waitForExistence(timeout: 20),
+              close.waitForExistence(timeout: 20),
+              support.waitForExistence(timeout: 20),
+              purchase.waitForExistence(timeout: 20) else {
+            XCTFail("The purchase-complete viewport controls must exist before positioning.")
+            return
+        }
+
+        var measuredUndertravel: CGFloat = 0
+        for _ in 0..<4 {
+            let viewportTop = store.frame.minY
+            let viewportBottom = store.frame.maxY
+            let minimumShift = max(
+                viewportTop - close.frame.minY,
+                viewportBottom - purchase.frame.minY
+            )
+            let maximumShift = viewportBottom - support.frame.maxY
+            if minimumShift <= 0, maximumShift >= 0 {
+                break
+            }
+            guard minimumShift <= maximumShift else {
+                XCTFail("The purchase-complete viewport has no feasible positioning interval.")
+                return
+            }
+            guard maximumShift > 0 else {
+                XCTFail("The purchase-complete viewport requires a non-positive correction.")
+                return
+            }
+
+            let targetDistance = maximumShift
+            let requestedDistance = targetDistance + measuredUndertravel
+            let dragInset: CGFloat = 24
+            let maximumGestureDistance = store.frame.height - 2 * dragInset
+            guard maximumGestureDistance >= 44 else {
+                XCTFail("The Store viewport cannot contain a recognized positioning gesture.")
+                return
+            }
+            let dragDistance = min(requestedDistance, maximumGestureDistance)
+            guard dragDistance >= 44 else {
+                XCTFail("The purchase-complete positioning gesture would not be recognized.")
+                return
+            }
+
+            let closeBeforeDrag = close.frame.minY
+            let storeOrigin = store.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStart = storeOrigin.withOffset(
+                CGVector(dx: store.frame.width / 2, dy: dragInset)
+            )
+            let dragEnd = storeOrigin.withOffset(
+                CGVector(
+                    dx: store.frame.width / 2,
+                    dy: dragInset + dragDistance
+                )
+            )
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            let actualDistance = close.frame.minY - closeBeforeDrag
+            guard actualDistance > 0 else {
+                XCTFail("The purchase-complete positioning gesture was not recognized.")
+                return
+            }
+            measuredUndertravel = max(0, dragDistance - actualDistance)
+        }
+
+        let finalViewportControls = [close, terms, privacy, support]
+        guard finalViewportControls.allSatisfy({
+            $0.waitForExistence(timeout: 20)
+        }) else {
+            XCTFail("The purchase-complete viewport controls must remain present.")
+            return
+        }
+        for control in finalViewportControls {
+            assertMinimumGeometry(control)
+            XCTAssertTrue(control.isEnabled)
+            XCTAssertTrue(control.isHittable)
+        }
+        guard finalViewportControls.allSatisfy({
+            $0.frame.width + 0.001 >= 44
+                && $0.frame.height + 0.001 >= 44
+                && $0.isEnabled
+                && $0.isHittable
+        }) else {
+            XCTFail("The purchase-complete viewport controls must remain actionable.")
+            return
+        }
+        guard close.frame.minY >= store.frame.minY,
+              close.frame.maxY <= store.frame.maxY,
+              purchaseState.frame.maxY <= terms.frame.minY,
+              terms.frame.maxY <= privacy.frame.minY,
+              privacy.frame.maxY <= support.frame.minY,
+              support.frame.maxY <= store.frame.maxY,
+              purchase.frame.minY >= store.frame.maxY else {
+            XCTFail("The purchase-complete viewport composition was not reached.")
+            return
+        }
         captureBaseline("state.paywall.purchase-complete", in: app)
     }
 
