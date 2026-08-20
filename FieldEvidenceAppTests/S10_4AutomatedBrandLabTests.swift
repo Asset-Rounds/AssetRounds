@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 152_679,
-            sha256: "5BC851E7DED1493ECE43F844CD5035FC47D91E0861C2B0E5D71BADD54B106C0E"
+            byteCount: 156_035,
+            sha256: "08B7469F7F8368CD7F045A4598C0B233252BCF0281ACD4A4A986706CE639C72E"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -314,8 +314,233 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
 
+        let newSignQuickPathProfileGuard =
+            #"        if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {#
+        let newSignRouteStart =
+            "        let prePositionSiteValue = site.value as? String"
+        let newSignFinalGuard =
+            "        guard finalFocusPreserved,\n" +
+                "              finalKeyboardExists,\n" +
+                "              finalErrorContained,\n" +
+                "              finalContentPreserved,\n" +
+                "              finalDetailRoutePreserved,\n" +
+                "              app.state == .runningForeground else {\n" +
+                "            XCTFail(\"New-sign validation did not remain focused, unchanged, and fully visible above the keyboard.\")\n" +
+                "            return\n" +
+                "        }"
+        let newSignRoutePreconditionStart =
+            #"        let error = element("s2.new-sign.error", in: app)"#
+        let preservedNewSignInputLocks = [
+            #"        assertLocalizedValue(sign, equals: "Monument Sign")"#,
+            #"        XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)"#,
+        ]
+        XCTAssertEqual(
+            uiSource.components(separatedBy: newSignRoutePreconditionStart).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: newSignRouteStart).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: newSignQuickPathProfileGuard).count - 1,
+            1
+        )
+        guard let newSignRoutePreconditionStartRange = uiSource.range(
+            of: newSignRoutePreconditionStart
+        ) else {
+            XCTFail("Missing the new-sign validation route precondition start")
+            return
+        }
+        guard let newSignRouteStartRange = uiSource.range(of: newSignRouteStart) else {
+            XCTFail("Missing the new-sign validation viewport route start")
+            return
+        }
+        guard let newSignQuickPathProfileRange = uiSource.range(
+            of: newSignQuickPathProfileGuard
+        ) else {
+            XCTFail("Missing the H135 QuickPath profile guard after viewport recovery")
+            return
+        }
+        let newSignRoutePreconditionSource = String(
+            uiSource[
+                newSignRoutePreconditionStartRange.lowerBound..<newSignRouteStartRange.lowerBound
+            ]
+        )
+        for lock in preservedNewSignInputLocks {
+            XCTAssertEqual(
+                newSignRoutePreconditionSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        let newSignRouteSource = String(
+            uiSource[
+                newSignRouteStartRange.lowerBound..<newSignQuickPathProfileRange.lowerBound
+            ]
+        )
+        let newSignFinalStateLocks = [
+            "        let finalFocusPreserved = wait(\n" +
+                "            for: site,\n" +
+                #"            predicate: "hasKeyboardFocus == true","# + "\n" +
+                "            timeout: 10\n" +
+                "        )",
+            "        let finalKeyboardExists = keyboard.waitForExistence(timeout: 10)",
+            "        let finalErrorExists = error.waitForExistence(timeout: 10)",
+            "        let finalScrollFrame = scrollView.frame",
+            "        let finalVisibleTop = max(finalScrollFrame.minY, navigationBottom)",
+            "        let finalVisibleBottom = finalKeyboardExists\n" +
+                "            ? min(finalScrollFrame.maxY, keyboard.frame.minY)\n" +
+                "            : -CGFloat.greatestFiniteMagnitude",
+            "        let finalErrorContained = finalErrorExists\n" +
+                "            && error.frame.minY >= finalVisibleTop\n" +
+                "            && error.frame.maxY <= finalVisibleBottom",
+            "        let finalContentPreserved = finalErrorExists\n" +
+                "            && (site.value as? String) == prePositionSiteValue\n" +
+                "            && (sign.value as? String) == prePositionSignValue\n" +
+                "            && error.label == prePositionErrorLabel\n" +
+                "            && (error.value as? String) == prePositionErrorValue",
+            "        let finalDetailRoutePreserved =\n" +
+                "            validationDetailRoute.exists == prePositionDetailRouteExists",
+        ]
+        for lock in newSignFinalStateLocks {
+            XCTAssertEqual(
+                newSignRouteSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        let newSignFinalGuardBeforeH135 =
+            newSignFinalGuard + "\n" + newSignQuickPathProfileGuard
+        XCTAssertEqual(
+            uiSource.components(separatedBy: newSignFinalGuardBeforeH135).count - 1,
+            1
+        )
+        let newSignRouteOrderedLocks = [
+            "        let prePositionSiteValue = site.value as? String",
+            "        let prePositionSignValue = sign.value as? String",
+            "        let prePositionErrorLabel = error.label",
+            "        let prePositionErrorValue = error.value as? String",
+            "        let validationDetailRoute = element(\"s2.sign-detail.screen\", in: app)",
+            "        let prePositionDetailRouteExists = validationDetailRoute.exists",
+            "        let dragInset: CGFloat = 24",
+            "        let minimumGestureDistance: CGFloat = 44",
+            "        for _ in 0..<12 {",
+            "            let liveScrollFrame = scrollView.frame",
+            "            let liveVisibleTop = max(liveScrollFrame.minY, navigationBottom)",
+            "            let liveVisibleBottom = min(\n" +
+                "                liveScrollFrame.maxY,\n" +
+                "                keyboard.frame.minY\n" +
+                "            )",
+            "            let errorFrame = error.frame",
+            "            if errorFrame.minY >= liveVisibleTop,\n" +
+                "               errorFrame.maxY <= liveVisibleBottom {\n" +
+                "                break\n" +
+                "            }",
+            "            let minimumShift = liveVisibleTop - errorFrame.minY\n" +
+                "            let maximumShift = liveVisibleBottom - errorFrame.maxY",
+            "            let farFeasibleShift = abs(minimumShift) >= abs(maximumShift)\n" +
+                "                ? minimumShift\n" +
+                "                : maximumShift",
+            "            let maximumGestureDistance =\n" +
+                "                liveVisibleBottom - liveVisibleTop - (2 * dragInset)",
+            "            let dragDistance = max(\n" +
+                "                -maximumGestureDistance,\n" +
+                "                min(farFeasibleShift, maximumGestureDistance)\n" +
+                "            )",
+            "            let scrollOrigin = scrollView.coordinate(\n" +
+                "                withNormalizedOffset: CGVector(dx: 0, dy: 0)\n" +
+                "            )",
+            "            let dragStartOffsetY = dragDistance > 0\n" +
+                "                ? liveVisibleTop - liveScrollFrame.minY + dragInset\n" +
+                "                : liveVisibleBottom - liveScrollFrame.minY - dragInset",
+            "            let dragStart = scrollOrigin.withOffset(\n" +
+                "                CGVector(\n" +
+                "                    dx: liveScrollFrame.width / 2,\n" +
+                "                    dy: dragStartOffsetY\n" +
+                "                )\n" +
+                "            )",
+            "            let dragEnd = dragStart.withOffset(\n" +
+                "                CGVector(dx: 0, dy: dragDistance)\n" +
+                "            )",
+            "            let errorBeforeDrag = error.frame.minY\n" +
+                "            dragStart.press(forDuration: 0.05, thenDragTo: dragEnd)\n" +
+                "            let observedShift = error.frame.minY - errorBeforeDrag",
+            newSignFinalGuard,
+        ]
+        var orderedNewSignRouteTail = newSignRouteSource
+        for lock in newSignRouteOrderedLocks {
+            XCTAssertEqual(
+                newSignRouteSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+            guard let lockRange = orderedNewSignRouteTail.range(of: lock) else {
+                XCTFail("New-sign validation viewport locks are out of order: \(lock)")
+                return
+            }
+            orderedNewSignRouteTail = String(
+                orderedNewSignRouteTail[lockRange.upperBound...]
+            )
+        }
+        let newSignRouteFailureLocks = [
+            "            guard liveVisibleBottom > liveVisibleTop else {\n" +
+                "                XCTFail(\"New-sign validation has no visible keyboard-safe interval.\")\n" +
+                "                return\n" +
+                "            }",
+            "            guard minimumShift <= maximumShift else {\n" +
+                "                XCTFail(\"New-sign validation error cannot fit the keyboard-safe viewport.\")\n" +
+                "                return\n" +
+                "            }",
+            "            guard maximumGestureDistance >= minimumGestureDistance else {\n" +
+                "                XCTFail(\"New-sign validation viewport cannot recognize a safe gesture.\")\n" +
+                "                return\n" +
+                "            }",
+            "            guard abs(dragDistance) >= minimumGestureDistance else {\n" +
+                "                XCTFail(\"New-sign validation feasible shift is below gesture recognition.\")\n" +
+                "                return\n" +
+                "            }",
+            "            guard observedShift * dragDistance > 0 else {\n" +
+                "                XCTFail(\"New-sign validation positioning gesture was not recognized.\")\n" +
+                "                return\n" +
+                "            }",
+        ]
+        for lock in newSignRouteFailureLocks {
+            XCTAssertEqual(
+                newSignRouteSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        XCTAssertEqual(
+            newSignRouteSource.components(separatedBy: "XCTFail(").count - 1,
+            6
+        )
+        XCTAssertEqual(
+            newSignRouteSource.components(
+                separatedBy: "                return\n            }"
+            ).count - 1,
+            5
+        )
+        XCTAssertEqual(
+            newSignRouteSource.components(
+                separatedBy: "            return\n        }"
+            ).count - 1,
+            1
+        )
+        XCTAssertFalse(
+            newSignRouteSource.contains(
+                "        let dragStartOffsetY = visibleBottom - scrollFrame.minY - dragInset"
+            )
+        )
+        XCTAssertFalse(
+            newSignRouteSource.contains(
+                "        let dragEndOffsetY = visibleTop - scrollFrame.minY + dragInset"
+            )
+        )
+
         let quickPathViewportTail =
-            "        XCTAssertLessThanOrEqual(error.frame.maxY, keyboard.frame.minY)"
+            newSignFinalGuard
         let quickPathCapture =
             #"        captureBaseline("state.new-sign.validation-error", in: app)"#
         XCTAssertEqual(

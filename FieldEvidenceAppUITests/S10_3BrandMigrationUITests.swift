@@ -500,36 +500,111 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertEqual(newSignScrollViews.count, 1)
         let scrollView = newSignScrollViews.firstMatch
         XCTAssertTrue(scrollView.waitForExistence(timeout: 10))
-        let scrollFrame = scrollView.frame
-        let visibleTop = max(scrollFrame.minY, navigationBottom)
-        let visibleBottom = min(scrollFrame.maxY, keyboard.frame.minY)
+        let prePositionSiteValue = site.value as? String
+        let prePositionSignValue = sign.value as? String
+        let prePositionErrorLabel = error.label
+        let prePositionErrorValue = error.value as? String
+        let validationDetailRoute = element("s2.sign-detail.screen", in: app)
+        let prePositionDetailRouteExists = validationDetailRoute.exists
         let dragInset: CGFloat = 24
-        let dragStartOffsetY = visibleBottom - scrollFrame.minY - dragInset
-        let dragEndOffsetY = visibleTop - scrollFrame.minY + dragInset
-        XCTAssertGreaterThan(dragStartOffsetY, dragEndOffsetY)
-        let scrollOrigin = scrollView.coordinate(
-            withNormalizedOffset: CGVector(dx: 0, dy: 0)
-        )
-        let dragStart = scrollOrigin.withOffset(
-            CGVector(dx: scrollFrame.width / 2, dy: dragStartOffsetY)
-        )
-        let dragEnd = scrollOrigin.withOffset(
-            CGVector(dx: scrollFrame.width / 2, dy: dragEndOffsetY)
-        )
+        let minimumGestureDistance: CGFloat = 44
         for _ in 0..<12 {
-            if error.exists,
-               error.frame.minY >= navigationBottom,
-               error.frame.maxY <= keyboard.frame.minY {
+            let liveScrollFrame = scrollView.frame
+            let liveVisibleTop = max(liveScrollFrame.minY, navigationBottom)
+            let liveVisibleBottom = min(
+                liveScrollFrame.maxY,
+                keyboard.frame.minY
+            )
+            guard liveVisibleBottom > liveVisibleTop else {
+                XCTFail("New-sign validation has no visible keyboard-safe interval.")
+                return
+            }
+
+            let errorFrame = error.frame
+            if errorFrame.minY >= liveVisibleTop,
+               errorFrame.maxY <= liveVisibleBottom {
                 break
             }
+
+            let minimumShift = liveVisibleTop - errorFrame.minY
+            let maximumShift = liveVisibleBottom - errorFrame.maxY
+            guard minimumShift <= maximumShift else {
+                XCTFail("New-sign validation error cannot fit the keyboard-safe viewport.")
+                return
+            }
+
+            let farFeasibleShift = abs(minimumShift) >= abs(maximumShift)
+                ? minimumShift
+                : maximumShift
+            let maximumGestureDistance =
+                liveVisibleBottom - liveVisibleTop - (2 * dragInset)
+            guard maximumGestureDistance >= minimumGestureDistance else {
+                XCTFail("New-sign validation viewport cannot recognize a safe gesture.")
+                return
+            }
+            let dragDistance = max(
+                -maximumGestureDistance,
+                min(farFeasibleShift, maximumGestureDistance)
+            )
+            guard abs(dragDistance) >= minimumGestureDistance else {
+                XCTFail("New-sign validation feasible shift is below gesture recognition.")
+                return
+            }
+
+            let scrollOrigin = scrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStartOffsetY = dragDistance > 0
+                ? liveVisibleTop - liveScrollFrame.minY + dragInset
+                : liveVisibleBottom - liveScrollFrame.minY - dragInset
+            let dragStart = scrollOrigin.withOffset(
+                CGVector(
+                    dx: liveScrollFrame.width / 2,
+                    dy: dragStartOffsetY
+                )
+            )
+            let dragEnd = dragStart.withOffset(
+                CGVector(dx: 0, dy: dragDistance)
+            )
+            let errorBeforeDrag = error.frame.minY
             dragStart.press(forDuration: 0.05, thenDragTo: dragEnd)
+            let observedShift = error.frame.minY - errorBeforeDrag
+            guard observedShift * dragDistance > 0 else {
+                XCTFail("New-sign validation positioning gesture was not recognized.")
+                return
+            }
         }
-        XCTAssertTrue(
-            wait(for: site, predicate: "hasKeyboardFocus == true", timeout: 10)
+        let finalFocusPreserved = wait(
+            for: site,
+            predicate: "hasKeyboardFocus == true",
+            timeout: 10
         )
-        XCTAssertTrue(keyboard.waitForExistence(timeout: 10))
-        XCTAssertGreaterThanOrEqual(error.frame.minY, navigationBottom)
-        XCTAssertLessThanOrEqual(error.frame.maxY, keyboard.frame.minY)
+        let finalKeyboardExists = keyboard.waitForExistence(timeout: 10)
+        let finalErrorExists = error.waitForExistence(timeout: 10)
+        let finalScrollFrame = scrollView.frame
+        let finalVisibleTop = max(finalScrollFrame.minY, navigationBottom)
+        let finalVisibleBottom = finalKeyboardExists
+            ? min(finalScrollFrame.maxY, keyboard.frame.minY)
+            : -CGFloat.greatestFiniteMagnitude
+        let finalErrorContained = finalErrorExists
+            && error.frame.minY >= finalVisibleTop
+            && error.frame.maxY <= finalVisibleBottom
+        let finalContentPreserved = finalErrorExists
+            && (site.value as? String) == prePositionSiteValue
+            && (sign.value as? String) == prePositionSignValue
+            && error.label == prePositionErrorLabel
+            && (error.value as? String) == prePositionErrorValue
+        let finalDetailRoutePreserved =
+            validationDetailRoute.exists == prePositionDetailRouteExists
+        guard finalFocusPreserved,
+              finalKeyboardExists,
+              finalErrorContained,
+              finalContentPreserved,
+              finalDetailRoutePreserved,
+              app.state == .runningForeground else {
+            XCTFail("New-sign validation did not remain focused, unchanged, and fully visible above the keyboard.")
+            return
+        }
         if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
             let preActionSiteValue = site.value as? String
             let preActionErrorLabel = error.label
