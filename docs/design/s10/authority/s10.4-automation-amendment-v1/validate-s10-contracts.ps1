@@ -160,6 +160,31 @@ function Invoke-SchemaAudit {
     Write-Host "PASS: schema subset audit $SchemaPath"
 }
 
+function Invoke-FrozenSchemaValidation {
+    param(
+        [string]$ValidatorText,
+        [string]$SchemaSuffix,
+        [string]$InstancePath,
+        [string]$InstanceSuffix = ""
+    )
+
+    $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) "assetrounds-s10-$([Guid]::NewGuid().ToString('N'))"
+    New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
+    try {
+        $schemaPath = Join-Path $temporaryRoot "schema.json"
+        [IO.File]::WriteAllText($schemaPath, (Get-ZipEntryText $packagePath $SchemaSuffix), [Text.UTF8Encoding]::new($false))
+        $resolvedInstancePath = $InstancePath
+        if (-not [string]::IsNullOrWhiteSpace($InstanceSuffix)) {
+            $resolvedInstancePath = Join-Path $temporaryRoot "instance.json"
+            [IO.File]::WriteAllText($resolvedInstancePath, (Get-ZipEntryText $packagePath $InstanceSuffix), [Text.UTF8Encoding]::new($false))
+        }
+        Invoke-SchemaValidation $ValidatorText $schemaPath $resolvedInstancePath
+    }
+    finally {
+        Remove-Item -LiteralPath $temporaryRoot -Recurse -Force
+    }
+}
+
 function Get-TaskIdentityJson {
     param($Task)
     return [ordered]@{
@@ -170,13 +195,103 @@ function Get-TaskIdentityJson {
     } | ConvertTo-Json -Depth 10 -Compress
 }
 
+function Get-ComponentIdentityJson {
+    param($Component)
+    return [ordered]@{
+        component_id = $Component.component_id
+        native_control = $Component.native_control
+        source_paths = @($Component.source_paths)
+        token_ids = @($Component.token_ids)
+        isolated_test_selectors = @($Component.isolated_test_selectors)
+        status = $Component.status
+    } | ConvertTo-Json -Depth 20 -Compress
+}
+
+function Get-CoverageIdentityJson {
+    param($Coverage)
+    return [ordered]@{
+        screen_state_id = $Coverage.screen_state_id
+        component_ids = @($Coverage.component_ids)
+        token_ids = @($Coverage.token_ids)
+        status = $Coverage.status
+    } | ConvertTo-Json -Depth 20 -Compress
+}
+
 $manifest = Read-JsonFile $manifestPath
 $visual = Read-JsonFile $visualPath
 $accessibility = Read-JsonFile $accessibilityPath
 $inventory = Read-JsonFile $inventoryPath
+$token = Read-JsonFile $tokenPath
 $stage = Read-JsonFile $stagePath
 $activation = Read-JsonFile $activationPath
 $shardContract = Read-JsonFile $shardContractPath
+
+$expectedFrozenSchemaDocuments = @(
+    "s10-activation",
+    "s10-stage-checkpoints",
+    "s10-screen-state-inventory",
+    "s10-token-coverage",
+    "s10-experience-validation",
+    "s10-store-readiness",
+    "s10-evidence-lock.template"
+)
+$expectedOverlaySchemaDocuments = @(
+    "s10-accessibility-common-tasks",
+    "s10-visual-regression"
+)
+$expectedCompositeValidationRule = "The unchanged V4.1 schema subset validator validates every unaffected canonical contract plus the frozen evidence-lock template; the audited amendment schemas validate only the intentionally expanded accessibility and visual evidence documents."
+$expectedProductDeltaAllowlist = @(
+    ".github/workflows/ios-ci.yml",
+    "FieldEvidenceApp/DesignSystem/DesignTokens.swift",
+    "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+    "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+    "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+    "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+    "FieldEvidenceApp/Features/Sample/PackSampleView.swift",
+    "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+    "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+    "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+    "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+    "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+    "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+    "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+    "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+    "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
+    "FieldEvidenceAppTests/S10_3BrandMigrationTests.swift",
+    "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift",
+    "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift",
+    "Scripts/ci-selection.json",
+    "Scripts/s10-4-shards.json",
+    "Scripts/ui-smoke.sh",
+    "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json",
+    "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-accessibility-common-tasks.schema.json",
+    "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-visual-regression.schema.json",
+    "docs/design/s10/authority/s10.4-automation-amendment-v1/validate-s10-contracts.ps1",
+    "docs/design/s10/s10-experience-validation.json",
+    "docs/design/s10/s10-screen-state-inventory.json",
+    "docs/design/s10/s10-stage-checkpoints.json",
+    "docs/design/s10/s10-token-coverage.json",
+    "docs/execution/CURRENT_TASK.md",
+    "docs/execution/HANDOFF.md"
+)
+Assert-ExactSet @($manifest.composite_validation_contract.frozen_schema_documents) $expectedFrozenSchemaDocuments "composite frozen-schema documents"
+Assert-ExactSet @($manifest.composite_validation_contract.overlay_schema_documents) $expectedOverlaySchemaDocuments "composite overlay-schema documents"
+Assert-Equal $manifest.composite_validation_contract.rule $expectedCompositeValidationRule "composite validation rule"
+Assert-ExactSet @($manifest.product_delta_allowlist) $expectedProductDeltaAllowlist "S10.4 product delta allowlist"
+Assert-Equal $manifest.runtime_contract.shard_contract_path "Scripts/s10-4-shards.json" "runtime shard-contract path"
+Assert-Equal $manifest.runtime_contract.shard_contract_sha256 (Get-Sha256 $shardContractPath) "runtime shard-contract hash"
+Assert-Equal $manifest.runtime_contract.screen_state_inventory_path "docs/design/s10/s10-screen-state-inventory.json" "runtime inventory path"
+Assert-Equal $manifest.runtime_contract.screen_state_inventory_sha256 (Get-Sha256 $inventoryPath) "runtime inventory hash"
+Assert-Equal $manifest.runtime_contract.minimum_runtime "iOS 18.0" "minimum runtime"
+Assert-Equal $manifest.runtime_contract.minimum_runtime_build "22A3351" "minimum runtime build"
+Assert-Equal $manifest.runtime_contract.minimum_simulator_name "iPhone SE (3rd generation)" "minimum simulator"
 
 # The original activation, ZIP, external package manifest, and runbook remain immutable.
 $baseFiles = @(
@@ -204,15 +319,88 @@ foreach ($entry in $manifest.overlay_files) {
     Assert-Equal (Get-Item -LiteralPath $filePath).Length $entry.byte_length "overlay byte length $($entry.path)"
 }
 
-# Audit both schemas with the unchanged validator embedded in V4.1. Post-E modes
-# additionally validate the populated evidence instances.
+# Use the unchanged V4.1 subset validator for the six unaffected canonical
+# contracts and the frozen evidence-lock template. The two documents whose
+# evidence cardinality is intentionally superseded by this amendment use only
+# the audited overlay schemas. Post-E modes validate their populated instances.
 $schemaValidator = Get-ZipEntryText $packagePath "/Tools/validate-json-schema-subset.py"
+$frozenSchemaInstances = @(
+    @{ Name = "s10-activation"; Instance = $activationPath },
+    @{ Name = "s10-stage-checkpoints"; Instance = $stagePath },
+    @{ Name = "s10-screen-state-inventory"; Instance = $inventoryPath },
+    @{ Name = "s10-token-coverage"; Instance = $tokenPath },
+    @{ Name = "s10-experience-validation"; Instance = (Join-Path $RepositoryRoot "docs/design/s10/s10-experience-validation.json") },
+    @{ Name = "s10-store-readiness"; Instance = (Join-Path $RepositoryRoot "docs/design/s10/s10-store-readiness.json") }
+)
+foreach ($contract in $frozenSchemaInstances) {
+    Invoke-FrozenSchemaValidation $schemaValidator "/Handoff/$($contract.Name).schema.json" $contract.Instance
+}
+Invoke-FrozenSchemaValidation $schemaValidator "/Handoff/s10-evidence-lock.schema.json" "" "/Handoff/s10-evidence-lock.template.json"
 Invoke-SchemaAudit $schemaValidator $visualSchemaPath
 Invoke-SchemaAudit $schemaValidator $accessibilitySchemaPath
 if ($LifecycleMode -cne "AuthorityH") {
     Invoke-SchemaValidation $schemaValidator $visualSchemaPath $visualPath
     Invoke-SchemaValidation $schemaValidator $accessibilitySchemaPath $accessibilityPath
 }
+
+# Preserve the unaffected V4.1 AutomatedLab semantics that are not expressible
+# as schema alone. The first three accepted receipts are immutable history; only
+# ReceiptC may append the fourth ordered AutomatedLab row.
+$historicalStage = Get-GitJson $manifest.base_authority.accepted_migration_receipt_head "docs/design/s10/s10-stage-checkpoints.json"
+$expectedStageCount = if ($LifecycleMode -ceq "ReceiptC") { 4 } else { 3 }
+Assert-Equal $stage.receipt_model "E_product_K_evidence_C_receipt" "stage receipt model"
+Assert-Equal $stage.document_status "tracking" "stage document status"
+Assert-Equal @($stage.checkpoints).Count $expectedStageCount "$LifecycleMode stage count"
+$expectedStageOrder = @("Inventory", "ComponentSystem", "Migration", "AutomatedLab")
+for ($stageIndex = 0; $stageIndex -lt [Math]::Min(@($stage.checkpoints).Count, $expectedStageCount); $stageIndex++) {
+    Assert-Equal $stage.checkpoints[$stageIndex].stage $expectedStageOrder[$stageIndex] "stage order $stageIndex"
+}
+for ($stageIndex = 0; $stageIndex -lt [Math]::Min(@($historicalStage.checkpoints).Count, @($stage.checkpoints).Count); $stageIndex++) {
+    Assert-Equal ($stage.checkpoints[$stageIndex] | ConvertTo-Json -Depth 100 -Compress) ($historicalStage.checkpoints[$stageIndex] | ConvertTo-Json -Depth 100 -Compress) "immutable historical checkpoint $stageIndex"
+}
+foreach ($checkpoint in @($stage.checkpoints)) {
+    Assert-Equal $checkpoint.evidence_head_role "K" "$($checkpoint.stage) evidence-head role"
+    if (@($checkpoint.documents).Count -eq 0 -or @($checkpoint.evidence_ids).Count -eq 0) {
+        Add-ValidationError "$($checkpoint.stage) checkpoint lacks documents or evidence IDs."
+    }
+    Assert-Commit $checkpoint.product_head "$($checkpoint.stage) product head"
+    Assert-Commit $checkpoint.evidence_head "$($checkpoint.stage) evidence head"
+    Assert-Ancestor $checkpoint.product_head $checkpoint.evidence_head "$($checkpoint.stage) E to K lineage"
+    foreach ($document in @($checkpoint.documents)) {
+        Assert-Equal $document.sha256 (Get-GitBlobSha256 $document.blob_commit $document.path) "$($checkpoint.stage) historical blob $($document.path)"
+    }
+}
+
+$historicalToken = Get-GitJson $manifest.base_authority.accepted_migration_evidence_head "docs/design/s10/s10-token-coverage.json"
+Assert-Equal $token.document_status "migrated" "token document status"
+Assert-Equal $token.component_system_product_head $stage.checkpoints[1].product_head "token component-system head"
+Assert-Equal $token.migration_product_head $manifest.base_authority.accepted_migration_product_head "token migration head"
+Assert-Equal $token.migration_product_head $stage.checkpoints[2].product_head "token/checkpoint migration head"
+Assert-Equal $token.untracked_visual_constant_count 0 "untracked visual constants"
+Assert-Equal @($token.components).Count 9 "token component count"
+Assert-Equal @($token.coverage).Count 67 "token coverage count"
+foreach ($component in @($token.components)) { Assert-Equal $component.status "PASS" "$($component.component_id) component status" }
+foreach ($coverage in @($token.coverage)) { Assert-Equal $coverage.status "PASS" "$($coverage.screen_state_id) coverage status" }
+Assert-Equal @($token.components).Count @($historicalToken.components).Count "historical component count"
+for ($componentIndex = 0; $componentIndex -lt [Math]::Min(@($token.components).Count, @($historicalToken.components).Count); $componentIndex++) {
+    Assert-Equal (Get-ComponentIdentityJson $token.components[$componentIndex]) (Get-ComponentIdentityJson $historicalToken.components[$componentIndex]) "immutable component identity $componentIndex"
+    foreach ($evidenceID in @($historicalToken.components[$componentIndex].evidence_ids)) {
+        Assert-Contains @($token.components[$componentIndex].evidence_ids) $evidenceID "component $componentIndex historical evidence"
+    }
+}
+Assert-Equal @($token.coverage).Count @($historicalToken.coverage).Count "historical coverage count"
+for ($coverageIndex = 0; $coverageIndex -lt [Math]::Min(@($token.coverage).Count, @($historicalToken.coverage).Count); $coverageIndex++) {
+    Assert-Equal (Get-CoverageIdentityJson $token.coverage[$coverageIndex]) (Get-CoverageIdentityJson $historicalToken.coverage[$coverageIndex]) "immutable coverage identity $coverageIndex"
+    foreach ($evidenceID in @($historicalToken.coverage[$coverageIndex].evidence_ids)) {
+        Assert-Contains @($token.coverage[$coverageIndex].evidence_ids) $evidenceID "coverage $coverageIndex historical evidence"
+    }
+}
+
+$experiencePath = Join-Path $RepositoryRoot "docs/design/s10/s10-experience-validation.json"
+$experience = Read-JsonFile $experiencePath
+$historicalExperience = Get-GitJson $manifest.base_authority.accepted_migration_receipt_head "docs/design/s10/s10-experience-validation.json"
+Assert-Equal ($experience | ConvertTo-Json -Depth 100 -Compress) ($historicalExperience | ConvertTo-Json -Depth 100 -Compress) "immutable planned experience contract"
+Assert-Equal $experience.product_head $manifest.base_authority.accepted_migration_product_head "experience migration anchor"
 
 $expectedSourceTest = "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift::S10_4AutomatedBrandLabUITests.testAutomatedBrandLabShard"
 Assert-Equal $manifest.matrix_contract.source_test $expectedSourceTest "source test"
@@ -307,6 +495,7 @@ $stateIDs = @($states.state_id)
 Assert-Equal $stateIDs.Count $manifest.matrix_contract.state_count "inventory state count"
 Assert-ExactSet $stateIDs $stateIDs "inventory state IDs"
 Assert-Equal (Get-StringSetSha256 $stateIDs) $manifest.matrix_contract.state_set_sha256 "inventory state digest"
+Assert-ExactSet @($token.coverage.screen_state_id) $stateIDs "token coverage state IDs"
 Assert-ExactSet @($visual.baselines.screen_state_id) $stateIDs "visual baseline state IDs"
 Assert-Equal @($visual.baselines).Count 67 "legacy baseline count"
 
@@ -369,19 +558,8 @@ Assert-Commit $ProductHead "product head E"
 Assert-Commit $EvidenceHead "evidence head K"
 Assert-Ancestor $manifest.base_authority.accepted_migration_receipt_head $ProductHead "S10.3 C to S10.4 E lineage"
 Assert-Ancestor $ProductHead $EvidenceHead "E to K lineage"
-$allowedProductDelta = @(
-    ".github/workflows/ios-ci.yml",
-    "Scripts/ci-selection.json",
-    "FieldEvidenceAppTests/S10_4BrandAutomationContractTests.swift",
-    "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift"
-)
 $migrationToProductDelta = @(& git -C $RepositoryRoot diff --name-only "$($manifest.base_authority.accepted_migration_product_head)..$ProductHead")
-foreach ($changedPath in $migrationToProductDelta) {
-    $allowed = ($changedPath -clike "docs/design/s10/*") -or ($changedPath -clike "docs/execution/CURRENT_TASK.md") -or ($changedPath -clike "docs/execution/HANDOFF.md") -or ($allowedProductDelta -ccontains $changedPath)
-    if (-not $allowed) {
-        Add-ValidationError "S10.4 E contains unowned product delta '$changedPath'."
-    }
-}
+Assert-ExactSet $migrationToProductDelta @($manifest.product_delta_allowlist) "S10.3 E..S10.4 E paths"
 
 $evidenceDocumentPaths = @(
     "docs/design/s10/s10-accessibility-common-tasks.json",
@@ -524,11 +702,12 @@ foreach ($task in $accessibility.tasks) {
         foreach ($evidenceID in @($runEvidenceID, $row.ax_evidence_id, $row.focus_order_evidence_id, $row.target_size_evidence_id, $row.contrast_evidence_id)) {
             Assert-Contains @($row.automated_evidence_ids) $evidenceID "$tuple automated evidence"
         }
-        if ($row.automated_status -cin @("PASS", "NA", "EXCEPTION")) { $automatedClosed++ }
+        if ($row.automated_status -cin @("PASS", "NOT_APPLICABLE", "EXCEPTION")) { $automatedClosed++ }
         if ($row.automated_status -ceq "EXCEPTION") {
             foreach ($field in @("exception_issue_id", "exception_owner", "exception_expires_at", "exception_rationale")) {
                 if ([string]::IsNullOrWhiteSpace([string]$row.$field)) { Add-ValidationError "$tuple exception lacks $field." }
             }
+            if ([string]$row.exception_expires_at -notmatch '^\d{4}-\d{2}-\d{2}$') { Add-ValidationError "$tuple exception expiry is not an ISO date." }
         }
         else {
             foreach ($field in @("exception_issue_id", "exception_owner", "exception_expires_at", "exception_rationale")) {
@@ -604,13 +783,14 @@ if ($LifecycleMode -ceq "ReceiptC") {
             $automated = $automatedRows[0]
             Assert-Equal $automated.product_head $ProductHead "AutomatedLab receipt E"
             Assert-Equal $automated.evidence_head $EvidenceHead "AutomatedLab receipt K"
-            Assert-Equal $automated.evidence_head_role "evidence" "AutomatedLab K role"
+            Assert-Equal $automated.evidence_head_role "K" "AutomatedLab K role"
             $expectedReceiptDocuments = @{
                 "accessibility_common_tasks" = "docs/design/s10/s10-accessibility-common-tasks.json"
                 "token_coverage" = "docs/design/s10/s10-token-coverage.json"
                 "visual_regression" = "docs/design/s10/s10-visual-regression.json"
                 "release_evidence" = "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json"
             }
+            Assert-ExactSet @($automated.documents.document_type) @($expectedReceiptDocuments.Keys) "AutomatedLab receipt document types"
             foreach ($documentType in $expectedReceiptDocuments.Keys) {
                 $records = @($automated.documents | Where-Object document_type -CEQ $documentType)
                 if ($records.Count -ne 1) {

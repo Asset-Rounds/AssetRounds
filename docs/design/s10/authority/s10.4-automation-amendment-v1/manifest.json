@@ -28,6 +28,72 @@
     "receipt_rule": "C is a descendant of K and changes only s10-stage-checkpoints.json, append-only HANDOFF, and required CURRENT_TASK receipt pins; the AutomatedLab row binds E, K, this manifest, and the three historical K evidence blobs.",
     "receipt_model": "E_product_K_evidence_C_receipt"
   },
+  "composite_validation_contract": {
+    "frozen_schema_documents": [
+      "s10-activation",
+      "s10-stage-checkpoints",
+      "s10-screen-state-inventory",
+      "s10-token-coverage",
+      "s10-experience-validation",
+      "s10-store-readiness",
+      "s10-evidence-lock.template"
+    ],
+    "overlay_schema_documents": [
+      "s10-accessibility-common-tasks",
+      "s10-visual-regression"
+    ],
+    "rule": "The unchanged V4.1 schema subset validator validates every unaffected canonical contract plus the frozen evidence-lock template; the audited amendment schemas validate only the intentionally expanded accessibility and visual evidence documents."
+  },
+  "runtime_contract": {
+    "shard_contract_path": "Scripts/s10-4-shards.json",
+    "shard_contract_sha256": "C023ADE99CAB0F9ED2984C90BCC0E03B0D05A05643DF7185201CC00772E3C8E4",
+    "screen_state_inventory_path": "docs/design/s10/s10-screen-state-inventory.json",
+    "screen_state_inventory_sha256": "6C820E8A1160297F561EABF1873BE82403589B408E4A8FA3318269293242F507",
+    "minimum_runtime": "iOS 18.0",
+    "minimum_runtime_build": "22A3351",
+    "minimum_simulator_name": "iPhone SE (3rd generation)"
+  },
+  "product_delta_allowlist": [
+    ".github/workflows/ios-ci.yml",
+    "FieldEvidenceApp/DesignSystem/DesignTokens.swift",
+    "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+    "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+    "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+    "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+    "FieldEvidenceApp/Features/Sample/PackSampleView.swift",
+    "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+    "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+    "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+    "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+    "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+    "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+    "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+    "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+    "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
+    "FieldEvidenceAppTests/S10_3BrandMigrationTests.swift",
+    "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift",
+    "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift",
+    "Scripts/ci-selection.json",
+    "Scripts/s10-4-shards.json",
+    "Scripts/ui-smoke.sh",
+    "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json",
+    "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-accessibility-common-tasks.schema.json",
+    "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-visual-regression.schema.json",
+    "docs/design/s10/authority/s10.4-automation-amendment-v1/validate-s10-contracts.ps1",
+    "docs/design/s10/s10-experience-validation.json",
+    "docs/design/s10/s10-screen-state-inventory.json",
+    "docs/design/s10/s10-stage-checkpoints.json",
+    "docs/design/s10/s10-token-coverage.json",
+    "docs/execution/CURRENT_TASK.md",
+    "docs/execution/HANDOFF.md"
+  ],
   "matrix_contract": {
     "state_count": 67,
     "requirement_count": 14,
@@ -355,8 +421,8 @@
     },
     {
       "path": "validate-s10-contracts.ps1",
-      "byte_length": 39724,
-      "sha256": "CBBD31C68C156E58207F12B49233CAC3DF3975621B6578B3B85B0F556AE2E483"
+      "byte_length": 51933,
+      "sha256": "BD5784D1CE9A6BCDD24E566D712572AE7C7D8571750577410961DC384944426D"
     }
   ],
   "manifest_excludes_self": true,
