@@ -739,7 +739,14 @@ jobs:
 
           shard_evidence_path="$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID"
           candidate_path="$shard_evidence_path/candidates"
-          mkdir -p "$candidate_path"
+          state_ax_path="$CI_ARTIFACT_DIR/ax/$CI_S10_4_SHARD_ID"
+          state_contrast_path="$CI_ARTIFACT_DIR/contrast/$CI_S10_4_SHARD_ID"
+          task_accessibility_path="$CI_ARTIFACT_DIR/accessibility/$CI_S10_4_SHARD_ID"
+          mkdir -p \
+            "$candidate_path" \
+            "$state_ax_path" \
+            "$state_contrast_path" \
+            "$task_accessibility_path"
           cp "$attachment_manifest_path" "$shard_evidence_path/xcresult-attachment-manifest.json"
 
           candidate_prefix="S10.4 candidate $CI_S10_4_SHARD_ID "
@@ -838,16 +845,30 @@ jobs:
           jq -e \
             --arg profile "$CI_S10_4_DEVICE_PROFILE_ID" \
             --arg features "$CI_S10_4_ACCESSIBILITY_FEATURES" \
+            --arg shard "$CI_S10_4_SHARD_ID" \
             --slurpfile contract docs/design/s10/s10-accessibility-common-tasks.json '
               ($features | if length == 0 then [] else split(",") end) as $expectedFeatures
               | ($contract[0].tasks | map(.task_id)) as $expectedTasks
               | all(.[];
-                  type == "object"
+                  .taskID as $taskID
+                  | type == "object"
                   and (.taskID | type == "string" and IN($expectedTasks[]))
+                  and (.shardID == $shard)
                   and (.deviceProfileID == $profile)
                   and (.feature | type == "string" and IN($expectedFeatures[]))
                   and (.automatedStatus | IN("PASS", "NOT_APPLICABLE", "EXCEPTION"))
-                  and (.evidenceID | type == "string" and test("\\S"))
+                  and (.evidenceID == ("s10.4-ax-" + $shard + "-" + $taskID))
+                  and (.focusOrderEvidenceID == ("s10.4-focus-order-" + $shard + "-" + $taskID))
+                  and (.targetSizeEvidenceID == ("s10.4-target-size-" + $shard + "-" + $taskID))
+                  and (.contrastEvidenceID == ("s10.4-contrast-" + $shard + "-" + $taskID))
+                  and ((.automatedEvidenceIDs | sort) == ([
+                    "s10.4-ax-" + $shard + "-" + $taskID,
+                    "s10.4-focus-order-" + $shard + "-" + $taskID,
+                    "s10.4-target-size-" + $shard + "-" + $taskID,
+                    "s10.4-contrast-" + $shard + "-" + $taskID
+                  ] | sort))
+                  and (.aggregateAXTreeSHA256 | type == "string" and test("^[0-9A-F]{64}$"))
+                  and (.stateCount | type == "number" and . > 0)
                 )
                 and ([.[] | [.taskID, .deviceProfileID, .feature] | join("|")] as $keys
                   | ($keys | unique | length) == ($keys | length))
@@ -856,25 +877,90 @@ jobs:
                 and ([.[] | .feature] | unique | sort) == ($expectedFeatures | sort)
             ' "$shard_evidence_path/accessibility.json" > /dev/null
 
+          while IFS= read -r task_row; do
+            task_id="$(jq -r '.taskID' <<< "$task_row")"
+            case "$task_id" in
+              ''|*[!a-z0-9_]*) exit 1 ;;
+            esac
+            jq -cS --arg productHead "$GITHUB_SHA" \
+              '. + {sourceProductHead: $productHead}' \
+              <<< "$task_row" \
+              > "$task_accessibility_path/$task_id.json"
+          done < <(jq -c '.[]' "$shard_evidence_path/accessibility.json")
+          test "$(find "$task_accessibility_path" -type f -name '*.json' | wc -l | tr -d ' ')" \
+            -eq "$expected_accessibility_rows"
+
+          sed -n 's/^S10_4_AX_STATE //p' "$CI_ARTIFACT_DIR/ui-smoke.log" \
+            > "$shard_evidence_path/state-ax.ndjson"
+          jq -s '.' "$shard_evidence_path/state-ax.ndjson" \
+            > "$shard_evidence_path/state-ax.json"
+          test "$(jq 'length' "$shard_evidence_path/state-ax.json")" -eq 67
+          jq -e \
+            --arg shard "$CI_S10_4_SHARD_ID" \
+            --arg requirement "$CI_S10_4_REQUIREMENT_ID" \
+            --arg profile "$CI_S10_4_DEVICE_PROFILE_ID" \
+            --slurpfile inventory docs/design/s10/s10-screen-state-inventory.json '
+              ($inventory[0] | [.routes[].states[].state_id] | sort) as $expectedStates
+              | all(.[];
+                  type == "object"
+                  and (.stateID | type == "string" and IN($expectedStates[]))
+                  and (.shardID == $shard)
+                  and (.requirementID == $requirement)
+                  and (.deviceProfileID == $profile)
+                  and (.result == "PASS")
+                  and (.evidenceID == ("s10.4-ax-" + $shard + "-" + .stateID))
+                  and (.axTreeSHA256 | type == "string" and test("^[0-9A-F]{64}$"))
+                  and (.capture == "XCUIApplication.debugDescription")
+                )
+                and ([.[].stateID] | unique | length == 67)
+                and ([.[].stateID] | sort) == $expectedStates
+            ' "$shard_evidence_path/state-ax.json" > /dev/null
+
+          while IFS= read -r state_ax_row; do
+            state_id="$(jq -r '.stateID' <<< "$state_ax_row")"
+            case "$state_id" in state.*) ;; *) exit 1 ;; esac
+            jq -cS --arg productHead "$GITHUB_SHA" \
+              '. + {sourceProductHead: $productHead}' \
+              <<< "$state_ax_row" \
+              > "$state_ax_path/$state_id.json"
+          done < <(jq -c '.[]' "$shard_evidence_path/state-ax.json")
+          test "$(find "$state_ax_path" -type f -name 'state.*.json' | wc -l | tr -d ' ')" -eq 67
+
           sed -n 's/^S10_4_CONTRAST //p' "$CI_ARTIFACT_DIR/ui-smoke.log" \
             > "$shard_evidence_path/contrast.ndjson"
           jq -s '.' "$shard_evidence_path/contrast.ndjson" \
             > "$shard_evidence_path/contrast.json"
           test "$(jq 'length' "$shard_evidence_path/contrast.json")" -eq 67
           jq -e \
+            --arg shard "$CI_S10_4_SHARD_ID" \
             --arg requirement "$CI_S10_4_REQUIREMENT_ID" \
+            --arg profile "$CI_S10_4_DEVICE_PROFILE_ID" \
             --slurpfile inventory docs/design/s10/s10-screen-state-inventory.json '
               ($inventory[0] | [.routes[].states[].state_id] | sort) as $expectedStates
               | all(.[];
                   type == "object"
                   and (.stateID | type == "string" and IN($expectedStates[]))
+                  and (.shardID == $shard)
                   and (.requirementID == $requirement)
+                  and (.deviceProfileID == $profile)
                   and (.result == "PASS")
-                  and (.evidenceID | type == "string" and test("\\S"))
+                  and (.evidenceID == ("s10.4-contrast-" + $shard + "-" + .stateID))
+                  and (.axTreeSHA256 | type == "string" and test("^[0-9A-F]{64}$"))
+                  and (.audit == "XCUIAccessibilityAuditType.contrast")
                 )
                 and ([.[].stateID] | unique | length == 67)
                 and ([.[].stateID] | sort) == $expectedStates
             ' "$shard_evidence_path/contrast.json" > /dev/null
+
+          while IFS= read -r contrast_row; do
+            state_id="$(jq -r '.stateID' <<< "$contrast_row")"
+            case "$state_id" in state.*) ;; *) exit 1 ;; esac
+            jq -cS --arg productHead "$GITHUB_SHA" \
+              '. + {sourceProductHead: $productHead}' \
+              <<< "$contrast_row" \
+              > "$state_contrast_path/$state_id.json"
+          done < <(jq -c '.[]' "$shard_evidence_path/contrast.json")
+          test "$(find "$state_contrast_path" -type f -name 'state.*.json' | wc -l | tr -d ' ')" -eq 67
 
           jq -n \
             --arg taskID "$CI_TASK_ID" \
@@ -886,6 +972,7 @@ jobs:
             --arg simulatorName "$SIMULATOR_NAME" \
             --arg productHead "$GITHUB_SHA" \
             --argjson candidateCount 67 \
+            --argjson stateAXRowCount 67 \
             --argjson accessibilityRowCount "$expected_accessibility_rows" \
             --argjson contrastRowCount 67 '
               {
@@ -899,6 +986,7 @@ jobs:
                 simulatorName: $simulatorName,
                 productHead: $productHead,
                 candidateCount: $candidateCount,
+                stateAXRowCount: $stateAXRowCount,
                 accessibilityRowCount: $accessibilityRowCount,
                 contrastRowCount: $contrastRowCount
               }
@@ -1033,6 +1121,68 @@ jobs:
               test "$(jq 'length' "$shard_evidence_path/candidate-files.json")" -eq 67
               test "$(jq 'length' "$shard_evidence_path/accessibility.json")" -eq 6
               test "$(jq 'length' "$shard_evidence_path/contrast.json")" -eq 67
+              state_ax_path="$CI_ARTIFACT_DIR/ax/$CI_S10_4_SHARD_ID"
+              state_contrast_path="$CI_ARTIFACT_DIR/contrast/$CI_S10_4_SHARD_ID"
+              task_accessibility_path="$CI_ARTIFACT_DIR/accessibility/$CI_S10_4_SHARD_ID"
+              require_nonempty_directory "$state_ax_path"
+              require_nonempty_directory "$state_contrast_path"
+              require_nonempty_directory "$task_accessibility_path"
+              test "$(find "$state_ax_path" -type f -name 'state.*.json' | wc -l | tr -d ' ')" -eq 67
+              test "$(find "$state_contrast_path" -type f -name 'state.*.json' | wc -l | tr -d ' ')" -eq 67
+              test "$(find "$task_accessibility_path" -type f -name '*.json' | wc -l | tr -d ' ')" -eq 6
+
+              jq -r '.routes[].states[].state_id + ".json"' \
+                docs/design/s10/s10-screen-state-inventory.json \
+                | LC_ALL=C sort > "$RUNNER_TEMP/s10-4-expected-state-evidence-files.txt"
+              find "$state_ax_path" -type f -name 'state.*.json' -exec basename {} \; \
+                | LC_ALL=C sort > "$RUNNER_TEMP/s10-4-observed-ax-files.txt"
+              find "$state_contrast_path" -type f -name 'state.*.json' -exec basename {} \; \
+                | LC_ALL=C sort > "$RUNNER_TEMP/s10-4-observed-contrast-files.txt"
+              cmp -s "$RUNNER_TEMP/s10-4-expected-state-evidence-files.txt" \
+                "$RUNNER_TEMP/s10-4-observed-ax-files.txt"
+              cmp -s "$RUNNER_TEMP/s10-4-expected-state-evidence-files.txt" \
+                "$RUNNER_TEMP/s10-4-observed-contrast-files.txt"
+
+              jq -r '.tasks[].task_id + ".json"' \
+                docs/design/s10/s10-accessibility-common-tasks.json \
+                | LC_ALL=C sort > "$RUNNER_TEMP/s10-4-expected-task-evidence-files.txt"
+              find "$task_accessibility_path" -type f -name '*.json' -exec basename {} \; \
+                | LC_ALL=C sort > "$RUNNER_TEMP/s10-4-observed-task-evidence-files.txt"
+              cmp -s "$RUNNER_TEMP/s10-4-expected-task-evidence-files.txt" \
+                "$RUNNER_TEMP/s10-4-observed-task-evidence-files.txt"
+
+              for evidence_file in "$state_ax_path"/*.json; do
+                jq -e \
+                  --arg shard "$CI_S10_4_SHARD_ID" \
+                  --arg productHead "$GITHUB_SHA" '
+                    .shardID == $shard
+                    and .sourceProductHead == $productHead
+                    and (.evidenceID == ("s10.4-ax-" + $shard + "-" + .stateID))
+                    and (.axTreeSHA256 | test("^[0-9A-F]{64}$"))
+                  ' "$evidence_file" > /dev/null
+              done
+              for evidence_file in "$state_contrast_path"/*.json; do
+                jq -e \
+                  --arg shard "$CI_S10_4_SHARD_ID" \
+                  --arg productHead "$GITHUB_SHA" '
+                    .shardID == $shard
+                    and .sourceProductHead == $productHead
+                    and (.evidenceID == ("s10.4-contrast-" + $shard + "-" + .stateID))
+                    and (.axTreeSHA256 | test("^[0-9A-F]{64}$"))
+                  ' "$evidence_file" > /dev/null
+              done
+              for evidence_file in "$task_accessibility_path"/*.json; do
+                jq -e \
+                  --arg shard "$CI_S10_4_SHARD_ID" \
+                  --arg productHead "$GITHUB_SHA" '
+                    .shardID == $shard
+                    and .sourceProductHead == $productHead
+                    and (.evidenceID == ("s10.4-ax-" + $shard + "-" + .taskID))
+                    and (.focusOrderEvidenceID == ("s10.4-focus-order-" + $shard + "-" + .taskID))
+                    and (.targetSizeEvidenceID == ("s10.4-target-size-" + $shard + "-" + .taskID))
+                    and (.contrastEvidenceID == ("s10.4-contrast-" + $shard + "-" + .taskID))
+                  ' "$evidence_file" > /dev/null
+              done
             fi
           else
             test "${CI_RUN_UI_SMOKE:-}" = "false"
