@@ -239,8 +239,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 131_111,
-            sha256: "114FC5127F2A9A736F82D59D30E0669FE7D6BBDC3D7947331E4D1EA9C5D55557"
+            byteCount: 134_507,
+            sha256: "3C7A704002117F40D905CCD382796E4651D116D68E306542AEAD4DEB35736A61"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -313,6 +313,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    isConfirmingDeletion ? DesignTokens.Spacing.space16 : 0\n" +
                 "                )"
         ))
+
+        let deleteViewportDiagnosticLocks = [
+            #"let runsAXTextDeleteConfirmationDiagnostic ="#,
+            #"automationShard?.shardID == "s10.4.current.ax-text""#,
+            #"if runsAXTextDeleteConfirmationDiagnostic {"#,
+            "let expectedDeleteMessage =\n" +
+                "                \"Delete this sign, its photos, and its reports from this app? \" +\n" +
+                "                \"This cannot be undone. Your free-report count will not reset. \" +\n" +
+                "                \"Erase All removes the remaining anonymous count.\"",
+            "let hasExactDeleteMessage = deleteMessage.exists\n" +
+                "                && deleteMessage.label == expectedDeleteMessage",
+            "AX-text delete diagnostic requires the exact confirmation message",
+            "let hasVisibleHittableDeleteActions =\n" +
+                "                cancelDelete.frame.minY >= diagnosticViewportTop\n" +
+                "                && cancelDelete.frame.maxY <= diagnosticViewportBottom\n" +
+                "                && confirmDelete.frame.minY >= diagnosticViewportTop\n" +
+                "                && confirmDelete.frame.maxY <= diagnosticViewportBottom\n" +
+                "                && cancelDelete.isHittable\n" +
+                "                && confirmDelete.isHittable",
+            "AX-text delete diagnostic requires wholly visible, hittable actions",
+            "guard hasExactDeleteMessage,\n" +
+                "                  hasVisibleHittableDeleteActions else { return }",
+        ]
+        for lock in deleteViewportDiagnosticLocks {
+            XCTAssertTrue(uiSource.contains(lock), lock)
+        }
 
         let exceptionIDs = [
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",
@@ -395,7 +421,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(uiSource.contains(#"taskEvidence["exceptionExpiresAt"] = taskException.expiresAt"#))
         XCTAssertTrue(uiSource.contains(#"taskEvidence["exceptionRationale"] = taskException.rationale"#))
 
-        let diagnosticLocks = [
+        let preflightDiagnosticLocks = [
             #"shard.shardID == "s10.4.current.ax-text""#,
             #"stateID == "state.check-preflight.ready""#,
             #"prefix: "S10_4_AUDIT_DIAGNOSTIC""#,
@@ -409,12 +435,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"diagnostic["elementFrame"] = self.auditFrameObject("#,
             #""S10.4 AX-text preflight diagnostic unexpectedly passed""#,
         ]
-        for lock in diagnosticLocks {
+        for lock in preflightDiagnosticLocks {
             XCTAssertTrue(uiSource.contains(lock), lock)
         }
         XCTAssertEqual(
             uiSource.components(separatedBy: "S10_4_AUDIT_DIAGNOSTIC").count - 1,
-            1
+            2
         )
         XCTAssertTrue(uiSource.contains(
             "prefix: \"S10_4_AUDIT_DIAGNOSTIC\",\n" +
@@ -426,6 +452,63 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "throw AutomationConfigurationError.invalid(\n" +
                 "                    \"S10.4 AX-text preflight diagnostic unexpectedly passed\""
         ))
+
+        let deleteAuditScopeOpening =
+            "if shard.shardID == \"s10.4.current.ax-text\",\n" +
+                "               stateID == \"state.sign-detail.delete-confirmation\" {"
+        XCTAssertEqual(
+            uiSource.components(separatedBy: deleteAuditScopeOpening).count - 1,
+            1
+        )
+        let deleteAuditScopeStart = try XCTUnwrap(
+            uiSource.range(of: deleteAuditScopeOpening)
+        )
+        let deleteAuditScopeClosing =
+            "guard observedIssueCount >= 1 else {\n" +
+                "                    throw AutomationConfigurationError.invalid(\n" +
+                "                        \"S10.4 AX-text delete-confirmation diagnostic unexpectedly passed\"\n" +
+                "                    )\n" +
+                "                }\n" +
+                "                return\n" +
+                "            }"
+        let deleteAuditScopeEnd = try XCTUnwrap(
+            uiSource.range(
+                of: deleteAuditScopeClosing,
+                range: deleteAuditScopeStart.lowerBound..<uiSource.endIndex
+            )
+        )
+        let deleteAuditSource = String(
+            uiSource[deleteAuditScopeStart.lowerBound..<deleteAuditScopeEnd.upperBound]
+        )
+        let deleteAuditDiagnosticLocks = [
+            "var observedIssueCount = 0",
+            "observedIssueCount += 1",
+            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
+            #""compactDescription": issue.compactDescription"#,
+            #""detailedDescription": issue.detailedDescription"#,
+            #""applicationFrame": self.auditFrameObject(app.frame)"#,
+            #"diagnostic["elementIdentifier"] = auditedElement.identifier"#,
+            #"diagnostic["elementLabel"] = auditedElement.label"#,
+            #"diagnostic["elementType"] = String("#,
+            #"diagnostic["elementFrame"] = self.auditFrameObject("#,
+            #"prefix: "S10_4_AUDIT_DIAGNOSTIC""#,
+            "object: diagnostic\n" +
+                "                    )\n" +
+                "                    return true",
+            "guard observedIssueCount >= 1 else {",
+            #""S10.4 AX-text delete-confirmation diagnostic unexpectedly passed""#,
+        ]
+        for lock in deleteAuditDiagnosticLocks {
+            XCTAssertTrue(deleteAuditSource.contains(lock), lock)
+        }
+        let firstEvidenceEmission = try XCTUnwrap(
+            uiSource.range(of: "let axTreeDigest = try accessibilityTreeDigest(in: app)")
+        )
+        XCTAssertLessThan(
+            deleteAuditScopeEnd.upperBound,
+            firstEvidenceEmission.lowerBound,
+            "AX-text delete diagnostics must return before accepted state evidence"
+        )
 
         let workflowProtocolLocks = [
             "contrast_exception_authority_path=",

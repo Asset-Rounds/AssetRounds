@@ -500,6 +500,37 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(confirmDelete.waitForExistence(timeout: 5))
         XCTAssertTrue(deleteMessage.waitForExistence(timeout: 5))
         XCTAssertTrue(siteLabel.waitForExistence(timeout: 5))
+        let deleteConfirmationStateID = "state.sign-detail.delete-confirmation"
+        let runsAXTextDeleteConfirmationDiagnostic =
+            automationShard?.shardID == "s10.4.current.ax-text"
+        if runsAXTextDeleteConfirmationDiagnostic {
+            let expectedDeleteMessage =
+                "Delete this sign, its photos, and its reports from this app? " +
+                "This cannot be undone. Your free-report count will not reset. " +
+                "Erase All removes the remaining anonymous count."
+            let hasExactDeleteMessage = deleteMessage.exists
+                && deleteMessage.label == expectedDeleteMessage
+            XCTAssertTrue(
+                hasExactDeleteMessage,
+                "AX-text delete diagnostic requires the exact confirmation message"
+            )
+            let diagnosticViewportTop = detail.frame.minY
+            let diagnosticViewportBottom = detail.frame.maxY
+            let hasVisibleHittableDeleteActions =
+                cancelDelete.frame.minY >= diagnosticViewportTop
+                && cancelDelete.frame.maxY <= diagnosticViewportBottom
+                && confirmDelete.frame.minY >= diagnosticViewportTop
+                && confirmDelete.frame.maxY <= diagnosticViewportBottom
+                && cancelDelete.isHittable
+                && confirmDelete.isHittable
+            XCTAssertTrue(
+                hasVisibleHittableDeleteActions,
+                "AX-text delete diagnostic requires wholly visible, hittable actions"
+            )
+            guard hasExactDeleteMessage,
+                  hasVisibleHittableDeleteActions else { return }
+        }
+        if !runsAXTextDeleteConfirmationDiagnostic {
         for _ in 0..<4 {
             let viewportTop = detail.frame.minY
             let viewportBottom = detail.frame.maxY
@@ -642,7 +673,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             && confirmDelete.isHittable
         XCTAssertTrue(preferredComposition || fallbackComposition)
         guard preferredComposition || fallbackComposition else { return }
-        captureBaseline("state.sign-detail.delete-confirmation", in: app)
+        }
+        captureBaseline(deleteConfirmationStateID, in: app)
         assertControl(cancelDelete, label: "Cancel")
         cancelDelete.tap()
         XCTAssertTrue(detail.waitForExistence(timeout: 20))
@@ -2093,6 +2125,41 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             line: line
         )
         do {
+            if shard.shardID == "s10.4.current.ax-text",
+               stateID == "state.sign-detail.delete-confirmation" {
+                var observedIssueCount = 0
+                try app.performAccessibilityAudit(for: .contrast) { issue in
+                    observedIssueCount += 1
+                    var diagnostic: [String: Any] = [
+                        "auditTypeRawValue": String(issue.auditType.rawValue),
+                        "compactDescription": issue.compactDescription,
+                        "detailedDescription": issue.detailedDescription,
+                        "applicationFrame": self.auditFrameObject(app.frame),
+                    ]
+                    if let auditedElement = issue.element {
+                        diagnostic["elementIdentifier"] = auditedElement.identifier
+                        diagnostic["elementLabel"] = auditedElement.label
+                        diagnostic["elementType"] = String(
+                            describing: auditedElement.elementType
+                        )
+                        diagnostic["elementFrame"] = self.auditFrameObject(
+                            auditedElement.frame
+                        )
+                    }
+                    self.printJSONLine(
+                        prefix: "S10_4_AUDIT_DIAGNOSTIC",
+                        object: diagnostic
+                    )
+                    return true
+                }
+                guard observedIssueCount >= 1 else {
+                    throw AutomationConfigurationError.invalid(
+                        "S10.4 AX-text delete-confirmation diagnostic unexpectedly passed"
+                    )
+                }
+                return
+            }
+
             if shard.shardID == "s10.4.current.ax-text",
                stateID == "state.check-preflight.ready" {
                 try app.performAccessibilityAudit(for: .contrast) { issue in
