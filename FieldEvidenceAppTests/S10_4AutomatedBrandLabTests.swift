@@ -1229,8 +1229,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let reportDetailDiagnosticSource = String(
             uiSource[
-                reportDetailDiagnosticStartRange.lowerBound
-                    ..<reportDetailDiagnosticEndRange.lowerBound
+                reportDetailDiagnosticStartRange.lowerBound..<reportDetailDiagnosticEndRange.lowerBound
             ]
         )
         let reportDetailThrowingCallOrder = [
