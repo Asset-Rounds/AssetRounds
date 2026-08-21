@@ -309,8 +309,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 203_535,
-            sha256: "CC87CD2BCD17EF8787907EAFD6FA88220A203D722BACF141267267D5517B0C08"
+            byteCount: 204_352,
+            sha256: "D0CB3FB84D41ADD29E9AC724820754C42AAC8DEF2680D782C9E0E5C9831BAB59"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2150,11 +2150,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                session.disableDialogs = true",
             "                app.launch()",
             #"                XCTAssertTrue(element("s2.sign-detail.screen", in: app)"#,
-            #"                let retryStart = element("s2.sign-detail.start-check", in: app)"#,
-            "                scroll(retryStart, in: app)",
-            #"                assertControl(retryStart, label: "Start Check")"#,
-            "                retryStart.tap()",
+            #"                let retrySettings = element("s1.settings.button", in: app)"#,
+            #"                assertControl(retrySettings, label: "Settings")"#,
+            "                retrySettings.tap()",
+            #"                XCTAssertTrue(element("s1.settings.screen", in: app)"#,
+            #"                let retryPaywall = element("s7.2.settings.paywall", in: app)"#,
+            "                scroll(retryPaywall, in: app)",
+            #"                assertControl(retryPaywall, label: "View subscription")"#,
+            "                retryPaywall.tap()",
             #"                XCTAssertTrue(element("s7.2.paywall.screen", in: app)"#,
+            "                usedSettingsRetry = true",
             #"                store = element("s7.2.paywall.store", in: app)"#,
             "                XCTAssertTrue(store.waitForExistence(timeout: 30))",
             #"                    predicate: "value == 'Ready'","#,
@@ -2179,7 +2184,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                session.resetToDefaultState()\n" +
                 "                session.clearTransactions()\n" +
                 "                session.disableDialogs = true\n" +
-                "                app.launch()"
+                "                app.launch()\n" +
+                #"                XCTAssertTrue(element("s2.sign-detail.screen", in: app)"# + "\n" +
+                "                    .waitForExistence(timeout: 30))"
         XCTAssertEqual(
             unverifiedRetrySource.components(
                 separatedBy: retryStoreKitResetAndRelaunch
@@ -2189,12 +2196,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let retryRouteReentry =
             #"                XCTAssertTrue(element("s2.sign-detail.screen", in: app)"# + "\n" +
                 "                    .waitForExistence(timeout: 30))\n" +
-                #"                let retryStart = element("s2.sign-detail.start-check", in: app)"# + "\n" +
-                "                scroll(retryStart, in: app)\n" +
-                #"                assertControl(retryStart, label: "Start Check")"# + "\n" +
-                "                retryStart.tap()\n" +
+                #"                let retrySettings = element("s1.settings.button", in: app)"# + "\n" +
+                #"                assertControl(retrySettings, label: "Settings")"# + "\n" +
+                "                retrySettings.tap()\n" +
+                #"                XCTAssertTrue(element("s1.settings.screen", in: app)"# + "\n" +
+                "                    .waitForExistence(timeout: 20))\n" +
+                #"                let retryPaywall = element("s7.2.settings.paywall", in: app)"# + "\n" +
+                "                scroll(retryPaywall, in: app)\n" +
+                #"                assertControl(retryPaywall, label: "View subscription")"# + "\n" +
+                "                retryPaywall.tap()\n" +
                 #"                XCTAssertTrue(element("s7.2.paywall.screen", in: app)"# + "\n" +
-                "                    .waitForExistence(timeout: 30))"
+                "                    .waitForExistence(timeout: 30))\n" +
+                "                usedSettingsRetry = true\n" +
+                #"                store = element("s7.2.paywall.store", in: app)"#
         XCTAssertEqual(
             unverifiedRetrySource.components(
                 separatedBy: retryRouteReentry
@@ -2252,7 +2266,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             purchaseRecoverySource.components(separatedBy: "timeout:").count - 1,
-            7
+            8
         )
         XCTAssertEqual(
             unverifiedRetrySource.components(separatedBy: "timeout: 30").count - 1,
@@ -2260,18 +2274,42 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             unverifiedRetrySource.components(separatedBy: "timeout: 20").count - 1,
-            2
+            3
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: "purchase.tap()").count - 1,
             2
         )
         XCTAssertEqual(
-            unverifiedRetrySource.components(separatedBy: "retryStart.tap()").count - 1,
+            unverifiedRetrySource.components(separatedBy: "retrySettings.tap()").count - 1,
             1
         )
         XCTAssertEqual(
-            unverifiedRetrySource.components(separatedBy: "                    return").count - 1,
+            unverifiedRetrySource.components(separatedBy: "retryPaywall.tap()").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            unverifiedRetrySource.components(separatedBy: "retryStart.tap()").count - 1,
+            0
+        )
+        for removedRetryStartForm in [
+            #"let retryStart = element("s2.sign-detail.start-check", in: app)"#,
+            "scroll(retryStart, in: app)",
+            #"assertControl(retryStart, label: "Start Check")"#,
+            "retryStart.tap()",
+        ] {
+            XCTAssertEqual(
+                unverifiedRetrySource.components(
+                    separatedBy: removedRetryStartForm
+                ).count - 1,
+                0,
+                removedRetryStartForm
+            )
+        }
+        XCTAssertEqual(
+            unverifiedRetrySource.components(
+                separatedBy: "                    return usedSettingsRetry"
+            ).count - 1,
             1
         )
         XCTAssertFalse(uiSource.contains("buyProduct("))
@@ -2311,6 +2349,118 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertFalse(purchaseRecoverySource.contains(prohibited), prohibited)
         }
+
+        let availablePurchaseFunctionStart =
+            "    @MainActor\n" +
+                "    private func captureAvailablePaywallAndPurchase(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) -> Bool {\n" +
+                "        var usedSettingsRetry = false"
+        let availablePurchaseFunctionEnd =
+            "\n\n    @MainActor\n" +
+                "    private func assertMonthlyPaywallAtXXXL("
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: availablePurchaseFunctionStart
+            ).count - 1,
+            1
+        )
+        guard let availablePurchaseFunctionStartRange = uiSource.range(
+            of: availablePurchaseFunctionStart
+        ), let availablePurchaseFunctionEndRange = uiSource.range(
+            of: availablePurchaseFunctionEnd,
+            range: availablePurchaseFunctionStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded Bool-returning available-purchase source slice")
+            return
+        }
+        let availablePurchaseFunctionSource = String(
+            uiSource[
+                availablePurchaseFunctionStartRange.lowerBound..<availablePurchaseFunctionEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(
+            availablePurchaseFunctionSource.components(
+                separatedBy: "var usedSettingsRetry = false"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            availablePurchaseFunctionSource.components(
+                separatedBy: "usedSettingsRetry = true"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            availablePurchaseFunctionSource.components(
+                separatedBy: "return usedSettingsRetry"
+            ).count - 1,
+            11
+        )
+        XCTAssertFalse(availablePurchaseFunctionSource.contains("\n            return\n"))
+        XCTAssertFalse(availablePurchaseFunctionSource.contains("\n                    return\n"))
+        let availablePurchaseTerminalReturn =
+            #"        captureBaseline("state.paywall.purchase-complete", in: app)"# + "\n" +
+                "        return usedSettingsRetry\n" +
+                "    }"
+        XCTAssertTrue(
+            availablePurchaseFunctionSource.hasSuffix(availablePurchaseTerminalReturn)
+        )
+
+        let purchaseCallerStart =
+            "    @MainActor\n" +
+                "    private func purchaseBlockedEvaluationAndBeginFreshCheck("
+        let purchaseCallerEnd =
+            "\n\n    @MainActor\n" +
+                "    private func acceptImportedPhotoWithoutBaseline("
+        XCTAssertEqual(
+            uiSource.components(separatedBy: purchaseCallerStart).count - 1,
+            1
+        )
+        guard let purchaseCallerStartRange = uiSource.range(of: purchaseCallerStart),
+              let purchaseCallerEndRange = uiSource.range(
+                of: purchaseCallerEnd,
+                range: purchaseCallerStartRange.upperBound..<uiSource.endIndex
+              ) else {
+            XCTFail("Missing the bounded available-purchase caller source slice")
+            return
+        }
+        let purchaseCallerSource = String(
+            uiSource[purchaseCallerStartRange.lowerBound..<purchaseCallerEndRange.lowerBound]
+        )
+        let postCloseSettingsRestoration =
+            "        let usedSettingsRetry = captureAvailablePaywallAndPurchase(in: app)\n" +
+                "\n" +
+                #"        let close = element("s7.2.paywall.close", in: app)"# + "\n" +
+                "        scrollDown(close, in: app)\n" +
+                #"        assertControl(close, label: "Close")"# + "\n" +
+                "        close.tap()\n" +
+                "        if usedSettingsRetry {\n" +
+                #"            XCTAssertTrue(element("s1.settings.screen", in: app)"# + "\n" +
+                "                .waitForExistence(timeout: 20))\n" +
+                "            navigateBack(in: app)\n" +
+                "        }\n" +
+                #"        XCTAssertTrue(element("s2.sign-detail.screen", in: app)"# + "\n" +
+                "            .waitForExistence(timeout: 20))\n" +
+                "        beginFreshCheck(in: app)"
+        XCTAssertEqual(
+            purchaseCallerSource.components(
+                separatedBy: postCloseSettingsRestoration
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "captureAvailablePaywallAndPurchase(in: app)"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            purchaseCallerSource.components(
+                separatedBy: "if usedSettingsRetry {"
+            ).count - 1,
+            1
+        )
 
         let reportCorrectionSourcePath =
             "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift"

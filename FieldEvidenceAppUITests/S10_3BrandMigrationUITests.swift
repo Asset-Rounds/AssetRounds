@@ -1766,12 +1766,17 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         start.tap()
         XCTAssertTrue(element("s7.2.paywall.screen", in: app)
             .waitForExistence(timeout: 30))
-        captureAvailablePaywallAndPurchase(in: app)
+        let usedSettingsRetry = captureAvailablePaywallAndPurchase(in: app)
 
         let close = element("s7.2.paywall.close", in: app)
         scrollDown(close, in: app)
         assertControl(close, label: "Close")
         close.tap()
+        if usedSettingsRetry {
+            XCTAssertTrue(element("s1.settings.screen", in: app)
+                .waitForExistence(timeout: 20))
+            navigateBack(in: app)
+        }
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
             .waitForExistence(timeout: 20))
         beginFreshCheck(in: app)
@@ -2496,7 +2501,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func captureAvailablePaywallAndPurchase(
         in app: XCUIApplication
-    ) {
+    ) -> Bool {
+        var usedSettingsRetry = false
         let productName = element("s7.2.paywall.product-name", in: app)
         let duration = element("s7.2.paywall.duration", in: app)
         let price = element("s7.2.paywall.price", in: app)
@@ -2583,7 +2589,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             if purchaseState.label == unverifiedPurchaseLabel {
                 guard let session = storeKitSession else {
                     XCTFail("The retained StoreKit test session is required")
-                    return
+                    return usedSettingsRetry
                 }
                 app.terminate()
                 session.resetToDefaultState()
@@ -2592,12 +2598,18 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 app.launch()
                 XCTAssertTrue(element("s2.sign-detail.screen", in: app)
                     .waitForExistence(timeout: 30))
-                let retryStart = element("s2.sign-detail.start-check", in: app)
-                scroll(retryStart, in: app)
-                assertControl(retryStart, label: "Start Check")
-                retryStart.tap()
+                let retrySettings = element("s1.settings.button", in: app)
+                assertControl(retrySettings, label: "Settings")
+                retrySettings.tap()
+                XCTAssertTrue(element("s1.settings.screen", in: app)
+                    .waitForExistence(timeout: 20))
+                let retryPaywall = element("s7.2.settings.paywall", in: app)
+                scroll(retryPaywall, in: app)
+                assertControl(retryPaywall, label: "View subscription")
+                retryPaywall.tap()
                 XCTAssertTrue(element("s7.2.paywall.screen", in: app)
                     .waitForExistence(timeout: 30))
+                usedSettingsRetry = true
                 store = element("s7.2.paywall.store", in: app)
                 XCTAssertTrue(store.waitForExistence(timeout: 30))
                 XCTAssertTrue(wait(
@@ -2638,7 +2650,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               support.waitForExistence(timeout: 20),
               purchase.waitForExistence(timeout: 20) else {
             XCTFail("The purchase-complete viewport controls must exist before positioning.")
-            return
+            return usedSettingsRetry
         }
 
         var measuredUndertravel: CGFloat = 0
@@ -2655,11 +2667,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
             guard minimumShift <= maximumShift else {
                 XCTFail("The purchase-complete viewport has no feasible positioning interval.")
-                return
+                return usedSettingsRetry
             }
             guard maximumShift > 0 else {
                 XCTFail("The purchase-complete viewport requires a non-positive correction.")
-                return
+                return usedSettingsRetry
             }
 
             let targetDistance = maximumShift
@@ -2668,12 +2680,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let maximumGestureDistance = store.frame.height - 2 * dragInset
             guard maximumGestureDistance >= 44 else {
                 XCTFail("The Store viewport cannot contain a recognized positioning gesture.")
-                return
+                return usedSettingsRetry
             }
             let dragDistance = min(requestedDistance, maximumGestureDistance)
             guard dragDistance >= 44 else {
                 XCTFail("The purchase-complete positioning gesture would not be recognized.")
-                return
+                return usedSettingsRetry
             }
 
             let closeBeforeDrag = close.frame.minY
@@ -2698,7 +2710,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let actualDistance = close.frame.minY - closeBeforeDrag
             guard actualDistance > 0 else {
                 XCTFail("The purchase-complete positioning gesture was not recognized.")
-                return
+                return usedSettingsRetry
             }
             measuredUndertravel = max(0, dragDistance - actualDistance)
         }
@@ -2708,7 +2720,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             $0.waitForExistence(timeout: 20)
         }) else {
             XCTFail("The purchase-complete viewport controls must remain present.")
-            return
+            return usedSettingsRetry
         }
         for control in finalViewportControls {
             assertMinimumGeometry(control)
@@ -2722,7 +2734,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && $0.isHittable
         }) else {
             XCTFail("The purchase-complete viewport controls must remain actionable.")
-            return
+            return usedSettingsRetry
         }
         guard close.frame.minY >= store.frame.minY,
               close.frame.maxY <= store.frame.maxY,
@@ -2732,9 +2744,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               support.frame.maxY <= store.frame.maxY,
               purchase.frame.minY >= store.frame.maxY else {
             XCTFail("The purchase-complete viewport composition was not reached.")
-            return
+            return usedSettingsRetry
         }
         captureBaseline("state.paywall.purchase-complete", in: app)
+        return usedSettingsRetry
     }
 
     @MainActor
