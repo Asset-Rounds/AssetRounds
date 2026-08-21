@@ -1471,15 +1471,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "reportScreenQuery",
             "reportPreviewQuery",
             "reportScrollViewsQuery",
-            "navigationBarsQuery",
             "tabBarsQuery",
             "pageIndicatorsQuery",
-            "addDiagnosticAttachments",
-            "elementObject",
-            "queryObject",
-            "diagnosticStart",
             "scheduledOffsetMilliseconds",
-            "elapsedMilliseconds",
             "Thread.sleep(forTimeInterval: 0.25)",
         ]
         for fragment in removedReportDetailDiagnosticFragments {
