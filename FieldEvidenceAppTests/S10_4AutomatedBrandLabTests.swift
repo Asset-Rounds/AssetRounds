@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 193_840,
-            sha256: "59B38FEDA9E431D1E82CC27DAA3A90D30E7B63B86E3B55F609295FC76D7ACCA2"
+            byteCount: 200_387,
+            sha256: "CE0E749CB36ECCB319F43C3C9DFCFE4E49DAA4D558129A8D01965DEB5D996176"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1224,14 +1224,43 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let navigationBars = app.navigationBars",
             "guard navigationBars.count == 1 else {",
             "let navigationBar = navigationBars.firstMatch",
+            "let pageIndicators = app.descendants(matching: .other).matching(",
+            "format: \"label == %@\"",
+            "\"Vertical scroll bar, 4 pages\"",
+            "func currentIndicatorGeometry(",
+            "previewFrame: CGRect,",
+            "liveScrollFrame: CGRect",
+            "guard pageIndicators.count == 4 else { return nil }",
+            "let frames = (0..<4).map {",
+            "pageIndicators.element(boundBy: $0).frame",
+            "frames.allSatisfy({ !$0.isNull && !$0.isEmpty })",
+            "var distinctFrames: [CGRect] = []",
+            "where !distinctFrames.contains(where: { $0 == frame })",
+            "distinctFrames.append(frame)",
+            "guard distinctFrames.count == 2,",
+            "frames.filter { $0 == distinctFrame }.count == 2",
+            "let innerCandidates = distinctFrames.filter {",
+            "previewFrame.contains($0)",
+            "guard innerCandidates.count == 1 else { return nil }",
+            "let inner = innerCandidates[0]",
+            "let outerCandidates = distinctFrames.filter {",
+            "$0 != inner && liveScrollFrame.contains($0)",
+            "guard outerCandidates.count == 1 else { return nil }",
+            "return (outerCandidates[0], inner)",
             "let verticalInset: CGFloat = 24",
             "let horizontalInset: CGFloat = 24",
             "let minimumGestureDistance: CGFloat = 44",
             "for _ in 0..<4 {",
-            "if preview.exists && preview.isHittable { return true }",
-            "let liveScrollFrame = reportScroll.frame.intersection(app.frame)",
+            "let reportScrollFrame = reportScroll.frame",
+            "let liveScrollFrame = reportScrollFrame.intersection(app.frame)",
+            "let previewFrame = preview.frame",
+            "let indicators = currentIndicatorGeometry(",
+            "previewFrame: previewFrame,",
+            "liveScrollFrame: liveScrollFrame",
+            "if preview.isHittable { return true }",
             "navigationBar.frame.maxY",
-            "let safeBottom = liveScrollFrame.maxY - verticalInset",
+            "let safeBottom = min(",
+            "indicators.outer.maxY",
             "let safeLeft = liveScrollFrame.minX + horizontalInset",
             "let safeRight = liveScrollFrame.maxX - horizontalInset",
             "let maximumGestureDistance = safeBottom - safeTop",
@@ -1242,25 +1271,33 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "!liveScrollFrame.isEmpty",
             "safeRight > safeLeft",
             "maximumGestureDistance >= minimumGestureDistance",
-            "preview.frame.height <= maximumGestureDistance",
-            "let minimumShift = safeTop - preview.frame.minY",
-            "let maximumShift = safeBottom - preview.frame.maxY",
-            "maximumShift < 0 else {",
+            "previewFrame.height <= maximumGestureDistance",
+            "let minimumShift = safeTop - previewFrame.minY",
+            "let maximumShift = safeBottom - previewFrame.maxY",
+            "guard minimumShift <= maximumShift else {",
             "let recognizedMinimum = max(",
             "-maximumGestureDistance",
             "let recognizedMaximum = min(",
             "-minimumGestureDistance",
-            "guard recognizedMinimum <= recognizedMaximum else {",
-            "let dragDistance = recognizedMaximum",
-            "let previousPreviewMinY = preview.frame.minY",
+            "if recognizedMinimum <= recognizedMaximum {",
+            "dragDistance = recognizedMaximum",
+            "else if maximumShift < -maximumGestureDistance {",
+            "dragDistance = -maximumGestureDistance",
+            "AX-text report preview has no progressive or final upward shift.",
+            "let previousPreviewMinY = previewFrame.minY",
             "let reportScrollOrigin = reportScroll.coordinate(",
             "withNormalizedOffset: CGVector(dx: 0, dy: 0)",
-            "dx: liveScrollFrame.midX - reportScroll.frame.minX",
-            "dy: safeBottom - reportScroll.frame.minY",
+            "dx: liveScrollFrame.midX - reportScrollFrame.minX",
+            "dy: safeBottom - reportScrollFrame.minY",
             "forDuration: 0.2,",
             "withVelocity: .slow,",
             "thenHoldForDuration: 0.2",
+            "pageIndicators.count == 4,",
             "preview.frame.minY < previousPreviewMinY else {",
+            "let finalLiveScrollFrame = reportScroll.frame.intersection(app.frame)",
+            "previewFrame: preview.frame,",
+            "liveScrollFrame: finalLiveScrollFrame",
+            "preview.isHittable else {",
             "AX-text report preview remained nonhittable after four gestures.",
         ]
         for lock in axPreviewHelperLocks {
@@ -1279,12 +1316,48 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         XCTAssertEqual(
+            axPreviewHelperSource.components(
+                separatedBy: #""Vertical scroll bar, 4 pages""#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            axPreviewHelperSource.components(
+                separatedBy: "let frames = (0..<4).map {"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            axPreviewHelperSource.components(
+                separatedBy: "pageIndicators.count == 4"
+            ).count - 1,
+            3
+        )
+        XCTAssertEqual(
+            axPreviewHelperSource.components(
+                separatedBy: "currentIndicatorGeometry("
+            ).count - 1,
+            3
+        )
+        XCTAssertEqual(
+            axPreviewHelperSource.components(
+                separatedBy: "dragDistance = recognizedMaximum"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            axPreviewHelperSource.components(
+                separatedBy: "dragDistance = -maximumGestureDistance"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
             axPreviewHelperSource.components(separatedBy: "XCTFail(").count - 1,
-            8
+            9
         )
         XCTAssertEqual(
             axPreviewHelperSource.components(separatedBy: "return false").count - 1,
-            8
+            9
         )
         XCTAssertEqual(
             axPreviewHelperSource.components(separatedBy: "return true").count - 1,
@@ -1297,6 +1370,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(axPreviewHelperSource.contains("CGVector(dx: 0.01"))
         XCTAssertFalse(axPreviewHelperSource.contains("upperPadding"))
         XCTAssertFalse(axPreviewHelperSource.contains("lowerPadding"))
+        XCTAssertFalse(axPreviewHelperSource.contains("Set<CGRect>"))
+        XCTAssertFalse(axPreviewHelperSource.contains("Set(frames)"))
+        XCTAssertFalse(axPreviewHelperSource.contains(".scrollBar"))
+        XCTAssertFalse(axPreviewHelperSource.contains(".scrollBars"))
+        XCTAssertFalse(axPreviewHelperSource.contains("CGRect(x:"))
+        XCTAssertFalse(axPreviewHelperSource.contains("Thread.sleep"))
+        XCTAssertFalse(axPreviewHelperSource.contains("let safeBottom = liveScrollFrame.maxY - verticalInset"))
+        XCTAssertFalse(axPreviewHelperSource.contains("guard maximumShift < 0 else {"))
+        XCTAssertFalse(axPreviewHelperSource.contains("guard recognizedMinimum <= recognizedMaximum else {"))
         XCTAssertFalse(axPreviewHelperSource.contains(#"app.scrollViews.matching("#))
         XCTAssertFalse(
             axPreviewHelperSource.contains(
@@ -1328,22 +1410,49 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let topClearance: CGFloat = 12",
             "let bottomClearance: CGFloat = 16",
             "let minimumGestureDistance: CGFloat = 44",
-            "for _ in 0..<4 {",
+            "var upwardUndertravel: CGFloat = 0",
+            "var downwardUndertravel: CGFloat = 0",
+            "var stagingCount = 0",
+            "var stagedFinalDirection: CGFloat?",
+            "for _ in 0..<6 {",
+            "guard minimumShift <= maximumShift else {",
+            "if minimumShift <= 0, maximumShift >= 0 { break }",
+            "let requiredFinalDirection: CGFloat",
+            "requiredFinalDirection = -1",
+            "requiredFinalDirection = 1",
+            "if let stagedFinalDirection,",
+            "stagedFinalDirection != requiredFinalDirection",
             "if maximumShift < 0 {",
             "diagnosticsScrollView.frame.height * 0.45",
             "let recognizedMinimum = max(",
-            "-maximumGestureDistance",
+            "-upwardCapacity",
             "let recognizedMaximum = min(",
             "-minimumGestureDistance",
-            "Diagnostics has no recognized feasible upward shift.",
-            "dragDistance = recognizedMaximum",
-            "guard minimumShift > 0 else {",
-            "Diagnostics positioning interval has no signed correction.",
+            "if recognizedMinimum <= recognizedMaximum {",
+            "recognizedMaximum - upwardUndertravel",
+            "isStaging = false",
+            "guard minimumShift > -minimumGestureDistance,",
+            "maximumShift < 0,",
+            "stagingCount < 2 else {",
+            "Diagnostics has no bounded upward residual strategy.",
+            "downwardCapacity,",
+            "2 * minimumGestureDistance + downwardUndertravel",
+            "Diagnostics downward staging is not recognizable.",
+            "dragDistance = stagingDistance",
+            "isStaging = true",
             "diagnosticsScrollView.frame.height * 0.55",
-            "minimumGestureDistance",
-            "maximumGestureDistance",
-            "Diagnostics has no recognized feasible downward shift.",
-            "dragDistance = recognizedMinimum",
+            "recognizedMinimum + downwardUndertravel",
+            "guard maximumShift < minimumGestureDistance,",
+            "minimumShift > 0,",
+            "Diagnostics has no bounded downward residual strategy.",
+            "upwardCapacity,",
+            "2 * minimumGestureDistance + upwardUndertravel",
+            "Diagnostics upward staging is not recognizable.",
+            "dragDistance = -stagingDistance",
+            "if isStaging {",
+            "stagingCount += 1",
+            "if stagedFinalDirection == nil {",
+            "stagedFinalDirection = requiredFinalDirection",
             "diagnosticsScrollView.coordinate(",
             "CGVector(dx: 0.01, dy: 0.45)",
             "forDuration: 0.2,",
@@ -1351,6 +1460,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "thenHoldForDuration: 0.2",
             "guard actualDistance * dragDistance > 0 else {",
             "Diagnostics positioning gesture was not recognized.",
+            "let observedUndertravel = max(",
+            "abs(dragDistance) - abs(actualDistance)",
+            "if dragDistance < 0 {",
+            "upwardUndertravel = observedUndertravel",
+            "downwardUndertravel = observedUndertravel",
+            "let finalMinimumShift = navigationBar.frame.maxY",
+            "let finalMaximumShift = min(",
+            "guard finalMinimumShift <= 0, finalMaximumShift >= 0 else {",
+            "Diagnostics positioning exhausted its bounded strategy.",
             "XCTAssertLessThanOrEqual(\n            diagnosticsHeading.frame.maxY,",
             "XCTAssertGreaterThanOrEqual(\n            diagnosticsAuthority.frame.minY,",
             "XCTAssertLessThanOrEqual(\n            diagnosticsExport.frame.maxY,",
@@ -1369,22 +1487,98 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         XCTAssertEqual(
+            diagnosticsPositioningSource.components(
+                separatedBy: "for _ in 0..<6 {"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            diagnosticsPositioningSource.components(
+                separatedBy: "stagingCount < 2"
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            diagnosticsPositioningSource.components(
+                separatedBy: "stagingCount += 1"
+            ).count - 1,
+            1
+        )
+        for uniqueStateUpdate in [
+            "var upwardUndertravel: CGFloat = 0",
+            "var downwardUndertravel: CGFloat = 0",
+            "recognizedMaximum - upwardUndertravel",
+            "recognizedMinimum + downwardUndertravel",
+            "2 * minimumGestureDistance + downwardUndertravel",
+            "2 * minimumGestureDistance + upwardUndertravel",
+            "upwardUndertravel = observedUndertravel",
+            "downwardUndertravel = observedUndertravel",
+        ] {
+            XCTAssertEqual(
+                diagnosticsPositioningSource.components(
+                    separatedBy: uniqueStateUpdate
+                ).count - 1,
+                1,
+                uniqueStateUpdate
+            )
+        }
+        XCTAssertEqual(
             diagnosticsPositioningSource.components(separatedBy: "XCTFail(").count - 1,
-            6
+            12
         )
         XCTAssertEqual(
             diagnosticsPositioningSource.components(separatedBy: "            return\n").count - 1,
-            6
+            12
+        )
+        XCTAssertEqual(
+            diagnosticsPositioningSource.components(
+                separatedBy: #"captureBaseline("state.diagnostics.ready""#
+            ).count - 1,
+            0
         )
         for removed in [
             "measuredUndertravel",
             "compensatedDirection",
             "targetDistance",
             "let direction:",
+            "for _ in 0..<4 {",
+            "Diagnostics has no recognized feasible upward shift.",
+            "Diagnostics has no recognized feasible downward shift.",
+            "dragDistance = recognizedMaximum",
+            "dragDistance = recognizedMinimum",
+            "Thread.sleep",
+            "epsilon",
+            "tolerance",
         ] {
             XCTAssertFalse(diagnosticsPositioningSource.contains(removed), removed)
         }
         XCTAssertFalse(diagnosticsPositioningSource.contains("app.coordinate("))
+        XCTAssertFalse(diagnosticsPositioningSource.contains("app.swipeUp()"))
+        XCTAssertFalse(diagnosticsPositioningSource.contains("app.swipeDown()"))
+        let diagnosticsFinalGeometryAndCapture =
+            "        guard finalMinimumShift <= 0, finalMaximumShift >= 0 else {\n" +
+                "            XCTFail(\"Diagnostics positioning exhausted its bounded strategy.\")\n" +
+                "            return\n" +
+                "        }\n" +
+                "        XCTAssertLessThanOrEqual(\n" +
+                "            diagnosticsHeading.frame.maxY,\n" +
+                "            navigationBar.frame.maxY\n" +
+                "        )\n" +
+                "        XCTAssertGreaterThanOrEqual(\n" +
+                "            diagnosticsAuthority.frame.minY,\n" +
+                "            navigationBar.frame.maxY + topClearance\n" +
+                "        )\n" +
+                "        XCTAssertLessThanOrEqual(\n" +
+                "            diagnosticsExport.frame.maxY,\n" +
+                "            signsTab.frame.minY - bottomClearance\n" +
+                "        )\n" +
+                #"        captureBaseline("state.diagnostics.ready", in: app)"#
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: diagnosticsFinalGeometryAndCapture
+            ).count - 1,
+            1
+        )
 
         let purchaseRecoveryStart =
             #"        let purchase = firstPurchaseButton(in: app)"# + "\n" +

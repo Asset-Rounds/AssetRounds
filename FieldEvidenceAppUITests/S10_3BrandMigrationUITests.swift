@@ -2911,7 +2911,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let topClearance: CGFloat = 12
         let bottomClearance: CGFloat = 16
         let minimumGestureDistance: CGFloat = 44
-        for _ in 0..<4 {
+        var upwardUndertravel: CGFloat = 0
+        var downwardUndertravel: CGFloat = 0
+        var stagingCount = 0
+        var stagedFinalDirection: CGFloat?
+        for _ in 0..<6 {
             let minimumShift = navigationBar.frame.maxY
                 + topClearance
                 - diagnosticsAuthority.frame.minY
@@ -2921,43 +2925,106 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     - bottomClearance
                     - diagnosticsExport.frame.maxY
             )
-            XCTAssertGreaterThanOrEqual(maximumShift, minimumShift)
+            guard minimumShift <= maximumShift else {
+                XCTFail("Diagnostics positioning interval is impossible.")
+                return
+            }
             if minimumShift <= 0, maximumShift >= 0 { break }
-            let dragDistance: CGFloat
+            let requiredFinalDirection: CGFloat
             if maximumShift < 0 {
-                let maximumGestureDistance = diagnosticsScrollView.frame.height * 0.45
+                requiredFinalDirection = -1
+            } else if minimumShift > 0 {
+                requiredFinalDirection = 1
+            } else {
+                XCTFail("Diagnostics positioning interval has no signed correction.")
+                return
+            }
+            if let stagedFinalDirection,
+               stagedFinalDirection != requiredFinalDirection {
+                XCTFail("Diagnostics staged correction changed direction.")
+                return
+            }
+            let upwardCapacity = diagnosticsScrollView.frame.height * 0.45
+            let downwardCapacity = diagnosticsScrollView.frame.height * 0.55
+            guard upwardCapacity >= minimumGestureDistance,
+                  downwardCapacity >= minimumGestureDistance else {
+                XCTFail("Diagnostics ScrollView cannot contain recognized corrections.")
+                return
+            }
+            let dragDistance: CGFloat
+            let isStaging: Bool
+            if maximumShift < 0 {
                 let recognizedMinimum = max(
                     minimumShift,
-                    -maximumGestureDistance
+                    -upwardCapacity
                 )
                 let recognizedMaximum = min(
                     maximumShift,
                     -minimumGestureDistance
                 )
-                guard recognizedMinimum <= recognizedMaximum else {
-                    XCTFail("Diagnostics has no recognized feasible upward shift.")
-                    return
+                if recognizedMinimum <= recognizedMaximum {
+                    dragDistance = max(
+                        recognizedMinimum,
+                        recognizedMaximum - upwardUndertravel
+                    )
+                    isStaging = false
+                } else {
+                    guard minimumShift > -minimumGestureDistance,
+                          maximumShift < 0,
+                          stagingCount < 2 else {
+                        XCTFail("Diagnostics has no bounded upward residual strategy.")
+                        return
+                    }
+                    let stagingDistance = min(
+                        downwardCapacity,
+                        2 * minimumGestureDistance + downwardUndertravel
+                    )
+                    guard stagingDistance >= minimumGestureDistance else {
+                        XCTFail("Diagnostics downward staging is not recognizable.")
+                        return
+                    }
+                    dragDistance = stagingDistance
+                    isStaging = true
                 }
-                dragDistance = recognizedMaximum
             } else {
-                guard minimumShift > 0 else {
-                    XCTFail("Diagnostics positioning interval has no signed correction.")
-                    return
-                }
-                let maximumGestureDistance = diagnosticsScrollView.frame.height * 0.55
                 let recognizedMinimum = max(
                     minimumShift,
                     minimumGestureDistance
                 )
                 let recognizedMaximum = min(
                     maximumShift,
-                    maximumGestureDistance
+                    downwardCapacity
                 )
-                guard recognizedMinimum <= recognizedMaximum else {
-                    XCTFail("Diagnostics has no recognized feasible downward shift.")
-                    return
+                if recognizedMinimum <= recognizedMaximum {
+                    dragDistance = min(
+                        recognizedMaximum,
+                        recognizedMinimum + downwardUndertravel
+                    )
+                    isStaging = false
+                } else {
+                    guard maximumShift < minimumGestureDistance,
+                          minimumShift > 0,
+                          stagingCount < 2 else {
+                        XCTFail("Diagnostics has no bounded downward residual strategy.")
+                        return
+                    }
+                    let stagingDistance = min(
+                        upwardCapacity,
+                        2 * minimumGestureDistance + upwardUndertravel
+                    )
+                    guard stagingDistance >= minimumGestureDistance else {
+                        XCTFail("Diagnostics upward staging is not recognizable.")
+                        return
+                    }
+                    dragDistance = -stagingDistance
+                    isStaging = true
                 }
-                dragDistance = recognizedMinimum
+            }
+            if isStaging {
+                stagingCount += 1
+                if stagedFinalDirection == nil {
+                    stagedFinalDirection = requiredFinalDirection
+                }
             }
             let authorityBeforeDrag = diagnosticsAuthority.frame.minY
             let dragStart = diagnosticsScrollView.coordinate(
@@ -2978,6 +3045,28 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTFail("Diagnostics positioning gesture was not recognized.")
                 return
             }
+            let observedUndertravel = max(
+                0,
+                abs(dragDistance) - abs(actualDistance)
+            )
+            if dragDistance < 0 {
+                upwardUndertravel = observedUndertravel
+            } else {
+                downwardUndertravel = observedUndertravel
+            }
+        }
+        let finalMinimumShift = navigationBar.frame.maxY
+            + topClearance
+            - diagnosticsAuthority.frame.minY
+        let finalMaximumShift = min(
+            navigationBar.frame.maxY - diagnosticsHeading.frame.maxY,
+            signsTab.frame.minY
+                - bottomClearance
+                - diagnosticsExport.frame.maxY
+        )
+        guard finalMinimumShift <= 0, finalMaximumShift >= 0 else {
+            XCTFail("Diagnostics positioning exhausted its bounded strategy.")
+            return
         }
         XCTAssertLessThanOrEqual(
             diagnosticsHeading.frame.maxY,
@@ -4197,37 +4286,90 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             return false
         }
         let navigationBar = navigationBars.firstMatch
+        let pageIndicators = app.descendants(matching: .other).matching(
+            NSPredicate(
+                format: "label == %@",
+                "Vertical scroll bar, 4 pages"
+            )
+        )
+        func currentIndicatorGeometry(
+            previewFrame: CGRect,
+            liveScrollFrame: CGRect
+        ) -> (outer: CGRect, inner: CGRect)? {
+            guard pageIndicators.count == 4 else { return nil }
+            let frames = (0..<4).map {
+                pageIndicators.element(boundBy: $0).frame
+            }
+            guard pageIndicators.count == 4,
+                  frames.allSatisfy({ !$0.isNull && !$0.isEmpty }) else {
+                return nil
+            }
+            var distinctFrames: [CGRect] = []
+            for frame in frames
+            where !distinctFrames.contains(where: { $0 == frame }) {
+                distinctFrames.append(frame)
+            }
+            guard distinctFrames.count == 2,
+                  distinctFrames.allSatisfy({ distinctFrame in
+                      frames.filter { $0 == distinctFrame }.count == 2
+                  }) else {
+                return nil
+            }
+            let innerCandidates = distinctFrames.filter {
+                previewFrame.contains($0)
+            }
+            guard innerCandidates.count == 1 else { return nil }
+            let inner = innerCandidates[0]
+            let outerCandidates = distinctFrames.filter {
+                $0 != inner && liveScrollFrame.contains($0)
+            }
+            guard outerCandidates.count == 1 else { return nil }
+            return (outerCandidates[0], inner)
+        }
         let verticalInset: CGFloat = 24
         let horizontalInset: CGFloat = 24
         let minimumGestureDistance: CGFloat = 44
         for _ in 0..<4 {
-            if preview.exists && preview.isHittable { return true }
-            let liveScrollFrame = reportScroll.frame.intersection(app.frame)
+            let reportScrollFrame = reportScroll.frame
+            let liveScrollFrame = reportScrollFrame.intersection(app.frame)
+            let previewFrame = preview.frame
+            guard app.state == .runningForeground,
+                  reportScrollViews.count == 1,
+                  navigationBars.count == 1,
+                  reportScroll.exists,
+                  navigationBar.exists,
+                  preview.exists,
+                  !liveScrollFrame.isNull,
+                  !liveScrollFrame.isEmpty,
+                  let indicators = currentIndicatorGeometry(
+                      previewFrame: previewFrame,
+                      liveScrollFrame: liveScrollFrame
+                  ) else {
+                XCTFail("AX-text report preview hierarchy is not stable.")
+                return false
+            }
+            if preview.isHittable { return true }
             let safeTop = max(
                 liveScrollFrame.minY,
                 navigationBar.frame.maxY
             ) + verticalInset
-            let safeBottom = liveScrollFrame.maxY - verticalInset
+            let safeBottom = min(
+                liveScrollFrame.maxY,
+                indicators.outer.maxY
+            ) - verticalInset
             let safeLeft = liveScrollFrame.minX + horizontalInset
             let safeRight = liveScrollFrame.maxX - horizontalInset
             let maximumGestureDistance = safeBottom - safeTop
-            guard app.state == .runningForeground,
-                  reportScrollViews.count == 1,
-                  navigationBars.count == 1,
-                  preview.exists,
-                  !liveScrollFrame.isNull,
-                  !liveScrollFrame.isEmpty,
-                  safeRight > safeLeft,
+            guard safeRight > safeLeft,
                   maximumGestureDistance >= minimumGestureDistance,
-                  preview.frame.height <= maximumGestureDistance else {
+                  previewFrame.height <= maximumGestureDistance else {
                 XCTFail("AX-text report preview has no stable live scrolling band.")
                 return false
             }
-            let minimumShift = safeTop - preview.frame.minY
-            let maximumShift = safeBottom - preview.frame.maxY
-            guard minimumShift <= maximumShift,
-                  maximumShift < 0 else {
-                XCTFail("AX-text report preview has no upward wholly-visible shift.")
+            let minimumShift = safeTop - previewFrame.minY
+            let maximumShift = safeBottom - previewFrame.maxY
+            guard minimumShift <= maximumShift else {
+                XCTFail("AX-text report preview cannot fit the live scrolling band.")
                 return false
             }
             let recognizedMinimum = max(
@@ -4238,19 +4380,23 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 maximumShift,
                 -minimumGestureDistance
             )
-            guard recognizedMinimum <= recognizedMaximum else {
-                XCTFail("AX-text report preview has no recognized feasible upward shift.")
+            let dragDistance: CGFloat
+            if recognizedMinimum <= recognizedMaximum {
+                dragDistance = recognizedMaximum
+            } else if maximumShift < -maximumGestureDistance {
+                dragDistance = -maximumGestureDistance
+            } else {
+                XCTFail("AX-text report preview has no progressive or final upward shift.")
                 return false
             }
-            let dragDistance = recognizedMaximum
-            let previousPreviewMinY = preview.frame.minY
+            let previousPreviewMinY = previewFrame.minY
             let reportScrollOrigin = reportScroll.coordinate(
                 withNormalizedOffset: CGVector(dx: 0, dy: 0)
             )
             let dragStart = reportScrollOrigin.withOffset(
                 CGVector(
-                    dx: liveScrollFrame.midX - reportScroll.frame.minX,
-                    dy: safeBottom - reportScroll.frame.minY
+                    dx: liveScrollFrame.midX - reportScrollFrame.minX,
+                    dy: safeBottom - reportScrollFrame.minY
                 )
             )
             let dragEnd = dragStart.withOffset(
@@ -4265,13 +4411,27 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             guard app.state == .runningForeground,
                   reportScrollViews.count == 1,
                   navigationBars.count == 1,
+                  pageIndicators.count == 4,
                   preview.exists,
                   preview.frame.minY < previousPreviewMinY else {
                 XCTFail("AX-text report preview did not move upward with its ScrollView.")
                 return false
             }
         }
-        guard preview.exists && preview.isHittable else {
+        let finalLiveScrollFrame = reportScroll.frame.intersection(app.frame)
+        guard app.state == .runningForeground,
+              reportScrollViews.count == 1,
+              navigationBars.count == 1,
+              reportScroll.exists,
+              navigationBar.exists,
+              preview.exists,
+              !finalLiveScrollFrame.isNull,
+              !finalLiveScrollFrame.isEmpty,
+              let _ = currentIndicatorGeometry(
+                  previewFrame: preview.frame,
+                  liveScrollFrame: finalLiveScrollFrame
+              ),
+              preview.isHittable else {
             XCTFail("AX-text report preview remained nonhittable after four gestures.")
             return false
         }
