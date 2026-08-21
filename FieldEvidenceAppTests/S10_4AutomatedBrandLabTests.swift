@@ -3076,7 +3076,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let postPurchaseFinalGuardAndCapture =
             "            XCTFail(\"The purchase-complete viewport composition was not reached.\")\n" +
-                "            return\n" +
+                "            return usedSettingsRetry\n" +
                 "        }\n" +
                 postPurchaseCapture
         XCTAssertEqual(
