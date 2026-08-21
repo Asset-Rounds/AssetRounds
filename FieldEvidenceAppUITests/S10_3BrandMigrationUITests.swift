@@ -448,7 +448,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         assertLightFirstSignValidationAndCreation(in: app)
         completeVisibleIssueCheck(in: app)
-        assertFirstReceiptAndReport(in: app)
+        try assertFirstReceiptAndReport(in: app)
         assertReportsIndex(in: app)
 
         app.terminate()
@@ -1417,7 +1417,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func assertFirstReceiptAndReport(in app: XCUIApplication) {
+    private func assertFirstReceiptAndReport(in app: XCUIApplication) throws {
         XCTAssertTrue(element("s3.receipt.screen", in: app)
             .waitForExistence(timeout: 40))
         assertUnidentifiedLocalizedLabel("Complete: Check complete", in: app)
@@ -1437,7 +1437,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let preview = element("s4.3.report-detail.preview", in: app)
         XCTAssertTrue(preview.waitForExistence(timeout: 20))
         if automationShard?.shardID == "s10.4.current.ax-text" {
-            guard scrollReportPreviewForAXText(preview, in: app) else { return }
+            try diagnoseAXTextReportDetailRoute(preview, in: app)
         } else {
             scroll(preview, in: app)
         }
@@ -4216,6 +4216,121 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         XCTAssertTrue(value.waitForExistence(timeout: 2))
         XCTAssertTrue(value.isHittable)
+    }
+
+    @MainActor
+    private func diagnoseAXTextReportDetailRoute(
+        _ preview: XCUIElement,
+        in app: XCUIApplication
+    ) throws {
+        let receiptScreenQuery = app.descendants(matching: .any).matching(
+            identifier: "s3.receipt.screen"
+        )
+        let receiptViewReportQuery = app.descendants(matching: .any).matching(
+            identifier: "s3.receipt.view-report"
+        )
+        let reportScreenQuery = app.descendants(matching: .any).matching(
+            identifier: "s4.3.report-detail.screen"
+        )
+        let reportPreviewQuery = app.descendants(matching: .any).matching(
+            identifier: "s4.3.report-detail.preview"
+        )
+        let reportScrollViewsQuery = app.scrollViews.containing(
+            .other,
+            identifier: "s4.3.report-detail.preview"
+        )
+        let navigationBarsQuery = app.navigationBars
+        let tabBarsQuery = app.tabBars
+        let pageIndicatorsQuery = app.descendants(matching: .other).matching(
+            NSPredicate(
+                format: "label == %@",
+                "Vertical scroll bar, 4 pages"
+            )
+        )
+        let frameObject: (CGRect) -> [String: Any] = { frame in
+            [
+                "x": frame.minX,
+                "y": frame.minY,
+                "width": frame.width,
+                "height": frame.height,
+            ]
+        }
+        let elementObject: (XCUIElement) -> [String: Any] = { value in
+            let publicValue: Any
+            if let rawValue = value.value {
+                publicValue = String(describing: rawValue)
+            } else {
+                publicValue = NSNull()
+            }
+            return [
+                "exists": value.exists,
+                "isHittable": value.isHittable,
+                "identifier": value.identifier,
+                "label": value.label,
+                "value": publicValue,
+                "elementTypeRawValue": value.elementType.rawValue,
+                "frame": frameObject(value.frame),
+            ]
+        }
+        let queryObject: (XCUIElementQuery) -> [String: Any] = { query in
+            let count = query.count
+            let elements = (0..<count).map {
+                query.element(boundBy: $0)
+            }
+            return [
+                "count": count,
+                "elements": elements.map(elementObject),
+            ]
+        }
+        let addDiagnosticAttachments: (String) -> Void = { phase in
+            let screenshot = XCTAttachment(
+                screenshot: XCUIScreen.main.screenshot()
+            )
+            screenshot.name =
+                "S10.4 AX-text report-detail route diagnostic \(phase) screen"
+            screenshot.lifetime = .keepAlways
+            self.add(screenshot)
+            let tree = XCTAttachment(string: app.debugDescription)
+            tree.name =
+                "S10.4 AX-text report-detail route diagnostic \(phase) tree"
+            tree.lifetime = .keepAlways
+            self.add(tree)
+        }
+        let diagnosticStart = Date()
+        for ordinal in 0..<2 {
+            let applicationFrame = app.frame
+            printJSONLine(
+                prefix: "S10_4_REPORT_DETAIL_ROUTE_DIAGNOSTIC",
+                object: [
+                    "shardID": "s10.4.current.ax-text",
+                    "ordinal": ordinal,
+                    "elapsedMilliseconds": Int(
+                        Date().timeIntervalSince(diagnosticStart) * 1_000
+                    ),
+                    "applicationStateRawValue": app.state.rawValue,
+                    "applicationFrame": frameObject(applicationFrame),
+                    "preview": elementObject(preview),
+                    "queries": [
+                        "receiptScreen": queryObject(receiptScreenQuery),
+                        "receiptViewReport": queryObject(receiptViewReportQuery),
+                        "reportScreen": queryObject(reportScreenQuery),
+                        "reportPreview": queryObject(reportPreviewQuery),
+                        "reportScrollViews": queryObject(reportScrollViewsQuery),
+                        "navigationBars": queryObject(navigationBarsQuery),
+                        "tabBars": queryObject(tabBarsQuery),
+                        "pageIndicators": queryObject(pageIndicatorsQuery),
+                    ],
+                ]
+            )
+            if ordinal == 0 {
+                addDiagnosticAttachments("start")
+            } else {
+                addDiagnosticAttachments("terminal")
+            }
+        }
+        throw AutomationConfigurationError.invalid(
+            "S10.4 AX-text report-detail route diagnostic"
+        )
     }
 
     @MainActor

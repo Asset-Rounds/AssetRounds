@@ -309,8 +309,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 198_880,
-            sha256: "E77CA7FB1B4647E6134AA981E929A40B1C583AC773707838B5B21FEF3F822215"
+            byteCount: 203_535,
+            sha256: "CC87CD2BCD17EF8787907EAFD6FA88220A203D722BACF141267267D5517B0C08"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1195,7 +1195,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        XCTAssertTrue(preview.waitForExistence(timeout: 20))\n" +
                 #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# +
                 "\n" +
-                "            guard scrollReportPreviewForAXText(preview, in: app) else { return }\n" +
+                "            try diagnoseAXTextReportDetailRoute(preview, in: app)\n" +
                 "        } else {\n" +
                 "            scroll(preview, in: app)\n" +
                 "        }\n" +
@@ -1205,9 +1205,110 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(separatedBy: firstReportPreviewPositioning).count - 1,
             1
         )
-        let removedReportDetailDiagnosticFragments = [
-            "S10_4_REPORT_DETAIL_ROUTE_DIAGNOSTIC",
-            "S10.4 AX-text report-detail route diagnostic",
+        let reportDetailDiagnosticStart =
+            "    @MainActor\n" +
+                "    private func diagnoseAXTextReportDetailRoute(\n" +
+                "        _ preview: XCUIElement,\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) throws {"
+        let reportDetailDiagnosticEnd =
+            "\n\n    @MainActor\n" +
+                "    private func scrollReportPreviewForAXText("
+        XCTAssertEqual(
+            uiSource.components(separatedBy: reportDetailDiagnosticStart).count - 1,
+            1
+        )
+        guard let reportDetailDiagnosticStartRange = uiSource.range(
+            of: reportDetailDiagnosticStart
+        ), let reportDetailDiagnosticEndRange = uiSource.range(
+            of: reportDetailDiagnosticEnd,
+            range: reportDetailDiagnosticStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded AX-text report-detail diagnostic source slice")
+            return
+        }
+        let reportDetailDiagnosticSource = String(
+            uiSource[
+                reportDetailDiagnosticStartRange.lowerBound
+                    ..<reportDetailDiagnosticEndRange.lowerBound
+            ]
+        )
+        let reportDetailThrowingCallOrder = [
+            "func runAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift() throws {",
+            "        try assertFirstReceiptAndReport(in: app)",
+            "    private func assertFirstReceiptAndReport(in app: XCUIApplication) throws {",
+            "            try diagnoseAXTextReportDetailRoute(preview, in: app)",
+            reportDetailDiagnosticStart,
+            "        throw AutomationConfigurationError.invalid(",
+            "    private func scrollReportPreviewForAXText(",
+        ]
+        var reportDetailThrowingCallCursor = uiSource.startIndex
+        for orderedFragment in reportDetailThrowingCallOrder {
+            guard let orderedRange = uiSource.range(
+                of: orderedFragment,
+                range: reportDetailThrowingCallCursor..<uiSource.endIndex
+            ) else {
+                XCTFail("Missing or unordered report-detail diagnostic call: \(orderedFragment)")
+                return
+            }
+            reportDetailThrowingCallCursor = orderedRange.upperBound
+        }
+        for uniqueThrowingForm in [
+            "func runAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift() throws {",
+            "        try assertFirstReceiptAndReport(in: app)",
+            "    private func assertFirstReceiptAndReport(in app: XCUIApplication) throws {",
+            "            try diagnoseAXTextReportDetailRoute(preview, in: app)",
+            reportDetailDiagnosticStart,
+        ] {
+            XCTAssertEqual(
+                uiSource.components(separatedBy: uniqueThrowingForm).count - 1,
+                1,
+                uniqueThrowingForm
+            )
+        }
+        for removedNonthrowingForm in [
+            "        assertFirstReceiptAndReport(in: app)",
+            "    private func assertFirstReceiptAndReport(in app: XCUIApplication) {",
+            "            guard scrollReportPreviewForAXText(preview, in: app) else { return }",
+        ] {
+            XCTAssertEqual(
+                uiSource.components(separatedBy: removedNonthrowingForm).count - 1,
+                0,
+                removedNonthrowingForm
+            )
+        }
+        let reportDetailDiagnosticQueries =
+            "        let receiptScreenQuery = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s3.receipt.screen""# + "\n" +
+                "        )\n" +
+                "        let receiptViewReportQuery = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s3.receipt.view-report""# + "\n" +
+                "        )\n" +
+                "        let reportScreenQuery = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s4.3.report-detail.screen""# + "\n" +
+                "        )\n" +
+                "        let reportPreviewQuery = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s4.3.report-detail.preview""# + "\n" +
+                "        )\n" +
+                "        let reportScrollViewsQuery = app.scrollViews.containing(\n" +
+                "            .other,\n" +
+                #"            identifier: "s4.3.report-detail.preview""# + "\n" +
+                "        )\n" +
+                "        let navigationBarsQuery = app.navigationBars\n" +
+                "        let tabBarsQuery = app.tabBars\n" +
+                "        let pageIndicatorsQuery = app.descendants(matching: .other).matching(\n" +
+                "            NSPredicate(\n" +
+                #"                format: "label == %@","# + "\n" +
+                #"                "Vertical scroll bar, 4 pages""# + "\n" +
+                "            )\n" +
+                "        )"
+        XCTAssertEqual(
+            reportDetailDiagnosticSource.components(
+                separatedBy: reportDetailDiagnosticQueries
+            ).count - 1,
+            1
+        )
+        for queryName in [
             "receiptScreenQuery",
             "receiptViewReportQuery",
             "reportScreenQuery",
@@ -1215,43 +1316,247 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "reportScrollViewsQuery",
             "navigationBarsQuery",
             "tabBarsQuery",
-            "addDiagnosticAttachments",
-            "elementObject",
-            "queryObject",
-            "diagnosticStart",
-            "scheduledOffsetMilliseconds",
-            "elapsedMilliseconds",
-            "Thread.sleep(forTimeInterval: 0.25)",
-        ]
-        for fragment in removedReportDetailDiagnosticFragments {
-            XCTAssertEqual(uiSource.components(separatedBy: fragment).count - 1, 0, fragment)
+            "pageIndicatorsQuery",
+        ] {
+            XCTAssertEqual(
+                reportDetailDiagnosticSource.components(
+                    separatedBy: queryName
+                ).count - 1,
+                2,
+                queryName
+            )
+        }
+        let reportDetailFrameSerializer =
+            "        let frameObject: (CGRect) -> [String: Any] = { frame in\n" +
+                "            [\n" +
+                #"                "x": frame.minX,"# + "\n" +
+                #"                "y": frame.minY,"# + "\n" +
+                #"                "width": frame.width,"# + "\n" +
+                #"                "height": frame.height,"# + "\n" +
+                "            ]\n" +
+                "        }"
+        XCTAssertEqual(
+            reportDetailDiagnosticSource.components(
+                separatedBy: reportDetailFrameSerializer
+            ).count - 1,
+            1
+        )
+        let reportDetailElementSerializer =
+            "        let elementObject: (XCUIElement) -> [String: Any] = { value in\n" +
+                "            let publicValue: Any\n" +
+                "            if let rawValue = value.value {\n" +
+                "                publicValue = String(describing: rawValue)\n" +
+                "            } else {\n" +
+                "                publicValue = NSNull()\n" +
+                "            }\n" +
+                "            return [\n" +
+                #"                "exists": value.exists,"# + "\n" +
+                #"                "isHittable": value.isHittable,"# + "\n" +
+                #"                "identifier": value.identifier,"# + "\n" +
+                #"                "label": value.label,"# + "\n" +
+                #"                "value": publicValue,"# + "\n" +
+                #"                "elementTypeRawValue": value.elementType.rawValue,"# + "\n" +
+                #"                "frame": frameObject(value.frame),"# + "\n" +
+                "            ]\n" +
+                "        }"
+        XCTAssertEqual(
+            reportDetailDiagnosticSource.components(
+                separatedBy: reportDetailElementSerializer
+            ).count - 1,
+            1
+        )
+        for nodeField in [
+            #""exists":"#,
+            #""isHittable":"#,
+            #""identifier":"#,
+            #""label":"#,
+            #""value":"#,
+            #""elementTypeRawValue":"#,
+            #""frame":"#,
+        ] {
+            XCTAssertEqual(
+                reportDetailElementSerializer.components(
+                    separatedBy: nodeField
+                ).count - 1,
+                1,
+                nodeField
+            )
+        }
+        let reportDetailQuerySerializer =
+            "        let queryObject: (XCUIElementQuery) -> [String: Any] = { query in\n" +
+                "            let count = query.count\n" +
+                "            let elements = (0..<count).map {\n" +
+                "                query.element(boundBy: $0)\n" +
+                "            }\n" +
+                "            return [\n" +
+                #"                "count": count,"# + "\n" +
+                #"                "elements": elements.map(elementObject),"# + "\n" +
+                "            ]\n" +
+                "        }"
+        XCTAssertEqual(
+            reportDetailDiagnosticSource.components(
+                separatedBy: reportDetailQuerySerializer
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            reportDetailDiagnosticSource.components(
+                separatedBy: "query.count"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            reportDetailDiagnosticSource.components(
+                separatedBy: "query.element(boundBy: $0)"
+            ).count - 1,
+            1
+        )
+        let reportDetailDiagnosticAttachments =
+            "        let addDiagnosticAttachments: (String) -> Void = { phase in\n" +
+                "            let screenshot = XCTAttachment(\n" +
+                "                screenshot: XCUIScreen.main.screenshot()\n" +
+                "            )\n" +
+                "            screenshot.name =\n" +
+                #"                "S10.4 AX-text report-detail route diagnostic \(phase) screen""# + "\n" +
+                "            screenshot.lifetime = .keepAlways\n" +
+                "            self.add(screenshot)\n" +
+                "            let tree = XCTAttachment(string: app.debugDescription)\n" +
+                "            tree.name =\n" +
+                #"                "S10.4 AX-text report-detail route diagnostic \(phase) tree""# + "\n" +
+                "            tree.lifetime = .keepAlways\n" +
+                "            self.add(tree)\n" +
+                "        }"
+        XCTAssertEqual(
+            reportDetailDiagnosticSource.components(
+                separatedBy: reportDetailDiagnosticAttachments
+            ).count - 1,
+            1
+        )
+        let reportDetailDiagnosticSamples =
+            "        let diagnosticStart = Date()\n" +
+                "        for ordinal in 0..<2 {\n" +
+                "            let applicationFrame = app.frame\n" +
+                "            printJSONLine(\n" +
+                #"                prefix: "S10_4_REPORT_DETAIL_ROUTE_DIAGNOSTIC","# + "\n" +
+                "                object: [\n" +
+                #"                    "shardID": "s10.4.current.ax-text","# + "\n" +
+                #"                    "ordinal": ordinal,"# + "\n" +
+                #"                    "elapsedMilliseconds": Int("# + "\n" +
+                "                        Date().timeIntervalSince(diagnosticStart) * 1_000\n" +
+                "                    ),\n" +
+                #"                    "applicationStateRawValue": app.state.rawValue,"# + "\n" +
+                #"                    "applicationFrame": frameObject(applicationFrame),"# + "\n" +
+                #"                    "preview": elementObject(preview),"# + "\n" +
+                #"                    "queries": ["# + "\n" +
+                #"                        "receiptScreen": queryObject(receiptScreenQuery),"# + "\n" +
+                #"                        "receiptViewReport": queryObject(receiptViewReportQuery),"# + "\n" +
+                #"                        "reportScreen": queryObject(reportScreenQuery),"# + "\n" +
+                #"                        "reportPreview": queryObject(reportPreviewQuery),"# + "\n" +
+                #"                        "reportScrollViews": queryObject(reportScrollViewsQuery),"# + "\n" +
+                #"                        "navigationBars": queryObject(navigationBarsQuery),"# + "\n" +
+                #"                        "tabBars": queryObject(tabBarsQuery),"# + "\n" +
+                #"                        "pageIndicators": queryObject(pageIndicatorsQuery),"# + "\n" +
+                "                    ],\n" +
+                "                ]\n" +
+                "            )\n" +
+                "            if ordinal == 0 {\n" +
+                #"                addDiagnosticAttachments("start")"# + "\n" +
+                "            } else {\n" +
+                #"                addDiagnosticAttachments("terminal")"# + "\n" +
+                "            }\n" +
+                "        }"
+        XCTAssertEqual(
+            reportDetailDiagnosticSource.components(
+                separatedBy: reportDetailDiagnosticSamples
+            ).count - 1,
+            1
+        )
+        for (fragment, expectedCount) in [
+            ("for ordinal in 0..<2 {", 1),
+            ("printJSONLine(", 1),
+            ("queryObject(", 8),
+            ("XCTAttachment(", 2),
+            (".lifetime = .keepAlways", 2),
+            ("self.add(", 2),
+            (#"addDiagnosticAttachments("start")"#, 1),
+            (#"addDiagnosticAttachments("terminal")"#, 1),
+        ] {
+            XCTAssertEqual(
+                reportDetailDiagnosticSource.components(
+                    separatedBy: fragment
+                ).count - 1,
+                expectedCount,
+                fragment
+            )
         }
         XCTAssertEqual(
-            uiSource.components(separatedBy: "assertFirstReceiptAndReport(in: app)").count - 1,
-            1
+            2 * (
+                reportDetailDiagnosticSource.components(
+                    separatedBy: ".lifetime = .keepAlways"
+                ).count - 1
+            ),
+            4
         )
         XCTAssertEqual(
-            uiSource.components(
-                separatedBy: "private func assertFirstReceiptAndReport(in app: XCUIApplication) {"
+            2 * (
+                reportDetailDiagnosticSource.components(
+                    separatedBy: "printJSONLine("
+                ).count - 1
+            ),
+            2
+        )
+        let reportDetailDiagnosticTerminal =
+            "        }\n" +
+                "        throw AutomationConfigurationError.invalid(\n" +
+                #"            "S10.4 AX-text report-detail route diagnostic""# + "\n" +
+                "        )\n" +
+                "    }"
+        XCTAssertTrue(reportDetailDiagnosticSource.hasSuffix(reportDetailDiagnosticTerminal))
+        XCTAssertEqual(
+            reportDetailDiagnosticSource.components(
+                separatedBy: "throw AutomationConfigurationError.invalid("
             ).count - 1,
             1
         )
-        XCTAssertFalse(uiSource.contains("try assertFirstReceiptAndReport(in: app)"))
-        XCTAssertFalse(
-            uiSource.contains(
-                "private func assertFirstReceiptAndReport(in app: XCUIApplication) throws {"
+        for prohibitedDiagnosticFragment in [
+            ".tap()",
+            ".press(",
+            ".swipeUp()",
+            ".swipeDown()",
+            "typeText(",
+            "coordinate(",
+            "scroll(",
+            "scrollDown(",
+            "navigateBack(",
+            "app.launch()",
+            "app.terminate()",
+            "Thread.sleep",
+            "Task.sleep",
+            "performAccessibilityAudit",
+            "count == 4",
+            "count==4",
+            "CGRect(",
+            "CGVector(",
+            "captureBaseline(",
+            "assertMigrationStateCoverage",
+            "emitAutomatedLabAccessibilityRowsIfNeeded",
+            "eligibleExceptions",
+            "S10_MIGRATION_STATE",
+            "S10_4_AX_STATE",
+            "S10_4_CONTRAST",
+            "S10_4_CANDIDATE",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+            "automatedEvidenceIDs.append",
+            "automationAXTreeDigests",
+            "automationContrastExceptions",
+            "add(candidate)",
+        ] {
+            XCTAssertFalse(
+                reportDetailDiagnosticSource.contains(prohibitedDiagnosticFragment),
+                prohibitedDiagnosticFragment
             )
-        )
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: "scrollReportPreviewForAXText(preview, in: app)"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            uiSource.components(separatedBy: "scroll(preview, in: app)").count - 1,
-            1
-        )
+        }
 
         let axPreviewHelperStart =
             "    @MainActor\n" +
