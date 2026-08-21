@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 159_423,
-            sha256: "723EB566A7F036758717F99D94C63F94F0D3B38417AB17EB9F7017C4614DF24D"
+            byteCount: 166_712,
+            sha256: "E427CD46B088FFAE6AF1EC8C048212913C859B3EE369D31051CA25F52B8B6D3D"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2056,6 +2056,232 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for lock in deleteNormalEvidenceLocks {
             XCTAssertTrue(uiSource.contains(lock), lock)
         }
+
+        let captureWideDiagnosticStart =
+            "            if shard.shardID == \"s10.4.current.ax-text\",\n" +
+                "               stateID == \"state.capture.wide-ready\" {"
+        let normalContrastStart =
+            "            let eligibleExceptions = " +
+                "Self.contrastAuditExceptionSignatures.filter {"
+        XCTAssertEqual(
+            uiSource.components(separatedBy: captureWideDiagnosticStart).count - 1,
+            1
+        )
+        guard let captureWideDiagnosticRange = uiSource.range(
+            of: captureWideDiagnosticStart
+        ),
+        let normalContrastRange = uiSource.range(
+            of: normalContrastStart,
+            range: captureWideDiagnosticRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("The H138 capture-wide diagnostic slice must remain exact")
+            return
+        }
+        let captureWideDiagnostic = String(
+            uiSource[
+                captureWideDiagnosticRange.lowerBound..<normalContrastRange.lowerBound
+            ]
+        )
+
+        let captureWideInventory = [
+            #"("capture-scroll", captureScroll)"#,
+            #"("navigation-bar", navigationBar)"#,
+            #"("capture-heading", captureHeading)"#,
+            #"("take-photo", takePhoto)"#,
+            #"("choose-photos", choosePhotos)"#,
+            #"("cannot-complete", cannotComplete)"#,
+            #"("import-fixture", importFixture)"#,
+        ]
+        let captureWideBindingDeclarations = [
+            #"let captureScroll = element("s3.capture.screen", in: app)"#,
+            "let navigationBar = app.navigationBars.firstMatch",
+            #"let captureHeading = element("s3.capture.heading", in: app)"#,
+            #"let takePhoto = element("s3.capture.take-photo", in: app)"#,
+            #"let choosePhotos = element("s3.capture.choose-photos", in: app)"#,
+            #"let cannotComplete = element("s3.capture.cannot-complete", in: app)"#,
+            #"let importFixture = element("s3.capture.import-fixture", in: app)"#,
+        ]
+        for lock in captureWideBindingDeclarations {
+            XCTAssertEqual(
+                captureWideDiagnostic.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        let exactCaptureWideInventory =
+            "                let diagnosticElements: " +
+                "[(name: String, element: XCUIElement)] = [\n" +
+                "                    (\"capture-scroll\", captureScroll),\n" +
+                "                    (\"navigation-bar\", navigationBar),\n" +
+                "                    (\"capture-heading\", captureHeading),\n" +
+                "                    (\"take-photo\", takePhoto),\n" +
+                "                    (\"choose-photos\", choosePhotos),\n" +
+                "                    (\"cannot-complete\", cannotComplete),\n" +
+                "                    (\"import-fixture\", importFixture),\n" +
+                "                ]"
+        XCTAssertEqual(
+            captureWideDiagnostic.components(
+                separatedBy: exactCaptureWideInventory
+            ).count - 1,
+            1
+        )
+        for lock in captureWideInventory {
+            XCTAssertEqual(
+                captureWideDiagnostic.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        XCTAssertEqual(
+            captureWideDiagnostic.components(
+                separatedBy: #"let diagnosticElements: [(name: String, element: XCUIElement)]"#
+            ).count - 1,
+            1
+        )
+        XCTAssertTrue(captureWideDiagnostic.contains(
+            "guard diagnosticElements.allSatisfy({ $0.element.exists }) else {"
+        ))
+
+        let captureWideContextLocks = [
+            #"prefix: "S10_4_CAPTURE_WIDE_CONTEXT_DIAGNOSTIC""#,
+            #""applicationFrame": auditFrameObject(app.frame)"#,
+            #""viewportFrame": auditFrameObject(viewportFrame)"#,
+            #""elements": liveElements"#,
+            #""identifier": diagnosticElement.element.identifier"#,
+            #""label": diagnosticElement.element.label"#,
+            #""elementType": String("#,
+            #""frame": auditFrameObject(diagnosticElement.element.frame)"#,
+            #""exists": diagnosticElement.element.exists"#,
+            #""isHittable": diagnosticElement.element.isHittable"#,
+            #""keyboardCount": app.keyboards.count"#,
+            #""keyboardFrames": queryFrames(app.keyboards)"#,
+            #""inputViewCount": inputViews.count"#,
+            #""inputViewFrames": queryFrames(inputViews)"#,
+            #""tabBarCount": app.tabBars.count"#,
+            #""tabBarFrames": queryFrames(app.tabBars)"#,
+        ]
+        for lock in captureWideContextLocks {
+            XCTAssertTrue(captureWideDiagnostic.contains(lock), lock)
+        }
+
+        let captureWideAttachmentLocks = [
+            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            #""S10.4 AX-text capture-wide diagnostic app""#,
+            "appAttachment.lifetime = .keepAlways",
+            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
+            #""S10.4 AX-text capture-wide diagnostic accessibility tree""#,
+            "treeAttachment.lifetime = .keepAlways",
+            "for diagnosticElement in diagnosticElements {",
+            "screenshot: diagnosticElement.element.screenshot()",
+            #""S10.4 AX-text capture-wide diagnostic ""#,
+            "screenshot: auditedElement.screenshot()",
+            #""S10.4 AX-text capture-wide audit issue ""#,
+            "attachment.lifetime = .keepAlways",
+        ]
+        for lock in captureWideAttachmentLocks {
+            XCTAssertTrue(captureWideDiagnostic.contains(lock), lock)
+        }
+        XCTAssertEqual(
+            captureWideDiagnostic.components(
+                separatedBy: "attachment.lifetime = .keepAlways"
+            ).count - 1,
+            2
+        )
+
+        let captureWideIssueFields = [
+            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
+            #""compactDescription": issue.compactDescription"#,
+            #""detailedDescription": issue.detailedDescription"#,
+            #""elementIdentifier": NSNull()"#,
+            #""elementLabel": NSNull()"#,
+            #""elementType": NSNull()"#,
+            #""elementFrame": NSNull()"#,
+            #""applicationFrame": self.auditFrameObject(app.frame)"#,
+        ]
+        for lock in captureWideIssueFields {
+            XCTAssertEqual(
+                captureWideDiagnostic.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        let captureWideAuditLocks = [
+            "var observedIssueCount = 0",
+            "observedIssueCount += 1",
+            #""issueOrdinal": observedIssueCount"#,
+            #"prefix: "S10_4_CAPTURE_WIDE_AUDIT_DIAGNOSTIC""#,
+            #"prefix: "S10_4_CAPTURE_WIDE_AUDIT_COUNT_DIAGNOSTIC""#,
+            #"object: ["issueCount": observedIssueCount]"#,
+        ]
+        for lock in captureWideAuditLocks {
+            XCTAssertEqual(
+                captureWideDiagnostic.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        let exactCaptureWideTerminal =
+            "                printJSONLine(\n" +
+                "                    prefix: " +
+                "\"S10_4_CAPTURE_WIDE_AUDIT_COUNT_DIAGNOSTIC\",\n" +
+                "                    object: [\"issueCount\": observedIssueCount]\n" +
+                "                )\n" +
+                "                throw AutomationConfigurationError.invalid(\n" +
+                "                    \"S10.4 AX-text capture-wide diagnostic " +
+                "completed nonaccepting\"\n" +
+                "                )"
+        XCTAssertEqual(
+            captureWideDiagnostic.components(
+                separatedBy: exactCaptureWideTerminal
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            captureWideDiagnostic.components(
+                separatedBy: "performAccessibilityAudit(for: .contrast)"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            captureWideDiagnostic.components(separatedBy: "return true").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            captureWideDiagnostic.components(separatedBy: "return").count - 1,
+            1
+        )
+
+        for prohibited in [
+            "return false",
+            ".tap(",
+            ".swipe",
+            ".press(",
+            ".coordinate(",
+            ".typeText(",
+            "thenDragTo:",
+            "scroll(",
+            "matchedExceptions",
+            "automationContrastExceptions",
+            "automationAXTreeDigests",
+            "accessibilityTreeDigest(in: app)",
+            "let axEvidenceID =",
+            "let contrastEvidenceID =",
+            "contrastEvidence",
+            #"prefix: "S10_4_AX_STATE""#,
+            #"prefix: "S10_4_CONTRAST""#,
+            #"prefix: "S10_4_AX""#,
+            "attachCandidate(",
+            "XCUIScreen.main.screenshot().pngRepresentation",
+            "let candidate = XCTAttachment(",
+            "add(candidate)",
+            "receipt",
+        ] {
+            XCTAssertFalse(captureWideDiagnostic.contains(prohibited), prohibited)
+        }
+        XCTAssertLessThan(
+            captureWideDiagnosticRange.lowerBound,
+            normalContrastRange.lowerBound
+        )
 
         let exceptionIDs = [
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",

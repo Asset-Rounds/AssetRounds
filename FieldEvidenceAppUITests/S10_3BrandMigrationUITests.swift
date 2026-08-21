@@ -2638,6 +2638,149 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             line: line
         )
         do {
+            if shard.shardID == "s10.4.current.ax-text",
+               stateID == "state.capture.wide-ready" {
+                let captureScroll = element("s3.capture.screen", in: app)
+                let navigationBar = app.navigationBars.firstMatch
+                let captureHeading = element("s3.capture.heading", in: app)
+                let takePhoto = element("s3.capture.take-photo", in: app)
+                let choosePhotos = element("s3.capture.choose-photos", in: app)
+                let cannotComplete = element("s3.capture.cannot-complete", in: app)
+                let importFixture = element("s3.capture.import-fixture", in: app)
+                let diagnosticElements: [(name: String, element: XCUIElement)] = [
+                    ("capture-scroll", captureScroll),
+                    ("navigation-bar", navigationBar),
+                    ("capture-heading", captureHeading),
+                    ("take-photo", takePhoto),
+                    ("choose-photos", choosePhotos),
+                    ("cannot-complete", cannotComplete),
+                    ("import-fixture", importFixture),
+                ]
+                guard diagnosticElements.allSatisfy({ $0.element.exists }) else {
+                    throw AutomationConfigurationError.invalid(
+                        "S10.4 AX-text capture-wide diagnostic elements are incomplete"
+                    )
+                }
+
+                var liveElements: [[String: Any]] = []
+                for diagnosticElement in diagnosticElements {
+                    liveElements.append([
+                        "name": diagnosticElement.name,
+                        "identifier": diagnosticElement.element.identifier,
+                        "label": diagnosticElement.element.label,
+                        "elementType": String(
+                            describing: diagnosticElement.element.elementType
+                        ),
+                        "frame": auditFrameObject(diagnosticElement.element.frame),
+                        "exists": diagnosticElement.element.exists,
+                        "isHittable": diagnosticElement.element.isHittable,
+                    ])
+                }
+                let queryFrames: (XCUIElementQuery) -> [[String: Any]] = { query in
+                    (0..<query.count).map { index in
+                        self.auditFrameObject(query.element(boundBy: index).frame)
+                    }
+                }
+                let inputViews = app.otherElements.matching(
+                    NSPredicate(format: "identifier == %@", "inputView")
+                )
+                let viewportTop = max(
+                    captureScroll.frame.minY,
+                    navigationBar.frame.maxY
+                )
+                let viewportBottom = min(
+                    captureScroll.frame.maxY,
+                    app.frame.maxY
+                )
+                let viewportFrame = CGRect(
+                    x: captureScroll.frame.minX,
+                    y: viewportTop,
+                    width: captureScroll.frame.width,
+                    height: max(0, viewportBottom - viewportTop)
+                )
+                printJSONLine(
+                    prefix: "S10_4_CAPTURE_WIDE_CONTEXT_DIAGNOSTIC",
+                    object: [
+                        "applicationFrame": auditFrameObject(app.frame),
+                        "viewportFrame": auditFrameObject(viewportFrame),
+                        "elements": liveElements,
+                        "keyboardCount": app.keyboards.count,
+                        "keyboardFrames": queryFrames(app.keyboards),
+                        "inputViewCount": inputViews.count,
+                        "inputViewFrames": queryFrames(inputViews),
+                        "tabBarCount": app.tabBars.count,
+                        "tabBarFrames": queryFrames(app.tabBars),
+                    ]
+                )
+
+                let appAttachment = XCTAttachment(screenshot: app.screenshot())
+                appAttachment.name =
+                    "S10.4 AX-text capture-wide diagnostic app"
+                appAttachment.lifetime = .keepAlways
+                add(appAttachment)
+                let treeAttachment = XCTAttachment(string: app.debugDescription)
+                treeAttachment.name =
+                    "S10.4 AX-text capture-wide diagnostic accessibility tree"
+                treeAttachment.lifetime = .keepAlways
+                add(treeAttachment)
+                for diagnosticElement in diagnosticElements {
+                    let attachment = XCTAttachment(
+                        screenshot: diagnosticElement.element.screenshot()
+                    )
+                    attachment.name =
+                        "S10.4 AX-text capture-wide diagnostic "
+                        + diagnosticElement.name
+                    attachment.lifetime = .keepAlways
+                    add(attachment)
+                }
+
+                var observedIssueCount = 0
+                try app.performAccessibilityAudit(for: .contrast) { issue in
+                    observedIssueCount += 1
+                    var diagnostic: [String: Any] = [
+                        "issueOrdinal": observedIssueCount,
+                        "auditTypeRawValue": String(issue.auditType.rawValue),
+                        "compactDescription": issue.compactDescription,
+                        "detailedDescription": issue.detailedDescription,
+                        "elementIdentifier": NSNull(),
+                        "elementLabel": NSNull(),
+                        "elementType": NSNull(),
+                        "elementFrame": NSNull(),
+                        "applicationFrame": self.auditFrameObject(app.frame),
+                    ]
+                    if let auditedElement = issue.element {
+                        diagnostic["elementIdentifier"] = auditedElement.identifier
+                        diagnostic["elementLabel"] = auditedElement.label
+                        diagnostic["elementType"] = String(
+                            describing: auditedElement.elementType
+                        )
+                        diagnostic["elementFrame"] = self.auditFrameObject(
+                            auditedElement.frame
+                        )
+                        let attachment = XCTAttachment(
+                            screenshot: auditedElement.screenshot()
+                        )
+                        attachment.name =
+                            "S10.4 AX-text capture-wide audit issue "
+                            + String(observedIssueCount)
+                        attachment.lifetime = .keepAlways
+                        self.add(attachment)
+                    }
+                    self.printJSONLine(
+                        prefix: "S10_4_CAPTURE_WIDE_AUDIT_DIAGNOSTIC",
+                        object: diagnostic
+                    )
+                    return true
+                }
+                printJSONLine(
+                    prefix: "S10_4_CAPTURE_WIDE_AUDIT_COUNT_DIAGNOSTIC",
+                    object: ["issueCount": observedIssueCount]
+                )
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 AX-text capture-wide diagnostic completed nonaccepting"
+                )
+            }
+
             let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
                 $0.shardID == shard.shardID && $0.stateID == stateID
             }
