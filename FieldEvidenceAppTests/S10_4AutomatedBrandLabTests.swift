@@ -279,7 +279,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             diagnosticExportPath,
             byteCount: 9_895,
-            sha256: "ED1EDA06DF13C31CD21B69E18E39C1188361CDF7D213D1DCB0F45A487D0FA57A"
+            sha256: "7F9330FE35C4DAEE956C103F3152184F5C1CAF4284EF36408B2EEC231BC6F70F"
         )
         let diagnosticExportSource = try text(diagnosticExportPath)
         XCTAssertEqual(
@@ -291,8 +291,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let diagnosticScrollBottomPaddingPlacement =
             "            }\n" +
                 "            .padding(DesignTokens.Spacing.space16)\n" +
+                "            .padding(.bottom, DesignTokens.Spacing.space32)\n" +
                 "        }\n" +
-                "        .padding(.bottom, DesignTokens.Spacing.space32)\n" +
                 "        .modifier(DiagnosticExportScrollEdgeVisibility())\n" +
                 #"        .navigationTitle("Diagnostics")"#
         XCTAssertEqual(
@@ -309,8 +309,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 226_664,
-            sha256: "FF620C6D43783CAB1B48339C848C5784C342358C3B5324317F86F17610244E5C"
+            byteCount: 208_403,
+            sha256: "C979F41EF44C22036DB40D889D3E79E697E725EF5AA7C9695C76C896D4C26E92"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1994,156 +1994,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
 
-        let diagnosticsLightGate =
-            #"        if automationShard?.shardID == "s10.4.current.default-light" {"#
-        XCTAssertEqual(
-            diagnosticsPositioningSource.components(
-                separatedBy: diagnosticsLightGate
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            diagnosticsPositioningSource.components(
-                separatedBy: "try diagnoseDefaultLightDiagnosticsPositioning(in: app)"
-            ).count - 1,
-            1
-        )
-        let diagnosticsTelemetryStart =
-            "    private func diagnoseDefaultLightDiagnosticsPositioning(\n" +
-                "        in app: XCUIApplication\n" +
-                "    ) throws {"
-        let diagnosticsTelemetryEnd =
-            "    @MainActor\n" +
-                "    private func recoverCameraDenialAndResume(in app: XCUIApplication)"
-        XCTAssertEqual(
-            uiSource.components(separatedBy: diagnosticsTelemetryStart).count - 1,
-            1
-        )
-        guard let diagnosticsTelemetryStartRange = uiSource.range(
-            of: diagnosticsTelemetryStart
-        ), let diagnosticsTelemetryEndRange = uiSource.range(
-            of: diagnosticsTelemetryEnd,
-            range: diagnosticsTelemetryStartRange.upperBound..<uiSource.endIndex
-        ) else {
-            XCTFail("Missing the default-light diagnostics telemetry helper")
-            return
-        }
-        let diagnosticsTelemetrySource = String(
-            uiSource[
-                diagnosticsTelemetryStartRange.lowerBound..<diagnosticsTelemetryEndRange.lowerBound
-            ]
-        )
-        for queryDeclaration in [
-            "let diagnosticsScreenQuery =",
-            "let diagnosticsHeadingQuery =",
-            "let diagnosticsAuthorityQuery =",
-            "let diagnosticsExportQuery =",
-            "let navigationBars = app.navigationBars",
-            "let signsTabQuery =",
-            "let diagnosticsScrollViews = app.scrollViews.containing(",
-        ] {
+        let removedDefaultLightPositioningFragments = [
+            #"        if automationShard?.shardID == "s10.4.current.default-light" {"#,
+            "try diagnoseDefaultLightDiagnosticsPositioning(in: app)",
+            "diagnoseDefaultLightDiagnosticsPositioning",
+            "S10_4_DIAGNOSTICS_POSITIONING_DIAGNOSTIC",
+            "XCTAttachment(",
+            "XCUIScreen.main.screenshot()",
+            "XCTAttachment(string: app.debugDescription)",
+            ".lifetime = .keepAlways",
+            "throw AutomationConfigurationError.invalid(",
+            "S10.4 default-light Diagnostics positioning diagnostic",
+        ]
+        for removedTelemetry in removedDefaultLightPositioningFragments {
             XCTAssertEqual(
-                diagnosticsTelemetrySource.components(
-                    separatedBy: queryDeclaration
+                diagnosticsPositioningSource.components(
+                    separatedBy: removedTelemetry
                 ).count - 1,
-                1,
-                queryDeclaration
+                0,
+                removedTelemetry
             )
         }
-        for telemetryField in [
-            "func elementObject(_ value: XCUIElement) -> [String: Any]",
-            "func queryObject(_ query: XCUIElementQuery)",
-            "let count = query.count",
-            "for index in 0..<count",
-            "query.element(boundBy: index)",
-            #""exists": value.exists"#,
-            #""isHittable": value.isHittable"#,
-            #""identifier": value.identifier"#,
-            #""label": value.label"#,
-            #"let publicValue: Any"#,
-            #""value": publicValue"#,
-            #""elementTypeRawValue": String(describing: value.elementType.rawValue)"#,
-            #""frame": auditFrameObject(value.frame)"#,
-            "applicationStateRawValue",
-            "foreground",
-            "applicationFrame",
-            "startQueries",
-            "terminalQueries",
-            "minimumShift",
-            "maximumShift",
-            "recognizedMinimum",
-            "recognizedMaximum",
-            "upwardCapacity",
-            "downwardCapacity",
-            "stagingDistance",
-            "upwardUndertravel",
-            "downwardUndertravel",
-            "requestedDistance",
-            "actualDistance",
-            "observedUndertravel",
-            "postMinimumShift",
-            "postMaximumShift",
-            "failureReason",
-        ] {
-            XCTAssertTrue(
-                diagnosticsTelemetrySource.contains(telemetryField),
-                telemetryField
+        XCTAssertFalse(
+            diagnosticsPositioningSource.contains(
+                #"        if automationShard?.shardID == "s10.4.current.default-light" {"#
             )
-        }
-        for (fragment, expectedCount) in [
-            ("for attempt in 0..<6 {", 1),
-            ("stagingCount < 2", 2),
-            ("diagnosticsScrollView.coordinate(", 1),
-            ("withNormalizedOffset: CGVector(dx: 0.01, dy: 0.45)", 1),
-            ("dragStart.press(", 1),
-            ("forDuration: 0.2", 1),
-            ("withVelocity: .slow", 1),
-            ("thenHoldForDuration: 0.2", 1),
-            ("S10_4_DIAGNOSTICS_POSITIONING_DIAGNOSTIC", 1),
-            ("printJSONLine(", 1),
-            ("throw AutomationConfigurationError.invalid(", 1),
-            (".lifetime = .keepAlways", 4),
-            ("add(", 4),
-            ("XCTAttachment(", 4),
-            ("XCUIScreen.main.screenshot()", 2),
-            ("XCTAttachment(string: app.debugDescription)", 2),
-        ] {
-            XCTAssertEqual(
-                diagnosticsTelemetrySource.components(separatedBy: fragment).count - 1,
-                expectedCount,
-                fragment
-            )
-        }
-        for attachmentName in [
-            "S10.4 default-light diagnostics positioning start app",
-            "S10.4 default-light diagnostics positioning start accessibility tree",
-            "S10.4 default-light diagnostics positioning terminal app",
-            "S10.4 default-light diagnostics positioning terminal accessibility tree",
-        ] {
-            XCTAssertEqual(
-                diagnosticsTelemetrySource.components(separatedBy: attachmentName).count - 1,
-                1,
-                attachmentName
-            )
-        }
-        for forbiddenDiagnosticEmitter in [
-            "captureBaseline(",
-            "assertMigrationStateCoverage",
-            "emitAutomatedLabAccessibilityRowsIfNeeded",
-            "performAccessibilityAudit",
-            "XCTFail(",
-            "Thread.sleep",
-            "app.swipeUp()",
-            "app.swipeDown()",
-            "app.coordinate(",
-            "return false",
-        ] {
-            XCTAssertFalse(
-                diagnosticsTelemetrySource.contains(forbiddenDiagnosticEmitter),
-                forbiddenDiagnosticEmitter
-            )
-        }
-
+        )
         let purchaseRecoveryStart =
             #"        var purchase = firstPurchaseButton(in: app)"# + "\n" +
                 "        scroll(purchase, in: app)\n" +

@@ -85,8 +85,8 @@ struct DiagnosticExportView: View {
                 }
             }
             .padding(DesignTokens.Spacing.space16)
+            .padding(.bottom, DesignTokens.Spacing.space32)
         }
-        .padding(.bottom, DesignTokens.Spacing.space32)
         .modifier(DiagnosticExportScrollEdgeVisibility())
         .navigationTitle("Diagnostics")
         .navigationBarTitleDisplayMode(.inline)
