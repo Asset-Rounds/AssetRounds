@@ -105,8 +105,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             workflowPath,
-            byteCount: 93_469,
-            sha256: "A11BE2D278A2415B9E19438F972F5597A3294800E08B9A15537E0B160DC122C6"
+            byteCount: 98_977,
+            sha256: "4F2A2BE206C83890734E0C053DDD0E051ED3E7B6A1E3C7850C9DE5CB720555D9"
         )
         let workflowSource = try text(workflowPath)
         let retainStepMarker = "      - name: Retain S10.4 shard evidence\n"
@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 183_483,
-            sha256: "C5FBE3895806317E8D1A05E506B79C831B3D659828DD551E23874BB3A153E287"
+            byteCount: 179_748,
+            sha256: "4DA73498B10E30B5C05E71D4A367417F11FEB2B359DA208C25813AB4AFCF6985"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2765,300 +2765,25 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(captureWidePositioningSource.contains(prohibited), prohibited)
         }
 
-        let reportCorrectionDiagnosticStart =
-            "            if shard.shardID == \"s10.4.current.default-dark\",\n" +
-                "               stateID == \"state.report-correction.validation-error\" {"
-        let reportCorrectionEligibleExceptions =
-            "            let eligibleExceptions = " +
+        let removedReportCorrectionDiagnosticFragments = [
+            "S10_4_REPORT_CORRECTION_HEADER_CONTEXT_DIAGNOSTIC",
+            "S10_4_REPORT_CORRECTION_HEADER_AUDIT_DIAGNOSTIC",
+            "S10_4_REPORT_CORRECTION_HEADER_AUDIT_COUNT_DIAGNOSTIC",
+            "Report-correction-header diagnostic",
+            "Report-correction-header audit issue",
+            "diagnosticElementObject",
+            "diagnosticQueryObject",
+        ]
+        for fragment in removedReportCorrectionDiagnosticFragments {
+            XCTAssertEqual(uiSource.components(separatedBy: fragment).count - 1, 0, fragment)
+        }
+        let restoredReportCorrectionAuditAdjacency =
+            "        do {\n" +
+                "            let eligibleExceptions = " +
                 "Self.contrastAuditExceptionSignatures.filter {"
         XCTAssertEqual(
-            uiSource.components(separatedBy: reportCorrectionDiagnosticStart).count - 1,
+            uiSource.components(separatedBy: restoredReportCorrectionAuditAdjacency).count - 1,
             1
-        )
-        guard let reportCorrectionDiagnosticStartRange = uiSource.range(
-            of: reportCorrectionDiagnosticStart
-        ),
-        let reportCorrectionEligibleRange = uiSource.range(
-            of: reportCorrectionEligibleExceptions,
-            range: reportCorrectionDiagnosticStartRange.upperBound..<uiSource.endIndex
-        ) else {
-            XCTFail("Missing the sole default-dark report-correction diagnostic branch")
-            return
-        }
-        let reportCorrectionDiagnostic = String(
-            uiSource[
-                reportCorrectionDiagnosticStartRange.lowerBound..<reportCorrectionEligibleRange.lowerBound
-            ]
-        )
-
-        let reportCorrectionHeaderBindings = [
-            "                let headerElements = app.descendants(matching: .any).matching(\n" +
-                "                    identifier: \"s4.5.correction.header\"\n" +
-                "                )",
-            "                let header = headerElements.firstMatch",
-            "                let correctionScrollViews = app.scrollViews.containing(\n" +
-                "                    .button,\n" +
-                "                    identifier: \"s4.5.correction.save\"\n" +
-                "                )",
-            "                let navigationBars = app.navigationBars",
-            "                let validationElements = app.descendants(matching: .any).matching(\n" +
-                "                    identifier: \"s4.5.correction.validation\"\n" +
-                "                )",
-            "                let saveElements = app.descendants(matching: .any).matching(\n" +
-                "                    identifier: \"s4.5.correction.save\"\n" +
-                "                )",
-            "                let keyboards = app.keyboards",
-            "                let inputViews = app.otherElements.matching(\n" +
-                "                    NSPredicate(format: \"identifier == %@\", \"inputView\")\n" +
-                "                )",
-            "                let tabBars = app.tabBars",
-        ]
-        for lock in reportCorrectionHeaderBindings {
-            XCTAssertEqual(
-                reportCorrectionDiagnostic.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        let reportCorrectionHeaderGuard =
-            "                guard headerElements.count == 1,\n" +
-                "                      header.exists,\n" +
-                "                      header.label == \"Correct report\",\n" +
-                "                      header.elementType == .staticText else {"
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(
-                separatedBy: reportCorrectionHeaderGuard
-            ).count - 1,
-            1
-        )
-
-        let reportCorrectionElementObject =
-            "                let diagnosticElementObject: (XCUIElement) -> [String: Any] = {\n" +
-                "                    element in\n" +
-                "                    [\n" +
-                "                        \"identifier\": element.identifier,\n" +
-                "                        \"label\": element.label,\n" +
-                "                        \"elementType\": String(describing: element.elementType),\n" +
-                "                        \"frame\": self.auditFrameObject(element.frame),\n" +
-                "                        \"exists\": element.exists,\n" +
-                "                        \"isHittable\": element.isHittable,\n" +
-                "                    ]\n" +
-                "                }"
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(
-                separatedBy: reportCorrectionElementObject
-            ).count - 1,
-            1
-        )
-        let reportCorrectionQueryObject =
-            "                let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {\n" +
-                "                    query in\n" +
-                "                    [\n" +
-                "                        \"cardinality\": query.count,\n" +
-                "                        \"elements\": (0..<query.count).map { index in\n" +
-                "                            diagnosticElementObject(query.element(boundBy: index))\n" +
-                "                        },\n" +
-                "                    ]\n" +
-                "                }"
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(
-                separatedBy: reportCorrectionQueryObject
-            ).count - 1,
-            1
-        )
-        let reportCorrectionContextEmitter =
-            "                printJSONLine(\n" +
-                "                    prefix: \"S10_4_REPORT_CORRECTION_HEADER_CONTEXT_DIAGNOSTIC\",\n" +
-                "                    object: [\n" +
-                "                        \"application\": diagnosticElementObject(app),\n" +
-                "                        \"header\": diagnosticQueryObject(headerElements),\n" +
-                "                        \"reportCorrectionScrollView\": diagnosticQueryObject(\n" +
-                "                            correctionScrollViews\n" +
-                "                        ),\n" +
-                "                        \"navigationBar\": diagnosticQueryObject(navigationBars),\n" +
-                "                        \"validation\": diagnosticQueryObject(validationElements),\n" +
-                "                        \"save\": diagnosticQueryObject(saveElements),\n" +
-                "                        \"keyboard\": diagnosticQueryObject(keyboards),\n" +
-                "                        \"inputView\": diagnosticQueryObject(inputViews),\n" +
-                "                        \"tabBar\": diagnosticQueryObject(tabBars),\n" +
-                "                    ]\n" +
-                "                )"
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(
-                separatedBy: reportCorrectionContextEmitter
-            ).count - 1,
-            1
-        )
-
-        let reportCorrectionKeepAlwaysLocks = [
-            "                let appAttachment = XCTAttachment(screenshot: app.screenshot())",
-            "                appAttachment.name =\n" +
-                "                    \"S10.4 default-dark Report-correction-header diagnostic app\"",
-            "                appAttachment.lifetime = .keepAlways",
-            "                let treeAttachment = XCTAttachment(string: app.debugDescription)",
-            "                treeAttachment.name =\n" +
-                "                    \"S10.4 default-dark Report-correction-header diagnostic accessibility tree\"",
-            "                treeAttachment.lifetime = .keepAlways",
-            "                let headerAttachment = XCTAttachment(screenshot: header.screenshot())",
-            "                headerAttachment.name =\n" +
-                "                    \"S10.4 default-dark Report-correction-header diagnostic header\"",
-            "                headerAttachment.lifetime = .keepAlways",
-            "                        let attachment = XCTAttachment(\n" +
-                "                            screenshot: auditedElement.screenshot()\n" +
-                "                        )",
-            "                        attachment.name =\n" +
-                "                            \"S10.4 default-dark Report-correction-header audit issue \"\n" +
-                "                            + String(observedIssueCount)",
-            "                        attachment.lifetime = .keepAlways",
-        ]
-        for lock in reportCorrectionKeepAlwaysLocks {
-            XCTAssertEqual(
-                reportCorrectionDiagnostic.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(
-                separatedBy: "lifetime = .keepAlways"
-            ).count - 1,
-            4
-        )
-
-        let reportCorrectionIssueObject =
-            "                    var diagnostic: [String: Any] = [\n" +
-                "                        \"issueOrdinal\": observedIssueCount,\n" +
-                "                        \"auditTypeRawValue\": String(issue.auditType.rawValue),\n" +
-                "                        \"compactDescription\": issue.compactDescription,\n" +
-                "                        \"detailedDescription\": issue.detailedDescription,\n" +
-                "                        \"elementIdentifier\": NSNull(),\n" +
-                "                        \"elementLabel\": NSNull(),\n" +
-                "                        \"elementType\": NSNull(),\n" +
-                "                        \"elementFrame\": NSNull(),\n" +
-                "                        \"applicationFrame\": self.auditFrameObject(app.frame),\n" +
-                "                    ]"
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(
-                separatedBy: reportCorrectionIssueObject
-            ).count - 1,
-            1
-        )
-        let reportCorrectionIssueFields = [
-            #"                        "issueOrdinal": observedIssueCount,"#,
-            #"                        "auditTypeRawValue": String(issue.auditType.rawValue),"#,
-            #"                        "compactDescription": issue.compactDescription,"#,
-            #"                        "detailedDescription": issue.detailedDescription,"#,
-            #"                        "elementIdentifier": NSNull(),"#,
-            #"                        "elementLabel": NSNull(),"#,
-            #"                        "elementType": NSNull(),"#,
-            #"                        "elementFrame": NSNull(),"#,
-            #"                        "applicationFrame": self.auditFrameObject(app.frame),"#,
-        ]
-        for lock in reportCorrectionIssueFields {
-            XCTAssertEqual(
-                reportCorrectionDiagnostic.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(separatedBy: "NSNull()").count - 1,
-            4
-        )
-        let reportCorrectionIssueElementUpdate =
-            "                    if let auditedElement = issue.element {\n" +
-                "                        diagnostic[\"elementIdentifier\"] = auditedElement.identifier\n" +
-                "                        diagnostic[\"elementLabel\"] = auditedElement.label\n" +
-                "                        diagnostic[\"elementType\"] = String(\n" +
-                "                            describing: auditedElement.elementType\n" +
-                "                        )\n" +
-                "                        diagnostic[\"elementFrame\"] = self.auditFrameObject(\n" +
-                "                            auditedElement.frame\n" +
-                "                        )\n" +
-                "                        let attachment = XCTAttachment(\n" +
-                "                            screenshot: auditedElement.screenshot()\n" +
-                "                        )"
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(
-                separatedBy: reportCorrectionIssueElementUpdate
-            ).count - 1,
-            1
-        )
-
-        let reportCorrectionAuditCallback =
-            "                try app.performAccessibilityAudit(for: .contrast) { issue in"
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(
-                separatedBy: reportCorrectionAuditCallback
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(separatedBy: "return true").count - 1,
-            1
-        )
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(separatedBy: "return false").count - 1,
-            0
-        )
-        let reportCorrectionAuditCount =
-            "                printJSONLine(\n" +
-                "                    prefix: \"S10_4_REPORT_CORRECTION_HEADER_AUDIT_COUNT_DIAGNOSTIC\",\n" +
-                "                    object: [\"issueCount\": observedIssueCount]\n" +
-                "                )"
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(
-                separatedBy: reportCorrectionAuditCount
-            ).count - 1,
-            1
-        )
-        let reportCorrectionTerminal =
-            reportCorrectionAuditCount + "\n" +
-                "                throw AutomationConfigurationError.invalid(\n" +
-                "                    \"S10.4 default-dark Report-correction-header diagnostic completed nonaccepting\"\n" +
-                "                )"
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(
-                separatedBy: reportCorrectionTerminal
-            ).count - 1,
-            1
-        )
-        let reportCorrectionTerminalBeforeEligible =
-            reportCorrectionTerminal + "\n            }\n\n" +
-                reportCorrectionEligibleExceptions
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: reportCorrectionTerminalBeforeEligible
-            ).count - 1,
-            1
-        )
-
-        for prohibited in [
-            ".tap(",
-            ".swipe",
-            ".press(",
-            ".coordinate(",
-            ".typeText(",
-            "scroll(",
-            "navigateBack(",
-            "setToggle(",
-            "app.launch",
-            "app.terminate",
-            "migratedStateIDs.append",
-            "automationContrastExceptions",
-            "automationAXTreeDigests",
-            #"prefix: "S10_4_AX_STATE""#,
-            #"prefix: "S10_4_CONTRAST""#,
-            "automatedEvidenceIDs.append(",
-            "attachCandidate(",
-            "let candidate = XCTAttachment(",
-            "return false",
-        ] {
-            XCTAssertFalse(reportCorrectionDiagnostic.contains(prohibited), prohibited)
-        }
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(separatedBy: "printJSONLine(").count - 1,
-            3
         )
 
         let exceptionIDs = [
@@ -3067,6 +2792,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-FEEDBACK-PRIVACY",
+            "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER",
+            "S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER",
         ]
         let exceptionRationales = [
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Wide view even though the audit-owned crop visibly renders white text on the dark elevated Sample card; the exception is limited to the frozen public issue signature.",
@@ -3074,10 +2801,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Before you begin while the frozen public node frame is bottom-clipped outside the 402x874 application frame in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the I confirm this is the site's time zone label even though the audit-owned crop contains only the iOS keyboard and the frozen public node frame is fully keyboard-occluded in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Feedback privacy copy while the frozen public node frame is top-clipped outside the 402x874 application frame and its remaining slice is bound to native status/navigation chrome; the live Feedback composition simultaneously preserves the frozen App-metadata and Save-diagnostics clearances, and the audit-owned crop confirms that unobscured primaryText renders white on the dark elevated surface; the exception is limited to the frozen public issue signature.",
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in default dark even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in increased contrast even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
         ]
         for lock in exceptionIDs {
             XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1, lock)
-            XCTAssertEqual(workflowSource.components(separatedBy: lock).count - 1, 2, lock)
+            let workflowCount = lock.contains("REPORT-CORRECTION-HEADER") ? 4 : 2
+            XCTAssertEqual(
+                workflowSource.components(separatedBy: lock).count - 1,
+                workflowCount,
+                lock
+            )
         }
         for lock in exceptionRationales {
             XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1, lock)
@@ -3088,6 +2822,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("state.new-sign.editing", 1),
             ("state.sample-report.ready", 1),
             ("state.feedback.review-ready", 1),
+            ("state.report-correction.validation-error", 2),
         ]
         for (stateID, expectedCount) in uiExceptionStateCounts {
             let lock = #"stateID: "\#(stateID)""#
@@ -3099,37 +2834,37 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(separatedBy: "ContrastAuditExceptionSignature(").count - 1,
-            5
+            7
         )
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: #"issueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            5
+            7
         )
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            10
+            14
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"owner: "palatis3""#).count - 1,
-            5
+            7
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionOwner: "palatis3""#)
                 .count - 1,
-            5
+            7
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"expiresAt: "2026-11-20""#).count - 1,
-            5
+            7
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionExpiresAt: "2026-11-20""#)
                 .count - 1,
-            5
+            7
         )
 
         let signatureLocks = [
@@ -3142,7 +2877,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"elementLabel: "I confirm this is the site's time zone.""#,
             #"elementIdentifier: "s8.4.feedback.privacy""#,
             #"elementLabel: "Your message stays editable. Only app version, build, device model, and iOS version are prefilled; customer and inspection content is never prefilled.""#,
+            #"issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER""#,
+            #"issueID: "S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER""#,
+            #"shardID: "s10.4.current.increased-contrast""#,
+            #"stateID: "state.report-correction.validation-error""#,
+            #"elementIdentifier: "s4.5.correction.header""#,
+            #"elementLabel: "Correct report""#,
             #"elementTypeDescription: "XCUIElementType(rawValue: 48)""#,
+            "x: 32,\n                y: 111.33333587646484,\n" +
+                "                width: 248,\n                height: 40.666664123535156",
             "y: 810.33333333333337",
             "height: 20.333333333333258",
             "width: 251.66666666666663",
@@ -3171,7 +2914,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"elementLabel: "Before you begin""#,
             #"elementLabel: $timeZoneLabel"#,
             #"elementIdentifier: "s8.4.feedback.privacy""#,
+            #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER""#,
+            #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER""#,
+            #"shardID: "s10.4.current.increased-contrast""#,
+            #"stateID: "state.report-correction.validation-error""#,
+            #"elementIdentifier: "s4.5.correction.header""#,
+            #"elementLabel: "Correct report""#,
             #"elementType: "XCUIElementType(rawValue: 48)""#,
+            "elementFrame: {\n" +
+                "                      x: 32,\n" +
+                "                      y: 111.33333587646484,\n" +
+                "                      width: 248,\n" +
+                "                      height: 40.666664123535156\n" +
+                "                    }",
             "y: 844.33333333333337",
             "width: 231",
             "height: 125.33333333333326",
@@ -3250,7 +3005,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"taskIssueLimit = 3"#,
             #"taskStateLimit = 2"#,
             #"case ("s10.4.current.default-dark", "report_comprehension")"#,
-            #"permittedExceptionStateIDs = ["state.sample-report.ready"]"#,
+            #"taskIssueLimit = 2"#,
+            #"permittedExceptionStateIDs = [
+                    "state.report-correction.validation-error",
+                    "state.sample-report.ready",
+                ]"#,
+            #"case ("s10.4.current.increased-contrast", "report_comprehension")"#,
+            #"taskIssueLimit = 1"#,
+            #"taskStateLimit = 1"#,
+            #"permittedExceptionStateIDs = [
+                    "state.report-correction.validation-error",
+                ]"#,
             #"case ("s10.4.current.default-dark", "history_recovery")"#,
             #"permittedExceptionStateIDs = ["state.feedback.review-ready"]"#,
             #"guard taskExceptions.count <= taskIssueLimit else"#,
@@ -3288,7 +3053,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 separatedBy: #"case ("s10.4.current.default-dark""#
             ).count - 1,
             2,
-            "The two default-dark exception issues must remain bound to separate tasks"
+            "The three default-dark authorities must remain bounded across two tasks"
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: #"case ("s10.4.current.increased-contrast""#
+            ).count - 1,
+            1
         )
         for removedFeedbackDiagnostic in [
             "enumerateFeedbackContrastAuditIssues",
@@ -3302,10 +3073,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "contrast_exception_authority_path=",
             #"if .result == "PASS" then"#,
             #"elif .result == "EXCEPTION" then"#,
-            #"length == 5"#,
-            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 4"#,
-            #"and ([.[].exceptionIssueID] | unique | length) == 5"#,
-            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 5"#,
+            #"length == 7"#,
+            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 6"#,
+            #"and ([.[].exceptionIssueID] | unique | length) == 7"#,
+            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 6"#,
+            #"| select(.exceptionIssueID | IN("#,
+            #""S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER","#,
+            #""S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER""#,
+            #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 1"#,
+            #"| select((.exceptionIssueID | IN("#,
+            #")) | not)"#,
+            #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 5"#,
             #"and (.exceptionOwner == "palatis3")"#,
             #"and (.exceptionExpiresAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"))"#,
             #"and ($today <= .exceptionExpiresAt)"#,
@@ -3334,8 +3112,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"error("contrast exception on ineligible shard")"#,
             #"def taskIssueLimit($shardID; $taskID):"#,
             #"and $taskID == "one_handed_start" then 3"#,
-            #"and ($taskID == "history_recovery""#,
-            #"or $taskID == "report_comprehension") then 1"#,
+            #"and $taskID == "report_comprehension" then 2"#,
+            #"and $taskID == "history_recovery" then 1"#,
+            #"and $taskID == "report_comprehension" then 1"#,
             #"def taskStateLimit($shardID; $taskID):"#,
             #"and $taskID == "one_handed_start" then 2"#,
             #"| map(select(.taskID == $taskID))"#,
@@ -3359,15 +3138,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"and all($taskExceptionStateIDs[];"#,
             #"| index($exceptionStateID)) != null"#,
             #"if $shard == "s10.4.current.default-dark" then"#,
-            #"($matchedAuthorities | length) > 2"#,
-            #"($matchedExceptionStateIDs | length) > 2"#,
+            #"($matchedAuthorities | length) > 3"#,
+            #"($matchedExceptionStateIDs | length) > 3"#,
+            #"elif $shard == "s10.4.current.increased-contrast""#,
+            #"($matchedAuthorities | length) > 1"#,
+            #"($matchedExceptionStateIDs | length) > 1"#,
             #"elif $shard == "s10.4.current.ax-text" then"#,
             #"($matchedAuthorities | length) > 3"#,
             #"stateIssueLimit($shardID; $stateID)"#,
             #"and $stateID == "state.check-preflight.ready" then 2"#,
             #"and $stateID == "state.new-sign.editing" then 1"#,
             #"and ($stateID == "state.feedback.review-ready""#,
+            #"or $stateID == "state.report-correction.validation-error""#,
             #"or $stateID == "state.sample-report.ready") then 1"#,
+            #"and $stateID == "state.report-correction.validation-error" then 1"#,
             #"matchedStateAuthorities($row; $exceptions[0]; $today) as $matched"#,
             #"($matched | length) > 0"#,
             #"<= stateIssueLimit($row.shardID; $row.stateID)"#,
@@ -3375,6 +3159,34 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ]
         for lock in workflowProtocolLocks {
             XCTAssertTrue(workflowSource.contains(lock), lock)
+        }
+        let workflowHeaderSharedOneAndHistoricalFive =
+            "            and ([.[]\n" +
+                "              | select(.exceptionIssueID | IN(\n" +
+                "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER\",\n" +
+                "                  \"S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER\"\n" +
+                "                ))\n" +
+                "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 1\n" +
+                "            and ([.[]\n" +
+                "              | select((.exceptionIssueID | IN(\n" +
+                "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER\",\n" +
+                "                  \"S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER\"\n" +
+                "                )) | not)\n" +
+                "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 5"
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: workflowHeaderSharedOneAndHistoricalFive
+            ).count - 1,
+            1
+        )
+        for staleLock in [
+            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 4"#,
+            #"and ([.[].exceptionIssueID] | unique | length) == 5"#,
+            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 5"#,
+            #"($matchedAuthorities | length) > 2"#,
+            #"($matchedExceptionStateIDs | length) > 2"#,
+        ] {
+            XCTAssertFalse(workflowSource.contains(staleLock), staleLock)
         }
         for twiceLocked in [
             #"def expectedExceptionEvidence($matched):"#,
@@ -3402,7 +3214,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workflowSource.components(
                 separatedBy: #"taskID: "report_comprehension""#
             ).count - 1,
-            2
+            6
         )
         XCTAssertFalse(workflowSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
         XCTAssertFalse(

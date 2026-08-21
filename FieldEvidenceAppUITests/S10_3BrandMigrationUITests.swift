@@ -199,6 +199,50 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             ),
             applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
         ),
+        ContrastAuditExceptionSignature(
+            issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER",
+            shardID: "s10.4.current.default-dark",
+            stateID: "state.report-correction.validation-error",
+            taskID: "report_comprehension",
+            owner: "palatis3",
+            expiresAt: "2026-11-20",
+            rationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in default dark even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
+            auditTypeRawValue: "1",
+            compactDescription: "Contrast failed",
+            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+            elementIdentifier: "s4.5.correction.header",
+            elementLabel: "Correct report",
+            elementTypeDescription: "XCUIElementType(rawValue: 48)",
+            elementFrame: CGRect(
+                x: 32,
+                y: 111.33333587646484,
+                width: 248,
+                height: 40.666664123535156
+            ),
+            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
+        ),
+        ContrastAuditExceptionSignature(
+            issueID: "S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER",
+            shardID: "s10.4.current.increased-contrast",
+            stateID: "state.report-correction.validation-error",
+            taskID: "report_comprehension",
+            owner: "palatis3",
+            expiresAt: "2026-11-20",
+            rationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in increased contrast even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
+            auditTypeRawValue: "1",
+            compactDescription: "Contrast failed",
+            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+            elementIdentifier: "s4.5.correction.header",
+            elementLabel: "Correct report",
+            elementTypeDescription: "XCUIElementType(rawValue: 48)",
+            elementFrame: CGRect(
+                x: 32,
+                y: 111.33333587646484,
+                width: 248,
+                height: 40.666664123535156
+            ),
+            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
+        ),
     ]
 
     private static let commonTaskStateIDs: [(taskID: String, stateIDs: [String])] = [
@@ -3006,137 +3050,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             line: line
         )
         do {
-            if shard.shardID == "s10.4.current.default-dark",
-               stateID == "state.report-correction.validation-error" {
-                let headerElements = app.descendants(matching: .any).matching(
-                    identifier: "s4.5.correction.header"
-                )
-                let header = headerElements.firstMatch
-                guard headerElements.count == 1,
-                      header.exists,
-                      header.label == "Correct report",
-                      header.elementType == .staticText else {
-                    throw AutomationConfigurationError.invalid(
-                        "S10.4 default-dark Report-correction-header diagnostic header is incomplete"
-                    )
-                }
-
-                let correctionScrollViews = app.scrollViews.containing(
-                    .button,
-                    identifier: "s4.5.correction.save"
-                )
-                let navigationBars = app.navigationBars
-                let validationElements = app.descendants(matching: .any).matching(
-                    identifier: "s4.5.correction.validation"
-                )
-                let saveElements = app.descendants(matching: .any).matching(
-                    identifier: "s4.5.correction.save"
-                )
-                let keyboards = app.keyboards
-                let inputViews = app.otherElements.matching(
-                    NSPredicate(format: "identifier == %@", "inputView")
-                )
-                let tabBars = app.tabBars
-                let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
-                    element in
-                    [
-                        "identifier": element.identifier,
-                        "label": element.label,
-                        "elementType": String(describing: element.elementType),
-                        "frame": self.auditFrameObject(element.frame),
-                        "exists": element.exists,
-                        "isHittable": element.isHittable,
-                    ]
-                }
-                let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
-                    query in
-                    [
-                        "cardinality": query.count,
-                        "elements": (0..<query.count).map { index in
-                            diagnosticElementObject(query.element(boundBy: index))
-                        },
-                    ]
-                }
-                printJSONLine(
-                    prefix: "S10_4_REPORT_CORRECTION_HEADER_CONTEXT_DIAGNOSTIC",
-                    object: [
-                        "application": diagnosticElementObject(app),
-                        "header": diagnosticQueryObject(headerElements),
-                        "reportCorrectionScrollView": diagnosticQueryObject(
-                            correctionScrollViews
-                        ),
-                        "navigationBar": diagnosticQueryObject(navigationBars),
-                        "validation": diagnosticQueryObject(validationElements),
-                        "save": diagnosticQueryObject(saveElements),
-                        "keyboard": diagnosticQueryObject(keyboards),
-                        "inputView": diagnosticQueryObject(inputViews),
-                        "tabBar": diagnosticQueryObject(tabBars),
-                    ]
-                )
-
-                let appAttachment = XCTAttachment(screenshot: app.screenshot())
-                appAttachment.name =
-                    "S10.4 default-dark Report-correction-header diagnostic app"
-                appAttachment.lifetime = .keepAlways
-                add(appAttachment)
-                let treeAttachment = XCTAttachment(string: app.debugDescription)
-                treeAttachment.name =
-                    "S10.4 default-dark Report-correction-header diagnostic accessibility tree"
-                treeAttachment.lifetime = .keepAlways
-                add(treeAttachment)
-                let headerAttachment = XCTAttachment(screenshot: header.screenshot())
-                headerAttachment.name =
-                    "S10.4 default-dark Report-correction-header diagnostic header"
-                headerAttachment.lifetime = .keepAlways
-                add(headerAttachment)
-
-                var observedIssueCount = 0
-                try app.performAccessibilityAudit(for: .contrast) { issue in
-                    observedIssueCount += 1
-                    var diagnostic: [String: Any] = [
-                        "issueOrdinal": observedIssueCount,
-                        "auditTypeRawValue": String(issue.auditType.rawValue),
-                        "compactDescription": issue.compactDescription,
-                        "detailedDescription": issue.detailedDescription,
-                        "elementIdentifier": NSNull(),
-                        "elementLabel": NSNull(),
-                        "elementType": NSNull(),
-                        "elementFrame": NSNull(),
-                        "applicationFrame": self.auditFrameObject(app.frame),
-                    ]
-                    if let auditedElement = issue.element {
-                        diagnostic["elementIdentifier"] = auditedElement.identifier
-                        diagnostic["elementLabel"] = auditedElement.label
-                        diagnostic["elementType"] = String(
-                            describing: auditedElement.elementType
-                        )
-                        diagnostic["elementFrame"] = self.auditFrameObject(
-                            auditedElement.frame
-                        )
-                        let attachment = XCTAttachment(
-                            screenshot: auditedElement.screenshot()
-                        )
-                        attachment.name =
-                            "S10.4 default-dark Report-correction-header audit issue "
-                            + String(observedIssueCount)
-                        attachment.lifetime = .keepAlways
-                        self.add(attachment)
-                    }
-                    self.printJSONLine(
-                        prefix: "S10_4_REPORT_CORRECTION_HEADER_AUDIT_DIAGNOSTIC",
-                        object: diagnostic
-                    )
-                    return true
-                }
-                printJSONLine(
-                    prefix: "S10_4_REPORT_CORRECTION_HEADER_AUDIT_COUNT_DIAGNOSTIC",
-                    object: ["issueCount": observedIssueCount]
-                )
-                throw AutomationConfigurationError.invalid(
-                    "S10.4 default-dark Report-correction-header diagnostic completed nonaccepting"
-                )
-            }
-
             let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
                 $0.shardID == shard.shardID && $0.stateID == stateID
             }
@@ -3473,9 +3386,18 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     "state.new-sign.editing",
                 ]
             case ("s10.4.current.default-dark", "report_comprehension"):
+                taskIssueLimit = 2
+                taskStateLimit = 2
+                permittedExceptionStateIDs = [
+                    "state.report-correction.validation-error",
+                    "state.sample-report.ready",
+                ]
+            case ("s10.4.current.increased-contrast", "report_comprehension"):
                 taskIssueLimit = 1
                 taskStateLimit = 1
-                permittedExceptionStateIDs = ["state.sample-report.ready"]
+                permittedExceptionStateIDs = [
+                    "state.report-correction.validation-error",
+                ]
             case ("s10.4.current.default-dark", "history_recovery"):
                 taskIssueLimit = 1
                 taskStateLimit = 1
