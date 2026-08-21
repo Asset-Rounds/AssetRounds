@@ -2530,7 +2530,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         scroll(noSync, in: app)
         assertLocalizedLabelContains(noSync, "do not sync")
 
-        let store = element("s7.2.paywall.store", in: app)
+        var store = element("s7.2.paywall.store", in: app)
         XCTAssertTrue(store.waitForExistence(timeout: 30))
         if usesPseudolanguage {
             XCTAssertTrue(wait(for: store, predicate: "enabled == true", timeout: 20))
@@ -2556,10 +2556,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             XCTAssertTrue(control.isEnabled)
         }
 
-        let purchase = firstPurchaseButton(in: app)
+        var purchase = firstPurchaseButton(in: app)
         scroll(purchase, in: app)
         purchase.tap()
-        let purchaseState = element("s7.2.paywall.purchase-state", in: app)
+        var purchaseState = element("s7.2.paywall.purchase-state", in: app)
         if !usesPseudolanguage {
             let verifiedPurchaseLabel =
                 "Complete: Purchase verified. Subscription access is ready."
@@ -2585,19 +2585,34 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     XCTFail("The retained StoreKit test session is required")
                     return
                 }
+                app.terminate()
                 session.resetToDefaultState()
                 session.clearTransactions()
                 session.disableDialogs = true
+                app.launch()
+                XCTAssertTrue(element("s2.sign-detail.screen", in: app)
+                    .waitForExistence(timeout: 30))
+                let retryStart = element("s2.sign-detail.start-check", in: app)
+                scroll(retryStart, in: app)
+                assertControl(retryStart, label: "Start Check")
+                retryStart.tap()
+                XCTAssertTrue(element("s7.2.paywall.screen", in: app)
+                    .waitForExistence(timeout: 30))
+                store = element("s7.2.paywall.store", in: app)
+                XCTAssertTrue(store.waitForExistence(timeout: 30))
                 XCTAssertTrue(wait(
                     for: store,
                     predicate: "value == 'Ready'",
                     timeout: 20
                 ))
+                XCTAssertTrue(store.isEnabled)
+                purchase = firstPurchaseButton(in: app)
                 scroll(purchase, in: app)
                 XCTAssertTrue(purchase.waitForExistence(timeout: 20))
                 XCTAssertTrue(purchase.isEnabled)
                 XCTAssertTrue(purchase.isHittable)
                 purchase.tap()
+                purchaseState = element("s7.2.paywall.purchase-state", in: app)
             }
         }
         waitForLocalizedLabel(

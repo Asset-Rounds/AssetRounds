@@ -309,8 +309,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 201_937,
-            sha256: "0C9AA9AF7FABB06E220C25C186E79A6D3C5B66D5CA4C6D25DC08E6253FCA997E"
+            byteCount: 202_778,
+            sha256: "0C326308DDB702AB64F1CC3BBD39CD397FDFAC0EBD57E0787596AEC98FC58723"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1937,10 +1937,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         let purchaseRecoveryStart =
-            #"        let purchase = firstPurchaseButton(in: app)"# + "\n" +
+            #"        var purchase = firstPurchaseButton(in: app)"# + "\n" +
                 "        scroll(purchase, in: app)\n" +
                 "        purchase.tap()\n" +
-                #"        let purchaseState = element("s7.2.paywall.purchase-state", in: app)"#
+                #"        var purchaseState = element("s7.2.paywall.purchase-state", in: app)"#
         let purchaseRecoveryEnd =
             #"        let terms = element("s7.2.paywall.terms", in: app)"#
         XCTAssertEqual(
@@ -2032,18 +2032,43 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let mutablePurchaseBindings = [
+            #"        var store = element("s7.2.paywall.store", in: app)"#,
+            #"        var purchase = firstPurchaseButton(in: app)"#,
+            #"        var purchaseState = element("s7.2.paywall.purchase-state", in: app)"#,
+        ]
+        for binding in mutablePurchaseBindings {
+            XCTAssertEqual(
+                uiSource.components(separatedBy: binding).count - 1,
+                1,
+                binding
+            )
+        }
         let exactRetryLocks = [
             unverifiedRetryStart,
             "                guard let session = storeKitSession else {",
+            "                app.terminate()",
             "                session.resetToDefaultState()",
             "                session.clearTransactions()",
             "                session.disableDialogs = true",
+            "                app.launch()",
+            #"                XCTAssertTrue(element("s2.sign-detail.screen", in: app)"#,
+            #"                let retryStart = element("s2.sign-detail.start-check", in: app)"#,
+            "                scroll(retryStart, in: app)",
+            #"                assertControl(retryStart, label: "Start Check")"#,
+            "                retryStart.tap()",
+            #"                XCTAssertTrue(element("s7.2.paywall.screen", in: app)"#,
+            #"                store = element("s7.2.paywall.store", in: app)"#,
+            "                XCTAssertTrue(store.waitForExistence(timeout: 30))",
             #"                    predicate: "value == 'Ready'","#,
+            "                XCTAssertTrue(store.isEnabled)",
+            "                purchase = firstPurchaseButton(in: app)",
             "                scroll(purchase, in: app)",
             "                XCTAssertTrue(purchase.waitForExistence(timeout: 20))",
             "                XCTAssertTrue(purchase.isEnabled)",
             "                XCTAssertTrue(purchase.isHittable)",
             "                purchase.tap()",
+            #"                purchaseState = element("s7.2.paywall.purchase-state", in: app)"#,
         ]
         for lock in exactRetryLocks {
             XCTAssertEqual(
@@ -2052,20 +2077,63 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 lock
             )
         }
+        let retryStoreKitResetAndRelaunch =
+            "                app.terminate()\n" +
+                "                session.resetToDefaultState()\n" +
+                "                session.clearTransactions()\n" +
+                "                session.disableDialogs = true\n" +
+                "                app.launch()"
+        XCTAssertEqual(
+            unverifiedRetrySource.components(
+                separatedBy: retryStoreKitResetAndRelaunch
+            ).count - 1,
+            1
+        )
+        let retryRouteReentry =
+            #"                XCTAssertTrue(element("s2.sign-detail.screen", in: app)"# + "\n" +
+                "                    .waitForExistence(timeout: 30))\n" +
+                #"                let retryStart = element("s2.sign-detail.start-check", in: app)"# + "\n" +
+                "                scroll(retryStart, in: app)\n" +
+                #"                assertControl(retryStart, label: "Start Check")"# + "\n" +
+                "                retryStart.tap()\n" +
+                #"                XCTAssertTrue(element("s7.2.paywall.screen", in: app)"# + "\n" +
+                "                    .waitForExistence(timeout: 30))"
+        XCTAssertEqual(
+            unverifiedRetrySource.components(
+                separatedBy: retryRouteReentry
+            ).count - 1,
+            1
+        )
         let retryReadyToTapAdjacency =
-            "                XCTAssertTrue(wait(\n" +
+            #"                store = element("s7.2.paywall.store", in: app)"# + "\n" +
+                "                XCTAssertTrue(store.waitForExistence(timeout: 30))\n" +
+                "                XCTAssertTrue(wait(\n" +
                 "                    for: store,\n" +
                 #"                    predicate: "value == 'Ready'","# + "\n" +
                 "                    timeout: 20\n" +
                 "                ))\n" +
+                "                XCTAssertTrue(store.isEnabled)\n" +
+                "                purchase = firstPurchaseButton(in: app)\n" +
                 "                scroll(purchase, in: app)\n" +
                 "                XCTAssertTrue(purchase.waitForExistence(timeout: 20))\n" +
                 "                XCTAssertTrue(purchase.isEnabled)\n" +
                 "                XCTAssertTrue(purchase.isHittable)\n" +
-                "                purchase.tap()"
+                "                purchase.tap()\n" +
+                #"                purchaseState = element("s7.2.paywall.purchase-state", in: app)"#
         XCTAssertEqual(
             unverifiedRetrySource.components(
                 separatedBy: retryReadyToTapAdjacency
+            ).count - 1,
+            1
+        )
+        let retryBranchToFinalVerifiedWait =
+            #"                purchaseState = element("s7.2.paywall.purchase-state", in: app)"# + "\n" +
+                "            }\n" +
+                "        }\n" +
+                finalVerifiedPurchaseWait
+        XCTAssertEqual(
+            purchaseRecoverySource.components(
+                separatedBy: retryBranchToFinalVerifiedWait
             ).count - 1,
             1
         )
@@ -2087,11 +2155,27 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             purchaseRecoverySource.components(separatedBy: "timeout:").count - 1,
-            4
+            7
+        )
+        XCTAssertEqual(
+            unverifiedRetrySource.components(separatedBy: "timeout: 30").count - 1,
+            3
+        )
+        XCTAssertEqual(
+            unverifiedRetrySource.components(separatedBy: "timeout: 20").count - 1,
+            2
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: "purchase.tap()").count - 1,
             2
+        )
+        XCTAssertEqual(
+            unverifiedRetrySource.components(separatedBy: "retryStart.tap()").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            unverifiedRetrySource.components(separatedBy: "                    return").count - 1,
+            1
         )
         XCTAssertFalse(uiSource.contains("buyProduct("))
         for noRetrySource in [purchaseRecoveryPrefix, purchaseRecoverySuffix] {
@@ -2104,6 +2188,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             }
         }
         for prohibited in ["for ", "while ", "repeat {"] {
+            XCTAssertFalse(unverifiedRetrySource.contains(prohibited), prohibited)
+        }
+        for prohibited in [
+            "waitForLocalizedLabel(",
+            "captureBaseline(",
+            "attachCandidate(",
+            "printJSONLine(",
+            "XCTSkip",
+            "buyProduct(",
+            "Product.purchase(",
+            "currentEntitlements",
+            "purchaseCoordinator",
+            "launchArguments",
+            "launchEnvironment",
+        ] {
             XCTAssertFalse(unverifiedRetrySource.contains(prohibited), prohibited)
         }
         for prohibited in [
