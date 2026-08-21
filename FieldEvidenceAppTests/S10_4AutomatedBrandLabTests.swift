@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 189_282,
-            sha256: "3088200F2760B7A96FD7C00F1022CAD9460F88F7DEAA0A24563B41D856E29315"
+            byteCount: 193_840,
+            sha256: "59B38FEDA9E431D1E82CC27DAA3A90D30E7B63B86E3B55F609295FC76D7ACCA2"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -442,7 +442,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let preflightRestorationGuard =
             "                let restoredKeyboard = app.keyboards.firstMatch\n" +
-                "                guard returnKey.waitForExistence(timeout: 10),\n" +
+                #"                let restoredDoneKey = app.keyboards.buttons["Done"]"# + "\n" +
+                "                let expectedDoneFrame = CGRect(\n" +
+                "                    x: 281.5,\n" +
+                "                    y: 620,\n" +
+                "                    width: 93.5,\n" +
+                "                    height: 46\n" +
+                "                )\n" +
+                "                guard restoredDoneKey.waitForExistence(timeout: 10),\n" +
+                "                      restoredDoneKey.elementType == .button,\n" +
+                #"                      restoredDoneKey.identifier == "Done","# + "\n" +
+                #"                      restoredDoneKey.label == "done","# + "\n" +
+                "                      restoredDoneKey.frame == expectedDoneFrame,\n" +
+                "                      restoredDoneKey.isHittable,\n" +
                 "                      restoredKeyboard.waitForExistence(timeout: 10),\n" +
                 "                      restoredKeyboard.frame == observedKeyboardFrame,\n" +
                 "                      wait(\n" +
@@ -492,6 +504,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(
             preflightQuickPathSource.components(separatedBy: "                    return\n").count - 1,
             3
+        )
+        XCTAssertFalse(
+            preflightQuickPathSource.contains(
+                "guard returnKey.waitForExistence(timeout: 10)"
+            )
         )
         let preflightQuickPathCapturePrecededByRestoration =
             preflightRestorationFailure + "\n            }\n        }\n" +
@@ -1120,7 +1137,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        XCTAssertTrue(preview.waitForExistence(timeout: 20))\n" +
                 #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# +
                 "\n" +
-                "            scrollReportPreviewForAXText(preview, in: app)\n" +
+                "            guard scrollReportPreviewForAXText(preview, in: app) else { return }\n" +
                 "        } else {\n" +
                 "            scroll(preview, in: app)\n" +
                 "        }\n" +
@@ -1204,30 +1221,80 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "guard reportScrollViews.count == 1 else {",
             "let reportScroll = reportScrollViews.firstMatch",
             "guard reportScroll.waitForExistence(timeout: 10) else {",
-            "var previousPreviewMinY = preview.frame.minY",
+            "let navigationBars = app.navigationBars",
+            "guard navigationBars.count == 1 else {",
+            "let navigationBar = navigationBars.firstMatch",
+            "let verticalInset: CGFloat = 24",
+            "let horizontalInset: CGFloat = 24",
+            "let minimumGestureDistance: CGFloat = 44",
             "for _ in 0..<4 {",
-            "if preview.exists && preview.isHittable { return }",
-            "reportScroll.swipeUp()",
-            "guard preview.exists else {",
-            "let currentPreviewMinY = preview.frame.minY",
-            "guard currentPreviewMinY < previousPreviewMinY else {",
-            "previousPreviewMinY = currentPreviewMinY",
+            "if preview.exists && preview.isHittable { return true }",
+            "let liveScrollFrame = reportScroll.frame.intersection(app.frame)",
+            "navigationBar.frame.maxY",
+            "let safeBottom = liveScrollFrame.maxY - verticalInset",
+            "let safeLeft = liveScrollFrame.minX + horizontalInset",
+            "let safeRight = liveScrollFrame.maxX - horizontalInset",
+            "let maximumGestureDistance = safeBottom - safeTop",
+            "app.state == .runningForeground",
+            "reportScrollViews.count == 1",
+            "navigationBars.count == 1",
+            "!liveScrollFrame.isNull",
+            "!liveScrollFrame.isEmpty",
+            "safeRight > safeLeft",
+            "maximumGestureDistance >= minimumGestureDistance",
+            "preview.frame.height <= maximumGestureDistance",
+            "let minimumShift = safeTop - preview.frame.minY",
+            "let maximumShift = safeBottom - preview.frame.maxY",
+            "maximumShift < 0 else {",
+            "let recognizedMinimum = max(",
+            "-maximumGestureDistance",
+            "let recognizedMaximum = min(",
+            "-minimumGestureDistance",
+            "guard recognizedMinimum <= recognizedMaximum else {",
+            "let dragDistance = recognizedMaximum",
+            "let previousPreviewMinY = preview.frame.minY",
+            "let reportScrollOrigin = reportScroll.coordinate(",
+            "withNormalizedOffset: CGVector(dx: 0, dy: 0)",
+            "dx: liveScrollFrame.midX - reportScroll.frame.minX",
+            "dy: safeBottom - reportScroll.frame.minY",
+            "forDuration: 0.2,",
+            "withVelocity: .slow,",
+            "thenHoldForDuration: 0.2",
+            "preview.frame.minY < previousPreviewMinY else {",
+            "AX-text report preview remained nonhittable after four gestures.",
         ]
         for lock in axPreviewHelperLocks {
             XCTAssertTrue(axPreviewHelperSource.contains(lock), lock)
         }
         XCTAssertEqual(
-            axPreviewHelperSource.components(separatedBy: "reportScroll.swipeUp()").count - 1,
+            axPreviewHelperSource.components(separatedBy: "reportScroll.coordinate(").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            axPreviewHelperSource.components(separatedBy: "dragStart.press(").count - 1,
             1
         )
         XCTAssertEqual(
             axPreviewHelperSource.components(separatedBy: "for _ in 0..<4 {").count - 1,
             1
         )
+        XCTAssertEqual(
+            axPreviewHelperSource.components(separatedBy: "XCTFail(").count - 1,
+            8
+        )
+        XCTAssertEqual(
+            axPreviewHelperSource.components(separatedBy: "return false").count - 1,
+            8
+        )
+        XCTAssertEqual(
+            axPreviewHelperSource.components(separatedBy: "return true").count - 1,
+            2
+        )
+        XCTAssertFalse(axPreviewHelperSource.contains("reportScroll.swipeUp()"))
         XCTAssertFalse(axPreviewHelperSource.contains("app.swipeUp()"))
         XCTAssertFalse(axPreviewHelperSource.contains("app.swipeDown()"))
+        XCTAssertFalse(axPreviewHelperSource.contains("app.tabBars"))
         XCTAssertFalse(axPreviewHelperSource.contains("CGVector(dx: 0.01"))
-        XCTAssertFalse(axPreviewHelperSource.contains(".press(forDuration:"))
         XCTAssertFalse(axPreviewHelperSource.contains("upperPadding"))
         XCTAssertFalse(axPreviewHelperSource.contains("lowerPadding"))
         XCTAssertFalse(axPreviewHelperSource.contains(#"app.scrollViews.matching("#))
@@ -1260,9 +1327,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "guard diagnosticsScrollView.waitForExistence(timeout: 10) else {",
             "let topClearance: CGFloat = 12",
             "let bottomClearance: CGFloat = 16",
-            "var measuredUndertravel: CGFloat = 0",
-            "var compensatedDirection: CGFloat = 0",
+            "let minimumGestureDistance: CGFloat = 44",
             "for _ in 0..<4 {",
+            "if maximumShift < 0 {",
+            "diagnosticsScrollView.frame.height * 0.45",
+            "let recognizedMinimum = max(",
+            "-maximumGestureDistance",
+            "let recognizedMaximum = min(",
+            "-minimumGestureDistance",
+            "Diagnostics has no recognized feasible upward shift.",
+            "dragDistance = recognizedMaximum",
+            "guard minimumShift > 0 else {",
+            "Diagnostics positioning interval has no signed correction.",
+            "diagnosticsScrollView.frame.height * 0.55",
+            "minimumGestureDistance",
+            "maximumGestureDistance",
+            "Diagnostics has no recognized feasible downward shift.",
+            "dragDistance = recognizedMinimum",
             "diagnosticsScrollView.coordinate(",
             "CGVector(dx: 0.01, dy: 0.45)",
             "forDuration: 0.2,",
@@ -1270,7 +1351,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "thenHoldForDuration: 0.2",
             "guard actualDistance * dragDistance > 0 else {",
             "Diagnostics positioning gesture was not recognized.",
-            "measuredUndertravel = actualDistance * direction > 0",
             "XCTAssertLessThanOrEqual(\n            diagnosticsHeading.frame.maxY,",
             "XCTAssertGreaterThanOrEqual(\n            diagnosticsAuthority.frame.minY,",
             "XCTAssertLessThanOrEqual(\n            diagnosticsExport.frame.maxY,",
@@ -1284,6 +1364,26 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        XCTAssertEqual(
+            diagnosticsPositioningSource.components(separatedBy: "dragStart.press(").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            diagnosticsPositioningSource.components(separatedBy: "XCTFail(").count - 1,
+            6
+        )
+        XCTAssertEqual(
+            diagnosticsPositioningSource.components(separatedBy: "            return\n").count - 1,
+            6
+        )
+        for removed in [
+            "measuredUndertravel",
+            "compensatedDirection",
+            "targetDistance",
+            "let direction:",
+        ] {
+            XCTAssertFalse(diagnosticsPositioningSource.contains(removed), removed)
+        }
         XCTAssertFalse(diagnosticsPositioningSource.contains("app.coordinate("))
 
         let purchaseRecoveryStart =

@@ -981,7 +981,19 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     )
                 ).tap()
                 let restoredKeyboard = app.keyboards.firstMatch
-                guard returnKey.waitForExistence(timeout: 10),
+                let restoredDoneKey = app.keyboards.buttons["Done"]
+                let expectedDoneFrame = CGRect(
+                    x: 281.5,
+                    y: 620,
+                    width: 93.5,
+                    height: 46
+                )
+                guard restoredDoneKey.waitForExistence(timeout: 10),
+                      restoredDoneKey.elementType == .button,
+                      restoredDoneKey.identifier == "Done",
+                      restoredDoneKey.label == "done",
+                      restoredDoneKey.frame == expectedDoneFrame,
+                      restoredDoneKey.isHittable,
                       restoredKeyboard.waitForExistence(timeout: 10),
                       restoredKeyboard.frame == observedKeyboardFrame,
                       wait(
@@ -1425,7 +1437,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let preview = element("s4.3.report-detail.preview", in: app)
         XCTAssertTrue(preview.waitForExistence(timeout: 20))
         if automationShard?.shardID == "s10.4.current.ax-text" {
-            scrollReportPreviewForAXText(preview, in: app)
+            guard scrollReportPreviewForAXText(preview, in: app) else { return }
         } else {
             scroll(preview, in: app)
         }
@@ -2898,8 +2910,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         let topClearance: CGFloat = 12
         let bottomClearance: CGFloat = 16
-        var measuredUndertravel: CGFloat = 0
-        var compensatedDirection: CGFloat = 0
+        let minimumGestureDistance: CGFloat = 44
         for _ in 0..<4 {
             let minimumShift = navigationBar.frame.maxY
                 + topClearance
@@ -2912,15 +2923,42 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
             XCTAssertGreaterThanOrEqual(maximumShift, minimumShift)
             if minimumShift <= 0, maximumShift >= 0 { break }
-            let targetDistance = minimumShift > 0
-                ? maximumShift
-                : minimumShift
-            let direction: CGFloat = targetDistance > 0 ? 1 : -1
-            if compensatedDirection != direction {
-                measuredUndertravel = 0
+            let dragDistance: CGFloat
+            if maximumShift < 0 {
+                let maximumGestureDistance = diagnosticsScrollView.frame.height * 0.45
+                let recognizedMinimum = max(
+                    minimumShift,
+                    -maximumGestureDistance
+                )
+                let recognizedMaximum = min(
+                    maximumShift,
+                    -minimumGestureDistance
+                )
+                guard recognizedMinimum <= recognizedMaximum else {
+                    XCTFail("Diagnostics has no recognized feasible upward shift.")
+                    return
+                }
+                dragDistance = recognizedMaximum
+            } else {
+                guard minimumShift > 0 else {
+                    XCTFail("Diagnostics positioning interval has no signed correction.")
+                    return
+                }
+                let maximumGestureDistance = diagnosticsScrollView.frame.height * 0.55
+                let recognizedMinimum = max(
+                    minimumShift,
+                    minimumGestureDistance
+                )
+                let recognizedMaximum = min(
+                    maximumShift,
+                    maximumGestureDistance
+                )
+                guard recognizedMinimum <= recognizedMaximum else {
+                    XCTFail("Diagnostics has no recognized feasible downward shift.")
+                    return
+                }
+                dragDistance = recognizedMinimum
             }
-            let dragDistance = targetDistance
-                + direction * measuredUndertravel
             let authorityBeforeDrag = diagnosticsAuthority.frame.minY
             let dragStart = diagnosticsScrollView.coordinate(
                 withNormalizedOffset: CGVector(dx: 0.01, dy: 0.45)
@@ -2940,10 +2978,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTFail("Diagnostics positioning gesture was not recognized.")
                 return
             }
-            measuredUndertravel = actualDistance * direction > 0
-                ? max(0, abs(dragDistance) - abs(actualDistance))
-                : abs(dragDistance)
-            compensatedDirection = direction
         }
         XCTAssertLessThanOrEqual(
             diagnosticsHeading.frame.maxY,
@@ -4143,35 +4177,105 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     private func scrollReportPreviewForAXText(
         _ preview: XCUIElement,
         in app: XCUIApplication
-    ) {
+    ) -> Bool {
         let reportScrollViews = app.scrollViews.containing(
             .other,
             identifier: "s4.3.report-detail.preview"
         )
         guard reportScrollViews.count == 1 else {
             XCTFail("AX-text report detail must expose exactly one ScrollView.")
-            return
+            return false
         }
         let reportScroll = reportScrollViews.firstMatch
         guard reportScroll.waitForExistence(timeout: 10) else {
             XCTFail("AX-text report detail ScrollView is missing.")
-            return
+            return false
         }
-        var previousPreviewMinY = preview.frame.minY
+        let navigationBars = app.navigationBars
+        guard navigationBars.count == 1 else {
+            XCTFail("AX-text report detail must expose exactly one navigation bar.")
+            return false
+        }
+        let navigationBar = navigationBars.firstMatch
+        let verticalInset: CGFloat = 24
+        let horizontalInset: CGFloat = 24
+        let minimumGestureDistance: CGFloat = 44
         for _ in 0..<4 {
-            if preview.exists && preview.isHittable { return }
-            reportScroll.swipeUp()
-            guard preview.exists else {
-                XCTFail("AX-text report preview disappeared while scrolling.")
-                return
+            if preview.exists && preview.isHittable { return true }
+            let liveScrollFrame = reportScroll.frame.intersection(app.frame)
+            let safeTop = max(
+                liveScrollFrame.minY,
+                navigationBar.frame.maxY
+            ) + verticalInset
+            let safeBottom = liveScrollFrame.maxY - verticalInset
+            let safeLeft = liveScrollFrame.minX + horizontalInset
+            let safeRight = liveScrollFrame.maxX - horizontalInset
+            let maximumGestureDistance = safeBottom - safeTop
+            guard app.state == .runningForeground,
+                  reportScrollViews.count == 1,
+                  navigationBars.count == 1,
+                  preview.exists,
+                  !liveScrollFrame.isNull,
+                  !liveScrollFrame.isEmpty,
+                  safeRight > safeLeft,
+                  maximumGestureDistance >= minimumGestureDistance,
+                  preview.frame.height <= maximumGestureDistance else {
+                XCTFail("AX-text report preview has no stable live scrolling band.")
+                return false
             }
-            let currentPreviewMinY = preview.frame.minY
-            guard currentPreviewMinY < previousPreviewMinY else {
+            let minimumShift = safeTop - preview.frame.minY
+            let maximumShift = safeBottom - preview.frame.maxY
+            guard minimumShift <= maximumShift,
+                  maximumShift < 0 else {
+                XCTFail("AX-text report preview has no upward wholly-visible shift.")
+                return false
+            }
+            let recognizedMinimum = max(
+                minimumShift,
+                -maximumGestureDistance
+            )
+            let recognizedMaximum = min(
+                maximumShift,
+                -minimumGestureDistance
+            )
+            guard recognizedMinimum <= recognizedMaximum else {
+                XCTFail("AX-text report preview has no recognized feasible upward shift.")
+                return false
+            }
+            let dragDistance = recognizedMaximum
+            let previousPreviewMinY = preview.frame.minY
+            let reportScrollOrigin = reportScroll.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStart = reportScrollOrigin.withOffset(
+                CGVector(
+                    dx: liveScrollFrame.midX - reportScroll.frame.minX,
+                    dy: safeBottom - reportScroll.frame.minY
+                )
+            )
+            let dragEnd = dragStart.withOffset(
+                CGVector(dx: 0, dy: dragDistance)
+            )
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            guard app.state == .runningForeground,
+                  reportScrollViews.count == 1,
+                  navigationBars.count == 1,
+                  preview.exists,
+                  preview.frame.minY < previousPreviewMinY else {
                 XCTFail("AX-text report preview did not move upward with its ScrollView.")
-                return
+                return false
             }
-            previousPreviewMinY = currentPreviewMinY
         }
+        guard preview.exists && preview.isHittable else {
+            XCTFail("AX-text report preview remained nonhittable after four gestures.")
+            return false
+        }
+        return true
     }
 
     @MainActor
