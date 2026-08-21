@@ -1856,7 +1856,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "            let downwardCapacity = diagnosticsScrollView.frame.maxY",
             "                        recognizedMaximum - upwardUndertravel",
             "                        recognizedMinimum + downwardUndertravel",
-            "                          stagingCount < 2 else {",
             "                        2 * minimumGestureDistance + downwardUndertravel",
             "                        2 * minimumGestureDistance + upwardUndertravel",
             "                    dragDistance = -stagingDistance",
