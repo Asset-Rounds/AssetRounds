@@ -1529,15 +1529,164 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let workPreview = element("s5.1.work.photo", in: app)
         scroll(workPreview, in: app)
         XCTAssertTrue(workPreview.isHittable)
-        let dateLabel = app.staticTexts["Date"].firstMatch
+        let workHelperLabel = "Add one optional photo showing the work performed."
+        let workHelperTexts = app.staticTexts.matching(
+            NSPredicate(format: "label == %@", workHelperLabel)
+        )
+        let workScrollViews = app.scrollViews.containing(
+            .image,
+            identifier: "s5.1.work.photo"
+        )
+        let workNavigationBars = app.navigationBars.matching(
+            identifier: "Record work"
+        )
+        guard workHelperTexts.count == 1,
+              workScrollViews.count == 1,
+              workNavigationBars.count == 1 else {
+            XCTFail("Record-work editing positioning bindings are ambiguous.")
+            return
+        }
+        let workHelper = workHelperTexts.firstMatch
+        let workScrollView = workScrollViews.firstMatch
+        let workNavigationBar = workNavigationBars.firstMatch
+        guard workHelper.exists,
+              workScrollView.exists,
+              workNavigationBar.exists else {
+            XCTFail("Record-work editing positioning bindings are missing.")
+            return
+        }
+        let verticalInset: CGFloat = 16
+        let receiverInset: CGFloat = 24
+        let minimumGestureDistance: CGFloat = 44
         for _ in 0..<4 {
-            if !dateLabel.exists || dateLabel.frame.maxY <= app.frame.minY {
+            guard app.state == .runningForeground,
+                  workHelperTexts.count == 1,
+                  workScrollViews.count == 1,
+                  workNavigationBars.count == 1,
+                  workHelper.exists,
+                  workScrollView.exists,
+                  workNavigationBar.exists,
+                  workPreview.exists else {
+                XCTFail("Record-work editing positioning route changed.")
+                return
+            }
+            let scrollFrame = workScrollView.frame
+            let applicationFrame = app.frame
+            let navigationFrame = workNavigationBar.frame
+            let liveScrollFrame = scrollFrame.intersection(applicationFrame)
+            let safeTop = max(
+                liveScrollFrame.minY,
+                navigationFrame.maxY
+            ) + verticalInset
+            let safeBottom = liveScrollFrame.maxY - verticalInset
+            let receiverTop = max(
+                liveScrollFrame.minY,
+                navigationFrame.maxY
+            ) + receiverInset
+            let receiverBottom = liveScrollFrame.maxY - receiverInset
+            let helperFrame = workHelper.frame
+            guard !applicationFrame.isNull,
+                  !applicationFrame.isEmpty,
+                  !navigationFrame.isNull,
+                  !navigationFrame.isEmpty,
+                  !scrollFrame.isNull,
+                  !scrollFrame.isEmpty,
+                  !liveScrollFrame.isNull,
+                  !liveScrollFrame.isEmpty,
+                  !helperFrame.isNull,
+                  !helperFrame.isEmpty,
+                  safeBottom > safeTop,
+                  helperFrame.height <= safeBottom - safeTop else {
+                XCTFail("Record-work editing viewport geometry is invalid.")
+                return
+            }
+            if helperFrame.minY >= safeTop,
+               helperFrame.maxY <= safeBottom,
+               workHelper.isHittable {
                 break
             }
-            app.swipeUp()
+
+            let minimumShift = safeTop - helperFrame.minY
+            let maximumShift = safeBottom - helperFrame.maxY
+            let receiverCapacity = receiverBottom - receiverTop
+            let recognizedMinimum = max(
+                minimumShift,
+                minimumGestureDistance
+            )
+            let recognizedMaximum = min(
+                maximumShift,
+                receiverCapacity
+            )
+            guard minimumShift > 0,
+                  minimumShift <= maximumShift,
+                  receiverCapacity >= minimumGestureDistance,
+                  recognizedMinimum <= recognizedMaximum else {
+                XCTFail("Record-work editing has no feasible downward correction.")
+                return
+            }
+            let dragDistance = recognizedMinimum
+            let scrollOrigin = workScrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStart = scrollOrigin.withOffset(
+                CGVector(
+                    dx: scrollFrame.width / 2,
+                    dy: receiverTop - scrollFrame.minY
+                )
+            )
+            let dragEnd = dragStart.withOffset(
+                CGVector(dx: 0, dy: dragDistance)
+            )
+            let helperMinYBeforeDrag = helperFrame.minY
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            guard workHelperTexts.count == 1,
+                  workScrollViews.count == 1,
+                  workNavigationBars.count == 1,
+                  workHelper.exists,
+                  workHelper.frame.minY > helperMinYBeforeDrag else {
+                XCTFail("Record-work helper did not move downward.")
+                return
+            }
         }
-        XCTAssertTrue(!dateLabel.exists || dateLabel.frame.maxY <= app.frame.minY)
-        XCTAssertTrue(workPreview.isHittable)
+        let finalApplicationFrame = app.frame
+        let finalNavigationFrame = workNavigationBar.frame
+        let finalScrollFrame = workScrollView.frame.intersection(
+            finalApplicationFrame
+        )
+        let finalSafeTop = max(
+            finalScrollFrame.minY,
+            finalNavigationFrame.maxY
+        ) + verticalInset
+        let finalSafeBottom = finalScrollFrame.maxY - verticalInset
+        let finalHelperFrame = workHelper.frame
+        guard app.state == .runningForeground,
+              workHelperTexts.count == 1,
+              workScrollViews.count == 1,
+              workNavigationBars.count == 1,
+              workHelper.exists,
+              workScrollView.exists,
+              workNavigationBar.exists,
+              workPreview.exists,
+              !finalApplicationFrame.isNull,
+              !finalApplicationFrame.isEmpty,
+              !finalNavigationFrame.isNull,
+              !finalNavigationFrame.isEmpty,
+              !finalScrollFrame.isNull,
+              !finalScrollFrame.isEmpty,
+              !finalHelperFrame.isNull,
+              !finalHelperFrame.isEmpty,
+              finalHelperFrame.minY >= finalSafeTop,
+              finalHelperFrame.maxY <= finalSafeBottom,
+              workHelper.isHittable,
+              workPreview.isHittable else {
+            XCTFail("Record-work editing composition is outside the safe viewport.")
+            return
+        }
         captureBaseline("state.work.editing", in: app)
 
         scroll(saveWork, in: app)

@@ -309,8 +309,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 199_469,
-            sha256: "D347ABF7FE8869E5FAF28D6C567BF5848BCFC72BCA310D1890EA9ED832089A6F"
+            byteCount: 205_621,
+            sha256: "CDCB4A9B51C6430DEC7B11710F5218CC83076ADBA37BB5E366AA9512C2D2BD2D"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1188,6 +1188,250 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(uiSource.contains("returnKeyDismissesKeyboard"))
         XCTAssertFalse(uiSource.contains("key.exists ? key.tap() : app.swipeDown()"))
         XCTAssertFalse(uiSource.contains("key.exists && key.isHittable ?"))
+
+        let workEditingPositioningStart =
+            #"        let workHelperLabel = "Add one optional photo showing the work performed.""#
+        let workEditingPositioningEnd =
+            #"        captureBaseline("state.work.editing", in: app)"#
+        XCTAssertEqual(
+            uiSource.components(separatedBy: workEditingPositioningStart).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: workEditingPositioningEnd).count - 1,
+            1
+        )
+        guard let workEditingPositioningStartRange = uiSource.range(
+            of: workEditingPositioningStart
+        ), let workEditingPositioningEndRange = uiSource.range(
+            of: workEditingPositioningEnd,
+            range: workEditingPositioningStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded Record-work editing positioning slice")
+            return
+        }
+        let workEditingPositioningSource = String(
+            uiSource[
+                workEditingPositioningStartRange.lowerBound..<workEditingPositioningEndRange.upperBound
+            ]
+        )
+        let workEditingBindingGuard =
+            "        let workHelperTexts = app.staticTexts.matching(\n" +
+                #"            NSPredicate(format: "label == %@", workHelperLabel)"# + "\n" +
+                "        )\n" +
+                "        let workScrollViews = app.scrollViews.containing(\n" +
+                "            .image,\n" +
+                #"            identifier: "s5.1.work.photo""# + "\n" +
+                "        )\n" +
+                "        let workNavigationBars = app.navigationBars.matching(\n" +
+                #"            identifier: "Record work""# + "\n" +
+                "        )\n" +
+                "        guard workHelperTexts.count == 1,\n" +
+                "              workScrollViews.count == 1,\n" +
+                "              workNavigationBars.count == 1 else {\n" +
+                #"            XCTFail("Record-work editing positioning bindings are ambiguous.")"# + "\n" +
+                "            return\n" +
+                "        }\n" +
+                "        let workHelper = workHelperTexts.firstMatch\n" +
+                "        let workScrollView = workScrollViews.firstMatch\n" +
+                "        let workNavigationBar = workNavigationBars.firstMatch\n" +
+                "        guard workHelper.exists,\n" +
+                "              workScrollView.exists,\n" +
+                "              workNavigationBar.exists else {\n" +
+                #"            XCTFail("Record-work editing positioning bindings are missing.")"# + "\n" +
+                "            return\n" +
+                "        }\n" +
+                "        let verticalInset: CGFloat = 16\n" +
+                "        let receiverInset: CGFloat = 24\n" +
+                "        let minimumGestureDistance: CGFloat = 44"
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingBindingGuard
+            ).count - 1,
+            1
+        )
+        let workEditingLiveGeometry =
+            "            let scrollFrame = workScrollView.frame\n" +
+                "            let applicationFrame = app.frame\n" +
+                "            let navigationFrame = workNavigationBar.frame\n" +
+                "            let liveScrollFrame = scrollFrame.intersection(applicationFrame)\n" +
+                "            let safeTop = max(\n" +
+                "                liveScrollFrame.minY,\n" +
+                "                navigationFrame.maxY\n" +
+                "            ) + verticalInset\n" +
+                "            let safeBottom = liveScrollFrame.maxY - verticalInset\n" +
+                "            let receiverTop = max(\n" +
+                "                liveScrollFrame.minY,\n" +
+                "                navigationFrame.maxY\n" +
+                "            ) + receiverInset\n" +
+                "            let receiverBottom = liveScrollFrame.maxY - receiverInset\n" +
+                "            let helperFrame = workHelper.frame"
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingLiveGeometry
+            ).count - 1,
+            1
+        )
+        let workEditingPositiveInterval =
+            "            let minimumShift = safeTop - helperFrame.minY\n" +
+                "            let maximumShift = safeBottom - helperFrame.maxY\n" +
+                "            let receiverCapacity = receiverBottom - receiverTop\n" +
+                "            let recognizedMinimum = max(\n" +
+                "                minimumShift,\n" +
+                "                minimumGestureDistance\n" +
+                "            )\n" +
+                "            let recognizedMaximum = min(\n" +
+                "                maximumShift,\n" +
+                "                receiverCapacity\n" +
+                "            )\n" +
+                "            guard minimumShift > 0,\n" +
+                "                  minimumShift <= maximumShift,\n" +
+                "                  receiverCapacity >= minimumGestureDistance,\n" +
+                "                  recognizedMinimum <= recognizedMaximum else {\n" +
+                #"                XCTFail("Record-work editing has no feasible downward correction.")"# + "\n" +
+                "                return\n" +
+                "            }\n" +
+                "            let dragDistance = recognizedMinimum"
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingPositiveInterval
+            ).count - 1,
+            1
+        )
+        let workEditingDirectGesture =
+            "            let scrollOrigin = workScrollView.coordinate(\n" +
+                "                withNormalizedOffset: CGVector(dx: 0, dy: 0)\n" +
+                "            )\n" +
+                "            let dragStart = scrollOrigin.withOffset(\n" +
+                "                CGVector(\n" +
+                "                    dx: scrollFrame.width / 2,\n" +
+                "                    dy: receiverTop - scrollFrame.minY\n" +
+                "                )\n" +
+                "            )\n" +
+                "            let dragEnd = dragStart.withOffset(\n" +
+                "                CGVector(dx: 0, dy: dragDistance)\n" +
+                "            )\n" +
+                "            let helperMinYBeforeDrag = helperFrame.minY\n" +
+                "            dragStart.press(\n" +
+                "                forDuration: 0.2,\n" +
+                "                thenDragTo: dragEnd,\n" +
+                "                withVelocity: .slow,\n" +
+                "                thenHoldForDuration: 0.2\n" +
+                "            )"
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingDirectGesture
+            ).count - 1,
+            1
+        )
+        let workEditingFinalGuardAndCapture =
+            "        guard app.state == .runningForeground,\n" +
+                "              workHelperTexts.count == 1,\n" +
+                "              workScrollViews.count == 1,\n" +
+                "              workNavigationBars.count == 1,\n" +
+                "              workHelper.exists,\n" +
+                "              workScrollView.exists,\n" +
+                "              workNavigationBar.exists,\n" +
+                "              workPreview.exists,\n" +
+                "              !finalApplicationFrame.isNull,\n" +
+                "              !finalApplicationFrame.isEmpty,\n" +
+                "              !finalNavigationFrame.isNull,\n" +
+                "              !finalNavigationFrame.isEmpty,\n" +
+                "              !finalScrollFrame.isNull,\n" +
+                "              !finalScrollFrame.isEmpty,\n" +
+                "              !finalHelperFrame.isNull,\n" +
+                "              !finalHelperFrame.isEmpty,\n" +
+                "              finalHelperFrame.minY >= finalSafeTop,\n" +
+                "              finalHelperFrame.maxY <= finalSafeBottom,\n" +
+                "              workHelper.isHittable,\n" +
+                "              workPreview.isHittable else {\n" +
+                #"            XCTFail("Record-work editing composition is outside the safe viewport.")"# + "\n" +
+                "            return\n" +
+                "        }\n" +
+                #"        captureBaseline("state.work.editing", in: app)"#
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingFinalGuardAndCapture
+            ).count - 1,
+            1
+        )
+        for (workEditingLock, count) in [
+            ("        for _ in 0..<4 {", 1),
+            ("            guard app.state == .runningForeground,", 1),
+            ("            let scrollFrame = workScrollView.frame", 1),
+            ("            let liveScrollFrame = scrollFrame.intersection(applicationFrame)", 1),
+            ("                  safeBottom > safeTop,", 1),
+            ("                  helperFrame.height <= safeBottom - safeTop else {", 1),
+            ("            if helperFrame.minY >= safeTop,", 1),
+            ("               helperFrame.maxY <= safeBottom,", 1),
+            ("               workHelper.isHittable {", 1),
+            ("                  workHelper.frame.minY > helperMinYBeforeDrag else {", 1),
+            ("        let finalScrollFrame = workScrollView.frame.intersection(", 1),
+            ("        let finalSafeTop = max(", 1),
+            ("        let finalSafeBottom = finalScrollFrame.maxY - verticalInset", 1),
+            ("        let finalHelperFrame = workHelper.frame", 1),
+        ] {
+            XCTAssertEqual(
+                workEditingPositioningSource.components(
+                    separatedBy: workEditingLock
+                ).count - 1,
+                count,
+                workEditingLock
+            )
+        }
+        for (workEditingCardinalityLock, count) in [
+            ("workHelperTexts.count == 1", 4),
+            ("workScrollViews.count == 1", 4),
+            ("workNavigationBars.count == 1", 4),
+            ("workHelper.exists", 4),
+            ("workScrollView.exists", 3),
+            ("workNavigationBar.exists", 3),
+            ("workPreview.exists", 2),
+            ("workPreview.isHittable", 1),
+            ("app.state == .runningForeground", 2),
+            ("workScrollView.coordinate(", 1),
+            ("dragStart.press(", 1),
+            ("forDuration: 0.2", 1),
+            ("withVelocity: .slow", 1),
+            ("thenHoldForDuration: 0.2", 1),
+        ] {
+            XCTAssertEqual(
+                workEditingPositioningSource.components(
+                    separatedBy: workEditingCardinalityLock
+                ).count - 1,
+                count,
+                workEditingCardinalityLock
+            )
+        }
+        let workEditingCaptureThenSave =
+            workEditingPositioningEnd + "\n\n" +
+                "        scroll(saveWork, in: app)"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: workEditingCaptureThenSave
+            ).count - 1,
+            1
+        )
+        for staleWorkEditingPositioningForm in [
+            "dateLabel",
+            #"app.staticTexts["Date"]"#,
+            "app.swipeUp()",
+            "app.swipeDown()",
+            "workScrollView.swipeUp()",
+            "workScrollView.swipeDown()",
+            "app.coordinate(",
+            "CGRect(",
+            "Thread.sleep",
+            "epsilon",
+            "tolerance",
+        ] {
+            XCTAssertFalse(
+                workEditingPositioningSource.contains(
+                    staleWorkEditingPositioningForm
+                ),
+                staleWorkEditingPositioningForm
+            )
+        }
 
         let firstReportPreviewPositioning =
             #"        let preview = element("s4.3.report-detail.preview", in: app)"# +
