@@ -3006,6 +3006,137 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             line: line
         )
         do {
+            if shard.shardID == "s10.4.current.increased-contrast",
+               stateID == "state.report-correction.validation-error" {
+                let headerElements = app.descendants(matching: .any).matching(
+                    identifier: "s4.5.correction.header"
+                )
+                let header = headerElements.firstMatch
+                guard headerElements.count == 1,
+                      header.exists,
+                      header.label == "Correct report",
+                      header.elementType == .staticText else {
+                    throw AutomationConfigurationError.invalid(
+                        "S10.4 increased-contrast Report-correction-header diagnostic header is incomplete"
+                    )
+                }
+
+                let correctionScrollViews = app.scrollViews.containing(
+                    .button,
+                    identifier: "s4.5.correction.save"
+                )
+                let navigationBars = app.navigationBars
+                let validationElements = app.descendants(matching: .any).matching(
+                    identifier: "s4.5.correction.validation"
+                )
+                let saveElements = app.descendants(matching: .any).matching(
+                    identifier: "s4.5.correction.save"
+                )
+                let keyboards = app.keyboards
+                let inputViews = app.otherElements.matching(
+                    NSPredicate(format: "identifier == %@", "inputView")
+                )
+                let tabBars = app.tabBars
+                let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
+                    element in
+                    [
+                        "identifier": element.identifier,
+                        "label": element.label,
+                        "elementType": String(describing: element.elementType),
+                        "frame": self.auditFrameObject(element.frame),
+                        "exists": element.exists,
+                        "isHittable": element.isHittable,
+                    ]
+                }
+                let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
+                    query in
+                    [
+                        "cardinality": query.count,
+                        "elements": (0..<query.count).map { index in
+                            diagnosticElementObject(query.element(boundBy: index))
+                        },
+                    ]
+                }
+                printJSONLine(
+                    prefix: "S10_4_REPORT_CORRECTION_HEADER_CONTEXT_DIAGNOSTIC",
+                    object: [
+                        "application": diagnosticElementObject(app),
+                        "header": diagnosticQueryObject(headerElements),
+                        "reportCorrectionScrollView": diagnosticQueryObject(
+                            correctionScrollViews
+                        ),
+                        "navigationBar": diagnosticQueryObject(navigationBars),
+                        "validation": diagnosticQueryObject(validationElements),
+                        "save": diagnosticQueryObject(saveElements),
+                        "keyboard": diagnosticQueryObject(keyboards),
+                        "inputView": diagnosticQueryObject(inputViews),
+                        "tabBar": diagnosticQueryObject(tabBars),
+                    ]
+                )
+
+                let appAttachment = XCTAttachment(screenshot: app.screenshot())
+                appAttachment.name =
+                    "S10.4 increased-contrast Report-correction-header diagnostic app"
+                appAttachment.lifetime = .keepAlways
+                add(appAttachment)
+                let treeAttachment = XCTAttachment(string: app.debugDescription)
+                treeAttachment.name =
+                    "S10.4 increased-contrast Report-correction-header diagnostic accessibility tree"
+                treeAttachment.lifetime = .keepAlways
+                add(treeAttachment)
+                let headerAttachment = XCTAttachment(screenshot: header.screenshot())
+                headerAttachment.name =
+                    "S10.4 increased-contrast Report-correction-header diagnostic header"
+                headerAttachment.lifetime = .keepAlways
+                add(headerAttachment)
+
+                var observedIssueCount = 0
+                try app.performAccessibilityAudit(for: .contrast) { issue in
+                    observedIssueCount += 1
+                    var diagnostic: [String: Any] = [
+                        "issueOrdinal": observedIssueCount,
+                        "auditTypeRawValue": String(issue.auditType.rawValue),
+                        "compactDescription": issue.compactDescription,
+                        "detailedDescription": issue.detailedDescription,
+                        "elementIdentifier": NSNull(),
+                        "elementLabel": NSNull(),
+                        "elementType": NSNull(),
+                        "elementFrame": NSNull(),
+                        "applicationFrame": self.auditFrameObject(app.frame),
+                    ]
+                    if let auditedElement = issue.element {
+                        diagnostic["elementIdentifier"] = auditedElement.identifier
+                        diagnostic["elementLabel"] = auditedElement.label
+                        diagnostic["elementType"] = String(
+                            describing: auditedElement.elementType
+                        )
+                        diagnostic["elementFrame"] = self.auditFrameObject(
+                            auditedElement.frame
+                        )
+                        let attachment = XCTAttachment(
+                            screenshot: auditedElement.screenshot()
+                        )
+                        attachment.name =
+                            "S10.4 increased-contrast Report-correction-header audit issue "
+                            + String(observedIssueCount)
+                        attachment.lifetime = .keepAlways
+                        self.add(attachment)
+                    }
+                    self.printJSONLine(
+                        prefix: "S10_4_REPORT_CORRECTION_HEADER_AUDIT_DIAGNOSTIC",
+                        object: diagnostic
+                    )
+                    return true
+                }
+                printJSONLine(
+                    prefix: "S10_4_REPORT_CORRECTION_HEADER_AUDIT_COUNT_DIAGNOSTIC",
+                    object: ["issueCount": observedIssueCount]
+                )
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 increased-contrast Report-correction-header diagnostic completed nonaccepting"
+                )
+            }
+
             let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
                 $0.shardID == shard.shardID && $0.stateID == stateID
             }
