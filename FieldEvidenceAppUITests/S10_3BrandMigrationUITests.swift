@@ -473,7 +473,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         recoverInjectedPDFFailureAtXXXL(in: app)
         captureReportComparisonAndCorrectionStates(in: app)
         captureUnavailablePaywallAndFeedbackReview(in: app)
-        assertMonthlyPaywallAtXXXL(in: app)
+        try assertMonthlyPaywallAtXXXL(in: app)
         eraseLocalDataAndCaptureNoEntitlement(in: app)
     }
 
@@ -2900,7 +2900,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) {
+    private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) throws {
         let settings = element("s1.settings.button", in: app)
         assertControl(settings, label: "Settings")
         settings.tap()
@@ -2908,7 +2908,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             .waitForExistence(timeout: 20))
         captureBaseline("state.settings.hub", in: app)
 
-        captureSettingsDataSurfaces(in: app)
+        try captureSettingsDataSurfaces(in: app)
 
         let lifecycle = element("s7.3.settings.restore-purchases", in: app)
         scroll(lifecycle, in: app)
@@ -3038,7 +3038,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func captureSettingsDataSurfaces(in app: XCUIApplication) {
+    private func captureSettingsDataSurfaces(in app: XCUIApplication) throws {
         let backupEntry = element("s6.2.backup.settings-entry", in: app)
         scroll(backupEntry, in: app)
         assertControl(backupEntry, label: "Back up current data")
@@ -3084,6 +3084,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         guard diagnosticsScrollView.waitForExistence(timeout: 10) else {
             XCTFail("Diagnostics route ScrollView is missing.")
             return
+        }
+        if automationShard?.shardID == "s10.4.current.increased-contrast" {
+            try diagnoseIncreasedContrastDiagnosticsPositioning(in: app)
         }
         let topClearance: CGFloat = 12
         let bottomClearance: CGFloat = 16
@@ -3245,6 +3248,360 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         cancelRestore.tap()
         XCTAssertTrue(element("s1.settings.screen", in: app)
             .waitForExistence(timeout: 30))
+    }
+
+    @MainActor
+    private func diagnoseIncreasedContrastDiagnosticsPositioning(
+        in app: XCUIApplication
+    ) throws {
+        let diagnosticsScreenQuery = app.descendants(matching: .any).matching(
+            identifier: "s8.3.diagnostics.screen"
+        )
+        let diagnosticsHeadingQuery = app.descendants(matching: .any).matching(
+            identifier: "s8.3.diagnostics.heading"
+        )
+        let diagnosticsAuthorityQuery = app.descendants(matching: .any).matching(
+            identifier: "s8.3.diagnostics.authority"
+        )
+        let diagnosticsExportQuery = app.descendants(matching: .any).matching(
+            identifier: "s8.3.diagnostics.export"
+        )
+        let navigationBarsQuery = app.navigationBars
+        let signsTabQuery = app.descendants(matching: .any).matching(
+            identifier: "s1.tab.signs"
+        )
+        let diagnosticsScrollViewsQuery = app.scrollViews.containing(
+            .staticText,
+            identifier: "s8.3.diagnostics.heading"
+        )
+        let frameObject: (CGRect) -> [String: Any] = { frame in
+            [
+                "x": frame.minX,
+                "y": frame.minY,
+                "width": frame.width,
+                "height": frame.height,
+            ]
+        }
+        let pointObject: (CGPoint) -> [String: Any] = { point in
+            [
+                "x": point.x,
+                "y": point.y,
+            ]
+        }
+        let elementObject: (XCUIElement) -> [String: Any] = { element in
+            let publicValue: Any
+            if let rawValue = element.value {
+                publicValue = String(describing: rawValue)
+            } else {
+                publicValue = NSNull()
+            }
+            return [
+                "exists": element.exists,
+                "isHittable": element.isHittable,
+                "identifier": element.identifier,
+                "label": element.label,
+                "value": publicValue,
+                "elementTypeRawValue": element.elementType.rawValue,
+                "frame": frameObject(element.frame),
+            ]
+        }
+        let queryObject: (XCUIElementQuery) -> [String: Any] = { query in
+            let count = query.count
+            return [
+                "count": count,
+                "elements": (0..<count).map {
+                    elementObject(query.element(boundBy: $0))
+                },
+            ]
+        }
+        let queryMap: () -> [String: Any] = {
+            [
+                "diagnosticsScreen": queryObject(diagnosticsScreenQuery),
+                "diagnosticsHeading": queryObject(diagnosticsHeadingQuery),
+                "diagnosticsAuthority": queryObject(diagnosticsAuthorityQuery),
+                "diagnosticsExport": queryObject(diagnosticsExportQuery),
+                "navigationBars": queryObject(navigationBarsQuery),
+                "signsTab": queryObject(signsTabQuery),
+                "diagnosticsScrollViews": queryObject(diagnosticsScrollViewsQuery),
+            ]
+        }
+        let routeObject: () -> [String: Any] = {
+            [
+                "applicationStateRawValue": app.state.rawValue,
+                "applicationIsForeground": app.state == .runningForeground,
+                "applicationFrame": frameObject(app.frame),
+                "diagnosticsScreen": elementObject(diagnosticsScreenQuery.firstMatch),
+                "diagnosticsHeading": elementObject(diagnosticsHeadingQuery.firstMatch),
+                "diagnosticsAuthority": elementObject(diagnosticsAuthorityQuery.firstMatch),
+                "diagnosticsExport": elementObject(diagnosticsExportQuery.firstMatch),
+                "navigationBar": elementObject(navigationBarsQuery.firstMatch),
+                "signsTab": elementObject(signsTabQuery.firstMatch),
+                "diagnosticsScrollView": elementObject(
+                    diagnosticsScrollViewsQuery.firstMatch
+                ),
+            ]
+        }
+        let addDiagnosticAttachments: (String) -> Void = { phase in
+            let screenshot = XCTAttachment(
+                screenshot: XCUIScreen.main.screenshot()
+            )
+            screenshot.name =
+                "S10.4 increased-contrast Diagnostics positioning diagnostic \(phase) screen"
+            screenshot.lifetime = .keepAlways
+            self.add(screenshot)
+            let tree = XCTAttachment(string: app.debugDescription)
+            tree.name =
+                "S10.4 increased-contrast Diagnostics positioning diagnostic \(phase) tree"
+            tree.lifetime = .keepAlways
+            self.add(tree)
+        }
+        let diagnosticStartedAt = Date()
+        let startContext: [String: Any] = [
+            "route": routeObject(),
+            "queries": queryMap(),
+        ]
+        addDiagnosticAttachments("start")
+
+        let topClearance: CGFloat = 12
+        let bottomClearance: CGFloat = 16
+        let minimumGestureDistance: CGFloat = 44
+        let dragInset: CGFloat = 24
+        var measuredUndertravel: CGFloat = 0
+        var correctionDirection: CGFloat?
+        var previousResidualMagnitude: CGFloat?
+        var diagnosticFailure: String?
+        var attempts: [[String: Any]] = []
+
+        if diagnosticsScreenQuery.count != 1
+            || diagnosticsHeadingQuery.count != 1
+            || diagnosticsAuthorityQuery.count != 1
+            || diagnosticsExportQuery.count != 1
+            || navigationBarsQuery.count != 1
+            || signsTabQuery.count != 1
+            || diagnosticsScrollViewsQuery.count != 1 {
+            diagnosticFailure =
+                "Diagnostics positioning route cardinality was not exactly one."
+        } else if app.state != .runningForeground {
+            diagnosticFailure =
+                "Diagnostics positioning app was not running in the foreground."
+        }
+
+        for attempt in 0..<2 {
+            var attemptTelemetry: [String: Any] = [
+                "attempt": attempt,
+                "route": routeObject(),
+                "queries": queryMap(),
+                "measuredUndertravelBefore": measuredUndertravel,
+                "previousResidualMagnitude": previousResidualMagnitude as Any? ?? NSNull(),
+            ]
+            if let diagnosticFailure {
+                attemptTelemetry["failureReason"] = diagnosticFailure
+                attempts.append(attemptTelemetry)
+                break
+            }
+
+            let diagnosticsHeading = diagnosticsHeadingQuery.firstMatch
+            let diagnosticsAuthority = diagnosticsAuthorityQuery.firstMatch
+            let diagnosticsExport = diagnosticsExportQuery.firstMatch
+            let navigationBar = navigationBarsQuery.firstMatch
+            let signsTab = signsTabQuery.firstMatch
+            let diagnosticsScrollView = diagnosticsScrollViewsQuery.firstMatch
+            let minimumShift = navigationBar.frame.maxY
+                + topClearance
+                - diagnosticsAuthority.frame.minY
+            let maximumShift = min(
+                navigationBar.frame.maxY - diagnosticsHeading.frame.maxY,
+                signsTab.frame.minY
+                    - bottomClearance
+                    - diagnosticsExport.frame.maxY
+            )
+            attemptTelemetry["minimumShift"] = minimumShift
+            attemptTelemetry["maximumShift"] = maximumShift
+
+            if minimumShift > maximumShift {
+                let failureReason =
+                    "Diagnostics positioning interval was impossible."
+                diagnosticFailure = failureReason
+                attemptTelemetry["failureReason"] = failureReason
+                attempts.append(attemptTelemetry)
+                break
+            }
+            if minimumShift <= 0, maximumShift >= 0 {
+                attemptTelemetry["actionPerformed"] = false
+                attemptTelemetry["selectedEndpoint"] = NSNull()
+                attemptTelemetry["requestedDistance"] = NSNull()
+                attemptTelemetry["actualSignedDistance"] = NSNull()
+                attempts.append(attemptTelemetry)
+                break
+            }
+
+            let targetDistance: CGFloat
+            if maximumShift < 0 {
+                targetDistance = maximumShift
+            } else if minimumShift > 0 {
+                targetDistance = minimumShift
+            } else {
+                let failureReason =
+                    "Diagnostics positioning interval had no signed correction."
+                diagnosticFailure = failureReason
+                attemptTelemetry["failureReason"] = failureReason
+                attempts.append(attemptTelemetry)
+                break
+            }
+            let direction: CGFloat = targetDistance > 0 ? 1 : -1
+            attemptTelemetry["selectedEndpoint"] = targetDistance
+            attemptTelemetry["direction"] = direction
+            let residualMagnitude = abs(targetDistance)
+            attemptTelemetry["residualMagnitude"] = residualMagnitude
+            if let correctionDirection, correctionDirection != direction {
+                let failureReason =
+                    "Diagnostics positioning changed correction direction."
+                diagnosticFailure = failureReason
+                attemptTelemetry["failureReason"] = failureReason
+                attempts.append(attemptTelemetry)
+                break
+            }
+            correctionDirection = correctionDirection ?? direction
+            if let previousResidualMagnitude,
+               residualMagnitude >= previousResidualMagnitude {
+                let failureReason =
+                    "Diagnostics positioning residual did not decrease."
+                diagnosticFailure = failureReason
+                attemptTelemetry["failureReason"] = failureReason
+                attempts.append(attemptTelemetry)
+                break
+            }
+            previousResidualMagnitude = residualMagnitude
+
+            let requestedDistance = targetDistance
+                + direction * measuredUndertravel
+            attemptTelemetry["requestedDistance"] = requestedDistance
+            if abs(requestedDistance) < minimumGestureDistance {
+                let failureReason =
+                    "Diagnostics positioning gesture was not recognizable."
+                diagnosticFailure = failureReason
+                attemptTelemetry["failureReason"] = failureReason
+                attempts.append(attemptTelemetry)
+                break
+            }
+            let dragStart = diagnosticsScrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.01, dy: 0.45)
+            )
+            let startPoint = dragStart.screenPoint
+            let availableDistance = direction < 0
+                ? startPoint.y - (diagnosticsScrollView.frame.minY + dragInset)
+                : diagnosticsScrollView.frame.maxY - dragInset - startPoint.y
+            let dragEnd = dragStart.withOffset(
+                CGVector(dx: 0, dy: requestedDistance)
+            )
+            attemptTelemetry["receiver"] = [
+                "queryCount": diagnosticsScrollViewsQuery.count,
+                "frame": frameObject(diagnosticsScrollView.frame),
+                "startPoint": pointObject(startPoint),
+                "endPoint": pointObject(dragEnd.screenPoint),
+                "availableDistance": availableDistance,
+            ]
+            if availableDistance < abs(requestedDistance) {
+                let failureReason =
+                    "Diagnostics positioning request exceeded receiver capacity."
+                diagnosticFailure = failureReason
+                attemptTelemetry["failureReason"] = failureReason
+                attempts.append(attemptTelemetry)
+                break
+            }
+
+            let authorityBeforeFrame = diagnosticsAuthority.frame
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            let authorityAfterFrame = diagnosticsAuthority.frame
+            let actualDistance = authorityAfterFrame.minY
+                - authorityBeforeFrame.minY
+            attemptTelemetry["actionPerformed"] = true
+            attemptTelemetry["authorityFrameBefore"] = frameObject(
+                authorityBeforeFrame
+            )
+            attemptTelemetry["authorityFrameAfter"] = frameObject(
+                authorityAfterFrame
+            )
+            attemptTelemetry["actualSignedDistance"] = actualDistance
+            if actualDistance * direction <= 0 {
+                let failureReason =
+                    "Diagnostics positioning gesture produced no signed movement."
+                diagnosticFailure = failureReason
+                attemptTelemetry["failureReason"] = failureReason
+                attempts.append(attemptTelemetry)
+                break
+            }
+            measuredUndertravel = max(
+                0,
+                abs(requestedDistance) - abs(actualDistance)
+            )
+            attemptTelemetry["measuredUndertravelAfter"] = measuredUndertravel
+            let postMinimumShift = navigationBarsQuery.firstMatch.frame.maxY
+                + topClearance
+                - diagnosticsAuthorityQuery.firstMatch.frame.minY
+            let postMaximumShift = min(
+                navigationBarsQuery.firstMatch.frame.maxY
+                    - diagnosticsHeadingQuery.firstMatch.frame.maxY,
+                signsTabQuery.firstMatch.frame.minY
+                    - bottomClearance
+                    - diagnosticsExportQuery.firstMatch.frame.maxY
+            )
+            attemptTelemetry["postMinimumShift"] = postMinimumShift
+            attemptTelemetry["postMaximumShift"] = postMaximumShift
+            attempts.append(attemptTelemetry)
+        }
+
+        let finalNavigationBar = navigationBarsQuery.firstMatch
+        let finalHeading = diagnosticsHeadingQuery.firstMatch
+        let finalAuthority = diagnosticsAuthorityQuery.firstMatch
+        let finalExport = diagnosticsExportQuery.firstMatch
+        let finalSignsTab = signsTabQuery.firstMatch
+        let finalMinimumShift = finalNavigationBar.frame.maxY
+            + topClearance
+            - finalAuthority.frame.minY
+        let finalMaximumShift = min(
+            finalNavigationBar.frame.maxY - finalHeading.frame.maxY,
+            finalSignsTab.frame.minY
+                - bottomClearance
+                - finalExport.frame.maxY
+        )
+        let finalContainsZero = finalMinimumShift <= 0 && finalMaximumShift >= 0
+        if diagnosticFailure == nil, !finalContainsZero {
+            diagnosticFailure =
+                "Diagnostics positioning exhausted its bounded strategy."
+        }
+        let terminalContext: [String: Any] = [
+            "route": routeObject(),
+            "queries": queryMap(),
+            "finalMinimumShift": finalMinimumShift,
+            "finalMaximumShift": finalMaximumShift,
+            "measuredUndertravel": measuredUndertravel,
+            "containsZero": finalContainsZero,
+        ]
+        addDiagnosticAttachments("terminal")
+        printJSONLine(
+            prefix: "S10_4_INCREASED_CONTRAST_DIAGNOSTICS_POSITIONING",
+            object: [
+                "shardID": automationShard?.shardID as Any? ?? NSNull(),
+                "deviceProfileID": automationShard?.deviceProfileID as Any? ?? NSNull(),
+                "stateID": "state.diagnostics.ready",
+                "elapsedMilliseconds": Int(
+                    Date().timeIntervalSince(diagnosticStartedAt) * 1_000
+                ),
+                "start": startContext,
+                "attempts": attempts,
+                "terminal": terminalContext,
+                "failureReason": diagnosticFailure as Any? ?? NSNull(),
+            ]
+        )
+        throw AutomationConfigurationError.invalid(
+            "S10.4 increased-contrast Diagnostics positioning diagnostic"
+        )
     }
 
     @MainActor

@@ -309,34 +309,34 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 205_621,
-            sha256: "CDCB4A9B51C6430DEC7B11710F5218CC83076ADBA37BB5E366AA9512C2D2BD2D"
+            byteCount: 221_651,
+            sha256: "39D2DC5F3A1528264F265216F5321CD8D65E3EA9CDF4F9E23A4481CEDA203C88"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
-        for restoredDiagnosticsCallChainLock in [
+        for throwingDiagnosticsCallChainLock in [
+            "        try assertMonthlyPaywallAtXXXL(in: app)",
+            "    private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) throws {",
+            "        try captureSettingsDataSurfaces(in: app)",
+            "    private func captureSettingsDataSurfaces(in app: XCUIApplication) throws {",
+        ] {
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: throwingDiagnosticsCallChainLock
+                ).count - 1,
+                1,
+                throwingDiagnosticsCallChainLock
+            )
+        }
+        for removedNonthrowingDiagnosticsCallChainLock in [
             "        assertMonthlyPaywallAtXXXL(in: app)",
             "    private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) {",
             "        captureSettingsDataSurfaces(in: app)",
             "    private func captureSettingsDataSurfaces(in app: XCUIApplication) {",
         ] {
-            XCTAssertEqual(
-                uiSource.components(
-                    separatedBy: restoredDiagnosticsCallChainLock
-                ).count - 1,
-                1,
-                restoredDiagnosticsCallChainLock
-            )
-        }
-        for removedThrowingDiagnosticsCallChainLock in [
-            "try assertMonthlyPaywallAtXXXL(in: app)",
-            "private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) throws {",
-            "try captureSettingsDataSurfaces(in: app)",
-            "private func captureSettingsDataSurfaces(in app: XCUIApplication) throws {",
-        ] {
             XCTAssertFalse(
-                uiSource.contains(removedThrowingDiagnosticsCallChainLock),
-                removedThrowingDiagnosticsCallChainLock
+                uiSource.contains(removedNonthrowingDiagnosticsCallChainLock),
+                removedNonthrowingDiagnosticsCallChainLock
             )
         }
         XCTAssertTrue(uiSource.contains("func testAutomatedBrandLabShard()"))
@@ -1804,6 +1804,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 lock
             )
         }
+        let increasedContrastDiagnosticsGate =
+            #"        if automationShard?.shardID == "s10.4.current.increased-contrast" {"# + "\n" +
+                "            try diagnoseIncreasedContrastDiagnosticsPositioning(in: app)\n" +
+                "        }"
+        XCTAssertEqual(
+            diagnosticsPositioningSource.components(
+                separatedBy: increasedContrastDiagnosticsGate
+            ).count - 1,
+            1
+        )
         let diagnosticsTwoAttemptSetup =
             "        let topClearance: CGFloat = 12\n" +
                 "        let bottomClearance: CGFloat = 16\n" +
@@ -2062,6 +2072,293 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+
+        let increasedContrastDiagnosticsHelperStart =
+            "    @MainActor\n" +
+                "    private func diagnoseIncreasedContrastDiagnosticsPositioning(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) throws {"
+        let increasedContrastDiagnosticsHelperEnd =
+            "\n\n    @MainActor\n" +
+                "    private func acceptImportedPhoto("
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: increasedContrastDiagnosticsHelperStart
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: increasedContrastDiagnosticsHelperEnd
+            ).count - 1,
+            1
+        )
+        guard let increasedContrastDiagnosticsHelperStartRange = uiSource.range(
+            of: increasedContrastDiagnosticsHelperStart
+        ), let increasedContrastDiagnosticsHelperEndRange = uiSource.range(
+            of: increasedContrastDiagnosticsHelperEnd,
+            range: increasedContrastDiagnosticsHelperStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the increased-contrast Diagnostics diagnostic helper")
+            return
+        }
+        let increasedContrastDiagnosticsHelperSource = String(
+            uiSource[
+                increasedContrastDiagnosticsHelperStartRange.lowerBound..<increasedContrastDiagnosticsHelperEndRange.lowerBound
+            ]
+        )
+        for queryDeclaration in [
+            "        let diagnosticsScreenQuery = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s8.3.diagnostics.screen""# + "\n" +
+                "        )",
+            "        let diagnosticsHeadingQuery = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s8.3.diagnostics.heading""# + "\n" +
+                "        )",
+            "        let diagnosticsAuthorityQuery = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s8.3.diagnostics.authority""# + "\n" +
+                "        )",
+            "        let diagnosticsExportQuery = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s8.3.diagnostics.export""# + "\n" +
+                "        )",
+            "        let navigationBarsQuery = app.navigationBars",
+            "        let signsTabQuery = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s1.tab.signs""# + "\n" +
+                "        )",
+            "        let diagnosticsScrollViewsQuery = app.scrollViews.containing(\n" +
+                "            .staticText,\n" +
+                #"            identifier: "s8.3.diagnostics.heading""# + "\n" +
+                "        )",
+        ] {
+            XCTAssertEqual(
+                increasedContrastDiagnosticsHelperSource.components(
+                    separatedBy: queryDeclaration
+                ).count - 1,
+                1,
+                queryDeclaration
+            )
+        }
+        let increasedContrastElementSerialization =
+            "        let elementObject: (XCUIElement) -> [String: Any] = { element in\n" +
+                "            let publicValue: Any\n" +
+                "            if let rawValue = element.value {\n" +
+                "                publicValue = String(describing: rawValue)\n" +
+                "            } else {\n" +
+                "                publicValue = NSNull()\n" +
+                "            }\n" +
+                "            return [\n" +
+                #"                "exists": element.exists,"# + "\n" +
+                #"                "isHittable": element.isHittable,"# + "\n" +
+                #"                "identifier": element.identifier,"# + "\n" +
+                #"                "label": element.label,"# + "\n" +
+                #"                "value": publicValue,"# + "\n" +
+                #"                "elementTypeRawValue": element.elementType.rawValue,"# + "\n" +
+                #"                "frame": frameObject(element.frame),"# + "\n" +
+                "            ]\n" +
+                "        }"
+        XCTAssertEqual(
+            increasedContrastDiagnosticsHelperSource.components(
+                separatedBy: increasedContrastElementSerialization
+            ).count - 1,
+            1
+        )
+        let increasedContrastQueryEnumeration =
+            "        let queryObject: (XCUIElementQuery) -> [String: Any] = { query in\n" +
+                "            let count = query.count\n" +
+                "            return [\n" +
+                #"                "count": count,"# + "\n" +
+                #"                "elements": (0..<count).map {"# + "\n" +
+                "                    elementObject(query.element(boundBy: $0))\n" +
+                "                },\n" +
+                "            ]\n" +
+                "        }"
+        XCTAssertEqual(
+            increasedContrastDiagnosticsHelperSource.components(
+                separatedBy: increasedContrastQueryEnumeration
+            ).count - 1,
+            1
+        )
+        for queryMapEntry in [
+            #""diagnosticsScreen": queryObject(diagnosticsScreenQuery)"#,
+            #""diagnosticsHeading": queryObject(diagnosticsHeadingQuery)"#,
+            #""diagnosticsAuthority": queryObject(diagnosticsAuthorityQuery)"#,
+            #""diagnosticsExport": queryObject(diagnosticsExportQuery)"#,
+            #""navigationBars": queryObject(navigationBarsQuery)"#,
+            #""signsTab": queryObject(signsTabQuery)"#,
+            #""diagnosticsScrollViews": queryObject(diagnosticsScrollViewsQuery)"#,
+        ] {
+            XCTAssertEqual(
+                increasedContrastDiagnosticsHelperSource.components(
+                    separatedBy: queryMapEntry
+                ).count - 1,
+                1,
+                queryMapEntry
+            )
+        }
+        let increasedContrastAttemptSetup =
+            "        let topClearance: CGFloat = 12\n" +
+                "        let bottomClearance: CGFloat = 16\n" +
+                "        let minimumGestureDistance: CGFloat = 44\n" +
+                "        let dragInset: CGFloat = 24\n" +
+                "        var measuredUndertravel: CGFloat = 0\n" +
+                "        var correctionDirection: CGFloat?\n" +
+                "        var previousResidualMagnitude: CGFloat?\n" +
+                "        var diagnosticFailure: String?\n" +
+                "        var attempts: [[String: Any]] = []"
+        XCTAssertEqual(
+            increasedContrastDiagnosticsHelperSource.components(
+                separatedBy: increasedContrastAttemptSetup
+            ).count - 1,
+            1
+        )
+        for (diagnosticLock, expectedCount) in [
+            ("for attempt in 0..<2 {", 1),
+            ("diagnosticsScrollView.coordinate(", 1),
+            ("withNormalizedOffset: CGVector(dx: 0.01, dy: 0.45)", 1),
+            ("dragStart.press(", 1),
+            ("forDuration: 0.2", 1),
+            ("withVelocity: .slow", 1),
+            ("thenHoldForDuration: 0.2", 1),
+            ("query.count", 1),
+            ("query.element(boundBy: $0)", 1),
+            ("addDiagnosticAttachments(\"start\")", 1),
+            ("addDiagnosticAttachments(\"terminal\")", 1),
+            ("XCTAttachment(", 2),
+            ("XCUIScreen.main.screenshot()", 1),
+            ("XCTAttachment(string: app.debugDescription)", 1),
+            (".lifetime = .keepAlways", 2),
+            ("self.add(", 2),
+            (#"S10.4 increased-contrast Diagnostics positioning diagnostic \(phase) screen"#, 1),
+            (#"S10.4 increased-contrast Diagnostics positioning diagnostic \(phase) tree"#, 1),
+            ("printJSONLine(", 1),
+            ("S10_4_INCREASED_CONTRAST_DIAGNOSTICS_POSITIONING", 1),
+            ("throw AutomationConfigurationError.invalid(", 1),
+        ] {
+            XCTAssertEqual(
+                increasedContrastDiagnosticsHelperSource.components(
+                    separatedBy: diagnosticLock
+                ).count - 1,
+                expectedCount,
+                diagnosticLock
+            )
+        }
+        for (telemetryKey, expectedCount) in [
+            (#""measuredUndertravelBefore""#, 1),
+            (#""previousResidualMagnitude": previousResidualMagnitude as Any? ?? NSNull(),"#, 1),
+            (#""minimumShift""#, 1),
+            (#""maximumShift""#, 1),
+            (#""actionPerformed""#, 2),
+            (#""selectedEndpoint""#, 2),
+            (#""requestedDistance""#, 2),
+            (#""actualSignedDistance""#, 2),
+            (#""direction""#, 1),
+            (#""residualMagnitude""#, 1),
+            (#""receiver""#, 1),
+            (#""queryCount""#, 1),
+            (#""startPoint""#, 1),
+            (#""endPoint""#, 1),
+            (#""availableDistance""#, 1),
+            (#""authorityFrameBefore""#, 1),
+            (#""authorityFrameAfter""#, 1),
+            (#""measuredUndertravelAfter""#, 1),
+            (#""postMinimumShift""#, 1),
+            (#""postMaximumShift""#, 1),
+            (#""finalMinimumShift""#, 1),
+            (#""finalMaximumShift""#, 1),
+            (#""containsZero""#, 1),
+            (#""failureReason""#, 9),
+            ("let finalContainsZero = finalMinimumShift <= 0 && finalMaximumShift >= 0", 1),
+        ] {
+            XCTAssertEqual(
+                increasedContrastDiagnosticsHelperSource.components(
+                    separatedBy: telemetryKey
+                ).count - 1,
+                expectedCount,
+                telemetryKey
+            )
+        }
+        for diagnosticFailureText in [
+            "Diagnostics positioning route cardinality was not exactly one.",
+            "Diagnostics positioning app was not running in the foreground.",
+            "Diagnostics positioning interval was impossible.",
+            "Diagnostics positioning interval had no signed correction.",
+            "Diagnostics positioning changed correction direction.",
+            "Diagnostics positioning residual did not decrease.",
+            "Diagnostics positioning gesture was not recognizable.",
+            "Diagnostics positioning request exceeded receiver capacity.",
+            "Diagnostics positioning gesture produced no signed movement.",
+            "Diagnostics positioning exhausted its bounded strategy.",
+        ] {
+            XCTAssertEqual(
+                increasedContrastDiagnosticsHelperSource.components(
+                    separatedBy: diagnosticFailureText
+                ).count - 1,
+                1,
+                diagnosticFailureText
+            )
+        }
+        let increasedContrastTerminalTelemetryAndThrow =
+            "        addDiagnosticAttachments(\"terminal\")\n" +
+                "        printJSONLine(\n" +
+                #"            prefix: "S10_4_INCREASED_CONTRAST_DIAGNOSTICS_POSITIONING","# + "\n" +
+                "            object: [\n" +
+                #"                "shardID": automationShard?.shardID as Any? ?? NSNull(),"# + "\n" +
+                #"                "deviceProfileID": automationShard?.deviceProfileID as Any? ?? NSNull(),"# + "\n" +
+                #"                "stateID": "state.diagnostics.ready","# + "\n" +
+                #"                "elapsedMilliseconds": Int("# + "\n" +
+                "                    Date().timeIntervalSince(diagnosticStartedAt) * 1_000\n" +
+                "                ),\n" +
+                #"                "start": startContext,"# + "\n" +
+                #"                "attempts": attempts,"# + "\n" +
+                #"                "terminal": terminalContext,"# + "\n" +
+                #"                "failureReason": diagnosticFailure as Any? ?? NSNull(),"# + "\n" +
+                "            ]\n" +
+                "        )\n" +
+                "        throw AutomationConfigurationError.invalid(\n" +
+                #"            "S10.4 increased-contrast Diagnostics positioning diagnostic""# + "\n" +
+                "        )"
+        XCTAssertEqual(
+            increasedContrastDiagnosticsHelperSource.components(
+                separatedBy: increasedContrastTerminalTelemetryAndThrow
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "S10_4_INCREASED_CONTRAST_DIAGNOSTICS_POSITIONING"
+            ).count - 1,
+            1
+        )
+        for forbiddenDiagnosticForm in [
+            "captureBaseline(",
+            "performAccessibilityAudit",
+            "eligibleExceptions",
+            "assertMigrationStateCoverage",
+            "emitAutomatedLabAccessibilityRowsIfNeeded",
+            "S10_MIGRATION_STATE",
+            "S10_4_AX_STATE",
+            "S10_4_CONTRAST",
+            "S10_4_CANDIDATE",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+            "automatedEvidenceIDs.append",
+            "app.coordinate(",
+            "app.swipeUp()",
+            "app.swipeDown()",
+            ".tap()",
+            "Thread.sleep",
+            "CGRect(",
+            "CGRect(x:",
+            "1085.1666666666665",
+            "72.6666666666667",
+        ] {
+            XCTAssertEqual(
+                increasedContrastDiagnosticsHelperSource.components(
+                    separatedBy: forbiddenDiagnosticForm
+                ).count - 1,
+                0,
+                forbiddenDiagnosticForm
+            )
+        }
 
         let purchaseRecoveryStart =
             #"        var purchase = firstPurchaseButton(in: app)"# + "\n" +
