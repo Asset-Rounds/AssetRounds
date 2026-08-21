@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 179_748,
-            sha256: "4DA73498B10E30B5C05E71D4A367417F11FEB2B359DA208C25813AB4AFCF6985"
+            byteCount: 186_516,
+            sha256: "90E5AED23A44C2B8A51489BB3949919E3C37153C168477EE945A0363EEDC548C"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -914,17 +914,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
 
-        let unchangedGlobalDismissKeyboardHelper =
+        let guardedGlobalDismissKeyboardHelper =
             "    @MainActor\n" +
                 "    private func dismissKeyboard(in app: XCUIApplication) {\n" +
                 "        guard app.keyboards.firstMatch.exists else { return }\n" +
                 #"        let key = app.keyboards.buttons["Return"]"# + "\n" +
-                "        key.exists ? key.tap() : app.swipeDown()\n" +
+                "        key.exists && key.isHittable ? key.tap() : app.swipeDown()\n" +
                 "    }"
         XCTAssertEqual(
             uiSource.components(
-                separatedBy: unchangedGlobalDismissKeyboardHelper
+                separatedBy: guardedGlobalDismissKeyboardHelper
             ).count - 1,
+            1
+        )
+        XCTAssertFalse(
+            uiSource.contains("        key.exists ? key.tap() : app.swipeDown()")
+        )
+
+        let firstReportPreviewPositioning =
+            #"        let preview = element("s4.3.report-detail.preview", in: app)"# +
+                "\n" +
+                "        XCTAssertTrue(preview.waitForExistence(timeout: 20))\n" +
+                "        scroll(preview, in: app)\n" +
+                "        XCTAssertTrue(preview.isHittable)\n" +
+                #"        captureBaseline("state.report-detail.ready", in: app)"#
+        XCTAssertEqual(
+            uiSource.components(separatedBy: firstReportPreviewPositioning).count - 1,
             1
         )
 
@@ -2765,26 +2780,253 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(captureWidePositioningSource.contains(prohibited), prohibited)
         }
 
-        let removedReportCorrectionDiagnosticFragments = [
-            "S10_4_REPORT_CORRECTION_HEADER_CONTEXT_DIAGNOSTIC",
-            "S10_4_REPORT_CORRECTION_HEADER_AUDIT_DIAGNOSTIC",
-            "S10_4_REPORT_CORRECTION_HEADER_AUDIT_COUNT_DIAGNOSTIC",
-            "Report-correction-header diagnostic",
-            "Report-correction-header audit issue",
-            "diagnosticElementObject",
-            "diagnosticQueryObject",
-        ]
-        for fragment in removedReportCorrectionDiagnosticFragments {
-            XCTAssertEqual(uiSource.components(separatedBy: fragment).count - 1, 0, fragment)
-        }
-        let restoredReportCorrectionAuditAdjacency =
-            "        do {\n" +
-                "            let eligibleExceptions = " +
+        let reportCorrectionDiagnosticStart =
+            "            if shard.shardID == \"s10.4.current.default-light\",\n" +
+                "               stateID == \"state.report-correction.validation-error\" {"
+        let reportCorrectionEligibleExceptions =
+            "            let eligibleExceptions = " +
                 "Self.contrastAuditExceptionSignatures.filter {"
         XCTAssertEqual(
-            uiSource.components(separatedBy: restoredReportCorrectionAuditAdjacency).count - 1,
+            uiSource.components(separatedBy: reportCorrectionDiagnosticStart).count - 1,
             1
         )
+        guard let reportCorrectionDiagnosticStartRange = uiSource.range(
+            of: reportCorrectionDiagnosticStart
+        ),
+        let reportCorrectionEligibleRange = uiSource.range(
+            of: reportCorrectionEligibleExceptions,
+            range: reportCorrectionDiagnosticStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the sole default-light report-correction diagnostic branch")
+            return
+        }
+        let reportCorrectionDiagnostic = String(
+            uiSource[
+                reportCorrectionDiagnosticStartRange.lowerBound..<reportCorrectionEligibleRange.lowerBound
+            ]
+        )
+
+        let reportCorrectionPassiveBindings = [
+            "                let headerElements = app.descendants(matching: .any).matching(\n" +
+                "                    identifier: \"s4.5.correction.header\"\n" +
+                "                )",
+            "                let header = headerElements.firstMatch",
+            "                guard headerElements.count == 1,\n" +
+                "                      header.exists,\n" +
+                "                      header.label == \"Correct report\",\n" +
+                "                      header.elementType == .staticText else {",
+            "                let correctionScrollViews = app.scrollViews.containing(\n" +
+                "                    .button,\n" +
+                "                    identifier: \"s4.5.correction.save\"\n" +
+                "                )",
+            "                let navigationBars = app.navigationBars",
+            "                let validationElements = app.descendants(matching: .any).matching(\n" +
+                "                    identifier: \"s4.5.correction.validation\"\n" +
+                "                )",
+            "                let saveElements = app.descendants(matching: .any).matching(\n" +
+                "                    identifier: \"s4.5.correction.save\"\n" +
+                "                )",
+            "                let keyboards = app.keyboards",
+            "                let inputViews = app.otherElements.matching(\n" +
+                "                    NSPredicate(format: \"identifier == %@\", \"inputView\")\n" +
+                "                )",
+            "                let tabBars = app.tabBars",
+            "                let diagnosticElementObject: (XCUIElement) -> [String: Any] = {",
+            "                let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {",
+            "                    prefix: \"S10_4_REPORT_CORRECTION_HEADER_CONTEXT_DIAGNOSTIC\"",
+            "                        \"application\": diagnosticElementObject(app)",
+            "                        \"header\": diagnosticQueryObject(headerElements)",
+            "                        \"reportCorrectionScrollView\": diagnosticQueryObject(",
+            "                        \"navigationBar\": diagnosticQueryObject(navigationBars)",
+            "                        \"validation\": diagnosticQueryObject(validationElements)",
+            "                        \"save\": diagnosticQueryObject(saveElements)",
+            "                        \"keyboard\": diagnosticQueryObject(keyboards)",
+            "                        \"inputView\": diagnosticQueryObject(inputViews)",
+            "                        \"tabBar\": diagnosticQueryObject(tabBars)",
+        ]
+        for lock in reportCorrectionPassiveBindings {
+            XCTAssertEqual(
+                reportCorrectionDiagnostic.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        let reportCorrectionElementObject =
+            "                let diagnosticElementObject: (XCUIElement) -> [String: Any] = {\n" +
+                "                    element in\n" +
+                "                    [\n" +
+                "                        \"identifier\": element.identifier,\n" +
+                "                        \"label\": element.label,\n" +
+                "                        \"elementType\": String(describing: element.elementType),\n" +
+                "                        \"frame\": self.auditFrameObject(element.frame),\n" +
+                "                        \"exists\": element.exists,\n" +
+                "                        \"isHittable\": element.isHittable,\n" +
+                "                    ]\n" +
+                "                }"
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(
+                separatedBy: reportCorrectionElementObject
+            ).count - 1,
+            1
+        )
+        let reportCorrectionQueryObject =
+            "                let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {\n" +
+                "                    query in\n" +
+                "                    [\n" +
+                "                        \"cardinality\": query.count,\n" +
+                "                        \"elements\": (0..<query.count).map { index in\n" +
+                "                            diagnosticElementObject(query.element(boundBy: index))\n" +
+                "                        },\n" +
+                "                    ]\n" +
+                "                }"
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(
+                separatedBy: reportCorrectionQueryObject
+            ).count - 1,
+            1
+        )
+
+        let reportCorrectionAttachmentLocks = [
+            "                let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            "                    \"S10.4 default-light Report-correction-header diagnostic app\"",
+            "                add(appAttachment)",
+            "                let treeAttachment = XCTAttachment(string: app.debugDescription)",
+            "                    \"S10.4 default-light Report-correction-header diagnostic accessibility tree\"",
+            "                add(treeAttachment)",
+            "                let headerAttachment = XCTAttachment(screenshot: header.screenshot())",
+            "                    \"S10.4 default-light Report-correction-header diagnostic header\"",
+            "                add(headerAttachment)",
+            "                        let attachment = XCTAttachment(\n" +
+                "                            screenshot: auditedElement.screenshot()\n" +
+                "                        )",
+            "                            \"S10.4 default-light Report-correction-header audit issue \"",
+            "                        self.add(attachment)",
+        ]
+        for lock in reportCorrectionAttachmentLocks {
+            XCTAssertEqual(
+                reportCorrectionDiagnostic.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(separatedBy: "XCTAttachment(").count - 1,
+            4
+        )
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(separatedBy: "lifetime = .keepAlways").count - 1,
+            4
+        )
+
+        let reportCorrectionIssueFields = [
+            "                        \"issueOrdinal\": observedIssueCount,",
+            "                        \"auditTypeRawValue\": String(issue.auditType.rawValue),",
+            "                        \"compactDescription\": issue.compactDescription,",
+            "                        \"detailedDescription\": issue.detailedDescription,",
+            "                        \"elementIdentifier\": NSNull(),",
+            "                        \"elementLabel\": NSNull(),",
+            "                        \"elementType\": NSNull(),",
+            "                        \"elementFrame\": NSNull(),",
+            "                        \"applicationFrame\": self.auditFrameObject(app.frame),",
+            "                        diagnostic[\"elementIdentifier\"] = auditedElement.identifier",
+            "                        diagnostic[\"elementLabel\"] = auditedElement.label",
+            "                        diagnostic[\"elementType\"] = String(",
+            "                        diagnostic[\"elementFrame\"] = self.auditFrameObject(",
+            "                    prefix: \"S10_4_REPORT_CORRECTION_HEADER_AUDIT_DIAGNOSTIC\"",
+        ]
+        for lock in reportCorrectionIssueFields {
+            XCTAssertEqual(
+                reportCorrectionDiagnostic.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(separatedBy: "NSNull()").count - 1,
+            4
+        )
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(
+                separatedBy: "                var observedIssueCount = 0"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(
+                separatedBy: "                    observedIssueCount += 1"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: "var observedIssueCount = 0").count - 1,
+            2
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: "observedIssueCount += 1").count - 1,
+            2
+        )
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(
+                separatedBy: "                try app.performAccessibilityAudit(for: .contrast) { issue in"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(separatedBy: "return true").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(separatedBy: "return false").count - 1,
+            0
+        )
+
+        let reportCorrectionAuditCount =
+            "                printJSONLine(\n" +
+                "                    prefix: \"S10_4_REPORT_CORRECTION_HEADER_AUDIT_COUNT_DIAGNOSTIC\",\n" +
+                "                    object: [\"issueCount\": observedIssueCount]\n" +
+                "                )"
+        let reportCorrectionTerminal =
+            reportCorrectionAuditCount + "\n" +
+                "                throw AutomationConfigurationError.invalid(\n" +
+                "                    \"S10.4 default-light Report-correction-header diagnostic completed nonaccepting\"\n" +
+                "                )"
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(separatedBy: reportCorrectionTerminal).count - 1,
+            1
+        )
+        let reportCorrectionTerminalBeforeEligible =
+            reportCorrectionTerminal + "\n            }\n\n" +
+                reportCorrectionEligibleExceptions
+        XCTAssertEqual(
+            uiSource.components(separatedBy: reportCorrectionTerminalBeforeEligible).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(separatedBy: "printJSONLine(").count - 1,
+            3
+        )
+        for prohibited in [
+            ".tap(",
+            ".swipe",
+            ".press(",
+            ".coordinate(",
+            ".typeText(",
+            "scroll(",
+            "navigateBack(",
+            "setToggle(",
+            "app.launch",
+            "app.terminate",
+            "migratedStateIDs.append",
+            "automationContrastExceptions",
+            "automationAXTreeDigests",
+            #"prefix: "S10_4_AX_STATE""#,
+            #"prefix: "S10_4_CONTRAST""#,
+            "automatedEvidenceIDs.append(",
+            "attachCandidate(",
+            "let candidate = XCTAttachment(",
+        ] {
+            XCTAssertFalse(reportCorrectionDiagnostic.contains(prohibited), prohibited)
+        }
 
         let exceptionIDs = [
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",
