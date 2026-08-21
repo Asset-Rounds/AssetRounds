@@ -3006,16 +3006,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"taskStateLimit = 2"#,
             #"case ("s10.4.current.default-dark", "report_comprehension")"#,
             #"taskIssueLimit = 2"#,
-            #"permittedExceptionStateIDs = [
-                    "state.report-correction.validation-error",
-                    "state.sample-report.ready",
-                ]"#,
+            #"permittedExceptionStateIDs = ["# + "\n" +
+                #"                    "state.report-correction.validation-error","# + "\n" +
+                #"                    "state.sample-report.ready","# + "\n" +
+                #"                ]"#,
             #"case ("s10.4.current.increased-contrast", "report_comprehension")"#,
             #"taskIssueLimit = 1"#,
             #"taskStateLimit = 1"#,
-            #"permittedExceptionStateIDs = [
-                    "state.report-correction.validation-error",
-                ]"#,
+            #"permittedExceptionStateIDs = ["# + "\n" +
+                #"                    "state.report-correction.validation-error","# + "\n" +
+                #"                ]"#,
             #"case ("s10.4.current.default-dark", "history_recovery")"#,
             #"permittedExceptionStateIDs = ["state.feedback.review-ready"]"#,
             #"guard taskExceptions.count <= taskIssueLimit else"#,
