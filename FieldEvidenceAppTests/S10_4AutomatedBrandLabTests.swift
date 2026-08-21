@@ -2245,8 +2245,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
 
         let removedCaptureWideDiagnosticFragments = [
-            #"            if shard.shardID == "s10.4.current.ax-text",
-               stateID == "state.capture.wide-ready" {"#,
+            #"            if shard.shardID == "s10.4.current.ax-text","# + "\n" +
+                #"               stateID == "state.capture.wide-ready" {"#,
             #"prefix: "S10_4_CAPTURE_WIDE_CONTEXT_DIAGNOSTIC""#,
             #"prefix: "S10_4_CAPTURE_WIDE_AUDIT_DIAGNOSTIC""#,
             #"prefix: "S10_4_CAPTURE_WIDE_AUDIT_COUNT_DIAGNOSTIC""#,
@@ -2283,7 +2283,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         let captureWidePositioningStart =
-            #"        if automationShard?.shardID == "s10.4.current.ax-text" {#
+            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
         let captureWideReadyCapture =
             #"        captureBaseline("state.capture.wide-ready", in: app)"#
         XCTAssertEqual(
