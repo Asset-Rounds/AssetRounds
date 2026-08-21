@@ -960,6 +960,316 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         XCTAssertTrue(element("s3.capture.screen", in: app)
             .waitForExistence(timeout: 20))
+        if automationShard?.shardID == "s10.4.current.ax-text" {
+            let captureScrollViews = app.scrollViews.matching(
+                identifier: "s3.capture.screen"
+            )
+            let captureNavigationBars = app.navigationBars
+            let captureTabBars = app.tabBars
+            let captureInputViews = app.otherElements.matching(
+                NSPredicate(format: "identifier == %@", "inputView")
+            )
+            let captureScroll = captureScrollViews.firstMatch
+            let captureNavigationBar = captureNavigationBars.firstMatch
+            let captureHeadingQuery = app.descendants(matching: .any).matching(
+                identifier: "s3.capture.heading"
+            )
+            let takePhotoQuery = app.descendants(matching: .any).matching(
+                identifier: "s3.capture.take-photo"
+            )
+            let choosePhotosQuery = app.descendants(matching: .any).matching(
+                identifier: "s3.capture.choose-photos"
+            )
+            let cannotCompleteQuery = app.descendants(matching: .any).matching(
+                identifier: "s3.capture.cannot-complete"
+            )
+            let importFixtureQuery = app.descendants(matching: .any).matching(
+                identifier: "s3.capture.import-fixture"
+            )
+            let capturePreviewQuery = app.descendants(matching: .any).matching(
+                identifier: "s3.capture.preview"
+            )
+            let captureHeading = captureHeadingQuery.firstMatch
+            let takePhoto = takePhotoQuery.firstMatch
+            let choosePhotos = choosePhotosQuery.firstMatch
+            let cannotComplete = cannotCompleteQuery.firstMatch
+            let importFixture = importFixtureQuery.firstMatch
+            let capturePreview = capturePreviewQuery.firstMatch
+            let frozenCaptureElements = [
+                captureScroll,
+                captureNavigationBar,
+                captureHeading,
+                takePhoto,
+                choosePhotos,
+                cannotComplete,
+                importFixture,
+            ]
+            guard captureScrollViews.count == 1,
+                  captureNavigationBars.count == 1,
+                  captureTabBars.count <= 1,
+                  captureHeadingQuery.count == 1,
+                  takePhotoQuery.count == 1,
+                  choosePhotosQuery.count == 1,
+                  cannotCompleteQuery.count == 1,
+                  importFixtureQuery.count == 1,
+                  capturePreviewQuery.count == 0,
+                  app.keyboards.count == 0,
+                  captureInputViews.count == 0,
+                  frozenCaptureElements.allSatisfy({
+                      $0.waitForExistence(timeout: 10)
+                  }),
+                  captureHeading.label == "1 of 2 · Wide view",
+                  takePhoto.label == "Take photo",
+                  choosePhotos.label == "Choose from Photos",
+                  cannotComplete.label == "Cannot complete",
+                  importFixture.label == "Import test photo",
+                  !capturePreview.exists,
+                  app.state == .runningForeground else {
+                XCTFail(
+                    "AX-text capture-wide positioning preconditions are incomplete."
+                )
+                return
+            }
+            let prePositionTabBarCount = captureTabBars.count
+            let prePositionCaptureRouteExists = captureScroll.exists
+            let prePositionHeadingLabel = captureHeading.label
+            let prePositionTakePhotoLabel = takePhoto.label
+            let prePositionChoosePhotosLabel = choosePhotos.label
+            let prePositionCannotCompleteLabel = cannotComplete.label
+            let prePositionImportFixtureLabel = importFixture.label
+            let prePositionPreviewExists = capturePreview.exists
+            let horizontalInset: CGFloat = 24
+            let verticalInset: CGFloat = 16
+            let minimumGestureDistance: CGFloat = 44
+
+            for _ in 0..<4 {
+                guard captureScrollViews.count == 1,
+                      captureNavigationBars.count == 1,
+                      captureTabBars.count == prePositionTabBarCount,
+                      captureHeadingQuery.count == 1,
+                      takePhotoQuery.count == 1,
+                      choosePhotosQuery.count == 1,
+                      cannotCompleteQuery.count == 1,
+                      importFixtureQuery.count == 1,
+                      capturePreviewQuery.count == 0,
+                      captureScroll.exists,
+                      captureNavigationBar.exists,
+                      cannotComplete.exists,
+                      importFixture.exists,
+                      app.keyboards.count == 0,
+                      captureInputViews.count == 0,
+                      app.state == .runningForeground else {
+                    XCTFail("AX-text capture-wide live route geometry changed.")
+                    return
+                }
+                let liveTabBarTop: CGFloat
+                if prePositionTabBarCount == 1 {
+                    let tabBar = captureTabBars.firstMatch
+                    guard tabBar.exists else {
+                        XCTFail("AX-text capture-wide TabBar disappeared.")
+                        return
+                    }
+                    liveTabBarTop = tabBar.frame.minY
+                } else {
+                    liveTabBarTop = app.frame.maxY
+                }
+                let scrollFrame = captureScroll.frame
+                let liveLeft = max(scrollFrame.minX, app.frame.minX)
+                let liveRight = min(scrollFrame.maxX, app.frame.maxX)
+                let liveTop = max(
+                    scrollFrame.minY,
+                    max(app.frame.minY, captureNavigationBar.frame.maxY)
+                )
+                let liveBottom = min(
+                    scrollFrame.maxY,
+                    min(app.frame.maxY, liveTabBarTop)
+                )
+                let safeLeft = liveLeft + horizontalInset
+                let safeRight = liveRight - horizontalInset
+                let safeTop = liveTop + verticalInset
+                let safeBottom = liveBottom - verticalInset
+                guard safeRight > safeLeft,
+                      safeBottom > safeTop else {
+                    XCTFail("AX-text capture-wide has no inset live viewport.")
+                    return
+                }
+
+                let cannotFrame = cannotComplete.frame
+                let importFrame = importFixture.frame
+                let targetLeft = min(cannotFrame.minX, importFrame.minX)
+                let targetRight = max(cannotFrame.maxX, importFrame.maxX)
+                let targetTop = min(cannotFrame.minY, importFrame.minY)
+                let targetBottom = max(cannotFrame.maxY, importFrame.maxY)
+                guard targetLeft >= safeLeft,
+                      targetRight <= safeRight,
+                      targetBottom - targetTop <= safeBottom - safeTop else {
+                    XCTFail(
+                        "AX-text capture-wide lower actions cannot fit the inset viewport."
+                    )
+                    return
+                }
+                let cannotContained = cannotFrame.minY >= safeTop
+                    && cannotFrame.maxY <= safeBottom
+                let importContained = importFrame.minY >= safeTop
+                    && importFrame.maxY <= safeBottom
+                if cannotContained && importContained {
+                    break
+                }
+
+                let minimumShift = max(
+                    safeTop - cannotFrame.minY,
+                    safeTop - importFrame.minY
+                )
+                let maximumShift = min(
+                    safeBottom - cannotFrame.maxY,
+                    safeBottom - importFrame.maxY
+                )
+                let maximumGestureDistance = liveBottom
+                    - liveTop
+                    - (2 * verticalInset)
+                guard minimumShift <= maximumShift,
+                      maximumGestureDistance >= minimumGestureDistance else {
+                    XCTFail(
+                        "AX-text capture-wide has no feasible recognized shift."
+                    )
+                    return
+                }
+                let dragDistance: CGFloat
+                if maximumShift < 0 {
+                    let recognizedMinimum = max(
+                        minimumShift,
+                        -maximumGestureDistance
+                    )
+                    let recognizedMaximum = min(
+                        maximumShift,
+                        -minimumGestureDistance
+                    )
+                    guard recognizedMinimum <= recognizedMaximum else {
+                        XCTFail(
+                            "AX-text capture-wide upward shift is not recognizable."
+                        )
+                        return
+                    }
+                    dragDistance = recognizedMaximum
+                } else if minimumShift > 0 {
+                    let recognizedMinimum = max(
+                        minimumShift,
+                        minimumGestureDistance
+                    )
+                    let recognizedMaximum = min(
+                        maximumShift,
+                        maximumGestureDistance
+                    )
+                    guard recognizedMinimum <= recognizedMaximum else {
+                        XCTFail(
+                            "AX-text capture-wide downward shift is not recognizable."
+                        )
+                        return
+                    }
+                    dragDistance = recognizedMinimum
+                } else {
+                    XCTFail(
+                        "AX-text capture-wide feasible shift is directionless."
+                    )
+                    return
+                }
+
+                let scrollOrigin = captureScroll.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0, dy: 0)
+                )
+                let dragStartOffsetY = dragDistance > 0
+                    ? liveTop - scrollFrame.minY + verticalInset
+                    : liveBottom - scrollFrame.minY - verticalInset
+                let dragStart = scrollOrigin.withOffset(
+                    CGVector(
+                        dx: scrollFrame.width / 2,
+                        dy: dragStartOffsetY
+                    )
+                )
+                let dragEnd = dragStart.withOffset(
+                    CGVector(dx: 0, dy: dragDistance)
+                )
+                let cannotBeforeDrag = cannotFrame.minY
+                let importBeforeDrag = importFrame.minY
+                dragStart.press(forDuration: 0.05, thenDragTo: dragEnd)
+                let observedCannotShift = cannotComplete.frame.minY
+                    - cannotBeforeDrag
+                let observedImportShift = importFixture.frame.minY
+                    - importBeforeDrag
+                guard observedCannotShift * dragDistance > 0,
+                      observedImportShift * dragDistance > 0 else {
+                    XCTFail(
+                        "AX-text capture-wide positioning gesture was not recognized."
+                    )
+                    return
+                }
+            }
+
+            let finalTabBarExists = prePositionTabBarCount == 0
+                || captureTabBars.firstMatch.waitForExistence(timeout: 10)
+            let finalTabBarTop = prePositionTabBarCount == 1
+                && finalTabBarExists
+                ? captureTabBars.firstMatch.frame.minY
+                : app.frame.maxY
+            let finalScrollFrame = captureScroll.frame
+            let finalSafeLeft = max(
+                finalScrollFrame.minX,
+                app.frame.minX
+            ) + horizontalInset
+            let finalSafeRight = min(
+                finalScrollFrame.maxX,
+                app.frame.maxX
+            ) - horizontalInset
+            let finalSafeTop = max(
+                finalScrollFrame.minY,
+                max(app.frame.minY, captureNavigationBar.frame.maxY)
+            ) + verticalInset
+            let finalSafeBottom = min(
+                finalScrollFrame.maxY,
+                min(app.frame.maxY, finalTabBarTop)
+            ) - verticalInset
+            let finalCannotFrame = cannotComplete.frame
+            let finalImportFrame = importFixture.frame
+            let finalCannotContained = finalCannotFrame.minX >= finalSafeLeft
+                && finalCannotFrame.maxX <= finalSafeRight
+                && finalCannotFrame.minY >= finalSafeTop
+                && finalCannotFrame.maxY <= finalSafeBottom
+            let finalImportContained = finalImportFrame.minX >= finalSafeLeft
+                && finalImportFrame.maxX <= finalSafeRight
+                && finalImportFrame.minY >= finalSafeTop
+                && finalImportFrame.maxY <= finalSafeBottom
+            guard captureScrollViews.count == 1,
+                  captureNavigationBars.count == 1,
+                  captureTabBars.count == prePositionTabBarCount,
+                  captureHeadingQuery.count == 1,
+                  takePhotoQuery.count == 1,
+                  choosePhotosQuery.count == 1,
+                  cannotCompleteQuery.count == 1,
+                  importFixtureQuery.count == 1,
+                  capturePreviewQuery.count == 0,
+                  finalTabBarExists,
+                  frozenCaptureElements.allSatisfy({ $0.exists }),
+                  captureScroll.exists == prePositionCaptureRouteExists,
+                  app.keyboards.count == 0,
+                  captureInputViews.count == 0,
+                  captureHeading.label == prePositionHeadingLabel,
+                  takePhoto.label == prePositionTakePhotoLabel,
+                  choosePhotos.label == prePositionChoosePhotosLabel,
+                  cannotComplete.label == prePositionCannotCompleteLabel,
+                  importFixture.label == prePositionImportFixtureLabel,
+                  capturePreview.exists == prePositionPreviewExists,
+                  !capturePreview.exists,
+                  finalCannotContained,
+                  finalImportContained,
+                  cannotComplete.isHittable,
+                  importFixture.isHittable,
+                  app.state == .runningForeground else {
+                XCTFail(
+                    "AX-text capture-wide lower actions were not restored fully visible and unchanged."
+                )
+                return
+            }
+        }
         captureBaseline("state.capture.wide-ready", in: app)
         recoverCameraDenialAndResume(in: app)
 
@@ -2696,149 +3006,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             line: line
         )
         do {
-            if shard.shardID == "s10.4.current.ax-text",
-               stateID == "state.capture.wide-ready" {
-                let captureScroll = element("s3.capture.screen", in: app)
-                let navigationBar = app.navigationBars.firstMatch
-                let captureHeading = element("s3.capture.heading", in: app)
-                let takePhoto = element("s3.capture.take-photo", in: app)
-                let choosePhotos = element("s3.capture.choose-photos", in: app)
-                let cannotComplete = element("s3.capture.cannot-complete", in: app)
-                let importFixture = element("s3.capture.import-fixture", in: app)
-                let diagnosticElements: [(name: String, element: XCUIElement)] = [
-                    ("capture-scroll", captureScroll),
-                    ("navigation-bar", navigationBar),
-                    ("capture-heading", captureHeading),
-                    ("take-photo", takePhoto),
-                    ("choose-photos", choosePhotos),
-                    ("cannot-complete", cannotComplete),
-                    ("import-fixture", importFixture),
-                ]
-                guard diagnosticElements.allSatisfy({ $0.element.exists }) else {
-                    throw AutomationConfigurationError.invalid(
-                        "S10.4 AX-text capture-wide diagnostic elements are incomplete"
-                    )
-                }
-
-                var liveElements: [[String: Any]] = []
-                for diagnosticElement in diagnosticElements {
-                    liveElements.append([
-                        "name": diagnosticElement.name,
-                        "identifier": diagnosticElement.element.identifier,
-                        "label": diagnosticElement.element.label,
-                        "elementType": String(
-                            describing: diagnosticElement.element.elementType
-                        ),
-                        "frame": auditFrameObject(diagnosticElement.element.frame),
-                        "exists": diagnosticElement.element.exists,
-                        "isHittable": diagnosticElement.element.isHittable,
-                    ])
-                }
-                let queryFrames: (XCUIElementQuery) -> [[String: Any]] = { query in
-                    (0..<query.count).map { index in
-                        self.auditFrameObject(query.element(boundBy: index).frame)
-                    }
-                }
-                let inputViews = app.otherElements.matching(
-                    NSPredicate(format: "identifier == %@", "inputView")
-                )
-                let viewportTop = max(
-                    captureScroll.frame.minY,
-                    navigationBar.frame.maxY
-                )
-                let viewportBottom = min(
-                    captureScroll.frame.maxY,
-                    app.frame.maxY
-                )
-                let viewportFrame = CGRect(
-                    x: captureScroll.frame.minX,
-                    y: viewportTop,
-                    width: captureScroll.frame.width,
-                    height: max(0, viewportBottom - viewportTop)
-                )
-                printJSONLine(
-                    prefix: "S10_4_CAPTURE_WIDE_CONTEXT_DIAGNOSTIC",
-                    object: [
-                        "applicationFrame": auditFrameObject(app.frame),
-                        "viewportFrame": auditFrameObject(viewportFrame),
-                        "elements": liveElements,
-                        "keyboardCount": app.keyboards.count,
-                        "keyboardFrames": queryFrames(app.keyboards),
-                        "inputViewCount": inputViews.count,
-                        "inputViewFrames": queryFrames(inputViews),
-                        "tabBarCount": app.tabBars.count,
-                        "tabBarFrames": queryFrames(app.tabBars),
-                    ]
-                )
-
-                let appAttachment = XCTAttachment(screenshot: app.screenshot())
-                appAttachment.name =
-                    "S10.4 AX-text capture-wide diagnostic app"
-                appAttachment.lifetime = .keepAlways
-                add(appAttachment)
-                let treeAttachment = XCTAttachment(string: app.debugDescription)
-                treeAttachment.name =
-                    "S10.4 AX-text capture-wide diagnostic accessibility tree"
-                treeAttachment.lifetime = .keepAlways
-                add(treeAttachment)
-                for diagnosticElement in diagnosticElements {
-                    let attachment = XCTAttachment(
-                        screenshot: diagnosticElement.element.screenshot()
-                    )
-                    attachment.name =
-                        "S10.4 AX-text capture-wide diagnostic "
-                        + diagnosticElement.name
-                    attachment.lifetime = .keepAlways
-                    add(attachment)
-                }
-
-                var observedIssueCount = 0
-                try app.performAccessibilityAudit(for: .contrast) { issue in
-                    observedIssueCount += 1
-                    var diagnostic: [String: Any] = [
-                        "issueOrdinal": observedIssueCount,
-                        "auditTypeRawValue": String(issue.auditType.rawValue),
-                        "compactDescription": issue.compactDescription,
-                        "detailedDescription": issue.detailedDescription,
-                        "elementIdentifier": NSNull(),
-                        "elementLabel": NSNull(),
-                        "elementType": NSNull(),
-                        "elementFrame": NSNull(),
-                        "applicationFrame": self.auditFrameObject(app.frame),
-                    ]
-                    if let auditedElement = issue.element {
-                        diagnostic["elementIdentifier"] = auditedElement.identifier
-                        diagnostic["elementLabel"] = auditedElement.label
-                        diagnostic["elementType"] = String(
-                            describing: auditedElement.elementType
-                        )
-                        diagnostic["elementFrame"] = self.auditFrameObject(
-                            auditedElement.frame
-                        )
-                        let attachment = XCTAttachment(
-                            screenshot: auditedElement.screenshot()
-                        )
-                        attachment.name =
-                            "S10.4 AX-text capture-wide audit issue "
-                            + String(observedIssueCount)
-                        attachment.lifetime = .keepAlways
-                        self.add(attachment)
-                    }
-                    self.printJSONLine(
-                        prefix: "S10_4_CAPTURE_WIDE_AUDIT_DIAGNOSTIC",
-                        object: diagnostic
-                    )
-                    return true
-                }
-                printJSONLine(
-                    prefix: "S10_4_CAPTURE_WIDE_AUDIT_COUNT_DIAGNOSTIC",
-                    object: ["issueCount": observedIssueCount]
-                )
-                throw AutomationConfigurationError.invalid(
-                    "S10.4 AX-text capture-wide diagnostic completed nonaccepting"
-                )
-            }
-
             let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
                 $0.shardID == shard.shardID && $0.stateID == stateID
             }
