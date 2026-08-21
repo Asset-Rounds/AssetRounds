@@ -3163,9 +3163,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ]
         )
         let defaultLightWorkflowAuthorityStart =
-            #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER","#
+            "              {\n" +
+                #"                shardID: "s10.4.current.default-light","# + "\n" +
+                #"                stateID: "state.report-correction.validation-error","# + "\n" +
+                #"                taskID: "report_comprehension","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER","#
         let defaultLightWorkflowAuthorityEnd =
-            #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER","#
+            "              {\n" +
+                #"                shardID: "s10.4.current.default-dark","# + "\n" +
+                #"                stateID: "state.report-correction.validation-error","# + "\n" +
+                #"                taskID: "report_comprehension","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER","#
         guard let defaultLightWorkflowAuthorityStartRange = workflowSource.range(
             of: defaultLightWorkflowAuthorityStart
         ),
@@ -3480,7 +3488,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"stateIssueLimit($shardID; $stateID)"#,
             #"and $stateID == "state.check-preflight.ready" then 2"#,
             #"and $stateID == "state.new-sign.editing" then 1"#,
-            #"and $shardID == "s10.4.current.default-light""#,
             #"and ($stateID == "state.feedback.review-ready""#,
             #"or $stateID == "state.report-correction.validation-error""#,
             #"or $stateID == "state.sample-report.ready") then 1"#,
