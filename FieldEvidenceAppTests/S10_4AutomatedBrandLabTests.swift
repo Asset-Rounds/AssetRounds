@@ -309,11 +309,36 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 196_501,
-            sha256: "463F5F6752754B465685A6FC827E2C554CEF0B50DF86F8E7499C7B4D57C62B65"
+            byteCount: 201_937,
+            sha256: "0C9AA9AF7FABB06E220C25C186E79A6D3C5B66D5CA4C6D25DC08E6253FCA997E"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
+        for throwingDiagnosticsCallChainLock in [
+            "func runAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift() throws {",
+            "try assertMonthlyPaywallAtXXXL(in: app)",
+            "private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) throws {",
+            "try captureSettingsDataSurfaces(in: app)",
+            "private func captureSettingsDataSurfaces(in app: XCUIApplication) throws {",
+        ] {
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: throwingDiagnosticsCallChainLock
+                ).count - 1,
+                1,
+                throwingDiagnosticsCallChainLock
+            )
+        }
+        XCTAssertFalse(
+            uiSource.contains(
+                "private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) {"
+            )
+        )
+        XCTAssertFalse(
+            uiSource.contains(
+                "private func captureSettingsDataSurfaces(in app: XCUIApplication) {"
+            )
+        )
         XCTAssertTrue(uiSource.contains("func testAutomatedBrandLabShard()"))
         XCTAssertTrue(uiSource.contains("printJSONLine(prefix: \"S10_4_AX_STATE\""))
         XCTAssertTrue(uiSource.contains("printJSONLine(prefix: \"S10_4_CONTRAST\""))
@@ -1473,8 +1498,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "forDuration: 0.2,",
             "withVelocity: .slow,",
             "thenHoldForDuration: 0.2",
-            "let actualDistance = diagnosticsAuthority.frame.minY",
-            "- authorityBeforeDrag",
+            "let authorityAfterDrag = diagnosticsAuthority.frame.minY",
+            "let actualDistance = authorityAfterDrag - authorityBeforeDrag",
             "guard actualDistance * dragDistance > 0 else {",
             "Diagnostics positioning gesture was not recognized.",
             "let finalMinimumShift = navigationBar.frame.maxY",
@@ -1487,6 +1512,322 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ]
         for lock in diagnosticsPositioningLocks {
             XCTAssertTrue(diagnosticsPositioningSource.contains(lock), lock)
+        }
+        let diagnosticsTelemetryStart =
+            "        let diagnoseDefaultLightPositioning = automationShard?.shardID\n" +
+                #"            == "s10.4.current.default-light""#
+        let diagnosticsTelemetryEnd =
+            "        guard finalMinimumShift <= 0, finalMaximumShift >= 0 else {"
+        XCTAssertEqual(
+            diagnosticsPositioningSource.components(
+                separatedBy: diagnosticsTelemetryStart
+            ).count - 1,
+            1
+        )
+        guard let diagnosticsTelemetryStartRange = diagnosticsPositioningSource.range(
+            of: diagnosticsTelemetryStart
+        ), let diagnosticsTelemetryEndRange = diagnosticsPositioningSource.range(
+            of: diagnosticsTelemetryEnd,
+            range: diagnosticsTelemetryStartRange.upperBound..<diagnosticsPositioningSource.endIndex
+        ) else {
+            XCTFail("Missing the default-light Diagnostics telemetry slice")
+            return
+        }
+        let diagnosticsTelemetrySource = String(
+            diagnosticsPositioningSource[
+                diagnosticsTelemetryStartRange.lowerBound..<diagnosticsTelemetryEndRange.lowerBound
+            ]
+        )
+        let diagnosticsTelemetrySerializers =
+            "        let frameObject: (CGRect) -> [String: CGFloat] = { frame in\n" +
+                "            [\n" +
+                "                \"x\": frame.origin.x,\n" +
+                "                \"y\": frame.origin.y,\n" +
+                "                \"width\": frame.size.width,\n" +
+                "                \"height\": frame.size.height,\n" +
+                "            ]\n" +
+                "        }\n" +
+                "        let pointObject: (CGPoint) -> [String: CGFloat] = { point in\n" +
+                "            [\n" +
+                "                \"x\": point.x,\n" +
+                "                \"y\": point.y,\n" +
+                "            ]\n" +
+                "        }"
+        XCTAssertEqual(
+            diagnosticsTelemetrySource.components(
+                separatedBy: diagnosticsTelemetrySerializers
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            diagnosticsTelemetrySource.components(
+                separatedBy: #""s10.4.current.default-light""#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            diagnosticsTelemetrySource.components(
+                separatedBy: "diagnoseDefaultLightPositioning"
+            ).count - 1,
+            3
+        )
+        XCTAssertEqual(
+            diagnosticsTelemetrySource.components(
+                separatedBy: "if diagnoseDefaultLightPositioning {"
+            ).count - 1,
+            2
+        )
+        let diagnosticsTelemetryPrefix =
+            #"prefix: "S10_4_DIAGNOSTICS_POSITIONING_TELEMETRY","#
+        XCTAssertEqual(
+            diagnosticsTelemetrySource.components(
+                separatedBy: diagnosticsTelemetryPrefix
+            ).count - 1,
+            2
+        )
+        let diagnosticsTelemetryRecords = diagnosticsTelemetrySource.components(
+            separatedBy: diagnosticsTelemetryPrefix
+        )
+        XCTAssertEqual(diagnosticsTelemetryRecords.count, 3)
+        let diagnosticsTelemetryFieldOrder = [
+            #""shardID":"#,
+            #""stateID":"#,
+            #""phase":"#,
+            #""applicationStateRawValue":"#,
+            #""applicationIsForeground":"#,
+            #""applicationFrame":"#,
+            #""scrollViewFrame":"#,
+            #""navigationBarFrame":"#,
+            #""signsTabFrame":"#,
+            #""headingFrame":"#,
+            #""authorityFrame":"#,
+            #""exportFrame":"#,
+            #""topClearance":"#,
+            #""bottomClearance":"#,
+            #""minimumGestureDistance":"#,
+            #""initialMinimumShift":"#,
+            #""initialMaximumShift":"#,
+            #""finalMinimumShift":"#,
+            #""finalMaximumShift":"#,
+            #""selectedRequest":"#,
+            #""authorityBefore":"#,
+            #""authorityAfter":"#,
+            #""actualSignedDistance":"#,
+            #""receiverStart":"#,
+            #""receiverEnd":"#,
+        ]
+        for recordIndex in 0..<2 {
+            let record = diagnosticsTelemetryRecords[recordIndex + 1]
+            guard let recordEndRange = record.range(
+                of: "                ]\n            )"
+            ) else {
+                XCTFail("Missing Diagnostics telemetry record terminator")
+                return
+            }
+            let recordBody = String(record[..<recordEndRange.lowerBound])
+            XCTAssertEqual(
+                recordBody.split(separator: "\n").filter {
+                    $0.hasPrefix("                    \"")
+                }.count,
+                diagnosticsTelemetryFieldOrder.count
+            )
+            var telemetryFieldCursor = recordBody.startIndex
+            for field in diagnosticsTelemetryFieldOrder {
+                guard let fieldRange = recordBody.range(
+                    of: field,
+                    range: telemetryFieldCursor..<recordBody.endIndex
+                ) else {
+                    XCTFail("Missing or unordered Diagnostics telemetry field: \(field)")
+                    return
+                }
+                XCTAssertEqual(
+                    recordBody.components(separatedBy: field).count - 1,
+                    1,
+                    field
+                )
+                telemetryFieldCursor = fieldRange.upperBound
+            }
+            let phase = recordIndex == 0 ? "pre" : "post"
+            XCTAssertTrue(recordBody.contains("\"phase\": \"\(phase)\""), phase)
+        }
+        let diagnosticsTelemetryPreValueLocks = [
+            #""finalMinimumShift": NSNull()"#,
+            #""finalMaximumShift": NSNull()"#,
+            #""authorityAfter": NSNull()"#,
+            #""actualSignedDistance": NSNull()"#,
+        ]
+        for lock in diagnosticsTelemetryPreValueLocks {
+            XCTAssertEqual(
+                diagnosticsTelemetryRecords[1].components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+            XCTAssertFalse(diagnosticsTelemetryRecords[2].contains(lock), lock)
+        }
+        let diagnosticsTelemetryPostValueLocks = [
+            #""finalMinimumShift": finalMinimumShift"#,
+            #""finalMaximumShift": finalMaximumShift"#,
+            #""authorityAfter": authorityAfterDrag"#,
+            #""actualSignedDistance": actualDistance"#,
+        ]
+        for lock in diagnosticsTelemetryPostValueLocks {
+            XCTAssertEqual(
+                diagnosticsTelemetryRecords[2].components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+            XCTAssertFalse(diagnosticsTelemetryRecords[1].contains(lock), lock)
+        }
+        for sharedTelemetryValue in [
+            #""shardID": automationShard?.shardID as Any? ?? NSNull()"#,
+            #""stateID": "state.diagnostics.ready""#,
+            #""applicationStateRawValue": app.state.rawValue"#,
+            #""applicationIsForeground": app.state == .runningForeground"#,
+            #""initialMinimumShift": minimumShift"#,
+            #""initialMaximumShift": maximumShift"#,
+            #""selectedRequest": dragDistance"#,
+            #""authorityBefore": authorityBeforeDrag"#,
+            #""receiverStart": pointObject(dragStart.screenPoint)"#,
+            #""receiverEnd": pointObject(dragEnd.screenPoint)"#,
+        ] {
+            XCTAssertEqual(
+                diagnosticsTelemetrySource.components(
+                    separatedBy: sharedTelemetryValue
+                ).count - 1,
+                2,
+                sharedTelemetryValue
+            )
+        }
+        let diagnosticsTelemetryAttachmentNames = [
+            #"preScreenshot.name = "S10.4 default-light Diagnostics telemetry pre app""#,
+            #"preTree.name = "S10.4 default-light Diagnostics telemetry pre accessibility tree""#,
+            #"postScreenshot.name = "S10.4 default-light Diagnostics telemetry post app""#,
+            #"postTree.name = "S10.4 default-light Diagnostics telemetry post accessibility tree""#,
+        ]
+        for attachmentName in diagnosticsTelemetryAttachmentNames {
+            XCTAssertEqual(
+                diagnosticsTelemetrySource.components(
+                    separatedBy: attachmentName
+                ).count - 1,
+                1,
+                attachmentName
+            )
+        }
+        for (attachmentFragment, expectedCount) in [
+            ("XCTAttachment(", 4),
+            ("screenshot: XCUIScreen.main.screenshot()", 2),
+            ("XCTAttachment(string: app.debugDescription)", 2),
+            (".lifetime = .keepAlways", 4),
+            ("            add(", 4),
+        ] {
+            XCTAssertEqual(
+                diagnosticsTelemetrySource.components(
+                    separatedBy: attachmentFragment
+                ).count - 1,
+                expectedCount,
+                attachmentFragment
+            )
+        }
+        let diagnosticsTelemetryExecutionOrder = [
+            #""phase": "pre""#,
+            "let preScreenshot = XCTAttachment(",
+            diagnosticsTelemetryAttachmentNames[0],
+            "add(preScreenshot)",
+            "let preTree = XCTAttachment(string: app.debugDescription)",
+            diagnosticsTelemetryAttachmentNames[1],
+            "add(preTree)",
+            "if dragDistance != 0 {",
+            "dragStart.press(",
+            "let authorityAfterDrag = diagnosticsAuthority.frame.minY",
+            "let finalMinimumShift = navigationBar.frame.maxY",
+            #""phase": "post""#,
+            "let postScreenshot = XCTAttachment(",
+            diagnosticsTelemetryAttachmentNames[2],
+            "add(postScreenshot)",
+            "let postTree = XCTAttachment(string: app.debugDescription)",
+            diagnosticsTelemetryAttachmentNames[3],
+            "add(postTree)",
+            "throw AutomationConfigurationError.invalid(",
+            "S10.4 default-light Diagnostics positioning telemetry completed nonaccepting",
+        ]
+        var diagnosticsTelemetryExecutionCursor = diagnosticsTelemetrySource.startIndex
+        for orderedFragment in diagnosticsTelemetryExecutionOrder {
+            guard let orderedRange = diagnosticsTelemetrySource.range(
+                of: orderedFragment,
+                range: diagnosticsTelemetryExecutionCursor..<diagnosticsTelemetrySource.endIndex
+            ) else {
+                XCTFail("Missing or unordered Diagnostics telemetry execution: \(orderedFragment)")
+                return
+            }
+            diagnosticsTelemetryExecutionCursor = orderedRange.upperBound
+        }
+        XCTAssertEqual(
+            diagnosticsTelemetrySource.components(
+                separatedBy: "throw AutomationConfigurationError.invalid("
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            diagnosticsTelemetrySource.components(
+                separatedBy: "S10.4 default-light Diagnostics positioning telemetry completed nonaccepting"
+            ).count - 1,
+            1
+        )
+        let diagnosticsTelemetryTerminalBeforeAcceptance =
+            "            add(postTree)\n" +
+                "            throw AutomationConfigurationError.invalid(\n" +
+                "                \"S10.4 default-light Diagnostics positioning telemetry completed nonaccepting\"\n" +
+                "            )\n" +
+                "        }\n" +
+                diagnosticsTelemetryEnd
+        XCTAssertEqual(
+            diagnosticsPositioningSource.components(
+                separatedBy: diagnosticsTelemetryTerminalBeforeAcceptance
+            ).count - 1,
+            1
+        )
+        for acceptingEmitter in [
+            "captureBaseline(",
+            "assertMigrationStateCoverage",
+            "emitAutomatedLabAccessibilityRowsIfNeeded",
+            "performAccessibilityAudit",
+            "eligibleExceptions",
+            "S10_MIGRATION_STATE",
+            "S10_4_AX_STATE",
+            "S10_4_CONTRAST",
+            "S10_4_CANDIDATE",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+            "automatedEvidenceIDs.append",
+            "automationAXTreeDigests",
+            "automationContrastExceptions",
+            "add(candidate)",
+            "receipt",
+            "retention",
+        ] {
+            XCTAssertFalse(
+                diagnosticsTelemetrySource.contains(acceptingEmitter),
+                acceptingEmitter
+            )
+        }
+        for prohibitedDiagnosticAction in [
+            "app.coordinate(",
+            ".tap(",
+            "swipeUp",
+            "swipeDown",
+            "typeText(",
+            "Thread.sleep",
+            "epsilon",
+            "tolerance",
+        ] {
+            XCTAssertFalse(
+                diagnosticsTelemetrySource.contains(prohibitedDiagnosticAction),
+                prohibitedDiagnosticAction
+            )
         }
         XCTAssertEqual(
             diagnosticsPositioningSource.components(
@@ -1502,7 +1843,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             diagnosticsPositioningSource.components(
                 separatedBy: "if dragDistance != 0 {"
             ).count - 1,
-            1
+            2
         )
         for uniqueEndpointBranch in [
             "dragDistance = 0",

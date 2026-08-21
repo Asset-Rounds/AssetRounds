@@ -473,7 +473,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         recoverInjectedPDFFailureAtXXXL(in: app)
         captureReportComparisonAndCorrectionStates(in: app)
         captureUnavailablePaywallAndFeedbackReview(in: app)
-        assertMonthlyPaywallAtXXXL(in: app)
+        try assertMonthlyPaywallAtXXXL(in: app)
         eraseLocalDataAndCaptureNoEntitlement(in: app)
     }
 
@@ -2723,7 +2723,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) {
+    private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) throws {
         let settings = element("s1.settings.button", in: app)
         assertControl(settings, label: "Settings")
         settings.tap()
@@ -2731,7 +2731,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             .waitForExistence(timeout: 20))
         captureBaseline("state.settings.hub", in: app)
 
-        captureSettingsDataSurfaces(in: app)
+        try captureSettingsDataSurfaces(in: app)
 
         let lifecycle = element("s7.3.settings.restore-purchases", in: app)
         scroll(lifecycle, in: app)
@@ -2861,7 +2861,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func captureSettingsDataSurfaces(in app: XCUIApplication) {
+    private func captureSettingsDataSurfaces(in app: XCUIApplication) throws {
         let backupEntry = element("s6.2.backup.settings-entry", in: app)
         scroll(backupEntry, in: app)
         assertControl(backupEntry, label: "Back up current data")
@@ -2943,22 +2943,82 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             XCTFail("Diagnostics positioning interval has no signed correction.")
             return
         }
+        let diagnoseDefaultLightPositioning = automationShard?.shardID
+            == "s10.4.current.default-light"
+        let frameObject: (CGRect) -> [String: CGFloat] = { frame in
+            [
+                "x": frame.origin.x,
+                "y": frame.origin.y,
+                "width": frame.size.width,
+                "height": frame.size.height,
+            ]
+        }
+        let pointObject: (CGPoint) -> [String: CGFloat] = { point in
+            [
+                "x": point.x,
+                "y": point.y,
+            ]
+        }
+        let authorityBeforeDrag = diagnosticsAuthority.frame.minY
+        let dragStart = diagnosticsScrollView.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.01, dy: 0.45)
+        )
+        let dragEnd = dragStart.withOffset(
+            CGVector(dx: 0, dy: dragDistance)
+        )
+        if diagnoseDefaultLightPositioning {
+            printJSONLine(
+                prefix: "S10_4_DIAGNOSTICS_POSITIONING_TELEMETRY",
+                object: [
+                    "shardID": automationShard?.shardID as Any? ?? NSNull(),
+                    "stateID": "state.diagnostics.ready",
+                    "phase": "pre",
+                    "applicationStateRawValue": app.state.rawValue,
+                    "applicationIsForeground": app.state == .runningForeground,
+                    "applicationFrame": frameObject(app.frame),
+                    "scrollViewFrame": frameObject(diagnosticsScrollView.frame),
+                    "navigationBarFrame": frameObject(navigationBar.frame),
+                    "signsTabFrame": frameObject(signsTab.frame),
+                    "headingFrame": frameObject(diagnosticsHeading.frame),
+                    "authorityFrame": frameObject(diagnosticsAuthority.frame),
+                    "exportFrame": frameObject(diagnosticsExport.frame),
+                    "topClearance": topClearance,
+                    "bottomClearance": bottomClearance,
+                    "minimumGestureDistance": minimumGestureDistance,
+                    "initialMinimumShift": minimumShift,
+                    "initialMaximumShift": maximumShift,
+                    "finalMinimumShift": NSNull(),
+                    "finalMaximumShift": NSNull(),
+                    "selectedRequest": dragDistance,
+                    "authorityBefore": authorityBeforeDrag,
+                    "authorityAfter": NSNull(),
+                    "actualSignedDistance": NSNull(),
+                    "receiverStart": pointObject(dragStart.screenPoint),
+                    "receiverEnd": pointObject(dragEnd.screenPoint),
+                ]
+            )
+            let preScreenshot = XCTAttachment(
+                screenshot: XCUIScreen.main.screenshot()
+            )
+            preScreenshot.name = "S10.4 default-light Diagnostics telemetry pre app"
+            preScreenshot.lifetime = .keepAlways
+            add(preScreenshot)
+            let preTree = XCTAttachment(string: app.debugDescription)
+            preTree.name = "S10.4 default-light Diagnostics telemetry pre accessibility tree"
+            preTree.lifetime = .keepAlways
+            add(preTree)
+        }
         if dragDistance != 0 {
-            let authorityBeforeDrag = diagnosticsAuthority.frame.minY
-            let dragStart = diagnosticsScrollView.coordinate(
-                withNormalizedOffset: CGVector(dx: 0.01, dy: 0.45)
-            )
-            let dragEnd = dragStart.withOffset(
-                CGVector(dx: 0, dy: dragDistance)
-            )
             dragStart.press(
                 forDuration: 0.2,
                 thenDragTo: dragEnd,
                 withVelocity: .slow,
                 thenHoldForDuration: 0.2
             )
-            let actualDistance = diagnosticsAuthority.frame.minY
-                - authorityBeforeDrag
+        }
+        let authorityAfterDrag = diagnosticsAuthority.frame.minY
+        let actualDistance = authorityAfterDrag - authorityBeforeDrag
+        if dragDistance != 0 {
             guard actualDistance * dragDistance > 0 else {
                 XCTFail("Diagnostics positioning gesture was not recognized.")
                 return
@@ -2973,6 +3033,51 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 - bottomClearance
                 - diagnosticsExport.frame.maxY
         )
+        if diagnoseDefaultLightPositioning {
+            printJSONLine(
+                prefix: "S10_4_DIAGNOSTICS_POSITIONING_TELEMETRY",
+                object: [
+                    "shardID": automationShard?.shardID as Any? ?? NSNull(),
+                    "stateID": "state.diagnostics.ready",
+                    "phase": "post",
+                    "applicationStateRawValue": app.state.rawValue,
+                    "applicationIsForeground": app.state == .runningForeground,
+                    "applicationFrame": frameObject(app.frame),
+                    "scrollViewFrame": frameObject(diagnosticsScrollView.frame),
+                    "navigationBarFrame": frameObject(navigationBar.frame),
+                    "signsTabFrame": frameObject(signsTab.frame),
+                    "headingFrame": frameObject(diagnosticsHeading.frame),
+                    "authorityFrame": frameObject(diagnosticsAuthority.frame),
+                    "exportFrame": frameObject(diagnosticsExport.frame),
+                    "topClearance": topClearance,
+                    "bottomClearance": bottomClearance,
+                    "minimumGestureDistance": minimumGestureDistance,
+                    "initialMinimumShift": minimumShift,
+                    "initialMaximumShift": maximumShift,
+                    "finalMinimumShift": finalMinimumShift,
+                    "finalMaximumShift": finalMaximumShift,
+                    "selectedRequest": dragDistance,
+                    "authorityBefore": authorityBeforeDrag,
+                    "authorityAfter": authorityAfterDrag,
+                    "actualSignedDistance": actualDistance,
+                    "receiverStart": pointObject(dragStart.screenPoint),
+                    "receiverEnd": pointObject(dragEnd.screenPoint),
+                ]
+            )
+            let postScreenshot = XCTAttachment(
+                screenshot: XCUIScreen.main.screenshot()
+            )
+            postScreenshot.name = "S10.4 default-light Diagnostics telemetry post app"
+            postScreenshot.lifetime = .keepAlways
+            add(postScreenshot)
+            let postTree = XCTAttachment(string: app.debugDescription)
+            postTree.name = "S10.4 default-light Diagnostics telemetry post accessibility tree"
+            postTree.lifetime = .keepAlways
+            add(postTree)
+            throw AutomationConfigurationError.invalid(
+                "S10.4 default-light Diagnostics positioning telemetry completed nonaccepting"
+            )
+        }
         guard finalMinimumShift <= 0, finalMaximumShift >= 0 else {
             XCTFail("Diagnostics positioning exhausted its bounded strategy.")
             return
