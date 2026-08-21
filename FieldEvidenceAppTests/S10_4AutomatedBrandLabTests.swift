@@ -2627,7 +2627,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         let captureWidePositioningStart =
-            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
+            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# +
+                "\n" +
+                "            let captureScrollViews = app.scrollViews.matching("
         let captureWideReadyCapture =
             #"        captureBaseline("state.capture.wide-ready", in: app)"#
         XCTAssertEqual(
