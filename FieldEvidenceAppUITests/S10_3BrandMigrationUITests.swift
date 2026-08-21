@@ -448,7 +448,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         assertLightFirstSignValidationAndCreation(in: app)
         completeVisibleIssueCheck(in: app)
-        try assertFirstReceiptAndReport(in: app)
+        assertFirstReceiptAndReport(in: app)
         assertReportsIndex(in: app)
 
         app.terminate()
@@ -1417,7 +1417,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func assertFirstReceiptAndReport(in app: XCUIApplication) throws {
+    private func assertFirstReceiptAndReport(in app: XCUIApplication) {
         XCTAssertTrue(element("s3.receipt.screen", in: app)
             .waitForExistence(timeout: 40))
         assertUnidentifiedLocalizedLabel("Complete: Check complete", in: app)
@@ -1437,7 +1437,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let preview = element("s4.3.report-detail.preview", in: app)
         XCTAssertTrue(preview.waitForExistence(timeout: 20))
         if automationShard?.shardID == "s10.4.current.ax-text" {
-            try diagnoseAXTextReportDetailRoute(preview, in: app)
+            guard scrollReportPreviewForAXText(preview, in: app) else { return }
         } else {
             scroll(preview, in: app)
         }
@@ -4232,121 +4232,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func diagnoseAXTextReportDetailRoute(
-        _ preview: XCUIElement,
-        in app: XCUIApplication
-    ) throws {
-        let receiptScreenQuery = app.descendants(matching: .any).matching(
-            identifier: "s3.receipt.screen"
-        )
-        let receiptViewReportQuery = app.descendants(matching: .any).matching(
-            identifier: "s3.receipt.view-report"
-        )
-        let reportScreenQuery = app.descendants(matching: .any).matching(
-            identifier: "s4.3.report-detail.screen"
-        )
-        let reportPreviewQuery = app.descendants(matching: .any).matching(
-            identifier: "s4.3.report-detail.preview"
-        )
-        let reportScrollViewsQuery = app.scrollViews.containing(
-            .other,
-            identifier: "s4.3.report-detail.preview"
-        )
-        let navigationBarsQuery = app.navigationBars
-        let tabBarsQuery = app.tabBars
-        let pageIndicatorsQuery = app.descendants(matching: .other).matching(
-            NSPredicate(
-                format: "label == %@",
-                "Vertical scroll bar, 4 pages"
-            )
-        )
-        let frameObject: (CGRect) -> [String: Any] = { frame in
-            [
-                "x": frame.minX,
-                "y": frame.minY,
-                "width": frame.width,
-                "height": frame.height,
-            ]
-        }
-        let elementObject: (XCUIElement) -> [String: Any] = { value in
-            let publicValue: Any
-            if let rawValue = value.value {
-                publicValue = String(describing: rawValue)
-            } else {
-                publicValue = NSNull()
-            }
-            return [
-                "exists": value.exists,
-                "isHittable": value.isHittable,
-                "identifier": value.identifier,
-                "label": value.label,
-                "value": publicValue,
-                "elementTypeRawValue": value.elementType.rawValue,
-                "frame": frameObject(value.frame),
-            ]
-        }
-        let queryObject: (XCUIElementQuery) -> [String: Any] = { query in
-            let count = query.count
-            let elements = (0..<count).map {
-                query.element(boundBy: $0)
-            }
-            return [
-                "count": count,
-                "elements": elements.map(elementObject),
-            ]
-        }
-        let addDiagnosticAttachments: (String) -> Void = { phase in
-            let screenshot = XCTAttachment(
-                screenshot: XCUIScreen.main.screenshot()
-            )
-            screenshot.name =
-                "S10.4 AX-text report-detail route diagnostic \(phase) screen"
-            screenshot.lifetime = .keepAlways
-            self.add(screenshot)
-            let tree = XCTAttachment(string: app.debugDescription)
-            tree.name =
-                "S10.4 AX-text report-detail route diagnostic \(phase) tree"
-            tree.lifetime = .keepAlways
-            self.add(tree)
-        }
-        let diagnosticStart = Date()
-        for ordinal in 0..<2 {
-            let applicationFrame = app.frame
-            printJSONLine(
-                prefix: "S10_4_REPORT_DETAIL_ROUTE_DIAGNOSTIC",
-                object: [
-                    "shardID": "s10.4.current.ax-text",
-                    "ordinal": ordinal,
-                    "elapsedMilliseconds": Int(
-                        Date().timeIntervalSince(diagnosticStart) * 1_000
-                    ),
-                    "applicationStateRawValue": app.state.rawValue,
-                    "applicationFrame": frameObject(applicationFrame),
-                    "preview": elementObject(preview),
-                    "queries": [
-                        "receiptScreen": queryObject(receiptScreenQuery),
-                        "receiptViewReport": queryObject(receiptViewReportQuery),
-                        "reportScreen": queryObject(reportScreenQuery),
-                        "reportPreview": queryObject(reportPreviewQuery),
-                        "reportScrollViews": queryObject(reportScrollViewsQuery),
-                        "navigationBars": queryObject(navigationBarsQuery),
-                        "tabBars": queryObject(tabBarsQuery),
-                        "pageIndicators": queryObject(pageIndicatorsQuery),
-                    ],
-                ]
-            )
-            if ordinal == 0 {
-                addDiagnosticAttachments("start")
-            } else {
-                addDiagnosticAttachments("terminal")
-            }
-        }
-        throw AutomationConfigurationError.invalid(
-            "S10.4 AX-text report-detail route diagnostic"
-        )
-    }
-
-    @MainActor
     private func scrollReportPreviewForAXText(
         _ preview: XCUIElement,
         in app: XCUIApplication
@@ -4380,35 +4265,28 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             previewFrame: CGRect,
             liveScrollFrame: CGRect
         ) -> (outer: CGRect, inner: CGRect)? {
-            guard pageIndicators.count == 4 else { return nil }
-            let frames = (0..<4).map {
-                pageIndicators.element(boundBy: $0).frame
+            guard pageIndicators.count == 2 else { return nil }
+            let indicators = (0..<2).map {
+                pageIndicators.element(boundBy: $0)
             }
-            guard pageIndicators.count == 4,
+            let frames = indicators.map(\.frame)
+            guard pageIndicators.count == 2,
+                  indicators.allSatisfy(\.exists),
                   frames.allSatisfy({ !$0.isNull && !$0.isEmpty }) else {
                 return nil
             }
-            var distinctFrames: [CGRect] = []
-            for frame in frames
-            where !distinctFrames.contains(where: { $0 == frame }) {
-                distinctFrames.append(frame)
-            }
-            guard distinctFrames.count == 2,
-                  distinctFrames.allSatisfy({ distinctFrame in
-                      frames.filter { $0 == distinctFrame }.count == 2
-                  }) else {
-                return nil
-            }
-            let innerCandidates = distinctFrames.filter {
-                previewFrame.contains($0)
+            guard frames[0] != frames[1] else { return nil }
+            let innerCandidates = frames.indices.filter {
+                previewFrame.contains(frames[$0])
             }
             guard innerCandidates.count == 1 else { return nil }
-            let inner = innerCandidates[0]
-            let outerCandidates = distinctFrames.filter {
-                $0 != inner && liveScrollFrame.contains($0)
+            let innerIndex = innerCandidates[0]
+            let outerCandidates = frames.indices.filter {
+                $0 != innerIndex
+                    && liveScrollFrame.contains(frames[$0])
             }
             guard outerCandidates.count == 1 else { return nil }
-            return (outerCandidates[0], inner)
+            return (frames[outerCandidates[0]], frames[innerIndex])
         }
         let verticalInset: CGFloat = 24
         let horizontalInset: CGFloat = 24
@@ -4495,7 +4373,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             guard app.state == .runningForeground,
                   reportScrollViews.count == 1,
                   navigationBars.count == 1,
-                  pageIndicators.count == 4,
+                  pageIndicators.count == 2,
                   preview.exists,
                   preview.frame.minY < previousPreviewMinY else {
                 XCTFail("AX-text report preview did not move upward with its ScrollView.")
