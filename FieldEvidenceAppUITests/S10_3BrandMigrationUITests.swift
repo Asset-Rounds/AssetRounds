@@ -448,7 +448,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         assertLightFirstSignValidationAndCreation(in: app)
         completeVisibleIssueCheck(in: app)
-        try assertFirstReceiptAndReport(in: app)
+        assertFirstReceiptAndReport(in: app)
         assertReportsIndex(in: app)
 
         app.terminate()
@@ -1405,7 +1405,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func assertFirstReceiptAndReport(in app: XCUIApplication) throws {
+    private func assertFirstReceiptAndReport(in app: XCUIApplication) {
         XCTAssertTrue(element("s3.receipt.screen", in: app)
             .waitForExistence(timeout: 40))
         assertUnidentifiedLocalizedLabel("Complete: Check complete", in: app)
@@ -1424,108 +1424,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         recordMetric("report_open_to_preview", since: reportOpenAt)
         let preview = element("s4.3.report-detail.preview", in: app)
         XCTAssertTrue(preview.waitForExistence(timeout: 20))
-        if automationShard?.shardID == "s10.4.current.ax-text" {
-            let receiptScreenQuery = app.descendants(matching: .any).matching(
-                identifier: "s3.receipt.screen"
-            )
-            let receiptViewReportQuery = app.descendants(matching: .any).matching(
-                identifier: "s3.receipt.view-report"
-            )
-            let reportScreenQuery = app.descendants(matching: .any).matching(
-                identifier: "s4.3.report-detail.screen"
-            )
-            let reportPreviewQuery = app.descendants(matching: .any).matching(
-                identifier: "s4.3.report-detail.preview"
-            )
-            let reportScrollViewsQuery = app.scrollViews.containing(
-                .other,
-                identifier: "s4.3.report-detail.preview"
-            )
-            let navigationBarsQuery = app.navigationBars
-            let tabBarsQuery = app.tabBars
-            let frameObject: (CGRect) -> [String: Any] = { frame in
-                [
-                    "x": frame.minX,
-                    "y": frame.minY,
-                    "width": frame.width,
-                    "height": frame.height,
-                ]
-            }
-            let elementObject: (XCUIElement) -> [String: Any] = { value in
-                let publicValue: Any
-                if let rawValue = value.value {
-                    publicValue = String(describing: rawValue)
-                } else {
-                    publicValue = NSNull()
-                }
-                return [
-                    "exists": value.exists,
-                    "isHittable": value.isHittable,
-                    "identifier": value.identifier,
-                    "label": value.label,
-                    "value": publicValue,
-                    "elementTypeRawValue": value.elementType.rawValue,
-                    "frame": frameObject(value.frame),
-                ]
-            }
-            let queryObject: (XCUIElementQuery) -> [String: Any] = { query in
-                let elements = query.allElementsBoundByIndex
-                return [
-                    "count": elements.count,
-                    "elements": elements.map(elementObject),
-                ]
-            }
-            let addDiagnosticAttachments: (String) -> Void = { phase in
-                let screenshot = XCTAttachment(
-                    screenshot: XCUIScreen.main.screenshot()
-                )
-                screenshot.name =
-                    "S10.4 AX-text report-detail route diagnostic \(phase) screen"
-                screenshot.lifetime = .keepAlways
-                self.add(screenshot)
-                let tree = XCTAttachment(string: app.debugDescription)
-                tree.name =
-                    "S10.4 AX-text report-detail route diagnostic \(phase) tree"
-                tree.lifetime = .keepAlways
-                self.add(tree)
-            }
-            let diagnosticStart = Date()
-            for ordinal in 0..<8 {
-                let applicationFrame = app.frame
-                printJSONLine(
-                    prefix: "S10_4_REPORT_DETAIL_ROUTE_DIAGNOSTIC",
-                    object: [
-                        "shardID": "s10.4.current.ax-text",
-                        "ordinal": ordinal,
-                        "scheduledOffsetMilliseconds": ordinal * 250,
-                        "elapsedMilliseconds": Int(
-                            Date().timeIntervalSince(diagnosticStart) * 1_000
-                        ),
-                        "applicationStateRawValue": app.state.rawValue,
-                        "applicationFrame": frameObject(applicationFrame),
-                        "queries": [
-                            "receiptScreen": queryObject(receiptScreenQuery),
-                            "receiptViewReport": queryObject(receiptViewReportQuery),
-                            "reportScreen": queryObject(reportScreenQuery),
-                            "reportPreview": queryObject(reportPreviewQuery),
-                            "reportScrollViews": queryObject(reportScrollViewsQuery),
-                            "navigationBars": queryObject(navigationBarsQuery),
-                            "tabBars": queryObject(tabBarsQuery),
-                        ],
-                    ]
-                )
-                if ordinal == 0 {
-                    addDiagnosticAttachments("start")
-                }
-                if ordinal < 7 {
-                    Thread.sleep(forTimeInterval: 0.25)
-                }
-            }
-            addDiagnosticAttachments("terminal")
-            throw AutomationConfigurationError.invalid(
-                "S10.4 AX-text report-detail route diagnostic"
-            )
-        }
         if automationShard?.shardID == "s10.4.current.ax-text" {
             scrollReportPreviewForAXText(preview, in: app)
         } else {
@@ -1602,7 +1500,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         scroll(description, in: app)
         assertMinimumGeometry(description)
         description.typeText("Replaced failed power supply")
-        dismissKeyboard(in: app, returnKeyDismissesKeyboard: false)
+        dismissMultilineKeyboard(
+            afterEditing: description,
+            on: element("s5.1.work.screen", in: app),
+            clearedValidation: validation,
+            in: app
+        )
 
         let importPhoto = element("s5.1.work.import-fixture", in: app)
         scroll(importPhoto, in: app)
@@ -1961,7 +1864,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         scroll(description, in: app)
         description.tap()
         description.typeText("Replaced damaged component")
-        dismissKeyboard(in: app, returnKeyDismissesKeyboard: false)
+        dismissMultilineKeyboard(
+            afterEditing: description,
+            on: element("s5.1.work.screen", in: app),
+            in: app
+        )
         let save = element("s5.1.work.save", in: app)
         scroll(save, in: app)
         assertControl(save, label: "Record work")
@@ -2419,7 +2326,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         captureBaseline("state.report-correction.validation-error", in: app)
 
         note.typeText("Verified connector label")
-        dismissKeyboard(in: app, returnKeyDismissesKeyboard: false)
+        dismissMultilineKeyboard(
+            afterEditing: note,
+            on: element("s4.5.correction.screen", in: app),
+            clearedValidation: validation,
+            in: app
+        )
         scroll(save, in: app)
         assertControl(save, label: "Save correction")
         save.tap()
@@ -4106,17 +4018,67 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func dismissKeyboard(
-        in app: XCUIApplication,
-        returnKeyDismissesKeyboard: Bool = true
+    private func dismissMultilineKeyboard(
+        afterEditing field: XCUIElement,
+        on route: XCUIElement,
+        clearedValidation: XCUIElement? = nil,
+        in app: XCUIApplication
     ) {
+        if let clearedValidation {
+            guard wait(
+                for: clearedValidation,
+                predicate: "exists == false",
+                timeout: 10
+            ) else {
+                XCTFail("Multiline validation did not clear after valid input.")
+                return
+            }
+        }
+        let keyboard = app.keyboards.firstMatch
+        let expectedRouteExists = route.exists
+        let expectedApplicationState = app.state
+        guard keyboard.exists,
+              field.exists,
+              field.elementType == .textField,
+              !field.identifier.isEmpty,
+              expectedRouteExists,
+              expectedApplicationState == .runningForeground else {
+            XCTFail("The multiline dismissal preconditions are not satisfied.")
+            return
+        }
+        let expectedValue = String(describing: field.value ?? "")
+        let fieldScrollViews = app.scrollViews.containing(
+            .textField,
+            identifier: field.identifier
+        )
+        guard fieldScrollViews.count == 1 else {
+            XCTFail("The multiline field must have exactly one outer ScrollView.")
+            return
+        }
+        let fieldScrollView = fieldScrollViews.firstMatch
+        guard fieldScrollView.exists, fieldScrollView.isHittable else {
+            XCTFail("The multiline field ScrollView is not actionable.")
+            return
+        }
+        fieldScrollView.swipeUp()
+        guard keyboard.waitForNonExistence(timeout: 10),
+              field.exists,
+              String(describing: field.value ?? "") == expectedValue,
+              route.exists == expectedRouteExists,
+              app.state == expectedApplicationState else {
+            XCTFail("Multiline dismissal changed content, route, or foreground state.")
+            return
+        }
+    }
+
+    @MainActor
+    private func dismissKeyboard(in app: XCUIApplication) {
         let keyboard = app.keyboards.firstMatch
         guard keyboard.exists else { return }
         let returnKey = keyboard.buttons["Return"]
-        if returnKeyDismissesKeyboard && returnKey.exists && returnKey.isHittable {
+        if returnKey.exists && returnKey.isHittable {
             returnKey.tap()
-        } else if returnKeyDismissesKeyboard
-            && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
+        } else if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
             && returnKey.exists {
             guard returnKey.elementType == .button,
                   returnKey.label.lowercased() == "return" else {
@@ -4195,19 +4157,20 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             XCTFail("AX-text report detail ScrollView is missing.")
             return
         }
-        let upperPadding = reportScroll.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.01, dy: 0.25)
-        )
-        let lowerPadding = reportScroll.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.01, dy: 0.65)
-        )
-        for _ in 0..<8 {
+        var previousPreviewMinY = preview.frame.minY
+        for _ in 0..<4 {
             if preview.exists && preview.isHittable { return }
-            lowerPadding.press(forDuration: 0.05, thenDragTo: upperPadding)
-        }
-        for _ in 0..<8 {
-            if preview.exists && preview.isHittable { return }
-            upperPadding.press(forDuration: 0.05, thenDragTo: lowerPadding)
+            reportScroll.swipeUp()
+            guard preview.exists else {
+                XCTFail("AX-text report preview disappeared while scrolling.")
+                return
+            }
+            let currentPreviewMinY = preview.frame.minY
+            guard currentPreviewMinY < previousPreviewMinY else {
+                XCTFail("AX-text report preview did not move upward with its ScrollView.")
+                return
+            }
+            previousPreviewMinY = currentPreviewMinY
         }
     }
 

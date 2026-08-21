@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 191_670,
-            sha256: "599A4DE96948739B65D46517A46326B7405BA1732790476E4A92C6D147ED315B"
+            byteCount: 189_282,
+            sha256: "3088200F2760B7A96FD7C00F1022CAD9460F88F7DEAA0A24563B41D856E29315"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -924,10 +924,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let keyboardHelperStart =
             "    @MainActor\n" +
-                "    private func dismissKeyboard(\n" +
-                "        in app: XCUIApplication,\n" +
-                "        returnKeyDismissesKeyboard: Bool = true\n" +
-                "    ) {"
+                "    private func dismissKeyboard(in app: XCUIApplication) {"
         let keyboardHelperEnd =
             "\n\n    @MainActor\n" +
                 "    private func navigateBack(in app: XCUIApplication) {"
@@ -945,9 +942,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let keyboard = app.keyboards.firstMatch",
             "guard keyboard.exists else { return }",
             #"let returnKey = keyboard.buttons["Return"]"#,
-            "if returnKeyDismissesKeyboard && returnKey.exists && returnKey.isHittable {",
+            "if returnKey.exists && returnKey.isHittable {",
             "returnKey.tap()",
-            "} else if returnKeyDismissesKeyboard",
             #"automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
             "&& returnKey.exists {",
             "returnKey.elementType == .button",
@@ -978,12 +974,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         XCTAssertEqual(
-            keyboardHelperSource.components(
-                separatedBy: "returnKeyDismissesKeyboard"
-            ).count - 1,
-            3
-        )
-        XCTAssertEqual(
             uiSource.components(separatedBy: "dismissKeyboard(in: app)").count - 1,
             6
         )
@@ -1007,41 +997,128 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for lock in defaultKeyboardCallerLocks {
             XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1)
         }
-        let multilineKeyboardDismissal =
-            "dismissKeyboard(in: app, returnKeyDismissesKeyboard: false)"
         XCTAssertEqual(
-            uiSource.components(separatedBy: multilineKeyboardDismissal).count - 1,
+            uiSource.components(
+                separatedBy: "dismissMultilineKeyboard(\n            afterEditing:"
+            ).count - 1,
             3
         )
         let multilineKeyboardCallerLocks = [
             #"description.typeText("Replaced failed power supply")"# + "\n" +
-                "        " + multilineKeyboardDismissal,
+                "        dismissMultilineKeyboard(\n" +
+                "            afterEditing: description,\n" +
+                #"            on: element("s5.1.work.screen", in: app),"# + "\n" +
+                "            clearedValidation: validation,\n" +
+                "            in: app\n" +
+                "        )",
             #"description.typeText("Replaced damaged component")"# + "\n" +
-                "        " + multilineKeyboardDismissal,
+                "        dismissMultilineKeyboard(\n" +
+                "            afterEditing: description,\n" +
+                #"            on: element("s5.1.work.screen", in: app),"# + "\n" +
+                "            in: app\n" +
+                "        )",
             #"note.typeText("Verified connector label")"# + "\n" +
-                "        " + multilineKeyboardDismissal,
+                "        dismissMultilineKeyboard(\n" +
+                "            afterEditing: note,\n" +
+                #"            on: element("s4.5.correction.screen", in: app),"# + "\n" +
+                "            clearedValidation: validation,\n" +
+                "            in: app\n" +
+                "        )",
         ]
         for lock in multilineKeyboardCallerLocks {
-            XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1)
+            XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1, lock)
         }
-        XCTAssertFalse(
-            keyboardHelperSource.contains("returnKeyDismissesKeyboard: true")
+        let multilineHelperStart =
+            "    @MainActor\n" +
+                "    private func dismissMultilineKeyboard("
+        XCTAssertEqual(
+            uiSource.components(separatedBy: multilineHelperStart).count - 1,
+            1
         )
+        guard let multilineHelperStartRange = uiSource.range(of: multilineHelperStart),
+              let multilineKeyboardEndRange = uiSource.range(
+                of: keyboardHelperStart,
+                range: multilineHelperStartRange.upperBound..<uiSource.endIndex
+              ) else {
+            XCTFail("Missing the dedicated multiline keyboard helper source slice")
+            return
+        }
+        let multilineHelperSource = String(
+            uiSource[multilineHelperStartRange.lowerBound..<multilineKeyboardEndRange.lowerBound]
+        )
+        let multilineHelperLocks = [
+            "afterEditing field: XCUIElement",
+            "on route: XCUIElement",
+            "clearedValidation: XCUIElement? = nil",
+            "if let clearedValidation {",
+            #"predicate: "exists == false""#,
+            "timeout: 10",
+            "let keyboard = app.keyboards.firstMatch",
+            "let expectedRouteExists = route.exists",
+            "let expectedApplicationState = app.state",
+            "field.elementType == .textField",
+            "!field.identifier.isEmpty",
+            "expectedRouteExists",
+            "expectedApplicationState == .runningForeground",
+            #"let expectedValue = String(describing: field.value ?? "")"#,
+            "let fieldScrollViews = app.scrollViews.containing(",
+            ".textField,",
+            "identifier: field.identifier",
+            "guard fieldScrollViews.count == 1 else {",
+            "let fieldScrollView = fieldScrollViews.firstMatch",
+            "guard fieldScrollView.exists, fieldScrollView.isHittable else {",
+            "fieldScrollView.swipeUp()",
+            "keyboard.waitForNonExistence(timeout: 10)",
+            #"String(describing: field.value ?? "") == expectedValue"#,
+            "route.exists == expectedRouteExists",
+            "app.state == expectedApplicationState",
+            "Multiline dismissal changed content, route, or foreground state.",
+        ]
+        for lock in multilineHelperLocks {
+            XCTAssertTrue(multilineHelperSource.contains(lock), lock)
+        }
+        XCTAssertEqual(
+            multilineHelperSource.components(separatedBy: "fieldScrollView.swipeUp()").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            multilineHelperSource.components(separatedBy: "timeout: 10").count - 1,
+            2
+        )
+        for (fragment, count) in [
+            ("field.exists", 2),
+            ("route.exists", 2),
+            ("app.state", 2),
+            ("expectedRouteExists", 3),
+            ("expectedApplicationState", 3),
+            (#"String(describing: field.value ?? "")"#, 2),
+            ("keyboard.waitForNonExistence(timeout: 10)", 1),
+            ("fieldScrollViews.count == 1", 1),
+        ] {
+            XCTAssertEqual(
+                multilineHelperSource.components(separatedBy: fragment).count - 1,
+                count,
+                fragment
+            )
+        }
+        for prohibited in [
+            "dismissKeyboard(",
+            "app.swipeDown()",
+            "returnKeyDismissesKeyboard",
+            "returnKey.tap()",
+            ".tap()",
+        ] {
+            XCTAssertFalse(multilineHelperSource.contains(prohibited), prohibited)
+        }
+        XCTAssertFalse(uiSource.contains("returnKeyDismissesKeyboard"))
         XCTAssertFalse(uiSource.contains("key.exists ? key.tap() : app.swipeDown()"))
         XCTAssertFalse(uiSource.contains("key.exists && key.isHittable ?"))
 
-        let reportDetailDiagnosticStart =
-            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# +
-                "\n" +
-                "            let receiptScreenQuery = " +
-                "app.descendants(matching: .any).matching("
-        let reportDetailDiagnosticPreamble =
+        let firstReportPreviewPositioning =
             #"        let preview = element("s4.3.report-detail.preview", in: app)"# +
                 "\n" +
                 "        XCTAssertTrue(preview.waitForExistence(timeout: 20))\n" +
-                reportDetailDiagnosticStart
-        let firstReportPreviewPositioning =
-            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# +
+                #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# +
                 "\n" +
                 "            scrollReportPreviewForAXText(preview, in: app)\n" +
                 "        } else {\n" +
@@ -1053,166 +1130,44 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(separatedBy: firstReportPreviewPositioning).count - 1,
             1
         )
-        XCTAssertEqual(
-            uiSource.components(separatedBy: reportDetailDiagnosticStart).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: reportDetailDiagnosticPreamble
-            ).count - 1,
-            1
-        )
-        guard let reportDetailDiagnosticStartRange = uiSource.range(
-            of: reportDetailDiagnosticStart
-        ), let firstReportPreviewPositioningRange = uiSource.range(
-            of: firstReportPreviewPositioning,
-            range: reportDetailDiagnosticStartRange.upperBound..<uiSource.endIndex
-        ) else {
-            XCTFail("Missing the AX-text report-detail route diagnostic slice")
-            return
-        }
-        let reportDetailDiagnosticSource = String(
-            uiSource[
-                reportDetailDiagnosticStartRange.lowerBound..<firstReportPreviewPositioningRange.lowerBound
-            ]
-        )
-        let reportDetailDiagnosticLocks = [
-            #"identifier: "s3.receipt.screen""#,
-            #"identifier: "s3.receipt.view-report""#,
-            #"identifier: "s4.3.report-detail.screen""#,
-            #"identifier: "s4.3.report-detail.preview""#,
-            #"app.scrollViews.containing("#,
-            ".other,",
-            "let navigationBarsQuery = app.navigationBars",
-            "let tabBarsQuery = app.tabBars",
-            "let publicValue: Any",
-            "if let rawValue = value.value {",
-            "publicValue = String(describing: rawValue)",
-            "publicValue = NSNull()",
-            #""exists": value.exists"#,
-            #""isHittable": value.isHittable"#,
-            #""identifier": value.identifier"#,
-            #""label": value.label"#,
-            #""value": publicValue"#,
-            #""elementTypeRawValue": value.elementType.rawValue"#,
-            #""frame": frameObject(value.frame)"#,
-            #""count": elements.count"#,
-            #""elements": elements.map(elementObject)"#,
-            "let diagnosticStart = Date()",
-            "for ordinal in 0..<8 {",
-            #"prefix: "S10_4_REPORT_DETAIL_ROUTE_DIAGNOSTIC""#,
-            #""shardID": "s10.4.current.ax-text""#,
-            #""ordinal": ordinal"#,
-            #""scheduledOffsetMilliseconds": ordinal * 250"#,
-            #""elapsedMilliseconds": Int("#,
-            #""applicationStateRawValue": app.state.rawValue"#,
-            #""applicationFrame": frameObject(applicationFrame)"#,
-            #""receiptScreen": queryObject(receiptScreenQuery)"#,
-            #""receiptViewReport": queryObject(receiptViewReportQuery)"#,
-            #""reportScreen": queryObject(reportScreenQuery)"#,
-            #""reportPreview": queryObject(reportPreviewQuery)"#,
-            #""reportScrollViews": queryObject(reportScrollViewsQuery)"#,
-            #""navigationBars": queryObject(navigationBarsQuery)"#,
-            #""tabBars": queryObject(tabBarsQuery)"#,
-            "if ordinal == 0 {",
-            #"addDiagnosticAttachments("start")"#,
-            "if ordinal < 7 {",
+        let removedReportDetailDiagnosticFragments = [
+            "S10_4_REPORT_DETAIL_ROUTE_DIAGNOSTIC",
+            "S10.4 AX-text report-detail route diagnostic",
+            "receiptScreenQuery",
+            "receiptViewReportQuery",
+            "reportScreenQuery",
+            "reportPreviewQuery",
+            "reportScrollViewsQuery",
+            "navigationBarsQuery",
+            "tabBarsQuery",
+            "addDiagnosticAttachments",
+            "frameObject",
+            "elementObject",
+            "queryObject",
+            "diagnosticStart",
+            "scheduledOffsetMilliseconds",
+            "elapsedMilliseconds",
+            "applicationStateRawValue",
             "Thread.sleep(forTimeInterval: 0.25)",
-            #"addDiagnosticAttachments("terminal")"#,
-            "screenshot: XCUIScreen.main.screenshot()",
             "XCTAttachment(string: app.debugDescription)",
-            #""S10.4 AX-text report-detail route diagnostic \(phase) screen""#,
-            #""S10.4 AX-text report-detail route diagnostic \(phase) tree""#,
-            "self.add(screenshot)",
-            "self.add(tree)",
-            #""S10.4 AX-text report-detail route diagnostic""#,
         ]
-        for lock in reportDetailDiagnosticLocks {
-            XCTAssertTrue(reportDetailDiagnosticSource.contains(lock), lock)
+        for fragment in removedReportDetailDiagnosticFragments {
+            XCTAssertEqual(uiSource.components(separatedBy: fragment).count - 1, 0, fragment)
         }
         XCTAssertEqual(
-            reportDetailDiagnosticSource.components(
-                separatedBy: "queryObject("
-            ).count - 1,
-            7
-        )
-        XCTAssertEqual(
-            reportDetailDiagnosticSource.components(
-                separatedBy: "printJSONLine("
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            reportDetailDiagnosticSource.components(
-                separatedBy: "XCTAttachment("
-            ).count - 1,
-            2
-        )
-        XCTAssertEqual(
-            reportDetailDiagnosticSource.components(
-                separatedBy: ".keepAlways"
-            ).count - 1,
-            2
-        )
-        XCTAssertEqual(
-            reportDetailDiagnosticSource.components(
-                separatedBy: "throw AutomationConfigurationError.invalid("
-            ).count - 1,
-            1
-        )
-        for (fragment, count) in [
-            ("for ordinal in 0..<8 {", 1),
-            ("Thread.sleep(forTimeInterval: 0.25)", 1),
-            ("addDiagnosticAttachments(\"", 2),
-            (#"addDiagnosticAttachments("start")"#, 1),
-            (#"addDiagnosticAttachments("terminal")"#, 1),
-            (#"S10_4_REPORT_DETAIL_ROUTE_DIAGNOSTIC"#, 1),
-            ("throw AutomationConfigurationError.invalid(", 1),
-        ] {
-            XCTAssertEqual(
-                reportDetailDiagnosticSource.components(
-                    separatedBy: fragment
-                ).count - 1,
-                count,
-                fragment
-            )
-        }
-        for forbidden in [
-            ".tap(",
-            ".press(",
-            "swipeUp",
-            "swipeDown",
-            "typeText",
-            "waitForExistence",
-            "captureBaseline",
-            "performAccessibilityAudit",
-            "eligibleExceptions",
-            "S10_4_AX_STATE",
-            "S10_4_CONTRAST",
-            "S10_4_CANDIDATE",
-            "S10_4_AX",
-            "S10_MIGRATION_STATE",
-            "S10_4_TASK",
-            "S10_4_SHARD_RECEIPT",
-        ] {
-            XCTAssertFalse(reportDetailDiagnosticSource.contains(forbidden), forbidden)
-        }
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: "try assertFirstReceiptAndReport(in: app)"
-            ).count - 1,
+            uiSource.components(separatedBy: "assertFirstReceiptAndReport(in: app)").count - 1,
             1
         )
         XCTAssertEqual(
             uiSource.components(
-                separatedBy: "private func assertFirstReceiptAndReport(in app: XCUIApplication) throws {"
+                separatedBy: "private func assertFirstReceiptAndReport(in app: XCUIApplication) {"
             ).count - 1,
             1
         )
+        XCTAssertFalse(uiSource.contains("try assertFirstReceiptAndReport(in: app)"))
         XCTAssertFalse(
             uiSource.contains(
-                "private func assertFirstReceiptAndReport(in app: XCUIApplication) {"
+                "private func assertFirstReceiptAndReport(in app: XCUIApplication) throws {"
             )
         )
         XCTAssertEqual(
@@ -1249,20 +1204,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "guard reportScrollViews.count == 1 else {",
             "let reportScroll = reportScrollViews.firstMatch",
             "guard reportScroll.waitForExistence(timeout: 10) else {",
-            "CGVector(dx: 0.01, dy: 0.25)",
-            "CGVector(dx: 0.01, dy: 0.65)",
-            "lowerPadding.press(forDuration: 0.05, thenDragTo: upperPadding)",
-            "upperPadding.press(forDuration: 0.05, thenDragTo: lowerPadding)",
+            "var previousPreviewMinY = preview.frame.minY",
+            "for _ in 0..<4 {",
+            "if preview.exists && preview.isHittable { return }",
+            "reportScroll.swipeUp()",
+            "guard preview.exists else {",
+            "let currentPreviewMinY = preview.frame.minY",
+            "guard currentPreviewMinY < previousPreviewMinY else {",
+            "previousPreviewMinY = currentPreviewMinY",
         ]
         for lock in axPreviewHelperLocks {
             XCTAssertTrue(axPreviewHelperSource.contains(lock), lock)
         }
         XCTAssertEqual(
-            axPreviewHelperSource.components(separatedBy: "for _ in 0..<8 {").count - 1,
-            2
+            axPreviewHelperSource.components(separatedBy: "reportScroll.swipeUp()").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            axPreviewHelperSource.components(separatedBy: "for _ in 0..<4 {").count - 1,
+            1
         )
         XCTAssertFalse(axPreviewHelperSource.contains("app.swipeUp()"))
         XCTAssertFalse(axPreviewHelperSource.contains("app.swipeDown()"))
+        XCTAssertFalse(axPreviewHelperSource.contains("CGVector(dx: 0.01"))
+        XCTAssertFalse(axPreviewHelperSource.contains(".press(forDuration:"))
+        XCTAssertFalse(axPreviewHelperSource.contains("upperPadding"))
+        XCTAssertFalse(axPreviewHelperSource.contains("lowerPadding"))
         XCTAssertFalse(axPreviewHelperSource.contains(#"app.scrollViews.matching("#))
         XCTAssertFalse(
             axPreviewHelperSource.contains(
@@ -1501,11 +1468,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let reportCorrectionSourcePath =
             "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift"
+        try assertFile(
+            reportCorrectionSourcePath,
+            byteCount: 15_197,
+            sha256: "BF7DB2A5038CBE910E308DC16DEE5118EEA3930A1847F8AEBBD5FE691EDE9E2F"
+        )
         let reportCorrectionSource = try text(reportCorrectionSourcePath)
         let reportCorrectionOuterScrollComposition =
             "            .padding(DesignTokens.Spacing.space16)\n" +
                 "        }\n" +
-                "        .scrollDismissesKeyboard(.never)\n" +
+                "        .scrollDismissesKeyboard(validationMessage == nil ? .immediately : .never)\n" +
                 #"        .navigationTitle("Correct report")"#
         XCTAssertEqual(
             reportCorrectionSource.components(
@@ -1513,9 +1485,78 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let reportCorrectionValidationClearAndFocus =
+            #"                            .focused($keyboardFocus, equals: .note)"# + "\n" +
+                #"                            .accessibilityFocused($accessibilityFocus, equals: .note)"# + "\n" +
+                "                            .accessibilityLabel(\"Correction note\")\n" +
+                "                            .accessibilityHint(\"Enter a different note, up to 1,000 characters. Leave it blank to remove the current note.\")\n" +
+                "                            .accessibilityIdentifier(Self.noteAccessibilityIdentifier)\n" +
+                "                            .onChange(of: note) { _, _ in\n" +
+                "                                validationMessage = nil\n" +
+                "                                if state == .failed { state = .editing }\n" +
+                "                            }"
+        XCTAssertEqual(
+            reportCorrectionSource.components(
+                separatedBy: reportCorrectionValidationClearAndFocus
+            ).count - 1,
+            1
+        )
         XCTAssertEqual(
             reportCorrectionSource.components(
                 separatedBy: ".scrollDismissesKeyboard(.never)"
+            ).count - 1,
+            0
+        )
+
+        let recordWorkSourcePath =
+            "FieldEvidenceApp/Features/Issues/RecordWorkView.swift"
+        try assertFile(
+            recordWorkSourcePath,
+            byteCount: 14_867,
+            sha256: "B2DF8E9F3E2C2A1E2B89C332742F4D4E2E56E2115CAFE867625C9F1B924FC2E6"
+        )
+        let recordWorkSource = try text(recordWorkSourcePath)
+        let recordWorkDynamicKeyboardMode =
+            "            .padding(DesignTokens.Spacing.space16)\n" +
+                "        }\n" +
+                "        .scrollDismissesKeyboard(showsDescriptionValidation ? .never : .immediately)\n" +
+                #"        .navigationTitle("Record work")"#
+        XCTAssertEqual(
+            recordWorkSource.components(
+                separatedBy: recordWorkDynamicKeyboardMode
+            ).count - 1,
+            1
+        )
+        let recordWorkValidationClearAndFocus =
+            #"                            .focused($fieldFocus)"# + "\n" +
+                "                            .onChange(of: description) { _, value in\n" +
+                "                                guard showsDescriptionValidation else { return }\n" +
+                "                                let normalizedValue = value\n" +
+                "                                    .trimmingCharacters(in: .whitespacesAndNewlines)\n" +
+                "                                if !normalizedValue.isEmpty,\n" +
+                "                                   normalizedValue.count <= 160 {\n" +
+                "                                    showsDescriptionValidation = false\n" +
+                "                                }\n" +
+                "                            }"
+        XCTAssertEqual(
+            recordWorkSource.components(
+                separatedBy: recordWorkValidationClearAndFocus
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            recordWorkSource.components(
+                separatedBy:
+                    #".accessibilityFocused("# + "\n" +
+                    "                                $accessibilityFocus,\n" +
+                    "                                equals: .description\n" +
+                    "                            )"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            reportCorrectionSource.components(
+                separatedBy: ".scrollDismissesKeyboard(validationMessage == nil ? .immediately : .never)"
             ).count - 1,
             1
         )
@@ -2559,8 +2600,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
-                14_782,
-                "42134ED62E5CA5B909E02540E5AF4B9458F4723F755AC780845562AF2E6954A3",
+                14_867,
+                "B2DF8E9F3E2C2A1E2B89C332742F4D4E2E56E2115CAFE867625C9F1B924FC2E6",
                 [
                     #"AssetRoundsPrimaryAction("Record work", action: save)"#,
                     "AssetRoundsSecondaryAction(\n" +
@@ -2584,8 +2625,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
-                15_155,
-                "1D29B91790C54A1432F6BE9F4F1CA3E486CDAE87E1F19BE0445737BFC7982568",
+                15_197,
+                "BF7DB2A5038CBE910E308DC16DEE5118EEA3930A1847F8AEBBD5FE691EDE9E2F",
                 [
                     #"AssetRoundsPrimaryAction("Save correction", action: save)"#,
                     "AssetRoundsSecondaryAction(\"View prior report\") {\n" +

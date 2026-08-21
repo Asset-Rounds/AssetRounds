@@ -144,7 +144,7 @@ struct ReportCorrectionView: View {
             }
             .padding(DesignTokens.Spacing.space16)
         }
-        .scrollDismissesKeyboard(.never)
+        .scrollDismissesKeyboard(validationMessage == nil ? .immediately : .never)
         .navigationTitle("Correct report")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(hidesBackNavigation)

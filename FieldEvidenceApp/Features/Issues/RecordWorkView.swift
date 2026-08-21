@@ -213,6 +213,7 @@ struct RecordWorkView: View {
             }
             .padding(DesignTokens.Spacing.space16)
         }
+        .scrollDismissesKeyboard(showsDescriptionValidation ? .never : .immediately)
         .navigationTitle("Record work")
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
