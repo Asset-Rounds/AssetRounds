@@ -3159,8 +3159,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let defaultLightUIAuthority = String(
             uiSource[
-                defaultLightUIAuthorityStartRange.lowerBound
-                    ..<defaultLightUIAuthorityEndRange.lowerBound
+                defaultLightUIAuthorityStartRange.lowerBound..<defaultLightUIAuthorityEndRange.lowerBound
             ]
         )
         let defaultLightWorkflowAuthorityStart =
@@ -3179,8 +3178,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let defaultLightWorkflowAuthority = String(
             workflowSource[
-                defaultLightWorkflowAuthorityStartRange.lowerBound
-                    ..<defaultLightWorkflowAuthorityEndRange.lowerBound
+                defaultLightWorkflowAuthorityStartRange.lowerBound..<defaultLightWorkflowAuthorityEndRange.lowerBound
             ]
         )
         let defaultLightRationale =
