@@ -3179,12 +3179,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let axWorkflowAggregateBound =
+            #"elif $shard == "s10.4.current.ax-text""# + "\n" +
+                #"                      and (($matchedAuthorities | length) > 3"# + "\n" +
+                #"                        or ($matchedExceptionStateIDs | length) > 2) then"#
+        XCTAssertEqual(
+            workflowSource.components(separatedBy: axWorkflowAggregateBound).count - 1,
+            1
+        )
         for staleLock in [
             #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 4"#,
             #"and ([.[].exceptionIssueID] | unique | length) == 5"#,
             #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 5"#,
             #"($matchedAuthorities | length) > 2"#,
-            #"($matchedExceptionStateIDs | length) > 2"#,
         ] {
             XCTAssertFalse(workflowSource.contains(staleLock), staleLock)
         }
