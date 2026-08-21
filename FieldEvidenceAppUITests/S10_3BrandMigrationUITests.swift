@@ -1006,7 +1006,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         zone.tap()
         zone.typeText("America/New_York")
         let doneKey = app.keyboards.buttons["Done"]
-        doneKey.exists ? doneKey.tap() : dismissKeyboard(in: app)
+        if doneKey.exists && doneKey.isHittable {
+            doneKey.tap()
+        } else {
+            dismissKeyboard(in: app)
+        }
         XCTAssertTrue(
             wait(
                 for: app.keyboards.firstMatch,
@@ -1420,7 +1424,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         recordMetric("report_open_to_preview", since: reportOpenAt)
         let preview = element("s4.3.report-detail.preview", in: app)
         XCTAssertTrue(preview.waitForExistence(timeout: 20))
-        scroll(preview, in: app)
+        if automationShard?.shardID == "s10.4.current.ax-text" {
+            scrollReportPreviewForAXText(preview, in: app)
+        } else {
+            scroll(preview, in: app)
+        }
         XCTAssertTrue(preview.isHittable)
         captureBaseline("state.report-detail.ready", in: app)
         navigateBack(in: app)
@@ -2859,6 +2867,21 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(diagnosticsExport.waitForExistence(timeout: 10))
         XCTAssertTrue(navigationBar.exists)
         XCTAssertTrue(signsTab.exists)
+        let diagnosticsScrollViews = app.scrollViews.containing(
+            .staticText,
+            identifier: "s8.3.diagnostics.heading"
+        )
+        guard diagnosticsScrollViews.count == 1 else {
+            XCTFail(
+                "Diagnostics route must expose exactly one heading-containing ScrollView."
+            )
+            return
+        }
+        let diagnosticsScrollView = diagnosticsScrollViews.firstMatch
+        guard diagnosticsScrollView.waitForExistence(timeout: 10) else {
+            XCTFail("Diagnostics route ScrollView is missing.")
+            return
+        }
         let topClearance: CGFloat = 12
         let bottomClearance: CGFloat = 16
         var measuredUndertravel: CGFloat = 0
@@ -2885,8 +2908,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let dragDistance = targetDistance
                 + direction * measuredUndertravel
             let authorityBeforeDrag = diagnosticsAuthority.frame.minY
-            let dragStart = app.coordinate(
-                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)
+            let dragStart = diagnosticsScrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.01, dy: 0.45)
             )
             let dragEnd = dragStart.withOffset(
                 CGVector(dx: 0, dy: dragDistance)
@@ -2899,6 +2922,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
             let actualDistance = diagnosticsAuthority.frame.minY
                 - authorityBeforeDrag
+            guard actualDistance * dragDistance > 0 else {
+                XCTFail("Diagnostics positioning gesture was not recognized.")
+                return
+            }
             measuredUndertravel = actualDistance * direction > 0
                 ? max(0, abs(dragDistance) - abs(actualDistance))
                 : abs(dragDistance)
@@ -3978,9 +4005,47 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
     @MainActor
     private func dismissKeyboard(in app: XCUIApplication) {
-        guard app.keyboards.firstMatch.exists else { return }
-        let key = app.keyboards.buttons["Return"]
-        key.exists && key.isHittable ? key.tap() : app.swipeDown()
+        let keyboard = app.keyboards.firstMatch
+        guard keyboard.exists else { return }
+        let returnKey = keyboard.buttons["Return"]
+        if returnKey.exists && returnKey.isHittable {
+            returnKey.tap()
+        } else if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" && returnKey.exists {
+            guard returnKey.elementType == .button,
+                  returnKey.label.lowercased() == "return" else {
+                XCTFail("The minimum-profile Return key identity is not frozen.")
+                return
+            }
+            let expectedKeyboardFrame = CGRect(
+                x: 0,
+                y: 451,
+                width: 375,
+                height: 216
+            )
+            let returnFrame = returnKey.frame
+            guard keyboard.frame == expectedKeyboardFrame,
+                  returnFrame.minX == 281.5,
+                  returnFrame.width == 93.5 else {
+                XCTFail("The minimum-profile keyboard geometry is not frozen.")
+                return
+            }
+            keyboard.coordinate(
+                withNormalizedOffset: CGVector(
+                    dx: 0.8753333333333333,
+                    dy: 0.5740740740740741
+                )
+            ).tap()
+        } else {
+            app.swipeDown()
+        }
+        guard wait(
+            for: keyboard,
+            predicate: "exists == false",
+            timeout: 10
+        ), app.state == .runningForeground else {
+            XCTFail("The keyboard did not dismiss while the app remained foregrounded.")
+            return
+        }
     }
 
     @MainActor
@@ -4003,6 +4068,40 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         XCTAssertTrue(value.waitForExistence(timeout: 2))
         XCTAssertTrue(value.isHittable)
+    }
+
+    @MainActor
+    private func scrollReportPreviewForAXText(
+        _ preview: XCUIElement,
+        in app: XCUIApplication
+    ) {
+        let reportScrollViews = app.scrollViews.containing(
+            .other,
+            identifier: "s4.3.report-detail.preview"
+        )
+        guard reportScrollViews.count == 1 else {
+            XCTFail("AX-text report detail must expose exactly one ScrollView.")
+            return
+        }
+        let reportScroll = reportScrollViews.firstMatch
+        guard reportScroll.waitForExistence(timeout: 10) else {
+            XCTFail("AX-text report detail ScrollView is missing.")
+            return
+        }
+        let upperPadding = reportScroll.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.01, dy: 0.25)
+        )
+        let lowerPadding = reportScroll.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.01, dy: 0.65)
+        )
+        for _ in 0..<8 {
+            if preview.exists && preview.isHittable { return }
+            lowerPadding.press(forDuration: 0.05, thenDragTo: upperPadding)
+        }
+        for _ in 0..<8 {
+            if preview.exists && preview.isHittable { return }
+            upperPadding.press(forDuration: 0.05, thenDragTo: lowerPadding)
+        }
     }
 
     @MainActor

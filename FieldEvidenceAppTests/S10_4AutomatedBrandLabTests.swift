@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 183_013,
-            sha256: "594054CF85D833F0DFE6AA468771A8217DFA8C51E17A7095A981B78740D7D166"
+            byteCount: 186_708,
+            sha256: "F96BCD9977C8CDA22365E3B212EAAA4025F058D82CDF3626E0BFCFE307E23EB7"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -293,8 +293,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let freshPreflightKeyboardDismissal =
             #"let doneKey = app.keyboards.buttons["Done"]"# + "\n" +
-                #"        doneKey.exists ? doneKey.tap() : dismissKeyboard(in: app)"# +
-                "\n" +
+                "        if doneKey.exists && doneKey.isHittable {\n" +
+                "            doneKey.tap()\n" +
+                "        } else {\n" +
+                "            dismissKeyboard(in: app)\n" +
+                "        }\n" +
                 "        XCTAssertTrue(\n" +
                 "            wait(\n" +
                 "                for: app.keyboards.firstMatch,\n" +
@@ -312,6 +315,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 separatedBy: freshPreflightKeyboardDismissal
             ).count - 1,
             1
+        )
+        XCTAssertFalse(
+            uiSource.contains(
+                "doneKey.exists ? doneKey.tap() : dismissKeyboard(in: app)"
+            )
         )
 
         let preflightQuickPathStart =
@@ -914,34 +922,183 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
 
-        let guardedGlobalDismissKeyboardHelper =
+        let keyboardHelperStart =
             "    @MainActor\n" +
-                "    private func dismissKeyboard(in app: XCUIApplication) {\n" +
-                "        guard app.keyboards.firstMatch.exists else { return }\n" +
-                #"        let key = app.keyboards.buttons["Return"]"# + "\n" +
-                "        key.exists && key.isHittable ? key.tap() : app.swipeDown()\n" +
-                "    }"
+                "    private func dismissKeyboard(in app: XCUIApplication) {"
+        let keyboardHelperEnd =
+            "\n\n    @MainActor\n" +
+                "    private func navigateBack(in app: XCUIApplication) {"
         XCTAssertEqual(
-            uiSource.components(
-                separatedBy: guardedGlobalDismissKeyboardHelper
-            ).count - 1,
+            uiSource.components(separatedBy: keyboardHelperStart).count - 1,
             1
         )
-        XCTAssertFalse(
-            uiSource.contains("        key.exists ? key.tap() : app.swipeDown()")
+        guard let keyboardHelperStartRange = uiSource.range(of: keyboardHelperStart),
+              let keyboardHelperEndRange = uiSource.range(of: keyboardHelperEnd, range: keyboardHelperStartRange.upperBound..<uiSource.endIndex) else {
+            XCTFail("Missing the guarded global keyboard helper source slice")
+            return
+        }
+        let keyboardHelperSource = String(uiSource[keyboardHelperStartRange.lowerBound..<keyboardHelperEndRange.lowerBound])
+        let keyboardHelperLocks = [
+            "let keyboard = app.keyboards.firstMatch",
+            "guard keyboard.exists else { return }",
+            #"let returnKey = keyboard.buttons["Return"]"#,
+            "if returnKey.exists && returnKey.isHittable {",
+            "returnKey.tap()",
+            #"automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            "&& returnKey.exists {",
+            "returnKey.elementType == .button",
+            #"returnKey.label.lowercased() == "return""#,
+            "let expectedKeyboardFrame = CGRect(",
+            "x: 0,",
+            "y: 451,",
+            "width: 375,",
+            "height: 216",
+            "returnFrame.minX == 281.5",
+            "returnFrame.width == 93.5",
+            "dx: 0.8753333333333333,",
+            "dy: 0.5740740740740741",
+            "app.swipeDown()",
+            #"predicate: "exists == false""#,
+            "timeout: 10",
+            "app.state == .runningForeground",
+        ]
+        for lock in keyboardHelperLocks {
+            XCTAssertTrue(keyboardHelperSource.contains(lock), lock)
+        }
+        XCTAssertEqual(
+            keyboardHelperSource.components(separatedBy: "returnKey.tap()").count - 1,
+            1
         )
+        XCTAssertEqual(
+            keyboardHelperSource.components(separatedBy: "app.swipeDown()").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: "dismissKeyboard(in: app)").count - 1,
+            9
+        )
+        XCTAssertFalse(uiSource.contains("key.exists ? key.tap() : app.swipeDown()"))
+        XCTAssertFalse(uiSource.contains("key.exists && key.isHittable ?"))
 
         let firstReportPreviewPositioning =
             #"        let preview = element("s4.3.report-detail.preview", in: app)"# +
                 "\n" +
                 "        XCTAssertTrue(preview.waitForExistence(timeout: 20))\n" +
-                "        scroll(preview, in: app)\n" +
+                #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# +
+                "\n" +
+                "            scrollReportPreviewForAXText(preview, in: app)\n" +
+                "        } else {\n" +
+                "            scroll(preview, in: app)\n" +
+                "        }\n" +
                 "        XCTAssertTrue(preview.isHittable)\n" +
                 #"        captureBaseline("state.report-detail.ready", in: app)"#
         XCTAssertEqual(
             uiSource.components(separatedBy: firstReportPreviewPositioning).count - 1,
             1
         )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "scrollReportPreviewForAXText(preview, in: app)"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: "scroll(preview, in: app)").count - 1,
+            1
+        )
+
+        let axPreviewHelperStart =
+            "    @MainActor\n" +
+                "    private func scrollReportPreviewForAXText("
+        let axPreviewHelperEnd =
+            "\n\n    @MainActor\n" +
+                "    private func scrollDown(_ value: XCUIElement, in app: XCUIApplication) {"
+        XCTAssertEqual(
+            uiSource.components(separatedBy: axPreviewHelperStart).count - 1,
+            1
+        )
+        guard let axPreviewHelperStartRange = uiSource.range(of: axPreviewHelperStart),
+              let axPreviewHelperEndRange = uiSource.range(of: axPreviewHelperEnd, range: axPreviewHelperStartRange.upperBound..<uiSource.endIndex) else {
+            XCTFail("Missing the AX-text report-preview helper source slice")
+            return
+        }
+        let axPreviewHelperSource = String(uiSource[axPreviewHelperStartRange.lowerBound..<axPreviewHelperEndRange.lowerBound])
+        let axPreviewHelperLocks = [
+            #"app.scrollViews.containing("#,
+            ".other,",
+            #"identifier: "s4.3.report-detail.preview""#,
+            "guard reportScrollViews.count == 1 else {",
+            "let reportScroll = reportScrollViews.firstMatch",
+            "guard reportScroll.waitForExistence(timeout: 10) else {",
+            "CGVector(dx: 0.01, dy: 0.25)",
+            "CGVector(dx: 0.01, dy: 0.65)",
+            "lowerPadding.press(forDuration: 0.05, thenDragTo: upperPadding)",
+            "upperPadding.press(forDuration: 0.05, thenDragTo: lowerPadding)",
+        ]
+        for lock in axPreviewHelperLocks {
+            XCTAssertTrue(axPreviewHelperSource.contains(lock), lock)
+        }
+        XCTAssertEqual(
+            axPreviewHelperSource.components(separatedBy: "for _ in 0..<8 {").count - 1,
+            2
+        )
+        XCTAssertFalse(axPreviewHelperSource.contains("app.swipeUp()"))
+        XCTAssertFalse(axPreviewHelperSource.contains("app.swipeDown()"))
+        XCTAssertFalse(axPreviewHelperSource.contains(#"app.scrollViews.matching("#))
+        XCTAssertFalse(
+            axPreviewHelperSource.contains(
+                #"identifier: "s4.3.report-detail.screen""#
+            )
+        )
+
+        let diagnosticsPositioningStart =
+            #"        let diagnosticsHeading = element("s8.3.diagnostics.heading", in: app)"#
+        let diagnosticsPositioningEnd =
+            #"        captureBaseline("state.diagnostics.ready", in: app)"#
+        XCTAssertEqual(
+            uiSource.components(separatedBy: diagnosticsPositioningStart).count - 1,
+            1
+        )
+        guard let diagnosticsPositioningStartRange = uiSource.range(of: diagnosticsPositioningStart),
+              let diagnosticsPositioningEndRange = uiSource.range(of: diagnosticsPositioningEnd, range: diagnosticsPositioningStartRange.upperBound..<uiSource.endIndex) else {
+            XCTFail("Missing the diagnostics positioning source slice")
+            return
+        }
+        let diagnosticsPositioningSource = String(uiSource[diagnosticsPositioningStartRange.lowerBound..<diagnosticsPositioningEndRange.lowerBound])
+        let diagnosticsPositioningLocks = [
+            #"app.scrollViews.containing("#,
+            ".staticText,",
+            #"identifier: "s8.3.diagnostics.heading""#,
+            "guard diagnosticsScrollViews.count == 1 else {",
+            "let diagnosticsScrollView = diagnosticsScrollViews.firstMatch",
+            "guard diagnosticsScrollView.waitForExistence(timeout: 10) else {",
+            "let topClearance: CGFloat = 12",
+            "let bottomClearance: CGFloat = 16",
+            "var measuredUndertravel: CGFloat = 0",
+            "var compensatedDirection: CGFloat = 0",
+            "for _ in 0..<4 {",
+            "diagnosticsScrollView.coordinate(",
+            "CGVector(dx: 0.01, dy: 0.45)",
+            "forDuration: 0.2,",
+            "withVelocity: .slow,",
+            "thenHoldForDuration: 0.2",
+            "guard actualDistance * dragDistance > 0 else {",
+            "Diagnostics positioning gesture was not recognized.",
+            "measuredUndertravel = actualDistance * direction > 0",
+            "XCTAssertLessThanOrEqual(\n            diagnosticsHeading.frame.maxY,",
+            "XCTAssertGreaterThanOrEqual(\n            diagnosticsAuthority.frame.minY,",
+            "XCTAssertLessThanOrEqual(\n            diagnosticsExport.frame.maxY,",
+        ]
+        for lock in diagnosticsPositioningLocks {
+            XCTAssertTrue(diagnosticsPositioningSource.contains(lock), lock)
+        }
+        XCTAssertEqual(
+            diagnosticsPositioningSource.components(
+                separatedBy: "diagnosticsScrollView.coordinate("
+            ).count - 1,
+            1
+        )
+        XCTAssertFalse(diagnosticsPositioningSource.contains("app.coordinate("))
 
         let purchaseRecoveryStart =
             #"        let purchase = firstPurchaseButton(in: app)"# + "\n" +
