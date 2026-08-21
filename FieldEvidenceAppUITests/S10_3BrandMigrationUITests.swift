@@ -875,9 +875,67 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(preflight.waitForExistence(timeout: 20))
         recordMetric("start_check_to_preflight", since: startCheckAt)
         assertUnidentifiedLocalizedLabel("Information: Ready for night check", in: app)
+        let zone = element("s3.preflight.time-zone", in: app)
+        if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+            let returnKey = app.keyboards.buttons["Return"]
+            if !returnKey.waitForExistence(timeout: 1) {
+                let preActionZoneLabel = zone.label
+                let preActionZoneValue = zone.value as? String
+                let preActionPreflightExists = preflight.exists
+                let detailRoute = element("s2.sign-detail.screen", in: app)
+                let preActionDetailRouteExists = detailRoute.exists
+                let keyboard = app.keyboards.firstMatch
+                guard keyboard.waitForExistence(timeout: 10),
+                      wait(
+                          for: zone,
+                          predicate: "hasKeyboardFocus == true",
+                          timeout: 10
+                      ),
+                      preActionPreflightExists,
+                      !preActionDetailRouteExists,
+                      app.state == .runningForeground else {
+                    XCTFail("The iOS 18 preflight QuickPath state is incomplete.")
+                    return
+                }
+                let expectedKeyboardFrame = CGRect(
+                    x: 0,
+                    y: 451,
+                    width: 375,
+                    height: 216
+                )
+                let observedKeyboardFrame = keyboard.frame
+                guard observedKeyboardFrame == expectedKeyboardFrame else {
+                    XCTFail("The iOS 18 preflight keyboard frame does not match the frozen QuickPath tutorial evidence.")
+                    return
+                }
+                keyboard.coordinate(
+                    withNormalizedOffset: CGVector(
+                        dx: 0.5,
+                        dy: 0.8425925925925926
+                    )
+                ).tap()
+                let restoredKeyboard = app.keyboards.firstMatch
+                guard returnKey.waitForExistence(timeout: 10),
+                      restoredKeyboard.waitForExistence(timeout: 10),
+                      restoredKeyboard.frame == observedKeyboardFrame,
+                      wait(
+                          for: zone,
+                          predicate: "hasKeyboardFocus == true",
+                          timeout: 10
+                      ),
+                      preflight.waitForExistence(timeout: 10),
+                      preflight.exists == preActionPreflightExists,
+                      detailRoute.exists == preActionDetailRouteExists,
+                      zone.label == preActionZoneLabel,
+                      (zone.value as? String) == preActionZoneValue,
+                      app.state == .runningForeground else {
+                    XCTFail("The preflight state or content was not restored after dismissing the QuickPath tutorial.")
+                    return
+                }
+            }
+        }
         captureBaseline("state.check-preflight.ready", in: app)
 
-        let zone = element("s3.preflight.time-zone", in: app)
         scroll(zone, in: app)
         zone.tap()
         zone.typeText("America/New_York")

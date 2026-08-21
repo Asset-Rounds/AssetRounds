@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 166_712,
-            sha256: "E427CD46B088FFAE6AF1EC8C048212913C859B3EE369D31051CA25F52B8B6D3D"
+            byteCount: 169_575,
+            sha256: "CF63630A4AA68AB84CF29DC51C6D5D56EEF21925D995F1EB58A1989A9DD2825D"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -314,6 +314,193 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
 
+        let preflightQuickPathStart =
+            #"        let preflight = element("s3.preflight.screen", in: app)"#
+        let preflightQuickPathCapture =
+            #"        captureBaseline("state.check-preflight.ready", in: app)"#
+        XCTAssertEqual(
+            uiSource.components(separatedBy: preflightQuickPathStart).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: preflightQuickPathCapture).count - 1,
+            1
+        )
+        guard let preflightQuickPathStartRange = uiSource.range(
+            of: preflightQuickPathStart
+        ),
+        let preflightQuickPathCaptureRange = uiSource.range(
+            of: preflightQuickPathCapture,
+            range: preflightQuickPathStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the unique preflight QuickPath source slice")
+            return
+        }
+        let preflightQuickPathSource = String(
+            uiSource[
+                preflightQuickPathStartRange.lowerBound..<preflightQuickPathCaptureRange.lowerBound
+            ]
+        )
+        let preflightZoneMove =
+            #"        let zone = element("s3.preflight.time-zone", in: app)"#
+        XCTAssertEqual(
+            uiSource.components(separatedBy: preflightZoneMove).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            preflightQuickPathSource.components(separatedBy: preflightZoneMove).count - 1,
+            1
+        )
+        let preflightMinimumGate =
+            #"        if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {"#
+        XCTAssertEqual(
+            preflightQuickPathSource.components(separatedBy: preflightMinimumGate).count - 1,
+            1
+        )
+        let preflightReturnAbsenceDiscriminator =
+            #"            let returnKey = app.keyboards.buttons["Return"]"# + "\n" +
+                #"            if !returnKey.waitForExistence(timeout: 1) {"#
+        XCTAssertEqual(
+            preflightQuickPathSource.components(
+                separatedBy: preflightReturnAbsenceDiscriminator
+            ).count - 1,
+            1
+        )
+        XCTAssertFalse(preflightQuickPathSource.contains("returnKey.exists"))
+
+        let preflightPreActionSnapshots = [
+            "                let preActionZoneLabel = zone.label",
+            "                let preActionZoneValue = zone.value as? String",
+            "                let preActionPreflightExists = preflight.exists",
+            #"                let detailRoute = element("s2.sign-detail.screen", in: app)"#,
+            "                let preActionDetailRouteExists = detailRoute.exists",
+            "                let keyboard = app.keyboards.firstMatch",
+        ]
+        for lock in preflightPreActionSnapshots {
+            XCTAssertEqual(
+                preflightQuickPathSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        let preflightPrecondition =
+            "                guard keyboard.waitForExistence(timeout: 10),\n" +
+                "                      wait(\n" +
+                "                          for: zone,\n" +
+                #"                          predicate: "hasKeyboardFocus == true","# + "\n" +
+                "                          timeout: 10\n" +
+                "                      ),\n" +
+                "                      preActionPreflightExists,\n" +
+                "                      !preActionDetailRouteExists,\n" +
+                "                      app.state == .runningForeground else {"
+        XCTAssertEqual(
+            preflightQuickPathSource.components(separatedBy: preflightPrecondition).count - 1,
+            1
+        )
+        let preflightFrozenKeyboardFrame =
+            "                let expectedKeyboardFrame = CGRect(\n" +
+                "                    x: 0,\n" +
+                "                    y: 451,\n" +
+                "                    width: 375,\n" +
+                "                    height: 216\n" +
+                "                )"
+        XCTAssertEqual(
+            preflightQuickPathSource.components(
+                separatedBy: preflightFrozenKeyboardFrame
+            ).count - 1,
+            1
+        )
+        let preflightObservedKeyboardFrame =
+            "                let observedKeyboardFrame = keyboard.frame\n" +
+                "                guard observedKeyboardFrame == expectedKeyboardFrame else {"
+        XCTAssertEqual(
+            preflightQuickPathSource.components(
+                separatedBy: preflightObservedKeyboardFrame
+            ).count - 1,
+            1
+        )
+        let preflightNormalizedCoordinate =
+            "                keyboard.coordinate(\n" +
+                "                    withNormalizedOffset: CGVector(\n" +
+                "                        dx: 0.5,\n" +
+                "                        dy: 0.8425925925925926\n" +
+                "                    )\n" +
+                "                ).tap()"
+        XCTAssertEqual(
+            preflightQuickPathSource.components(
+                separatedBy: preflightNormalizedCoordinate
+            ).count - 1,
+            1
+        )
+        let preflightRestorationGuard =
+            "                let restoredKeyboard = app.keyboards.firstMatch\n" +
+                "                guard returnKey.waitForExistence(timeout: 10),\n" +
+                "                      restoredKeyboard.waitForExistence(timeout: 10),\n" +
+                "                      restoredKeyboard.frame == observedKeyboardFrame,\n" +
+                "                      wait(\n" +
+                "                          for: zone,\n" +
+                #"                          predicate: "hasKeyboardFocus == true","# + "\n" +
+                "                          timeout: 10\n" +
+                "                      ),\n" +
+                "                      preflight.waitForExistence(timeout: 10),\n" +
+                "                      preflight.exists == preActionPreflightExists,\n" +
+                "                      detailRoute.exists == preActionDetailRouteExists,\n" +
+                "                      zone.label == preActionZoneLabel,\n" +
+                "                      (zone.value as? String) == preActionZoneValue,\n" +
+                "                      app.state == .runningForeground else {"
+        XCTAssertEqual(
+            preflightQuickPathSource.components(
+                separatedBy: preflightRestorationGuard
+            ).count - 1,
+            1
+        )
+        let preflightIncompleteFailure =
+            "                    XCTFail(\"The iOS 18 preflight QuickPath state is incomplete.\")\n" +
+                "                    return\n" +
+                "                }"
+        let preflightFrameFailure =
+            "                    XCTFail(\"The iOS 18 preflight keyboard frame does not match the frozen QuickPath tutorial evidence.\")\n" +
+                "                    return\n" +
+                "                }"
+        let preflightRestorationFailure =
+            "                    XCTFail(\"The preflight state or content was not restored after dismissing the QuickPath tutorial.\")\n" +
+                "                    return\n" +
+                "                }"
+        for lock in [
+            preflightIncompleteFailure,
+            preflightFrameFailure,
+            preflightRestorationFailure,
+        ] {
+            XCTAssertEqual(
+                preflightQuickPathSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        XCTAssertEqual(
+            preflightQuickPathSource.components(separatedBy: "XCTFail(").count - 1,
+            3
+        )
+        XCTAssertEqual(
+            preflightQuickPathSource.components(separatedBy: "                    return\n").count - 1,
+            3
+        )
+        let preflightQuickPathCapturePrecededByRestoration =
+            preflightRestorationFailure + "\n            }\n        }\n" +
+                preflightQuickPathCapture
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: preflightQuickPathCapturePrecededByRestoration
+            ).count - 1,
+            1
+        )
+        let preflightZoneUseAfterCapture =
+            preflightQuickPathCapture + "\n\n        scroll(zone, in: app)"
+        XCTAssertEqual(
+            uiSource.components(separatedBy: preflightZoneUseAfterCapture).count - 1,
+            1
+        )
+
         let newSignQuickPathProfileGuard =
             #"        if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {"#
         let newSignRouteStart =
@@ -344,7 +531,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: newSignQuickPathProfileGuard).count - 1,
-            1
+            2
         )
         guard let newSignRoutePreconditionStartRange = uiSource.range(
             of: newSignRoutePreconditionStart
