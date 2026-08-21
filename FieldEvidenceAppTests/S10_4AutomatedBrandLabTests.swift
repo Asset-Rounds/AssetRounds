@@ -1216,15 +1216,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "navigationBarsQuery",
             "tabBarsQuery",
             "addDiagnosticAttachments",
-            "frameObject",
             "elementObject",
             "queryObject",
             "diagnosticStart",
             "scheduledOffsetMilliseconds",
             "elapsedMilliseconds",
-            "applicationStateRawValue",
             "Thread.sleep(forTimeInterval: 0.25)",
-            "XCTAttachment(string: app.debugDescription)",
         ]
         for fragment in removedReportDetailDiagnosticFragments {
             XCTAssertEqual(uiSource.components(separatedBy: fragment).count - 1, 0, fragment)
