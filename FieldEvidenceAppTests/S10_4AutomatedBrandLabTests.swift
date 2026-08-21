@@ -2256,13 +2256,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "for diagnosticElement in diagnosticElements",
             "var liveElements: [[String: Any]] = []",
             "let queryFrames:",
-            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
-            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
-            "var diagnostic: [String: Any] = [",
-            "auditedElement.screenshot()",
-            "try app.performAccessibilityAudit(for: .contrast) { issue in\n" +
-                "                    observedIssueCount += 1\n" +
-                "                    var diagnostic: [String: Any] = [",
             "throw AutomationConfigurationError.invalid(\n" +
                 "                    \"S10.4 AX-text capture-wide diagnostic",
         ]
@@ -2274,8 +2267,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         let restoredContrastSetup =
-            "        do {\n" +
-                "            let eligibleExceptions = " +
+            "            let eligibleExceptions = " +
                 "Self.contrastAuditExceptionSignatures.filter {"
         XCTAssertEqual(
             uiSource.components(separatedBy: restoredContrastSetup).count - 1,
