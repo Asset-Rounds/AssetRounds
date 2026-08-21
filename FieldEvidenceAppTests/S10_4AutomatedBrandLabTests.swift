@@ -105,8 +105,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             workflowPath,
-            byteCount: 98_977,
-            sha256: "4F2A2BE206C83890734E0C053DDD0E051ED3E7B6A1E3C7850C9DE5CB720555D9"
+            byteCount: 101_902,
+            sha256: "119FF51D3C10E69558811AFFCE661AB98A640FC0F5BF803DF327183AC5E0B084"
         )
         let workflowSource = try text(workflowPath)
         let retainStepMarker = "      - name: Retain S10.4 shard evidence\n"
@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 186_516,
-            sha256: "90E5AED23A44C2B8A51489BB3949919E3C37153C168477EE945A0363EEDC548C"
+            byteCount: 183_013,
+            sha256: "594054CF85D833F0DFE6AA468771A8217DFA8C51E17A7095A981B78740D7D166"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -942,6 +942,186 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(separatedBy: firstReportPreviewPositioning).count - 1,
             1
         )
+
+        let purchaseRecoveryStart =
+            #"        let purchase = firstPurchaseButton(in: app)"# + "\n" +
+                "        scroll(purchase, in: app)\n" +
+                "        purchase.tap()\n" +
+                #"        let purchaseState = element("s7.2.paywall.purchase-state", in: app)"#
+        let purchaseRecoveryEnd =
+            #"        let terms = element("s7.2.paywall.terms", in: app)"#
+        XCTAssertEqual(
+            uiSource.components(separatedBy: purchaseRecoveryStart).count - 1,
+            1
+        )
+        guard let purchaseRecoveryStartRange = uiSource.range(of: purchaseRecoveryStart),
+              let purchaseRecoveryEndRange = uiSource.range(
+                of: purchaseRecoveryEnd,
+                range: purchaseRecoveryStartRange.upperBound..<uiSource.endIndex
+              ) else {
+            XCTFail("Missing the bounded StoreKit purchase recovery source slice")
+            return
+        }
+        let purchaseRecoverySource = String(
+            uiSource[
+                purchaseRecoveryStartRange.lowerBound..<purchaseRecoveryEndRange.lowerBound
+            ]
+        )
+        let unverifiedRetryStart =
+            "            if purchaseState.label == unverifiedPurchaseLabel {"
+        let unverifiedRetryEnd =
+            "            }\n" +
+                "        }\n" +
+                "        waitForLocalizedLabel("
+        guard let unverifiedRetryStartRange = purchaseRecoverySource.range(
+            of: unverifiedRetryStart
+        ),
+        let unverifiedRetryEndRange = purchaseRecoverySource.range(
+            of: unverifiedRetryEnd,
+            range: unverifiedRetryStartRange.upperBound..<purchaseRecoverySource.endIndex
+        ) else {
+            XCTFail("Missing the exact unverified-only StoreKit retry slice")
+            return
+        }
+        let unverifiedRetrySource = String(
+            purchaseRecoverySource[
+                unverifiedRetryStartRange.lowerBound..<unverifiedRetryEndRange.lowerBound
+            ]
+        )
+        let purchaseRecoveryPrefix = String(
+            purchaseRecoverySource[
+                purchaseRecoverySource.startIndex..<unverifiedRetryStartRange.lowerBound
+            ]
+        )
+        let purchaseRecoverySuffix = String(
+            purchaseRecoverySource[
+                unverifiedRetryEndRange.lowerBound..<purchaseRecoverySource.endIndex
+            ]
+        )
+        let terminalPurchasePredicate =
+            "            let verifiedPurchaseLabel =\n" +
+                "                \"Complete: Purchase verified. " +
+                "Subscription access is ready.\"\n" +
+                "            let unverifiedPurchaseLabel =\n" +
+                "                \"Purchase couldn’t be verified. Your existing data is " +
+                "still available. Try again.\"\n" +
+                "            let terminalPurchaseExpectation = XCTNSPredicateExpectation(\n" +
+                "                predicate: NSPredicate(\n" +
+                "                    format: \"label == %@ OR label == %@\",\n" +
+                "                    verifiedPurchaseLabel,\n" +
+                "                    unverifiedPurchaseLabel\n" +
+                "                ),\n" +
+                "                object: purchaseState\n" +
+                "            )\n" +
+                "            XCTAssertEqual(\n" +
+                "                XCTWaiter.wait(\n" +
+                "                    for: [terminalPurchaseExpectation],\n" +
+                "                    timeout: 45\n" +
+                "                ),\n" +
+                "                .completed\n" +
+                "            )"
+        XCTAssertEqual(
+            purchaseRecoverySource.components(
+                separatedBy: terminalPurchasePredicate
+            ).count - 1,
+            1
+        )
+        let finalVerifiedPurchaseWait =
+            "        waitForLocalizedLabel(\n" +
+                "            purchaseState,\n" +
+                "            containing: \"Purchase verified. " +
+                "Subscription access is ready.\",\n" +
+                "            timeout: 45\n" +
+                "        )"
+        XCTAssertEqual(
+            purchaseRecoverySuffix.components(
+                separatedBy: finalVerifiedPurchaseWait
+            ).count - 1,
+            1
+        )
+        let exactRetryLocks = [
+            unverifiedRetryStart,
+            "                guard let session = storeKitSession else {",
+            "                session.resetToDefaultState()",
+            "                session.clearTransactions()",
+            "                session.disableDialogs = true",
+            #"                    predicate: "value == 'Ready'","#,
+            "                scroll(purchase, in: app)",
+            "                XCTAssertTrue(purchase.waitForExistence(timeout: 20))",
+            "                XCTAssertTrue(purchase.isEnabled)",
+            "                XCTAssertTrue(purchase.isHittable)",
+            "                purchase.tap()",
+        ]
+        for lock in exactRetryLocks {
+            XCTAssertEqual(
+                unverifiedRetrySource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        let retryReadyToTapAdjacency =
+            "                XCTAssertTrue(wait(\n" +
+                "                    for: store,\n" +
+                #"                    predicate: "value == 'Ready'","# + "\n" +
+                "                    timeout: 20\n" +
+                "                ))\n" +
+                "                scroll(purchase, in: app)\n" +
+                "                XCTAssertTrue(purchase.waitForExistence(timeout: 20))\n" +
+                "                XCTAssertTrue(purchase.isEnabled)\n" +
+                "                XCTAssertTrue(purchase.isHittable)\n" +
+                "                purchase.tap()"
+        XCTAssertEqual(
+            unverifiedRetrySource.components(
+                separatedBy: retryReadyToTapAdjacency
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            unverifiedRetrySource.components(
+                separatedBy: "scroll(purchase, in: app)"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            purchaseRecoverySource.components(
+                separatedBy: "        if !usesPseudolanguage {"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            purchaseRecoverySource.components(separatedBy: "timeout: 45").count - 1,
+            2
+        )
+        XCTAssertEqual(
+            purchaseRecoverySource.components(separatedBy: "timeout:").count - 1,
+            4
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: "purchase.tap()").count - 1,
+            2
+        )
+        XCTAssertFalse(uiSource.contains("buyProduct("))
+        for noRetrySource in [purchaseRecoveryPrefix, purchaseRecoverySuffix] {
+            for prohibited in [
+                "resetToDefaultState()",
+                "clearTransactions()",
+                "disableDialogs = true",
+            ] {
+                XCTAssertFalse(noRetrySource.contains(prohibited), prohibited)
+            }
+        }
+        for prohibited in ["for ", "while ", "repeat {"] {
+            XCTAssertFalse(unverifiedRetrySource.contains(prohibited), prohibited)
+        }
+        for prohibited in [
+            "containing: unverifiedPurchaseLabel",
+            "equals: unverifiedPurchaseLabel",
+            "timeout: 46",
+            "timeout: 60",
+            "timeout: 90",
+        ] {
+            XCTAssertFalse(purchaseRecoverySource.contains(prohibited), prohibited)
+        }
 
         let reportCorrectionSourcePath =
             "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift"
@@ -2780,253 +2960,26 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(captureWidePositioningSource.contains(prohibited), prohibited)
         }
 
-        let reportCorrectionDiagnosticStart =
-            "            if shard.shardID == \"s10.4.current.default-light\",\n" +
-                "               stateID == \"state.report-correction.validation-error\" {"
-        let reportCorrectionEligibleExceptions =
-            "            let eligibleExceptions = " +
+        let removedReportCorrectionDiagnosticFragments = [
+            "S10_4_REPORT_CORRECTION_HEADER_CONTEXT_DIAGNOSTIC",
+            "S10_4_REPORT_CORRECTION_HEADER_AUDIT_DIAGNOSTIC",
+            "S10_4_REPORT_CORRECTION_HEADER_AUDIT_COUNT_DIAGNOSTIC",
+            "Report-correction-header diagnostic",
+            "Report-correction-header audit issue",
+            "diagnosticElementObject",
+            "diagnosticQueryObject",
+        ]
+        for fragment in removedReportCorrectionDiagnosticFragments {
+            XCTAssertEqual(uiSource.components(separatedBy: fragment).count - 1, 0, fragment)
+        }
+        let restoredReportCorrectionAuditAdjacency =
+            "        do {\n" +
+                "            let eligibleExceptions = " +
                 "Self.contrastAuditExceptionSignatures.filter {"
         XCTAssertEqual(
-            uiSource.components(separatedBy: reportCorrectionDiagnosticStart).count - 1,
+            uiSource.components(separatedBy: restoredReportCorrectionAuditAdjacency).count - 1,
             1
         )
-        guard let reportCorrectionDiagnosticStartRange = uiSource.range(
-            of: reportCorrectionDiagnosticStart
-        ),
-        let reportCorrectionEligibleRange = uiSource.range(
-            of: reportCorrectionEligibleExceptions,
-            range: reportCorrectionDiagnosticStartRange.upperBound..<uiSource.endIndex
-        ) else {
-            XCTFail("Missing the sole default-light report-correction diagnostic branch")
-            return
-        }
-        let reportCorrectionDiagnostic = String(
-            uiSource[
-                reportCorrectionDiagnosticStartRange.lowerBound..<reportCorrectionEligibleRange.lowerBound
-            ]
-        )
-
-        let reportCorrectionPassiveBindings = [
-            "                let headerElements = app.descendants(matching: .any).matching(\n" +
-                "                    identifier: \"s4.5.correction.header\"\n" +
-                "                )",
-            "                let header = headerElements.firstMatch",
-            "                guard headerElements.count == 1,\n" +
-                "                      header.exists,\n" +
-                "                      header.label == \"Correct report\",\n" +
-                "                      header.elementType == .staticText else {",
-            "                let correctionScrollViews = app.scrollViews.containing(\n" +
-                "                    .button,\n" +
-                "                    identifier: \"s4.5.correction.save\"\n" +
-                "                )",
-            "                let navigationBars = app.navigationBars",
-            "                let validationElements = app.descendants(matching: .any).matching(\n" +
-                "                    identifier: \"s4.5.correction.validation\"\n" +
-                "                )",
-            "                let saveElements = app.descendants(matching: .any).matching(\n" +
-                "                    identifier: \"s4.5.correction.save\"\n" +
-                "                )",
-            "                let keyboards = app.keyboards",
-            "                let inputViews = app.otherElements.matching(\n" +
-                "                    NSPredicate(format: \"identifier == %@\", \"inputView\")\n" +
-                "                )",
-            "                let tabBars = app.tabBars",
-            "                let diagnosticElementObject: (XCUIElement) -> [String: Any] = {",
-            "                let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {",
-            "                    prefix: \"S10_4_REPORT_CORRECTION_HEADER_CONTEXT_DIAGNOSTIC\"",
-            "                        \"application\": diagnosticElementObject(app)",
-            "                        \"header\": diagnosticQueryObject(headerElements)",
-            "                        \"reportCorrectionScrollView\": diagnosticQueryObject(",
-            "                        \"navigationBar\": diagnosticQueryObject(navigationBars)",
-            "                        \"validation\": diagnosticQueryObject(validationElements)",
-            "                        \"save\": diagnosticQueryObject(saveElements)",
-            "                        \"keyboard\": diagnosticQueryObject(keyboards)",
-            "                        \"inputView\": diagnosticQueryObject(inputViews)",
-            "                        \"tabBar\": diagnosticQueryObject(tabBars)",
-        ]
-        for lock in reportCorrectionPassiveBindings {
-            XCTAssertEqual(
-                reportCorrectionDiagnostic.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        let reportCorrectionElementObject =
-            "                let diagnosticElementObject: (XCUIElement) -> [String: Any] = {\n" +
-                "                    element in\n" +
-                "                    [\n" +
-                "                        \"identifier\": element.identifier,\n" +
-                "                        \"label\": element.label,\n" +
-                "                        \"elementType\": String(describing: element.elementType),\n" +
-                "                        \"frame\": self.auditFrameObject(element.frame),\n" +
-                "                        \"exists\": element.exists,\n" +
-                "                        \"isHittable\": element.isHittable,\n" +
-                "                    ]\n" +
-                "                }"
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(
-                separatedBy: reportCorrectionElementObject
-            ).count - 1,
-            1
-        )
-        let reportCorrectionQueryObject =
-            "                let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {\n" +
-                "                    query in\n" +
-                "                    [\n" +
-                "                        \"cardinality\": query.count,\n" +
-                "                        \"elements\": (0..<query.count).map { index in\n" +
-                "                            diagnosticElementObject(query.element(boundBy: index))\n" +
-                "                        },\n" +
-                "                    ]\n" +
-                "                }"
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(
-                separatedBy: reportCorrectionQueryObject
-            ).count - 1,
-            1
-        )
-
-        let reportCorrectionAttachmentLocks = [
-            "                let appAttachment = XCTAttachment(screenshot: app.screenshot())",
-            "                    \"S10.4 default-light Report-correction-header diagnostic app\"",
-            "                add(appAttachment)",
-            "                let treeAttachment = XCTAttachment(string: app.debugDescription)",
-            "                    \"S10.4 default-light Report-correction-header diagnostic accessibility tree\"",
-            "                add(treeAttachment)",
-            "                let headerAttachment = XCTAttachment(screenshot: header.screenshot())",
-            "                    \"S10.4 default-light Report-correction-header diagnostic header\"",
-            "                add(headerAttachment)",
-            "                        let attachment = XCTAttachment(\n" +
-                "                            screenshot: auditedElement.screenshot()\n" +
-                "                        )",
-            "                            \"S10.4 default-light Report-correction-header audit issue \"",
-            "                        self.add(attachment)",
-        ]
-        for lock in reportCorrectionAttachmentLocks {
-            XCTAssertEqual(
-                reportCorrectionDiagnostic.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(separatedBy: "XCTAttachment(").count - 1,
-            4
-        )
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(separatedBy: "lifetime = .keepAlways").count - 1,
-            4
-        )
-
-        let reportCorrectionIssueFields = [
-            "                        \"issueOrdinal\": observedIssueCount,",
-            "                        \"auditTypeRawValue\": String(issue.auditType.rawValue),",
-            "                        \"compactDescription\": issue.compactDescription,",
-            "                        \"detailedDescription\": issue.detailedDescription,",
-            "                        \"elementIdentifier\": NSNull(),",
-            "                        \"elementLabel\": NSNull(),",
-            "                        \"elementType\": NSNull(),",
-            "                        \"elementFrame\": NSNull(),",
-            "                        \"applicationFrame\": self.auditFrameObject(app.frame),",
-            "                        diagnostic[\"elementIdentifier\"] = auditedElement.identifier",
-            "                        diagnostic[\"elementLabel\"] = auditedElement.label",
-            "                        diagnostic[\"elementType\"] = String(",
-            "                        diagnostic[\"elementFrame\"] = self.auditFrameObject(",
-            "                    prefix: \"S10_4_REPORT_CORRECTION_HEADER_AUDIT_DIAGNOSTIC\"",
-        ]
-        for lock in reportCorrectionIssueFields {
-            XCTAssertEqual(
-                reportCorrectionDiagnostic.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(separatedBy: "NSNull()").count - 1,
-            4
-        )
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(
-                separatedBy: "                var observedIssueCount = 0"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(
-                separatedBy: "                    observedIssueCount += 1"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            uiSource.components(separatedBy: "var observedIssueCount = 0").count - 1,
-            2
-        )
-        XCTAssertEqual(
-            uiSource.components(separatedBy: "observedIssueCount += 1").count - 1,
-            2
-        )
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(
-                separatedBy: "                try app.performAccessibilityAudit(for: .contrast) { issue in"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(separatedBy: "return true").count - 1,
-            1
-        )
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(separatedBy: "return false").count - 1,
-            0
-        )
-
-        let reportCorrectionAuditCount =
-            "                printJSONLine(\n" +
-                "                    prefix: \"S10_4_REPORT_CORRECTION_HEADER_AUDIT_COUNT_DIAGNOSTIC\",\n" +
-                "                    object: [\"issueCount\": observedIssueCount]\n" +
-                "                )"
-        let reportCorrectionTerminal =
-            reportCorrectionAuditCount + "\n" +
-                "                throw AutomationConfigurationError.invalid(\n" +
-                "                    \"S10.4 default-light Report-correction-header diagnostic completed nonaccepting\"\n" +
-                "                )"
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(separatedBy: reportCorrectionTerminal).count - 1,
-            1
-        )
-        let reportCorrectionTerminalBeforeEligible =
-            reportCorrectionTerminal + "\n            }\n\n" +
-                reportCorrectionEligibleExceptions
-        XCTAssertEqual(
-            uiSource.components(separatedBy: reportCorrectionTerminalBeforeEligible).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            reportCorrectionDiagnostic.components(separatedBy: "printJSONLine(").count - 1,
-            3
-        )
-        for prohibited in [
-            ".tap(",
-            ".swipe",
-            ".press(",
-            ".coordinate(",
-            ".typeText(",
-            "scroll(",
-            "navigateBack(",
-            "setToggle(",
-            "app.launch",
-            "app.terminate",
-            "migratedStateIDs.append",
-            "automationContrastExceptions",
-            "automationAXTreeDigests",
-            #"prefix: "S10_4_AX_STATE""#,
-            #"prefix: "S10_4_CONTRAST""#,
-            "automatedEvidenceIDs.append(",
-            "attachCandidate(",
-            "let candidate = XCTAttachment(",
-        ] {
-            XCTAssertFalse(reportCorrectionDiagnostic.contains(prohibited), prohibited)
-        }
 
         let exceptionIDs = [
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",
@@ -3034,6 +2987,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-FEEDBACK-PRIVACY",
+            "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER",
             "S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER",
         ]
@@ -3043,6 +2997,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Before you begin while the frozen public node frame is bottom-clipped outside the 402x874 application frame in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the I confirm this is the site's time zone label even though the audit-owned crop contains only the iOS keyboard and the frozen public node frame is fully keyboard-occluded in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Feedback privacy copy while the frozen public node frame is top-clipped outside the 402x874 application frame and its remaining slice is bound to native status/navigation chrome; the live Feedback composition simultaneously preserves the frozen App-metadata and Save-diagnostics clearances, and the audit-owned crop confirms that unobscured primaryText renders white on the dark elevated surface; the exception is limited to the frozen public issue signature.",
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in default light even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in default dark even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in increased contrast even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
         ]
@@ -3064,7 +3019,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("state.new-sign.editing", 1),
             ("state.sample-report.ready", 1),
             ("state.feedback.review-ready", 1),
-            ("state.report-correction.validation-error", 2),
+            ("state.report-correction.validation-error", 3),
         ]
         for (stateID, expectedCount) in uiExceptionStateCounts {
             let lock = #"stateID: "\#(stateID)""#
@@ -3076,37 +3031,37 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(separatedBy: "ContrastAuditExceptionSignature(").count - 1,
-            7
+            8
         )
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: #"issueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            7
+            8
         )
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            14
+            16
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"owner: "palatis3""#).count - 1,
-            7
+            8
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionOwner: "palatis3""#)
                 .count - 1,
-            7
+            8
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"expiresAt: "2026-11-20""#).count - 1,
-            7
+            8
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionExpiresAt: "2026-11-20""#)
                 .count - 1,
-            7
+            8
         )
 
         let signatureLocks = [
@@ -3119,8 +3074,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"elementLabel: "I confirm this is the site's time zone.""#,
             #"elementIdentifier: "s8.4.feedback.privacy""#,
             #"elementLabel: "Your message stays editable. Only app version, build, device model, and iOS version are prefilled; customer and inspection content is never prefilled.""#,
+            #"issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER""#,
             #"issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER""#,
             #"issueID: "S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER""#,
+            #"shardID: "s10.4.current.default-light""#,
             #"shardID: "s10.4.current.increased-contrast""#,
             #"stateID: "state.report-correction.validation-error""#,
             #"elementIdentifier: "s4.5.correction.header""#,
@@ -3156,8 +3113,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"elementLabel: "Before you begin""#,
             #"elementLabel: $timeZoneLabel"#,
             #"elementIdentifier: "s8.4.feedback.privacy""#,
+            #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER""#,
+            #"shardID: "s10.4.current.default-light""#,
             #"shardID: "s10.4.current.increased-contrast""#,
             #"stateID: "state.report-correction.validation-error""#,
             #"elementIdentifier: "s4.5.correction.header""#,
@@ -3182,6 +3141,109 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ]
         for lock in workflowSignatureLocks {
             XCTAssertTrue(workflowSource.contains(lock), lock)
+        }
+
+        let defaultLightUIAuthorityStart =
+            #"            issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER","#
+        let defaultLightUIAuthorityEnd =
+            #"            issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER","#
+        guard let defaultLightUIAuthorityStartRange = uiSource.range(
+            of: defaultLightUIAuthorityStart
+        ),
+        let defaultLightUIAuthorityEndRange = uiSource.range(
+            of: defaultLightUIAuthorityEnd,
+            range: defaultLightUIAuthorityStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the exact default-light UI contrast authority")
+            return
+        }
+        let defaultLightUIAuthority = String(
+            uiSource[
+                defaultLightUIAuthorityStartRange.lowerBound
+                    ..<defaultLightUIAuthorityEndRange.lowerBound
+            ]
+        )
+        let defaultLightWorkflowAuthorityStart =
+            #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER","#
+        let defaultLightWorkflowAuthorityEnd =
+            #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER","#
+        guard let defaultLightWorkflowAuthorityStartRange = workflowSource.range(
+            of: defaultLightWorkflowAuthorityStart
+        ),
+        let defaultLightWorkflowAuthorityEndRange = workflowSource.range(
+            of: defaultLightWorkflowAuthorityEnd,
+            range: defaultLightWorkflowAuthorityStartRange.upperBound..<workflowSource.endIndex
+        ) else {
+            XCTFail("Missing the exact default-light workflow contrast authority")
+            return
+        }
+        let defaultLightWorkflowAuthority = String(
+            workflowSource[
+                defaultLightWorkflowAuthorityStartRange.lowerBound
+                    ..<defaultLightWorkflowAuthorityEndRange.lowerBound
+            ]
+        )
+        let defaultLightRationale =
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue " +
+                "for the identified Correct report header in default light even though " +
+                "the audit-owned crop visibly renders the complete header unobscured " +
+                "and wholly above the keyboard; the exception is limited to the frozen " +
+                "public issue signature."
+        let defaultLightUIAuthorityLocks = [
+            #"shardID: "s10.4.current.default-light""#,
+            #"stateID: "state.report-correction.validation-error""#,
+            #"taskID: "report_comprehension""#,
+            #"owner: "palatis3""#,
+            #"expiresAt: "2026-11-20""#,
+            "rationale: \"" + defaultLightRationale + "\"",
+            #"auditTypeRawValue: "1""#,
+            #"compactDescription: "Contrast failed""#,
+            #"detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode""#,
+            #"elementIdentifier: "s4.5.correction.header""#,
+            #"elementLabel: "Correct report""#,
+            #"elementTypeDescription: "XCUIElementType(rawValue: 48)""#,
+            "elementFrame: CGRect(\n" +
+                "                x: 32,\n" +
+                "                y: 111.33333587646484,\n" +
+                "                width: 248,\n" +
+                "                height: 40.666664123535156\n" +
+                "            )",
+            "applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)",
+        ]
+        let defaultLightWorkflowAuthorityLocks = [
+            #"shardID: "s10.4.current.default-light""#,
+            #"stateID: "state.report-correction.validation-error""#,
+            #"taskID: "report_comprehension""#,
+            #"exceptionOwner: "palatis3""#,
+            #"exceptionExpiresAt: "2026-11-20""#,
+            "exceptionRationale: \"" + defaultLightRationale + "\"",
+            #"auditTypeRawValue: "1""#,
+            #"compactDescription: "Contrast failed""#,
+            #"detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode""#,
+            #"elementIdentifier: "s4.5.correction.header""#,
+            #"elementLabel: "Correct report""#,
+            #"elementType: "XCUIElementType(rawValue: 48)""#,
+            "elementFrame: {\n" +
+                "                      x: 32,\n" +
+                "                      y: 111.33333587646484,\n" +
+                "                      width: 248,\n" +
+                "                      height: 40.666664123535156\n" +
+                "                    }",
+            "applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
+        ]
+        for lock in defaultLightUIAuthorityLocks {
+            XCTAssertEqual(
+                defaultLightUIAuthority.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        for lock in defaultLightWorkflowAuthorityLocks {
+            XCTAssertEqual(
+                defaultLightWorkflowAuthority.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
         }
 
         let failClosedHandlerLocks = [
@@ -3246,6 +3308,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"case ("s10.4.current.ax-text", "one_handed_start")"#,
             #"taskIssueLimit = 3"#,
             #"taskStateLimit = 2"#,
+            #"case ("s10.4.current.default-light", "report_comprehension")"#,
+            #"taskIssueLimit = 1"#,
+            #"taskStateLimit = 1"#,
+            #"permittedExceptionStateIDs = ["# + "\n" +
+                #"                    "state.report-correction.validation-error","# + "\n" +
+                #"                ]"#,
             #"case ("s10.4.current.default-dark", "report_comprehension")"#,
             #"taskIssueLimit = 2"#,
             #"permittedExceptionStateIDs = ["# + "\n" +
@@ -3292,6 +3360,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(
+                separatedBy: #"case ("s10.4.current.default-light""#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
                 separatedBy: #"case ("s10.4.current.default-dark""#
             ).count - 1,
             2,
@@ -3300,6 +3374,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: #"case ("s10.4.current.increased-contrast""#
+            ).count - 1,
+            1
+        )
+        let defaultLightTaskExceptionBound =
+            #"            case ("s10.4.current.default-light", "report_comprehension"):"# +
+                "\n" +
+                "                taskIssueLimit = 1\n" +
+                "                taskStateLimit = 1\n" +
+                "                permittedExceptionStateIDs = [\n" +
+                #"                    "state.report-correction.validation-error","# +
+                "\n" +
+                "                ]"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: defaultLightTaskExceptionBound
             ).count - 1,
             1
         )
@@ -3315,11 +3404,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "contrast_exception_authority_path=",
             #"if .result == "PASS" then"#,
             #"elif .result == "EXCEPTION" then"#,
-            #"length == 7"#,
-            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 6"#,
-            #"and ([.[].exceptionIssueID] | unique | length) == 7"#,
+            #"length == 8"#,
+            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 7"#,
+            #"and ([.[].exceptionIssueID] | unique | length) == 8"#,
             #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 6"#,
             #"| select(.exceptionIssueID | IN("#,
+            #""S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER","#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER","#,
             #""S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER""#,
             #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 1"#,
@@ -3349,6 +3439,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"error("duplicate contrast exception state")"#,
             #"error("contrast exception state-to-issue cardinality drift")"#,
             #"error("contrast exception per-state issue limit exceeded")"#,
+            #"error("default-light contrast exception bound exceeded")"#,
             #"error("default-dark contrast exception bound exceeded")"#,
             #"error("AX-text contrast exception bound exceeded")"#,
             #"error("contrast exception on ineligible shard")"#,
@@ -3379,6 +3470,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "the exact Apple contrast issues are bound to the named, expiring exceptions.",
             #"and all($taskExceptionStateIDs[];"#,
             #"| index($exceptionStateID)) != null"#,
+            #"if $shard == "s10.4.current.default-light" then"#,
             #"if $shard == "s10.4.current.default-dark" then"#,
             #"($matchedAuthorities | length) > 3"#,
             #"($matchedExceptionStateIDs | length) > 3"#,
@@ -3390,6 +3482,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"stateIssueLimit($shardID; $stateID)"#,
             #"and $stateID == "state.check-preflight.ready" then 2"#,
             #"and $stateID == "state.new-sign.editing" then 1"#,
+            #"and $shardID == "s10.4.current.default-light""#,
             #"and ($stateID == "state.feedback.review-ready""#,
             #"or $stateID == "state.report-correction.validation-error""#,
             #"or $stateID == "state.sample-report.ready") then 1"#,
@@ -3405,12 +3498,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowHeaderSharedOneAndHistoricalFive =
             "            and ([.[]\n" +
                 "              | select(.exceptionIssueID | IN(\n" +
+                "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER\",\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER\",\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER\"\n" +
                 "                ))\n" +
                 "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 1\n" +
-                "            and ([.[]\n" +
+            "            and ([.[]\n" +
                 "              | select((.exceptionIssueID | IN(\n" +
+                "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER\",\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER\",\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER\"\n" +
                 "                )) | not)\n" +
@@ -3418,6 +3513,55 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: workflowHeaderSharedOneAndHistoricalFive
+            ).count - 1,
+            1
+        )
+        let defaultLightWorkflowTaskIssueBound =
+            #"                elif $shardID == "s10.4.current.default-light""# + "\n" +
+                #"                     and $taskID == "report_comprehension" then 1"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: defaultLightWorkflowTaskIssueBound
+            ).count - 1,
+            2
+        )
+        let defaultLightWorkflowStateIssueBound =
+            #"                elif $shardID == "s10.4.current.default-light""# + "\n" +
+                #"                     and $stateID == "state.report-correction.validation-error" then 1"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: defaultLightWorkflowStateIssueBound
+            ).count - 1,
+            1
+        )
+        let defaultLightWorkflowAggregateBound =
+            #"                 elif $shard == "s10.4.current.default-light""# + "\n" +
+                #"                      and (($matchedAuthorities | length) > 1"# + "\n" +
+                #"                        or ($matchedExceptionStateIDs | length) > 1) then"# +
+                "\n" +
+                #"                   error("default-light contrast exception bound exceeded")"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: defaultLightWorkflowAggregateBound
+            ).count - 1,
+            1
+        )
+        let defaultLightWorkflowEligibility =
+            #"                 elif $shard != "s10.4.current.default-light""# + "\n" +
+                #"                      and $shard != "s10.4.current.default-dark""#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: defaultLightWorkflowEligibility
+            ).count - 1,
+            1
+        )
+        let defaultLightWorkflowDownstreamBound =
+            #"                      if $shard == "s10.4.current.default-light" then"# + "\n" +
+                #"                        ($matchedAuthorities | length) <= 1"# + "\n" +
+                #"                        and ($matchedExceptionStateIDs | length) <= 1"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: defaultLightWorkflowDownstreamBound
             ).count - 1,
             1
         )
@@ -3430,6 +3574,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         for staleLock in [
+            #"length == 7"#,
+            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 6"#,
+            #"and ([.[].exceptionIssueID] | unique | length) == 7"#,
             #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 4"#,
             #"and ([.[].exceptionIssueID] | unique | length) == 5"#,
             #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 5"#,
@@ -3463,7 +3610,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workflowSource.components(
                 separatedBy: #"taskID: "report_comprehension""#
             ).count - 1,
-            6
+            8
         )
         XCTAssertFalse(workflowSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
         XCTAssertFalse(
