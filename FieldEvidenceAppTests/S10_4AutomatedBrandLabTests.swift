@@ -276,8 +276,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(sourceParts.count, 2)
         try assertFile(
             sourceParts[0],
-            byteCount: 183_525,
-            sha256: "6AF58EB63FBD2E68D043E5ECD345381EAD3F08E80D74F05802E843D7AB3CD2F5"
+            byteCount: 183_483,
+            sha256: "C5FBE3895806317E8D1A05E506B79C831B3D659828DD551E23874BB3A153E287"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2766,7 +2766,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
 
         let reportCorrectionDiagnosticStart =
-            "            if shard.shardID == \"s10.4.current.increased-contrast\",\n" +
+            "            if shard.shardID == \"s10.4.current.default-dark\",\n" +
                 "               stateID == \"state.report-correction.validation-error\" {"
         let reportCorrectionEligibleExceptions =
             "            let eligibleExceptions = " +
@@ -2782,7 +2782,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             of: reportCorrectionEligibleExceptions,
             range: reportCorrectionDiagnosticStartRange.upperBound..<uiSource.endIndex
         ) else {
-            XCTFail("Missing the sole increased-contrast report-correction diagnostic branch")
+            XCTFail("Missing the sole default-dark report-correction diagnostic branch")
             return
         }
         let reportCorrectionDiagnostic = String(
@@ -2893,21 +2893,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let reportCorrectionKeepAlwaysLocks = [
             "                let appAttachment = XCTAttachment(screenshot: app.screenshot())",
             "                appAttachment.name =\n" +
-                "                    \"S10.4 increased-contrast Report-correction-header diagnostic app\"",
+                "                    \"S10.4 default-dark Report-correction-header diagnostic app\"",
             "                appAttachment.lifetime = .keepAlways",
             "                let treeAttachment = XCTAttachment(string: app.debugDescription)",
             "                treeAttachment.name =\n" +
-                "                    \"S10.4 increased-contrast Report-correction-header diagnostic accessibility tree\"",
+                "                    \"S10.4 default-dark Report-correction-header diagnostic accessibility tree\"",
             "                treeAttachment.lifetime = .keepAlways",
             "                let headerAttachment = XCTAttachment(screenshot: header.screenshot())",
             "                headerAttachment.name =\n" +
-                "                    \"S10.4 increased-contrast Report-correction-header diagnostic header\"",
+                "                    \"S10.4 default-dark Report-correction-header diagnostic header\"",
             "                headerAttachment.lifetime = .keepAlways",
             "                        let attachment = XCTAttachment(\n" +
                 "                            screenshot: auditedElement.screenshot()\n" +
                 "                        )",
             "                        attachment.name =\n" +
-                "                            \"S10.4 increased-contrast Report-correction-header audit issue \"\n" +
+                "                            \"S10.4 default-dark Report-correction-header audit issue \"\n" +
                 "                            + String(observedIssueCount)",
             "                        attachment.lifetime = .keepAlways",
         ]
@@ -3015,7 +3015,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let reportCorrectionTerminal =
             reportCorrectionAuditCount + "\n" +
                 "                throw AutomationConfigurationError.invalid(\n" +
-                "                    \"S10.4 increased-contrast Report-correction-header diagnostic completed nonaccepting\"\n" +
+                "                    \"S10.4 default-dark Report-correction-header diagnostic completed nonaccepting\"\n" +
                 "                )"
         XCTAssertEqual(
             reportCorrectionDiagnostic.components(

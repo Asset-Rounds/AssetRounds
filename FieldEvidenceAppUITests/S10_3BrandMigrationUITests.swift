@@ -3006,7 +3006,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             line: line
         )
         do {
-            if shard.shardID == "s10.4.current.increased-contrast",
+            if shard.shardID == "s10.4.current.default-dark",
                stateID == "state.report-correction.validation-error" {
                 let headerElements = app.descendants(matching: .any).matching(
                     identifier: "s4.5.correction.header"
@@ -3017,7 +3017,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                       header.label == "Correct report",
                       header.elementType == .staticText else {
                     throw AutomationConfigurationError.invalid(
-                        "S10.4 increased-contrast Report-correction-header diagnostic header is incomplete"
+                        "S10.4 default-dark Report-correction-header diagnostic header is incomplete"
                     )
                 }
 
@@ -3076,17 +3076,17 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
                 let appAttachment = XCTAttachment(screenshot: app.screenshot())
                 appAttachment.name =
-                    "S10.4 increased-contrast Report-correction-header diagnostic app"
+                    "S10.4 default-dark Report-correction-header diagnostic app"
                 appAttachment.lifetime = .keepAlways
                 add(appAttachment)
                 let treeAttachment = XCTAttachment(string: app.debugDescription)
                 treeAttachment.name =
-                    "S10.4 increased-contrast Report-correction-header diagnostic accessibility tree"
+                    "S10.4 default-dark Report-correction-header diagnostic accessibility tree"
                 treeAttachment.lifetime = .keepAlways
                 add(treeAttachment)
                 let headerAttachment = XCTAttachment(screenshot: header.screenshot())
                 headerAttachment.name =
-                    "S10.4 increased-contrast Report-correction-header diagnostic header"
+                    "S10.4 default-dark Report-correction-header diagnostic header"
                 headerAttachment.lifetime = .keepAlways
                 add(headerAttachment)
 
@@ -3117,7 +3117,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             screenshot: auditedElement.screenshot()
                         )
                         attachment.name =
-                            "S10.4 increased-contrast Report-correction-header audit issue "
+                            "S10.4 default-dark Report-correction-header audit issue "
                             + String(observedIssueCount)
                         attachment.lifetime = .keepAlways
                         self.add(attachment)
@@ -3133,7 +3133,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     object: ["issueCount": observedIssueCount]
                 )
                 throw AutomationConfigurationError.invalid(
-                    "S10.4 increased-contrast Report-correction-header diagnostic completed nonaccepting"
+                    "S10.4 default-dark Report-correction-header diagnostic completed nonaccepting"
                 )
             }
 
