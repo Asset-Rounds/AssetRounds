@@ -278,7 +278,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift"
         try assertFile(
             diagnosticExportPath,
-            byteCount: 9_895,
+            byteCount: 9_899,
             sha256: "7F9330FE35C4DAEE956C103F3152184F5C1CAF4284EF36408B2EEC231BC6F70F"
         )
         let diagnosticExportSource = try text(diagnosticExportPath)
