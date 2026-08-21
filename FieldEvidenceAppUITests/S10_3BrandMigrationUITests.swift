@@ -2911,121 +2911,39 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let topClearance: CGFloat = 12
         let bottomClearance: CGFloat = 16
         let minimumGestureDistance: CGFloat = 44
-        var upwardUndertravel: CGFloat = 0
-        var downwardUndertravel: CGFloat = 0
-        var stagingCount = 0
-        var stagedFinalDirection: CGFloat?
-        for _ in 0..<6 {
-            let minimumShift = navigationBar.frame.maxY
-                + topClearance
-                - diagnosticsAuthority.frame.minY
-            let maximumShift = min(
-                navigationBar.frame.maxY - diagnosticsHeading.frame.maxY,
-                signsTab.frame.minY
-                    - bottomClearance
-                    - diagnosticsExport.frame.maxY
-            )
-            guard minimumShift <= maximumShift else {
-                XCTFail("Diagnostics positioning interval is impossible.")
+        let minimumShift = navigationBar.frame.maxY
+            + topClearance
+            - diagnosticsAuthority.frame.minY
+        let maximumShift = min(
+            navigationBar.frame.maxY - diagnosticsHeading.frame.maxY,
+            signsTab.frame.minY
+                - bottomClearance
+                - diagnosticsExport.frame.maxY
+        )
+        guard minimumShift <= maximumShift else {
+            XCTFail("Diagnostics positioning interval is impossible.")
+            return
+        }
+        let dragDistance: CGFloat
+        if minimumShift <= 0, maximumShift >= 0 {
+            dragDistance = 0
+        } else if maximumShift < 0 {
+            guard maximumShift <= -minimumGestureDistance else {
+                XCTFail("Diagnostics upward correction is not recognizable.")
                 return
             }
-            if minimumShift <= 0, maximumShift >= 0 { break }
-            let requiredFinalDirection: CGFloat
-            if maximumShift < 0 {
-                requiredFinalDirection = -1
-            } else if minimumShift > 0 {
-                requiredFinalDirection = 1
-            } else {
-                XCTFail("Diagnostics positioning interval has no signed correction.")
+            dragDistance = maximumShift
+        } else if minimumShift > 0 {
+            guard minimumShift >= minimumGestureDistance else {
+                XCTFail("Diagnostics downward correction is not recognizable.")
                 return
             }
-            if let stagedFinalDirection,
-               stagedFinalDirection != requiredFinalDirection {
-                XCTFail("Diagnostics staged correction changed direction.")
-                return
-            }
-            let upwardCapacity = diagnosticsScrollView.frame.height * 0.45
-            let downwardCapacity = diagnosticsScrollView.frame.height * 0.55
-            guard upwardCapacity >= minimumGestureDistance,
-                  downwardCapacity >= minimumGestureDistance else {
-                XCTFail("Diagnostics ScrollView cannot contain recognized corrections.")
-                return
-            }
-            let dragDistance: CGFloat
-            let isStaging: Bool
-            if maximumShift < 0 {
-                let recognizedMinimum = max(
-                    minimumShift,
-                    -upwardCapacity
-                )
-                let recognizedMaximum = min(
-                    maximumShift,
-                    -minimumGestureDistance
-                )
-                if recognizedMinimum <= recognizedMaximum {
-                    dragDistance = max(
-                        recognizedMinimum,
-                        recognizedMaximum - upwardUndertravel
-                    )
-                    isStaging = false
-                } else {
-                    guard minimumShift > -minimumGestureDistance,
-                          maximumShift < 0,
-                          stagingCount < 2 else {
-                        XCTFail("Diagnostics has no bounded upward residual strategy.")
-                        return
-                    }
-                    let stagingDistance = min(
-                        downwardCapacity,
-                        2 * minimumGestureDistance + downwardUndertravel
-                    )
-                    guard stagingDistance >= minimumGestureDistance else {
-                        XCTFail("Diagnostics downward staging is not recognizable.")
-                        return
-                    }
-                    dragDistance = stagingDistance
-                    isStaging = true
-                }
-            } else {
-                let recognizedMinimum = max(
-                    minimumShift,
-                    minimumGestureDistance
-                )
-                let recognizedMaximum = min(
-                    maximumShift,
-                    downwardCapacity
-                )
-                if recognizedMinimum <= recognizedMaximum {
-                    dragDistance = min(
-                        recognizedMaximum,
-                        recognizedMinimum + downwardUndertravel
-                    )
-                    isStaging = false
-                } else {
-                    guard maximumShift < minimumGestureDistance,
-                          minimumShift > 0,
-                          stagingCount < 2 else {
-                        XCTFail("Diagnostics has no bounded downward residual strategy.")
-                        return
-                    }
-                    let stagingDistance = min(
-                        upwardCapacity,
-                        2 * minimumGestureDistance + upwardUndertravel
-                    )
-                    guard stagingDistance >= minimumGestureDistance else {
-                        XCTFail("Diagnostics upward staging is not recognizable.")
-                        return
-                    }
-                    dragDistance = -stagingDistance
-                    isStaging = true
-                }
-            }
-            if isStaging {
-                stagingCount += 1
-                if stagedFinalDirection == nil {
-                    stagedFinalDirection = requiredFinalDirection
-                }
-            }
+            dragDistance = minimumShift
+        } else {
+            XCTFail("Diagnostics positioning interval has no signed correction.")
+            return
+        }
+        if dragDistance != 0 {
             let authorityBeforeDrag = diagnosticsAuthority.frame.minY
             let dragStart = diagnosticsScrollView.coordinate(
                 withNormalizedOffset: CGVector(dx: 0.01, dy: 0.45)
@@ -3044,15 +2962,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             guard actualDistance * dragDistance > 0 else {
                 XCTFail("Diagnostics positioning gesture was not recognized.")
                 return
-            }
-            let observedUndertravel = max(
-                0,
-                abs(dragDistance) - abs(actualDistance)
-            )
-            if dragDistance < 0 {
-                upwardUndertravel = observedUndertravel
-            } else {
-                downwardUndertravel = observedUndertravel
             }
         }
         let finalMinimumShift = navigationBar.frame.maxY

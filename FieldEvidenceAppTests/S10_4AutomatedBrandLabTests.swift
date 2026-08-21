@@ -274,10 +274,43 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let sourceParts = expectedSourceTest.components(separatedBy: "::")
         XCTAssertEqual(sourceParts.count, 2)
+        let diagnosticExportPath =
+            "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift"
+        try assertFile(
+            diagnosticExportPath,
+            byteCount: 9_895,
+            sha256: "ED1EDA06DF13C31CD21B69E18E39C1188361CDF7D213D1DCB0F45A487D0FA57A"
+        )
+        let diagnosticExportSource = try text(diagnosticExportPath)
+        XCTAssertEqual(
+            diagnosticExportSource.components(
+                separatedBy: "struct DiagnosticExportView: View {"
+            ).count - 1,
+            1
+        )
+        let diagnosticScrollBottomPaddingPlacement =
+            "            }\n" +
+                "            .padding(DesignTokens.Spacing.space16)\n" +
+                "        }\n" +
+                "        .padding(.bottom, DesignTokens.Spacing.space32)\n" +
+                "        .modifier(DiagnosticExportScrollEdgeVisibility())\n" +
+                #"        .navigationTitle("Diagnostics")"#
+        XCTAssertEqual(
+            diagnosticExportSource.components(
+                separatedBy: diagnosticScrollBottomPaddingPlacement
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            diagnosticExportSource.components(
+                separatedBy: ".padding(.bottom, DesignTokens.Spacing.space32)"
+            ).count - 1,
+            1
+        )
         try assertFile(
             sourceParts[0],
-            byteCount: 200_387,
-            sha256: "CE0E749CB36ECCB319F43C3C9DFCFE4E49DAA4D558129A8D01965DEB5D996176"
+            byteCount: 196_501,
+            sha256: "463F5F6752754B465685A6FC827E2C554CEF0B50DF86F8E7499C7B4D57C62B65"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1410,61 +1443,40 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let topClearance: CGFloat = 12",
             "let bottomClearance: CGFloat = 16",
             "let minimumGestureDistance: CGFloat = 44",
-            "var upwardUndertravel: CGFloat = 0",
-            "var downwardUndertravel: CGFloat = 0",
-            "var stagingCount = 0",
-            "var stagedFinalDirection: CGFloat?",
-            "for _ in 0..<6 {",
+            "let minimumShift = navigationBar.frame.maxY",
+            "+ topClearance",
+            "- diagnosticsAuthority.frame.minY",
+            "let maximumShift = min(",
+            "navigationBar.frame.maxY - diagnosticsHeading.frame.maxY,",
+            "signsTab.frame.minY",
+            "- bottomClearance",
+            "- diagnosticsExport.frame.maxY",
             "guard minimumShift <= maximumShift else {",
-            "if minimumShift <= 0, maximumShift >= 0 { break }",
-            "let requiredFinalDirection: CGFloat",
-            "requiredFinalDirection = -1",
-            "requiredFinalDirection = 1",
-            "if let stagedFinalDirection,",
-            "stagedFinalDirection != requiredFinalDirection",
-            "if maximumShift < 0 {",
-            "diagnosticsScrollView.frame.height * 0.45",
-            "let recognizedMinimum = max(",
-            "-upwardCapacity",
-            "let recognizedMaximum = min(",
-            "-minimumGestureDistance",
-            "if recognizedMinimum <= recognizedMaximum {",
-            "recognizedMaximum - upwardUndertravel",
-            "isStaging = false",
-            "guard minimumShift > -minimumGestureDistance,",
-            "maximumShift < 0,",
-            "stagingCount < 2 else {",
-            "Diagnostics has no bounded upward residual strategy.",
-            "downwardCapacity,",
-            "2 * minimumGestureDistance + downwardUndertravel",
-            "Diagnostics downward staging is not recognizable.",
-            "dragDistance = stagingDistance",
-            "isStaging = true",
-            "diagnosticsScrollView.frame.height * 0.55",
-            "recognizedMinimum + downwardUndertravel",
-            "guard maximumShift < minimumGestureDistance,",
-            "minimumShift > 0,",
-            "Diagnostics has no bounded downward residual strategy.",
-            "upwardCapacity,",
-            "2 * minimumGestureDistance + upwardUndertravel",
-            "Diagnostics upward staging is not recognizable.",
-            "dragDistance = -stagingDistance",
-            "if isStaging {",
-            "stagingCount += 1",
-            "if stagedFinalDirection == nil {",
-            "stagedFinalDirection = requiredFinalDirection",
+            "Diagnostics positioning interval is impossible.",
+            "let dragDistance: CGFloat",
+            "if minimumShift <= 0, maximumShift >= 0 {",
+            "dragDistance = 0",
+            "else if maximumShift < 0 {",
+            "guard maximumShift <= -minimumGestureDistance else {",
+            "Diagnostics upward correction is not recognizable.",
+            "dragDistance = maximumShift",
+            "else if minimumShift > 0 {",
+            "guard minimumShift >= minimumGestureDistance else {",
+            "Diagnostics downward correction is not recognizable.",
+            "dragDistance = minimumShift",
+            "Diagnostics positioning interval has no signed correction.",
+            "if dragDistance != 0 {",
+            "let authorityBeforeDrag = diagnosticsAuthority.frame.minY",
             "diagnosticsScrollView.coordinate(",
             "CGVector(dx: 0.01, dy: 0.45)",
+            "CGVector(dx: 0, dy: dragDistance)",
             "forDuration: 0.2,",
             "withVelocity: .slow,",
             "thenHoldForDuration: 0.2",
+            "let actualDistance = diagnosticsAuthority.frame.minY",
+            "- authorityBeforeDrag",
             "guard actualDistance * dragDistance > 0 else {",
             "Diagnostics positioning gesture was not recognized.",
-            "let observedUndertravel = max(",
-            "abs(dragDistance) - abs(actualDistance)",
-            "if dragDistance < 0 {",
-            "upwardUndertravel = observedUndertravel",
-            "downwardUndertravel = observedUndertravel",
             "let finalMinimumShift = navigationBar.frame.maxY",
             "let finalMaximumShift = min(",
             "guard finalMinimumShift <= 0, finalMaximumShift >= 0 else {",
@@ -1488,47 +1500,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             diagnosticsPositioningSource.components(
-                separatedBy: "for _ in 0..<6 {"
+                separatedBy: "if dragDistance != 0 {"
             ).count - 1,
             1
         )
-        XCTAssertEqual(
-            diagnosticsPositioningSource.components(
-                separatedBy: "stagingCount < 2"
-            ).count - 1,
-            2
-        )
-        XCTAssertEqual(
-            diagnosticsPositioningSource.components(
-                separatedBy: "stagingCount += 1"
-            ).count - 1,
-            1
-        )
-        for uniqueStateUpdate in [
-            "var upwardUndertravel: CGFloat = 0",
-            "var downwardUndertravel: CGFloat = 0",
-            "recognizedMaximum - upwardUndertravel",
-            "recognizedMinimum + downwardUndertravel",
-            "2 * minimumGestureDistance + downwardUndertravel",
-            "2 * minimumGestureDistance + upwardUndertravel",
-            "upwardUndertravel = observedUndertravel",
-            "downwardUndertravel = observedUndertravel",
+        for uniqueEndpointBranch in [
+            "dragDistance = 0",
+            "dragDistance = maximumShift",
+            "dragDistance = minimumShift",
+            "guard maximumShift <= -minimumGestureDistance else {",
+            "guard minimumShift >= minimumGestureDistance else {",
         ] {
             XCTAssertEqual(
                 diagnosticsPositioningSource.components(
-                    separatedBy: uniqueStateUpdate
+                    separatedBy: uniqueEndpointBranch
                 ).count - 1,
                 1,
-                uniqueStateUpdate
+                uniqueEndpointBranch
             )
         }
         XCTAssertEqual(
             diagnosticsPositioningSource.components(separatedBy: "XCTFail(").count - 1,
-            12
+            8
         )
         XCTAssertEqual(
             diagnosticsPositioningSource.components(separatedBy: "            return\n").count - 1,
-            12
+            8
         )
         XCTAssertEqual(
             diagnosticsPositioningSource.components(
@@ -1542,10 +1539,31 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "targetDistance",
             "let direction:",
             "for _ in 0..<4 {",
+            "for _ in 0..<6 {",
+            "upwardUndertravel",
+            "downwardUndertravel",
+            "observedUndertravel",
+            "stagingCount",
+            "stagedFinalDirection",
+            "requiredFinalDirection",
+            "stagingDistance",
+            "isStaging",
+            "upwardCapacity",
+            "downwardCapacity",
+            "maximumGestureDistance",
+            "recognizedMinimum",
+            "recognizedMaximum",
+            "residual strategy",
+            "2 * minimumGestureDistance",
             "Diagnostics has no recognized feasible upward shift.",
             "Diagnostics has no recognized feasible downward shift.",
+            "Diagnostics has no bounded upward residual strategy.",
+            "Diagnostics has no bounded downward residual strategy.",
+            "Diagnostics upward staging is not recognizable.",
+            "Diagnostics downward staging is not recognizable.",
             "dragDistance = recognizedMaximum",
             "dragDistance = recognizedMinimum",
+            "diagnosticsScrollView.frame.height",
             "Thread.sleep",
             "epsilon",
             "tolerance",
