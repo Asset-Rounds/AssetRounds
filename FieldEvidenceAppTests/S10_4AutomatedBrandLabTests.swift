@@ -105,8 +105,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             workflowPath,
-            byteCount: 107_955,
-            sha256: "55E07812D9F2D5772B37697FEFDCDE84688CEE1777E436EA4A159815AD82AA2C"
+            byteCount: 110_973,
+            sha256: "FF25FCF08E4589BBF2B3657502579A2A4720F77D8388369B8CB50FD8B187E1D1"
         )
         let workflowSource = try text(workflowPath)
         let retainStepMarker = "      - name: Retain S10.4 shard evidence\n"
@@ -339,8 +339,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 243_079,
-            sha256: "BDDFA02776AB7E9C25218601167BEE2AB246F798EA0DAEE1F5BF218FDFF8E003"
+            byteCount: 237_861,
+            sha256: "C548305742D9468963E099A6AB019A8474E903AD2B60F32D1F5FC64BA6617F49"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2883,7 +2883,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             contrastAuthoritySource.components(
                 separatedBy: "ContrastAuditExceptionSignature("
             ).count - 1,
-            10
+            11
         )
         for prohibitedReduceMotionSavingTaskExpansion in [
             #"case ("s10.4.current.reduce-motion", "work_and_recheck")"#,
@@ -6570,325 +6570,51 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
 
-        let reportCorrectionHeaderDiagnosticStart =
-            #"            if shard.shardID == "s10.4.current.reduce-transparency","# +
-                "\n" +
-                #"               stateID == "state.report-correction.validation-error" {"#
-        let reportCorrectionHeaderDiagnosticEnd =
-            "\n\n            let eligibleExceptions = " +
-                "Self.contrastAuditExceptionSignatures.filter {"
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: reportCorrectionHeaderDiagnosticStart
-            ).count - 1,
-            1
-        )
-        guard let reportCorrectionHeaderDiagnosticStartRange = uiSource.range(
-            of: reportCorrectionHeaderDiagnosticStart
-        ), let reportCorrectionHeaderDiagnosticEndRange = uiSource.range(
-            of: reportCorrectionHeaderDiagnosticEnd,
-            range: reportCorrectionHeaderDiagnosticStartRange.upperBound..<uiSource.endIndex
-        ) else {
-            XCTFail("Missing the isolated reduce-transparency Report-correction-header diagnostic")
-            return
-        }
-        let reportCorrectionHeaderDiagnosticSource = String(
-            uiSource[
-                reportCorrectionHeaderDiagnosticStartRange.lowerBound..<reportCorrectionHeaderDiagnosticEndRange.lowerBound
-            ]
-        )
-
-        let reportCorrectionHeaderQueryBindings = [
-            "                let headerElements = app.descendants(matching: .any).matching(\n" +
-                #"                    identifier: "s4.5.correction.header""# + "\n" +
-                "                )",
-            "                let correctionScrollViews = app.scrollViews.containing(\n" +
-                "                    .button,\n" +
-                #"                    identifier: "s4.5.correction.save""# + "\n" +
-                "                )",
-            "                let navigationBars = app.navigationBars",
-            "                let validationElements = app.descendants(matching: .any).matching(\n" +
-                #"                    identifier: "s4.5.correction.validation""# + "\n" +
-                "                )",
-            "                let saveElements = app.descendants(matching: .any).matching(\n" +
-                #"                    identifier: "s4.5.correction.save""# + "\n" +
-                "                )",
-            "                let keyboards = app.keyboards",
-            "                let inputViews = app.otherElements.matching(\n" +
-                #"                    NSPredicate(format: "identifier == %@", "inputView")"# + "\n" +
-                "                )",
-            "                let tabBars = app.tabBars",
-        ]
-        XCTAssertEqual(reportCorrectionHeaderQueryBindings.count, 8)
-        for binding in reportCorrectionHeaderQueryBindings {
-            XCTAssertEqual(
-                reportCorrectionHeaderDiagnosticSource.components(
-                    separatedBy: binding
-                ).count - 1,
-                1,
-                binding
-            )
-        }
-        let reportCorrectionHeaderIdentityGuard =
-            "                let header = headerElements.firstMatch\n" +
-                "                guard headerElements.count == 1,\n" +
-                "                      header.exists,\n" +
-                #"                      header.label == "Correct report","# + "\n" +
-                "                      header.elementType == .staticText else {"
-        XCTAssertEqual(
-            reportCorrectionHeaderDiagnosticSource.components(
-                separatedBy: reportCorrectionHeaderIdentityGuard
-            ).count - 1,
-            1
-        )
-
-        let reportCorrectionHeaderElementFields = [
-            #""identifier": element.identifier"#,
-            #""label": element.label"#,
-            #""elementType": String(describing: element.elementType)"#,
-            #""frame": self.auditFrameObject(element.frame)"#,
-            #""exists": element.exists"#,
-            #""isHittable": element.isHittable"#,
-        ]
-        for field in reportCorrectionHeaderElementFields {
-            XCTAssertEqual(
-                reportCorrectionHeaderDiagnosticSource.components(
-                    separatedBy: field
-                ).count - 1,
-                1,
-                field
-            )
-        }
-        for queryEnumerationLock in [
-            "let cardinality = query.count",
-            #""cardinality": cardinality"#,
-            "(0..<cardinality).map { index in",
-            "query.element(boundBy: index)",
-        ] {
-            XCTAssertEqual(
-                reportCorrectionHeaderDiagnosticSource.components(
-                    separatedBy: queryEnumerationLock
-                ).count - 1,
-                1,
-                queryEnumerationLock
-            )
-        }
-        XCTAssertEqual(
-            reportCorrectionHeaderDiagnosticSource.components(
-                separatedBy: #"prefix: "S10_4_REPORT_CORRECTION_HEADER_CONTEXT_DIAGNOSTIC""#
-            ).count - 1,
-            1
-        )
-        let reportCorrectionHeaderContextBindings = [
-            #""application": diagnosticElementObject(app)"#,
-            #""header": diagnosticQueryObject(headerElements)"#,
-            #""reportCorrectionScrollView": diagnosticQueryObject("#,
-            #""navigationBar": diagnosticQueryObject(navigationBars)"#,
-            #""validation": diagnosticQueryObject(validationElements)"#,
-            #""save": diagnosticQueryObject(saveElements)"#,
-            #""keyboard": diagnosticQueryObject(keyboards)"#,
-            #""inputView": diagnosticQueryObject(inputViews)"#,
-            #""tabBar": diagnosticQueryObject(tabBars)"#,
-        ]
-        for binding in reportCorrectionHeaderContextBindings {
-            XCTAssertEqual(
-                reportCorrectionHeaderDiagnosticSource.components(
-                    separatedBy: binding
-                ).count - 1,
-                1,
-                binding
-            )
-        }
-
-        let reportCorrectionHeaderAttachmentPaths = [
-            "XCTAttachment(screenshot: app.screenshot())",
-            "XCTAttachment(string: app.debugDescription)",
-            "XCTAttachment(screenshot: header.screenshot())",
-            "XCTAttachment(\n                            screenshot: auditedElement.screenshot()",
-        ]
-        XCTAssertEqual(
-            reportCorrectionHeaderDiagnosticSource.components(
-                separatedBy: "XCTAttachment("
-            ).count - 1,
-            4
-        )
-        for path in reportCorrectionHeaderAttachmentPaths {
-            XCTAssertEqual(
-                reportCorrectionHeaderDiagnosticSource.components(
-                    separatedBy: path
-                ).count - 1,
-                1,
-                path
-            )
-        }
-        let reportCorrectionHeaderAttachmentNames = [
-            "S10.4 reduce-transparency Report-correction-header diagnostic app",
-            "S10.4 reduce-transparency Report-correction-header diagnostic accessibility tree",
-            "                headerAttachment.name =\n" +
-                #"                    "S10.4 reduce-transparency Report-correction-header diagnostic header""#,
-            "S10.4 reduce-transparency Report-correction-header audit issue ",
-        ]
-        for name in reportCorrectionHeaderAttachmentNames {
-            XCTAssertEqual(
-                reportCorrectionHeaderDiagnosticSource.components(
-                    separatedBy: name
-                ).count - 1,
-                1,
-                name
-            )
-        }
-        XCTAssertEqual(
-            reportCorrectionHeaderDiagnosticSource.components(
-                separatedBy: ".lifetime = .keepAlways"
-            ).count - 1,
-            4
-        )
-        XCTAssertEqual(
-            reportCorrectionHeaderDiagnosticSource.components(
-                separatedBy: ".name ="
-            ).count - 1,
-            4
-        )
-        XCTAssertEqual(
-            reportCorrectionHeaderDiagnosticSource.components(
-                separatedBy: "add("
-            ).count - 1,
-            4
-        )
-
-        XCTAssertEqual(
-            reportCorrectionHeaderDiagnosticSource.components(
-                separatedBy: "try app.performAccessibilityAudit(for: .contrast) { issue in"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            reportCorrectionHeaderDiagnosticSource.components(
-                separatedBy: "return true"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            reportCorrectionHeaderDiagnosticSource.components(
-                separatedBy: "return false"
-            ).count - 1,
-            0
-        )
-        XCTAssertEqual(
-            reportCorrectionHeaderDiagnosticSource.components(
-                separatedBy: "NSNull()"
-            ).count - 1,
-            4
-        )
-        let reportCorrectionHeaderAuditFields = [
-            #""issueOrdinal": observedIssueCount"#,
-            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
-            #""compactDescription": issue.compactDescription"#,
-            #""detailedDescription": issue.detailedDescription"#,
-            #""elementIdentifier": NSNull()"#,
-            #""elementLabel": NSNull()"#,
-            #""elementType": NSNull()"#,
-            #""elementFrame": NSNull()"#,
-            #""applicationFrame": self.auditFrameObject(app.frame)"#,
-        ]
-        for field in reportCorrectionHeaderAuditFields {
-            XCTAssertEqual(
-                reportCorrectionHeaderDiagnosticSource.components(
-                    separatedBy: field
-                ).count - 1,
-                1,
-                field
-            )
-        }
-        for callbackAssignment in [
-            #"diagnostic["elementIdentifier"] = auditedElement.identifier"#,
-            #"diagnostic["elementLabel"] = auditedElement.label"#,
-            #"diagnostic["elementType"] = String("#,
-            #"diagnostic["elementFrame"] = self.auditFrameObject("#,
-        ] {
-            XCTAssertEqual(
-                reportCorrectionHeaderDiagnosticSource.components(
-                    separatedBy: callbackAssignment
-                ).count - 1,
-                1,
-                callbackAssignment
-            )
-        }
-        for prefix in [
+        let removedReduceTransparencyHeaderDiagnosticForms = [
+            "S10_4_REPORT_CORRECTION_HEADER_CONTEXT_DIAGNOSTIC",
             "S10_4_REPORT_CORRECTION_HEADER_AUDIT_DIAGNOSTIC",
             "S10_4_REPORT_CORRECTION_HEADER_AUDIT_COUNT_DIAGNOSTIC",
-        ] {
-            XCTAssertEqual(
-                reportCorrectionHeaderDiagnosticSource.components(
-                    separatedBy: prefix
-                ).count - 1,
-                1,
-                prefix
-            )
+            "S10.4 reduce-transparency Report-correction-header diagnostic",
+            "Report-correction-header diagnostic completed nonaccepting",
+            #"if shard.shardID == "s10.4.current.reduce-transparency","#,
+            "let diagnosticElementObject: (XCUIElement) -> [String: Any]",
+            "let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any]",
+            #"identifier: "s4.5.correction.header""#,
+            #"identifier: "s4.5.correction.validation""#,
+            #"identifier: "s4.5.correction.save""#,
+            #"NSPredicate(format: "identifier == %@", "inputView")"#,
+            "let cardinality = query.count",
+            "(0..<cardinality).map { index in",
+            "query.element(boundBy: index)",
+            "Report-correction-header audit issue ",
+        ]
+        for removed in removedReduceTransparencyHeaderDiagnosticForms {
+            XCTAssertFalse(restoredCaptureBaselineSource.contains(removed), removed)
         }
+        for globallyRemoved in [
+            "S10_4_REPORT_CORRECTION_HEADER_CONTEXT_DIAGNOSTIC",
+            "S10_4_REPORT_CORRECTION_HEADER_AUDIT_DIAGNOSTIC",
+            "S10_4_REPORT_CORRECTION_HEADER_AUDIT_COUNT_DIAGNOSTIC",
+            "S10.4 reduce-transparency Report-correction-header diagnostic",
+            "Report-correction-header diagnostic completed nonaccepting",
+            #"if shard.shardID == "s10.4.current.reduce-transparency","#,
+        ] {
+            XCTAssertFalse(uiSource.contains(globallyRemoved), globallyRemoved)
+        }
+        let restoredNormalContrastEntry =
+            "        do {\n" +
+                "            let eligibleExceptions = " +
+                "Self.contrastAuditExceptionSignatures.filter {"
         XCTAssertEqual(
-            reportCorrectionHeaderDiagnosticSource.components(
-                separatedBy: "printJSONLine("
+            uiSource.components(separatedBy: restoredNormalContrastEntry).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            restoredCaptureBaselineSource.components(
+                separatedBy: restoredNormalContrastEntry
             ).count - 1,
-            3
+            1
         )
-        let reportCorrectionHeaderTerminal =
-            "                throw AutomationConfigurationError.invalid(\n" +
-                #"                    "S10.4 reduce-transparency Report-correction-header diagnostic completed nonaccepting""# +
-                "\n" +
-                "                )\n" +
-                "            }"
-        XCTAssertTrue(
-            reportCorrectionHeaderDiagnosticSource.hasSuffix(
-                reportCorrectionHeaderTerminal
-            )
-        )
-        for prohibited in [
-            ".tap(",
-            ".press(",
-            ".coordinate(",
-            ".swipe",
-            ".typeText(",
-            "wait(",
-            "waitFor",
-            "Thread.sleep",
-            "sleep(",
-            "Date(",
-            "captureBaseline(",
-            "assertMigrationStateCoverage",
-            "emitAutomatedLabAccessibilityRowsIfNeeded",
-            "automationAXTreeDigests",
-            "automationContrastExceptions",
-            "attachCandidate",
-            "S10_4_AX",
-            "S10_4_CONTRAST",
-            "S10_4_CANDIDATE",
-            "S10_4_TASK",
-            "S10_4_SHARD_RECEIPT",
-            "receipt",
-            "retention",
-            "CGRect(",
-            "expectedFrame",
-            "frame ==",
-            #""auditTypeRawValue": "1""#,
-            #""compactDescription": "Contrast failed""#,
-            #""detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode""#,
-            #""elementIdentifier": "s4.5.correction.header""#,
-            #""elementLabel": "Correct report""#,
-            #""elementType": "XCUIElementType""#,
-            #""elementFrame": ["#,
-            #""applicationFrame": ["#,
-            "automationContrastExceptions[",
-            "matchedExceptions",
-            "contrastEvidence",
-            "automatedEvidenceIDs.append(",
-            "return false",
-        ] {
-            XCTAssertFalse(
-                reportCorrectionHeaderDiagnosticSource.contains(prohibited),
-                prohibited
-            )
-        }
 
         let exceptionIDs = [
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",
@@ -6901,6 +6627,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER",
             "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER",
             "S10.4-XCUI-CONTRAST-FP-DIFFERENTIATE-WITHOUT-COLOR-REPORT-CORRECTION-HEADER",
+            "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER",
         ]
         let exceptionRationales = [
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Wide view even though the audit-owned crop visibly renders white text on the dark elevated Sample card; the exception is limited to the frozen public issue signature.",
@@ -6913,7 +6640,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in increased contrast even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in reduce motion even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header with Differentiate Without Color enabled even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header with Reduce Transparency enabled even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
         ]
+        XCTAssertEqual(
+            exceptionIDs.filter { $0.hasSuffix("REPORT-CORRECTION-HEADER") }.count,
+            6
+        )
+        XCTAssertEqual(
+            exceptionIDs.filter { !$0.hasSuffix("REPORT-CORRECTION-HEADER") }.count,
+            5
+        )
         for lock in exceptionIDs {
             XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1, lock)
             let workflowCount = lock.contains("REPORT-CORRECTION-HEADER") ? 4 : 2
@@ -6932,7 +6668,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("state.new-sign.editing", 1),
             ("state.sample-report.ready", 1),
             ("state.feedback.review-ready", 1),
-            ("state.report-correction.validation-error", 5),
+            ("state.report-correction.validation-error", 6),
         ]
         for (stateID, expectedCount) in uiExceptionStateCounts {
             let lock = #"stateID: "\#(stateID)""#
@@ -6944,37 +6680,37 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(separatedBy: "ContrastAuditExceptionSignature(").count - 1,
-            10
+            11
         )
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: #"issueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            10
+            11
         )
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            20
+            22
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"owner: "palatis3""#).count - 1,
-            10
+            11
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionOwner: "palatis3""#)
                 .count - 1,
-            10
+            11
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"expiresAt: "2026-11-20""#).count - 1,
-            10
+            11
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionExpiresAt: "2026-11-20""#)
                 .count - 1,
-            10
+            11
         )
 
         let signatureLocks = [
@@ -6992,10 +6728,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"issueID: "S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER""#,
             #"issueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER""#,
             #"issueID: "S10.4-XCUI-CONTRAST-FP-DIFFERENTIATE-WITHOUT-COLOR-REPORT-CORRECTION-HEADER""#,
+            #"issueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER""#,
             #"shardID: "s10.4.current.default-light""#,
             #"shardID: "s10.4.current.increased-contrast""#,
             #"shardID: "s10.4.current.reduce-motion""#,
             #"shardID: "s10.4.current.differentiate-without-color""#,
+            #"shardID: "s10.4.current.reduce-transparency""#,
             #"stateID: "state.report-correction.validation-error""#,
             #"elementIdentifier: "s4.5.correction.header""#,
             #"elementLabel: "Correct report""#,
@@ -7035,10 +6773,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DIFFERENTIATE-WITHOUT-COLOR-REPORT-CORRECTION-HEADER""#,
+            #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER""#,
             #"shardID: "s10.4.current.default-light""#,
             #"shardID: "s10.4.current.increased-contrast""#,
             #"shardID: "s10.4.current.reduce-motion""#,
             #"shardID: "s10.4.current.differentiate-without-color""#,
+            #"shardID: "s10.4.current.reduce-transparency""#,
             #"stateID: "state.report-correction.validation-error""#,
             #"elementIdentifier: "s4.5.correction.header""#,
             #"elementLabel: "Correct report""#,
@@ -7286,7 +7026,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let differentiateUIAuthorityStart =
             #"            issueID: "S10.4-XCUI-CONTRAST-FP-DIFFERENTIATE-WITHOUT-COLOR-REPORT-CORRECTION-HEADER","#
         let differentiateUIAuthorityEnd =
-            "    ]\n\n    private static let commonTaskStateIDs:"
+            #"            issueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER","#
         guard let differentiateUIAuthorityStartRange = uiSource.range(
             of: differentiateUIAuthorityStart
         ),
@@ -7309,7 +7049,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                taskID: "report_comprehension","# + "\n" +
                 #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DIFFERENTIATE-WITHOUT-COLOR-REPORT-CORRECTION-HEADER","#
         let differentiateWorkflowAuthorityEnd =
-            "            ]\n          ' > \"$contrast_exception_authority_path\""
+            "              {\n" +
+                #"                shardID: "s10.4.current.reduce-transparency","# + "\n" +
+                #"                stateID: "state.report-correction.validation-error","# + "\n" +
+                #"                taskID: "report_comprehension","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER","#
         guard let differentiateWorkflowAuthorityStartRange = workflowSource.range(
             of: differentiateWorkflowAuthorityStart
         ),
@@ -7389,11 +7133,104 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 lock
             )
         }
-        for prohibitedExceptionIssueID in [
-            "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY",
-        ] {
-            XCTAssertFalse(uiSource.contains(prohibitedExceptionIssueID))
-            XCTAssertFalse(workflowSource.contains(prohibitedExceptionIssueID))
+        let reduceTransparencyUIAuthorityStart = differentiateUIAuthorityEnd
+        let reduceTransparencyUIAuthorityEnd =
+            "    ]\n\n    private static let commonTaskStateIDs:"
+        guard let reduceTransparencyUIAuthorityStartRange = uiSource.range(
+            of: reduceTransparencyUIAuthorityStart
+        ), let reduceTransparencyUIAuthorityEndRange = uiSource.range(
+            of: reduceTransparencyUIAuthorityEnd,
+            range: reduceTransparencyUIAuthorityStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the exact Reduce Transparency UI contrast authority")
+            return
+        }
+        let reduceTransparencyUIAuthority = String(
+            uiSource[
+                reduceTransparencyUIAuthorityStartRange.lowerBound..<reduceTransparencyUIAuthorityEndRange.lowerBound
+            ]
+        )
+        let reduceTransparencyWorkflowAuthorityStart =
+            differentiateWorkflowAuthorityEnd
+        let reduceTransparencyWorkflowAuthorityEnd =
+            "            ]\n          ' > \"$contrast_exception_authority_path\""
+        guard let reduceTransparencyWorkflowAuthorityStartRange = workflowSource.range(
+            of: reduceTransparencyWorkflowAuthorityStart
+        ), let reduceTransparencyWorkflowAuthorityEndRange = workflowSource.range(
+            of: reduceTransparencyWorkflowAuthorityEnd,
+            range: reduceTransparencyWorkflowAuthorityStartRange.upperBound..<workflowSource.endIndex
+        ) else {
+            XCTFail("Missing the exact Reduce Transparency workflow contrast authority")
+            return
+        }
+        let reduceTransparencyWorkflowAuthority = String(
+            workflowSource[
+                reduceTransparencyWorkflowAuthorityStartRange.lowerBound..<reduceTransparencyWorkflowAuthorityEndRange.lowerBound
+            ]
+        )
+        let reduceTransparencyRationale =
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue " +
+                "for the identified Correct report header with Reduce Transparency enabled " +
+                "even though the audit-owned crop visibly renders the complete header " +
+                "unobscured and wholly above the keyboard; the exception is limited to " +
+                "the frozen public issue signature."
+        let reduceTransparencyUIAuthorityLocks = [
+            #"issueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER""#,
+            #"shardID: "s10.4.current.reduce-transparency""#,
+            #"stateID: "state.report-correction.validation-error""#,
+            #"taskID: "report_comprehension""#,
+            #"owner: "palatis3""#,
+            #"expiresAt: "2026-11-20""#,
+            "rationale: \"\(reduceTransparencyRationale)\"",
+            #"auditTypeRawValue: "1""#,
+            #"compactDescription: "Contrast failed""#,
+            #"detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode""#,
+            #"elementIdentifier: "s4.5.correction.header""#,
+            #"elementLabel: "Correct report""#,
+            #"elementTypeDescription: "XCUIElementType(rawValue: 48)""#,
+            "elementFrame: CGRect(\n" +
+                "                x: 32,\n" +
+                "                y: 111.33333587646484,\n" +
+                "                width: 248,\n" +
+                "                height: 40.666664123535156\n" +
+                "            )",
+            "applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)",
+        ]
+        let reduceTransparencyWorkflowAuthorityLocks = [
+            #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER""#,
+            #"shardID: "s10.4.current.reduce-transparency""#,
+            #"stateID: "state.report-correction.validation-error""#,
+            #"taskID: "report_comprehension""#,
+            #"exceptionOwner: "palatis3""#,
+            #"exceptionExpiresAt: "2026-11-20""#,
+            "exceptionRationale: \"\(reduceTransparencyRationale)\"",
+            #"auditTypeRawValue: "1""#,
+            #"compactDescription: "Contrast failed""#,
+            #"detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode""#,
+            #"elementIdentifier: "s4.5.correction.header""#,
+            #"elementLabel: "Correct report""#,
+            #"elementType: "XCUIElementType(rawValue: 48)""#,
+            "elementFrame: {\n" +
+                "                      x: 32,\n" +
+                "                      y: 111.33333587646484,\n" +
+                "                      width: 248,\n" +
+                "                      height: 40.666664123535156\n" +
+                "                    }",
+            "applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
+        ]
+        for lock in reduceTransparencyUIAuthorityLocks {
+            XCTAssertEqual(
+                reduceTransparencyUIAuthority.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        for lock in reduceTransparencyWorkflowAuthorityLocks {
+            XCTAssertEqual(
+                reduceTransparencyWorkflowAuthority.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
         }
 
         let failClosedHandlerLocks = [
@@ -7478,6 +7315,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                    "state.report-correction.validation-error","# + "\n" +
                 #"                ]"#,
             #"case ("s10.4.current.reduce-motion", "report_comprehension")"#,
+            #"case ("s10.4.current.reduce-transparency", "report_comprehension")"#,
             #"case ("s10.4.current.default-dark", "history_recovery")"#,
             #"permittedExceptionStateIDs = ["state.feedback.review-ready"]"#,
             #"guard taskExceptions.count <= taskIssueLimit else"#,
@@ -7537,6 +7375,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             uiSource.components(
+                separatedBy: #"case ("s10.4.current.reduce-transparency""#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
                 separatedBy: #"case ("s10.4.current.differentiate-without-color""#
             ).count - 1,
             1
@@ -7571,6 +7415,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let reduceTransparencyTaskExceptionBound =
+            #"            case ("s10.4.current.reduce-transparency", "report_comprehension"):"# +
+                "\n" +
+                "                taskIssueLimit = 1\n" +
+                "                taskStateLimit = 1\n" +
+                "                permittedExceptionStateIDs = [\n" +
+                #"                    "state.report-correction.validation-error","# +
+                "\n" +
+                "                ]"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: reduceTransparencyTaskExceptionBound
+            ).count - 1,
+            1
+        )
         let differentiateTaskExceptionBound =
             #"            case ("s10.4.current.differentiate-without-color", "report_comprehension"):"# +
                 "\n" +
@@ -7598,16 +7457,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "contrast_exception_authority_path=",
             #"if .result == "PASS" then"#,
             #"elif .result == "EXCEPTION" then"#,
-            #"length == 10"#,
-            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 9"#,
-            #"and ([.[].exceptionIssueID] | unique | length) == 10"#,
+            #"length == 11"#,
+            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 10"#,
+            #"and ([.[].exceptionIssueID] | unique | length) == 11"#,
             #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 6"#,
             #"| select(.exceptionIssueID | IN("#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER","#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER","#,
             #""S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER","#,
             #""S10.4-XCUI-CONTRAST-FP-DIFFERENTIATE-WITHOUT-COLOR-REPORT-CORRECTION-HEADER","#,
-            #""S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER""#,
+            #""S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER","#,
+            #""S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER""#,
             #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 1"#,
             #"| select((.exceptionIssueID | IN("#,
             #")) | not)"#,
@@ -7639,6 +7499,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"error("default-dark contrast exception bound exceeded")"#,
             #"error("reduce-motion contrast exception bound exceeded")"#,
             #"error("differentiate-without-color contrast exception bound exceeded")"#,
+            #"error("reduce-transparency contrast exception bound exceeded")"#,
             #"error("AX-text contrast exception bound exceeded")"#,
             #"error("contrast exception on ineligible shard")"#,
             #"def taskIssueLimit($shardID; $taskID):"#,
@@ -7675,6 +7536,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"elif $shard == "s10.4.current.increased-contrast""#,
             #"elif $shard == "s10.4.current.reduce-motion""#,
             #"elif $shard == "s10.4.current.differentiate-without-color""#,
+            #"elif $shard == "s10.4.current.reduce-transparency""#,
             #"($matchedAuthorities | length) > 1"#,
             #"($matchedExceptionStateIDs | length) > 1"#,
             #"elif $shard == "s10.4.current.ax-text" then"#,
@@ -7703,7 +7565,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER\",\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER\",\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-DIFFERENTIATE-WITHOUT-COLOR-REPORT-CORRECTION-HEADER\",\n" +
-                "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER\"\n" +
+                "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER\",\n" +
+                "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER\"\n" +
                 "                ))\n" +
                 "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 1\n" +
             "            and ([.[]\n" +
@@ -7712,7 +7575,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER\",\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER\",\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-DIFFERENTIATE-WITHOUT-COLOR-REPORT-CORRECTION-HEADER\",\n" +
-                "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER\"\n" +
+                "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER\",\n" +
+                "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER\"\n" +
                 "                )) | not)\n" +
                 "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 5"
         XCTAssertEqual(
@@ -7897,6 +7761,79 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let reduceTransparencyWorkflowTaskIssueBound =
+            #"                elif $shardID == "s10.4.current.reduce-transparency""# + "\n" +
+                #"                     and $taskID == "report_comprehension" then 1"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: reduceTransparencyWorkflowTaskIssueBound
+            ).count - 1,
+            2
+        )
+        let reduceTransparencyWorkflowTuple =
+            #"                shardID: "s10.4.current.reduce-transparency","# + "\n" +
+                #"                stateID: "state.report-correction.validation-error","# + "\n" +
+                #"                taskID: "report_comprehension","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER""#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: reduceTransparencyWorkflowTuple
+            ).count - 1,
+            2
+        )
+        let reduceTransparencyWorkflowTupleOrder =
+            reduceMotionWorkflowTuple + "\n" +
+                "              },\n" +
+                "              {\n" +
+                reduceTransparencyWorkflowTuple + "\n" +
+                "              }"
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: reduceTransparencyWorkflowTupleOrder
+            ).count - 1,
+            1
+        )
+        let reduceTransparencyWorkflowStateIssueBound =
+            #"                elif $shardID == "s10.4.current.reduce-transparency""# + "\n" +
+                #"                     and $stateID == "state.report-correction.validation-error" then 1"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: reduceTransparencyWorkflowStateIssueBound
+            ).count - 1,
+            1
+        )
+        let reduceTransparencyWorkflowAggregateBound =
+            #"                 elif $shard == "s10.4.current.reduce-transparency""# + "\n" +
+                #"                     and (($matchedAuthorities | length) > 1"# + "\n" +
+                #"                       or ($matchedExceptionStateIDs | length) > 1) then"# +
+                "\n" +
+                #"                   error("reduce-transparency contrast exception bound exceeded")"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: reduceTransparencyWorkflowAggregateBound
+            ).count - 1,
+            1
+        )
+        let reduceTransparencyWorkflowDownstreamBound =
+            #"                      elif $shard == "s10.4.current.reduce-transparency" then"# + "\n" +
+                #"                        ($matchedAuthorities | length) <= 1"# + "\n" +
+                #"                        and ($matchedExceptionStateIDs | length) <= 1"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: reduceTransparencyWorkflowDownstreamBound
+            ).count - 1,
+            1
+        )
+        let reduceTransparencyWorkflowEligibility =
+            #"                      and $shard != "s10.4.current.reduce-motion""# + "\n" +
+                #"                      and $shard != "s10.4.current.reduce-transparency""# + "\n" +
+                #"                      and ($matchedAuthorities | length) != 0 then"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: reduceTransparencyWorkflowEligibility
+            ).count - 1,
+            1
+        )
         let axWorkflowAggregateBound =
             #"elif $shard == "s10.4.current.ax-text""# + "\n" +
                 #"                      and (($matchedAuthorities | length) > 3"# + "\n" +
@@ -7957,7 +7894,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workflowSource.components(
                 separatedBy: #"taskID: "report_comprehension""#
             ).count - 1,
-            12
+            14
         )
         XCTAssertFalse(workflowSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
         XCTAssertFalse(

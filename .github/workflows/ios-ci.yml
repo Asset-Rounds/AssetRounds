@@ -1098,13 +1098,39 @@ jobs:
                     applicationFrame: {x: 0, y: 0, width: 402, height: 874}
                   }
                 ]
+              },
+              {
+                shardID: "s10.4.current.reduce-transparency",
+                stateID: "state.report-correction.validation-error",
+                taskID: "report_comprehension",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER",
+                exceptionOwner: "palatis3",
+                exceptionExpiresAt: "2026-11-20",
+                exceptionRationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header with Reduce Transparency enabled even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
+                ignoredAuditIssues: [
+                  {
+                    auditTypeRawValue: "1",
+                    compactDescription: "Contrast failed",
+                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+                    elementIdentifier: "s4.5.correction.header",
+                    elementLabel: "Correct report",
+                    elementType: "XCUIElementType(rawValue: 48)",
+                    elementFrame: {
+                      x: 32,
+                      y: 111.33333587646484,
+                      width: 248,
+                      height: 40.666664123535156
+                    },
+                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}
+                  }
+                ]
               }
             ]
           ' > "$contrast_exception_authority_path"
           jq -e --arg today "$(date -u +%F)" '
-            length == 10
-            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 9
-            and ([.[].exceptionIssueID] | unique | length) == 10
+            length == 11
+            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 10
+            and ([.[].exceptionIssueID] | unique | length) == 11
             and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 6
             and ([.[]
               | select(.exceptionIssueID | IN(
@@ -1112,7 +1138,8 @@ jobs:
                   "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER",
                   "S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER",
                   "S10.4-XCUI-CONTRAST-FP-DIFFERENTIATE-WITHOUT-COLOR-REPORT-CORRECTION-HEADER",
-                  "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER"
+                  "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER",
+                  "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER"
                 ))
               | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 1
             and ([.[]
@@ -1121,7 +1148,8 @@ jobs:
                   "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER",
                   "S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER",
                   "S10.4-XCUI-CONTRAST-FP-DIFFERENTIATE-WITHOUT-COLOR-REPORT-CORRECTION-HEADER",
-                  "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER"
+                  "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER",
+                  "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER"
                 )) | not)
               | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 5
             and ([.[] | {shardID, stateID, taskID, exceptionIssueID}]
@@ -1185,6 +1213,12 @@ jobs:
                 stateID: "state.report-correction.validation-error",
                 taskID: "report_comprehension",
                 exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER"
+              },
+              {
+                shardID: "s10.4.current.reduce-transparency",
+                stateID: "state.report-correction.validation-error",
+                taskID: "report_comprehension",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER"
               }
             ] | sort_by(.shardID, .stateID, .exceptionIssueID))
             and all(.[];
@@ -1324,6 +1358,8 @@ jobs:
                      and $taskID == "report_comprehension" then 1
                 elif $shardID == "s10.4.current.reduce-motion"
                      and $taskID == "report_comprehension" then 1
+                elif $shardID == "s10.4.current.reduce-transparency"
+                     and $taskID == "report_comprehension" then 1
                 else 0
                 end;
               def taskStateLimit($shardID; $taskID):
@@ -1340,6 +1376,8 @@ jobs:
                 elif $shardID == "s10.4.current.differentiate-without-color"
                      and $taskID == "report_comprehension" then 1
                 elif $shardID == "s10.4.current.reduce-motion"
+                     and $taskID == "report_comprehension" then 1
+                elif $shardID == "s10.4.current.reduce-transparency"
                      and $taskID == "report_comprehension" then 1
                 else 0
                 end;
@@ -1398,6 +1436,10 @@ jobs:
                      and (($matchedAuthorities | length) > 1
                        or ($matchedExceptionStateIDs | length) > 1) then
                    error("reduce-motion contrast exception bound exceeded")
+                 elif $shard == "s10.4.current.reduce-transparency"
+                     and (($matchedAuthorities | length) > 1
+                       or ($matchedExceptionStateIDs | length) > 1) then
+                   error("reduce-transparency contrast exception bound exceeded")
                  elif $shard == "s10.4.current.ax-text"
                       and (($matchedAuthorities | length) > 3
                         or ($matchedExceptionStateIDs | length) > 2) then
@@ -1408,6 +1450,7 @@ jobs:
                       and $shard != "s10.4.current.differentiate-without-color"
                       and $shard != "s10.4.current.ax-text"
                       and $shard != "s10.4.current.reduce-motion"
+                      and $shard != "s10.4.current.reduce-transparency"
                       and ($matchedAuthorities | length) != 0 then
                    error("contrast exception on ineligible shard")
                  else
@@ -1630,6 +1673,8 @@ jobs:
                      and $stateID == "state.report-correction.validation-error" then 1
                 elif $shardID == "s10.4.current.reduce-motion"
                      and $stateID == "state.report-correction.validation-error" then 1
+                elif $shardID == "s10.4.current.reduce-transparency"
+                     and $stateID == "state.report-correction.validation-error" then 1
                 else 0
                 end;
               ($inventory[0] | [.routes[].states[].state_id] | sort) as $expectedStates
@@ -1701,6 +1746,9 @@ jobs:
                         ($matchedAuthorities | length) <= 1
                         and ($matchedExceptionStateIDs | length) <= 1
                       elif $shard == "s10.4.current.reduce-motion" then
+                        ($matchedAuthorities | length) <= 1
+                        and ($matchedExceptionStateIDs | length) <= 1
+                      elif $shard == "s10.4.current.reduce-transparency" then
                         ($matchedAuthorities | length) <= 1
                         and ($matchedExceptionStateIDs | length) <= 1
                       elif $shard == "s10.4.current.ax-text" then
