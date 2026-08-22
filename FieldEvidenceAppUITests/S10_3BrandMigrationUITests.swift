@@ -1490,6 +1490,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         recordMetric("report_history_open", since: historyOpenAt)
         XCTAssertTrue(element("s4.4.reports.view-report", in: app)
             .waitForExistence(timeout: 20))
+        if automationShard?.shardID == "s10.4.current.ax-text" {
+            guard positionLowerNorthCampusForAXText(in: app) else { return }
+        }
         captureBaseline("state.report-history.ready", in: app)
         navigateBack(in: app)
 
@@ -1505,6 +1508,254 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         signsTab.tap()
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
             .waitForExistence(timeout: 30))
+    }
+
+    @MainActor
+    private func positionLowerNorthCampusForAXText(
+        in app: XCUIApplication
+    ) -> Bool {
+        let historyScreens = app.descendants(matching: .any).matching(
+            identifier: "s4.4.history.screen"
+        )
+        let historyHeaders = app.staticTexts.matching(
+            identifier: "s4.4.history.header"
+        )
+        let northCampusTexts = app.staticTexts.matching(
+            NSPredicate(format: "label == %@", "North Campus")
+        )
+        let viewReportControls = app.buttons.matching(
+            identifier: "s4.4.reports.view-report"
+        )
+        let historyScrollViews = app.scrollViews.containing(
+            .button,
+            identifier: "s4.4.reports.view-report"
+        )
+        let historyNavigationBars = app.navigationBars.matching(
+            identifier: "Report history"
+        )
+        let historyTabBars = app.tabBars
+        let historyScreen = historyScreens.firstMatch
+        let historyHeader = historyHeaders.firstMatch
+        let viewReportControl = viewReportControls.firstMatch
+        let historyScrollView = historyScrollViews.firstMatch
+        let historyNavigationBar = historyNavigationBars.firstMatch
+        let historyTabBar = historyTabBars.firstMatch
+
+        func lowerNorthCampus() -> XCUIElement? {
+            guard northCampusTexts.count == 2 else {
+                XCTFail("Report-history North Campus cardinality is ambiguous.")
+                return nil
+            }
+            let first = northCampusTexts.element(boundBy: 0)
+            let second = northCampusTexts.element(boundBy: 1)
+            let firstFrame = first.frame
+            let secondFrame = second.frame
+            guard first.exists,
+                  second.exists,
+                  first.identifier.isEmpty,
+                  second.identifier.isEmpty,
+                  first.label == "North Campus",
+                  second.label == "North Campus",
+                  first.elementType == .staticText,
+                  second.elementType == .staticText,
+                  !firstFrame.isNull,
+                  !firstFrame.isEmpty,
+                  !secondFrame.isNull,
+                  !secondFrame.isEmpty,
+                  firstFrame != secondFrame,
+                  (
+                    firstFrame.maxY < secondFrame.minY
+                        || secondFrame.maxY < firstFrame.minY
+                  ) else {
+                XCTFail("Report-history North Campus frames are not strictly ordered.")
+                return nil
+            }
+            return firstFrame.minY > secondFrame.minY ? first : second
+        }
+
+        let contentInset: CGFloat = 16
+        let receiverInset: CGFloat = 24
+        let minimumGestureDistance: CGFloat = 44
+        for _ in 0..<4 {
+            guard app.state == .runningForeground,
+                  historyScreens.count == 1,
+                  historyHeaders.count == 1,
+                  viewReportControls.count == 1,
+                  historyScrollViews.count == 1,
+                  historyNavigationBars.count == 1,
+                  historyTabBars.count == 1,
+                  historyScreen.exists,
+                  historyHeader.exists,
+                  viewReportControl.exists,
+                  viewReportControl.label == "View report",
+                  viewReportControl.elementType == .button,
+                  historyScrollView.exists,
+                  historyNavigationBar.exists,
+                  historyTabBar.exists,
+                  let lowerSite = lowerNorthCampus() else {
+                XCTFail("Report-history AX-text positioning route changed.")
+                return false
+            }
+            let scrollFrame = historyScrollView.frame
+            let applicationFrame = app.frame
+            let navigationFrame = historyNavigationBar.frame
+            let tabBarFrame = historyTabBar.frame
+            let liveScrollFrame = scrollFrame.intersection(applicationFrame)
+            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)
+            let liveBottom = min(
+                liveScrollFrame.maxY,
+                min(applicationFrame.maxY, tabBarFrame.minY)
+            )
+            let safeTop = liveTop + contentInset
+            let safeBottom = liveBottom - contentInset
+            let receiverTop = liveTop + receiverInset
+            let receiverBottom = liveBottom - receiverInset
+            let lowerFrame = lowerSite.frame
+            guard !applicationFrame.isNull,
+                  !applicationFrame.isEmpty,
+                  !navigationFrame.isNull,
+                  !navigationFrame.isEmpty,
+                  !tabBarFrame.isNull,
+                  !tabBarFrame.isEmpty,
+                  !scrollFrame.isNull,
+                  !scrollFrame.isEmpty,
+                  !liveScrollFrame.isNull,
+                  !liveScrollFrame.isEmpty,
+                  !lowerFrame.isNull,
+                  !lowerFrame.isEmpty,
+                  safeBottom > safeTop,
+                  receiverBottom > receiverTop,
+                  lowerFrame.height <= safeBottom - safeTop else {
+                XCTFail("Report-history AX-text viewport geometry is invalid.")
+                return false
+            }
+            if lowerFrame.minY >= safeTop,
+               lowerFrame.maxY <= safeBottom,
+               lowerSite.isHittable {
+                return true
+            }
+
+            let minimumShift = safeTop - lowerFrame.minY
+            let maximumShift = safeBottom - lowerFrame.maxY
+            let receiverCapacity = receiverBottom - receiverTop
+            guard minimumShift <= maximumShift,
+                  maximumShift < 0,
+                  receiverCapacity >= minimumGestureDistance else {
+                XCTFail("Report-history AX-text requires no feasible negative shift.")
+                return false
+            }
+            let recognizedMinimum = max(
+                minimumShift,
+                -receiverCapacity
+            )
+            let recognizedMaximum = min(
+                maximumShift,
+                -minimumGestureDistance
+            )
+            guard recognizedMinimum <= recognizedMaximum,
+                  recognizedMaximum < 0 else {
+                XCTFail("Report-history AX-text upward shift is not recognizable.")
+                return false
+            }
+            let dragDistance = recognizedMaximum
+            guard abs(dragDistance) >= minimumGestureDistance else {
+                XCTFail("Report-history AX-text positioning gesture undertravels.")
+                return false
+            }
+            let scrollOrigin = historyScrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStart = scrollOrigin.withOffset(
+                CGVector(
+                    dx: scrollFrame.width / 2,
+                    dy: receiverBottom - scrollFrame.minY
+                )
+            )
+            let dragEnd = dragStart.withOffset(
+                CGVector(dx: 0, dy: dragDistance)
+            )
+            let lowerMinYBeforeDrag = lowerFrame.minY
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            guard app.state == .runningForeground,
+                  historyScreens.count == 1,
+                  historyHeaders.count == 1,
+                  viewReportControls.count == 1,
+                  historyScrollViews.count == 1,
+                  historyNavigationBars.count == 1,
+                  historyTabBars.count == 1,
+                  historyScreen.exists,
+                  historyHeader.exists,
+                  viewReportControl.exists,
+                  historyScrollView.exists,
+                  historyNavigationBar.exists,
+                  historyTabBar.exists,
+                  let movedLowerSite = lowerNorthCampus() else {
+                XCTFail("Report-history AX-text route changed after positioning.")
+                return false
+            }
+            let observedShift = movedLowerSite.frame.minY - lowerMinYBeforeDrag
+            guard observedShift < 0,
+                  observedShift * dragDistance > 0 else {
+                XCTFail("Report-history AX-text positioning gesture was not recognized.")
+                return false
+            }
+        }
+
+        guard app.state == .runningForeground,
+              historyScreens.count == 1,
+              historyHeaders.count == 1,
+              viewReportControls.count == 1,
+              historyScrollViews.count == 1,
+              historyNavigationBars.count == 1,
+              historyTabBars.count == 1,
+              historyScreen.exists,
+              historyHeader.exists,
+              viewReportControl.exists,
+              historyScrollView.exists,
+              historyNavigationBar.exists,
+              historyTabBar.exists,
+              let finalLowerSite = lowerNorthCampus() else {
+            XCTFail("Report-history AX-text final route changed.")
+            return false
+        }
+        let finalApplicationFrame = app.frame
+        let finalNavigationFrame = historyNavigationBar.frame
+        let finalTabBarFrame = historyTabBar.frame
+        let finalScrollFrame = historyScrollView.frame.intersection(
+            finalApplicationFrame
+        )
+        let finalSafeTop = max(
+            finalScrollFrame.minY,
+            finalNavigationFrame.maxY
+        ) + contentInset
+        let finalSafeBottom = min(
+            finalScrollFrame.maxY,
+            min(finalApplicationFrame.maxY, finalTabBarFrame.minY)
+        ) - contentInset
+        let finalLowerFrame = finalLowerSite.frame
+        guard !finalApplicationFrame.isNull,
+              !finalApplicationFrame.isEmpty,
+              !finalNavigationFrame.isNull,
+              !finalNavigationFrame.isEmpty,
+              !finalTabBarFrame.isNull,
+              !finalTabBarFrame.isEmpty,
+              !finalScrollFrame.isNull,
+              !finalScrollFrame.isEmpty,
+              !finalLowerFrame.isNull,
+              !finalLowerFrame.isEmpty,
+              finalSafeBottom > finalSafeTop,
+              finalLowerFrame.minY >= finalSafeTop,
+              finalLowerFrame.maxY <= finalSafeBottom,
+              finalLowerSite.isHittable else {
+            XCTFail("Report-history lower North Campus is outside the safe viewport.")
+            return false
+        }
+        return true
     }
 
     @MainActor

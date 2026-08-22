@@ -309,8 +309,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 240_606,
-            sha256: "D0F2F5C82346F4B90063460899C810E9E5352C80FB056311EA9CA01CF67E6DBE"
+            byteCount: 251_221,
+            sha256: "8A9D3F1E338D83E2B056FB477BDE90FDAC8CE6A3F5A1A96E0C45B01E7928E300"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2418,6 +2418,333 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     staleWorkSavingPositioningForm
                 ),
                 staleWorkSavingPositioningForm
+            )
+        }
+
+        let reportHistoryAXPositioningCall =
+            #"        XCTAssertTrue(element("s4.4.reports.view-report", in: app)"# + "\n" +
+                "            .waitForExistence(timeout: 20))\n" +
+                #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# + "\n" +
+                "            guard positionLowerNorthCampusForAXText(in: app) else { return }\n" +
+                "        }\n" +
+                #"        captureBaseline("state.report-history.ready", in: app)"#
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: reportHistoryAXPositioningCall
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: #"        XCTAssertTrue(element("s4.4.reports.view-report", in: app)"# + "\n" +
+                    "            .waitForExistence(timeout: 20))"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "positionLowerNorthCampusForAXText("
+            ).count - 1,
+            2
+        )
+
+        let reportHistoryPositioningStart =
+            "    @MainActor\n" +
+                "    private func positionLowerNorthCampusForAXText(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) -> Bool {"
+        let reportHistoryPositioningEnd =
+            "\n\n    @MainActor\n" +
+                "    private func completeWorkAndResolvedRecheckAtXXXL("
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: reportHistoryPositioningStart
+            ).count - 1,
+            1
+        )
+        guard let reportHistoryPositioningStartRange = uiSource.range(
+            of: reportHistoryPositioningStart
+        ), let reportHistoryPositioningEndRange = uiSource.range(
+            of: reportHistoryPositioningEnd,
+            range: reportHistoryPositioningStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded AX-text report-history positioning helper")
+            return
+        }
+        let reportHistoryPositioningSource = String(
+            uiSource[
+                reportHistoryPositioningStartRange.lowerBound..<reportHistoryPositioningEndRange.lowerBound
+            ]
+        )
+
+        let reportHistoryPositioningBindings = [
+            "let historyScreens = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s4.4.history.screen""#,
+            "let historyHeaders = app.staticTexts.matching(\n" +
+                #"            identifier: "s4.4.history.header""#,
+            "let northCampusTexts = app.staticTexts.matching(\n" +
+                #"            NSPredicate(format: "label == %@", "North Campus")"#,
+            "let viewReportControls = app.buttons.matching(\n" +
+                #"            identifier: "s4.4.reports.view-report""#,
+            "let historyScrollViews = app.scrollViews.containing(\n" +
+                "            .button,\n" +
+                #"            identifier: "s4.4.reports.view-report""#,
+            "let historyNavigationBars = app.navigationBars.matching(\n" +
+                #"            identifier: "Report history""#,
+            "let historyTabBars = app.tabBars",
+            "let historyScreen = historyScreens.firstMatch",
+            "let historyHeader = historyHeaders.firstMatch",
+            "let viewReportControl = viewReportControls.firstMatch",
+            "let historyScrollView = historyScrollViews.firstMatch",
+            "let historyNavigationBar = historyNavigationBars.firstMatch",
+            "let historyTabBar = historyTabBars.firstMatch",
+        ]
+        for binding in reportHistoryPositioningBindings {
+            XCTAssertEqual(
+                reportHistoryPositioningSource.components(
+                    separatedBy: binding
+                ).count - 1,
+                1,
+                binding
+            )
+        }
+
+        let lowerNorthCampusResolver =
+            "        func lowerNorthCampus() -> XCUIElement? {\n" +
+                "            guard northCampusTexts.count == 2 else {\n" +
+                #"                XCTFail("Report-history North Campus cardinality is ambiguous.")"# + "\n" +
+                "                return nil\n" +
+                "            }\n" +
+                "            let first = northCampusTexts.element(boundBy: 0)\n" +
+                "            let second = northCampusTexts.element(boundBy: 1)\n" +
+                "            let firstFrame = first.frame\n" +
+                "            let secondFrame = second.frame\n" +
+                "            guard first.exists,\n" +
+                "                  second.exists,\n" +
+                "                  first.identifier.isEmpty,\n" +
+                "                  second.identifier.isEmpty,\n" +
+                #"                  first.label == "North Campus","# + "\n" +
+                #"                  second.label == "North Campus","# + "\n" +
+                "                  first.elementType == .staticText,\n" +
+                "                  second.elementType == .staticText,\n" +
+                "                  !firstFrame.isNull,\n" +
+                "                  !firstFrame.isEmpty,\n" +
+                "                  !secondFrame.isNull,\n" +
+                "                  !secondFrame.isEmpty,\n" +
+                "                  firstFrame != secondFrame,\n" +
+                "                  (\n" +
+                "                    firstFrame.maxY < secondFrame.minY\n" +
+                "                        || secondFrame.maxY < firstFrame.minY\n" +
+                "                  ) else {\n" +
+                #"                XCTFail("Report-history North Campus frames are not strictly ordered.")"# + "\n" +
+                "                return nil\n" +
+                "            }\n" +
+                "            return firstFrame.minY > secondFrame.minY ? first : second\n" +
+                "        }"
+        XCTAssertEqual(
+            reportHistoryPositioningSource.components(
+                separatedBy: lowerNorthCampusResolver
+            ).count - 1,
+            1
+        )
+
+        let reportHistoryLiveGeometry =
+            "            let scrollFrame = historyScrollView.frame\n" +
+                "            let applicationFrame = app.frame\n" +
+                "            let navigationFrame = historyNavigationBar.frame\n" +
+                "            let tabBarFrame = historyTabBar.frame\n" +
+                "            let liveScrollFrame = scrollFrame.intersection(applicationFrame)\n" +
+                "            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)\n" +
+                "            let liveBottom = min(\n" +
+                "                liveScrollFrame.maxY,\n" +
+                "                min(applicationFrame.maxY, tabBarFrame.minY)\n" +
+                "            )\n" +
+                "            let safeTop = liveTop + contentInset\n" +
+                "            let safeBottom = liveBottom - contentInset\n" +
+                "            let receiverTop = liveTop + receiverInset\n" +
+                "            let receiverBottom = liveBottom - receiverInset\n" +
+                "            let lowerFrame = lowerSite.frame"
+        XCTAssertEqual(
+            reportHistoryPositioningSource.components(
+                separatedBy: reportHistoryLiveGeometry
+            ).count - 1,
+            1
+        )
+        let reportHistoryNegativeInterval =
+            "            let minimumShift = safeTop - lowerFrame.minY\n" +
+                "            let maximumShift = safeBottom - lowerFrame.maxY\n" +
+                "            let receiverCapacity = receiverBottom - receiverTop\n" +
+                "            guard minimumShift <= maximumShift,\n" +
+                "                  maximumShift < 0,\n" +
+                "                  receiverCapacity >= minimumGestureDistance else {\n" +
+                #"                XCTFail("Report-history AX-text requires no feasible negative shift.")"# + "\n" +
+                "                return false\n" +
+                "            }\n" +
+                "            let recognizedMinimum = max(\n" +
+                "                minimumShift,\n" +
+                "                -receiverCapacity\n" +
+                "            )\n" +
+                "            let recognizedMaximum = min(\n" +
+                "                maximumShift,\n" +
+                "                -minimumGestureDistance\n" +
+                "            )\n" +
+                "            guard recognizedMinimum <= recognizedMaximum,\n" +
+                "                  recognizedMaximum < 0 else {\n" +
+                #"                XCTFail("Report-history AX-text upward shift is not recognizable.")"# + "\n" +
+                "                return false\n" +
+                "            }\n" +
+                "            let dragDistance = recognizedMaximum\n" +
+                "            guard abs(dragDistance) >= minimumGestureDistance else {\n" +
+                #"                XCTFail("Report-history AX-text positioning gesture undertravels.")"# + "\n" +
+                "                return false\n" +
+                "            }"
+        XCTAssertEqual(
+            reportHistoryPositioningSource.components(
+                separatedBy: reportHistoryNegativeInterval
+            ).count - 1,
+            1
+        )
+
+        let reportHistoryDirectGesture =
+            "            let scrollOrigin = historyScrollView.coordinate(\n" +
+                "                withNormalizedOffset: CGVector(dx: 0, dy: 0)\n" +
+                "            )\n" +
+                "            let dragStart = scrollOrigin.withOffset(\n" +
+                "                CGVector(\n" +
+                "                    dx: scrollFrame.width / 2,\n" +
+                "                    dy: receiverBottom - scrollFrame.minY\n" +
+                "                )\n" +
+                "            )\n" +
+                "            let dragEnd = dragStart.withOffset(\n" +
+                "                CGVector(dx: 0, dy: dragDistance)\n" +
+                "            )\n" +
+                "            let lowerMinYBeforeDrag = lowerFrame.minY\n" +
+                "            dragStart.press(\n" +
+                "                forDuration: 0.2,\n" +
+                "                thenDragTo: dragEnd,\n" +
+                "                withVelocity: .slow,\n" +
+                "                thenHoldForDuration: 0.2\n" +
+                "            )"
+        XCTAssertEqual(
+            reportHistoryPositioningSource.components(
+                separatedBy: reportHistoryDirectGesture
+            ).count - 1,
+            1
+        )
+        let reportHistoryObservedShift =
+            "            let observedShift = movedLowerSite.frame.minY - lowerMinYBeforeDrag\n" +
+                "            guard observedShift < 0,\n" +
+                "                  observedShift * dragDistance > 0 else {\n" +
+                #"                XCTFail("Report-history AX-text positioning gesture was not recognized.")"# + "\n" +
+                "                return false\n" +
+                "            }"
+        XCTAssertEqual(
+            reportHistoryPositioningSource.components(
+                separatedBy: reportHistoryObservedShift
+            ).count - 1,
+            1
+        )
+
+        let reportHistoryFinalGeometry =
+            "        let finalApplicationFrame = app.frame\n" +
+                "        let finalNavigationFrame = historyNavigationBar.frame\n" +
+                "        let finalTabBarFrame = historyTabBar.frame\n" +
+                "        let finalScrollFrame = historyScrollView.frame.intersection(\n" +
+                "            finalApplicationFrame\n" +
+                "        )\n" +
+                "        let finalSafeTop = max(\n" +
+                "            finalScrollFrame.minY,\n" +
+                "            finalNavigationFrame.maxY\n" +
+                "        ) + contentInset\n" +
+                "        let finalSafeBottom = min(\n" +
+                "            finalScrollFrame.maxY,\n" +
+                "            min(finalApplicationFrame.maxY, finalTabBarFrame.minY)\n" +
+                "        ) - contentInset\n" +
+                "        let finalLowerFrame = finalLowerSite.frame"
+        XCTAssertEqual(
+            reportHistoryPositioningSource.components(
+                separatedBy: reportHistoryFinalGeometry
+            ).count - 1,
+            1
+        )
+        let reportHistoryFinalContainment =
+            "              finalSafeBottom > finalSafeTop,\n" +
+                "              finalLowerFrame.minY >= finalSafeTop,\n" +
+                "              finalLowerFrame.maxY <= finalSafeBottom,\n" +
+                "              finalLowerSite.isHittable else {\n" +
+                #"            XCTFail("Report-history lower North Campus is outside the safe viewport.")"# + "\n" +
+                "            return false\n" +
+                "        }\n" +
+                "        return true"
+        XCTAssertEqual(
+            reportHistoryPositioningSource.components(
+                separatedBy: reportHistoryFinalContainment
+            ).count - 1,
+            1
+        )
+
+        for (reportHistoryCardinalityLock, count) in [
+            ("app.state == .runningForeground", 3),
+            ("historyScreens.count == 1", 3),
+            ("historyHeaders.count == 1", 3),
+            ("viewReportControls.count == 1", 3),
+            ("historyScrollViews.count == 1", 3),
+            ("historyNavigationBars.count == 1", 3),
+            ("historyTabBars.count == 1", 3),
+            ("historyScreen.exists", 3),
+            ("historyHeader.exists", 3),
+            ("viewReportControl.exists", 3),
+            ("historyScrollView.exists", 3),
+            ("historyNavigationBar.exists", 3),
+            ("historyTabBar.exists", 3),
+            ("lowerNorthCampus()", 4),
+            ("northCampusTexts.count == 2", 1),
+            ("northCampusTexts.element(boundBy:", 2),
+            ("for _ in 0..<4", 1),
+            ("historyScrollView.coordinate(", 1),
+            ("dragStart.press(", 1),
+            ("forDuration: 0.2", 1),
+            ("withVelocity: .slow", 1),
+            ("thenHoldForDuration: 0.2", 1),
+            ("return true", 2),
+        ] {
+            XCTAssertEqual(
+                reportHistoryPositioningSource.components(
+                    separatedBy: reportHistoryCardinalityLock
+                ).count - 1,
+                count,
+                reportHistoryCardinalityLock
+            )
+        }
+        for prohibitedReportHistoryPositioningForm in [
+            "app.coordinate(",
+            "app.swipe",
+            "historyScrollView.swipe",
+            "scroll(",
+            "tap(",
+            "CGRect(",
+            "Thread.sleep",
+            "sleep(",
+            "epsilon",
+            "tolerance",
+            "performAccessibilityAudit(",
+            "ContrastAuditExceptionSignature",
+            "captureBaseline(",
+            "attachCandidate(",
+            "printJSONLine(",
+            "automationContrastExceptions",
+            "automationAXTreeDigests",
+            "eligibleExceptions",
+            "receipt",
+            "throw ",
+            "minimumShift > 0",
+            "maximumShift >= 0",
+        ] {
+            XCTAssertFalse(
+                reportHistoryPositioningSource.contains(
+                    prohibitedReportHistoryPositioningForm
+                ),
+                prohibitedReportHistoryPositioningForm
             )
         }
 
