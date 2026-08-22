@@ -1630,16 +1630,27 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(separatedBy: multilineHelperStart).count - 1,
             1
         )
+        let multilinePassiveKeyboardHelperStart =
+            "    @MainActor\n" +
+                "    private func keyboardIsAbsentOrInertOffApp("
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: multilinePassiveKeyboardHelperStart
+            ).count - 1,
+            1
+        )
         guard let multilineHelperStartRange = uiSource.range(of: multilineHelperStart),
-              let multilineKeyboardEndRange = uiSource.range(
-                of: keyboardHelperStart,
+              let multilinePassiveKeyboardHelperStartRange = uiSource.range(
+                of: multilinePassiveKeyboardHelperStart,
                 range: multilineHelperStartRange.upperBound..<uiSource.endIndex
               ) else {
             XCTFail("Missing the dedicated multiline keyboard helper source slice")
             return
         }
         let multilineHelperSource = String(
-            uiSource[multilineHelperStartRange.lowerBound..<multilineKeyboardEndRange.lowerBound]
+            uiSource[
+                multilineHelperStartRange.lowerBound..<multilinePassiveKeyboardHelperStartRange.lowerBound
+            ]
         )
         let multilineHelperLocks = [
             "afterEditing field: XCUIElement",
