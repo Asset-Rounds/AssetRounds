@@ -309,8 +309,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 251_221,
-            sha256: "8A9D3F1E338D83E2B056FB477BDE90FDAC8CE6A3F5A1A96E0C45B01E7928E300"
+            byteCount: 259_159,
+            sha256: "B191828B9D32668DA203DC7B82FF23C0083E4B4A3234EF5559B9ED9CC8AC640D"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2745,6 +2745,402 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     prohibitedReportHistoryPositioningForm
                 ),
                 prohibitedReportHistoryPositioningForm
+            )
+        }
+
+        let reduceMotionWorkSavingDiagnosticGate =
+            #"            if shard.shardID == "s10.4.current.reduce-motion","# + "\n" +
+                #"               stateID == "state.work.saving" {"# + "\n" +
+                "                try diagnoseReduceMotionWorkSavingContrast(\n" +
+                "                    in: app,\n" +
+                "                    shard: shard,\n" +
+                "                    stateID: stateID\n" +
+                "                )\n" +
+                "            }\n" +
+                #"            if shard.shardID == "s10.4.current.differentiate-without-color","#
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: reduceMotionWorkSavingDiagnosticGate
+            ).count - 1,
+            1
+        )
+        let reduceMotionWorkSavingDiagnosticEntry =
+            "        dismissHostedAppleIntelligenceNotificationIfPresent(\n" +
+                "            in: app,\n" +
+                "            file: file,\n" +
+                "            line: line\n" +
+                "        )\n" +
+                "        do {\n" +
+                reduceMotionWorkSavingDiagnosticGate
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: reduceMotionWorkSavingDiagnosticEntry
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "diagnoseReduceMotionWorkSavingContrast("
+            ).count - 1,
+            2
+        )
+
+        let captureBaselineStart =
+            "    @MainActor\n" +
+                "    private func captureBaseline("
+        let reduceMotionWorkSavingDiagnosticStart =
+            "    @MainActor\n" +
+                "    private func diagnoseReduceMotionWorkSavingContrast(\n" +
+                "        in app: XCUIApplication,\n" +
+                "        shard: AutomationShard,\n" +
+                "        stateID: String\n" +
+                "    ) throws {"
+        let reduceMotionWorkSavingDiagnosticEnd =
+            "\n\n    private func isActive("
+        guard let captureBaselineStartRange = uiSource.range(
+            of: captureBaselineStart
+        ), let reduceMotionWorkSavingDiagnosticStartRange = uiSource.range(
+            of: reduceMotionWorkSavingDiagnosticStart,
+            range: captureBaselineStartRange.upperBound..<uiSource.endIndex
+        ), let reduceMotionWorkSavingDiagnosticEndRange = uiSource.range(
+            of: reduceMotionWorkSavingDiagnosticEnd,
+            range: reduceMotionWorkSavingDiagnosticStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded reduce-motion work-saving diagnostic source")
+            return
+        }
+        let captureBaselineSource = String(
+            uiSource[
+                captureBaselineStartRange.lowerBound..<reduceMotionWorkSavingDiagnosticStartRange.lowerBound
+            ]
+        )
+        let reduceMotionWorkSavingDiagnosticSource = String(
+            uiSource[
+                reduceMotionWorkSavingDiagnosticStartRange.lowerBound..<reduceMotionWorkSavingDiagnosticEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(
+            captureBaselineSource.components(
+                separatedBy: reduceMotionWorkSavingDiagnosticGate
+            ).count - 1,
+            1
+        )
+        guard let reduceMotionGateRange = captureBaselineSource.range(
+            of: reduceMotionWorkSavingDiagnosticGate
+        ), let eligibleExceptionRange = captureBaselineSource.range(
+            of: "            let eligibleExceptions =",
+            range: reduceMotionGateRange.upperBound..<captureBaselineSource.endIndex
+        ) else {
+            XCTFail("The reduce-motion saving diagnostic is not terminal before exception lookup")
+            return
+        }
+        XCTAssertLessThan(
+            captureBaselineSource.distance(
+                from: captureBaselineSource.startIndex,
+                to: reduceMotionGateRange.lowerBound
+            ),
+            captureBaselineSource.distance(
+                from: captureBaselineSource.startIndex,
+                to: eligibleExceptionRange.lowerBound
+            )
+        )
+
+        let reduceMotionWorkSavingQueryBindings = [
+            "let workScreens = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s5.1.work.screen""#,
+            "let workScrollViews = app.scrollViews.containing(\n" +
+                "            .image,\n" +
+                #"            identifier: "s5.1.work.photo""#,
+            "let workNavigationBars = app.navigationBars.matching(\n" +
+                #"            identifier: "Record work""#,
+            "let workPhotos = app.images.matching(\n" +
+                #"            identifier: "s5.1.work.photo""#,
+            "let savingStatuses = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s5.1.work.saving""#,
+            "let noteHeadings = app.staticTexts.matching(\n" +
+                #"            NSPredicate(format: "identifier == '' AND label == %@", "Note")"#,
+            "let tabBars = app.tabBars",
+            "let helperTexts = app.staticTexts.matching(\n" +
+                "            NSPredicate(\n" +
+                #"                format: "label == %@","# + "\n" +
+                #"                "Add one optional photo showing the work performed.""#,
+        ]
+        for binding in reduceMotionWorkSavingQueryBindings {
+            XCTAssertEqual(
+                reduceMotionWorkSavingDiagnosticSource.components(
+                    separatedBy: binding
+                ).count - 1,
+                1,
+                binding
+            )
+        }
+        for cardinalityBinding in [
+            "let workScreenCount = workScreens.count",
+            "let workScrollViewCount = workScrollViews.count",
+            "let workNavigationBarCount = workNavigationBars.count",
+            "let workPhotoCount = workPhotos.count",
+            "let savingStatusCount = savingStatuses.count",
+            "let noteHeadingCount = noteHeadings.count",
+            "let tabBarCount = tabBars.count",
+            "let helperTextCount = helperTexts.count",
+        ] {
+            XCTAssertEqual(
+                reduceMotionWorkSavingDiagnosticSource.components(
+                    separatedBy: cardinalityBinding
+                ).count - 1,
+                1,
+                cardinalityBinding
+            )
+        }
+
+        let reduceMotionWorkSavingElementSerializer =
+            "            let value: Any\n" +
+                "            if let elementValue = element.value {\n" +
+                "                value = String(describing: elementValue)\n" +
+                "            } else {\n" +
+                "                value = NSNull()\n" +
+                "            }\n" +
+                "            return [\n" +
+                #"                "identifier": element.identifier,"# + "\n" +
+                #"                "label": element.label,"# + "\n" +
+                #"                "value": value,"# + "\n" +
+                #"                "elementType": String(describing: element.elementType),"# + "\n" +
+                #"                "frame": auditFrameObject(element.frame),"# + "\n" +
+                #"                "exists": element.exists,"# + "\n" +
+                #"                "isHittable": element.isHittable,"#
+        XCTAssertEqual(
+            reduceMotionWorkSavingDiagnosticSource.components(
+                separatedBy: reduceMotionWorkSavingElementSerializer
+            ).count - 1,
+            1
+        )
+        let reduceMotionWorkSavingQuerySerializer =
+            #"                "count": count,"# + "\n" +
+                #"                "elements": (0..<count).map { index in"# + "\n" +
+                "                    diagnosticElementObject(query.element(boundBy: index))"
+        XCTAssertEqual(
+            reduceMotionWorkSavingDiagnosticSource.components(
+                separatedBy: reduceMotionWorkSavingQuerySerializer
+            ).count - 1,
+            1
+        )
+        for contextField in [
+            #""state": String(describing: app.state)"#,
+            #""stateRawValue": Int(app.state.rawValue)"#,
+            #""isRunningForeground": app.state == .runningForeground"#,
+            #""frame": auditFrameObject(app.frame)"#,
+            #""workScreen": diagnosticQueryObject("#,
+            #""workScrollView": diagnosticQueryObject("#,
+            #""workNavigationBar": diagnosticQueryObject("#,
+            #""workPhoto": diagnosticQueryObject("#,
+            #""savingStatus": diagnosticQueryObject("#,
+            #""noteHeading": diagnosticQueryObject("#,
+            #""tabBar": diagnosticQueryObject("#,
+            #""helperText": diagnosticQueryObject("#,
+        ] {
+            XCTAssertEqual(
+                reduceMotionWorkSavingDiagnosticSource.components(
+                    separatedBy: contextField
+                ).count - 1,
+                1,
+                contextField
+            )
+        }
+        for contextQueryBinding in [
+            #""workScreen": diagnosticQueryObject("# + "\n" +
+                "                workScreens,\n" +
+                "                count: workScreenCount",
+            #""workScrollView": diagnosticQueryObject("# + "\n" +
+                "                workScrollViews,\n" +
+                "                count: workScrollViewCount",
+            #""workNavigationBar": diagnosticQueryObject("# + "\n" +
+                "                workNavigationBars,\n" +
+                "                count: workNavigationBarCount",
+            #""workPhoto": diagnosticQueryObject("# + "\n" +
+                "                workPhotos,\n" +
+                "                count: workPhotoCount",
+            #""savingStatus": diagnosticQueryObject("# + "\n" +
+                "                savingStatuses,\n" +
+                "                count: savingStatusCount",
+            #""noteHeading": diagnosticQueryObject("# + "\n" +
+                "                noteHeadings,\n" +
+                "                count: noteHeadingCount",
+            #""tabBar": diagnosticQueryObject("# + "\n" +
+                "                tabBars,\n" +
+                "                count: tabBarCount",
+            #""helperText": diagnosticQueryObject("# + "\n" +
+                "                helperTexts,\n" +
+                "                count: helperTextCount",
+        ] {
+            XCTAssertEqual(
+                reduceMotionWorkSavingDiagnosticSource.components(
+                    separatedBy: contextQueryBinding
+                ).count - 1,
+                1,
+                contextQueryBinding
+            )
+        }
+        for (serializationCardinalityLock, count) in [
+            ("diagnosticQueryObject(", 9),
+            ("query.element(boundBy: index)", 1),
+            ("NSNull()", 5),
+            ("auditFrameObject(", 4),
+        ] {
+            XCTAssertEqual(
+                reduceMotionWorkSavingDiagnosticSource.components(
+                    separatedBy: serializationCardinalityLock
+                ).count - 1,
+                count,
+                serializationCardinalityLock
+            )
+        }
+
+        let reduceMotionWorkSavingPublicIssueFields =
+            #"                "auditTypeRawValue": String(issue.auditType.rawValue),"# + "\n" +
+                #"                "compactDescription": issue.compactDescription,"# + "\n" +
+                #"                "detailedDescription": issue.detailedDescription,"# + "\n" +
+                #"                "elementIdentifier": NSNull(),"# + "\n" +
+                #"                "elementLabel": NSNull(),"# + "\n" +
+                #"                "elementType": NSNull(),"# + "\n" +
+                #"                "elementFrame": NSNull(),"# + "\n" +
+                #"                "applicationFrame": self.auditFrameObject(app.frame),"#
+        XCTAssertEqual(
+            reduceMotionWorkSavingDiagnosticSource.components(
+                separatedBy: reduceMotionWorkSavingPublicIssueFields
+            ).count - 1,
+            1
+        )
+        for publicElementBinding in [
+            #"diagnostic["elementIdentifier"] = auditedElement.identifier"#,
+            #"diagnostic["elementLabel"] = auditedElement.label"#,
+            #"diagnostic["elementType"] = String("#,
+            #"diagnostic["elementFrame"] = self.auditFrameObject("#,
+        ] {
+            XCTAssertEqual(
+                reduceMotionWorkSavingDiagnosticSource.components(
+                    separatedBy: publicElementBinding
+                ).count - 1,
+                1,
+                publicElementBinding
+            )
+        }
+
+        let reduceMotionWorkSavingAttachmentLocks = [
+            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
+            "if noteHeadingCount == 1 {",
+            "screenshot: noteHeadings.element(boundBy: 0).screenshot()",
+            "noteAttachment = XCTAttachment(string: contextString)",
+            "screenshot: auditedElement.screenshot()",
+            "let contextData = try JSONSerialization.data(\n" +
+                "            withJSONObject: context,\n" +
+                "            options: [.prettyPrinted, .sortedKeys]",
+        ]
+        for attachmentLock in reduceMotionWorkSavingAttachmentLocks {
+            XCTAssertEqual(
+                reduceMotionWorkSavingDiagnosticSource.components(
+                    separatedBy: attachmentLock
+                ).count - 1,
+                1,
+                attachmentLock
+            )
+        }
+        for (attachmentCardinalityLock, count) in [
+            ("XCTAttachment(", 5),
+            (".lifetime = .keepAlways", 4),
+            ("add(", 4),
+        ] {
+            XCTAssertEqual(
+                reduceMotionWorkSavingDiagnosticSource.components(
+                    separatedBy: attachmentCardinalityLock
+                ).count - 1,
+                count,
+                attachmentCardinalityLock
+            )
+        }
+
+        let reduceMotionWorkSavingAudit =
+            "        var observedIssueCount = 0\n" +
+                "        try app.performAccessibilityAudit(for: .contrast) { issue in\n" +
+                "            observedIssueCount += 1"
+        XCTAssertEqual(
+            reduceMotionWorkSavingDiagnosticSource.components(
+                separatedBy: reduceMotionWorkSavingAudit
+            ).count - 1,
+            1
+        )
+        for (diagnosticCardinalityLock, count) in [
+            ("performAccessibilityAudit(for: .contrast)", 1),
+            ("observedIssueCount += 1", 1),
+            ("return true", 1),
+            ("return false", 0),
+            ("S10_4_REDUCE_MOTION_WORK_SAVING_CONTEXT_DIAGNOSTIC", 1),
+            ("S10_4_REDUCE_MOTION_WORK_SAVING_ISSUE_DIAGNOSTIC", 1),
+            ("S10_4_REDUCE_MOTION_WORK_SAVING_COUNT_DIAGNOSTIC", 1),
+            (#""callbackCount": observedIssueCount"#, 1),
+        ] {
+            XCTAssertEqual(
+                reduceMotionWorkSavingDiagnosticSource.components(
+                    separatedBy: diagnosticCardinalityLock
+                ).count - 1,
+                count,
+                diagnosticCardinalityLock
+            )
+        }
+        let reduceMotionWorkSavingTerminal =
+            #"            prefix: "S10_4_REDUCE_MOTION_WORK_SAVING_COUNT_DIAGNOSTIC","# + "\n" +
+                "            object: [\n" +
+                #"                "shardID": shard.shardID,"# + "\n" +
+                #"                "stateID": stateID,"# + "\n" +
+                #"                "callbackCount": observedIssueCount,"# + "\n" +
+                "            ]\n" +
+                "        )\n" +
+                "        throw AutomationConfigurationError.invalid(\n" +
+                #"            "S10.4 reduce-motion Record-work saving contrast diagnostic completed nonaccepting callbackCount=\(observedIssueCount)""#
+        XCTAssertEqual(
+            reduceMotionWorkSavingDiagnosticSource.components(
+                separatedBy: reduceMotionWorkSavingTerminal
+            ).count - 1,
+            1
+        )
+
+        for prohibitedReduceMotionWorkSavingDiagnosticForm in [
+            "tap(",
+            "swipe",
+            "press(",
+            "coordinate(",
+            "typeText(",
+            "waitFor",
+            "XCTWaiter",
+            "Thread.sleep",
+            "Task.sleep",
+            "CGRect(",
+            "ContrastAuditExceptionSignature",
+            "eligibleExceptions",
+            "matchingExceptions",
+            "stateIssueLimit",
+            "automationContrastExceptions",
+            "automationAXTreeDigests",
+            "migratedStateIDs",
+            "storeKitSession",
+            "captureBaseline(",
+            "S10_4_AX_STATE",
+            #"prefix: "S10_4_CONTRAST""#,
+            "S10.4 candidate",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+            "S10_4_RETENTION",
+            "S10.4 terminal",
+            "exceptionIssueID",
+            "exceptionOwner",
+            "exceptionExpiresAt",
+            "exceptionRationale",
+        ] {
+            XCTAssertFalse(
+                reduceMotionWorkSavingDiagnosticSource.contains(
+                    prohibitedReduceMotionWorkSavingDiagnosticForm
+                ),
+                prohibitedReduceMotionWorkSavingDiagnosticForm
             )
         }
 
