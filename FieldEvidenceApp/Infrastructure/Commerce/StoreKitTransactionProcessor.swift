@@ -2,82 +2,6 @@ import Foundation
 import StoreKit
 import Combine
 
-#if DEBUG
-enum S10_4StoreKitPurchaseDiagnosticGate {
-    static let launchArgument = "--s10-4-storekit-purchase-diagnostic"
-
-    static var isEnabled: Bool {
-        ProcessInfo.processInfo.arguments.contains(launchArgument)
-    }
-}
-
-enum S10_4StoreKitPurchaseDiagnosticReasonV1: String, CaseIterable, Sendable {
-    case missingPurchaseReservation
-    case completionProductMismatch
-    case purchaseVerificationUnverified
-    case transactionProductIDMismatch
-    case transactionProductTypeMismatch
-    case transactionOwnershipMismatch
-    case subscriptionStatusUnavailable
-    case statusTransactionUnverified
-    case statusRenewalInfoUnverified
-    case statusTransactionProductIDMismatch
-    case statusRenewalProductIDMismatch
-    case statusTransactionProductTypeMismatch
-    case statusTransactionOwnershipMismatch
-    case statusRevokedWithoutRevocationDate
-    case statusUnsupportedState
-    case paidGraceAuthorityRejected
-    case processorUnverifiedWithoutReason
-}
-
-enum S10_4StoreKitVerificationErrorV1: String, CaseIterable, Sendable {
-    case invalidCertificateChain
-    case invalidDeviceVerification
-    case invalidEncoding
-    case invalidSignature
-    case missingRequiredProperties
-    case revokedCertificate
-    case unknown
-
-    static func normalized<SignedType>(
-        _ error: VerificationResult<SignedType>.VerificationError
-    ) -> Self {
-        switch error {
-        case .invalidCertificateChain:
-            return .invalidCertificateChain
-        case .invalidDeviceVerification:
-            return .invalidDeviceVerification
-        case .invalidEncoding:
-            return .invalidEncoding
-        case .invalidSignature:
-            return .invalidSignature
-        case .missingRequiredProperties:
-            return .missingRequiredProperties
-        case .revokedCertificate:
-            return .revokedCertificate
-        @unknown default:
-            return .unknown
-        }
-    }
-}
-
-struct S10_4StoreKitProcessorFailureV1: Equatable, Sendable {
-    let reason: S10_4StoreKitPurchaseDiagnosticReasonV1
-    let verificationError: S10_4StoreKitVerificationErrorV1?
-}
-
-fileprivate struct S10_4StoreKitVerifiedEventDiagnosticResolutionV1: Sendable {
-    let event: VerifiedEntitlementProcessorEventV1?
-    let failure: S10_4StoreKitProcessorFailureV1?
-}
-
-fileprivate struct S10_4StoreKitFactDiagnosticResolutionV1: Sendable {
-    let fact: VerifiedEntitlementFactV1?
-    let failure: S10_4StoreKitProcessorFailureV1?
-}
-#endif
-
 struct VerifiedEntitlementProcessorEventV1: @unchecked Sendable {
     let fact: VerifiedEntitlementFactV1
     let transactionID: UInt64?
@@ -210,10 +134,6 @@ final class StoreKitTransactionProcessor: ObservableObject {
     private var finishedTransactionIDs = Set<UInt64>()
     private var inFlightTransactionIDs = Set<UInt64>()
     private(set) var isStarted = false
-#if DEBUG
-    private(set) var firstPurchaseDiagnosticFailure:
-        S10_4StoreKitProcessorFailureV1?
-#endif
 
     init(
         store: EntitlementStore,
@@ -304,22 +224,6 @@ final class StoreKitTransactionProcessor: ObservableObject {
         _ transaction: Transaction
     ) async -> StoreKitVerifiedPurchaseProcessingResultV1 {
         guard isStarted else { return .failed }
-#if DEBUG
-        if S10_4StoreKitPurchaseDiagnosticGate.isEnabled {
-            let resolution = await StoreKitRuntimeAdapterV1
-                .purchaseDiagnosticVerifiedEvent(
-                    from: transaction,
-                    shouldFinish: true
-                )
-            if let failure = resolution.failure {
-                recordPurchaseDiagnosticFailure(failure)
-            }
-            guard let event = resolution.event else {
-                return .unverified
-            }
-            return await applyVerified([event]) ? .verified : .failed
-        }
-#endif
         guard let event = await StoreKitRuntimeAdapterV1.verifiedEvent(
             from: transaction,
             shouldFinish: true
@@ -328,23 +232,6 @@ final class StoreKitTransactionProcessor: ObservableObject {
         }
         return await applyVerified([event]) ? .verified : .failed
     }
-
-#if DEBUG
-    func resetPurchaseDiagnosticFailure() {
-        guard S10_4StoreKitPurchaseDiagnosticGate.isEnabled else { return }
-        firstPurchaseDiagnosticFailure = nil
-    }
-
-    private func recordPurchaseDiagnosticFailure(
-        _ failure: S10_4StoreKitProcessorFailureV1
-    ) {
-        guard S10_4StoreKitPurchaseDiagnosticGate.isEnabled,
-              firstPurchaseDiagnosticFailure == nil else {
-            return
-        }
-        firstPurchaseDiagnosticFailure = failure
-    }
-#endif
 
     /// Refreshes ordinary verified StoreKit authority without invoking
     /// `AppStore.sync()`. Explicit restore owns that user-initiated call and
@@ -532,6 +419,10 @@ private extension StoreKitTransactionProcessor {
 }
 
 private enum StoreKitRuntimeAdapterV1 {
+    private static let subscriptionStatusMaximumReads = 20
+    private static let subscriptionStatusReadDelayNanoseconds: UInt64 =
+        250_000_000
+
     static func initialEvents(
         productLoader: StoreKitProductLoader
     ) async throws -> [EntitlementProcessorEventV1] {
@@ -573,8 +464,10 @@ private enum StoreKitRuntimeAdapterV1 {
     ) async -> VerifiedEntitlementProcessorEventV1? {
         guard transaction.productID == EntitlementReducerV1.productID,
               transaction.productType == .autoRenewable,
-              transaction.ownershipType == .purchased,
-              let status = await transaction.subscriptionStatus,
+              transaction.ownershipType == .purchased else {
+            return nil
+        }
+        guard let status = await resolvedSubscriptionStatus(for: transaction),
               let fact = fact(from: status) else {
             return nil
         }
@@ -591,218 +484,29 @@ private enum StoreKitRuntimeAdapterV1 {
         )
     }
 
-#if DEBUG
-    fileprivate static func purchaseDiagnosticVerifiedEvent(
-        from transaction: Transaction,
-        shouldFinish: Bool
-    ) async -> S10_4StoreKitVerifiedEventDiagnosticResolutionV1 {
-        guard transaction.productID == EntitlementReducerV1.productID else {
-            return .init(
-                event: nil,
-                failure: .init(
-                    reason: .transactionProductIDMismatch,
-                    verificationError: nil
-                )
-            )
-        }
-        guard transaction.productType == .autoRenewable else {
-            return .init(
-                event: nil,
-                failure: .init(
-                    reason: .transactionProductTypeMismatch,
-                    verificationError: nil
-                )
-            )
-        }
-        guard transaction.ownershipType == .purchased else {
-            return .init(
-                event: nil,
-                failure: .init(
-                    reason: .transactionOwnershipMismatch,
-                    verificationError: nil
-                )
-            )
-        }
-        guard let status = await transaction.subscriptionStatus else {
-            return .init(
-                event: nil,
-                failure: .init(
-                    reason: .subscriptionStatusUnavailable,
-                    verificationError: nil
-                )
-            )
-        }
-        let factResolution = purchaseDiagnosticFact(from: status)
-        guard let fact = factResolution.fact else {
-            return .init(event: nil, failure: factResolution.failure)
-        }
-        let finish: (@Sendable () async -> Void)?
-        if shouldFinish {
-            finish = { await transaction.finish() }
-        } else {
-            finish = nil
-        }
-        return .init(
-            event: VerifiedEntitlementProcessorEventV1(
-                fact: fact,
-                transactionID: shouldFinish ? transaction.id : nil,
-                finish: finish
-            ),
-            failure: nil
-        )
-    }
-
-    fileprivate static func purchaseDiagnosticFact(
-        from status: Product.SubscriptionInfo.Status
-    ) -> S10_4StoreKitFactDiagnosticResolutionV1 {
-        let transaction: Transaction
-        switch status.transaction {
-        case let .verified(value):
-            transaction = value
-        case let .unverified(_, error):
-            return .init(
-                fact: nil,
-                failure: .init(
-                    reason: .statusTransactionUnverified,
-                    verificationError: .normalized(error)
-                )
-            )
-        @unknown default:
-            return .init(
-                fact: nil,
-                failure: .init(
-                    reason: .statusTransactionUnverified,
-                    verificationError: .unknown
-                )
-            )
+    private static func resolvedSubscriptionStatus(
+        for transaction: Transaction
+    ) async -> Product.SubscriptionInfo.Status? {
+        guard !Task<Never, Never>.isCancelled else { return nil }
+        if let status = await transaction.subscriptionStatus {
+            return status
         }
 
-        let renewal: Product.SubscriptionInfo.RenewalInfo
-        switch status.renewalInfo {
-        case let .verified(value):
-            renewal = value
-        case let .unverified(_, error):
-            return .init(
-                fact: nil,
-                failure: .init(
-                    reason: .statusRenewalInfoUnverified,
-                    verificationError: .normalized(error)
+        for _ in 1..<subscriptionStatusMaximumReads {
+            do {
+                try await Task<Never, Never>.sleep(
+                    nanoseconds: subscriptionStatusReadDelayNanoseconds
                 )
-            )
-        @unknown default:
-            return .init(
-                fact: nil,
-                failure: .init(
-                    reason: .statusRenewalInfoUnverified,
-                    verificationError: .unknown
-                )
-            )
-        }
-
-        guard transaction.productID == EntitlementReducerV1.productID else {
-            return .init(
-                fact: nil,
-                failure: .init(
-                    reason: .statusTransactionProductIDMismatch,
-                    verificationError: nil
-                )
-            )
-        }
-        guard renewal.currentProductID == EntitlementReducerV1.productID else {
-            return .init(
-                fact: nil,
-                failure: .init(
-                    reason: .statusRenewalProductIDMismatch,
-                    verificationError: nil
-                )
-            )
-        }
-        guard transaction.productType == .autoRenewable else {
-            return .init(
-                fact: nil,
-                failure: .init(
-                    reason: .statusTransactionProductTypeMismatch,
-                    verificationError: nil
-                )
-            )
-        }
-        guard transaction.ownershipType == .purchased else {
-            return .init(
-                fact: nil,
-                failure: .init(
-                    reason: .statusTransactionOwnershipMismatch,
-                    verificationError: nil
-                )
-            )
-        }
-
-        let state: VerifiedSubscriptionStateV1
-        let graceExpirationAt: Date?
-        let revocationAt: Date?
-        if status.state == .subscribed {
-            state = .active
-            graceExpirationAt = nil
-            revocationAt = nil
-        } else if status.state == .inGracePeriod {
-            state = .grace
-            graceExpirationAt = renewal.gracePeriodExpirationDate
-            revocationAt = nil
-        } else if status.state == .inBillingRetryPeriod {
-            state = .billingRetry
-            graceExpirationAt = nil
-            revocationAt = nil
-        } else if status.state == .expired {
-            state = .expired
-            graceExpirationAt = nil
-            revocationAt = nil
-        } else if status.state == .revoked {
-            guard let date = transaction.revocationDate else {
-                return .init(
-                    fact: nil,
-                    failure: .init(
-                        reason: .statusRevokedWithoutRevocationDate,
-                        verificationError: nil
-                    )
-                )
+            } catch {
+                return nil
             }
-            state = transaction.revocationReason == nil
-                ? .revoked
-                : .refunded
-            graceExpirationAt = nil
-            revocationAt = date
-        } else {
-            return .init(
-                fact: nil,
-                failure: .init(
-                    reason: .statusUnsupportedState,
-                    verificationError: nil
-                )
-            )
+            guard !Task<Never, Never>.isCancelled else { return nil }
+            if let status = await transaction.subscriptionStatus {
+                return status
+            }
         }
-
-        let fact = VerifiedEntitlementFactV1(
-            productID: transaction.productID,
-            purchaseAt: transaction.purchaseDate,
-            expirationAt: transaction.expirationDate,
-            graceExpirationAt: graceExpirationAt,
-            revocationAt: revocationAt,
-            verifiedAt: max(transaction.signedDate, renewal.signedDate),
-            state: state,
-            isIntroductoryOffer: transaction.offer?.type == .introductory,
-            willAutoRenew: renewal.willAutoRenew
-        )
-        guard StoreKitPaidGraceAuthorityV1.accepts(fact) else {
-            return .init(
-                fact: nil,
-                failure: .init(
-                    reason: .paidGraceAuthorityRejected,
-                    verificationError: nil
-                )
-            )
-        }
-        return .init(fact: fact, failure: nil)
+        return nil
     }
-#endif
 
     static func event(
         from status: Product.SubscriptionInfo.Status

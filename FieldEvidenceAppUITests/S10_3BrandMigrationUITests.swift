@@ -509,7 +509,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         app.launch()
 
         completeWorkAndResolvedRecheckAtXXXL(in: app)
-        try captureAlternativeCompletedCheckStates(in: app)
+        captureAlternativeCompletedCheckStates(in: app)
         captureDifferentIssueStatesBeforeRecovery(in: app)
         app.terminate()
         app.launch()
@@ -2353,7 +2353,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func captureAlternativeCompletedCheckStates(
         in app: XCUIApplication
-    ) throws {
+    ) {
         beginFreshCheck(in: app)
         acceptImportedPhotoWithoutBaseline(
             in: app,
@@ -2374,7 +2374,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         captureBaseline("state.check-review.no-visible-issue", in: app)
         saveCheckAndReturnToSign(in: app)
 
-        try purchaseBlockedEvaluationAndBeginFreshCheck(in: app)
+        purchaseBlockedEvaluationAndBeginFreshCheck(in: app)
         acceptImportedPhotoWithoutBaseline(
             in: app,
             heading: "1 of 2 · Wide view"
@@ -2440,14 +2440,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func purchaseBlockedEvaluationAndBeginFreshCheck(
         in app: XCUIApplication
-    ) throws {
+    ) {
         let start = element("s2.sign-detail.start-check", in: app)
         scroll(start, in: app)
         assertControl(start, label: "Start Check")
         start.tap()
         XCTAssertTrue(element("s7.2.paywall.screen", in: app)
             .waitForExistence(timeout: 30))
-        let usedSettingsRetry = try captureAvailablePaywallAndPurchase(in: app)
+        let usedSettingsRetry = captureAvailablePaywallAndPurchase(in: app)
 
         let close = element("s7.2.paywall.close", in: app)
         scrollDown(close, in: app)
@@ -3182,7 +3182,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func captureAvailablePaywallAndPurchase(
         in app: XCUIApplication
-    ) throws -> Bool {
+    ) -> Bool {
         var usedSettingsRetry = false
         let productName = element("s7.2.paywall.product-name", in: app)
         let duration = element("s7.2.paywall.duration", in: app)
@@ -3247,7 +3247,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         scroll(purchase, in: app)
         purchase.tap()
         var purchaseState = element("s7.2.paywall.purchase-state", in: app)
-        var firstStoreKitDiagnosticValue: String?
         if !usesPseudolanguage {
             let verifiedPurchaseLabel =
                 "Complete: Purchase verified. Subscription access is ready."
@@ -3268,19 +3267,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 ),
                 .completed
             )
-            if automationShard?.shardID == "s10.4.current.default-dark" {
-                guard wait(
-                    for: purchaseState,
-                    predicate: "value BEGINSWITH '{'",
-                    timeout: 10
-                ),
-                      let diagnosticValue = purchaseState.value as? String,
-                      !diagnosticValue.isEmpty else {
-                    XCTFail("The first StoreKit verification diagnostic value is required")
-                    return usedSettingsRetry
-                }
-                firstStoreKitDiagnosticValue = diagnosticValue
-            }
             if purchaseState.label == unverifiedPurchaseLabel {
                 guard let retainedSession = storeKitSession else {
                     XCTFail("The retained StoreKit test session is required")
@@ -3321,34 +3307,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 purchase.tap()
                 purchaseState = element("s7.2.paywall.purchase-state", in: app)
             }
-        }
-        if automationShard?.shardID == "s10.4.current.default-dark" {
-            guard let firstStoreKitDiagnosticValue else {
-                XCTFail("The first StoreKit verification diagnostic value is missing")
-                return usedSettingsRetry
-            }
-            let finalStoreKitDiagnosticValue: String
-            if usedSettingsRetry {
-                guard wait(
-                    for: purchaseState,
-                    predicate: "value BEGINSWITH '{'",
-                    timeout: 45
-                ),
-                      let diagnosticValue = purchaseState.value as? String,
-                      !diagnosticValue.isEmpty else {
-                    XCTFail("The final StoreKit verification diagnostic value is required")
-                    return usedSettingsRetry
-                }
-                finalStoreKitDiagnosticValue = diagnosticValue
-            } else {
-                finalStoreKitDiagnosticValue = firstStoreKitDiagnosticValue
-            }
-            try diagnoseStoreKitVerificationAndProcessor(
-                firstValue: firstStoreKitDiagnosticValue,
-                finalValue: finalStoreKitDiagnosticValue,
-                usedSettingsRetry: usedSettingsRetry,
-                in: app
-            )
         }
         waitForLocalizedLabel(
             purchaseState,
@@ -3471,52 +3429,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         captureBaseline("state.paywall.purchase-complete", in: app)
         return usedSettingsRetry
-    }
-
-    private func diagnoseStoreKitVerificationAndProcessor(
-        firstValue: String,
-        finalValue: String,
-        usedSettingsRetry: Bool,
-        in app: XCUIApplication
-    ) throws {
-        let firstAttachment = XCTAttachment(string: firstValue)
-        firstAttachment.name =
-            "S10.4 default-dark StoreKit diagnostic first value"
-        firstAttachment.lifetime = .keepAlways
-        add(firstAttachment)
-
-        let finalAttachment = XCTAttachment(string: finalValue)
-        finalAttachment.name =
-            "S10.4 default-dark StoreKit diagnostic final value"
-        finalAttachment.lifetime = .keepAlways
-        add(finalAttachment)
-
-        let treeAttachment = XCTAttachment(string: app.debugDescription)
-        treeAttachment.name =
-            "S10.4 default-dark StoreKit diagnostic accessibility tree"
-        treeAttachment.lifetime = .keepAlways
-        add(treeAttachment)
-
-        let screenshotAttachment = XCTAttachment(
-            screenshot: XCUIScreen.main.screenshot()
-        )
-        screenshotAttachment.name =
-            "S10.4 default-dark StoreKit diagnostic screenshot"
-        screenshotAttachment.lifetime = .keepAlways
-        add(screenshotAttachment)
-
-        printJSONLine(
-            prefix: "S10_4_STOREKIT_VERIFICATION_PROCESSOR_DIAGNOSTIC",
-            object: [
-                "shardID": automationShard?.shardID ?? "",
-                "firstValue": firstValue,
-                "finalValue": finalValue,
-                "usedSettingsRetry": usedSettingsRetry,
-            ]
-        )
-        throw AutomationConfigurationError.invalid(
-            "S10.4 default-dark StoreKit verification/processor diagnostic completed nonaccepting"
-        )
     }
 
     @MainActor
@@ -4540,11 +4452,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 "-UIAccessibilityReduceTransparencyEnabled",
                 shard.reduceTransparency ? "YES" : "NO",
             ]
-            if shard.shardID == "s10.4.current.default-dark" {
-                app.launchArguments.append(
-                    "--s10-4-storekit-purchase-diagnostic"
-                )
-            }
             app.launchArguments += localizationArguments(for: shard)
             return
         }

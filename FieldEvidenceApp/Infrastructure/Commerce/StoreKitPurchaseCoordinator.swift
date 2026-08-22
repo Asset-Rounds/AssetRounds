@@ -125,9 +125,6 @@ final class StoreKitPurchaseCoordinator: ObservableObject {
     @Published private(set) var productPresentation: PaywallProductPresentationV1?
     @Published private(set) var purchaseState: PaywallPurchaseStateV1 = .idle
     @Published private(set) var isPurchasing = false
-#if DEBUG
-    @Published private(set) var s10_4StoreKitPurchaseDiagnosticJSON: String?
-#endif
 
     let catalogLinks: PaywallCatalogLinksV1?
 
@@ -135,11 +132,6 @@ final class StoreKitPurchaseCoordinator: ObservableObject {
     private let presentationLoader: PresentationLoader
     private let verifiedTransactionProcessor: VerifiedTransactionProcessor
     private let hasInstalledProcessor: Bool
-#if DEBUG
-    private let verifiedTransactionDiagnosticProvider:
-        @MainActor () -> S10_4StoreKitProcessorFailureV1?
-    private let verifiedTransactionDiagnosticReset: @MainActor () -> Void
-#endif
 
     private var presentationTokens = Set<UUID>()
     private var isLoading = false
@@ -162,14 +154,6 @@ final class StoreKitPurchaseCoordinator: ObservableObject {
             guard let processor else { return .failed }
             return await processor.processPurchasedTransaction(transaction)
         }
-#if DEBUG
-        self.verifiedTransactionDiagnosticProvider = {
-            processor?.firstPurchaseDiagnosticFailure
-        }
-        self.verifiedTransactionDiagnosticReset = {
-            processor?.resetPurchaseDiagnosticFailure()
-        }
-#endif
     }
 
     init(
@@ -186,10 +170,6 @@ final class StoreKitPurchaseCoordinator: ObservableObject {
         self.presentationLoader = presentationLoader
         self.hasInstalledProcessor = hasInstalledProcessor
         self.verifiedTransactionProcessor = verifiedTransactionProcessor
-#if DEBUG
-        self.verifiedTransactionDiagnosticProvider = { nil }
-        self.verifiedTransactionDiagnosticReset = {}
-#endif
     }
 
     func present(token: UUID) async {
@@ -219,12 +199,6 @@ final class StoreKitPurchaseCoordinator: ObservableObject {
 
     @discardableResult
     func storeKitPurchaseStarted(productID: String) -> Bool {
-#if DEBUG
-        if S10_4StoreKitPurchaseDiagnosticGate.isEnabled {
-            s10_4StoreKitPurchaseDiagnosticJSON = nil
-            verifiedTransactionDiagnosticReset()
-        }
-#endif
         guard let reservation = reservePurchase(productID: productID) else {
             return false
         }
@@ -267,118 +241,30 @@ final class StoreKitPurchaseCoordinator: ObservableObject {
         productID: String,
         result: Result<Product.PurchaseResult, any Error>
     ) async {
-#if DEBUG
-        if S10_4StoreKitPurchaseDiagnosticGate.isEnabled {
-            if purchaseReservation == nil {
-                publishS10_4StoreKitPurchaseDiagnostic(
-                    terminalState: "unverified",
-                    stage: "purchaseCompletion",
-                    reason: .missingPurchaseReservation,
-                    callbackProductID: productID
-                )
-            } else if purchaseReservation?.productID != productID {
-                publishS10_4StoreKitPurchaseDiagnostic(
-                    terminalState: "unverified",
-                    stage: "purchaseCompletion",
-                    reason: .completionProductMismatch,
-                    callbackProductID: productID
-                )
-            }
-        }
-#endif
-        guard let purchaseReservation,
-              purchaseReservation.productID == productID else {
+        guard purchaseReservation?.productID == productID else {
             await complete(.unverified)
             return
         }
         switch result {
         case .failure:
-#if DEBUG
-            publishS10_4StoreKitPurchaseDiagnostic(
-                terminalState: "failed",
-                stage: "purchaseCompletion",
-                callbackProductID: productID
-            )
-#endif
             await complete(.failed)
         case let .success(purchaseResult):
             switch purchaseResult {
             case .userCancelled:
-#if DEBUG
-                publishS10_4StoreKitPurchaseDiagnostic(
-                    terminalState: "cancelled",
-                    stage: "purchaseCompletion",
-                    callbackProductID: productID
-                )
-#endif
                 await complete(.cancelled)
             case .pending:
-#if DEBUG
-                publishS10_4StoreKitPurchaseDiagnostic(
-                    terminalState: "pending",
-                    stage: "purchaseCompletion",
-                    callbackProductID: productID
-                )
-#endif
                 await complete(.pending)
             case let .success(verification):
                 switch verification {
-                case let .unverified(_, error):
-#if DEBUG
-                    publishS10_4StoreKitPurchaseDiagnostic(
-                        terminalState: "unverified",
-                        stage: "purchaseVerification",
-                        reason: .purchaseVerificationUnverified,
-                        verificationError: .normalized(error),
-                        callbackProductID: productID
-                    )
-#endif
+                case .unverified:
                     await complete(.unverified)
                 case let .verified(transaction):
                     let processor = verifiedTransactionProcessor
                     await complete(.verified {
-                        let processingResult = await processor(transaction)
-#if DEBUG
-                        switch processingResult {
-                        case .verified:
-                            self.publishS10_4StoreKitPurchaseDiagnostic(
-                                terminalState: "verified",
-                                stage: "transactionProcessor",
-                                callbackProductID: productID
-                            )
-                        case .failed:
-                            self.publishS10_4StoreKitPurchaseDiagnostic(
-                                terminalState: "failed",
-                                stage: "transactionProcessor",
-                                callbackProductID: productID
-                            )
-                        case .unverified:
-                            let failure = self
-                                .verifiedTransactionDiagnosticProvider()
-                                ?? S10_4StoreKitProcessorFailureV1(
-                                    reason: .processorUnverifiedWithoutReason,
-                                    verificationError: nil
-                                )
-                            self.publishS10_4StoreKitPurchaseDiagnostic(
-                                terminalState: "unverified",
-                                stage: "transactionProcessor",
-                                reason: failure.reason,
-                                verificationError: failure.verificationError,
-                                callbackProductID: productID
-                            )
-                        }
-#endif
-                        return processingResult
+                        await processor(transaction)
                     })
                 }
             @unknown default:
-#if DEBUG
-                publishS10_4StoreKitPurchaseDiagnostic(
-                    terminalState: "failed",
-                    stage: "purchaseCompletion",
-                    callbackProductID: productID
-                )
-#endif
                 await complete(.failed)
             }
         }
@@ -432,41 +318,6 @@ final class StoreKitPurchaseCoordinator: ObservableObject {
         purchaseStatePublicationTask = nil
         purchaseReservation = nil
     }
-
-#if DEBUG
-    private func publishS10_4StoreKitPurchaseDiagnostic(
-        terminalState: String,
-        stage: String,
-        reason: S10_4StoreKitPurchaseDiagnosticReasonV1? = nil,
-        verificationError: S10_4StoreKitVerificationErrorV1? = nil,
-        callbackProductID: String
-    ) {
-        guard S10_4StoreKitPurchaseDiagnosticGate.isEnabled else { return }
-        var object: [String: Any] = [
-            "schemaVersion": 1,
-            "terminalState": terminalState,
-            "stage": stage,
-            "callbackProductID": callbackProductID,
-        ]
-        if let reason {
-            object["firstFailureReason"] = reason.rawValue
-        }
-        if let verificationError {
-            object["verificationErrorCase"] = verificationError.rawValue
-        }
-        guard JSONSerialization.isValidJSONObject(object),
-              let data = try? JSONSerialization.data(
-                  withJSONObject: object,
-                  options: [.sortedKeys]
-              ) else {
-            return
-        }
-        s10_4StoreKitPurchaseDiagnosticJSON = String(
-            decoding: data,
-            as: UTF8.self
-        )
-    }
-#endif
 
     private func reloadProduct() async {
         guard !isLoading else { return }
