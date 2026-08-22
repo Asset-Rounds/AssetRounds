@@ -872,6 +872,112 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         captureBaseline("state.new-sign.validation-error", in: app)
 
         site.typeText("North Campus")
+        if automationShard?.deviceProfileID == "iphone-17-ios-26.2-current" {
+            let currentQuickPathTutorialLabel =
+                "Speed up your typing by sliding your finger across the letters to compose a word."
+            let currentQuickPathContinueLabel = "Continue"
+            let currentQuickPathTutorialTexts = app.staticTexts.matching(
+                NSPredicate(
+                    format: "label == %@",
+                    currentQuickPathTutorialLabel
+                )
+            )
+            let currentQuickPathContinueButtons = app.buttons.matching(
+                NSPredicate(
+                    format: "label == %@",
+                    currentQuickPathContinueLabel
+                )
+            )
+            let currentQuickPathTutorialCount =
+                currentQuickPathTutorialTexts.count
+            let currentQuickPathContinueCount =
+                currentQuickPathContinueButtons.count
+            if currentQuickPathTutorialCount > 0
+                || currentQuickPathContinueCount > 0 {
+                let applicationFrame = app.frame
+                let currentQuickPathTutorialText =
+                    currentQuickPathTutorialTexts.firstMatch
+                let currentQuickPathContinueButton =
+                    currentQuickPathContinueButtons.firstMatch
+                let currentQuickPathKeyboard = app.keyboards.firstMatch
+                let currentQuickPathReturnKey =
+                    currentQuickPathKeyboard.buttons["Return"]
+                let currentQuickPathNewSignRoute =
+                    element("s2.new-sign.screen", in: app)
+                guard currentQuickPathTutorialCount == 1,
+                      currentQuickPathContinueCount == 1,
+                      currentQuickPathTutorialText.exists,
+                      currentQuickPathTutorialText.elementType == .staticText,
+                      currentQuickPathTutorialText.identifier.isEmpty,
+                      currentQuickPathTutorialText.label
+                        == currentQuickPathTutorialLabel,
+                      currentQuickPathContinueButton.exists,
+                      currentQuickPathContinueButton.elementType == .button,
+                      currentQuickPathContinueButton.identifier.isEmpty,
+                      currentQuickPathContinueButton.label
+                        == currentQuickPathContinueLabel,
+                      currentQuickPathContinueButton.isEnabled,
+                      currentQuickPathContinueButton.isHittable,
+                      !applicationFrame.isNull,
+                      !applicationFrame.isEmpty,
+                      !currentQuickPathTutorialText.frame.isNull,
+                      !currentQuickPathTutorialText.frame.isEmpty,
+                      applicationFrame.contains(
+                          currentQuickPathTutorialText.frame
+                      ),
+                      !currentQuickPathContinueButton.frame.isNull,
+                      !currentQuickPathContinueButton.frame.isEmpty,
+                      applicationFrame.contains(
+                          currentQuickPathContinueButton.frame
+                      ),
+                      currentQuickPathKeyboard.exists,
+                      currentQuickPathReturnKey.exists,
+                      currentQuickPathReturnKey.elementType == .button,
+                      currentQuickPathReturnKey.identifier == "Return",
+                      currentQuickPathReturnKey.label.lowercased() == "return",
+                      !currentQuickPathReturnKey.isHittable,
+                      currentQuickPathNewSignRoute.exists,
+                      !validationDetailRoute.exists,
+                      wait(
+                          for: site,
+                          predicate: "hasKeyboardFocus == true",
+                          timeout: 10
+                      ),
+                      (site.value as? String) == "North Campus",
+                      (sign.value as? String) == "Monument Sign",
+                      app.state == .runningForeground else {
+                    XCTFail("The current-profile QuickPath tutorial is incomplete or the new-sign state changed before dismissal.")
+                    return
+                }
+
+                currentQuickPathContinueButton.tap()
+                guard currentQuickPathTutorialText.waitForNonExistence(
+                    timeout: 10
+                ),
+                      currentQuickPathContinueButton.waitForNonExistence(
+                          timeout: 10
+                      ),
+                      currentQuickPathReturnKey.waitForExistence(timeout: 10),
+                      currentQuickPathReturnKey.elementType == .button,
+                      currentQuickPathReturnKey.identifier == "Return",
+                      currentQuickPathReturnKey.label.lowercased() == "return",
+                      currentQuickPathReturnKey.isHittable,
+                      currentQuickPathKeyboard.exists,
+                      currentQuickPathNewSignRoute.exists,
+                      !validationDetailRoute.exists,
+                      wait(
+                          for: site,
+                          predicate: "hasKeyboardFocus == true",
+                          timeout: 10
+                      ),
+                      (site.value as? String) == "North Campus",
+                      (sign.value as? String) == "Monument Sign",
+                      app.state == .runningForeground else {
+                    XCTFail("The current-profile QuickPath tutorial did not dismiss with the new-sign state preserved.")
+                    return
+                }
+            }
+        }
         dismissKeyboard(in: app)
         dismissKeyboard(in: app)
         XCTAssertTrue(keyboardIsAbsentOrInertOffApp(in: app))

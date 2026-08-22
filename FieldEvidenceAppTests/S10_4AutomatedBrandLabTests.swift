@@ -339,8 +339,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 275_795,
-            sha256: "487EB8C38451C509FCBFC477BA6C7F75AFFFADF7CD61CEAFC8EF928549B91690"
+            byteCount: 281_435,
+            sha256: "E3285FC74C2B93BE88CA0BEC8B36727519B2DF1C4E8FD38BB48E890BB9B80510"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2138,9 +2138,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let defaultKeyboardCallerLocks = [
             restoredMinimumKeyboardCaller,
-            #"site.typeText("North Campus")"# + "\n" +
-                "        dismissKeyboard(in: app)\n" +
-                "        dismissKeyboard(in: app)",
             "        } else {\n" +
                 "            dismissKeyboard(in: app)\n" +
                 "        }\n" +
@@ -2155,18 +2152,184 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for lock in defaultKeyboardCallerLocks {
             XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1)
         }
-        let northCampusPassiveKeyboardCaller =
-            #"        site.typeText("North Campus")"# + "\n" +
-                "        dismissKeyboard(in: app)\n" +
-                "        dismissKeyboard(in: app)\n" +
-                "        XCTAssertTrue(keyboardIsAbsentOrInertOffApp(in: app))\n" +
-                "        scroll(save, in: app)"
+        let northCampusKeyboardCallerStart =
+            #"        site.typeText("North Campus")"#
+        let northCampusKeyboardCallerEnd = "        scroll(save, in: app)"
         XCTAssertEqual(
             uiSource.components(
-                separatedBy: northCampusPassiveKeyboardCaller
+                separatedBy: northCampusKeyboardCallerStart
             ).count - 1,
             1
         )
+        guard let northCampusKeyboardCallerStartRange = uiSource.range(
+            of: northCampusKeyboardCallerStart
+        ), let northCampusKeyboardCallerEndRange = uiSource.range(
+            of: northCampusKeyboardCallerEnd,
+            range: northCampusKeyboardCallerStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded North Campus keyboard caller slice")
+            return
+        }
+        let northCampusKeyboardCallerSource = String(
+            uiSource[
+                northCampusKeyboardCallerStartRange.lowerBound..<northCampusKeyboardCallerEndRange.lowerBound
+            ]
+        )
+        let northCampusKeyboardCallerLocks = [
+            #"automationShard?.deviceProfileID == "iphone-17-ios-26.2-current""#,
+            #""Speed up your typing by sliding your finger across the letters to compose a word.""#,
+            #"let currentQuickPathContinueLabel = "Continue""#,
+            "let currentQuickPathTutorialTexts = app.staticTexts.matching(",
+            "let currentQuickPathContinueButtons = app.buttons.matching(",
+            "let currentQuickPathTutorialCount =\n                currentQuickPathTutorialTexts.count",
+            "let currentQuickPathContinueCount =\n                currentQuickPathContinueButtons.count",
+            "let currentQuickPathTutorialText =\n                    currentQuickPathTutorialTexts.firstMatch",
+            "let currentQuickPathContinueButton =\n                    currentQuickPathContinueButtons.firstMatch",
+            "let currentQuickPathKeyboard = app.keyboards.firstMatch",
+            #"currentQuickPathKeyboard.buttons["Return"]"#,
+            "if currentQuickPathTutorialCount > 0\n                || currentQuickPathContinueCount > 0 {",
+            "currentQuickPathTutorialCount == 1",
+            "currentQuickPathContinueCount == 1",
+            "currentQuickPathTutorialText.exists",
+            "currentQuickPathTutorialText.elementType == .staticText",
+            "currentQuickPathTutorialText.identifier.isEmpty",
+            "currentQuickPathTutorialText.label\n                        == currentQuickPathTutorialLabel",
+            "currentQuickPathContinueButton.exists",
+            "currentQuickPathContinueButton.elementType == .button",
+            "currentQuickPathContinueButton.identifier.isEmpty",
+            "currentQuickPathContinueButton.label\n                        == currentQuickPathContinueLabel",
+            "currentQuickPathContinueButton.isEnabled",
+            "currentQuickPathContinueButton.isHittable",
+            "!applicationFrame.isNull",
+            "!applicationFrame.isEmpty",
+            "!currentQuickPathTutorialText.frame.isNull",
+            "!currentQuickPathTutorialText.frame.isEmpty",
+            "applicationFrame.contains(\n                          currentQuickPathTutorialText.frame\n                      )",
+            "!currentQuickPathContinueButton.frame.isNull",
+            "!currentQuickPathContinueButton.frame.isEmpty",
+            "applicationFrame.contains(\n                          currentQuickPathContinueButton.frame\n                      )",
+            "currentQuickPathKeyboard.exists",
+            "currentQuickPathReturnKey.exists",
+            "currentQuickPathReturnKey.elementType == .button",
+            #"currentQuickPathReturnKey.identifier == "Return""#,
+            #"currentQuickPathReturnKey.label.lowercased() == "return""#,
+            "!currentQuickPathReturnKey.isHittable",
+            "currentQuickPathNewSignRoute.exists",
+            "!validationDetailRoute.exists",
+            #"predicate: "hasKeyboardFocus == true""#,
+            #"(site.value as? String) == "North Campus""#,
+            #"(sign.value as? String) == "Monument Sign""#,
+            "app.state == .runningForeground",
+            "currentQuickPathContinueButton.tap()",
+            "currentQuickPathTutorialText.waitForNonExistence(",
+            "currentQuickPathContinueButton.waitForNonExistence(",
+            "currentQuickPathReturnKey.waitForExistence(timeout: 10)",
+            "currentQuickPathReturnKey.isHittable",
+            "dismissKeyboard(in: app)\n        dismissKeyboard(in: app)\n        XCTAssertTrue(keyboardIsAbsentOrInertOffApp(in: app))",
+        ]
+        for lock in northCampusKeyboardCallerLocks {
+            XCTAssertTrue(northCampusKeyboardCallerSource.contains(lock), lock)
+        }
+        let northCampusKeyboardCallerCounts: [(String, Int)] = [
+            (#"site.typeText("North Campus")"#, 1),
+            (#"automationShard?.deviceProfileID == "iphone-17-ios-26.2-current""#, 1),
+            (#""Speed up your typing by sliding your finger across the letters to compose a word.""#, 1),
+            (#"let currentQuickPathContinueLabel = "Continue""#, 1),
+            ("app.staticTexts.matching(", 1),
+            ("app.buttons.matching(", 1),
+            (#"format: "label == %@""#, 2),
+            ("currentQuickPathTutorialTexts.count", 1),
+            ("currentQuickPathContinueButtons.count", 1),
+            ("currentQuickPathTutorialTexts.firstMatch", 1),
+            ("currentQuickPathContinueButtons.firstMatch", 1),
+            ("if currentQuickPathTutorialCount > 0\n                || currentQuickPathContinueCount > 0 {", 1),
+            ("currentQuickPathTutorialCount == 1", 1),
+            ("currentQuickPathContinueCount == 1", 1),
+            ("currentQuickPathTutorialText.exists", 1),
+            ("currentQuickPathContinueButton.exists", 1),
+            ("currentQuickPathTutorialText.elementType == .staticText", 1),
+            ("currentQuickPathContinueButton.elementType == .button", 1),
+            ("currentQuickPathReturnKey.elementType == .button", 2),
+            (".identifier.isEmpty", 2),
+            ("currentQuickPathContinueButton.isEnabled", 1),
+            ("currentQuickPathContinueButton.isHittable", 1),
+            ("!applicationFrame.isNull", 1),
+            ("!applicationFrame.isEmpty", 1),
+            ("!currentQuickPathTutorialText.frame.isNull", 1),
+            ("!currentQuickPathTutorialText.frame.isEmpty", 1),
+            ("!currentQuickPathContinueButton.frame.isNull", 1),
+            ("!currentQuickPathContinueButton.frame.isEmpty", 1),
+            ("applicationFrame.contains(", 2),
+            ("currentQuickPathKeyboard.exists", 2),
+            ("currentQuickPathReturnKey.exists", 1),
+            ("currentQuickPathContinueButton.tap()", 1),
+            ("waitForNonExistence(", 2),
+            (#"currentQuickPathReturnKey.identifier == "Return""#, 2),
+            (#"currentQuickPathReturnKey.label.lowercased() == "return""#, 2),
+            ("currentQuickPathReturnKey.isHittable", 2),
+            ("currentQuickPathNewSignRoute.exists", 2),
+            ("!validationDetailRoute.exists", 2),
+            (#"predicate: "hasKeyboardFocus == true""#, 2),
+            (#"(site.value as? String) == "North Campus""#, 2),
+            (#"(sign.value as? String) == "Monument Sign""#, 2),
+            ("app.state == .runningForeground", 2),
+            ("dismissKeyboard(in: app)", 2),
+            ("XCTAssertTrue(keyboardIsAbsentOrInertOffApp(in: app))", 1),
+            ("XCTFail(", 2),
+            ("\n                    return\n", 2),
+        ]
+        for (lock, count) in northCampusKeyboardCallerCounts {
+            XCTAssertEqual(
+                northCampusKeyboardCallerSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                count,
+                lock
+            )
+        }
+        for prohibitedNorthCampusKeyboardCallerForm in [
+            "CGRect(",
+            "402",
+            "874",
+            "539",
+            "583",
+            "233",
+            "737.333",
+            "819",
+            "224",
+            "752",
+            "99",
+            ".coordinate(",
+            "withNormalizedOffset",
+            "withOffset",
+            ".press(",
+            ".swipe",
+            "Thread.sleep",
+            "sleep(",
+            "tolerance",
+            "epsilon",
+            "currentQuickPathReturnKey.tap()",
+            "for _ in",
+            "while ",
+            "s10.4.current.increased-contrast",
+            "iphone-se-3-ios-18.0-minimum",
+            "captureBaseline(",
+            "performAccessibilityAudit",
+            "printJSONLine",
+            "S10_4_CANDIDATE",
+            "S10_4_AX",
+            "S10_4_CONTRAST",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+            "ContrastAuditExceptionSignature",
+        ] {
+            XCTAssertFalse(
+                northCampusKeyboardCallerSource.contains(
+                    prohibitedNorthCampusKeyboardCallerForm
+                ),
+                prohibitedNorthCampusKeyboardCallerForm
+            )
+        }
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: "XCTAssertTrue(keyboardIsAbsentOrInertOffApp(in: app))"
