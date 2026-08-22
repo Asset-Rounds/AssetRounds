@@ -5980,6 +5980,46 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
+    private func keyboardSnapshotTreeIsFullyInertOffApp(
+        keyboard: XCUIElement,
+        descendants: XCUIElementQuery,
+        descendantCount: Int,
+        keyCount: Int,
+        applicationFrame: CGRect
+    ) -> Bool {
+        guard let keyboardSnapshot = try? keyboard.snapshot() else {
+            return false
+        }
+        var descendantSnapshots: [any XCUIElementSnapshot] = []
+        func appendDescendantSnapshots(
+            from snapshot: any XCUIElementSnapshot
+        ) {
+            for child in snapshot.children {
+                descendantSnapshots.append(child)
+                appendDescendantSnapshots(from: child)
+            }
+        }
+        appendDescendantSnapshots(from: keyboardSnapshot)
+
+        let snapshotKeyCount = descendantSnapshots.filter {
+            $0.elementType == .key
+        }.count
+        let interactiveDescendantCount = descendants.matching(
+            NSPredicate(
+                format: "hasKeyboardFocus == true OR hittable == true"
+            )
+        ).count
+        return descendantSnapshots.count == descendantCount
+            && snapshotKeyCount == keyCount
+            && descendantSnapshots.allSatisfy { snapshot in
+                let snapshotFrame = snapshot.frame
+                return !snapshotFrame.isEmpty
+                    && snapshotFrame.minY >= applicationFrame.maxY
+            }
+            && interactiveDescendantCount == 0
+    }
+
+    @MainActor
     private func keyboardIsAbsentOrInertOffApp(
         in app: XCUIApplication
     ) -> Bool {
@@ -6003,38 +6043,23 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let keyboardKeys = keyboard.keys
         let keyboardDescendantCount = keyboardDescendants.count
         let keyboardKeyCount = keyboardKeys.count
-        let keyboardDescendantElements =
-            keyboardDescendants.allElementsBoundByIndex
-        let keyboardKeyElements = keyboardKeys.allElementsBoundByIndex
         let focusIsAbsent = NSPredicate(
             format: "hasKeyboardFocus == false"
         )
         let keyboardFocusIsAbsent = focusIsAbsent.evaluate(with: keyboard)
-        let isWhollyOffAppAndInert: (XCUIElement) -> Bool = { element in
-            guard element.exists else { return false }
-            let elementFrame = element.frame
-            return !elementFrame.isEmpty
-                && elementFrame.minY >= applicationFrame.maxY
-                && focusIsAbsent.evaluate(with: element)
-                && !element.isHittable
-        }
         let keyboardTreeIsEmpty =
             keyboardDescendantCount == 0
             && keyboardKeyCount == 0
-            && keyboardDescendantElements.isEmpty
-            && keyboardKeyElements.isEmpty
         let keyboardTreeIsNonemptyAndInert =
             keyboardDescendantCount > 0
             && keyboardKeyCount > 0
             && keyboardKeyCount <= keyboardDescendantCount
-            && keyboardDescendantElements.count
-                == keyboardDescendantCount
-            && keyboardKeyElements.count == keyboardKeyCount
-            && keyboardDescendantElements.allSatisfy(
-                isWhollyOffAppAndInert
-            )
-            && keyboardKeyElements.allSatisfy(
-                isWhollyOffAppAndInert
+            && keyboardSnapshotTreeIsFullyInertOffApp(
+                keyboard: keyboard,
+                descendants: keyboardDescendants,
+                descendantCount: keyboardDescendantCount,
+                keyCount: keyboardKeyCount,
+                applicationFrame: applicationFrame
             )
         return !applicationFrame.isEmpty
             && !keyboardFrame.isEmpty
@@ -6084,38 +6109,23 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 let keyboardKeys = keyboard.keys
                 let keyboardDescendantCount = keyboardDescendants.count
                 let keyboardKeyCount = keyboardKeys.count
-                let keyboardDescendantElements =
-                    keyboardDescendants.allElementsBoundByIndex
-                let keyboardKeyElements = keyboardKeys.allElementsBoundByIndex
                 let focusIsAbsent = NSPredicate(
                     format: "hasKeyboardFocus == false"
                 )
                 let keyboardFocusIsAbsent = focusIsAbsent.evaluate(with: keyboard)
-                let isWhollyOffAppAndInert: (XCUIElement) -> Bool = { element in
-                    guard element.exists else { return false }
-                    let elementFrame = element.frame
-                    return !elementFrame.isEmpty
-                        && elementFrame.minY >= postSwipeApplicationFrame.maxY
-                        && focusIsAbsent.evaluate(with: element)
-                        && !element.isHittable
-                }
                 let keyboardTreeIsEmpty =
                     keyboardDescendantCount == 0
                     && keyboardKeyCount == 0
-                    && keyboardDescendantElements.isEmpty
-                    && keyboardKeyElements.isEmpty
                 let keyboardTreeIsNonemptyAndInert =
                     keyboardDescendantCount > 0
                     && keyboardKeyCount > 0
                     && keyboardKeyCount <= keyboardDescendantCount
-                    && keyboardDescendantElements.count
-                        == keyboardDescendantCount
-                    && keyboardKeyElements.count == keyboardKeyCount
-                    && keyboardDescendantElements.allSatisfy(
-                        isWhollyOffAppAndInert
-                    )
-                    && keyboardKeyElements.allSatisfy(
-                        isWhollyOffAppAndInert
+                    && keyboardSnapshotTreeIsFullyInertOffApp(
+                        keyboard: keyboard,
+                        descendants: keyboardDescendants,
+                        descendantCount: keyboardDescendantCount,
+                        keyCount: keyboardKeyCount,
+                        applicationFrame: postSwipeApplicationFrame
                     )
                 guard !postSwipeApplicationFrame.isEmpty,
                       !postSwipeKeyboardFrame.isEmpty,

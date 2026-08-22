@@ -412,8 +412,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 291_771,
-            sha256: "FC69B4A9E6A6F55128B8683254C16F46EBC538B18CDAF6690DB31538B49A9819"
+            byteCount: 291_707,
+            sha256: "1C5C3678112449F3138D7EBF7FFF89250FB4861BC28F7681ABF2BD9F1F334429"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1754,11 +1754,107 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             return
         }
         let keyboardHelperSource = String(uiSource[keyboardHelperStartRange.lowerBound..<keyboardHelperEndRange.lowerBound])
-        XCTAssertEqual(keyboardHelperSource.utf8.count, 5_456)
+        XCTAssertEqual(keyboardHelperSource.utf8.count, 4_642)
         XCTAssertEqual(
             Data(keyboardHelperSource.utf8).sha256,
-            "90449D0206CB73E7D739329EC932E170C179364F431B24B7951E637F40230DA9"
+            "66F70CC92E6E0EB967845B2407F6F018386B24C8CB97C59C6A6BAFDFF5C08A28"
         )
+
+        let keyboardSnapshotHelperStart =
+            "    @MainActor\n" +
+                "    private func keyboardSnapshotTreeIsFullyInertOffApp("
+        let keyboardSnapshotHelperEnd =
+            "\n\n    @MainActor\n" +
+                "    private func keyboardIsAbsentOrInertOffApp("
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: keyboardSnapshotHelperStart
+            ).count - 1,
+            1
+        )
+        guard let keyboardSnapshotHelperStartRange = uiSource.range(
+            of: keyboardSnapshotHelperStart
+        ), let keyboardSnapshotHelperEndRange = uiSource.range(
+            of: keyboardSnapshotHelperEnd,
+            range: keyboardSnapshotHelperStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the shared passive keyboard snapshot helper")
+            return
+        }
+        let keyboardSnapshotHelperSource = String(
+            uiSource[
+                keyboardSnapshotHelperStartRange.lowerBound..<keyboardSnapshotHelperEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(keyboardSnapshotHelperSource.utf8.count, 1_442)
+        XCTAssertEqual(
+            Data(keyboardSnapshotHelperSource.utf8).sha256,
+            "A801503BF2D51DEE482783E2D19C4BCCC48F4EA1F31C8767532B12026880EE8F"
+        )
+        let keyboardSnapshotHelperContracts = [
+            "        keyboard: XCUIElement,",
+            "        descendants: XCUIElementQuery,",
+            "        descendantCount: Int,",
+            "        keyCount: Int,",
+            "        applicationFrame: CGRect",
+            "        guard let keyboardSnapshot = try? keyboard.snapshot() else {",
+            "        var descendantSnapshots: [any XCUIElementSnapshot] = []",
+            "        func appendDescendantSnapshots(",
+            "            from snapshot: any XCUIElementSnapshot",
+            "            for child in snapshot.children {",
+            "                descendantSnapshots.append(child)",
+            "                appendDescendantSnapshots(from: child)",
+            "        appendDescendantSnapshots(from: keyboardSnapshot)",
+            "        let snapshotKeyCount = descendantSnapshots.filter {",
+            "            $0.elementType == .key",
+            "        let interactiveDescendantCount = descendants.matching(",
+            #"                format: "hasKeyboardFocus == true OR hittable == true""#,
+            "        return descendantSnapshots.count == descendantCount",
+            "            && snapshotKeyCount == keyCount",
+            "            && descendantSnapshots.allSatisfy { snapshot in",
+            "                let snapshotFrame = snapshot.frame",
+            "                    && snapshotFrame.minY >= applicationFrame.maxY",
+            "            && interactiveDescendantCount == 0",
+        ]
+        for contract in keyboardSnapshotHelperContracts {
+            XCTAssertTrue(
+                keyboardSnapshotHelperSource.contains(contract),
+                contract
+            )
+        }
+        for (fragment, count) in [
+            ("keyboard.snapshot()", 1),
+            ("snapshot.children", 1),
+            ("appendDescendantSnapshots", 3),
+            ("descendantSnapshots.count", 1),
+            ("snapshotKeyCount", 2),
+            ("elementType == .key", 1),
+            ("hasKeyboardFocus == true OR hittable == true", 1),
+            ("interactiveDescendantCount", 2),
+            ("allSatisfy { snapshot in", 1),
+            ("snapshot.frame", 1),
+            ("snapshotFrame.minY >= applicationFrame.maxY", 1),
+            ("interactiveDescendantCount == 0", 1),
+        ] {
+            XCTAssertEqual(
+                keyboardSnapshotHelperSource.components(
+                    separatedBy: fragment
+                ).count - 1,
+                count,
+                fragment
+            )
+        }
+        for prohibitedKeyboardTreeForm in [
+            "keyboardDescendantElements",
+            "keyboardKeyElements",
+            "isWhollyOffAppAndInert",
+            "allElementsBoundByIndex",
+        ] {
+            XCTAssertFalse(
+                keyboardSnapshotHelperSource.contains(prohibitedKeyboardTreeForm),
+                prohibitedKeyboardTreeForm
+            )
+        }
 
         let passiveKeyboardHelperStart =
             "    @MainActor\n" +
@@ -1790,10 +1886,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 passiveKeyboardHelperStartRange.lowerBound..<passiveKeyboardHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(passiveKeyboardHelperSource.utf8.count, 2_686)
+        XCTAssertEqual(passiveKeyboardHelperSource.utf8.count, 1_992)
         XCTAssertEqual(
             Data(passiveKeyboardHelperSource.utf8).sha256,
-            "409318C12E31EC223DE3AA602085A378C1FEE6E35669FCC81413F3A341E57E34"
+            "2FC52BA367EF6E10CA1095E4F61D08C9680E98888EB60D997CA9184654B86F1D"
         )
 
         let passiveKeyboardHelperContracts = [
@@ -1813,22 +1909,24 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "        let keyboardKeys = keyboard.keys",
             "        let keyboardDescendantCount = keyboardDescendants.count",
             "        let keyboardKeyCount = keyboardKeys.count",
-            "        let keyboardDescendantElements =\n" +
-                "            keyboardDescendants.allElementsBoundByIndex",
-            "        let keyboardKeyElements = keyboardKeys.allElementsBoundByIndex",
             "        let focusIsAbsent = NSPredicate(\n" +
                 #"            format: "hasKeyboardFocus == false""# + "\n" +
                 "        )",
             "        let keyboardFocusIsAbsent = focusIsAbsent.evaluate(with: keyboard)",
-            "        let isWhollyOffAppAndInert: (XCUIElement) -> Bool = { element in",
-            "            guard element.exists else { return false }",
-            "            let elementFrame = element.frame",
-            "            return !elementFrame.isEmpty\n" +
-                "                && elementFrame.minY >= applicationFrame.maxY\n" +
-                "                && focusIsAbsent.evaluate(with: element)\n" +
-                "                && !element.isHittable",
-            "        let keyboardTreeIsEmpty =",
-            "        let keyboardTreeIsNonemptyAndInert =",
+            "        let keyboardTreeIsEmpty =\n" +
+                "            keyboardDescendantCount == 0\n" +
+                "            && keyboardKeyCount == 0",
+            "        let keyboardTreeIsNonemptyAndInert =\n" +
+                "            keyboardDescendantCount > 0\n" +
+                "            && keyboardKeyCount > 0\n" +
+                "            && keyboardKeyCount <= keyboardDescendantCount\n" +
+                "            && keyboardSnapshotTreeIsFullyInertOffApp(\n" +
+                "                keyboard: keyboard,\n" +
+                "                descendants: keyboardDescendants,\n" +
+                "                descendantCount: keyboardDescendantCount,\n" +
+                "                keyCount: keyboardKeyCount,\n" +
+                "                applicationFrame: applicationFrame\n" +
+                "            )",
             "            && (keyboardTreeIsEmpty || keyboardTreeIsNonemptyAndInert)",
             "        return !applicationFrame.isEmpty",
             "            && !keyboardFrame.isEmpty",
@@ -1847,16 +1945,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (passiveKeyboardHelperFragment, count) in [
             ("keyboardDescendantCount", 5),
             ("keyboardKeyCount", 5),
-            ("keyboardDescendantElements", 4),
-            ("keyboardKeyElements", 4),
-            ("focusIsAbsent", 3),
+            ("matching: .any", 1),
+            ("let keyboardKeys = keyboard.keys", 1),
+            ("focusIsAbsent", 2),
             ("keyboardFocusIsAbsent", 2),
-            ("isWhollyOffAppAndInert", 3),
+            ("keyboardSnapshotTreeIsFullyInertOffApp(", 1),
             ("keyboardTreeIsEmpty", 2),
             ("keyboardTreeIsNonemptyAndInert", 2),
-            ("allElementsBoundByIndex", 2),
-            ("allSatisfy(", 2),
-            ("return false", 3),
+            ("keyboardDescendantCount == 0", 1),
+            ("keyboardKeyCount == 0", 1),
+            ("keyboardDescendantCount > 0", 1),
+            ("keyboardKeyCount > 0", 1),
+            ("keyboardKeyCount <= keyboardDescendantCount", 1),
+            ("return false", 2),
             ("return app.state == .runningForeground", 1),
             ("app.state == .runningForeground", 2),
         ] {
@@ -1898,6 +1999,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "375",
             "216",
             "CGRect(",
+            "keyboardDescendantElements",
+            "keyboardKeyElements",
+            "isWhollyOffAppAndInert",
+            "allElementsBoundByIndex",
+            "allSatisfy(",
         ] {
             XCTAssertFalse(
                 passiveKeyboardHelperSource.contains(
@@ -1930,38 +2036,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                let keyboardKeys = keyboard.keys\n" +
                 "                let keyboardDescendantCount = keyboardDescendants.count\n" +
                 "                let keyboardKeyCount = keyboardKeys.count\n" +
-                "                let keyboardDescendantElements =\n" +
-                "                    keyboardDescendants.allElementsBoundByIndex\n" +
-                "                let keyboardKeyElements = keyboardKeys.allElementsBoundByIndex\n" +
                 "                let focusIsAbsent = NSPredicate(\n" +
                 #"                    format: "hasKeyboardFocus == false""# + "\n" +
                 "                )\n" +
                 "                let keyboardFocusIsAbsent = focusIsAbsent.evaluate(with: keyboard)\n" +
-                "                let isWhollyOffAppAndInert: (XCUIElement) -> Bool = { element in\n" +
-                "                    guard element.exists else { return false }\n" +
-                "                    let elementFrame = element.frame\n" +
-                "                    return !elementFrame.isEmpty\n" +
-                "                        && elementFrame.minY >= postSwipeApplicationFrame.maxY\n" +
-                "                        && focusIsAbsent.evaluate(with: element)\n" +
-                "                        && !element.isHittable\n" +
-                "                }\n" +
                 "                let keyboardTreeIsEmpty =\n" +
                 "                    keyboardDescendantCount == 0\n" +
                 "                    && keyboardKeyCount == 0\n" +
-                "                    && keyboardDescendantElements.isEmpty\n" +
-                "                    && keyboardKeyElements.isEmpty\n" +
                 "                let keyboardTreeIsNonemptyAndInert =\n" +
                 "                    keyboardDescendantCount > 0\n" +
                 "                    && keyboardKeyCount > 0\n" +
                 "                    && keyboardKeyCount <= keyboardDescendantCount\n" +
-                "                    && keyboardDescendantElements.count\n" +
-                "                        == keyboardDescendantCount\n" +
-                "                    && keyboardKeyElements.count == keyboardKeyCount\n" +
-                "                    && keyboardDescendantElements.allSatisfy(\n" +
-                "                        isWhollyOffAppAndInert\n" +
-                "                    )\n" +
-                "                    && keyboardKeyElements.allSatisfy(\n" +
-                "                        isWhollyOffAppAndInert\n" +
+                "                    && keyboardSnapshotTreeIsFullyInertOffApp(\n" +
+                "                        keyboard: keyboard,\n" +
+                "                        descendants: keyboardDescendants,\n" +
+                "                        descendantCount: keyboardDescendantCount,\n" +
+                "                        keyCount: keyboardKeyCount,\n" +
+                "                        applicationFrame: postSwipeApplicationFrame\n" +
                 "                    )\n" +
                 "                guard !postSwipeApplicationFrame.isEmpty,\n" +
                 "                      !postSwipeKeyboardFrame.isEmpty,\n" +
@@ -2001,18 +2092,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let keyboardKeys = keyboard.keys",
             "let keyboardDescendantCount = keyboardDescendants.count",
             "let keyboardKeyCount = keyboardKeys.count",
-            "keyboardDescendants.allElementsBoundByIndex",
-            "keyboardKeys.allElementsBoundByIndex",
             "let focusIsAbsent = NSPredicate(",
             #"format: "hasKeyboardFocus == false""#,
             "focusIsAbsent.evaluate(with: keyboard)",
-            "let isWhollyOffAppAndInert: (XCUIElement) -> Bool = { element in",
-            "guard element.exists else { return false }",
-            "let elementFrame = element.frame",
-            "!elementFrame.isEmpty",
-            "elementFrame.minY >= postSwipeApplicationFrame.maxY",
-            "focusIsAbsent.evaluate(with: element)",
-            "!element.isHittable",
+            "keyboardSnapshotTreeIsFullyInertOffApp(",
             "let keyboardTreeIsEmpty =",
             "let keyboardTreeIsNonemptyAndInert =",
             "postSwipeKeyboardFrame.minY >= postSwipeApplicationFrame.maxY",
@@ -2021,10 +2104,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "keyboardDescendantCount > 0",
             "keyboardKeyCount > 0",
             "keyboardKeyCount <= keyboardDescendantCount",
-            "keyboardDescendantElements.count",
-            "keyboardKeyElements.count == keyboardKeyCount",
-            "keyboardDescendantElements.allSatisfy(",
-            "keyboardKeyElements.allSatisfy(",
             "keyboardTreeIsEmpty || keyboardTreeIsNonemptyAndInert",
             #"The app left the foreground while dismissing the minimum-profile keyboard."#,
             #"The minimum-profile off-app keyboard wrapper did not become inert."#,
@@ -2054,6 +2133,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for lock in keyboardHelperLocks {
             XCTAssertTrue(keyboardHelperSource.contains(lock), lock)
         }
+        for staleKeyboardTreeForm in [
+            "keyboardDescendantElements",
+            "keyboardKeyElements",
+            "isWhollyOffAppAndInert",
+            "allElementsBoundByIndex",
+            "allSatisfy("
+        ] {
+            XCTAssertFalse(
+                passiveKeyboardHelperSource.contains(staleKeyboardTreeForm),
+                staleKeyboardTreeForm
+            )
+            XCTAssertFalse(
+                keyboardHelperSource.contains(staleKeyboardTreeForm),
+                staleKeyboardTreeForm
+            )
+        }
         XCTAssertEqual(
             keyboardHelperSource.components(separatedBy: "returnKey.tap()").count - 1,
             1
@@ -2079,9 +2174,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             3
         )
         for twiceLocked in [
-            "allElementsBoundByIndex",
-            "allSatisfy(",
-            "focusIsAbsent.evaluate(with:",
             "keyboardTreeIsEmpty",
             "keyboardTreeIsNonemptyAndInert",
         ] {
@@ -2094,11 +2186,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let exactKeyboardHelperCounts = [
             "keyboardDescendantCount": 5,
             "keyboardKeyCount": 5,
-            "keyboardDescendantElements": 4,
-            "keyboardKeyElements": 4,
-            "focusIsAbsent": 3,
+            "focusIsAbsent": 2,
             "keyboardFocusIsAbsent": 2,
-            "isWhollyOffAppAndInert": 3,
+            "keyboardSnapshotTreeIsFullyInertOffApp(": 1,
         ]
         for (lock, expectedCount) in exactKeyboardHelperCounts {
             XCTAssertEqual(
@@ -2121,9 +2211,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "keyboardDescendantCount > 0",
             "keyboardKeyCount > 0",
             "keyboardKeyCount <= keyboardDescendantCount",
-            "guard element.exists else { return false }",
-            "elementFrame.minY >= postSwipeApplicationFrame.maxY",
-            "!element.isHittable",
             #"The app left the foreground while dismissing the minimum-profile keyboard."#,
             #"The minimum-profile off-app keyboard wrapper did not become inert."#,
         ] {
