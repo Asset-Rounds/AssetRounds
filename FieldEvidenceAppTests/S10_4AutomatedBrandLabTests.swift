@@ -309,8 +309,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 236_636,
-            sha256: "39D4CBB61B09A225742A07A614AE80F506E3E5EC9265FA1272E95E6AA7746332"
+            byteCount: 240_606,
+            sha256: "D0F2F5C82346F4B90063460899C810E9E5352C80FB056311EA9CA01CF67E6DBE"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1983,11 +1983,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ]
         )
 
+        let workSavingNoteAndTabBindings =
+            "        let workNoteHeadings = app.staticTexts.matching(\n" +
+                #"            NSPredicate(format: "label == %@", "Note")"# + "\n" +
+                "        )\n" +
+                "        let workTabBars = app.tabBars\n" +
+                "        let workNoteHeading = workNoteHeadings.firstMatch\n" +
+                "        let workTabBar = workTabBars.firstMatch"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingNoteAndTabBindings
+            ).count - 1,
+            1
+        )
+
         let workSavingInitialGuard =
             "        guard app.state == .runningForeground,\n" +
+                "              workNoteHeadings.count == 1,\n" +
+                "              workTabBars.count == 1,\n" +
                 "              workHelperTexts.count == 1,\n" +
                 "              workScrollViews.count == 1,\n" +
                 "              workNavigationBars.count == 1,\n" +
+                "              workNoteHeading.exists,\n" +
+                "              workTabBar.exists,\n" +
+                "              workNoteHeading.identifier.isEmpty,\n" +
+                #"              workNoteHeading.label == "Note","# + "\n" +
+                "              workNoteHeading.elementType == .staticText,\n" +
                 "              workHelper.exists,\n" +
                 "              workScrollView.exists,\n" +
                 "              workNavigationBar.exists,\n" +
@@ -2005,9 +2026,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let workSavingLoopGuard =
             "            guard app.state == .runningForeground,\n" +
+                "                  workNoteHeadings.count == 1,\n" +
+                "                  workTabBars.count == 1,\n" +
                 "                  workHelperTexts.count == 1,\n" +
                 "                  workScrollViews.count == 1,\n" +
                 "                  workNavigationBars.count == 1,\n" +
+                "                  workNoteHeading.exists,\n" +
+                "                  workTabBar.exists,\n" +
                 "                  workHelper.exists,\n" +
                 "                  workScrollView.exists,\n" +
                 "                  workNavigationBar.exists,\n" +
@@ -2034,17 +2059,25 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            let applicationFrame = app.frame\n" +
                 "            let navigationFrame = workNavigationBar.frame\n" +
                 "            let liveScrollFrame = scrollFrame.intersection(applicationFrame)\n" +
+                "            let tabBarFrame = workTabBar.frame\n" +
+                "            let liveBottom = min(\n" +
+                "                liveScrollFrame.maxY,\n" +
+                "                min(applicationFrame.maxY, tabBarFrame.minY)\n" +
+                "            )\n" +
                 "            let safeTop = max(\n" +
                 "                liveScrollFrame.minY,\n" +
                 "                navigationFrame.maxY\n" +
                 "            ) + verticalInset\n" +
-                "            let safeBottom = liveScrollFrame.maxY - verticalInset\n" +
+                "            let safeBottom = liveBottom - verticalInset\n" +
                 "            let receiverTop = max(\n" +
                 "                liveScrollFrame.minY,\n" +
                 "                navigationFrame.maxY\n" +
                 "            ) + receiverInset\n" +
-                "            let receiverBottom = liveScrollFrame.maxY - receiverInset\n" +
-                "            let helperFrame = workHelper.frame"
+                "            let receiverBottom = liveBottom - receiverInset\n" +
+                "            let noteFrame = workNoteHeading.frame\n" +
+                "            let helperFrame = workHelper.frame\n" +
+                "            let targetTop = min(noteFrame.minY, helperFrame.minY)\n" +
+                "            let targetBottom = max(noteFrame.maxY, helperFrame.maxY)"
         XCTAssertEqual(
             workSavingPositioningSource.components(
                 separatedBy: workSavingLiveGeometry
@@ -2060,10 +2093,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                  !scrollFrame.isEmpty,\n" +
                 "                  !liveScrollFrame.isNull,\n" +
                 "                  !liveScrollFrame.isEmpty,\n" +
+                "                  !tabBarFrame.isNull,\n" +
+                "                  !tabBarFrame.isEmpty,\n" +
+                "                  !noteFrame.isNull,\n" +
+                "                  !noteFrame.isEmpty,\n" +
                 "                  !helperFrame.isNull,\n" +
                 "                  !helperFrame.isEmpty,\n" +
                 "                  safeBottom > safeTop,\n" +
-                "                  helperFrame.height <= safeBottom - safeTop else {"
+                "                  targetBottom - targetTop <= safeBottom - safeTop else {"
         XCTAssertEqual(
             workSavingPositioningSource.components(
                 separatedBy: workSavingGeometryGuard
@@ -2071,8 +2108,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         let workSavingStopCondition =
-            "            if helperFrame.minY >= safeTop,\n" +
+            "            if noteFrame.minY >= safeTop,\n" +
+                "               noteFrame.maxY <= safeBottom,\n" +
+                "               helperFrame.minY >= safeTop,\n" +
                 "               helperFrame.maxY <= safeBottom,\n" +
+                "               workNoteHeading.isHittable,\n" +
                 "               workHelper.isHittable {\n" +
                 "                break\n" +
                 "            }"
@@ -2083,23 +2123,57 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
 
-        let workSavingPositiveInterval =
-            "            guard minimumShift > 0,\n" +
-                "                  minimumShift <= maximumShift,\n" +
-                "                  receiverCapacity >= minimumGestureDistance,\n" +
-                "                  recognizedMinimum <= recognizedMaximum else {\n" +
-                #"                XCTFail("Record-work saving has no feasible downward correction.")"# + "\n" +
+        let workSavingSignedInterval =
+            "            let minimumShift = max(\n" +
+                "                safeTop - noteFrame.minY,\n" +
+                "                safeTop - helperFrame.minY\n" +
+                "            )\n" +
+                "            let maximumShift = min(\n" +
+                "                safeBottom - noteFrame.maxY,\n" +
+                "                safeBottom - helperFrame.maxY\n" +
+                "            )\n" +
+                "            let receiverCapacity = receiverBottom - receiverTop\n" +
+                "            guard minimumShift <= maximumShift,\n" +
+                "                  receiverCapacity >= minimumGestureDistance else {\n" +
+                #"                XCTFail("Record-work saving has no feasible recognized shift.")"# + "\n" +
+                "                return\n" +
+                "            }\n" +
+                "            let dragDistance: CGFloat\n" +
+                "            if maximumShift < 0 {\n" +
+                "                let recognizedMinimum = max(\n" +
+                "                    minimumShift,\n" +
+                "                    -receiverCapacity\n" +
+                "                )\n" +
+                "                let recognizedMaximum = min(\n" +
+                "                    maximumShift,\n" +
+                "                    -minimumGestureDistance\n" +
+                "                )\n" +
+                "                guard recognizedMinimum <= recognizedMaximum else {\n" +
+                #"                    XCTFail("Record-work saving upward shift is not recognizable.")"# + "\n" +
+                "                    return\n" +
+                "                }\n" +
+                "                dragDistance = recognizedMaximum\n" +
+                "            } else if minimumShift > 0 {\n" +
+                "                let recognizedMinimum = max(\n" +
+                "                    minimumShift,\n" +
+                "                    minimumGestureDistance\n" +
+                "                )\n" +
+                "                let recognizedMaximum = min(\n" +
+                "                    maximumShift,\n" +
+                "                    receiverCapacity\n" +
+                "                )\n" +
+                "                guard recognizedMinimum <= recognizedMaximum else {\n" +
+                #"                    XCTFail("Record-work saving downward shift is not recognizable.")"# + "\n" +
+                "                    return\n" +
+                "                }\n" +
+                "                dragDistance = recognizedMinimum\n" +
+                "            } else {\n" +
+                #"                XCTFail("Record-work saving feasible shift is directionless.")"# + "\n" +
                 "                return\n" +
                 "            }"
         XCTAssertEqual(
             workSavingPositioningSource.components(
-                separatedBy: workSavingPositiveInterval
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            workSavingPositioningSource.components(
-                separatedBy: "            let dragDistance = recognizedMinimum"
+                separatedBy: workSavingSignedInterval
             ).count - 1,
             1
         )
@@ -2114,15 +2188,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "            let scrollOrigin = workScrollView.coordinate(\n" +
                 "                withNormalizedOffset: CGVector(dx: 0, dy: 0)\n" +
                 "            )\n" +
+                "            let dragStartY = dragDistance > 0 ? receiverTop : receiverBottom\n" +
                 "            let dragStart = scrollOrigin.withOffset(\n" +
                 "                CGVector(\n" +
                 "                    dx: scrollFrame.width / 2,\n" +
-                "                    dy: receiverTop - scrollFrame.minY\n" +
+                "                    dy: dragStartY - scrollFrame.minY\n" +
                 "                )\n" +
                 "            )\n" +
                 "            let dragEnd = dragStart.withOffset(\n" +
                 "                CGVector(dx: 0, dy: dragDistance)\n" +
                 "            )\n" +
+                "            let noteMinYBeforeDrag = noteFrame.minY\n" +
                 "            let helperMinYBeforeDrag = helperFrame.minY\n" +
                 "            dragStart.press(\n" +
                 "                forDuration: 0.2,\n" +
@@ -2136,9 +2212,26 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let workSavingObservedShiftGuard =
+            "            let observedNoteShift = workNoteHeading.frame.minY - noteMinYBeforeDrag\n" +
+                "            let observedHelperShift = workHelper.frame.minY - helperMinYBeforeDrag\n" +
+                "            guard workNoteHeadings.count == 1,\n" +
+                "                  workTabBars.count == 1,\n" +
+                "                  workHelperTexts.count == 1,\n" +
+                "                  workScrollViews.count == 1,\n" +
+                "                  workNavigationBars.count == 1,\n" +
+                "                  workNoteHeading.exists,\n" +
+                "                  workTabBar.exists,\n" +
+                "                  workHelper.exists,\n" +
+                "                  progress.exists,\n" +
+                "                  observedNoteShift * dragDistance > 0,\n" +
+                "                  observedHelperShift * dragDistance > 0 else {\n" +
+                #"                XCTFail("Record-work saving positioning gesture was not recognized.")"# + "\n" +
+                "                return\n" +
+                "            }"
         XCTAssertEqual(
             workSavingPositioningSource.components(
-                separatedBy: "            workHelper.frame.minY > helperMinYBeforeDrag"
+                separatedBy: workSavingObservedShiftGuard
             ).count - 1,
             1
         )
@@ -2163,7 +2256,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "        let savingFinalNavigationFrame = workNavigationBar.frame",
             "        let savingFinalScrollFrame = workScrollView.frame.intersection(",
             "        let savingFinalSafeTop = max(",
-            "        let savingFinalSafeBottom = savingFinalScrollFrame.maxY - verticalInset",
+            "        let savingFinalTabBarFrame = workTabBar.frame",
+            "        let savingFinalLiveBottom = min(",
+            "            min(savingFinalApplicationFrame.maxY, savingFinalTabBarFrame.minY)",
+            "        let savingFinalSafeBottom = savingFinalLiveBottom - verticalInset",
+            "        let savingFinalNoteFrame = workNoteHeading.frame",
             "        let savingFinalHelperFrame = workHelper.frame",
         ] {
             XCTAssertEqual(
@@ -2176,9 +2273,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let workSavingFinalGuard =
             "        guard app.state == .runningForeground,\n" +
+                "              workNoteHeadings.count == 1,\n" +
+                "              workTabBars.count == 1,\n" +
                 "              workHelperTexts.count == 1,\n" +
                 "              workScrollViews.count == 1,\n" +
                 "              workNavigationBars.count == 1,\n" +
+                "              workNoteHeading.exists,\n" +
+                "              workTabBar.exists,\n" +
+                "              workNoteHeading.identifier.isEmpty,\n" +
+                #"              workNoteHeading.label == "Note","# + "\n" +
+                "              workNoteHeading.elementType == .staticText,\n" +
                 "              workHelper.exists,\n" +
                 "              workScrollView.exists,\n" +
                 "              workNavigationBar.exists,\n" +
@@ -2190,10 +2294,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "              !savingFinalNavigationFrame.isEmpty,\n" +
                 "              !savingFinalScrollFrame.isNull,\n" +
                 "              !savingFinalScrollFrame.isEmpty,\n" +
+                "              !savingFinalTabBarFrame.isNull,\n" +
+                "              !savingFinalTabBarFrame.isEmpty,\n" +
+                "              !savingFinalNoteFrame.isNull,\n" +
+                "              !savingFinalNoteFrame.isEmpty,\n" +
                 "              !savingFinalHelperFrame.isNull,\n" +
                 "              !savingFinalHelperFrame.isEmpty,\n" +
+                "              savingFinalSafeBottom > savingFinalSafeTop,\n" +
+                "              savingFinalNoteFrame.minY >= savingFinalSafeTop,\n" +
+                "              savingFinalNoteFrame.maxY <= savingFinalSafeBottom,\n" +
                 "              savingFinalHelperFrame.minY >= savingFinalSafeTop,\n" +
                 "              savingFinalHelperFrame.maxY <= savingFinalSafeBottom,\n" +
+                "              workNoteHeading.isHittable,\n" +
                 "              workHelper.isHittable,\n" +
                 "              workPreview.isHittable else {\n" +
                 #"            XCTFail("Record-work saving composition is outside the safe viewport.")"# + "\n" +
@@ -2222,16 +2334,26 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         for (workSavingCardinalityLock, count) in [
             ("app.state == .runningForeground", 3),
+            ("workNoteHeadings.count == 1", 4),
+            ("workTabBars.count == 1", 4),
             ("workHelperTexts.count == 1", 4),
             ("workScrollViews.count == 1", 4),
             ("workNavigationBars.count == 1", 4),
+            ("workNoteHeading.exists", 4),
+            ("workTabBar.exists", 4),
+            ("workNoteHeading.identifier.isEmpty", 2),
+            (#"workNoteHeading.label == "Note""#, 2),
+            ("workNoteHeading.elementType == .staticText", 2),
             ("workHelper.exists", 4),
             ("workScrollView.exists", 3),
             ("workNavigationBar.exists", 3),
             ("workPreview.exists", 3),
             ("progress.exists", 4),
+            ("workNoteHeading.isHittable", 2),
             ("workHelper.isHittable", 2),
             ("workPreview.isHittable", 1),
+            ("workTabBar.frame", 2),
+            ("workNoteHeading.frame", 3),
         ] {
             XCTAssertEqual(
                 workSavingPositioningSource.components(
@@ -2254,6 +2376,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let verticalInset",
             "let receiverInset",
             "let minimumGestureDistance",
+            "let safeBottom = liveScrollFrame.maxY - verticalInset",
+            "let receiverBottom = liveScrollFrame.maxY - receiverInset",
+            "let savingFinalSafeBottom = savingFinalScrollFrame.maxY - verticalInset",
+            "helperFrame.height <= safeBottom - safeTop",
+            "if helperFrame.minY >= safeTop",
+            "guard minimumShift > 0",
+            "Record-work saving has no feasible downward correction.",
+            "workHelper.frame.minY > helperMinYBeforeDrag",
+            "automationShard",
+            "ContrastAuditExceptionSignature",
             "app.swipeUp()",
             "app.swipeDown()",
             "workScrollView.swipeUp()",

@@ -1720,10 +1720,23 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let progress = element("s5.1.work.saving", in: app)
         XCTAssertTrue(progress.waitForExistence(timeout: 10))
         assertLocalizedLabel(progress, equals: "Record work")
+        let workNoteHeadings = app.staticTexts.matching(
+            NSPredicate(format: "label == %@", "Note")
+        )
+        let workTabBars = app.tabBars
+        let workNoteHeading = workNoteHeadings.firstMatch
+        let workTabBar = workTabBars.firstMatch
         guard app.state == .runningForeground,
+              workNoteHeadings.count == 1,
+              workTabBars.count == 1,
               workHelperTexts.count == 1,
               workScrollViews.count == 1,
               workNavigationBars.count == 1,
+              workNoteHeading.exists,
+              workTabBar.exists,
+              workNoteHeading.identifier.isEmpty,
+              workNoteHeading.label == "Note",
+              workNoteHeading.elementType == .staticText,
               workHelper.exists,
               workScrollView.exists,
               workNavigationBar.exists,
@@ -1734,9 +1747,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         for _ in 0..<4 {
             guard app.state == .runningForeground,
+                  workNoteHeadings.count == 1,
+                  workTabBars.count == 1,
                   workHelperTexts.count == 1,
                   workScrollViews.count == 1,
                   workNavigationBars.count == 1,
+                  workNoteHeading.exists,
+                  workTabBar.exists,
                   workHelper.exists,
                   workScrollView.exists,
                   workNavigationBar.exists,
@@ -1749,17 +1766,25 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let applicationFrame = app.frame
             let navigationFrame = workNavigationBar.frame
             let liveScrollFrame = scrollFrame.intersection(applicationFrame)
+            let tabBarFrame = workTabBar.frame
+            let liveBottom = min(
+                liveScrollFrame.maxY,
+                min(applicationFrame.maxY, tabBarFrame.minY)
+            )
             let safeTop = max(
                 liveScrollFrame.minY,
                 navigationFrame.maxY
             ) + verticalInset
-            let safeBottom = liveScrollFrame.maxY - verticalInset
+            let safeBottom = liveBottom - verticalInset
             let receiverTop = max(
                 liveScrollFrame.minY,
                 navigationFrame.maxY
             ) + receiverInset
-            let receiverBottom = liveScrollFrame.maxY - receiverInset
+            let receiverBottom = liveBottom - receiverInset
+            let noteFrame = workNoteHeading.frame
             let helperFrame = workHelper.frame
+            let targetTop = min(noteFrame.minY, helperFrame.minY)
+            let targetBottom = max(noteFrame.maxY, helperFrame.maxY)
             guard !applicationFrame.isNull,
                   !applicationFrame.isEmpty,
                   !navigationFrame.isNull,
@@ -1768,50 +1793,87 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   !scrollFrame.isEmpty,
                   !liveScrollFrame.isNull,
                   !liveScrollFrame.isEmpty,
+                  !tabBarFrame.isNull,
+                  !tabBarFrame.isEmpty,
+                  !noteFrame.isNull,
+                  !noteFrame.isEmpty,
                   !helperFrame.isNull,
                   !helperFrame.isEmpty,
                   safeBottom > safeTop,
-                  helperFrame.height <= safeBottom - safeTop else {
+                  targetBottom - targetTop <= safeBottom - safeTop else {
                 XCTFail("Record-work saving viewport geometry is invalid.")
                 return
             }
-            if helperFrame.minY >= safeTop,
+            if noteFrame.minY >= safeTop,
+               noteFrame.maxY <= safeBottom,
+               helperFrame.minY >= safeTop,
                helperFrame.maxY <= safeBottom,
+               workNoteHeading.isHittable,
                workHelper.isHittable {
                 break
             }
 
-            let minimumShift = safeTop - helperFrame.minY
-            let maximumShift = safeBottom - helperFrame.maxY
+            let minimumShift = max(
+                safeTop - noteFrame.minY,
+                safeTop - helperFrame.minY
+            )
+            let maximumShift = min(
+                safeBottom - noteFrame.maxY,
+                safeBottom - helperFrame.maxY
+            )
             let receiverCapacity = receiverBottom - receiverTop
-            let recognizedMinimum = max(
-                minimumShift,
-                minimumGestureDistance
-            )
-            let recognizedMaximum = min(
-                maximumShift,
-                receiverCapacity
-            )
-            guard minimumShift > 0,
-                  minimumShift <= maximumShift,
-                  receiverCapacity >= minimumGestureDistance,
-                  recognizedMinimum <= recognizedMaximum else {
-                XCTFail("Record-work saving has no feasible downward correction.")
+            guard minimumShift <= maximumShift,
+                  receiverCapacity >= minimumGestureDistance else {
+                XCTFail("Record-work saving has no feasible recognized shift.")
                 return
             }
-            let dragDistance = recognizedMinimum
+            let dragDistance: CGFloat
+            if maximumShift < 0 {
+                let recognizedMinimum = max(
+                    minimumShift,
+                    -receiverCapacity
+                )
+                let recognizedMaximum = min(
+                    maximumShift,
+                    -minimumGestureDistance
+                )
+                guard recognizedMinimum <= recognizedMaximum else {
+                    XCTFail("Record-work saving upward shift is not recognizable.")
+                    return
+                }
+                dragDistance = recognizedMaximum
+            } else if minimumShift > 0 {
+                let recognizedMinimum = max(
+                    minimumShift,
+                    minimumGestureDistance
+                )
+                let recognizedMaximum = min(
+                    maximumShift,
+                    receiverCapacity
+                )
+                guard recognizedMinimum <= recognizedMaximum else {
+                    XCTFail("Record-work saving downward shift is not recognizable.")
+                    return
+                }
+                dragDistance = recognizedMinimum
+            } else {
+                XCTFail("Record-work saving feasible shift is directionless.")
+                return
+            }
             let scrollOrigin = workScrollView.coordinate(
                 withNormalizedOffset: CGVector(dx: 0, dy: 0)
             )
+            let dragStartY = dragDistance > 0 ? receiverTop : receiverBottom
             let dragStart = scrollOrigin.withOffset(
                 CGVector(
                     dx: scrollFrame.width / 2,
-                    dy: receiverTop - scrollFrame.minY
+                    dy: dragStartY - scrollFrame.minY
                 )
             )
             let dragEnd = dragStart.withOffset(
                 CGVector(dx: 0, dy: dragDistance)
             )
+            let noteMinYBeforeDrag = noteFrame.minY
             let helperMinYBeforeDrag = helperFrame.minY
             dragStart.press(
                 forDuration: 0.2,
@@ -1819,13 +1881,20 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 withVelocity: .slow,
                 thenHoldForDuration: 0.2
             )
-            guard workHelperTexts.count == 1,
+            let observedNoteShift = workNoteHeading.frame.minY - noteMinYBeforeDrag
+            let observedHelperShift = workHelper.frame.minY - helperMinYBeforeDrag
+            guard workNoteHeadings.count == 1,
+                  workTabBars.count == 1,
+                  workHelperTexts.count == 1,
                   workScrollViews.count == 1,
                   workNavigationBars.count == 1,
+                  workNoteHeading.exists,
+                  workTabBar.exists,
                   workHelper.exists,
                   progress.exists,
-                  workHelper.frame.minY > helperMinYBeforeDrag else {
-                XCTFail("Record-work saving helper did not move downward.")
+                  observedNoteShift * dragDistance > 0,
+                  observedHelperShift * dragDistance > 0 else {
+                XCTFail("Record-work saving positioning gesture was not recognized.")
                 return
             }
         }
@@ -1838,12 +1907,25 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             savingFinalScrollFrame.minY,
             savingFinalNavigationFrame.maxY
         ) + verticalInset
-        let savingFinalSafeBottom = savingFinalScrollFrame.maxY - verticalInset
+        let savingFinalTabBarFrame = workTabBar.frame
+        let savingFinalLiveBottom = min(
+            savingFinalScrollFrame.maxY,
+            min(savingFinalApplicationFrame.maxY, savingFinalTabBarFrame.minY)
+        )
+        let savingFinalSafeBottom = savingFinalLiveBottom - verticalInset
+        let savingFinalNoteFrame = workNoteHeading.frame
         let savingFinalHelperFrame = workHelper.frame
         guard app.state == .runningForeground,
+              workNoteHeadings.count == 1,
+              workTabBars.count == 1,
               workHelperTexts.count == 1,
               workScrollViews.count == 1,
               workNavigationBars.count == 1,
+              workNoteHeading.exists,
+              workTabBar.exists,
+              workNoteHeading.identifier.isEmpty,
+              workNoteHeading.label == "Note",
+              workNoteHeading.elementType == .staticText,
               workHelper.exists,
               workScrollView.exists,
               workNavigationBar.exists,
@@ -1855,10 +1937,18 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               !savingFinalNavigationFrame.isEmpty,
               !savingFinalScrollFrame.isNull,
               !savingFinalScrollFrame.isEmpty,
+              !savingFinalTabBarFrame.isNull,
+              !savingFinalTabBarFrame.isEmpty,
+              !savingFinalNoteFrame.isNull,
+              !savingFinalNoteFrame.isEmpty,
               !savingFinalHelperFrame.isNull,
               !savingFinalHelperFrame.isEmpty,
+              savingFinalSafeBottom > savingFinalSafeTop,
+              savingFinalNoteFrame.minY >= savingFinalSafeTop,
+              savingFinalNoteFrame.maxY <= savingFinalSafeBottom,
               savingFinalHelperFrame.minY >= savingFinalSafeTop,
               savingFinalHelperFrame.maxY <= savingFinalSafeBottom,
+              workNoteHeading.isHittable,
               workHelper.isHittable,
               workPreview.isHittable else {
             XCTFail("Record-work saving composition is outside the safe viewport.")
