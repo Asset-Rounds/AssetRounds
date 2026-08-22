@@ -309,8 +309,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 208_853,
-            sha256: "F63AAA53E2342F9A1FA578245C4803A626E4538A7F736763C572E2C8BF6F9626"
+            byteCount: 216_455,
+            sha256: "83CE16A870DB880BC5B57AC9D18F906B77EB97D8F54B89CB69817D097F644676"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -4396,26 +4396,336 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(captureWidePositioningSource.contains(prohibited), prohibited)
         }
 
-        let removedReportCorrectionDiagnosticFragments = [
-            "S10_4_REPORT_CORRECTION_HEADER_CONTEXT_DIAGNOSTIC",
-            "S10_4_REPORT_CORRECTION_HEADER_AUDIT_DIAGNOSTIC",
-            "S10_4_REPORT_CORRECTION_HEADER_AUDIT_COUNT_DIAGNOSTIC",
-            "Report-correction-header diagnostic",
-            "Report-correction-header audit issue",
-            "diagnosticElementObject",
-            "diagnosticQueryObject",
-        ]
-        for fragment in removedReportCorrectionDiagnosticFragments {
-            XCTAssertEqual(uiSource.components(separatedBy: fragment).count - 1, 0, fragment)
-        }
-        let restoredReportCorrectionAuditAdjacency =
-            "        do {\n" +
-                "            let eligibleExceptions = " +
+        let reportCorrectionDiagnosticStart =
+            "            let reportCorrectionHeaderDiagnosticShardIDs: Set<String> = [\n" +
+                "                \"s10.4.current.differentiate-without-color\",\n" +
+                "                \"s10.4.current.reduce-motion\",\n" +
+                "            ]\n" +
+                "            if reportCorrectionHeaderDiagnosticShardIDs.contains(shard.shardID),\n" +
+                "               stateID == \"state.report-correction.validation-error\" {"
+        let reportCorrectionEligibleExceptions =
+            "            let eligibleExceptions = " +
                 "Self.contrastAuditExceptionSignatures.filter {"
         XCTAssertEqual(
-            uiSource.components(separatedBy: restoredReportCorrectionAuditAdjacency).count - 1,
+            uiSource.components(separatedBy: reportCorrectionDiagnosticStart).count - 1,
             1
         )
+        guard let reportCorrectionDiagnosticStartRange = uiSource.range(
+            of: reportCorrectionDiagnosticStart
+        ),
+        let reportCorrectionEligibleRange = uiSource.range(
+            of: reportCorrectionEligibleExceptions,
+            range: reportCorrectionDiagnosticStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the exact two-shard report-correction diagnostic branch")
+            return
+        }
+        let reportCorrectionDiagnostic = String(
+            uiSource[
+                reportCorrectionDiagnosticStartRange.lowerBound..<reportCorrectionEligibleRange.lowerBound
+            ]
+        )
+
+        for lock in [
+            "reportCorrectionHeaderDiagnosticShardIDs: Set<String> = [",
+            "s10.4.current.differentiate-without-color",
+            "s10.4.current.reduce-motion",
+            "reportCorrectionHeaderDiagnosticShardIDs.contains(shard.shardID)",
+            #"stateID == "state.report-correction.validation-error""#,
+        ] {
+            XCTAssertEqual(
+                reportCorrectionDiagnostic.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        for prohibitedShardID in [
+            "s10.4.current.default-light",
+            "s10.4.current.default-dark",
+            "s10.4.current.increased-contrast",
+        ] {
+            XCTAssertFalse(
+                reportCorrectionDiagnostic.contains(prohibitedShardID),
+                prohibitedShardID
+            )
+        }
+
+        let reportCorrectionPassiveBindings = [
+            "                let headerElements = app.descendants(matching: .any).matching(\n" +
+                "                    identifier: \"s4.5.correction.header\"\n" +
+                "                )",
+            "                let header = headerElements.firstMatch",
+            "                guard headerElements.count == 1,\n" +
+                "                      header.exists,\n" +
+                "                      header.label == \"Correct report\",\n" +
+                "                      header.elementType == .staticText else {",
+            "                let correctionScrollViews = app.scrollViews.containing(\n" +
+                "                    .button,\n" +
+                "                    identifier: \"s4.5.correction.save\"\n" +
+                "                )",
+            "                let navigationBars = app.navigationBars",
+            "                let validationElements = app.descendants(matching: .any).matching(\n" +
+                "                    identifier: \"s4.5.correction.validation\"\n" +
+                "                )",
+            "                let saveElements = app.descendants(matching: .any).matching(\n" +
+                "                    identifier: \"s4.5.correction.save\"\n" +
+                "                )",
+            "                let keyboards = app.keyboards",
+            "                let inputViews = app.otherElements.matching(\n" +
+                "                    NSPredicate(format: \"identifier == %@\", \"inputView\")\n" +
+                "                )",
+            "                let tabBars = app.tabBars",
+        ]
+        for lock in reportCorrectionPassiveBindings {
+            XCTAssertEqual(
+                reportCorrectionDiagnostic.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+
+        let reportCorrectionFrameObject =
+            "                let diagnosticFrameObject: (CGRect) -> [String: Any] = { frame in\n" +
+                "                    [\n" +
+                "                        \"shardID\": shard.shardID,\n" +
+                "                        \"x\": Double(frame.origin.x),\n" +
+                "                        \"y\": Double(frame.origin.y),\n" +
+                "                        \"width\": Double(frame.size.width),\n" +
+                "                        \"height\": Double(frame.size.height),\n" +
+                "                    ]\n" +
+                "                }"
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(
+                separatedBy: reportCorrectionFrameObject
+            ).count - 1,
+            1
+        )
+        let reportCorrectionElementObject =
+            "                let diagnosticElementObject: (XCUIElement) -> [String: Any] = {\n" +
+                "                    element in\n" +
+                "                    [\n" +
+                "                        \"shardID\": shard.shardID,\n" +
+                "                        \"identifier\": element.identifier,\n" +
+                "                        \"label\": element.label,\n" +
+                "                        \"elementType\": String(describing: element.elementType),\n" +
+                "                        \"frame\": diagnosticFrameObject(element.frame),\n" +
+                "                        \"exists\": element.exists,\n" +
+                "                        \"isHittable\": element.isHittable,\n" +
+                "                    ]\n" +
+                "                }"
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(
+                separatedBy: reportCorrectionElementObject
+            ).count - 1,
+            1
+        )
+        let reportCorrectionQueryObject =
+            "                let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {\n" +
+                "                    query in\n" +
+                "                    let cardinality = query.count\n" +
+                "                    return [\n" +
+                "                        \"shardID\": shard.shardID,\n" +
+                "                        \"cardinality\": cardinality,\n" +
+                "                        \"elements\": (0..<cardinality).map { index in\n" +
+                "                            diagnosticElementObject(query.element(boundBy: index))\n" +
+                "                        },\n" +
+                "                    ]\n" +
+                "                }"
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(
+                separatedBy: reportCorrectionQueryObject
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(
+                separatedBy: #""shardID": shard.shardID,"#
+            ).count - 1,
+            6
+        )
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(separatedBy: "query.count").count - 1,
+            1
+        )
+
+        let reportCorrectionContextObject =
+            "                printJSONLine(\n" +
+                "                    prefix: \"S10_4_REPORT_CORRECTION_HEADER_CONTEXT_DIAGNOSTIC\",\n" +
+                "                    object: [\n" +
+                "                        \"shardID\": shard.shardID,\n" +
+                "                        \"application\": diagnosticElementObject(app),\n" +
+                "                        \"header\": diagnosticQueryObject(headerElements),\n" +
+                "                        \"reportCorrectionScrollView\": diagnosticQueryObject(\n" +
+                "                            correctionScrollViews\n" +
+                "                        ),\n" +
+                "                        \"navigationBar\": diagnosticQueryObject(navigationBars),\n" +
+                "                        \"validation\": diagnosticQueryObject(validationElements),\n" +
+                "                        \"save\": diagnosticQueryObject(saveElements),\n" +
+                "                        \"keyboard\": diagnosticQueryObject(keyboards),\n" +
+                "                        \"inputView\": diagnosticQueryObject(inputViews),\n" +
+                "                        \"tabBar\": diagnosticQueryObject(tabBars),\n" +
+                "                    ]\n" +
+                "                )"
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(
+                separatedBy: reportCorrectionContextObject
+            ).count - 1,
+            1
+        )
+
+        let reportCorrectionAttachmentLocks = [
+            "                let attachmentPrefix =\n" +
+                "                    \"S10.4 \\(shard.shardID) Report-correction-header diagnostic\"",
+            "                let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            "                appAttachment.name = \"\\(attachmentPrefix) app\"",
+            "                add(appAttachment)",
+            "                let treeAttachment = XCTAttachment(string: app.debugDescription)",
+            "                treeAttachment.name = \"\\(attachmentPrefix) accessibility tree\"",
+            "                add(treeAttachment)",
+            "                let headerAttachment = XCTAttachment(screenshot: header.screenshot())",
+            "                headerAttachment.name = \"\\(attachmentPrefix) header\"",
+            "                add(headerAttachment)",
+            "                        let attachment = XCTAttachment(\n" +
+                "                            screenshot: auditedElement.screenshot()\n" +
+                "                        )",
+            "                            \"\\(attachmentPrefix) audit issue \\(observedIssueCount)\"",
+            "                        self.add(attachment)",
+        ]
+        for lock in reportCorrectionAttachmentLocks {
+            XCTAssertEqual(
+                reportCorrectionDiagnostic.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(separatedBy: "XCTAttachment(").count - 1,
+            4
+        )
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(separatedBy: "lifetime = .keepAlways").count - 1,
+            4
+        )
+
+        let reportCorrectionIssueFields = [
+            "                var observedIssueCount = 0",
+            "                    observedIssueCount += 1",
+            "                try app.performAccessibilityAudit(for: .contrast) { issue in",
+            "                        \"issueOrdinal\": observedIssueCount,",
+            "                        \"auditTypeRawValue\": String(issue.auditType.rawValue),",
+            "                        \"compactDescription\": issue.compactDescription,",
+            "                        \"detailedDescription\": issue.detailedDescription,",
+            "                        \"elementIdentifier\": NSNull(),",
+            "                        \"elementLabel\": NSNull(),",
+            "                        \"elementType\": NSNull(),",
+            "                        \"elementFrame\": NSNull(),",
+            "                        \"applicationFrame\": diagnosticFrameObject(app.frame),",
+            "                    if let auditedElement = issue.element {",
+            "                        diagnostic[\"elementIdentifier\"] = auditedElement.identifier",
+            "                        diagnostic[\"elementLabel\"] = auditedElement.label",
+            "                        diagnostic[\"elementType\"] = String(\n" +
+                "                            describing: auditedElement.elementType\n" +
+                "                        )",
+            "                        diagnostic[\"elementFrame\"] = diagnosticFrameObject(\n" +
+                "                            auditedElement.frame\n" +
+                "                        )",
+            "                    self.printJSONLine(\n" +
+                "                        prefix: \"S10_4_REPORT_CORRECTION_HEADER_AUDIT_DIAGNOSTIC\",\n" +
+                "                        object: diagnostic\n" +
+                "                    )",
+        ]
+        for lock in reportCorrectionIssueFields {
+            XCTAssertEqual(
+                reportCorrectionDiagnostic.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(separatedBy: "NSNull()").count - 1,
+            4
+        )
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(separatedBy: "return true").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(separatedBy: "return false").count - 1,
+            0
+        )
+
+        let reportCorrectionAuditCount =
+            "                printJSONLine(\n" +
+                "                    prefix: \"S10_4_REPORT_CORRECTION_HEADER_AUDIT_COUNT_DIAGNOSTIC\",\n" +
+                "                    object: [\n" +
+                "                        \"shardID\": shard.shardID,\n" +
+                "                        \"issueCount\": observedIssueCount,\n" +
+                "                    ]\n" +
+                "                )"
+        let reportCorrectionTerminal =
+            reportCorrectionAuditCount + "\n" +
+                "                throw AutomationConfigurationError.invalid(\n" +
+                "                    \"S10.4 \\(shard.shardID) Report-correction-header diagnostic completed nonaccepting\"\n" +
+                "                )"
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(separatedBy: reportCorrectionAuditCount).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(separatedBy: reportCorrectionTerminal).count - 1,
+            1
+        )
+        let reportCorrectionTerminalBeforeEligible =
+            reportCorrectionTerminal + "\n            }\n\n" +
+                reportCorrectionEligibleExceptions
+        XCTAssertEqual(
+            uiSource.components(separatedBy: reportCorrectionTerminalBeforeEligible).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(separatedBy: "printJSONLine(").count - 1,
+            3
+        )
+        XCTAssertEqual(
+            reportCorrectionDiagnostic.components(
+                separatedBy: "throw AutomationConfigurationError.invalid("
+            ).count - 1,
+            2
+        )
+        for prohibited in [
+            ".tap(",
+            ".swipe",
+            ".press(",
+            ".coordinate(",
+            ".typeText(",
+            "scroll(",
+            "navigateBack(",
+            "setToggle(",
+            "app.launch",
+            "app.terminate",
+            "migratedStateIDs.append",
+            "captureBaseline(",
+            "automationContrastExceptions",
+            "automationAXTreeDigests",
+            #"prefix: "S10_4_AX_STATE""#,
+            #"prefix: "S10_4_CONTRAST""#,
+            #"prefix: "S10_4_AX""#,
+            "automatedEvidenceIDs.append(",
+            "attachCandidate(",
+            "let candidate = XCTAttachment(",
+            "eligibleExceptions",
+            "matchedExceptions",
+            "stateIssueLimit",
+            "CGRect(",
+            "frame ==",
+            "expectedHeaderFrame",
+            "expectedIssueFrame",
+            "Thread.sleep",
+            "receipt",
+            "retention",
+        ] {
+            XCTAssertFalse(reportCorrectionDiagnostic.contains(prohibited), prohibited)
+        }
 
         let exceptionIDs = [
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",

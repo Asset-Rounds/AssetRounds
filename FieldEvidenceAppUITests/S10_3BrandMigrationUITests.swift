@@ -3473,6 +3473,156 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             line: line
         )
         do {
+            let reportCorrectionHeaderDiagnosticShardIDs: Set<String> = [
+                "s10.4.current.differentiate-without-color",
+                "s10.4.current.reduce-motion",
+            ]
+            if reportCorrectionHeaderDiagnosticShardIDs.contains(shard.shardID),
+               stateID == "state.report-correction.validation-error" {
+                let headerElements = app.descendants(matching: .any).matching(
+                    identifier: "s4.5.correction.header"
+                )
+                let header = headerElements.firstMatch
+                guard headerElements.count == 1,
+                      header.exists,
+                      header.label == "Correct report",
+                      header.elementType == .staticText else {
+                    throw AutomationConfigurationError.invalid(
+                        "S10.4 \(shard.shardID) Report-correction-header diagnostic header is incomplete"
+                    )
+                }
+
+                let correctionScrollViews = app.scrollViews.containing(
+                    .button,
+                    identifier: "s4.5.correction.save"
+                )
+                let navigationBars = app.navigationBars
+                let validationElements = app.descendants(matching: .any).matching(
+                    identifier: "s4.5.correction.validation"
+                )
+                let saveElements = app.descendants(matching: .any).matching(
+                    identifier: "s4.5.correction.save"
+                )
+                let keyboards = app.keyboards
+                let inputViews = app.otherElements.matching(
+                    NSPredicate(format: "identifier == %@", "inputView")
+                )
+                let tabBars = app.tabBars
+                let diagnosticFrameObject: (CGRect) -> [String: Any] = { frame in
+                    [
+                        "shardID": shard.shardID,
+                        "x": Double(frame.origin.x),
+                        "y": Double(frame.origin.y),
+                        "width": Double(frame.size.width),
+                        "height": Double(frame.size.height),
+                    ]
+                }
+                let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
+                    element in
+                    [
+                        "shardID": shard.shardID,
+                        "identifier": element.identifier,
+                        "label": element.label,
+                        "elementType": String(describing: element.elementType),
+                        "frame": diagnosticFrameObject(element.frame),
+                        "exists": element.exists,
+                        "isHittable": element.isHittable,
+                    ]
+                }
+                let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
+                    query in
+                    let cardinality = query.count
+                    return [
+                        "shardID": shard.shardID,
+                        "cardinality": cardinality,
+                        "elements": (0..<cardinality).map { index in
+                            diagnosticElementObject(query.element(boundBy: index))
+                        },
+                    ]
+                }
+                printJSONLine(
+                    prefix: "S10_4_REPORT_CORRECTION_HEADER_CONTEXT_DIAGNOSTIC",
+                    object: [
+                        "shardID": shard.shardID,
+                        "application": diagnosticElementObject(app),
+                        "header": diagnosticQueryObject(headerElements),
+                        "reportCorrectionScrollView": diagnosticQueryObject(
+                            correctionScrollViews
+                        ),
+                        "navigationBar": diagnosticQueryObject(navigationBars),
+                        "validation": diagnosticQueryObject(validationElements),
+                        "save": diagnosticQueryObject(saveElements),
+                        "keyboard": diagnosticQueryObject(keyboards),
+                        "inputView": diagnosticQueryObject(inputViews),
+                        "tabBar": diagnosticQueryObject(tabBars),
+                    ]
+                )
+
+                let attachmentPrefix =
+                    "S10.4 \(shard.shardID) Report-correction-header diagnostic"
+                let appAttachment = XCTAttachment(screenshot: app.screenshot())
+                appAttachment.name = "\(attachmentPrefix) app"
+                appAttachment.lifetime = .keepAlways
+                add(appAttachment)
+                let treeAttachment = XCTAttachment(string: app.debugDescription)
+                treeAttachment.name = "\(attachmentPrefix) accessibility tree"
+                treeAttachment.lifetime = .keepAlways
+                add(treeAttachment)
+                let headerAttachment = XCTAttachment(screenshot: header.screenshot())
+                headerAttachment.name = "\(attachmentPrefix) header"
+                headerAttachment.lifetime = .keepAlways
+                add(headerAttachment)
+
+                var observedIssueCount = 0
+                try app.performAccessibilityAudit(for: .contrast) { issue in
+                    observedIssueCount += 1
+                    var diagnostic: [String: Any] = [
+                        "shardID": shard.shardID,
+                        "issueOrdinal": observedIssueCount,
+                        "auditTypeRawValue": String(issue.auditType.rawValue),
+                        "compactDescription": issue.compactDescription,
+                        "detailedDescription": issue.detailedDescription,
+                        "elementIdentifier": NSNull(),
+                        "elementLabel": NSNull(),
+                        "elementType": NSNull(),
+                        "elementFrame": NSNull(),
+                        "applicationFrame": diagnosticFrameObject(app.frame),
+                    ]
+                    if let auditedElement = issue.element {
+                        diagnostic["elementIdentifier"] = auditedElement.identifier
+                        diagnostic["elementLabel"] = auditedElement.label
+                        diagnostic["elementType"] = String(
+                            describing: auditedElement.elementType
+                        )
+                        diagnostic["elementFrame"] = diagnosticFrameObject(
+                            auditedElement.frame
+                        )
+                        let attachment = XCTAttachment(
+                            screenshot: auditedElement.screenshot()
+                        )
+                        attachment.name =
+                            "\(attachmentPrefix) audit issue \(observedIssueCount)"
+                        attachment.lifetime = .keepAlways
+                        self.add(attachment)
+                    }
+                    self.printJSONLine(
+                        prefix: "S10_4_REPORT_CORRECTION_HEADER_AUDIT_DIAGNOSTIC",
+                        object: diagnostic
+                    )
+                    return true
+                }
+                printJSONLine(
+                    prefix: "S10_4_REPORT_CORRECTION_HEADER_AUDIT_COUNT_DIAGNOSTIC",
+                    object: [
+                        "shardID": shard.shardID,
+                        "issueCount": observedIssueCount,
+                    ]
+                )
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 \(shard.shardID) Report-correction-header diagnostic completed nonaccepting"
+                )
+            }
+
             let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
                 $0.shardID == shard.shardID && $0.stateID == stateID
             }
