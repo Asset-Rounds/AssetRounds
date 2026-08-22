@@ -763,7 +763,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let preActionErrorLabel = error.label
             let preActionErrorValue = error.value as? String
             let returnKey = app.keyboards.buttons["Return"]
-            if !returnKey.waitForExistence(timeout: 1) {
+            if !returnKey.waitForExistence(timeout: 1) || !returnKey.isHittable {
                 let expectedKeyboardFrame = CGRect(
                     x: 0,
                     y: 451,
@@ -783,6 +783,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 ).tap()
                 let restoredKeyboard = app.keyboards.firstMatch
                 guard returnKey.waitForExistence(timeout: 10),
+                      returnKey.isHittable,
                       restoredKeyboard.waitForExistence(timeout: 10),
                       restoredKeyboard.frame == observedKeyboardFrame,
                       wait(

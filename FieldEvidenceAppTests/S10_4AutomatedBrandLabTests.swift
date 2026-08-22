@@ -339,8 +339,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 252_336,
-            sha256: "D326D4DFF90CC42229AC1DD40CC1E8255AD7B8A43AE5F57AD3542C140980C70C"
+            byteCount: 252_405,
+            sha256: "F5BB60B57E2649BA27FE48C2424BB33482B757D7F579D7103CEEFD9678C511E3"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -930,12 +930,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(quickPathSemanticSnapshots.count, 3)
         let quickPathReturnProbe =
             #"            let returnKey = app.keyboards.buttons["Return"]"# + "\n" +
-                #"            if !returnKey.waitForExistence(timeout: 1) {"#
+                #"            if !returnKey.waitForExistence(timeout: 1) || !returnKey.isHittable {"#
         XCTAssertEqual(
             quickPathViewportToCaptureSource.components(separatedBy: quickPathReturnProbe).count - 1,
             1
         )
+        XCTAssertFalse(
+            quickPathViewportToCaptureSource.contains(
+                #"            if !returnKey.waitForExistence(timeout: 1) {"#
+            )
+        )
         XCTAssertFalse(quickPathViewportToCaptureSource.contains("returnKey.exists"))
+        XCTAssertEqual(
+            quickPathViewportToCaptureSource.components(
+                separatedBy: "returnKey.isHittable"
+            ).count - 1,
+            2
+        )
         let quickPathExpectedFrame =
             "                let expectedKeyboardFrame = CGRect(\n" +
                 "                    x: 0,\n" +
@@ -978,6 +989,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let quickPathRestoredKeyboard =
             "                let restoredKeyboard = app.keyboards.firstMatch\n" +
                 "                guard returnKey.waitForExistence(timeout: 10),\n" +
+                "                      returnKey.isHittable,\n" +
                 "                      restoredKeyboard.waitForExistence(timeout: 10),\n" +
                 "                      restoredKeyboard.frame == observedKeyboardFrame,"
         XCTAssertEqual(
