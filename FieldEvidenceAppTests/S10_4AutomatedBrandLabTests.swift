@@ -339,8 +339,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 263_403,
-            sha256: "CE35DAAD2D084D322A9B884355060A04C6ECF3614D54AF3F8101F8B505577122"
+            byteCount: 263_424,
+            sha256: "70FB72FD69DF43B0BF9AC04D9A0CEDA7E1F81AB60301C52110A407186A275577"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2807,10 +2807,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 reportHistoryDiagnosticPositioningStartRange.lowerBound..<reportHistoryDiagnosticPositioningEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(reportHistoryDiagnosticPositioningSource.utf8.count, 17_110)
+        XCTAssertEqual(reportHistoryDiagnosticPositioningSource.utf8.count, 17_131)
         XCTAssertEqual(
             Data(reportHistoryDiagnosticPositioningSource.utf8).sha256,
-            "DD49F04A7E0C486B35818FAD2E7C7E9BACBDB4D23BFA346C95032473A95F315F"
+            "BB4CCBAF877819827823C12CCAC2F7B9A3FAE92571C8F9D3CE149D6A40CDA400"
         )
 
         let reportHistoryDiagnosticPositioningQueries = [
@@ -2909,6 +2909,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        for reportHistoryDiagnosticLowerNorthCampusBinding in [
+            "            guard let lowerNorthCampusElement = lowerNorthCampus() else {",
+            "               !lowerNorthCampusElement.isHittable,",
+        ] {
+            XCTAssertEqual(
+                reportHistoryDiagnosticPositioningSource.components(
+                    separatedBy: reportHistoryDiagnosticLowerNorthCampusBinding
+                ).count - 1,
+                1,
+                reportHistoryDiagnosticLowerNorthCampusBinding
+            )
+        }
         for diagnosticPositioningConstant in [
             "        let contentInset: CGFloat = 16",
             "        let receiverInset: CGFloat = 24",
@@ -3017,7 +3029,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            let receiverTop = liveTop + receiverInset\n" +
                 "            let receiverBottom = liveBottom - receiverInset\n" +
                 "            let headerFrame = historyHeader.frame\n" +
-                "            let lowerNorthCampusFrame = lowerNorthCampus.frame\n" +
+                "            let lowerNorthCampusFrame = lowerNorthCampusElement.frame\n" +
                 "            let visitCompositeFrame = visitComposite.frame"
         XCTAssertEqual(
             reportHistoryDiagnosticPositioningSource.components(

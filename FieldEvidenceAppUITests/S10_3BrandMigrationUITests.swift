@@ -1946,7 +1946,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTFail("Report-history AX-text positioned diagnostic route changed.")
                 return false
             }
-            guard let lowerNorthCampus = lowerNorthCampus() else {
+            guard let lowerNorthCampusElement = lowerNorthCampus() else {
                 XCTFail("Report-history AX-text lower North Campus is ambiguous.")
                 return false
             }
@@ -1965,7 +1965,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let receiverTop = liveTop + receiverInset
             let receiverBottom = liveBottom - receiverInset
             let headerFrame = historyHeader.frame
-            let lowerNorthCampusFrame = lowerNorthCampus.frame
+            let lowerNorthCampusFrame = lowerNorthCampusElement.frame
             let visitCompositeFrame = visitComposite.frame
             guard !applicationFrame.isNull,
                   !applicationFrame.isEmpty,
@@ -1994,7 +1994,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                headerFrame.maxY <= safeBottom,
                historyHeader.isHittable,
                lowerNorthCampusFrame.minY >= applicationFrame.maxY,
-               !lowerNorthCampus.isHittable,
+               !lowerNorthCampusElement.isHittable,
                visitCompositeFrame.minY >= applicationFrame.maxY,
                !visitComposite.isHittable {
                 return true
