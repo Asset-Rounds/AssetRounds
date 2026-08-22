@@ -339,8 +339,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 259_359,
-            sha256: "AFCA35F42C070C99BB04576BB723534689AA82219E09E4148703DF84F8CE497B"
+            byteCount: 263_403,
+            sha256: "CE35DAAD2D084D322A9B884355060A04C6ECF3614D54AF3F8101F8B505577122"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2496,6 +2496,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 reportHistoryPositioningStartRange.lowerBound..<reportHistoryPositioningEndRange.lowerBound
             ]
         )
+        XCTAssertEqual(reportHistoryPositioningSource.utf8.count, 10_461)
+        XCTAssertEqual(
+            Data(reportHistoryPositioningSource.utf8).sha256,
+            "6C7119CAD86A5470FF53AB8E310923C124EB1ACA25AFF2F2270236B8BB85D74F"
+        )
 
         let reportHistoryPositioningBindings = [
             "let historyScreens = app.descendants(matching: .any).matching(\n" +
@@ -2802,10 +2807,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 reportHistoryDiagnosticPositioningStartRange.lowerBound..<reportHistoryDiagnosticPositioningEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(reportHistoryDiagnosticPositioningSource.utf8.count, 13_066)
+        XCTAssertEqual(reportHistoryDiagnosticPositioningSource.utf8.count, 17_110)
         XCTAssertEqual(
             Data(reportHistoryDiagnosticPositioningSource.utf8).sha256,
-            "CF59279AB3B55DD4DA485361FBDA659234DE3B753403AB9F22AC330E33181C02"
+            "DD49F04A7E0C486B35818FAD2E7C7E9BACBDB4D23BFA346C95032473A95F315F"
         )
 
         let reportHistoryDiagnosticPositioningQueries = [
@@ -2888,6 +2893,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(
             reportHistoryDiagnosticPositioningSource.components(
                 separatedBy: reportHistoryDiagnosticNorthCampusContract
+            ).count - 1,
+            1
+        )
+        let reportHistoryDiagnosticLowerNorthCampusResolver =
+            "        func lowerNorthCampus() -> XCUIElement? {\n" +
+                "            guard hasExactNorthCampusTexts() else { return nil }\n" +
+                "            let first = northCampusTexts.element(boundBy: 0)\n" +
+                "            let second = northCampusTexts.element(boundBy: 1)\n" +
+                "            return first.frame.minY < second.frame.minY ? second : first\n" +
+                "        }"
+        XCTAssertEqual(
+            reportHistoryDiagnosticPositioningSource.components(
+                separatedBy: reportHistoryDiagnosticLowerNorthCampusResolver
             ).count - 1,
             1
         )
@@ -2999,6 +3017,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            let receiverTop = liveTop + receiverInset\n" +
                 "            let receiverBottom = liveBottom - receiverInset\n" +
                 "            let headerFrame = historyHeader.frame\n" +
+                "            let lowerNorthCampusFrame = lowerNorthCampus.frame\n" +
                 "            let visitCompositeFrame = visitComposite.frame"
         XCTAssertEqual(
             reportHistoryDiagnosticPositioningSource.components(
@@ -3008,7 +3027,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let reportHistoryDiagnosticPositiveInterval =
             "            let minimumShift = max(\n" +
-                "                safeTop - headerFrame.minY,\n" +
+                "                max(\n" +
+                "                    safeTop - headerFrame.minY,\n" +
+                "                    applicationFrame.maxY - lowerNorthCampusFrame.minY\n" +
+                "                ),\n" +
                 "                applicationFrame.maxY - visitCompositeFrame.minY\n" +
                 "            )\n" +
                 "            let maximumShift = safeBottom - headerFrame.maxY\n" +
@@ -3054,6 +3076,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                CGVector(dx: 0, dy: dragDistance)\n" +
                 "            )\n" +
                 "            let headerMinYBeforeDrag = headerFrame.minY\n" +
+                "            let lowerNorthCampusMinYBeforeDrag = lowerNorthCampusFrame.minY\n" +
                 "            let visitMinYBeforeDrag = visitCompositeFrame.minY\n" +
                 "            dragStart.press(\n" +
                 "                forDuration: 0.2,\n" +
@@ -3068,11 +3091,58 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         let reportHistoryDiagnosticObservedShift =
-            "            let observedHeaderShift = historyHeader.frame.minY - headerMinYBeforeDrag\n" +
-                "            let observedVisitShift = visitComposite.frame.minY - visitMinYBeforeDrag\n" +
+            "            let applicationFrameAfterDrag = app.frame\n" +
+                "            let headerFrameAfterDrag = historyHeader.frame\n" +
+                "            let lowerNorthCampusFrameAfterDrag = movedLowerNorthCampus.frame\n" +
+                "            let visitCompositeFrameAfterDrag = visitComposite.frame\n" +
+                "            let observedHeaderShift =\n" +
+                "                headerFrameAfterDrag.minY - headerMinYBeforeDrag\n" +
+                "            let observedLowerNorthCampusShift =\n" +
+                "                lowerNorthCampusFrameAfterDrag.minY\n" +
+                "                - lowerNorthCampusMinYBeforeDrag\n" +
+                "            let observedVisitShift =\n" +
+                "                visitCompositeFrameAfterDrag.minY - visitMinYBeforeDrag\n" +
+                "            printJSONLine(\n" +
+                #"                prefix: "S10_4_REPORT_HISTORY_POSITIONING_DIAGNOSTIC","# + "\n" +
+                "                object: [\n" +
+                #"                    "attemptOrdinal": attemptIndex + 1,"# + "\n" +
+                #"                    "applicationFrameBefore": auditFrameObject(applicationFrame),"# + "\n" +
+                "                    \"applicationFrameAfter\": auditFrameObject(\n" +
+                "                        applicationFrameAfterDrag\n" +
+                "                    ),\n" +
+                #"                    "headerFrameBefore": auditFrameObject(headerFrame),"# + "\n" +
+                "                    \"headerFrameAfter\": auditFrameObject(headerFrameAfterDrag),\n" +
+                "                    \"lowerNorthCampusFrameBefore\": auditFrameObject(\n" +
+                "                        lowerNorthCampusFrame\n" +
+                "                    ),\n" +
+                "                    \"lowerNorthCampusFrameAfter\": auditFrameObject(\n" +
+                "                        lowerNorthCampusFrameAfterDrag\n" +
+                "                    ),\n" +
+                "                    \"visitCompositeFrameBefore\": auditFrameObject(\n" +
+                "                        visitCompositeFrame\n" +
+                "                    ),\n" +
+                "                    \"visitCompositeFrameAfter\": auditFrameObject(\n" +
+                "                        visitCompositeFrameAfterDrag\n" +
+                "                    ),\n" +
+                #"                    "safeTop": safeTop,"# + "\n" +
+                #"                    "safeBottom": safeBottom,"# + "\n" +
+                #"                    "minimumShift": minimumShift,"# + "\n" +
+                #"                    "maximumShift": maximumShift,"# + "\n" +
+                #"                    "recognizedMinimum": recognizedMinimum,"# + "\n" +
+                #"                    "recognizedMaximum": recognizedMaximum,"# + "\n" +
+                #"                    "requestedDistance": dragDistance,"# + "\n" +
+                #"                    "receiverCapacity": receiverCapacity,"# + "\n" +
+                #"                    "observedHeaderShift": observedHeaderShift,"# + "\n" +
+                "                    \"observedLowerNorthCampusShift\":\n" +
+                "                        observedLowerNorthCampusShift,\n" +
+                #"                    "observedVisitShift": observedVisitShift,"# + "\n" +
+                "                ]\n" +
+                "            )\n" +
                 "            guard observedHeaderShift > 0,\n" +
+                "                  observedLowerNorthCampusShift > 0,\n" +
                 "                  observedVisitShift > 0,\n" +
                 "                  observedHeaderShift * dragDistance > 0,\n" +
+                "                  observedLowerNorthCampusShift * dragDistance > 0,\n" +
                 "                  observedVisitShift * dragDistance > 0 else {\n" +
                 #"                XCTFail("Report-history AX-text positioned diagnostic drag was not recognized.")"# + "\n" +
                 "                return false\n" +
@@ -3083,6 +3153,37 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        for telemetryField in [
+            #"                prefix: "S10_4_REPORT_HISTORY_POSITIONING_DIAGNOSTIC","#,
+            #"                    "attemptOrdinal": attemptIndex + 1,"#,
+            #"                    "applicationFrameBefore": auditFrameObject(applicationFrame),"#,
+            #"                    "applicationFrameAfter": auditFrameObject("#,
+            #"                    "headerFrameBefore": auditFrameObject(headerFrame),"#,
+            #"                    "headerFrameAfter": auditFrameObject(headerFrameAfterDrag),"#,
+            #"                    "lowerNorthCampusFrameBefore": auditFrameObject("#,
+            #"                    "lowerNorthCampusFrameAfter": auditFrameObject("#,
+            #"                    "visitCompositeFrameBefore": auditFrameObject("#,
+            #"                    "visitCompositeFrameAfter": auditFrameObject("#,
+            #"                    "safeTop": safeTop,"#,
+            #"                    "safeBottom": safeBottom,"#,
+            #"                    "minimumShift": minimumShift,"#,
+            #"                    "maximumShift": maximumShift,"#,
+            #"                    "recognizedMinimum": recognizedMinimum,"#,
+            #"                    "recognizedMaximum": recognizedMaximum,"#,
+            #"                    "requestedDistance": dragDistance,"#,
+            #"                    "receiverCapacity": receiverCapacity,"#,
+            #"                    "observedHeaderShift": observedHeaderShift,"#,
+            #"                    "observedLowerNorthCampusShift":"#,
+            #"                    "observedVisitShift": observedVisitShift,"#,
+        ] {
+            XCTAssertEqual(
+                reportHistoryDiagnosticPositioningSource.components(
+                    separatedBy: telemetryField
+                ).count - 1,
+                1,
+                telemetryField
+            )
+        }
 
         let reportHistoryDiagnosticFinalGeometry =
             "        let finalApplicationFrame = app.frame\n" +
@@ -3100,6 +3201,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            min(finalApplicationFrame.maxY, finalTabBarFrame.minY)\n" +
                 "        ) - contentInset\n" +
                 "        let finalHeaderFrame = historyHeader.frame\n" +
+                "        let finalLowerNorthCampusFrame = finalLowerNorthCampus.frame\n" +
                 "        let finalVisitCompositeFrame = visitComposite.frame"
         XCTAssertEqual(
             reportHistoryDiagnosticPositioningSource.components(
@@ -3112,6 +3214,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "              finalHeaderFrame.minY >= finalSafeTop,\n" +
                 "              finalHeaderFrame.maxY <= finalSafeBottom,\n" +
                 "              historyHeader.isHittable,\n" +
+                "              finalLowerNorthCampusFrame.minY >= finalApplicationFrame.maxY,\n" +
+                "              !finalLowerNorthCampus.isHittable,\n" +
                 "              finalVisitCompositeFrame.minY >= finalApplicationFrame.maxY,\n" +
                 "              !visitComposite.isHittable else {\n" +
                 #"            XCTFail("Report-history AX-text positioned diagnostic final geometry is unsafe.")"# + "\n" +
@@ -3144,9 +3248,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("historyTabBar.exists", 1),
             ("reportHistoryVisit.exists", 1),
             ("visitComposite.exists", 1),
-            ("for _ in 0..<4", 1),
+            ("lowerNorthCampus()", 4),
+            ("for attemptIndex in 0..<4", 1),
             ("historyScrollView.coordinate(", 1),
             ("dragStart.press(", 1),
+            ("printJSONLine(", 1),
             ("forDuration: 0.2", 1),
             ("withVelocity: .slow", 1),
             ("thenHoldForDuration: 0.2", 1),
@@ -3176,7 +3282,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "ContrastAuditExceptionSignature",
             "captureBaseline(",
             "attachCandidate(",
-            "printJSONLine(",
             "automationContrastExceptions",
             "automationAXTreeDigests",
             "eligibleExceptions",

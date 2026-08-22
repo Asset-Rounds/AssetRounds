@@ -1863,6 +1863,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 )
         }
 
+        func lowerNorthCampus() -> XCUIElement? {
+            guard hasExactNorthCampusTexts() else { return nil }
+            let first = northCampusTexts.element(boundBy: 0)
+            let second = northCampusTexts.element(boundBy: 1)
+            return first.frame.minY < second.frame.minY ? second : first
+        }
+
         func hasExactRoute() -> Bool {
             let applicationFrame = app.frame
             let historyScreenFrame = historyScreen.frame
@@ -1934,9 +1941,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let contentInset: CGFloat = 16
         let receiverInset: CGFloat = 24
         let minimumGestureDistance: CGFloat = 44
-        for _ in 0..<4 {
+        for attemptIndex in 0..<4 {
             guard hasExactRoute() else {
                 XCTFail("Report-history AX-text positioned diagnostic route changed.")
+                return false
+            }
+            guard let lowerNorthCampus = lowerNorthCampus() else {
+                XCTFail("Report-history AX-text lower North Campus is ambiguous.")
                 return false
             }
             let applicationFrame = app.frame
@@ -1954,6 +1965,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let receiverTop = liveTop + receiverInset
             let receiverBottom = liveBottom - receiverInset
             let headerFrame = historyHeader.frame
+            let lowerNorthCampusFrame = lowerNorthCampus.frame
             let visitCompositeFrame = visitComposite.frame
             guard !applicationFrame.isNull,
                   !applicationFrame.isEmpty,
@@ -1967,6 +1979,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   !liveScrollFrame.isEmpty,
                   !headerFrame.isNull,
                   !headerFrame.isEmpty,
+                  !lowerNorthCampusFrame.isNull,
+                  !lowerNorthCampusFrame.isEmpty,
                   !visitCompositeFrame.isNull,
                   !visitCompositeFrame.isEmpty,
                   headerFrame.maxY < visitCompositeFrame.minY,
@@ -1979,13 +1993,18 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             if headerFrame.minY >= safeTop,
                headerFrame.maxY <= safeBottom,
                historyHeader.isHittable,
+               lowerNorthCampusFrame.minY >= applicationFrame.maxY,
+               !lowerNorthCampus.isHittable,
                visitCompositeFrame.minY >= applicationFrame.maxY,
                !visitComposite.isHittable {
                 return true
             }
 
             let minimumShift = max(
-                safeTop - headerFrame.minY,
+                max(
+                    safeTop - headerFrame.minY,
+                    applicationFrame.maxY - lowerNorthCampusFrame.minY
+                ),
                 applicationFrame.maxY - visitCompositeFrame.minY
             )
             let maximumShift = safeBottom - headerFrame.maxY
@@ -2023,6 +2042,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 CGVector(dx: 0, dy: dragDistance)
             )
             let headerMinYBeforeDrag = headerFrame.minY
+            let lowerNorthCampusMinYBeforeDrag = lowerNorthCampusFrame.minY
             let visitMinYBeforeDrag = visitCompositeFrame.minY
             dragStart.press(
                 forDuration: 0.2,
@@ -2034,11 +2054,62 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTFail("Report-history AX-text positioned diagnostic route changed after drag.")
                 return false
             }
-            let observedHeaderShift = historyHeader.frame.minY - headerMinYBeforeDrag
-            let observedVisitShift = visitComposite.frame.minY - visitMinYBeforeDrag
+            guard let movedLowerNorthCampus = lowerNorthCampus() else {
+                XCTFail("Report-history AX-text lower North Campus changed after drag.")
+                return false
+            }
+            let applicationFrameAfterDrag = app.frame
+            let headerFrameAfterDrag = historyHeader.frame
+            let lowerNorthCampusFrameAfterDrag = movedLowerNorthCampus.frame
+            let visitCompositeFrameAfterDrag = visitComposite.frame
+            let observedHeaderShift =
+                headerFrameAfterDrag.minY - headerMinYBeforeDrag
+            let observedLowerNorthCampusShift =
+                lowerNorthCampusFrameAfterDrag.minY
+                - lowerNorthCampusMinYBeforeDrag
+            let observedVisitShift =
+                visitCompositeFrameAfterDrag.minY - visitMinYBeforeDrag
+            printJSONLine(
+                prefix: "S10_4_REPORT_HISTORY_POSITIONING_DIAGNOSTIC",
+                object: [
+                    "attemptOrdinal": attemptIndex + 1,
+                    "applicationFrameBefore": auditFrameObject(applicationFrame),
+                    "applicationFrameAfter": auditFrameObject(
+                        applicationFrameAfterDrag
+                    ),
+                    "headerFrameBefore": auditFrameObject(headerFrame),
+                    "headerFrameAfter": auditFrameObject(headerFrameAfterDrag),
+                    "lowerNorthCampusFrameBefore": auditFrameObject(
+                        lowerNorthCampusFrame
+                    ),
+                    "lowerNorthCampusFrameAfter": auditFrameObject(
+                        lowerNorthCampusFrameAfterDrag
+                    ),
+                    "visitCompositeFrameBefore": auditFrameObject(
+                        visitCompositeFrame
+                    ),
+                    "visitCompositeFrameAfter": auditFrameObject(
+                        visitCompositeFrameAfterDrag
+                    ),
+                    "safeTop": safeTop,
+                    "safeBottom": safeBottom,
+                    "minimumShift": minimumShift,
+                    "maximumShift": maximumShift,
+                    "recognizedMinimum": recognizedMinimum,
+                    "recognizedMaximum": recognizedMaximum,
+                    "requestedDistance": dragDistance,
+                    "receiverCapacity": receiverCapacity,
+                    "observedHeaderShift": observedHeaderShift,
+                    "observedLowerNorthCampusShift":
+                        observedLowerNorthCampusShift,
+                    "observedVisitShift": observedVisitShift,
+                ]
+            )
             guard observedHeaderShift > 0,
+                  observedLowerNorthCampusShift > 0,
                   observedVisitShift > 0,
                   observedHeaderShift * dragDistance > 0,
+                  observedLowerNorthCampusShift * dragDistance > 0,
                   observedVisitShift * dragDistance > 0 else {
                 XCTFail("Report-history AX-text positioned diagnostic drag was not recognized.")
                 return false
@@ -2047,6 +2118,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         guard hasExactRoute() else {
             XCTFail("Report-history AX-text positioned diagnostic final route changed.")
+            return false
+        }
+        guard let finalLowerNorthCampus = lowerNorthCampus() else {
+            XCTFail("Report-history AX-text final lower North Campus is ambiguous.")
             return false
         }
         let finalApplicationFrame = app.frame
@@ -2064,6 +2139,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             min(finalApplicationFrame.maxY, finalTabBarFrame.minY)
         ) - contentInset
         let finalHeaderFrame = historyHeader.frame
+        let finalLowerNorthCampusFrame = finalLowerNorthCampus.frame
         let finalVisitCompositeFrame = visitComposite.frame
         guard !finalApplicationFrame.isNull,
               !finalApplicationFrame.isEmpty,
@@ -2075,12 +2151,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               !finalTabBarFrame.isEmpty,
               !finalHeaderFrame.isNull,
               !finalHeaderFrame.isEmpty,
+              !finalLowerNorthCampusFrame.isNull,
+              !finalLowerNorthCampusFrame.isEmpty,
               !finalVisitCompositeFrame.isNull,
               !finalVisitCompositeFrame.isEmpty,
               finalSafeBottom > finalSafeTop,
               finalHeaderFrame.minY >= finalSafeTop,
               finalHeaderFrame.maxY <= finalSafeBottom,
               historyHeader.isHittable,
+              finalLowerNorthCampusFrame.minY >= finalApplicationFrame.maxY,
+              !finalLowerNorthCampus.isHittable,
               finalVisitCompositeFrame.minY >= finalApplicationFrame.maxY,
               !visitComposite.isHittable else {
             XCTFail("Report-history AX-text positioned diagnostic final geometry is unsafe.")
