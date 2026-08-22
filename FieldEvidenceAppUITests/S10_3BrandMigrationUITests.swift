@@ -412,11 +412,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             forResource: "FieldEvidence",
             withExtension: "storekit"
         ))
-        let session = try SKTestSession(contentsOf: fixtureURL)
-        session.resetToDefaultState()
-        session.clearTransactions()
-        session.disableDialogs = true
-        storeKitSession = session
+        storeKitSession = try SKTestSession(contentsOf: fixtureURL)
+        storeKitSession?.resetToDefaultState()
+        storeKitSession?.clearTransactions()
+        storeKitSession?.disableDialogs = true
 
         applyDeviceAppearance(fallbackIsDark: false)
         let unavailableApp = try configuredApplication(
@@ -2737,6 +2736,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
             if purchaseState.label == unverifiedPurchaseLabel {
                 app.terminate()
+                storeKitSession = nil
                 guard let fixtureURL = Bundle(for: Self.self).url(
                     forResource: "FieldEvidence",
                     withExtension: "storekit"

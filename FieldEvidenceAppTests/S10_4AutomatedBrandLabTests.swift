@@ -309,8 +309,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 208_818,
-            sha256: "8FA5370B281C22909B4974B8209AE8001F8C90FBB3F8ABE2BB722D4BF1C5F815"
+            byteCount: 208_853,
+            sha256: "F63AAA53E2342F9A1FA578245C4803A626E4538A7F736763C572E2C8BF6F9626"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2020,6 +2020,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"        if automationShard?.shardID == "s10.4.current.default-light" {"#
             )
         )
+        let initialStoreKitSetup =
+            "        storeKitSession = try SKTestSession(contentsOf: fixtureURL)\n" +
+                "        storeKitSession?.resetToDefaultState()\n" +
+                "        storeKitSession?.clearTransactions()\n" +
+                "        storeKitSession?.disableDialogs = true"
+        XCTAssertEqual(
+            uiSource.components(separatedBy: initialStoreKitSetup).count - 1,
+            1
+        )
+        XCTAssertFalse(
+            uiSource.contains("        let session = try SKTestSession(contentsOf: fixtureURL)")
+        )
+        XCTAssertFalse(uiSource.contains("        storeKitSession = session"))
         let purchaseRecoveryStart =
             #"        var purchase = firstPurchaseButton(in: app)"# + "\n" +
                 "        scroll(purchase, in: app)\n" +
@@ -2131,6 +2144,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let exactRetryLocks = [
             unverifiedRetryStart,
             "                app.terminate()",
+            "                storeKitSession = nil",
             #"                guard let fixtureURL = Bundle(for: Self.self).url("#,
             #"                    forResource: "FieldEvidence","#,
             #"                    withExtension: "storekit""#,
@@ -2175,6 +2189,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let retryStoreKitResetAndRelaunch =
             "                app.terminate()\n" +
+                "                storeKitSession = nil\n" +
                 #"                guard let fixtureURL = Bundle(for: Self.self).url("# + "\n" +
                 #"                    forResource: "FieldEvidence","# + "\n" +
                 #"                    withExtension: "storekit""# + "\n" +
