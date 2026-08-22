@@ -339,8 +339,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 236_263,
-            sha256: "A2599DB44FC3C01BF9EC4920FA7986422AE816861293E654EB8B95996073F214"
+            byteCount: 240_148,
+            sha256: "CEAC68F2602F8F692B7FEEBC9BF842F8BCC105221B5E1A0459F7411AF2F3C19A"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -3619,6 +3619,342 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"        if automationShard?.shardID == "s10.4.current.default-light" {"#
             )
         )
+        let storeKitCoordinatorPath =
+            "FieldEvidenceApp/Infrastructure/Commerce/StoreKitPurchaseCoordinator.swift"
+        try assertFile(
+            storeKitCoordinatorPath,
+            byteCount: 17_063,
+            sha256: "B998F07774C90FD0EF982C391D50026058A191B3AD6921188D2C5822DB436200"
+        )
+        let storeKitCoordinatorSource = try text(storeKitCoordinatorPath)
+        let storeKitProcessorPath =
+            "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift"
+        try assertFile(
+            storeKitProcessorPath,
+            byteCount: 30_357,
+            sha256: "B837BD39D92C11D96C8A39445894F053A9B09DD29AE601BCF583F37F4F31DA71"
+        )
+        let storeKitProcessorSource = try text(storeKitProcessorPath)
+        for source in [storeKitCoordinatorSource, storeKitProcessorSource] {
+            XCTAssertTrue(source.contains("\u{23}if DEBUG"))
+            XCTAssertTrue(source.contains("S10_4StoreKitPurchaseDiagnostic"))
+        }
+        let sharedStoreKitDiagnosticGate =
+            "\u{23}if DEBUG\n" +
+                "enum S10_4StoreKitPurchaseDiagnosticGate {\n" +
+                "    static let launchArgument = " +
+                #""--s10-4-storekit-purchase-diagnostic""# + "\n\n" +
+                "    static var isEnabled: Bool {\n" +
+                "        ProcessInfo.processInfo.arguments.contains(launchArgument)\n" +
+                "    }\n" +
+                "}"
+        XCTAssertEqual(
+            storeKitProcessorSource.components(
+                separatedBy: sharedStoreKitDiagnosticGate
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            storeKitProcessorSource.components(
+                separatedBy: #""--s10-4-storekit-purchase-diagnostic""#
+            ).count - 1,
+            1
+        )
+        let exactStoreKitDiagnosticReasonDomain =
+            "enum S10_4StoreKitPurchaseDiagnosticReasonV1: " +
+                "String, CaseIterable, Sendable {\n" +
+                "    case missingPurchaseReservation\n" +
+                "    case completionProductMismatch\n" +
+                "    case purchaseVerificationUnverified\n" +
+                "    case transactionProductIDMismatch\n" +
+                "    case transactionProductTypeMismatch\n" +
+                "    case transactionOwnershipMismatch\n" +
+                "    case subscriptionStatusUnavailable\n" +
+                "    case statusTransactionUnverified\n" +
+                "    case statusRenewalInfoUnverified\n" +
+                "    case statusTransactionProductIDMismatch\n" +
+                "    case statusRenewalProductIDMismatch\n" +
+                "    case statusTransactionProductTypeMismatch\n" +
+                "    case statusTransactionOwnershipMismatch\n" +
+                "    case statusRevokedWithoutRevocationDate\n" +
+                "    case statusUnsupportedState\n" +
+                "    case paidGraceAuthorityRejected\n" +
+                "    case processorUnverifiedWithoutReason\n" +
+                "}"
+        XCTAssertEqual(
+            storeKitProcessorSource.components(
+                separatedBy: exactStoreKitDiagnosticReasonDomain
+            ).count - 1,
+            1
+        )
+        let exactStoreKitVerificationErrorDomain =
+            "enum S10_4StoreKitVerificationErrorV1: " +
+                "String, CaseIterable, Sendable {\n" +
+                "    case invalidCertificateChain\n" +
+                "    case invalidDeviceVerification\n" +
+                "    case invalidEncoding\n" +
+                "    case invalidSignature\n" +
+                "    case missingRequiredProperties\n" +
+                "    case revokedCertificate\n" +
+                "    case unknown\n\n" +
+                "    static func normalized<SignedType>("
+        XCTAssertEqual(
+            storeKitProcessorSource.components(
+                separatedBy: exactStoreKitVerificationErrorDomain
+            ).count - 1,
+            1
+        )
+        for reason in [
+            "missingPurchaseReservation",
+            "completionProductMismatch",
+            "purchaseVerificationUnverified",
+            "transactionProductIDMismatch",
+            "transactionProductTypeMismatch",
+            "transactionOwnershipMismatch",
+            "subscriptionStatusUnavailable",
+            "statusTransactionUnverified",
+            "statusRenewalInfoUnverified",
+            "statusTransactionProductIDMismatch",
+            "statusRenewalProductIDMismatch",
+            "statusTransactionProductTypeMismatch",
+            "statusTransactionOwnershipMismatch",
+            "statusRevokedWithoutRevocationDate",
+            "statusUnsupportedState",
+            "paidGraceAuthorityRejected",
+            "processorUnverifiedWithoutReason",
+        ] {
+            XCTAssertEqual(
+                (storeKitCoordinatorSource + storeKitProcessorSource)
+                    .components(separatedBy: reason).count - 1,
+                ["statusTransactionUnverified", "statusRenewalInfoUnverified"]
+                    .contains(reason) ? 3 : 2,
+                reason
+            )
+        }
+        for verificationError in [
+            "invalidCertificateChain",
+            "invalidDeviceVerification",
+            "invalidEncoding",
+            "invalidSignature",
+            "missingRequiredProperties",
+            "revokedCertificate",
+            "unknown",
+        ] {
+            XCTAssertEqual(
+                storeKitProcessorSource.components(
+                    separatedBy: "case \(verificationError)"
+                ).count - 1,
+                1,
+                verificationError
+            )
+        }
+        for processorDiagnosticLock in [
+            "private(set) var firstPurchaseDiagnosticFailure:",
+            "firstPurchaseDiagnosticFailure = nil",
+            "recordPurchaseDiagnosticFailure(failure)",
+            "firstPurchaseDiagnosticFailure == nil",
+            "firstPurchaseDiagnosticFailure = failure",
+            ".purchaseDiagnosticVerifiedEvent(",
+            "return await applyVerified([event]) ? .verified : .failed",
+            "case let .unverified(_, error):",
+            "verificationError: .normalized(error)",
+            "_ error: VerificationResult<SignedType>.VerificationError",
+            "fileprivate static func purchaseDiagnosticVerifiedEvent(",
+            "fileprivate static func purchaseDiagnosticFact(",
+        ] {
+            XCTAssertTrue(
+                storeKitProcessorSource.contains(processorDiagnosticLock),
+                processorDiagnosticLock
+            )
+        }
+        XCTAssertEqual(
+            storeKitProcessorSource.components(
+                separatedBy: "firstPurchaseDiagnosticFailure = nil"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            storeKitProcessorSource.components(
+                separatedBy: "case let .unverified(_, error):"
+            ).count - 1,
+            2
+        )
+        XCTAssertFalse(storeKitProcessorSource.contains("SignedType: Decodable"))
+        let exactProcessorFirstFailureRecorder =
+            "    func resetPurchaseDiagnosticFailure() {\n" +
+                "        guard S10_4StoreKitPurchaseDiagnosticGate.isEnabled " +
+                "else { return }\n" +
+                "        firstPurchaseDiagnosticFailure = nil\n" +
+                "    }\n\n" +
+                "    private func recordPurchaseDiagnosticFailure(\n" +
+                "        _ failure: S10_4StoreKitProcessorFailureV1\n" +
+                "    ) {\n" +
+                "        guard S10_4StoreKitPurchaseDiagnosticGate.isEnabled,\n" +
+                "              firstPurchaseDiagnosticFailure == nil else {\n" +
+                "            return\n" +
+                "        }\n" +
+                "        firstPurchaseDiagnosticFailure = failure\n" +
+                "    }"
+        XCTAssertEqual(
+            storeKitProcessorSource.components(
+                separatedBy: exactProcessorFirstFailureRecorder
+            ).count - 1,
+            1
+        )
+        let processorDiagnosticOrdering =
+            "        if S10_4StoreKitPurchaseDiagnosticGate.isEnabled {\n" +
+                "            let resolution = await StoreKitRuntimeAdapterV1\n" +
+                "                .purchaseDiagnosticVerifiedEvent(\n" +
+                "                    from: transaction,\n" +
+                "                    shouldFinish: true\n" +
+                "                )\n" +
+                "            if let failure = resolution.failure {\n" +
+                "                recordPurchaseDiagnosticFailure(failure)\n" +
+                "            }\n" +
+                "            guard let event = resolution.event else {\n" +
+                "                return .unverified\n" +
+                "            }\n" +
+                "            return await applyVerified([event]) ? .verified : .failed\n" +
+                "        }"
+        XCTAssertEqual(
+            storeKitProcessorSource.components(
+                separatedBy: processorDiagnosticOrdering
+            ).count - 1,
+            1
+        )
+        for coordinatorDiagnosticLock in [
+            "@Published private(set) var s10_4StoreKitPurchaseDiagnosticJSON: String?",
+            "private let verifiedTransactionDiagnosticProvider:",
+            "private let verifiedTransactionDiagnosticReset:",
+            "processor?.firstPurchaseDiagnosticFailure",
+            "processor?.resetPurchaseDiagnosticFailure()",
+            "self.verifiedTransactionDiagnosticProvider = { nil }",
+            "self.verifiedTransactionDiagnosticReset = {}",
+            "s10_4StoreKitPurchaseDiagnosticJSON = nil",
+            "verifiedTransactionDiagnosticReset()",
+            "purchaseReservation == nil",
+            "purchaseReservation?.productID != productID",
+            "reason: .purchaseVerificationUnverified",
+            ".verifiedTransactionDiagnosticProvider()",
+            "reason: .processorUnverifiedWithoutReason",
+            "options: [.sortedKeys]",
+        ] {
+            XCTAssertTrue(
+                storeKitCoordinatorSource.contains(coordinatorDiagnosticLock),
+                coordinatorDiagnosticLock
+            )
+        }
+        let coordinatorStartResetOrdering =
+            "    func storeKitPurchaseStarted(productID: String) -> Bool {\n" +
+                "\u{23}if DEBUG\n" +
+                "        if S10_4StoreKitPurchaseDiagnosticGate.isEnabled {\n" +
+                "            s10_4StoreKitPurchaseDiagnosticJSON = nil\n" +
+                "            verifiedTransactionDiagnosticReset()\n" +
+                "        }\n" +
+                "\u{23}endif\n" +
+                "        guard let reservation = reservePurchase(productID: productID) " +
+                "else {\n" +
+                "            return false\n" +
+                "        }"
+        XCTAssertEqual(
+            storeKitCoordinatorSource.components(
+                separatedBy: coordinatorStartResetOrdering
+            ).count - 1,
+            1
+        )
+        let coordinatorCompletionStart =
+            "    func handleStoreKitCompletion("
+        let coordinatorCompletionEnd =
+            "\n\n    func complete(_ result: PaywallPurchaseAttemptV1) async {"
+        guard let coordinatorCompletionStartRange = storeKitCoordinatorSource.range(
+            of: coordinatorCompletionStart
+        ), let coordinatorCompletionEndRange = storeKitCoordinatorSource.range(
+            of: coordinatorCompletionEnd,
+            range: coordinatorCompletionStartRange.upperBound..<storeKitCoordinatorSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded StoreKit completion diagnostic")
+            return
+        }
+        let coordinatorCompletionSource = String(
+            storeKitCoordinatorSource[
+                coordinatorCompletionStartRange.lowerBound
+                    ..<coordinatorCompletionEndRange.lowerBound
+            ]
+        )
+        var coordinatorCompletionCursor = coordinatorCompletionSource.startIndex
+        for orderedToken in [
+            "purchaseReservation == nil",
+            "reason: .missingPurchaseReservation",
+            "purchaseReservation?.productID != productID",
+            "reason: .completionProductMismatch",
+            "case let .unverified(_, error):",
+            "reason: .purchaseVerificationUnverified",
+            "let processingResult = await processor(transaction)",
+            ".verifiedTransactionDiagnosticProvider()",
+            "reason: .processorUnverifiedWithoutReason",
+            "return processingResult",
+        ] {
+            guard let orderedRange = coordinatorCompletionSource.range(
+                of: orderedToken,
+                range: coordinatorCompletionCursor..<coordinatorCompletionSource.endIndex
+            ) else {
+                XCTFail("StoreKit completion diagnostic ordering lost \(orderedToken)")
+                return
+            }
+            coordinatorCompletionCursor = orderedRange.upperBound
+        }
+        let coordinatorSerializerStart =
+            "    private func publishS10_4StoreKitPurchaseDiagnostic("
+        let coordinatorSerializerEnd =
+            "\n#endif\n\n    private func reloadProduct() async {"
+        guard let coordinatorSerializerStartRange = storeKitCoordinatorSource.range(
+            of: coordinatorSerializerStart
+        ), let coordinatorSerializerEndRange = storeKitCoordinatorSource.range(
+            of: coordinatorSerializerEnd,
+            range: coordinatorSerializerStartRange.upperBound..<storeKitCoordinatorSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded StoreKit coordinator diagnostic serializer")
+            return
+        }
+        let coordinatorSerializerSource = String(
+            storeKitCoordinatorSource[
+                coordinatorSerializerStartRange.lowerBound
+                    ..<coordinatorSerializerEndRange.lowerBound
+            ]
+        )
+        for key in [
+            #""schemaVersion""#,
+            #""terminalState""#,
+            #""stage""#,
+            #""callbackProductID""#,
+            #""firstFailureReason""#,
+            #""verificationErrorCase""#,
+        ] {
+            XCTAssertEqual(
+                coordinatorSerializerSource.components(separatedBy: key).count - 1,
+                1,
+                key
+            )
+        }
+        for prohibited in [
+            "jwsRepresentation",
+            "transaction.id",
+            "originalID",
+            "purchaseDate",
+            "expirationDate",
+            "storefront",
+            "customer",
+            "device",
+            "localizedDescription",
+            "currentEntitlements",
+            "allTransactions",
+            "EntitlementStore",
+        ] {
+            XCTAssertFalse(
+                coordinatorSerializerSource.contains(prohibited),
+                prohibited
+            )
+        }
         let initialStoreKitSetup =
             "        storeKitSession = try SKTestSession(contentsOf: fixtureURL)\n" +
                 "        storeKitSession?.resetToDefaultState()\n" +
@@ -3661,7 +3997,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let unverifiedRetryEnd =
             "            }\n" +
                 "        }\n" +
-                "        waitForLocalizedLabel("
+                #"        if automationShard?.shardID == "s10.4.current.default-dark" {"#
         guard let unverifiedRetryStartRange = purchaseRecoverySource.range(
             of: unverifiedRetryStart
         ),
@@ -3820,7 +4156,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let retryReadyTapAndFinalVerifiedWait =
+        let retryReadyTapAndDiagnosticGate =
             #"                store = element("s7.2.paywall.store", in: app)"# + "\n" +
                 "                XCTAssertTrue(store.waitForExistence(timeout: 30))\n" +
                 "                XCTAssertTrue(wait(\n" +
@@ -3838,10 +4174,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                purchaseState = element("s7.2.paywall.purchase-state", in: app)"# + "\n" +
                 "            }\n" +
                 "        }\n" +
-                finalVerifiedPurchaseWait
+                #"        if automationShard?.shardID == "s10.4.current.default-dark" {"#
         XCTAssertEqual(
             purchaseRecoverySource.components(
-                separatedBy: retryReadyTapAndFinalVerifiedWait
+                separatedBy: retryReadyTapAndDiagnosticGate
             ).count - 1,
             1
         )
@@ -3913,11 +4249,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             purchaseRecoverySource.components(separatedBy: "timeout: 45").count - 1,
-            2
+            3
         )
         XCTAssertEqual(
             purchaseRecoverySource.components(separatedBy: "timeout:").count - 1,
-            8
+            10
         )
         XCTAssertEqual(
             unverifiedRetrySource.components(separatedBy: "timeout: 30").count - 1,
@@ -4004,11 +4340,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "    @MainActor\n" +
                 "    private func captureAvailablePaywallAndPurchase(\n" +
                 "        in app: XCUIApplication\n" +
-                "    ) -> Bool {\n" +
+                "    ) throws -> Bool {\n" +
                 "        var usedSettingsRetry = false"
         let availablePurchaseFunctionEnd =
-            "\n\n    @MainActor\n" +
-                "    private func assertMonthlyPaywallAtXXXL("
+            "\n\n    private func diagnoseStoreKitVerificationAndProcessor("
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: availablePurchaseFunctionStart
@@ -4029,29 +4364,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 availablePurchaseFunctionStartRange.lowerBound..<availablePurchaseFunctionEndRange.lowerBound
             ]
         )
-        for restoredNonthrowingStoreKitCallChainLock in [
-            "        captureAlternativeCompletedCheckStates(in: app)",
-            "    private func captureAlternativeCompletedCheckStates(\n" +
-                "        in app: XCUIApplication\n" +
-                "    ) {",
-            "        purchaseBlockedEvaluationAndBeginFreshCheck(in: app)",
-            "    private func purchaseBlockedEvaluationAndBeginFreshCheck(\n" +
-                "        in app: XCUIApplication\n" +
-                "    ) {",
-            "        let usedSettingsRetry = captureAvailablePaywallAndPurchase(in: app)",
-            "    private func captureAvailablePaywallAndPurchase(\n" +
-                "        in app: XCUIApplication\n" +
-                "    ) -> Bool {",
-        ] {
-            XCTAssertEqual(
-                uiSource.components(
-                    separatedBy: restoredNonthrowingStoreKitCallChainLock
-                ).count - 1,
-                1,
-                restoredNonthrowingStoreKitCallChainLock
-            )
-        }
-        for removedThrowingStoreKitDiagnosticCallChainLock in [
+        for restoredThrowingStoreKitCallChainLock in [
             "        try captureAlternativeCompletedCheckStates(in: app)",
             "    private func captureAlternativeCompletedCheckStates(\n" +
                 "        in app: XCUIApplication\n" +
@@ -4067,10 +4380,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertEqual(
                 uiSource.components(
-                    separatedBy: removedThrowingStoreKitDiagnosticCallChainLock
+                    separatedBy: restoredThrowingStoreKitCallChainLock
+                ).count - 1,
+                1,
+                restoredThrowingStoreKitCallChainLock
+            )
+        }
+        for removedNonthrowingStoreKitCallChainLock in [
+            "        captureAlternativeCompletedCheckStates(in: app)",
+            "    private func captureAlternativeCompletedCheckStates(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) {",
+            "        purchaseBlockedEvaluationAndBeginFreshCheck(in: app)",
+            "    private func purchaseBlockedEvaluationAndBeginFreshCheck(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) {",
+            "        let usedSettingsRetry = captureAvailablePaywallAndPurchase(in: app)",
+            "    private func captureAvailablePaywallAndPurchase(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) -> Bool {",
+        ] {
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: removedNonthrowingStoreKitCallChainLock
                 ).count - 1,
                 0,
-                removedThrowingStoreKitDiagnosticCallChainLock
+                removedNonthrowingStoreKitCallChainLock
             )
         }
         XCTAssertEqual(
@@ -4089,7 +4424,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             availablePurchaseFunctionSource.components(
                 separatedBy: "return usedSettingsRetry"
             ).count - 1,
-            11
+            14
         )
         XCTAssertFalse(availablePurchaseFunctionSource.contains("\n            return\n"))
         XCTAssertFalse(availablePurchaseFunctionSource.contains("\n                    return\n"))
@@ -4099,6 +4434,146 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "    }"
         XCTAssertTrue(
             availablePurchaseFunctionSource.hasSuffix(availablePurchaseTerminalReturn)
+        )
+        let storeKitDiagnosticStart =
+            "    private func diagnoseStoreKitVerificationAndProcessor(\n"
+        let storeKitDiagnosticEnd =
+            "\n\n    @MainActor\n" +
+                "    private func assertMonthlyPaywallAtXXXL("
+        XCTAssertEqual(
+            uiSource.components(separatedBy: storeKitDiagnosticStart).count - 1,
+            1
+        )
+        guard let storeKitDiagnosticStartRange = uiSource.range(
+            of: storeKitDiagnosticStart
+        ), let storeKitDiagnosticEndRange = uiSource.range(
+            of: storeKitDiagnosticEnd,
+            range: storeKitDiagnosticStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded StoreKit verification/processor diagnostic")
+            return
+        }
+        let storeKitDiagnosticSource = String(
+            uiSource[
+                storeKitDiagnosticStartRange.lowerBound
+                    ..<storeKitDiagnosticEndRange.lowerBound
+            ]
+        )
+        for diagnosticLock in [
+            "firstValue: String",
+            "finalValue: String",
+            "usedSettingsRetry: Bool",
+            "in app: XCUIApplication",
+            "XCTAttachment(string: firstValue)",
+            "XCTAttachment(string: finalValue)",
+            "XCTAttachment(string: app.debugDescription)",
+            "screenshot: XCUIScreen.main.screenshot()",
+            "S10.4 default-dark StoreKit diagnostic first value",
+            "S10.4 default-dark StoreKit diagnostic final value",
+            "S10.4 default-dark StoreKit diagnostic accessibility tree",
+            "S10.4 default-dark StoreKit diagnostic screenshot",
+            "S10_4_STOREKIT_VERIFICATION_PROCESSOR_DIAGNOSTIC",
+            "StoreKit verification/processor diagnostic completed nonaccepting",
+        ] {
+            XCTAssertEqual(
+                storeKitDiagnosticSource.components(
+                    separatedBy: diagnosticLock
+                ).count - 1,
+                1,
+                diagnosticLock
+            )
+        }
+        XCTAssertEqual(
+            storeKitDiagnosticSource.components(
+                separatedBy: "XCTAttachment("
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            storeKitDiagnosticSource.components(
+                separatedBy: ".lifetime = .keepAlways"
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            storeKitDiagnosticSource.components(
+                separatedBy: "        add("
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            storeKitDiagnosticSource.components(
+                separatedBy: "printJSONLine("
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            storeKitDiagnosticSource.components(
+                separatedBy: "throw AutomationConfigurationError.invalid("
+            ).count - 1,
+            1
+        )
+        for prohibited in [
+            ".tap()",
+            ".swipe",
+            ".coordinate(",
+            ".press(",
+            "Thread.sleep",
+            "captureBaseline(",
+            "attachCandidate(",
+            "performAccessibilityAudit",
+            "S10_4_AX",
+            "S10_4_CONTRAST",
+            "S10_4_CANDIDATE",
+            "S10_4_RECEIPT",
+            "allTransactions",
+            "currentEntitlements",
+        ] {
+            XCTAssertFalse(storeKitDiagnosticSource.contains(prohibited), prohibited)
+        }
+        let firstDiagnosticBeforeTermination =
+            "                firstStoreKitDiagnosticValue = diagnosticValue\n" +
+                "            }\n" +
+                "            if purchaseState.label == unverifiedPurchaseLabel {"
+        XCTAssertEqual(
+            purchaseRecoverySource.components(
+                separatedBy: firstDiagnosticBeforeTermination
+            ).count - 1,
+            1
+        )
+        let diagnosticTerminalBeforeVerifiedWait =
+            "            try diagnoseStoreKitVerificationAndProcessor(\n" +
+                "                firstValue: firstStoreKitDiagnosticValue,\n" +
+                "                finalValue: finalStoreKitDiagnosticValue,\n" +
+                "                usedSettingsRetry: usedSettingsRetry,\n" +
+                "                in: app\n" +
+                "            )\n" +
+                "        }\n" +
+                finalVerifiedPurchaseWait
+        XCTAssertEqual(
+            purchaseRecoverySource.components(
+                separatedBy: diagnosticTerminalBeforeVerifiedWait
+            ).count - 1,
+            1
+        )
+        let defaultDarkDiagnosticArgument =
+            #"            if shard.shardID == "s10.4.current.default-dark" {"# + "\n" +
+                "                app.launchArguments.append(\n" +
+                #"                    "--s10-4-storekit-purchase-diagnostic""# + "\n" +
+                "                )\n" +
+                "            }\n" +
+                "            app.launchArguments += localizationArguments(for: shard)"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: defaultDarkDiagnosticArgument
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: #""--s10-4-storekit-purchase-diagnostic""#
+            ).count - 1,
+            1
         )
 
         let purchaseCallerStart =
@@ -4123,7 +4598,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource[purchaseCallerStartRange.lowerBound..<purchaseCallerEndRange.lowerBound]
         )
         let postCloseSettingsRestoration =
-            "        let usedSettingsRetry = captureAvailablePaywallAndPurchase(in: app)\n" +
+            "        let usedSettingsRetry = try captureAvailablePaywallAndPurchase(in: app)\n" +
                 "\n" +
                 #"        let close = element("s7.2.paywall.close", in: app)"# + "\n" +
                 "        scrollDown(close, in: app)\n" +
@@ -4898,8 +5373,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "FieldEvidenceApp/Features/Subscription/PaywallView.swift"
         try assertFile(
             paywallSourcePath,
-            byteCount: 13_476,
-            sha256: "8C3D3F67C003B8A91B07068C99665752D2F02F18D42BAD1AF7A27EF88E75BFA6"
+            byteCount: 14_504,
+            sha256: "9E8C270360195A7CF54732504C51C2036EF1D35C158FEA91523932CF9EDF3350"
         )
         let paywallSource = try text(paywallSourcePath)
         let purchaseStatusSlotCallsite =
@@ -5018,38 +5493,87 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             paywallSource.components(separatedBy: ".id(").count - 1,
             0
         )
-        let livePurchaseStatusRenderer =
+        let livePurchaseStatusRendererStart =
             "    @ViewBuilder\n" +
                 "    private func purchaseStatus(for state: " +
-                "PaywallPurchaseStateV1) -> some View {\n" +
-                "        switch state {\n" +
-                "        case .idle:\n" +
-                "            EmptyView()\n" +
-                "        case .purchasing:\n" +
-                "            AssetRoundsStateLabel(kind: .selected, " +
-                "\"Purchasing…\")\n" +
-                "                .accessibilityLabel(" +
-                "\"Information: Purchasing…\")\n" +
-                "                .accessibilityValue(" +
-                "Text(verbatim: String()))\n" +
-                "                .accessibilityIdentifier(" +
-                "Self.purchaseStateAccessibilityIdentifier)\n" +
-                "        case .verified:\n" +
-                "            verifiedPurchaseStatus\n" +
-                "        case .cancelled, .pending, .unverified, .failed:\n" +
-                "            recoveryPurchaseStatus(for: state)\n" +
-                "                .accessibilityFocused(" +
-                "$purchaseStatusFocused)\n" +
-                "                .accessibilityIdentifier(" +
-                "Self.purchaseStateAccessibilityIdentifier)\n" +
-                "        }\n" +
-                "    }"
-        XCTAssertEqual(
-            paywallSource.components(
-                separatedBy: livePurchaseStatusRenderer
-            ).count - 1,
-            1
+                "PaywallPurchaseStateV1) -> some View {"
+        let livePurchaseStatusRendererEnd =
+            "\n\n    private var verifiedPurchaseStatus: some View {"
+        guard let livePurchaseStatusRendererStartRange = paywallSource.range(
+            of: livePurchaseStatusRendererStart
+        ), let livePurchaseStatusRendererEndRange = paywallSource.range(
+            of: livePurchaseStatusRendererEnd,
+            range: livePurchaseStatusRendererStartRange.upperBound..<paywallSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded live Paywall purchase-status renderer")
+            return
+        }
+        let livePurchaseStatusRenderer = String(
+            paywallSource[
+                livePurchaseStatusRendererStartRange.lowerBound
+                    ..<livePurchaseStatusRendererEndRange.lowerBound
+            ]
         )
+        for liveRendererLock in [
+            "switch state",
+            "case .idle:",
+            "case .purchasing:",
+            "case .verified:",
+            "case .cancelled, .pending, .unverified, .failed:",
+            "\u{23}if DEBUG",
+            "S10_4StoreKitPurchaseDiagnosticGate.isEnabled",
+            "let diagnostic = coordinator.s10_4StoreKitPurchaseDiagnosticJSON",
+            ".accessibilityValue(Text(verbatim: diagnostic))",
+            ".accessibilityFocused($purchaseStatusFocused)",
+            ".accessibilityIdentifier(Self.purchaseStateAccessibilityIdentifier)",
+        ] {
+            XCTAssertTrue(
+                livePurchaseStatusRenderer.contains(liveRendererLock),
+                liveRendererLock
+            )
+        }
+        XCTAssertEqual(
+            livePurchaseStatusRenderer.components(
+                separatedBy: "\u{23}if DEBUG"
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            livePurchaseStatusRenderer.components(
+                separatedBy: "S10_4StoreKitPurchaseDiagnosticGate.isEnabled"
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            livePurchaseStatusRenderer.components(
+                separatedBy: ".accessibilityValue(Text(verbatim: diagnostic))"
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            livePurchaseStatusRenderer.components(
+                separatedBy: "verifiedPurchaseStatus"
+            ).count - 1,
+            3
+        )
+        XCTAssertEqual(
+            livePurchaseStatusRenderer.components(
+                separatedBy: "recoveryPurchaseStatus(for: state)"
+            ).count - 1,
+            3
+        )
+        for prohibited in [
+            "Text(diagnostic)",
+            "accessibilityIdentifier(\"",
+            ".overlay(",
+            ".background(",
+            ".frame(",
+            ".padding(",
+            ".onTapGesture",
+            "Button(",
+        ] {
+            XCTAssertFalse(livePurchaseStatusRenderer.contains(prohibited), prohibited)
+        }
         let verifiedPurchaseStatusRenderer =
             "    private var verifiedPurchaseStatus: some View {\n" +
                 "        AssetRoundsStateLabel(\n" +

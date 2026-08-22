@@ -254,11 +254,35 @@ struct PaywallView: View {
                 .accessibilityValue(Text(verbatim: String()))
                 .accessibilityIdentifier(Self.purchaseStateAccessibilityIdentifier)
         case .verified:
+#if DEBUG
+            if S10_4StoreKitPurchaseDiagnosticGate.isEnabled,
+               let diagnostic = coordinator.s10_4StoreKitPurchaseDiagnosticJSON {
+                verifiedPurchaseStatus
+                    .accessibilityValue(Text(verbatim: diagnostic))
+            } else {
+                verifiedPurchaseStatus
+            }
+#else
             verifiedPurchaseStatus
+#endif
         case .cancelled, .pending, .unverified, .failed:
+#if DEBUG
+            if S10_4StoreKitPurchaseDiagnosticGate.isEnabled,
+               let diagnostic = coordinator.s10_4StoreKitPurchaseDiagnosticJSON {
+                recoveryPurchaseStatus(for: state)
+                    .accessibilityFocused($purchaseStatusFocused)
+                    .accessibilityIdentifier(Self.purchaseStateAccessibilityIdentifier)
+                    .accessibilityValue(Text(verbatim: diagnostic))
+            } else {
+                recoveryPurchaseStatus(for: state)
+                    .accessibilityFocused($purchaseStatusFocused)
+                    .accessibilityIdentifier(Self.purchaseStateAccessibilityIdentifier)
+            }
+#else
             recoveryPurchaseStatus(for: state)
                 .accessibilityFocused($purchaseStatusFocused)
                 .accessibilityIdentifier(Self.purchaseStateAccessibilityIdentifier)
+#endif
         }
     }
 
