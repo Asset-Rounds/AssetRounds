@@ -379,8 +379,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for throwingDiagnosticsCallChainLock in [
             "        try assertMonthlyPaywallAtXXXL(in: app)",
             "    private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) throws {",
-            "        try captureSettingsDataSurfaces(in: app)",
-            "    private func captureSettingsDataSurfaces(in app: XCUIApplication) throws {",
         ] {
             XCTAssertEqual(
                 uiSource.components(
@@ -390,15 +388,27 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 throwingDiagnosticsCallChainLock
             )
         }
-        for removedNonthrowingDiagnosticsCallChainLock in [
-            "        assertMonthlyPaywallAtXXXL(in: app)",
-            "    private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) {",
+        for restoredNonthrowingSettingsDataSurfacesLock in [
             "        captureSettingsDataSurfaces(in: app)",
             "    private func captureSettingsDataSurfaces(in app: XCUIApplication) {",
         ] {
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: restoredNonthrowingSettingsDataSurfacesLock
+                ).count - 1,
+                1,
+                restoredNonthrowingSettingsDataSurfacesLock
+            )
+        }
+        for removedDiagnosticsCallChainLock in [
+            "        assertMonthlyPaywallAtXXXL(in: app)",
+            "    private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) {",
+            "        try captureSettingsDataSurfaces(in: app)",
+            "    private func captureSettingsDataSurfaces(in app: XCUIApplication) throws {",
+        ] {
             XCTAssertFalse(
-                uiSource.contains(removedNonthrowingDiagnosticsCallChainLock),
-                removedNonthrowingDiagnosticsCallChainLock
+                uiSource.contains(removedDiagnosticsCallChainLock),
+                removedDiagnosticsCallChainLock
             )
         }
         XCTAssertTrue(uiSource.contains("func testAutomatedBrandLabShard()"))
