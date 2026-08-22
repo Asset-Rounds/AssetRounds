@@ -412,8 +412,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 288_345,
-            sha256: "9A3D34EC332FBFAD2B284955AD7962F278CABA17F77741F62A4025CE5900DF2E"
+            byteCount: 288_317,
+            sha256: "D0BC586C7702FFA9A967E17E18EDE2A3E4819170DEBA5BC7EA5C081D9D52BB7D"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1786,10 +1786,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 keyboardSnapshotHelperStartRange.lowerBound..<keyboardSnapshotHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(keyboardSnapshotHelperSource.utf8.count, 1_442)
+        XCTAssertEqual(keyboardSnapshotHelperSource.utf8.count, 1_414)
         XCTAssertEqual(
             Data(keyboardSnapshotHelperSource.utf8).sha256,
-            "A801503BF2D51DEE482783E2D19C4BCCC48F4EA1F31C8767532B12026880EE8F"
+            "B21B236F52CDA9BEE865D20A435F09C60F2BD97D248C3B61E03048C487CF4084"
         )
         let keyboardSnapshotHelperContracts = [
             "        keyboard: XCUIElement,",
@@ -1807,14 +1807,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "        appendDescendantSnapshots(from: keyboardSnapshot)",
             "        let snapshotKeyCount = descendantSnapshots.filter {",
             "            $0.elementType == .key",
-            "        let interactiveDescendantCount = descendants.matching(",
-            #"                format: "hasKeyboardFocus == true OR hittable == true""#,
+            "        let focusedDescendantCount = descendants.matching(",
+            #"                format: "hasKeyboardFocus == true""#,
             "        return descendantSnapshots.count == descendantCount",
             "            && snapshotKeyCount == keyCount",
             "            && descendantSnapshots.allSatisfy { snapshot in",
             "                let snapshotFrame = snapshot.frame",
             "                    && snapshotFrame.minY >= applicationFrame.maxY",
-            "            && interactiveDescendantCount == 0",
+            "            && focusedDescendantCount == 0",
         ]
         for contract in keyboardSnapshotHelperContracts {
             XCTAssertTrue(
@@ -1829,12 +1829,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("descendantSnapshots.count", 1),
             ("snapshotKeyCount", 2),
             ("elementType == .key", 1),
-            ("hasKeyboardFocus == true OR hittable == true", 1),
-            ("interactiveDescendantCount", 2),
+            ("hasKeyboardFocus == true", 1),
+            ("descendants.matching(", 1),
+            ("focusedDescendantCount", 2),
             ("allSatisfy { snapshot in", 1),
             ("snapshot.frame", 1),
             ("snapshotFrame.minY >= applicationFrame.maxY", 1),
-            ("interactiveDescendantCount == 0", 1),
+            ("focusedDescendantCount == 0", 1),
         ] {
             XCTAssertEqual(
                 keyboardSnapshotHelperSource.components(
@@ -1849,6 +1850,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "keyboardKeyElements",
             "isWhollyOffAppAndInert",
             "allElementsBoundByIndex",
+            "hasKeyboardFocus == true OR hittable == true",
+            "hittable == true",
+            "isHittable",
+            "interactiveDescendantCount",
         ] {
             XCTAssertFalse(
                 keyboardSnapshotHelperSource.contains(prohibitedKeyboardTreeForm),

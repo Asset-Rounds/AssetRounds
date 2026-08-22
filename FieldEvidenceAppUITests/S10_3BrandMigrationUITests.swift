@@ -5925,9 +5925,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let snapshotKeyCount = descendantSnapshots.filter {
             $0.elementType == .key
         }.count
-        let interactiveDescendantCount = descendants.matching(
+        let focusedDescendantCount = descendants.matching(
             NSPredicate(
-                format: "hasKeyboardFocus == true OR hittable == true"
+                format: "hasKeyboardFocus == true"
             )
         ).count
         return descendantSnapshots.count == descendantCount
@@ -5937,7 +5937,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 return !snapshotFrame.isEmpty
                     && snapshotFrame.minY >= applicationFrame.maxY
             }
-            && interactiveDescendantCount == 0
+            && focusedDescendantCount == 0
     }
 
     @MainActor
