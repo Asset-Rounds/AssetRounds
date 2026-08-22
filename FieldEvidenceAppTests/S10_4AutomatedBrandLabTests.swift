@@ -2464,7 +2464,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "    ) -> Bool {"
         let reportHistoryPositioningEnd =
             "\n\n    @MainActor\n" +
-                "    private func completeWorkAndResolvedRecheckAtXXXL("
+                "    private func positionReportHistoryHeaderAndVisitForAXTextDiagnostic("
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: reportHistoryPositioningStart
@@ -2896,7 +2896,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let reportHistoryDiagnosticRouteContracts = [
             "        func hasExactRoute() -> Bool {",
-            "            let applicationFrame = app.frame",
+            "            let applicationFrame = app.frame\n" +
+                "            let historyScreenFrame = historyScreen.frame",
             "            let historyScreenFrame = historyScreen.frame",
             "            let historyHeaderFrame = historyHeader.frame",
             "            let viewReportFrame = viewReportControl.frame",
@@ -2904,7 +2905,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "            let historyNavigationFrame = historyNavigationBar.frame",
             "            let historyTabFrame = historyTabBar.frame",
             "            let reportHistoryVisitFrame = reportHistoryVisit.frame",
-            "            let visitCompositeFrame = visitComposite.frame",
+            "            let reportHistoryVisitFrame = reportHistoryVisit.frame\n" +
+                "            let visitCompositeFrame = visitComposite.frame",
             "                && historyScreens.count == 1",
             "                && historyHeaders.count == 1",
             "                && northCampusTexts.count == 2",
@@ -3306,8 +3308,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (#""reportHistoryScrollView": diagnosticQueryObject("#, 1),
             (#""reportHistoryNavigationBar": diagnosticQueryObject("#, 1),
             (#""reportHistoryTabBar": diagnosticQueryObject("#, 1),
-            (#""reportHistoryVisit": diagnosticQueryObject(reportHistoryVisits)"#, 1),
-            (#""reportHistoryVisitComposite": diagnosticQueryObject(reportHistoryVisitComposites)"#, 1),
+            (#""reportHistoryVisit": diagnosticQueryObject("#, 1),
+            (#""reportHistoryVisitComposite": diagnosticQueryObject("#, 1),
         ] {
             XCTAssertEqual(
                 reportHistoryDiagnosticSource.components(
