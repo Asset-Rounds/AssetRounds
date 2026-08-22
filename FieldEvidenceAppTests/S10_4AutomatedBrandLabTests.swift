@@ -105,8 +105,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             workflowPath,
-            byteCount: 101_902,
-            sha256: "119FF51D3C10E69558811AFFCE661AB98A640FC0F5BF803DF327183AC5E0B084"
+            byteCount: 104_824,
+            sha256: "567330CBA828E6DEDA69C3DE546255CD71CEF2D31002B2EC553E1D1DD609A04A"
         )
         let workflowSource = try text(workflowPath)
         let retainStepMarker = "      - name: Retain S10.4 shard evidence\n"
@@ -309,8 +309,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 235_272,
-            sha256: "5569517936A593FD201D83A83628D753A4A001E32381534019DC58D17F73826D"
+            byteCount: 236_636,
+            sha256: "39D4CBB61B09A225742A07A614AE80F506E3E5EC9265FA1272E95E6AA7746332"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -5720,11 +5720,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
 
         let reportCorrectionDiagnosticStart =
-            "            let reportCorrectionHeaderDiagnosticShardIDs: Set<String> = [\n" +
-                "                \"s10.4.current.differentiate-without-color\",\n" +
-                "                \"s10.4.current.reduce-motion\",\n" +
-                "            ]\n" +
-                "            if reportCorrectionHeaderDiagnosticShardIDs.contains(shard.shardID),\n" +
+            "            if shard.shardID == \"s10.4.current.differentiate-without-color\",\n" +
                 "               stateID == \"state.report-correction.validation-error\" {"
         let reportCorrectionEligibleExceptions =
             "            let eligibleExceptions = " +
@@ -5740,7 +5736,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             of: reportCorrectionEligibleExceptions,
             range: reportCorrectionDiagnosticStartRange.upperBound..<uiSource.endIndex
         ) else {
-            XCTFail("Missing the exact two-shard report-correction diagnostic branch")
+            XCTFail("Missing the exact differentiate-only report-correction diagnostic branch")
             return
         }
         let reportCorrectionDiagnostic = String(
@@ -5750,10 +5746,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         for lock in [
-            "reportCorrectionHeaderDiagnosticShardIDs: Set<String> = [",
-            "s10.4.current.differentiate-without-color",
-            "s10.4.current.reduce-motion",
-            "reportCorrectionHeaderDiagnosticShardIDs.contains(shard.shardID)",
+            #"if shard.shardID == "s10.4.current.differentiate-without-color","#,
             #"stateID == "state.report-correction.validation-error""#,
         ] {
             XCTAssertEqual(
@@ -5766,10 +5759,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "s10.4.current.default-light",
             "s10.4.current.default-dark",
             "s10.4.current.increased-contrast",
+            "s10.4.current.reduce-motion",
+            "reportCorrectionHeaderDiagnosticShardIDs",
         ] {
             XCTAssertFalse(
                 reportCorrectionDiagnostic.contains(prohibitedShardID),
                 prohibitedShardID
+            )
+        }
+        for staleReportCorrectionDiagnostic in [
+            "let reportCorrectionHeaderDiagnosticShardIDs: Set<String> = [",
+            "reportCorrectionHeaderDiagnosticShardIDs.contains(shard.shardID)",
+            "                \"s10.4.current.differentiate-without-color\",\n" +
+                "                \"s10.4.current.reduce-motion\",",
+        ] {
+            XCTAssertFalse(
+                uiSource.contains(staleReportCorrectionDiagnostic),
+                staleReportCorrectionDiagnostic
             )
         }
 
@@ -6059,6 +6065,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER",
             "S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER",
+            "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER",
         ]
         let exceptionRationales = [
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Wide view even though the audit-owned crop visibly renders white text on the dark elevated Sample card; the exception is limited to the frozen public issue signature.",
@@ -6069,6 +6076,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in default light even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in default dark even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in increased contrast even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in reduce motion even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
         ]
         for lock in exceptionIDs {
             XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1, lock)
@@ -6088,7 +6096,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("state.new-sign.editing", 1),
             ("state.sample-report.ready", 1),
             ("state.feedback.review-ready", 1),
-            ("state.report-correction.validation-error", 3),
+            ("state.report-correction.validation-error", 4),
         ]
         for (stateID, expectedCount) in uiExceptionStateCounts {
             let lock = #"stateID: "\#(stateID)""#
@@ -6100,37 +6108,37 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(separatedBy: "ContrastAuditExceptionSignature(").count - 1,
-            8
+            9
         )
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: #"issueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            8
+            9
         )
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            16
+            18
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"owner: "palatis3""#).count - 1,
-            8
+            9
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionOwner: "palatis3""#)
                 .count - 1,
-            8
+            9
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"expiresAt: "2026-11-20""#).count - 1,
-            8
+            9
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionExpiresAt: "2026-11-20""#)
                 .count - 1,
-            8
+            9
         )
 
         let signatureLocks = [
@@ -6146,8 +6154,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER""#,
             #"issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER""#,
             #"issueID: "S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER""#,
+            #"issueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER""#,
             #"shardID: "s10.4.current.default-light""#,
             #"shardID: "s10.4.current.increased-contrast""#,
+            #"shardID: "s10.4.current.reduce-motion""#,
             #"stateID: "state.report-correction.validation-error""#,
             #"elementIdentifier: "s4.5.correction.header""#,
             #"elementLabel: "Correct report""#,
@@ -6185,8 +6195,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER""#,
+            #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER""#,
             #"shardID: "s10.4.current.default-light""#,
             #"shardID: "s10.4.current.increased-contrast""#,
+            #"shardID: "s10.4.current.reduce-motion""#,
             #"stateID: "state.report-correction.validation-error""#,
             #"elementIdentifier: "s4.5.correction.header""#,
             #"elementLabel: "Correct report""#,
@@ -6321,6 +6333,120 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
 
+        let reduceMotionUIAuthorityStart =
+            #"            issueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER","#
+        let reduceMotionUIAuthorityEnd =
+            "    ]\n\n    private static let commonTaskStateIDs:"
+        guard let reduceMotionUIAuthorityStartRange = uiSource.range(
+            of: reduceMotionUIAuthorityStart
+        ),
+        let reduceMotionUIAuthorityEndRange = uiSource.range(
+            of: reduceMotionUIAuthorityEnd,
+            range: reduceMotionUIAuthorityStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the exact reduce-motion UI contrast authority")
+            return
+        }
+        let reduceMotionUIAuthority = String(
+            uiSource[
+                reduceMotionUIAuthorityStartRange.lowerBound..<reduceMotionUIAuthorityEndRange.lowerBound
+            ]
+        )
+        let reduceMotionWorkflowAuthorityStart =
+            "              {\n" +
+                #"                shardID: "s10.4.current.reduce-motion","# + "\n" +
+                #"                stateID: "state.report-correction.validation-error","# + "\n" +
+                #"                taskID: "report_comprehension","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER","#
+        let reduceMotionWorkflowAuthorityEnd =
+            "            ]\n          ' > \"$contrast_exception_authority_path\""
+        guard let reduceMotionWorkflowAuthorityStartRange = workflowSource.range(
+            of: reduceMotionWorkflowAuthorityStart
+        ),
+        let reduceMotionWorkflowAuthorityEndRange = workflowSource.range(
+            of: reduceMotionWorkflowAuthorityEnd,
+            range: reduceMotionWorkflowAuthorityStartRange.upperBound..<workflowSource.endIndex
+        ) else {
+            XCTFail("Missing the exact reduce-motion workflow contrast authority")
+            return
+        }
+        let reduceMotionWorkflowAuthority = String(
+            workflowSource[
+                reduceMotionWorkflowAuthorityStartRange.lowerBound..<reduceMotionWorkflowAuthorityEndRange.lowerBound
+            ]
+        )
+        let reduceMotionRationale =
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue " +
+                "for the identified Correct report header in reduce motion even though " +
+                "the audit-owned crop visibly renders the complete header unobscured " +
+                "and wholly above the keyboard; the exception is limited to the frozen " +
+                "public issue signature."
+        let reduceMotionUIAuthorityLocks = [
+            #"issueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER""#,
+            #"shardID: "s10.4.current.reduce-motion""#,
+            #"stateID: "state.report-correction.validation-error""#,
+            #"taskID: "report_comprehension""#,
+            #"owner: "palatis3""#,
+            #"expiresAt: "2026-11-20""#,
+            "rationale: \"" + reduceMotionRationale + "\"",
+            #"auditTypeRawValue: "1""#,
+            #"compactDescription: "Contrast failed""#,
+            #"detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode""#,
+            #"elementIdentifier: "s4.5.correction.header""#,
+            #"elementLabel: "Correct report""#,
+            #"elementTypeDescription: "XCUIElementType(rawValue: 48)""#,
+            "elementFrame: CGRect(\n" +
+                "                x: 32,\n" +
+                "                y: 111.33333587646484,\n" +
+                "                width: 248,\n" +
+                "                height: 40.666664123535156\n" +
+                "            )",
+            "applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)",
+        ]
+        let reduceMotionWorkflowAuthorityLocks = [
+            #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER""#,
+            #"shardID: "s10.4.current.reduce-motion""#,
+            #"stateID: "state.report-correction.validation-error""#,
+            #"taskID: "report_comprehension""#,
+            #"exceptionOwner: "palatis3""#,
+            #"exceptionExpiresAt: "2026-11-20""#,
+            "exceptionRationale: \"" + reduceMotionRationale + "\"",
+            #"auditTypeRawValue: "1""#,
+            #"compactDescription: "Contrast failed""#,
+            #"detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode""#,
+            #"elementIdentifier: "s4.5.correction.header""#,
+            #"elementLabel: "Correct report""#,
+            #"elementType: "XCUIElementType(rawValue: 48)""#,
+            "elementFrame: {\n" +
+                "                      x: 32,\n" +
+                "                      y: 111.33333587646484,\n" +
+                "                      width: 248,\n" +
+                "                      height: 40.666664123535156\n" +
+                "                    }",
+            "applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
+        ]
+        for lock in reduceMotionUIAuthorityLocks {
+            XCTAssertEqual(
+                reduceMotionUIAuthority.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        for lock in reduceMotionWorkflowAuthorityLocks {
+            XCTAssertEqual(
+                reduceMotionWorkflowAuthority.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        for prohibitedExceptionIssueID in [
+            "S10.4-XCUI-CONTRAST-FP-DIFFERENTIATE-WITHOUT-COLOR",
+            "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY",
+        ] {
+            XCTAssertFalse(uiSource.contains(prohibitedExceptionIssueID))
+            XCTAssertFalse(workflowSource.contains(prohibitedExceptionIssueID))
+        }
+
         let failClosedHandlerLocks = [
             "private var automationContrastExceptions: [String: [ContrastAuditExceptionSignature]] = [:]",
             "let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {",
@@ -6401,6 +6527,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"permittedExceptionStateIDs = ["# + "\n" +
                 #"                    "state.report-correction.validation-error","# + "\n" +
                 #"                ]"#,
+            #"case ("s10.4.current.reduce-motion", "report_comprehension")"#,
             #"case ("s10.4.current.default-dark", "history_recovery")"#,
             #"permittedExceptionStateIDs = ["state.feedback.review-ready"]"#,
             #"guard taskExceptions.count <= taskIssueLimit else"#,
@@ -6452,6 +6579,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: #"case ("s10.4.current.reduce-motion""#
+            ).count - 1,
+            1
+        )
         let defaultLightTaskExceptionBound =
             #"            case ("s10.4.current.default-light", "report_comprehension"):"# +
                 "\n" +
@@ -6467,6 +6600,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let reduceMotionTaskExceptionBound =
+            #"            case ("s10.4.current.reduce-motion", "report_comprehension"):"# +
+                "\n" +
+                "                taskIssueLimit = 1\n" +
+                "                taskStateLimit = 1\n" +
+                "                permittedExceptionStateIDs = [\n" +
+                #"                    "state.report-correction.validation-error","# +
+                "\n" +
+                "                ]"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: reduceMotionTaskExceptionBound
+            ).count - 1,
+            1
+        )
         for removedFeedbackDiagnostic in [
             "enumerateFeedbackContrastAuditIssues",
             "S10_4_AUDIT_DIAGNOSTIC",
@@ -6479,14 +6627,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "contrast_exception_authority_path=",
             #"if .result == "PASS" then"#,
             #"elif .result == "EXCEPTION" then"#,
-            #"length == 8"#,
-            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 7"#,
-            #"and ([.[].exceptionIssueID] | unique | length) == 8"#,
+            #"length == 9"#,
+            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 8"#,
+            #"and ([.[].exceptionIssueID] | unique | length) == 9"#,
             #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 6"#,
             #"| select(.exceptionIssueID | IN("#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER","#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER","#,
-            #""S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER""#,
+            #""S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER","#,
+            #""S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER""#,
             #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 1"#,
             #"| select((.exceptionIssueID | IN("#,
             #")) | not)"#,
@@ -6516,6 +6665,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"error("contrast exception per-state issue limit exceeded")"#,
             #"error("default-light contrast exception bound exceeded")"#,
             #"error("default-dark contrast exception bound exceeded")"#,
+            #"error("reduce-motion contrast exception bound exceeded")"#,
             #"error("AX-text contrast exception bound exceeded")"#,
             #"error("contrast exception on ineligible shard")"#,
             #"def taskIssueLimit($shardID; $taskID):"#,
@@ -6550,6 +6700,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"($matchedAuthorities | length) > 3"#,
             #"($matchedExceptionStateIDs | length) > 3"#,
             #"elif $shard == "s10.4.current.increased-contrast""#,
+            #"elif $shard == "s10.4.current.reduce-motion""#,
             #"($matchedAuthorities | length) > 1"#,
             #"($matchedExceptionStateIDs | length) > 1"#,
             #"elif $shard == "s10.4.current.ax-text" then"#,
@@ -6561,6 +6712,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"or $stateID == "state.report-correction.validation-error""#,
             #"or $stateID == "state.sample-report.ready") then 1"#,
             #"and $stateID == "state.report-correction.validation-error" then 1"#,
+            #"and $shard != "s10.4.current.reduce-motion""#,
             #"matchedStateAuthorities($row; $exceptions[0]; $today) as $matched"#,
             #"($matched | length) > 0"#,
             #"<= stateIssueLimit($row.shardID; $row.stateID)"#,
@@ -6574,14 +6726,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "              | select(.exceptionIssueID | IN(\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER\",\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER\",\n" +
-                "                  \"S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER\"\n" +
+                "                  \"S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER\",\n" +
+                "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER\"\n" +
                 "                ))\n" +
                 "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 1\n" +
             "            and ([.[]\n" +
                 "              | select((.exceptionIssueID | IN(\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER\",\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER\",\n" +
-                "                  \"S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER\"\n" +
+                "                  \"S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER\",\n" +
+                "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER\"\n" +
                 "                )) | not)\n" +
                 "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 5"
         XCTAssertEqual(
@@ -6639,6 +6793,67 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let reduceMotionWorkflowTaskIssueBound =
+            #"                elif $shardID == "s10.4.current.reduce-motion""# + "\n" +
+                #"                     and $taskID == "report_comprehension" then 1"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: reduceMotionWorkflowTaskIssueBound
+            ).count - 1,
+            2
+        )
+        let reduceMotionWorkflowTuple =
+            #"                shardID: "s10.4.current.reduce-motion","# + "\n" +
+                #"                stateID: "state.report-correction.validation-error","# + "\n" +
+                #"                taskID: "report_comprehension","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER""#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: reduceMotionWorkflowTuple
+            ).count - 1,
+            2
+        )
+        let reduceMotionWorkflowStateIssueBound =
+            #"                elif $shardID == "s10.4.current.reduce-motion""# + "\n" +
+                #"                     and $stateID == "state.report-correction.validation-error" then 1"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: reduceMotionWorkflowStateIssueBound
+            ).count - 1,
+            1
+        )
+        let reduceMotionWorkflowAggregateBound =
+            #"                 elif $shard == "s10.4.current.reduce-motion""# + "\n" +
+                #"                     and (($matchedAuthorities | length) > 1"# + "\n" +
+                #"                       or ($matchedExceptionStateIDs | length) > 1) then"# +
+                "\n" +
+                #"                   error("reduce-motion contrast exception bound exceeded")"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: reduceMotionWorkflowAggregateBound
+            ).count - 1,
+            1
+        )
+        let reduceMotionWorkflowEligibility =
+            #"                      and $shard != "s10.4.current.increased-contrast""# + "\n" +
+                #"                      and $shard != "s10.4.current.ax-text""# + "\n" +
+                #"                      and $shard != "s10.4.current.reduce-motion""#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: reduceMotionWorkflowEligibility
+            ).count - 1,
+            1
+        )
+        let reduceMotionWorkflowDownstreamBound =
+            #"                      elif $shard == "s10.4.current.reduce-motion" then"# + "\n" +
+                #"                        ($matchedAuthorities | length) <= 1"# + "\n" +
+                #"                        and ($matchedExceptionStateIDs | length) <= 1"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: reduceMotionWorkflowDownstreamBound
+            ).count - 1,
+            1
+        )
         let axWorkflowAggregateBound =
             #"elif $shard == "s10.4.current.ax-text""# + "\n" +
                 #"                      and (($matchedAuthorities | length) > 3"# + "\n" +
@@ -6655,6 +6870,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"and ([.[].exceptionIssueID] | unique | length) == 5"#,
             #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 5"#,
             #"($matchedAuthorities | length) > 2"#,
+            "            length == 8\n" +
+                "            and ([.[] | [.shardID, .stateID] | join(\"|\")] | unique | length) == 7\n" +
+                "            and ([.[].exceptionIssueID] | unique | length) == 8",
+            "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER\",\n" +
+                "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER\",\n" +
+                "                  \"S10.4-XCUI-CONTRAST-FP-INCREASED-CONTRAST-REPORT-CORRECTION-HEADER\"\n" +
+                "                ))",
         ] {
             XCTAssertFalse(workflowSource.contains(staleLock), staleLock)
         }
@@ -6684,7 +6906,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workflowSource.components(
                 separatedBy: #"taskID: "report_comprehension""#
             ).count - 1,
-            8
+            10
         )
         XCTAssertFalse(workflowSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
         XCTAssertFalse(

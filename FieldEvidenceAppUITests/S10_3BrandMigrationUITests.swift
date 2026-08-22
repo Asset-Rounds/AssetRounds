@@ -265,6 +265,28 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             ),
             applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
         ),
+        ContrastAuditExceptionSignature(
+            issueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER",
+            shardID: "s10.4.current.reduce-motion",
+            stateID: "state.report-correction.validation-error",
+            taskID: "report_comprehension",
+            owner: "palatis3",
+            expiresAt: "2026-11-20",
+            rationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in reduce motion even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
+            auditTypeRawValue: "1",
+            compactDescription: "Contrast failed",
+            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+            elementIdentifier: "s4.5.correction.header",
+            elementLabel: "Correct report",
+            elementTypeDescription: "XCUIElementType(rawValue: 48)",
+            elementFrame: CGRect(
+                x: 32,
+                y: 111.33333587646484,
+                width: 248,
+                height: 40.666664123535156
+            ),
+            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
+        ),
     ]
 
     private static let commonTaskStateIDs: [(taskID: String, stateIDs: [String])] = [
@@ -3630,11 +3652,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             line: line
         )
         do {
-            let reportCorrectionHeaderDiagnosticShardIDs: Set<String> = [
-                "s10.4.current.differentiate-without-color",
-                "s10.4.current.reduce-motion",
-            ]
-            if reportCorrectionHeaderDiagnosticShardIDs.contains(shard.shardID),
+            if shard.shardID == "s10.4.current.differentiate-without-color",
                stateID == "state.report-correction.validation-error" {
                 let headerElements = app.descendants(matching: .any).matching(
                     identifier: "s4.5.correction.header"
@@ -4129,6 +4147,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     "state.sample-report.ready",
                 ]
             case ("s10.4.current.increased-contrast", "report_comprehension"):
+                taskIssueLimit = 1
+                taskStateLimit = 1
+                permittedExceptionStateIDs = [
+                    "state.report-correction.validation-error",
+                ]
+            case ("s10.4.current.reduce-motion", "report_comprehension"):
                 taskIssueLimit = 1
                 taskStateLimit = 1
                 permittedExceptionStateIDs = [
