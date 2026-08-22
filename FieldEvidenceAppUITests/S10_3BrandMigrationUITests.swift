@@ -1694,6 +1694,150 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let progress = element("s5.1.work.saving", in: app)
         XCTAssertTrue(progress.waitForExistence(timeout: 10))
         assertLocalizedLabel(progress, equals: "Record work")
+        guard app.state == .runningForeground,
+              workHelperTexts.count == 1,
+              workScrollViews.count == 1,
+              workNavigationBars.count == 1,
+              workHelper.exists,
+              workScrollView.exists,
+              workNavigationBar.exists,
+              workPreview.exists,
+              progress.exists else {
+            XCTFail("Record-work saving positioning route changed.")
+            return
+        }
+        for _ in 0..<4 {
+            guard app.state == .runningForeground,
+                  workHelperTexts.count == 1,
+                  workScrollViews.count == 1,
+                  workNavigationBars.count == 1,
+                  workHelper.exists,
+                  workScrollView.exists,
+                  workNavigationBar.exists,
+                  workPreview.exists,
+                  progress.exists else {
+                XCTFail("Record-work saving positioning route changed.")
+                return
+            }
+            let scrollFrame = workScrollView.frame
+            let applicationFrame = app.frame
+            let navigationFrame = workNavigationBar.frame
+            let liveScrollFrame = scrollFrame.intersection(applicationFrame)
+            let safeTop = max(
+                liveScrollFrame.minY,
+                navigationFrame.maxY
+            ) + verticalInset
+            let safeBottom = liveScrollFrame.maxY - verticalInset
+            let receiverTop = max(
+                liveScrollFrame.minY,
+                navigationFrame.maxY
+            ) + receiverInset
+            let receiverBottom = liveScrollFrame.maxY - receiverInset
+            let helperFrame = workHelper.frame
+            guard !applicationFrame.isNull,
+                  !applicationFrame.isEmpty,
+                  !navigationFrame.isNull,
+                  !navigationFrame.isEmpty,
+                  !scrollFrame.isNull,
+                  !scrollFrame.isEmpty,
+                  !liveScrollFrame.isNull,
+                  !liveScrollFrame.isEmpty,
+                  !helperFrame.isNull,
+                  !helperFrame.isEmpty,
+                  safeBottom > safeTop,
+                  helperFrame.height <= safeBottom - safeTop else {
+                XCTFail("Record-work saving viewport geometry is invalid.")
+                return
+            }
+            if helperFrame.minY >= safeTop,
+               helperFrame.maxY <= safeBottom,
+               workHelper.isHittable {
+                break
+            }
+
+            let minimumShift = safeTop - helperFrame.minY
+            let maximumShift = safeBottom - helperFrame.maxY
+            let receiverCapacity = receiverBottom - receiverTop
+            let recognizedMinimum = max(
+                minimumShift,
+                minimumGestureDistance
+            )
+            let recognizedMaximum = min(
+                maximumShift,
+                receiverCapacity
+            )
+            guard minimumShift > 0,
+                  minimumShift <= maximumShift,
+                  receiverCapacity >= minimumGestureDistance,
+                  recognizedMinimum <= recognizedMaximum else {
+                XCTFail("Record-work saving has no feasible downward correction.")
+                return
+            }
+            let dragDistance = recognizedMinimum
+            let scrollOrigin = workScrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStart = scrollOrigin.withOffset(
+                CGVector(
+                    dx: scrollFrame.width / 2,
+                    dy: receiverTop - scrollFrame.minY
+                )
+            )
+            let dragEnd = dragStart.withOffset(
+                CGVector(dx: 0, dy: dragDistance)
+            )
+            let helperMinYBeforeDrag = helperFrame.minY
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            guard workHelperTexts.count == 1,
+                  workScrollViews.count == 1,
+                  workNavigationBars.count == 1,
+                  workHelper.exists,
+                  progress.exists,
+                  workHelper.frame.minY > helperMinYBeforeDrag else {
+                XCTFail("Record-work saving helper did not move downward.")
+                return
+            }
+        }
+        let savingFinalApplicationFrame = app.frame
+        let savingFinalNavigationFrame = workNavigationBar.frame
+        let savingFinalScrollFrame = workScrollView.frame.intersection(
+            savingFinalApplicationFrame
+        )
+        let savingFinalSafeTop = max(
+            savingFinalScrollFrame.minY,
+            savingFinalNavigationFrame.maxY
+        ) + verticalInset
+        let savingFinalSafeBottom = savingFinalScrollFrame.maxY - verticalInset
+        let savingFinalHelperFrame = workHelper.frame
+        guard app.state == .runningForeground,
+              workHelperTexts.count == 1,
+              workScrollViews.count == 1,
+              workNavigationBars.count == 1,
+              workHelper.exists,
+              workScrollView.exists,
+              workNavigationBar.exists,
+              workPreview.exists,
+              progress.exists,
+              !savingFinalApplicationFrame.isNull,
+              !savingFinalApplicationFrame.isEmpty,
+              !savingFinalNavigationFrame.isNull,
+              !savingFinalNavigationFrame.isEmpty,
+              !savingFinalScrollFrame.isNull,
+              !savingFinalScrollFrame.isEmpty,
+              !savingFinalHelperFrame.isNull,
+              !savingFinalHelperFrame.isEmpty,
+              savingFinalHelperFrame.minY >= savingFinalSafeTop,
+              savingFinalHelperFrame.maxY <= savingFinalSafeBottom,
+              workHelper.isHittable,
+              workPreview.isHittable else {
+            XCTFail("Record-work saving composition is outside the safe viewport.")
+            return
+        }
         captureBaseline("state.work.saving", in: app)
 
         let issueScreen = element("s5.1.issue.screen", in: app)

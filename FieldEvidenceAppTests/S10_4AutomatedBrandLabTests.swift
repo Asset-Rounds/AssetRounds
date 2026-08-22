@@ -309,8 +309,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 216_455,
-            sha256: "83CE16A870DB880BC5B57AC9D18F906B77EB97D8F54B89CB69817D097F644676"
+            byteCount: 222_443,
+            sha256: "8CBEE205974F41A2CFFC9FC478216BF9D885E9C4A48B221455BA16A9A28706C1"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1430,6 +1430,340 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     staleWorkEditingPositioningForm
                 ),
                 staleWorkEditingPositioningForm
+            )
+        }
+
+        let workSavingPositioningStart =
+            "        XCTAssertTrue(progress.waitForExistence(timeout: 10))\n" +
+                #"        assertLocalizedLabel(progress, equals: "Record work")"#
+        let workSavingPositioningEnd =
+            #"        captureBaseline("state.work.saving", in: app)"#
+        XCTAssertEqual(
+            uiSource.components(separatedBy: workSavingPositioningStart).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: workSavingPositioningEnd).count - 1,
+            1
+        )
+        guard let workSavingPositioningStartRange = uiSource.range(
+            of: workSavingPositioningStart
+        ), let workSavingPositioningEndRange = uiSource.range(
+            of: workSavingPositioningEnd,
+            range: workSavingPositioningStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded Record-work saving positioning slice")
+            return
+        }
+        let workSavingPositioningSource = String(
+            uiSource[
+                workSavingPositioningStartRange.lowerBound..<workSavingPositioningEndRange.upperBound
+            ]
+        )
+
+        let workSavingInitialGuard =
+            "        guard app.state == .runningForeground,\n" +
+                "              workHelperTexts.count == 1,\n" +
+                "              workScrollViews.count == 1,\n" +
+                "              workNavigationBars.count == 1,\n" +
+                "              workHelper.exists,\n" +
+                "              workScrollView.exists,\n" +
+                "              workNavigationBar.exists,\n" +
+                "              workPreview.exists,\n" +
+                "              progress.exists else {\n" +
+                #"            XCTFail("Record-work saving positioning route changed.")"# + "\n" +
+                "            return\n" +
+                "        }"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingInitialGuard
+            ).count - 1,
+            1
+        )
+
+        let workSavingLoopGuard =
+            "            guard app.state == .runningForeground,\n" +
+                "                  workHelperTexts.count == 1,\n" +
+                "                  workScrollViews.count == 1,\n" +
+                "                  workNavigationBars.count == 1,\n" +
+                "                  workHelper.exists,\n" +
+                "                  workScrollView.exists,\n" +
+                "                  workNavigationBar.exists,\n" +
+                "                  workPreview.exists,\n" +
+                "                  progress.exists else {\n" +
+                #"                XCTFail("Record-work saving positioning route changed.")"# + "\n" +
+                "                return\n" +
+                "            }"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingLoopGuard
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: "        for _ in 0..<4 {"
+            ).count - 1,
+            1
+        )
+
+        let workSavingLiveGeometry =
+            "            let scrollFrame = workScrollView.frame\n" +
+                "            let applicationFrame = app.frame\n" +
+                "            let navigationFrame = workNavigationBar.frame\n" +
+                "            let liveScrollFrame = scrollFrame.intersection(applicationFrame)\n" +
+                "            let safeTop = max(\n" +
+                "                liveScrollFrame.minY,\n" +
+                "                navigationFrame.maxY\n" +
+                "            ) + verticalInset\n" +
+                "            let safeBottom = liveScrollFrame.maxY - verticalInset\n" +
+                "            let receiverTop = max(\n" +
+                "                liveScrollFrame.minY,\n" +
+                "                navigationFrame.maxY\n" +
+                "            ) + receiverInset\n" +
+                "            let receiverBottom = liveScrollFrame.maxY - receiverInset\n" +
+                "            let helperFrame = workHelper.frame"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingLiveGeometry
+            ).count - 1,
+            1
+        )
+        let workSavingGeometryGuard =
+            "            guard !applicationFrame.isNull,\n" +
+                "                  !applicationFrame.isEmpty,\n" +
+                "                  !navigationFrame.isNull,\n" +
+                "                  !navigationFrame.isEmpty,\n" +
+                "                  !scrollFrame.isNull,\n" +
+                "                  !scrollFrame.isEmpty,\n" +
+                "                  !liveScrollFrame.isNull,\n" +
+                "                  !liveScrollFrame.isEmpty,\n" +
+                "                  !helperFrame.isNull,\n" +
+                "                  !helperFrame.isEmpty,\n" +
+                "                  safeBottom > safeTop,\n" +
+                "                  helperFrame.height <= safeBottom - safeTop else {"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingGeometryGuard
+            ).count - 1,
+            1
+        )
+        let workSavingStopCondition =
+            "            if helperFrame.minY >= safeTop,\n" +
+                "               helperFrame.maxY <= safeBottom,\n" +
+                "               workHelper.isHittable {\n" +
+                "                break\n" +
+                "            }"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingStopCondition
+            ).count - 1,
+            1
+        )
+
+        let workSavingPositiveInterval =
+            "            guard minimumShift > 0,\n" +
+                "                  minimumShift <= maximumShift,\n" +
+                "                  receiverCapacity >= minimumGestureDistance,\n" +
+                "                  recognizedMinimum <= recognizedMaximum else {\n" +
+                #"                XCTFail("Record-work saving has no feasible downward correction.")"# + "\n" +
+                "                return\n" +
+                "            }"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingPositiveInterval
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: "            let dragDistance = recognizedMinimum"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: "                CGVector(dx: 0, dy: dragDistance)"
+            ).count - 1,
+            1
+        )
+
+        let workSavingDirectGesture =
+            "            let scrollOrigin = workScrollView.coordinate(\n" +
+                "                withNormalizedOffset: CGVector(dx: 0, dy: 0)\n" +
+                "            )\n" +
+                "            let dragStart = scrollOrigin.withOffset(\n" +
+                "                CGVector(\n" +
+                "                    dx: scrollFrame.width / 2,\n" +
+                "                    dy: receiverTop - scrollFrame.minY\n" +
+                "                )\n" +
+                "            )\n" +
+                "            let dragEnd = dragStart.withOffset(\n" +
+                "                CGVector(dx: 0, dy: dragDistance)\n" +
+                "            )\n" +
+                "            let helperMinYBeforeDrag = helperFrame.minY\n" +
+                "            dragStart.press(\n" +
+                "                forDuration: 0.2,\n" +
+                "                thenDragTo: dragEnd,\n" +
+                "                withVelocity: .slow,\n" +
+                "                thenHoldForDuration: 0.2\n" +
+                "            )"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingDirectGesture
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: "            workHelper.frame.minY > helperMinYBeforeDrag"
+            ).count - 1,
+            1
+        )
+        for (workSavingDirectGestureLock, count) in [
+            ("workScrollView.coordinate(", 1),
+            ("dragStart.press(", 1),
+            ("forDuration: 0.2", 1),
+            ("withVelocity: .slow", 1),
+            ("thenHoldForDuration: 0.2", 1),
+        ] {
+            XCTAssertEqual(
+                workSavingPositioningSource.components(
+                    separatedBy: workSavingDirectGestureLock
+                ).count - 1,
+                count,
+                workSavingDirectGestureLock
+            )
+        }
+
+        for savingFinalFrameBinding in [
+            "        let savingFinalApplicationFrame = app.frame",
+            "        let savingFinalNavigationFrame = workNavigationBar.frame",
+            "        let savingFinalScrollFrame = workScrollView.frame.intersection(",
+            "        let savingFinalSafeTop = max(",
+            "        let savingFinalSafeBottom = savingFinalScrollFrame.maxY - verticalInset",
+            "        let savingFinalHelperFrame = workHelper.frame",
+        ] {
+            XCTAssertEqual(
+                workSavingPositioningSource.components(
+                    separatedBy: savingFinalFrameBinding
+                ).count - 1,
+                1,
+                savingFinalFrameBinding
+            )
+        }
+        let workSavingFinalGuard =
+            "        guard app.state == .runningForeground,\n" +
+                "              workHelperTexts.count == 1,\n" +
+                "              workScrollViews.count == 1,\n" +
+                "              workNavigationBars.count == 1,\n" +
+                "              workHelper.exists,\n" +
+                "              workScrollView.exists,\n" +
+                "              workNavigationBar.exists,\n" +
+                "              workPreview.exists,\n" +
+                "              progress.exists,\n" +
+                "              !savingFinalApplicationFrame.isNull,\n" +
+                "              !savingFinalApplicationFrame.isEmpty,\n" +
+                "              !savingFinalNavigationFrame.isNull,\n" +
+                "              !savingFinalNavigationFrame.isEmpty,\n" +
+                "              !savingFinalScrollFrame.isNull,\n" +
+                "              !savingFinalScrollFrame.isEmpty,\n" +
+                "              !savingFinalHelperFrame.isNull,\n" +
+                "              !savingFinalHelperFrame.isEmpty,\n" +
+                "              savingFinalHelperFrame.minY >= savingFinalSafeTop,\n" +
+                "              savingFinalHelperFrame.maxY <= savingFinalSafeBottom,\n" +
+                "              workHelper.isHittable,\n" +
+                "              workPreview.isHittable else {\n" +
+                #"            XCTFail("Record-work saving composition is outside the safe viewport.")"# + "\n" +
+                "            return\n" +
+                "        }"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingFinalGuard
+            ).count - 1,
+            1
+        )
+        let workSavingFinalGuardAndCapture =
+            workSavingFinalGuard + "\n" + workSavingPositioningEnd
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingFinalGuardAndCapture
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: "captureBaseline("
+            ).count - 1,
+            1
+        )
+
+        for (workSavingCardinalityLock, count) in [
+            ("app.state == .runningForeground", 3),
+            ("workHelperTexts.count == 1", 4),
+            ("workScrollViews.count == 1", 4),
+            ("workNavigationBars.count == 1", 4),
+            ("workHelper.exists", 4),
+            ("workScrollView.exists", 3),
+            ("workNavigationBar.exists", 3),
+            ("workPreview.exists", 3),
+            ("progress.exists", 4),
+            ("workHelper.isHittable", 2),
+            ("workPreview.isHittable", 1),
+        ] {
+            XCTAssertEqual(
+                workSavingPositioningSource.components(
+                    separatedBy: workSavingCardinalityLock
+                ).count - 1,
+                count,
+                workSavingCardinalityLock
+            )
+        }
+
+        for staleWorkSavingPositioningForm in [
+            "let workHelperLabel =",
+            "let workHelperTexts =",
+            "let workScrollViews =",
+            "let workNavigationBars =",
+            "let workHelper =",
+            "let workScrollView =",
+            "let workNavigationBar =",
+            "let workPreview =",
+            "let verticalInset",
+            "let receiverInset",
+            "let minimumGestureDistance",
+            "app.swipeUp()",
+            "app.swipeDown()",
+            "workScrollView.swipeUp()",
+            "workScrollView.swipeDown()",
+            "app.coordinate(",
+            "scroll(",
+            "CGRect(",
+            "Thread.sleep",
+            "sleep(",
+            "epsilon",
+            "tolerance",
+            "performAccessibilityAudit(",
+            "XCTAttachment(",
+            "printJSONLine(",
+            "attachCandidate(",
+            "automationContrastExceptions",
+            "automationAXTreeDigests",
+            "eligibleExceptions",
+            "receipt",
+            "throw ",
+            "tap(",
+            "swipe",
+            "diagnostic",
+            "audit",
+            #"captureBaseline("state.work.editing"#,
+            #"captureBaseline("state.report-correction"#,
+        ] {
+            XCTAssertFalse(
+                workSavingPositioningSource.contains(
+                    staleWorkSavingPositioningForm
+                ),
+                staleWorkSavingPositioningForm
             )
         }
 
