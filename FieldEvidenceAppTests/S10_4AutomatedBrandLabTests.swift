@@ -2181,7 +2181,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "minimum keyboard geometry diagnostic completed nonaccepting",
             #"shard.shardID == "s10.4.minimum.minimum-os""#,
             #"identifier: "s2.new-sign.screen""#,
-            #"identifier: "s2.sign-detail.screen""#,
             #"identifier: "s2.new-sign.sign-label""#,
             #"NSPredicate(format: "label == %@", "Return")"#,
             "minimum keyboard geometry app",
@@ -4040,8 +4039,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4 s10.4.current.ax-text Report-history contrast diagnostic",
             "let reportHistoryScreens = app.descendants(matching: .any).matching(",
             "let reportHistoryHeaders = app.staticTexts.matching(",
-            "diagnosticElementObject",
-            "diagnosticQueryObject",
             "historyContextAttachment",
             "lowerNorthCampusElement",
             "lowerNorthCampusFrame",
@@ -7351,6 +7348,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 doubleLengthDiagnosticStartRange.lowerBound..<doubleLengthDiagnosticAXRange.lowerBound
             ]
         )
+        for (serializerName, expectedCount) in [
+            ("diagnosticElementObject", 2),
+            ("diagnosticQueryObject", 5),
+        ] {
+            XCTAssertEqual(
+                doubleLengthDiagnosticSource.components(
+                    separatedBy: serializerName
+                ).count - 1,
+                expectedCount,
+                serializerName
+            )
+        }
         let doubleLengthDiagnosticGate =
             "        let deleteConfirmationStateID = \"state.sign-detail.delete-confirmation\"\n" +
                 doubleLengthDiagnosticStart
