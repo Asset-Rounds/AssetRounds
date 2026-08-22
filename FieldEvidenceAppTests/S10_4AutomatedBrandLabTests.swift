@@ -339,8 +339,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 242_876,
-            sha256: "E886E3793863564030743A487E21379A0E110F0F655302642BA70186D13FBCA1"
+            byteCount: 256_757,
+            sha256: "E6CB40D83D5BF467F7F0034BA6C80B25E07A24A022C4288E5BEDB47648C53CC9"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2234,11 +2234,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
 
+        let reportHistoryLowerNorthCall =
+            "            guard positionLowerNorthCampusForAXText(in: app) else { return }"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: reportHistoryLowerNorthCall
+            ).count - 1,
+            1
+        )
         let reportHistoryAXPositioningCall =
             #"        XCTAssertTrue(element("s4.4.reports.view-report", in: app)"# + "\n" +
                 "            .waitForExistence(timeout: 20))\n" +
                 #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# + "\n" +
                 "            guard positionLowerNorthCampusForAXText(in: app) else { return }\n" +
+                "            guard positionReportHistoryHeaderAndVisitForAXTextDiagnostic(\n" +
+                "                in: app\n" +
+                "            ) else { return }\n" +
                 "        }\n" +
                 #"        captureBaseline("state.report-history.ready", in: app)"#
         XCTAssertEqual(
@@ -2561,6 +2572,430 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
 
+        let reportHistoryDiagnosticPositioningStart =
+            "    @MainActor\n" +
+                "    private func positionReportHistoryHeaderAndVisitForAXTextDiagnostic(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) -> Bool {"
+        let reportHistoryDiagnosticPositioningEnd =
+            "\n\n    @MainActor\n" +
+                "    private func completeWorkAndResolvedRecheckAtXXXL("
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: reportHistoryDiagnosticPositioningStart
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "positionReportHistoryHeaderAndVisitForAXTextDiagnostic("
+            ).count - 1,
+            2
+        )
+        guard let reportHistoryDiagnosticPositioningStartRange = uiSource.range(
+            of: reportHistoryDiagnosticPositioningStart
+        ), let reportHistoryDiagnosticPositioningEndRange = uiSource.range(
+            of: reportHistoryDiagnosticPositioningEnd,
+            range: reportHistoryDiagnosticPositioningStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded positioned AX-text Report-history helper")
+            return
+        }
+        let reportHistoryDiagnosticPositioningSource = String(
+            uiSource[
+                reportHistoryDiagnosticPositioningStartRange.lowerBound..<reportHistoryDiagnosticPositioningEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(reportHistoryDiagnosticPositioningSource.utf8.count, 13_066)
+        XCTAssertEqual(
+            Data(reportHistoryDiagnosticPositioningSource.utf8).sha256,
+            "CF59279AB3B55DD4DA485361FBDA659234DE3B753403AB9F22AC330E33181C02"
+        )
+
+        let reportHistoryDiagnosticPositioningQueries = [
+            "let historyScreens = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s4.4.history.screen""#,
+            "let historyHeaders = app.staticTexts.matching(\n" +
+                #"            identifier: "s4.4.history.header""#,
+            "let northCampusTexts = app.staticTexts.matching(\n" +
+                #"            NSPredicate(format: "label == %@", "North Campus")"#,
+            "let viewReportControls = app.buttons.matching(\n" +
+                #"            identifier: "s4.4.reports.view-report""#,
+            "let historyScrollViews = app.scrollViews.containing(\n" +
+                "            .button,\n" +
+                #"            identifier: "s4.4.reports.view-report""#,
+            "let historyNavigationBars = app.navigationBars.matching(\n" +
+                #"            identifier: "Report history""#,
+            "let historyTabBars = app.tabBars",
+            "let reportHistoryVisits = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s4.4.reports.visit""#,
+            "let visitComposites = reportHistoryVisit.descendants(\n" +
+                "            matching: .staticText\n" +
+                "        ).matching(\n" +
+                #"            NSPredicate(format: "label BEGINSWITH %@", "Visit, ")"#,
+        ]
+        XCTAssertEqual(reportHistoryDiagnosticPositioningQueries.count, 9)
+        for query in reportHistoryDiagnosticPositioningQueries {
+            XCTAssertEqual(
+                reportHistoryDiagnosticPositioningSource.components(
+                    separatedBy: query
+                ).count - 1,
+                1,
+                query
+            )
+        }
+        let reportHistoryDiagnosticPositioningElements = [
+            "let reportHistoryVisit = reportHistoryVisits.firstMatch",
+            "let historyScreen = historyScreens.firstMatch",
+            "let historyHeader = historyHeaders.firstMatch",
+            "let viewReportControl = viewReportControls.firstMatch",
+            "let historyScrollView = historyScrollViews.firstMatch",
+            "let historyNavigationBar = historyNavigationBars.firstMatch",
+            "let historyTabBar = historyTabBars.firstMatch",
+            "let visitComposite = visitComposites.firstMatch",
+        ]
+        for binding in reportHistoryDiagnosticPositioningElements {
+            XCTAssertEqual(
+                reportHistoryDiagnosticPositioningSource.components(
+                    separatedBy: binding
+                ).count - 1,
+                1,
+                binding
+            )
+        }
+
+        let reportHistoryDiagnosticNorthCampusContract =
+            "        func hasExactNorthCampusTexts() -> Bool {\n" +
+                "            guard northCampusTexts.count == 2 else { return false }\n" +
+                "            let first = northCampusTexts.element(boundBy: 0)\n" +
+                "            let second = northCampusTexts.element(boundBy: 1)\n" +
+                "            let firstFrame = first.frame\n" +
+                "            let secondFrame = second.frame\n" +
+                "            return first.exists\n" +
+                "                && second.exists\n" +
+                "                && first.identifier.isEmpty\n" +
+                "                && second.identifier.isEmpty\n" +
+                #"                && first.label == "North Campus""# + "\n" +
+                #"                && second.label == "North Campus""# + "\n" +
+                "                && first.elementType == .staticText\n" +
+                "                && second.elementType == .staticText\n" +
+                "                && !firstFrame.isNull\n" +
+                "                && !firstFrame.isEmpty\n" +
+                "                && !secondFrame.isNull\n" +
+                "                && !secondFrame.isEmpty\n" +
+                "                && firstFrame != secondFrame\n" +
+                "                && (\n" +
+                "                    firstFrame.maxY < secondFrame.minY\n" +
+                "                        || secondFrame.maxY < firstFrame.minY\n" +
+                "                )\n" +
+                "        }"
+        XCTAssertEqual(
+            reportHistoryDiagnosticPositioningSource.components(
+                separatedBy: reportHistoryDiagnosticNorthCampusContract
+            ).count - 1,
+            1
+        )
+        for diagnosticPositioningConstant in [
+            "        let contentInset: CGFloat = 16",
+            "        let receiverInset: CGFloat = 24",
+            "        let minimumGestureDistance: CGFloat = 44",
+        ] {
+            XCTAssertEqual(
+                reportHistoryDiagnosticPositioningSource.components(
+                    separatedBy: diagnosticPositioningConstant
+                ).count - 1,
+                1,
+                diagnosticPositioningConstant
+            )
+        }
+
+        let reportHistoryDiagnosticRouteContracts = [
+            "        func hasExactRoute() -> Bool {",
+            "            let applicationFrame = app.frame",
+            "            let historyScreenFrame = historyScreen.frame",
+            "            let historyHeaderFrame = historyHeader.frame",
+            "            let viewReportFrame = viewReportControl.frame",
+            "            let historyScrollFrame = historyScrollView.frame",
+            "            let historyNavigationFrame = historyNavigationBar.frame",
+            "            let historyTabFrame = historyTabBar.frame",
+            "            let reportHistoryVisitFrame = reportHistoryVisit.frame",
+            "            let visitCompositeFrame = visitComposite.frame",
+            "                && historyScreens.count == 1",
+            "                && historyHeaders.count == 1",
+            "                && northCampusTexts.count == 2",
+            "                && viewReportControls.count == 1",
+            "                && historyScrollViews.count == 1",
+            "                && historyNavigationBars.count == 1",
+            "                && historyTabBars.count == 1",
+            "                && reportHistoryVisits.count == 1",
+            "                && visitComposites.count == 1",
+            "                && historyScreen.exists",
+            #"                && historyScreen.identifier == "s4.4.history.screen""#,
+            "                && historyScreen.elementType == .scrollView",
+            "                && historyHeader.exists",
+            #"                && historyHeader.identifier == "s4.4.history.header""#,
+            #"                && historyHeader.label == "Monument Sign""#,
+            "                && historyHeader.elementType == .staticText",
+            "                && viewReportControl.exists",
+            #"                && viewReportControl.identifier == "s4.4.reports.view-report""#,
+            #"                && viewReportControl.label == "View report""#,
+            "                && viewReportControl.elementType == .button",
+            "                && historyScrollView.exists",
+            #"                && historyScrollView.identifier == "s4.4.history.screen""#,
+            "                && historyScrollView.elementType == .scrollView",
+            "                && historyNavigationBar.exists",
+            #"                && historyNavigationBar.identifier == "Report history""#,
+            "                && historyNavigationBar.elementType == .navigationBar",
+            "                && historyTabBar.exists",
+            #"                && historyTabBar.label == "Tab Bar""#,
+            "                && historyTabBar.elementType == .tabBar",
+            "                && reportHistoryVisit.exists",
+            #"                && reportHistoryVisit.identifier == "s4.4.reports.visit""#,
+            "                && reportHistoryVisit.elementType == .other",
+            "                && visitComposite.exists",
+            "                && visitComposite.identifier.isEmpty",
+            #"                && visitComposite.label.hasPrefix("Visit, ")"#,
+            "                && visitComposite.elementType == .staticText",
+            "                && !applicationFrame.isNull",
+            "                && !applicationFrame.isEmpty",
+            "                && !historyScreenFrame.isNull",
+            "                && !historyScreenFrame.isEmpty",
+            "                && !historyHeaderFrame.isNull",
+            "                && !historyHeaderFrame.isEmpty",
+            "                && !viewReportFrame.isNull",
+            "                && !viewReportFrame.isEmpty",
+            "                && !historyScrollFrame.isNull",
+            "                && !historyScrollFrame.isEmpty",
+            "                && !historyNavigationFrame.isNull",
+            "                && !historyNavigationFrame.isEmpty",
+            "                && !historyTabFrame.isNull",
+            "                && !historyTabFrame.isEmpty",
+            "                && !reportHistoryVisitFrame.isNull",
+            "                && !reportHistoryVisitFrame.isEmpty",
+            "                && !visitCompositeFrame.isNull",
+            "                && !visitCompositeFrame.isEmpty",
+        ]
+        for contract in reportHistoryDiagnosticRouteContracts {
+            XCTAssertEqual(
+                reportHistoryDiagnosticPositioningSource.components(
+                    separatedBy: contract
+                ).count - 1,
+                1,
+                contract
+            )
+        }
+
+        let reportHistoryDiagnosticLiveGeometry =
+            "            let applicationFrame = app.frame\n" +
+                "            let scrollFrame = historyScrollView.frame\n" +
+                "            let navigationFrame = historyNavigationBar.frame\n" +
+                "            let tabBarFrame = historyTabBar.frame\n" +
+                "            let liveScrollFrame = scrollFrame.intersection(applicationFrame)\n" +
+                "            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)\n" +
+                "            let liveBottom = min(\n" +
+                "                liveScrollFrame.maxY,\n" +
+                "                min(applicationFrame.maxY, tabBarFrame.minY)\n" +
+                "            )\n" +
+                "            let safeTop = liveTop + contentInset\n" +
+                "            let safeBottom = liveBottom - contentInset\n" +
+                "            let receiverTop = liveTop + receiverInset\n" +
+                "            let receiverBottom = liveBottom - receiverInset\n" +
+                "            let headerFrame = historyHeader.frame\n" +
+                "            let visitCompositeFrame = visitComposite.frame"
+        XCTAssertEqual(
+            reportHistoryDiagnosticPositioningSource.components(
+                separatedBy: reportHistoryDiagnosticLiveGeometry
+            ).count - 1,
+            1
+        )
+        let reportHistoryDiagnosticPositiveInterval =
+            "            let minimumShift = max(\n" +
+                "                safeTop - headerFrame.minY,\n" +
+                "                applicationFrame.maxY - visitCompositeFrame.minY\n" +
+                "            )\n" +
+                "            let maximumShift = safeBottom - headerFrame.maxY\n" +
+                "            let receiverCapacity = receiverBottom - receiverTop\n" +
+                "            guard minimumShift <= maximumShift,\n" +
+                "                  minimumShift > 0,\n" +
+                "                  receiverCapacity >= minimumGestureDistance else {\n" +
+                #"                XCTFail("Report-history AX-text positioned diagnostic has no positive interval.")"# + "\n" +
+                "                return false\n" +
+                "            }\n" +
+                "            let recognizedMinimum = max(\n" +
+                "                minimumShift,\n" +
+                "                minimumGestureDistance\n" +
+                "            )\n" +
+                "            let recognizedMaximum = min(\n" +
+                "                maximumShift,\n" +
+                "                receiverCapacity\n" +
+                "            )\n" +
+                "            guard recognizedMinimum <= recognizedMaximum,\n" +
+                "                  recognizedMinimum > 0 else {\n" +
+                #"                XCTFail("Report-history AX-text positive shift is not recognizable.")"# + "\n" +
+                "                return false\n" +
+                "            }\n" +
+                "            let dragDistance = recognizedMinimum"
+        XCTAssertEqual(
+            reportHistoryDiagnosticPositioningSource.components(
+                separatedBy: reportHistoryDiagnosticPositiveInterval
+            ).count - 1,
+            1
+        )
+
+        let reportHistoryDiagnosticDirectGesture =
+            "            let scrollOrigin = historyScrollView.coordinate(\n" +
+                "                withNormalizedOffset: CGVector(dx: 0, dy: 0)\n" +
+                "            )\n" +
+                "            let dragStart = scrollOrigin.withOffset(\n" +
+                "                CGVector(\n" +
+                "                    dx: scrollFrame.width / 2,\n" +
+                "                    dy: receiverTop - scrollFrame.minY\n" +
+                "                )\n" +
+                "            )\n" +
+                "            let dragEnd = dragStart.withOffset(\n" +
+                "                CGVector(dx: 0, dy: dragDistance)\n" +
+                "            )\n" +
+                "            let headerMinYBeforeDrag = headerFrame.minY\n" +
+                "            let visitMinYBeforeDrag = visitCompositeFrame.minY\n" +
+                "            dragStart.press(\n" +
+                "                forDuration: 0.2,\n" +
+                "                thenDragTo: dragEnd,\n" +
+                "                withVelocity: .slow,\n" +
+                "                thenHoldForDuration: 0.2\n" +
+                "            )"
+        XCTAssertEqual(
+            reportHistoryDiagnosticPositioningSource.components(
+                separatedBy: reportHistoryDiagnosticDirectGesture
+            ).count - 1,
+            1
+        )
+        let reportHistoryDiagnosticObservedShift =
+            "            let observedHeaderShift = historyHeader.frame.minY - headerMinYBeforeDrag\n" +
+                "            let observedVisitShift = visitComposite.frame.minY - visitMinYBeforeDrag\n" +
+                "            guard observedHeaderShift > 0,\n" +
+                "                  observedVisitShift > 0,\n" +
+                "                  observedHeaderShift * dragDistance > 0,\n" +
+                "                  observedVisitShift * dragDistance > 0 else {\n" +
+                #"                XCTFail("Report-history AX-text positioned diagnostic drag was not recognized.")"# + "\n" +
+                "                return false\n" +
+                "            }"
+        XCTAssertEqual(
+            reportHistoryDiagnosticPositioningSource.components(
+                separatedBy: reportHistoryDiagnosticObservedShift
+            ).count - 1,
+            1
+        )
+
+        let reportHistoryDiagnosticFinalGeometry =
+            "        let finalApplicationFrame = app.frame\n" +
+                "        let finalScrollFrame = historyScrollView.frame.intersection(\n" +
+                "            finalApplicationFrame\n" +
+                "        )\n" +
+                "        let finalNavigationFrame = historyNavigationBar.frame\n" +
+                "        let finalTabBarFrame = historyTabBar.frame\n" +
+                "        let finalSafeTop = max(\n" +
+                "            finalScrollFrame.minY,\n" +
+                "            finalNavigationFrame.maxY\n" +
+                "        ) + contentInset\n" +
+                "        let finalSafeBottom = min(\n" +
+                "            finalScrollFrame.maxY,\n" +
+                "            min(finalApplicationFrame.maxY, finalTabBarFrame.minY)\n" +
+                "        ) - contentInset\n" +
+                "        let finalHeaderFrame = historyHeader.frame\n" +
+                "        let finalVisitCompositeFrame = visitComposite.frame"
+        XCTAssertEqual(
+            reportHistoryDiagnosticPositioningSource.components(
+                separatedBy: reportHistoryDiagnosticFinalGeometry
+            ).count - 1,
+            1
+        )
+        let reportHistoryDiagnosticFinalContainment =
+            "              finalSafeBottom > finalSafeTop,\n" +
+                "              finalHeaderFrame.minY >= finalSafeTop,\n" +
+                "              finalHeaderFrame.maxY <= finalSafeBottom,\n" +
+                "              historyHeader.isHittable,\n" +
+                "              finalVisitCompositeFrame.minY >= finalApplicationFrame.maxY,\n" +
+                "              !visitComposite.isHittable else {\n" +
+                #"            XCTFail("Report-history AX-text positioned diagnostic final geometry is unsafe.")"# + "\n" +
+                "            return false\n" +
+                "        }\n" +
+                "        return true"
+        XCTAssertEqual(
+            reportHistoryDiagnosticPositioningSource.components(
+                separatedBy: reportHistoryDiagnosticFinalContainment
+            ).count - 1,
+            1
+        )
+
+        for (reportHistoryDiagnosticCardinalityLock, count) in [
+            ("hasExactRoute() else", 3),
+            ("historyScreens.count == 1", 1),
+            ("historyHeaders.count == 1", 1),
+            ("northCampusTexts.count == 2", 2),
+            ("viewReportControls.count == 1", 1),
+            ("historyScrollViews.count == 1", 1),
+            ("historyNavigationBars.count == 1", 1),
+            ("historyTabBars.count == 1", 1),
+            ("reportHistoryVisits.count == 1", 1),
+            ("visitComposites.count == 1", 1),
+            ("historyScreen.exists", 1),
+            ("historyHeader.exists", 1),
+            ("viewReportControl.exists", 1),
+            ("historyScrollView.exists", 1),
+            ("historyNavigationBar.exists", 1),
+            ("historyTabBar.exists", 1),
+            ("reportHistoryVisit.exists", 1),
+            ("visitComposite.exists", 1),
+            ("for _ in 0..<4", 1),
+            ("historyScrollView.coordinate(", 1),
+            ("dragStart.press(", 1),
+            ("forDuration: 0.2", 1),
+            ("withVelocity: .slow", 1),
+            ("thenHoldForDuration: 0.2", 1),
+            ("return true", 2),
+        ] {
+            XCTAssertEqual(
+                reportHistoryDiagnosticPositioningSource.components(
+                    separatedBy: reportHistoryDiagnosticCardinalityLock
+                ).count - 1,
+                count,
+                reportHistoryDiagnosticCardinalityLock
+            )
+        }
+        for prohibitedReportHistoryDiagnosticPositioningForm in [
+            "app.coordinate(",
+            "app.swipe",
+            "historyScrollView.swipe",
+            "scroll(",
+            "tap(",
+            "waitForExistence",
+            "Thread.sleep",
+            "sleep(",
+            "CGRect(",
+            "epsilon",
+            "tolerance",
+            "performAccessibilityAudit(",
+            "ContrastAuditExceptionSignature",
+            "captureBaseline(",
+            "attachCandidate(",
+            "printJSONLine(",
+            "automationContrastExceptions",
+            "automationAXTreeDigests",
+            "eligibleExceptions",
+            "receipt",
+            "120",
+            "402",
+            "874",
+            "2026-08-22",
+        ] {
+            XCTAssertFalse(
+                reportHistoryDiagnosticPositioningSource.contains(
+                    prohibitedReportHistoryDiagnosticPositioningForm
+                ),
+                prohibitedReportHistoryDiagnosticPositioningForm
+            )
+        }
+
         let reportHistoryDiagnosticGate =
             #"            if shard.shardID == "s10.4.current.ax-text","# + "\n" +
                 #"               stateID == "state.report-history.ready" {"#
@@ -2585,6 +3020,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 reportHistoryDiagnosticStartRange.lowerBound..<reportHistoryDiagnosticEndRange.lowerBound
             ]
         )
+        XCTAssertEqual(reportHistoryDiagnosticSource.utf8.count, 8_768)
+        XCTAssertEqual(
+            Data(reportHistoryDiagnosticSource.utf8).sha256,
+            "7E061A79A39F6894A00F84625ACBB444182D472CFED3A44E68A59FAD376E10A9"
+        )
 
         let reportHistoryDiagnosticQueries = [
             "let reportHistoryScreens = app.descendants(matching: .any).matching(\n" +
@@ -2601,7 +3041,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let reportHistoryNavigationBars = app.navigationBars.matching(\n" +
                 #"                    identifier: "Report history""#,
             "let reportHistoryTabBars = app.tabBars",
+            "let reportHistoryVisits = app.descendants(matching: .any).matching(\n" +
+                #"                    identifier: "s4.4.reports.visit""#,
+            "let reportHistoryVisitComposites = reportHistoryVisits.firstMatch\n" +
+                "                    .descendants(matching: .staticText).matching(\n" +
+                #"                        NSPredicate(format: "label BEGINSWITH %@", "Visit, ")"#,
         ]
+        XCTAssertEqual(reportHistoryDiagnosticQueries.count, 9)
         for query in reportHistoryDiagnosticQueries {
             XCTAssertEqual(
                 reportHistoryDiagnosticSource.components(separatedBy: query).count - 1,
@@ -2675,6 +3121,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (#""reportHistoryScrollView": diagnosticQueryObject("#, 1),
             (#""reportHistoryNavigationBar": diagnosticQueryObject("#, 1),
             (#""reportHistoryTabBar": diagnosticQueryObject("#, 1),
+            (#""reportHistoryVisit": diagnosticQueryObject(reportHistoryVisits)"#, 1),
+            (#""reportHistoryVisitComposite": diagnosticQueryObject(reportHistoryVisitComposites)"#, 1),
         ] {
             XCTAssertEqual(
                 reportHistoryDiagnosticSource.components(

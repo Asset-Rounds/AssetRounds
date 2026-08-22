@@ -1532,6 +1532,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             .waitForExistence(timeout: 20))
         if automationShard?.shardID == "s10.4.current.ax-text" {
             guard positionLowerNorthCampusForAXText(in: app) else { return }
+            guard positionReportHistoryHeaderAndVisitForAXTextDiagnostic(
+                in: app
+            ) else { return }
         }
         captureBaseline("state.report-history.ready", in: app)
         navigateBack(in: app)
@@ -1793,6 +1796,298 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               finalLowerFrame.maxY <= finalSafeBottom,
               finalLowerSite.isHittable else {
             XCTFail("Report-history lower North Campus is outside the safe viewport.")
+            return false
+        }
+        return true
+    }
+
+    @MainActor
+    private func positionReportHistoryHeaderAndVisitForAXTextDiagnostic(
+        in app: XCUIApplication
+    ) -> Bool {
+        let historyScreens = app.descendants(matching: .any).matching(
+            identifier: "s4.4.history.screen"
+        )
+        let historyHeaders = app.staticTexts.matching(
+            identifier: "s4.4.history.header"
+        )
+        let northCampusTexts = app.staticTexts.matching(
+            NSPredicate(format: "label == %@", "North Campus")
+        )
+        let viewReportControls = app.buttons.matching(
+            identifier: "s4.4.reports.view-report"
+        )
+        let historyScrollViews = app.scrollViews.containing(
+            .button,
+            identifier: "s4.4.reports.view-report"
+        )
+        let historyNavigationBars = app.navigationBars.matching(
+            identifier: "Report history"
+        )
+        let historyTabBars = app.tabBars
+        let reportHistoryVisits = app.descendants(matching: .any).matching(
+            identifier: "s4.4.reports.visit"
+        )
+        let reportHistoryVisit = reportHistoryVisits.firstMatch
+        let visitComposites = reportHistoryVisit.descendants(
+            matching: .staticText
+        ).matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Visit, ")
+        )
+        let historyScreen = historyScreens.firstMatch
+        let historyHeader = historyHeaders.firstMatch
+        let viewReportControl = viewReportControls.firstMatch
+        let historyScrollView = historyScrollViews.firstMatch
+        let historyNavigationBar = historyNavigationBars.firstMatch
+        let historyTabBar = historyTabBars.firstMatch
+        let visitComposite = visitComposites.firstMatch
+
+        func hasExactNorthCampusTexts() -> Bool {
+            guard northCampusTexts.count == 2 else { return false }
+            let first = northCampusTexts.element(boundBy: 0)
+            let second = northCampusTexts.element(boundBy: 1)
+            let firstFrame = first.frame
+            let secondFrame = second.frame
+            return first.exists
+                && second.exists
+                && first.identifier.isEmpty
+                && second.identifier.isEmpty
+                && first.label == "North Campus"
+                && second.label == "North Campus"
+                && first.elementType == .staticText
+                && second.elementType == .staticText
+                && !firstFrame.isNull
+                && !firstFrame.isEmpty
+                && !secondFrame.isNull
+                && !secondFrame.isEmpty
+                && firstFrame != secondFrame
+                && (
+                    firstFrame.maxY < secondFrame.minY
+                        || secondFrame.maxY < firstFrame.minY
+                )
+        }
+
+        func hasExactRoute() -> Bool {
+            let applicationFrame = app.frame
+            let historyScreenFrame = historyScreen.frame
+            let historyHeaderFrame = historyHeader.frame
+            let viewReportFrame = viewReportControl.frame
+            let historyScrollFrame = historyScrollView.frame
+            let historyNavigationFrame = historyNavigationBar.frame
+            let historyTabFrame = historyTabBar.frame
+            let reportHistoryVisitFrame = reportHistoryVisit.frame
+            let visitCompositeFrame = visitComposite.frame
+            return app.state == .runningForeground
+                && historyScreens.count == 1
+                && historyHeaders.count == 1
+                && northCampusTexts.count == 2
+                && viewReportControls.count == 1
+                && historyScrollViews.count == 1
+                && historyNavigationBars.count == 1
+                && historyTabBars.count == 1
+                && reportHistoryVisits.count == 1
+                && visitComposites.count == 1
+                && historyScreen.exists
+                && historyScreen.identifier == "s4.4.history.screen"
+                && historyScreen.elementType == .scrollView
+                && historyHeader.exists
+                && historyHeader.identifier == "s4.4.history.header"
+                && historyHeader.label == "Monument Sign"
+                && historyHeader.elementType == .staticText
+                && hasExactNorthCampusTexts()
+                && viewReportControl.exists
+                && viewReportControl.identifier == "s4.4.reports.view-report"
+                && viewReportControl.label == "View report"
+                && viewReportControl.elementType == .button
+                && historyScrollView.exists
+                && historyScrollView.identifier == "s4.4.history.screen"
+                && historyScrollView.elementType == .scrollView
+                && historyNavigationBar.exists
+                && historyNavigationBar.identifier == "Report history"
+                && historyNavigationBar.elementType == .navigationBar
+                && historyTabBar.exists
+                && historyTabBar.label == "Tab Bar"
+                && historyTabBar.elementType == .tabBar
+                && reportHistoryVisit.exists
+                && reportHistoryVisit.identifier == "s4.4.reports.visit"
+                && reportHistoryVisit.elementType == .other
+                && visitComposite.exists
+                && visitComposite.identifier.isEmpty
+                && visitComposite.label.hasPrefix("Visit, ")
+                && visitComposite.elementType == .staticText
+                && !applicationFrame.isNull
+                && !applicationFrame.isEmpty
+                && !historyScreenFrame.isNull
+                && !historyScreenFrame.isEmpty
+                && !historyHeaderFrame.isNull
+                && !historyHeaderFrame.isEmpty
+                && !viewReportFrame.isNull
+                && !viewReportFrame.isEmpty
+                && !historyScrollFrame.isNull
+                && !historyScrollFrame.isEmpty
+                && !historyNavigationFrame.isNull
+                && !historyNavigationFrame.isEmpty
+                && !historyTabFrame.isNull
+                && !historyTabFrame.isEmpty
+                && !reportHistoryVisitFrame.isNull
+                && !reportHistoryVisitFrame.isEmpty
+                && !visitCompositeFrame.isNull
+                && !visitCompositeFrame.isEmpty
+        }
+
+        let contentInset: CGFloat = 16
+        let receiverInset: CGFloat = 24
+        let minimumGestureDistance: CGFloat = 44
+        for _ in 0..<4 {
+            guard hasExactRoute() else {
+                XCTFail("Report-history AX-text positioned diagnostic route changed.")
+                return false
+            }
+            let applicationFrame = app.frame
+            let scrollFrame = historyScrollView.frame
+            let navigationFrame = historyNavigationBar.frame
+            let tabBarFrame = historyTabBar.frame
+            let liveScrollFrame = scrollFrame.intersection(applicationFrame)
+            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)
+            let liveBottom = min(
+                liveScrollFrame.maxY,
+                min(applicationFrame.maxY, tabBarFrame.minY)
+            )
+            let safeTop = liveTop + contentInset
+            let safeBottom = liveBottom - contentInset
+            let receiverTop = liveTop + receiverInset
+            let receiverBottom = liveBottom - receiverInset
+            let headerFrame = historyHeader.frame
+            let visitCompositeFrame = visitComposite.frame
+            guard !applicationFrame.isNull,
+                  !applicationFrame.isEmpty,
+                  !scrollFrame.isNull,
+                  !scrollFrame.isEmpty,
+                  !navigationFrame.isNull,
+                  !navigationFrame.isEmpty,
+                  !tabBarFrame.isNull,
+                  !tabBarFrame.isEmpty,
+                  !liveScrollFrame.isNull,
+                  !liveScrollFrame.isEmpty,
+                  !headerFrame.isNull,
+                  !headerFrame.isEmpty,
+                  !visitCompositeFrame.isNull,
+                  !visitCompositeFrame.isEmpty,
+                  headerFrame.maxY < visitCompositeFrame.minY,
+                  safeBottom > safeTop,
+                  receiverBottom > receiverTop,
+                  headerFrame.height <= safeBottom - safeTop else {
+                XCTFail("Report-history AX-text positioned diagnostic geometry is invalid.")
+                return false
+            }
+            if headerFrame.minY >= safeTop,
+               headerFrame.maxY <= safeBottom,
+               historyHeader.isHittable,
+               visitCompositeFrame.minY >= applicationFrame.maxY,
+               !visitComposite.isHittable {
+                return true
+            }
+
+            let minimumShift = max(
+                safeTop - headerFrame.minY,
+                applicationFrame.maxY - visitCompositeFrame.minY
+            )
+            let maximumShift = safeBottom - headerFrame.maxY
+            let receiverCapacity = receiverBottom - receiverTop
+            guard minimumShift <= maximumShift,
+                  minimumShift > 0,
+                  receiverCapacity >= minimumGestureDistance else {
+                XCTFail("Report-history AX-text positioned diagnostic has no positive interval.")
+                return false
+            }
+            let recognizedMinimum = max(
+                minimumShift,
+                minimumGestureDistance
+            )
+            let recognizedMaximum = min(
+                maximumShift,
+                receiverCapacity
+            )
+            guard recognizedMinimum <= recognizedMaximum,
+                  recognizedMinimum > 0 else {
+                XCTFail("Report-history AX-text positive shift is not recognizable.")
+                return false
+            }
+            let dragDistance = recognizedMinimum
+            let scrollOrigin = historyScrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStart = scrollOrigin.withOffset(
+                CGVector(
+                    dx: scrollFrame.width / 2,
+                    dy: receiverTop - scrollFrame.minY
+                )
+            )
+            let dragEnd = dragStart.withOffset(
+                CGVector(dx: 0, dy: dragDistance)
+            )
+            let headerMinYBeforeDrag = headerFrame.minY
+            let visitMinYBeforeDrag = visitCompositeFrame.minY
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            guard hasExactRoute() else {
+                XCTFail("Report-history AX-text positioned diagnostic route changed after drag.")
+                return false
+            }
+            let observedHeaderShift = historyHeader.frame.minY - headerMinYBeforeDrag
+            let observedVisitShift = visitComposite.frame.minY - visitMinYBeforeDrag
+            guard observedHeaderShift > 0,
+                  observedVisitShift > 0,
+                  observedHeaderShift * dragDistance > 0,
+                  observedVisitShift * dragDistance > 0 else {
+                XCTFail("Report-history AX-text positioned diagnostic drag was not recognized.")
+                return false
+            }
+        }
+
+        guard hasExactRoute() else {
+            XCTFail("Report-history AX-text positioned diagnostic final route changed.")
+            return false
+        }
+        let finalApplicationFrame = app.frame
+        let finalScrollFrame = historyScrollView.frame.intersection(
+            finalApplicationFrame
+        )
+        let finalNavigationFrame = historyNavigationBar.frame
+        let finalTabBarFrame = historyTabBar.frame
+        let finalSafeTop = max(
+            finalScrollFrame.minY,
+            finalNavigationFrame.maxY
+        ) + contentInset
+        let finalSafeBottom = min(
+            finalScrollFrame.maxY,
+            min(finalApplicationFrame.maxY, finalTabBarFrame.minY)
+        ) - contentInset
+        let finalHeaderFrame = historyHeader.frame
+        let finalVisitCompositeFrame = visitComposite.frame
+        guard !finalApplicationFrame.isNull,
+              !finalApplicationFrame.isEmpty,
+              !finalScrollFrame.isNull,
+              !finalScrollFrame.isEmpty,
+              !finalNavigationFrame.isNull,
+              !finalNavigationFrame.isEmpty,
+              !finalTabBarFrame.isNull,
+              !finalTabBarFrame.isEmpty,
+              !finalHeaderFrame.isNull,
+              !finalHeaderFrame.isEmpty,
+              !finalVisitCompositeFrame.isNull,
+              !finalVisitCompositeFrame.isEmpty,
+              finalSafeBottom > finalSafeTop,
+              finalHeaderFrame.minY >= finalSafeTop,
+              finalHeaderFrame.maxY <= finalSafeBottom,
+              historyHeader.isHittable,
+              finalVisitCompositeFrame.minY >= finalApplicationFrame.maxY,
+              !visitComposite.isHittable else {
+            XCTFail("Report-history AX-text positioned diagnostic final geometry is unsafe.")
             return false
         }
         return true
@@ -3967,6 +4262,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     identifier: "Report history"
                 )
                 let reportHistoryTabBars = app.tabBars
+                let reportHistoryVisits = app.descendants(matching: .any).matching(
+                    identifier: "s4.4.reports.visit"
+                )
+                let reportHistoryVisitComposites = reportHistoryVisits.firstMatch
+                    .descendants(matching: .staticText).matching(
+                        NSPredicate(format: "label BEGINSWITH %@", "Visit, ")
+                    )
 
                 let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
                     element in
@@ -4022,6 +4324,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     ),
                     "reportHistoryTabBar": diagnosticQueryObject(
                         reportHistoryTabBars
+                    ),
+                    "reportHistoryVisit": diagnosticQueryObject(
+                        reportHistoryVisits
+                    ),
+                    "reportHistoryVisitComposite": diagnosticQueryObject(
+                        reportHistoryVisitComposites
                     ),
                 ]
                 printJSONLine(
