@@ -412,8 +412,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 291_707,
-            sha256: "1C5C3678112449F3138D7EBF7FFF89250FB4861BC28F7681ABF2BD9F1F334429"
+            byteCount: 288_345,
+            sha256: "9A3D34EC332FBFAD2B284955AD7962F278CABA17F77741F62A4025CE5900DF2E"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -7409,339 +7409,296 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             2
         )
-        let doubleLengthDiagnosticStart =
-            #"        if automationShard?.shardID == "s10.4.minimum.double-length" {"#
-        let doubleLengthDiagnosticAXBoundary =
+        let doubleLengthGateStart =
+            "        let runsMinimumDoubleLengthDeleteComposition ="
+        let doubleLengthGateEnd =
             "        let runsAXTextDeleteConfirmationDiagnostic ="
         XCTAssertEqual(
-            uiSource.components(separatedBy: doubleLengthDiagnosticStart).count - 1,
+            uiSource.components(separatedBy: doubleLengthGateStart).count - 1,
             1
         )
         XCTAssertEqual(
-            uiSource.components(separatedBy: doubleLengthDiagnosticAXBoundary).count - 1,
+            uiSource.components(separatedBy: doubleLengthGateEnd).count - 1,
             1
         )
-        guard let doubleLengthDiagnosticStartRange = uiSource.range(
-            of: doubleLengthDiagnosticStart
-        ), let doubleLengthDiagnosticAXRange = uiSource.range(
-            of: doubleLengthDiagnosticAXBoundary,
-            range: doubleLengthDiagnosticStartRange.upperBound..<uiSource.endIndex
+        guard let doubleLengthGateStartRange = uiSource.range(
+            of: doubleLengthGateStart
+        ), let doubleLengthGateEndRange = uiSource.range(
+            of: doubleLengthGateEnd,
+            range: doubleLengthGateStartRange.upperBound..<uiSource.endIndex
         ) else {
-            XCTFail("Missing the minimum double-length delete diagnostic source slice")
+            XCTFail("Missing the minimum double-length positioning gate source slice")
             return
         }
-        let doubleLengthDiagnosticSource = String(
+        let doubleLengthGateSource = String(
             uiSource[
-                doubleLengthDiagnosticStartRange.lowerBound..<doubleLengthDiagnosticAXRange.lowerBound
+                doubleLengthGateStartRange.lowerBound..<doubleLengthGateEndRange.lowerBound
             ]
         )
-        for (serializerName, expectedCount) in [
-            ("diagnosticElementObject", 2),
-            ("diagnosticQueryObject", 5),
-        ] {
-            XCTAssertEqual(
-                doubleLengthDiagnosticSource.components(
-                    separatedBy: serializerName
-                ).count - 1,
-                expectedCount,
-                serializerName
-            )
-        }
-        let doubleLengthDiagnosticGate =
-            "        let deleteConfirmationStateID = \"state.sign-detail.delete-confirmation\"\n" +
-                doubleLengthDiagnosticStart
+        XCTAssertEqual(doubleLengthGateSource.utf8.count, 4_992)
         XCTAssertEqual(
-            uiSource.components(separatedBy: doubleLengthDiagnosticGate).count - 1,
-            1
+            Data(doubleLengthGateSource.utf8).sha256,
+            "DD07155F3ED487F3EA95C2D251CD5A1A5B8CF9C2BC3906106D7C1B7C2DAB8998"
         )
-        let doubleLengthDiagnosticQueryLocks = [
-            #"                    "detail","#,
-            #"                        .matching(identifier: "s2.sign-detail.screen")"#,
-            #"                    "deleteScreen","#,
-            #"                        .matching(identifier: "s6.1.delete.screen")"#,
-            #"                    "deleteMessage","#,
-            #"                        .matching(identifier: "s6.1.delete.message")"#,
-            #"                    "cancelDelete","#,
-            #"                        .matching(identifier: "s6.1.delete.cancel")"#,
-            #"                    "confirmDelete","#,
-            #"                        .matching(identifier: "s6.1.delete.confirm")"#,
-            #"                    "siteLabel","#,
-            #"                        .matching(identifier: "s2.sign-detail.site-label")"#,
-            "                    app.scrollViews.containing(\n" +
-                "                        .staticText,\n" +
-                #"                        identifier: "s6.1.delete.message""# + "\n" +
-                "                    )",
-            "                    app.scrollViews.containing(\n" +
-                "                        .button,\n" +
-                #"                        identifier: "s6.1.delete.cancel""# + "\n" +
-                "                    )",
-            "                    app.scrollViews.containing(\n" +
-                "                        .button,\n" +
-                #"                        identifier: "s6.1.delete.confirm""# + "\n" +
-                "                    )",
-            "                    app.scrollViews.containing(\n" +
-                "                        .staticText,\n" +
-                #"                        identifier: "s2.sign-detail.site-label""# + "\n" +
-                "                    )",
-        ]
-        for lock in doubleLengthDiagnosticQueryLocks {
-            XCTAssertEqual(
-                doubleLengthDiagnosticSource.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        XCTAssertEqual(
-            doubleLengthDiagnosticSource.components(separatedBy: "                (\n").count - 1,
-            10
-        )
-        XCTAssertEqual(
-            doubleLengthDiagnosticSource.components(
-                separatedBy: "            let diagnosticQueries: [(String, XCUIElementQuery)] = ["
-            ).count - 1,
-            1
-        )
-        let doubleLengthDiagnosticElementSerializer =
-            "            let diagnosticElementObject: (XCUIElement) -> [String: Any] = {\n" +
-                "                element in\n" +
-                "                let valueObject: Any\n" +
-                "                if let value = element.value as? String {\n" +
-                "                    valueObject = value\n" +
-                "                } else {\n" +
-                "                    valueObject = NSNull()\n" +
-                "                }\n" +
-                "                return [\n" +
-                #"                    "exists": element.exists,"# + "\n" +
-                #"                    "isHittable": element.isHittable,"# + "\n" +
-                #"                    "identifier": element.identifier,"# + "\n" +
-                #"                    "label": element.label,"# + "\n" +
-                #"                    "value": valueObject,"# + "\n" +
-                #"                    "elementTypeRawValue": element.elementType.rawValue,"# + "\n" +
-                #"                    "frame": self.auditFrameObject(element.frame),"# + "\n" +
-                "                ]\n" +
-                "            }"
-        XCTAssertEqual(
-            doubleLengthDiagnosticSource.components(
-                separatedBy: doubleLengthDiagnosticElementSerializer
-            ).count - 1,
-            1
-        )
-        let doubleLengthAuditFrameHelper =
-            "    private func auditFrameObject(_ frame: CGRect) -> [String: Double] {\n" +
-                "        [\n" +
-                #"            "x": Double(frame.origin.x),"# + "\n" +
-                #"            "y": Double(frame.origin.y),"# + "\n" +
-                #"            "width": Double(frame.size.width),"# + "\n" +
-                #"            "height": Double(frame.size.height),"# + "\n" +
-                "        ]\n" +
-                "    }"
-        XCTAssertEqual(
-            uiSource.components(separatedBy: doubleLengthAuditFrameHelper).count - 1,
-            1
-        )
-        let doubleLengthDiagnosticQuerySerializer =
-            "            let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {\n" +
-                "                query in\n" +
-                "                let count = query.count\n" +
-                "                var elements: [[String: Any]] = []\n" +
-                "                for index in 0..<count {\n" +
-                "                    elements.append(\n" +
-                "                        diagnosticElementObject(query.element(boundBy: index))\n" +
-                "                    )\n" +
-                "                }\n" +
-                "                return [\n" +
-                #"                    "count": count,"# + "\n" +
-                #"                    "elements": elements,"# + "\n" +
-                "                ]\n" +
-                "            }"
-        XCTAssertEqual(
-            doubleLengthDiagnosticSource.components(
-                separatedBy: doubleLengthDiagnosticQuerySerializer
-            ).count - 1,
-            1
-        )
-        for lock in [
-            "            var diagnosticQueryObjects: [String: Any] = [:]",
-            "            for (name, query) in diagnosticQueries {\n" +
-                "                diagnosticQueryObjects[name] = diagnosticQueryObject(query)\n" +
-                "            }",
-        ] {
-            XCTAssertEqual(
-                doubleLengthDiagnosticSource.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        let doubleLengthDiagnosticIntervalLocks = [
-            ("            let diagnosticViewportTop = detail.frame.minY\n" +
-                "            let diagnosticViewportBottom = detail.frame.maxY", 1),
-            ("            let diagnosticPreferredMinimumShift = max(", 1),
-            ("            let diagnosticPreferredMaximumShift = min(", 1),
-            ("            let diagnosticFallbackMinimumShift = max(", 1),
-            ("            let diagnosticFallbackMaximumShift = min(", 1),
-            ("                diagnosticViewportTop - deleteScreen.frame.minY,", 1),
-            ("                diagnosticViewportTop - deleteMessage.frame.minY,", 2),
-            ("                diagnosticViewportTop - cancelDelete.frame.minY,", 2),
-            ("                diagnosticViewportTop - confirmDelete.frame.minY", 2),
-            ("                diagnosticViewportTop - siteLabel.frame.maxY,", 2),
-            ("                    diagnosticViewportBottom - deleteScreen.frame.maxY,", 1),
-            ("                        diagnosticViewportBottom - deleteMessage.frame.maxY,", 2),
-            ("                            diagnosticViewportBottom - cancelDelete.frame.maxY,", 2),
-            ("                            diagnosticViewportBottom - confirmDelete.frame.maxY", 2),
-        ]
-        for (lock, count) in doubleLengthDiagnosticIntervalLocks {
-            XCTAssertEqual(
-                doubleLengthDiagnosticSource.components(separatedBy: lock).count - 1,
-                count,
-                lock
-            )
-        }
-        let doubleLengthDiagnosticZeroAndTargetLocks = [
-            "            let diagnosticPreferredContainsZero =\n" +
-                "                diagnosticPreferredMinimumShift <= 0\n" +
-                "                && diagnosticPreferredMaximumShift >= 0",
-            "            let diagnosticFallbackContainsZero =\n" +
-                "                diagnosticFallbackMinimumShift <= 0\n" +
-                "                && diagnosticFallbackMaximumShift >= 0",
-            "            var diagnosticTargetDistance: CGFloat?",
-            "            if !diagnosticPreferredContainsZero,\n" +
-                "               !diagnosticFallbackContainsZero,\n" +
-                "               diagnosticPreferredMinimumShift <= diagnosticPreferredMaximumShift {",
-            "            if !diagnosticPreferredContainsZero,\n" +
-                "               !diagnosticFallbackContainsZero,\n" +
-                "               diagnosticTargetDistance == nil,\n" +
-                "               diagnosticFallbackMinimumShift <= diagnosticFallbackMaximumShift {",
-            "                let farPreferredDistance =\n" +
-                "                    diagnosticPreferredMaximumShift < 0\n" +
-                "                    ? diagnosticPreferredMinimumShift\n" +
-                "                    : diagnosticPreferredMaximumShift",
-            "                let farFallbackDistance =\n" +
-                "                    diagnosticFallbackMaximumShift < 0\n" +
-                "                    ? diagnosticFallbackMinimumShift\n" +
-                "                    : diagnosticFallbackMaximumShift",
-            "            let diagnosticTargetDistanceObject: Any\n" +
-                "            if let diagnosticTargetDistance {\n" +
-                "                diagnosticTargetDistanceObject = Double(diagnosticTargetDistance)\n" +
-                "            } else {\n" +
-                "                diagnosticTargetDistanceObject = NSNull()\n" +
-                "            }",
-        ]
-        for lock in doubleLengthDiagnosticZeroAndTargetLocks {
-            XCTAssertEqual(
-                doubleLengthDiagnosticSource.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        let doubleLengthDiagnosticAttachmentLocks = [
-            "            let appScreenshot = XCTAttachment(screenshot: app.screenshot())",
-            "            let appTree = XCTAttachment(string: app.debugDescription)",
-            "            let detailScreenshot = XCTAttachment(screenshot: detail.screenshot())",
-            "            let messageScreenshot = XCTAttachment(\n" +
-                "                screenshot: deleteMessage.screenshot()\n" +
+        let doubleLengthGateContracts = [
+            "        let runsMinimumDoubleLengthDeleteComposition =\n" +
+                "            automationShard?.shardID == \"s10.4.minimum.double-length\"",
+            "        if runsMinimumDoubleLengthDeleteComposition {",
+            "            let messageScrollViews = app.scrollViews.containing(\n" +
+                "                .staticText,\n" +
+                "                identifier: \"s6.1.delete.message\"\n" +
                 "            )",
+            "            let cancelScrollViews = app.scrollViews.containing(\n" +
+                "                .button,\n" +
+                "                identifier: \"s6.1.delete.cancel\"\n" +
+                "            )",
+            "            let confirmScrollViews = app.scrollViews.containing(\n" +
+                "                .button,\n" +
+                "                identifier: \"s6.1.delete.confirm\"\n" +
+                "            )",
+            "            let siteScrollViews = app.scrollViews.containing(\n" +
+                "                .staticText,\n" +
+                "                identifier: \"s2.sign-detail.site-label\"\n" +
+                "            )",
+            "                  messageScrollViews.count == 1,\n" +
+                "                  cancelScrollViews.count == 1,\n" +
+                "                  confirmScrollViews.count == 1,\n" +
+                "                  siteScrollViews.count == 1,",
+            "                  messageScrollViews.firstMatch.identifier == detail.identifier,\n" +
+                "                  cancelScrollViews.firstMatch.identifier == detail.identifier,\n" +
+                "                  confirmScrollViews.firstMatch.identifier == detail.identifier,\n" +
+                "                  siteScrollViews.firstMatch.identifier == detail.identifier,",
+            "            let dragInset: CGFloat = 24",
+            "            let minimumVisibleIntersection: CGFloat = 44",
+            "            for _ in 0..<4 {",
+            "                let viewportTop = detail.frame.minY",
+            "                let viewportBottom = detail.frame.maxY",
+            "                let messageFrame = deleteMessage.frame",
+            "                let cancelFrame = cancelDelete.frame",
+            "                let confirmFrame = confirmDelete.frame",
+            "                let minimumShift = max(",
+            "                let maximumShift = min(",
+            "                      minimumShift <= maximumShift else {",
+            "                if minimumShift <= 0 && maximumShift >= 0 { break }",
+            "                let targetDistance = maximumShift < 0\n" +
+                "                    ? minimumShift\n" +
+                "                    : maximumShift",
+            "                let maximumGestureDistance = viewportBottom\n" +
+                "                    - viewportTop\n" +
+                "                    - 2 * dragInset",
+            "                guard maximumGestureDistance >= minimumVisibleIntersection,\n" +
+                "                      abs(targetDistance) >= minimumVisibleIntersection else {",
+            "                let dragDistance = targetDistance > 0\n" +
+                "                    ? min(targetDistance, maximumGestureDistance)\n" +
+                "                    : max(targetDistance, -maximumGestureDistance)",
+            "                let scrollOrigin = detail.coordinate(\n" +
+                "                    withNormalizedOffset: CGVector(dx: 0, dy: 0)\n" +
+                "                )",
+            "                dragStart.press(\n" +
+                "                    forDuration: 0.2,\n" +
+                "                    thenDragTo: dragEnd,\n" +
+                "                    withVelocity: .slow,\n" +
+                "                    thenHoldForDuration: 0.2\n" +
+                "                )",
+        ]
+        for contract in doubleLengthGateContracts {
+            XCTAssertTrue(
+                doubleLengthGateSource.contains(contract),
+                contract
+            )
+        }
+        for (fragment, count) in [
+            ("runsMinimumDoubleLengthDeleteComposition", 2),
+            ("app.scrollViews.containing(", 4),
+            ("firstMatch.identifier == detail.identifier", 4),
+            ("app.state == .runningForeground", 2),
+            ("dragInset", 4),
+            ("minimumVisibleIntersection", 7),
+            ("for _ in 0..<4", 1),
+            ("viewportTop", 6),
+            ("viewportBottom", 6),
+            ("messageFrame", 3),
+            ("cancelFrame", 3),
+            ("confirmFrame", 5),
+            ("minimumShift", 4),
+            ("maximumShift", 5),
+            ("maximumGestureDistance", 4),
+            ("detail.coordinate(", 1),
+            ("withNormalizedOffset: CGVector(dx: 0, dy: 0)", 1),
+            ("press(", 1),
+            ("forDuration: 0.2", 1),
+            ("thenDragTo:", 1),
+            ("withVelocity: .slow", 1),
+            ("thenHoldForDuration: 0.2", 1),
+        ] {
+            XCTAssertEqual(
+                doubleLengthGateSource.components(separatedBy: fragment).count - 1,
+                count,
+                fragment
+            )
+        }
+        for prohibitedDoubleLengthGateForm in [
+            "tap(",
+            "swipe",
+            "scroll(",
+            "sleep",
+            "wait(",
+            "XCTAttachment",
+            "printJSONLine",
+            "captureBaseline(",
+            "throw AutomationConfigurationError.invalid",
+            "diagnosticElementObject",
+            "diagnosticQueryObject",
+            "S10_4_DOUBLE_LENGTH_DELETE_DIAGNOSTIC",
+            "diagnosticPreferredContainsZero",
+            "diagnosticFallbackContainsZero",
+            "diagnosticTargetDistance",
+            "diagnosticQueryObjects",
+        ] {
+            XCTAssertFalse(
+                doubleLengthGateSource.contains(prohibitedDoubleLengthGateForm),
+                prohibitedDoubleLengthGateForm
+            )
+        }
+
+        let doubleLengthFinalGateStart =
+            "        if runsMinimumDoubleLengthDeleteComposition {\n" +
+                "            let finalViewportFrame = detail.frame"
+        let doubleLengthFinalGateEnd =
+            "\n        captureBaseline(deleteConfirmationStateID, in: app)"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: doubleLengthFinalGateStart
+            ).count - 1,
+            1
+        )
+        guard let doubleLengthFinalGateStartRange = uiSource.range(
+            of: doubleLengthFinalGateStart
+        ), let doubleLengthFinalGateEndRange = uiSource.range(
+            of: doubleLengthFinalGateEnd,
+            range: doubleLengthFinalGateStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the minimum double-length final gate source slice")
+            return
+        }
+        let doubleLengthFinalGateSource = String(
+            uiSource[
+                doubleLengthFinalGateStartRange.lowerBound..<doubleLengthFinalGateEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(doubleLengthFinalGateSource.utf8.count, 1_925)
+        XCTAssertEqual(
+            Data(doubleLengthFinalGateSource.utf8).sha256,
+            "8FED3C5E36578370255ADC35BF2F0A55636DECC4B14032186D7552BCEE5B588B"
+        )
+        let doubleLengthFinalGateContracts = [
+            "        if runsMinimumDoubleLengthDeleteComposition {\n" +
+                "            let finalViewportFrame = detail.frame",
+            "            let finalMessageIntersection = deleteMessage.frame.intersection(\n" +
+                "                finalViewportFrame\n" +
+                "            )",
+            "            let finalCancelFrame = cancelDelete.frame",
+            "            let finalConfirmFrame = confirmDelete.frame",
+            "            let finalConfirmIntersection = finalConfirmFrame.intersection(\n" +
+                "                finalViewportFrame\n" +
+                "            )",
+            "            guard app.state == .runningForeground,\n",
+            "                  !finalMessageIntersection.isNull,\n" +
+                "                  finalMessageIntersection.height >= 44,\n" +
+                "                  finalCancelFrame.minY >= finalViewportFrame.minY,\n" +
+                "                  finalCancelFrame.maxY <= finalViewportFrame.maxY,\n" +
+                "                  finalConfirmFrame.midY >= finalViewportFrame.minY,\n" +
+                "                  finalConfirmFrame.midY <= finalViewportFrame.maxY,\n" +
+                "                  !finalConfirmIntersection.isNull,\n" +
+                "                  finalConfirmIntersection.height >= 44,\n" +
+                "                  cancelDelete.isHittable,\n" +
+                "                  confirmDelete.isHittable else {",
+            #"                    "Minimum double-length delete composition is not usable.""#,
+        ]
+        for contract in doubleLengthFinalGateContracts {
+            XCTAssertTrue(
+                doubleLengthFinalGateSource.contains(contract),
+                contract
+            )
+        }
+        for (fragment, count) in [
+            ("runsMinimumDoubleLengthDeleteComposition", 1),
+            ("app.scrollViews.containing(", 4),
+            ("app.state == .runningForeground", 1),
+            ("finalViewportFrame", 7),
+            ("finalMessageIntersection", 3),
+            ("finalCancelFrame", 3),
+            ("finalConfirmFrame", 4),
+            ("finalConfirmIntersection", 3),
+            ("!finalMessageIntersection.isNull", 1),
+            ("finalMessageIntersection.height >= 44", 1),
+            ("finalCancelFrame.minY >= finalViewportFrame.minY", 1),
+            ("finalCancelFrame.maxY <= finalViewportFrame.maxY", 1),
+            ("finalConfirmFrame.midY >= finalViewportFrame.minY", 1),
+            ("finalConfirmFrame.midY <= finalViewportFrame.maxY", 1),
+            ("!finalConfirmIntersection.isNull", 1),
+            ("finalConfirmIntersection.height >= 44", 1),
+            ("cancelDelete.isHittable", 1),
+            ("confirmDelete.isHittable", 1),
+        ] {
+            XCTAssertEqual(
+                doubleLengthFinalGateSource.components(separatedBy: fragment).count - 1,
+                count,
+                fragment
+            )
+        }
+        for prohibitedDoubleLengthFinalGateForm in [
+            "tap(",
+            "swipe",
+            "scroll(",
+            "sleep",
+            "wait(",
+            "XCTAttachment",
+            "printJSONLine",
+            "captureBaseline(",
+            "throw AutomationConfigurationError.invalid",
+            "diagnosticElementObject",
+            "diagnosticQueryObject",
+            "S10_4_DOUBLE_LENGTH_DELETE_DIAGNOSTIC",
+        ] {
+            XCTAssertFalse(
+                doubleLengthFinalGateSource.contains(prohibitedDoubleLengthFinalGateForm),
+                prohibitedDoubleLengthFinalGateForm
+            )
+        }
+        let unchangedDeleteCaptureAndActionOrder =
+            "        captureBaseline(deleteConfirmationStateID, in: app)\n" +
+                "        assertControl(cancelDelete, label: \"Cancel\")\n" +
+                "        cancelDelete.tap()\n" +
+                "        XCTAssertTrue(detail.waitForExistence(timeout: 20))"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: unchangedDeleteCaptureAndActionOrder
+            ).count - 1,
+            1
+        )
+        for removedDoubleLengthDiagnosticResidue in [
+            "diagnosticElementObject",
+            "diagnosticQueryObject",
+            "S10_4_DOUBLE_LENGTH_DELETE_DIAGNOSTIC",
+            "diagnosticTargetDistanceObject",
+            "diagnosticQueryObjects",
+            "S10.4 minimum double-length delete-confirmation diagnostic",
+            "S10.4 double-length delete diagnostic",
             "appScreenshot.name = \"S10.4 double-length delete diagnostic app\"",
             "appTree.name = \"S10.4 double-length delete diagnostic tree\"",
             "detailScreenshot.name = \"S10.4 double-length delete diagnostic detail\"",
             "messageScreenshot.name = \"S10.4 double-length delete diagnostic message\"",
-            "add(appScreenshot)",
-            "add(appTree)",
-            "add(detailScreenshot)",
-            "add(messageScreenshot)",
-        ]
-        for lock in doubleLengthDiagnosticAttachmentLocks {
-            XCTAssertEqual(
-                doubleLengthDiagnosticSource.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        XCTAssertEqual(
-            doubleLengthDiagnosticSource.components(separatedBy: "XCTAttachment(").count - 1,
-            4
-        )
-        XCTAssertEqual(
-            doubleLengthDiagnosticSource.components(separatedBy: ".lifetime = .keepAlways").count - 1,
-            4
-        )
-        let doubleLengthDiagnosticJSONLocks = [
-            #"                prefix: "S10_4_DOUBLE_LENGTH_DELETE_DIAGNOSTIC","#,
-            #"                    "shardID": "s10.4.minimum.double-length","#,
-            #"                    "stateID": deleteConfirmationStateID,"#,
-            #"                    "applicationStateRawValue": app.state.rawValue,"#,
-            #"                    "applicationFrame": auditFrameObject(app.frame),"#,
-            #"                    "detailViewportFrame": auditFrameObject(detail.frame),"#,
-            #"                    "queries": diagnosticQueryObjects,"#,
-            #"                    "preferredMinimumShift": Double("#,
-            #"                    "preferredMaximumShift": Double("#,
-            #"                    "fallbackMinimumShift": Double("#,
-            #"                    "fallbackMaximumShift": Double("#,
-            #"                    "preferredContainsZero": diagnosticPreferredContainsZero,"#,
-            #"                    "fallbackContainsZero": diagnosticFallbackContainsZero,"#,
-            #"                    "preferredIntervalFeasible": diagnosticPreferredMinimumShift"#,
-            #"                    "fallbackIntervalFeasible": diagnosticFallbackMinimumShift"#,
-            #"                    "recognizedMinimumDistance": 44,"#,
-            #"                    "targetDistance": diagnosticTargetDistanceObject,"#,
-        ]
-        for lock in doubleLengthDiagnosticJSONLocks {
-            XCTAssertEqual(
-                doubleLengthDiagnosticSource.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        let doubleLengthDiagnosticTerminalThrow =
-            "            throw AutomationConfigurationError.invalid(\n" +
-                #"                "S10.4 minimum double-length delete-confirmation diagnostic""# + "\n" +
-                "            )"
-        XCTAssertEqual(
-            doubleLengthDiagnosticSource.components(
-                separatedBy: doubleLengthDiagnosticTerminalThrow
-            ).count - 1,
-            1
-        )
-        let doubleLengthDiagnosticBeforeAX =
-            doubleLengthDiagnosticTerminalThrow +
-                "\n        }\n" +
-                doubleLengthDiagnosticAXBoundary
-        XCTAssertEqual(
-            uiSource.components(separatedBy: doubleLengthDiagnosticBeforeAX).count - 1,
-            1
-        )
-        for prohibitedDoubleLengthDiagnosticForm in [
-            "tap(",
-            "swipe",
-            "coordinate(",
-            "press(",
-            "drag",
-            "scroll(",
-            "sleep",
-            "wait(",
-            "XCTAssert",
-            "captureBaseline(",
-            "automatedEvidenceIDs",
-            "accessibilityTreeDigest",
-            "S10_4_AX",
-            "S10_4_CONTRAST",
-            "return true",
-            "return false",
-            "firstMatch",
-            "element(boundBy: 0)",
-            "== 1",
-            "CGRect(",
-            "711",
-            "880",
-            "-91",
         ] {
-            XCTAssertFalse(
-                doubleLengthDiagnosticSource.contains(prohibitedDoubleLengthDiagnosticForm),
-                prohibitedDoubleLengthDiagnosticForm
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: removedDoubleLengthDiagnosticResidue
+                ).count - 1,
+                0,
+                removedDoubleLengthDiagnosticResidue
             )
         }
-        XCTAssertEqual(
-            doubleLengthDiagnosticSource.components(separatedBy: "printJSONLine(").count - 1,
-            1
-        )
+
         let deleteNormalEvidenceLocks = [
             "let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {",
             "let axTreeDigest = try accessibilityTreeDigest(in: app)",
