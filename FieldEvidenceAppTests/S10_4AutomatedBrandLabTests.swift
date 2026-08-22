@@ -3877,8 +3877,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let coordinatorCompletionSource = String(
             storeKitCoordinatorSource[
-                coordinatorCompletionStartRange.lowerBound
-                    ..<coordinatorCompletionEndRange.lowerBound
+                coordinatorCompletionStartRange.lowerBound..<coordinatorCompletionEndRange.lowerBound
             ]
         )
         var coordinatorCompletionCursor = coordinatorCompletionSource.startIndex
@@ -3918,8 +3917,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let coordinatorSerializerSource = String(
             storeKitCoordinatorSource[
-                coordinatorSerializerStartRange.lowerBound
-                    ..<coordinatorSerializerEndRange.lowerBound
+                coordinatorSerializerStartRange.lowerBound..<coordinatorSerializerEndRange.lowerBound
             ]
         )
         for key in [
@@ -4455,8 +4453,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let storeKitDiagnosticSource = String(
             uiSource[
-                storeKitDiagnosticStartRange.lowerBound
-                    ..<storeKitDiagnosticEndRange.lowerBound
+                storeKitDiagnosticStartRange.lowerBound..<storeKitDiagnosticEndRange.lowerBound
             ]
         )
         for diagnosticLock in [
@@ -5510,8 +5507,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let livePurchaseStatusRenderer = String(
             paywallSource[
-                livePurchaseStatusRendererStartRange.lowerBound
-                    ..<livePurchaseStatusRendererEndRange.lowerBound
+                livePurchaseStatusRendererStartRange.lowerBound..<livePurchaseStatusRendererEndRange.lowerBound
             ]
         )
         for liveRendererLock in [
