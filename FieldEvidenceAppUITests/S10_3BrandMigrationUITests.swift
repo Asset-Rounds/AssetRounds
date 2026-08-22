@@ -3945,6 +3945,173 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             line: line
         )
         do {
+            if shard.shardID == "s10.4.current.ax-text",
+               stateID == "state.report-history.ready" {
+                let reportHistoryScreens = app.descendants(matching: .any).matching(
+                    identifier: "s4.4.history.screen"
+                )
+                let reportHistoryHeaders = app.staticTexts.matching(
+                    identifier: "s4.4.history.header"
+                )
+                let northCampusTexts = app.staticTexts.matching(
+                    NSPredicate(format: "label == %@", "North Campus")
+                )
+                let viewReportControls = app.buttons.matching(
+                    identifier: "s4.4.reports.view-report"
+                )
+                let reportHistoryScrollViews = app.scrollViews.containing(
+                    .button,
+                    identifier: "s4.4.reports.view-report"
+                )
+                let reportHistoryNavigationBars = app.navigationBars.matching(
+                    identifier: "Report history"
+                )
+                let reportHistoryTabBars = app.tabBars
+
+                let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
+                    element in
+                    let value: Any
+                    if let elementValue = element.value {
+                        value = String(describing: elementValue)
+                    } else {
+                        value = NSNull()
+                    }
+                    return [
+                        "identifier": element.identifier,
+                        "label": element.label,
+                        "value": value,
+                        "elementType": String(describing: element.elementType),
+                        "frame": self.auditFrameObject(element.frame),
+                        "exists": element.exists,
+                        "isHittable": element.isHittable,
+                    ]
+                }
+                let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
+                    query in
+                    let cardinality = query.count
+                    return [
+                        "cardinality": cardinality,
+                        "elements": (0..<cardinality).map { index in
+                            diagnosticElementObject(query.element(boundBy: index))
+                        },
+                    ]
+                }
+
+                var applicationObject = diagnosticElementObject(app)
+                applicationObject["state"] = String(describing: app.state)
+                applicationObject["stateRawValue"] = Int(app.state.rawValue)
+                applicationObject["isRunningForeground"] =
+                    app.state == .runningForeground
+                let context: [String: Any] = [
+                    "shardID": shard.shardID,
+                    "stateID": stateID,
+                    "application": applicationObject,
+                    "reportHistoryScreen": diagnosticQueryObject(
+                        reportHistoryScreens
+                    ),
+                    "reportHistoryHeader": diagnosticQueryObject(
+                        reportHistoryHeaders
+                    ),
+                    "northCampus": diagnosticQueryObject(northCampusTexts),
+                    "viewReport": diagnosticQueryObject(viewReportControls),
+                    "reportHistoryScrollView": diagnosticQueryObject(
+                        reportHistoryScrollViews
+                    ),
+                    "reportHistoryNavigationBar": diagnosticQueryObject(
+                        reportHistoryNavigationBars
+                    ),
+                    "reportHistoryTabBar": diagnosticQueryObject(
+                        reportHistoryTabBars
+                    ),
+                ]
+                printJSONLine(
+                    prefix: "S10_4_REPORT_HISTORY_CONTEXT_DIAGNOSTIC",
+                    object: context
+                )
+
+                let attachmentPrefix =
+                    "S10.4 s10.4.current.ax-text Report-history contrast diagnostic"
+                let appAttachment = XCTAttachment(screenshot: app.screenshot())
+                appAttachment.name = "\(attachmentPrefix) app"
+                appAttachment.lifetime = .keepAlways
+                add(appAttachment)
+
+                let treeAttachment = XCTAttachment(string: app.debugDescription)
+                treeAttachment.name = "\(attachmentPrefix) accessibility tree"
+                treeAttachment.lifetime = .keepAlways
+                add(treeAttachment)
+
+                let contextData = try JSONSerialization.data(
+                    withJSONObject: context,
+                    options: [.prettyPrinted, .sortedKeys]
+                )
+                let contextString = String(decoding: contextData, as: UTF8.self)
+                let historyContextElement = reportHistoryScreens.firstMatch
+                let historyContextAttachment: XCTAttachment
+                if historyContextElement.exists {
+                    historyContextAttachment = XCTAttachment(
+                        screenshot: historyContextElement.screenshot()
+                    )
+                } else {
+                    historyContextAttachment = XCTAttachment(string: contextString)
+                }
+                historyContextAttachment.name =
+                    "\(attachmentPrefix) Report-history route context"
+                historyContextAttachment.lifetime = .keepAlways
+                add(historyContextAttachment)
+
+                var observedIssueCount = 0
+                try app.performAccessibilityAudit(for: .contrast) { issue in
+                    observedIssueCount += 1
+                    var diagnostic: [String: Any] = [
+                        "shardID": shard.shardID,
+                        "stateID": stateID,
+                        "issueOrdinal": observedIssueCount,
+                        "auditTypeRawValue": String(issue.auditType.rawValue),
+                        "compactDescription": issue.compactDescription,
+                        "detailedDescription": issue.detailedDescription,
+                        "elementIdentifier": NSNull(),
+                        "elementLabel": NSNull(),
+                        "elementType": NSNull(),
+                        "elementFrame": NSNull(),
+                        "applicationFrame": self.auditFrameObject(app.frame),
+                    ]
+                    if let auditedElement = issue.element {
+                        diagnostic["elementIdentifier"] = auditedElement.identifier
+                        diagnostic["elementLabel"] = auditedElement.label
+                        diagnostic["elementType"] = String(
+                            describing: auditedElement.elementType
+                        )
+                        diagnostic["elementFrame"] = self.auditFrameObject(
+                            auditedElement.frame
+                        )
+                        let issueAttachment = XCTAttachment(
+                            screenshot: auditedElement.screenshot()
+                        )
+                        issueAttachment.name =
+                            "\(attachmentPrefix) audit issue \(observedIssueCount)"
+                        issueAttachment.lifetime = .keepAlways
+                        self.add(issueAttachment)
+                    }
+                    self.printJSONLine(
+                        prefix: "S10_4_REPORT_HISTORY_AUDIT_DIAGNOSTIC",
+                        object: diagnostic
+                    )
+                    return true
+                }
+                printJSONLine(
+                    prefix: "S10_4_REPORT_HISTORY_AUDIT_COUNT_DIAGNOSTIC",
+                    object: [
+                        "shardID": shard.shardID,
+                        "stateID": stateID,
+                        "issueCount": observedIssueCount,
+                    ]
+                )
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 AX-text Report-history contrast diagnostic completed nonaccepting"
+                )
+            }
+
             let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
                 $0.shardID == shard.shardID && $0.stateID == stateID
             }

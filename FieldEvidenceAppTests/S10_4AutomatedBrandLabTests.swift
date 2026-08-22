@@ -339,8 +339,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 231_556,
-            sha256: "69180A9317B989AA71BB0573B69E3D21F0D4FDD3E72E48AFBCA3F494CD94EBB3"
+            byteCount: 239_639,
+            sha256: "0D68EB070BA1A5FE4821A71AAF923DD4ED102EC786868EE9C9833E41FAEE3C89"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2368,6 +2368,293 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     prohibitedReportHistoryPositioningForm
                 ),
                 prohibitedReportHistoryPositioningForm
+            )
+        }
+
+        let reportHistoryDiagnosticGate =
+            #"            if shard.shardID == "s10.4.current.ax-text","# + "\n" +
+                #"               stateID == "state.report-history.ready" {"#
+        XCTAssertEqual(
+            uiSource.components(separatedBy: reportHistoryDiagnosticGate).count - 1,
+            1
+        )
+        let reportHistoryEligibleExceptionsBinding =
+            "            let eligibleExceptions = " +
+                "Self.contrastAuditExceptionSignatures.filter {"
+        guard let reportHistoryDiagnosticStartRange = uiSource.range(
+            of: reportHistoryDiagnosticGate
+        ), let reportHistoryDiagnosticEndRange = uiSource.range(
+            of: reportHistoryEligibleExceptionsBinding,
+            range: reportHistoryDiagnosticStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded AX-text Report-history diagnostic slice")
+            return
+        }
+        let reportHistoryDiagnosticSource = String(
+            uiSource[
+                reportHistoryDiagnosticStartRange.lowerBound..<reportHistoryDiagnosticEndRange.lowerBound
+            ]
+        )
+
+        let reportHistoryDiagnosticQueries = [
+            "let reportHistoryScreens = app.descendants(matching: .any).matching(\n" +
+                #"                    identifier: "s4.4.history.screen""#,
+            "let reportHistoryHeaders = app.staticTexts.matching(\n" +
+                #"                    identifier: "s4.4.history.header""#,
+            "let northCampusTexts = app.staticTexts.matching(\n" +
+                #"                    NSPredicate(format: "label == %@", "North Campus")"#,
+            "let viewReportControls = app.buttons.matching(\n" +
+                #"                    identifier: "s4.4.reports.view-report""#,
+            "let reportHistoryScrollViews = app.scrollViews.containing(\n" +
+                "                    .button,\n" +
+                #"                    identifier: "s4.4.reports.view-report""#,
+            "let reportHistoryNavigationBars = app.navigationBars.matching(\n" +
+                #"                    identifier: "Report history""#,
+            "let reportHistoryTabBars = app.tabBars",
+        ]
+        for query in reportHistoryDiagnosticQueries {
+            XCTAssertEqual(
+                reportHistoryDiagnosticSource.components(separatedBy: query).count - 1,
+                1,
+                query
+            )
+        }
+
+        let reportHistoryElementSerializer =
+            "                let diagnosticElementObject: (XCUIElement) -> [String: Any] = {\n" +
+                "                    element in\n" +
+                "                    let value: Any\n" +
+                "                    if let elementValue = element.value {\n" +
+                "                        value = String(describing: elementValue)\n" +
+                "                    } else {\n" +
+                "                        value = NSNull()\n" +
+                "                    }\n" +
+                "                    return [\n" +
+                #"                        "identifier": element.identifier,"# + "\n" +
+                #"                        "label": element.label,"# + "\n" +
+                #"                        "value": value,"# + "\n" +
+                #"                        "elementType": String(describing: element.elementType),"# + "\n" +
+                #"                        "frame": self.auditFrameObject(element.frame),"# + "\n" +
+                #"                        "exists": element.exists,"# + "\n" +
+                #"                        "isHittable": element.isHittable,"# + "\n" +
+                "                    ]\n" +
+                "                }"
+        XCTAssertEqual(
+            reportHistoryDiagnosticSource.components(
+                separatedBy: reportHistoryElementSerializer
+            ).count - 1,
+            1
+        )
+        let reportHistoryQuerySerializer =
+            "                let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {\n" +
+                "                    query in\n" +
+                "                    let cardinality = query.count\n" +
+                "                    return [\n" +
+                #"                        "cardinality": cardinality,"# + "\n" +
+                #"                        "elements": (0..<cardinality).map { index in"# + "\n" +
+                "                            diagnosticElementObject(query.element(boundBy: index))\n" +
+                "                        },\n" +
+                "                    ]\n" +
+                "                }"
+        XCTAssertEqual(
+            reportHistoryDiagnosticSource.components(
+                separatedBy: reportHistoryQuerySerializer
+            ).count - 1,
+            1
+        )
+        let reportHistoryApplicationSerializer =
+            "                var applicationObject = diagnosticElementObject(app)\n" +
+                #"                applicationObject["state"] = String(describing: app.state)"# + "\n" +
+                #"                applicationObject["stateRawValue"] = Int(app.state.rawValue)"# + "\n" +
+                #"                applicationObject["isRunningForeground"] ="# + "\n" +
+                "                    app.state == .runningForeground"
+        XCTAssertEqual(
+            reportHistoryDiagnosticSource.components(
+                separatedBy: reportHistoryApplicationSerializer
+            ).count - 1,
+            1
+        )
+        for contextBinding in [
+            #""shardID": shard.shardID"#,
+            #""stateID": stateID"#,
+            #""application": applicationObject"#,
+            #""reportHistoryScreen": diagnosticQueryObject("#,
+            #""reportHistoryHeader": diagnosticQueryObject("#,
+            #""northCampus": diagnosticQueryObject(northCampusTexts)"#,
+            #""viewReport": diagnosticQueryObject(viewReportControls)"#,
+            #""reportHistoryScrollView": diagnosticQueryObject("#,
+            #""reportHistoryNavigationBar": diagnosticQueryObject("#,
+            #""reportHistoryTabBar": diagnosticQueryObject("#,
+        ] {
+            XCTAssertEqual(
+                reportHistoryDiagnosticSource.components(
+                    separatedBy: contextBinding
+                ).count - 1,
+                1,
+                contextBinding
+            )
+        }
+
+        for prefix in [
+            "S10_4_REPORT_HISTORY_CONTEXT_DIAGNOSTIC",
+            "S10_4_REPORT_HISTORY_AUDIT_DIAGNOSTIC",
+            "S10_4_REPORT_HISTORY_AUDIT_COUNT_DIAGNOSTIC",
+        ] {
+            XCTAssertEqual(
+                reportHistoryDiagnosticSource.components(separatedBy: prefix).count - 1,
+                1,
+                prefix
+            )
+            XCTAssertEqual(uiSource.components(separatedBy: prefix).count - 1, 1, prefix)
+        }
+        let reportHistoryAttachmentLocks = [
+            "let attachmentPrefix =\n" +
+                #"                    "S10.4 s10.4.current.ax-text Report-history contrast diagnostic""#,
+            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
+            "let historyContextAttachment: XCTAttachment",
+            "historyContextAttachment = XCTAttachment(\n" +
+                "                        screenshot: historyContextElement.screenshot()",
+            "historyContextAttachment = XCTAttachment(string: contextString)",
+            "let issueAttachment = XCTAttachment(\n" +
+                "                            screenshot: auditedElement.screenshot()",
+            #"appAttachment.name = "\(attachmentPrefix) app""#,
+            #"treeAttachment.name = "\(attachmentPrefix) accessibility tree""#,
+            #""\(attachmentPrefix) Report-history route context""#,
+            #""\(attachmentPrefix) audit issue \(observedIssueCount)""#,
+        ]
+        for attachmentLock in reportHistoryAttachmentLocks {
+            XCTAssertEqual(
+                reportHistoryDiagnosticSource.components(
+                    separatedBy: attachmentLock
+                ).count - 1,
+                1,
+                attachmentLock
+            )
+        }
+        for (attachmentCardinalityLock, count) in [
+            ("XCTAttachment(", 5),
+            (".lifetime = .keepAlways", 4),
+            ("add(appAttachment)", 1),
+            ("add(treeAttachment)", 1),
+            ("add(historyContextAttachment)", 1),
+            ("self.add(issueAttachment)", 1),
+        ] {
+            XCTAssertEqual(
+                reportHistoryDiagnosticSource.components(
+                    separatedBy: attachmentCardinalityLock
+                ).count - 1,
+                count,
+                attachmentCardinalityLock
+            )
+        }
+
+        let reportHistoryCallbackFields = [
+            #""issueOrdinal": observedIssueCount"#,
+            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
+            #""compactDescription": issue.compactDescription"#,
+            #""detailedDescription": issue.detailedDescription"#,
+            #""elementIdentifier": NSNull()"#,
+            #""elementLabel": NSNull()"#,
+            #""elementType": NSNull()"#,
+            #""elementFrame": NSNull()"#,
+            #""applicationFrame": self.auditFrameObject(app.frame)"#,
+            #"diagnostic["elementIdentifier"] = auditedElement.identifier"#,
+            #"diagnostic["elementLabel"] = auditedElement.label"#,
+            #"diagnostic["elementType"] = String("#,
+            #"diagnostic["elementFrame"] = self.auditFrameObject("#,
+        ]
+        for callbackField in reportHistoryCallbackFields {
+            XCTAssertEqual(
+                reportHistoryDiagnosticSource.components(
+                    separatedBy: callbackField
+                ).count - 1,
+                1,
+                callbackField
+            )
+        }
+        let reportHistoryCallbackStart = "                var observedIssueCount = 0"
+        let reportHistoryCallbackEnd =
+            "                printJSONLine(\n" +
+                #"                    prefix: "S10_4_REPORT_HISTORY_AUDIT_COUNT_DIAGNOSTIC","#
+        guard let reportHistoryCallbackStartRange = reportHistoryDiagnosticSource.range(
+            of: reportHistoryCallbackStart
+        ), let reportHistoryCallbackEndRange = reportHistoryDiagnosticSource.range(
+            of: reportHistoryCallbackEnd,
+            range: reportHistoryCallbackStartRange.upperBound..<reportHistoryDiagnosticSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded Report-history audit callback")
+            return
+        }
+        let reportHistoryCallbackSource = String(
+            reportHistoryDiagnosticSource[
+                reportHistoryCallbackStartRange.lowerBound..<reportHistoryCallbackEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(
+            reportHistoryCallbackSource.components(separatedBy: "NSNull()").count - 1,
+            4
+        )
+        for (auditCardinalityLock, count) in [
+            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 1),
+            ("var observedIssueCount = 0", 1),
+            ("observedIssueCount += 1", 1),
+            ("NSNull()", 5),
+            ("return true", 1),
+            ("return false", 0),
+            (#""issueCount": observedIssueCount"#, 1),
+        ] {
+            XCTAssertEqual(
+                reportHistoryDiagnosticSource.components(
+                    separatedBy: auditCardinalityLock
+                ).count - 1,
+                count,
+                auditCardinalityLock
+            )
+        }
+        XCTAssertEqual(
+            reportHistoryDiagnosticSource.components(
+                separatedBy: "printJSONLine("
+            ).count - 1,
+            3
+        )
+        let reportHistoryDiagnosticTerminal =
+            "                throw AutomationConfigurationError.invalid(\n" +
+                #"                    "S10.4 AX-text Report-history contrast diagnostic completed nonaccepting""# + "\n" +
+                "                )\n" +
+                "            }\n\n"
+        XCTAssertTrue(reportHistoryDiagnosticSource.hasSuffix(reportHistoryDiagnosticTerminal))
+
+        for prohibitedReportHistoryDiagnosticForm in [
+            "tap(",
+            "swipe",
+            "press(",
+            "coordinate(",
+            "typeText(",
+            "scroll(",
+            "waitForExistence",
+            "sleep(",
+            "Thread.sleep",
+            "CGRect(",
+            "count ==",
+            "attachCandidate(",
+            "S10_MIGRATION_STATE",
+            #"prefix: "S10_4_AX_STATE""#,
+            #"prefix: "S10_4_AX""#,
+            #"prefix: "S10_4_CONTRAST""#,
+            "automationAXTreeDigests",
+            "automationContrastExceptions",
+            "contrastAuditExceptionSignatures",
+            "stateIssueLimit",
+            "matchingExceptions",
+            "matchedExceptions",
+            "receipt",
+        ] {
+            XCTAssertFalse(
+                reportHistoryDiagnosticSource.contains(
+                    prohibitedReportHistoryDiagnosticForm
+                ),
+                prohibitedReportHistoryDiagnosticForm
             )
         }
 
