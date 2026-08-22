@@ -40,6 +40,7 @@ struct DiagnosticExportView: View {
                     .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier(Self.headingAccessibilityIdentifier)
+                    .padding(.bottom, DesignTokens.Spacing.space4)
 
                 Text(
                     "These counters are best-effort lower-bound signals. They may be incomplete and are not payment, access, or cohort authority."
