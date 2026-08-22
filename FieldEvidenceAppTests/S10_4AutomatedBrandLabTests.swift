@@ -339,8 +339,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 246_296,
-            sha256: "7DB861605E25E40948E09AECADF54AF2485771EA39DCF9A81B6DC069858A3426"
+            byteCount: 236_263,
+            sha256: "A2599DB44FC3C01BF9EC4920FA7986422AE816861293E654EB8B95996073F214"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -3742,19 +3742,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let exactRetryLocks = [
             unverifiedRetryStart,
+            #"                guard let retainedSession = storeKitSession else {"#,
+            #"                    XCTFail("The retained StoreKit test session is required")"#,
+            "                    return usedSettingsRetry",
             "                app.terminate()",
-            "                storeKitSession = nil",
-            #"                guard let fixtureURL = Bundle(for: Self.self).url("#,
-            #"                    forResource: "FieldEvidence","#,
-            #"                    withExtension: "storekit""#,
-            "                ) else {",
-            #"                    XCTFail("The checked-in StoreKit fixture is required")"#,
-            #"                guard let freshSession = try? SKTestSession(contentsOf: fixtureURL) else {"#,
-            #"                    XCTFail("A fresh StoreKit test session is required")"#,
-            "                storeKitSession = freshSession",
-            "                freshSession.resetToDefaultState()",
-            "                freshSession.clearTransactions()",
-            "                freshSession.disableDialogs = true",
+            "                retainedSession.resetToDefaultState()",
+            "                retainedSession.clearTransactions()",
+            "                retainedSession.disableDialogs = true",
             "                app.launch()",
             #"                XCTAssertTrue(element("s2.sign-detail.screen", in: app)"#,
             #"                let retrySettings = element("s1.settings.button", in: app)"#,
@@ -3786,30 +3780,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 lock
             )
         }
-        let retryStoreKitResetAndRelaunch =
-            "                app.terminate()\n" +
-                "                storeKitSession = nil\n" +
-                #"                guard let fixtureURL = Bundle(for: Self.self).url("# + "\n" +
-                #"                    forResource: "FieldEvidence","# + "\n" +
-                #"                    withExtension: "storekit""# + "\n" +
-                "                ) else {\n" +
-                #"                    XCTFail("The checked-in StoreKit fixture is required")"# + "\n" +
+        let retainedStoreKitResetAndRelaunch =
+            #"                guard let retainedSession = storeKitSession else {"# + "\n" +
+                #"                    XCTFail("The retained StoreKit test session is required")"# + "\n" +
                 "                    return usedSettingsRetry\n" +
                 "                }\n" +
-                #"                guard let freshSession = try? SKTestSession(contentsOf: fixtureURL) else {"# + "\n" +
-                #"                    XCTFail("A fresh StoreKit test session is required")"# + "\n" +
-                "                    return usedSettingsRetry\n" +
-                "                }\n" +
-                "                storeKitSession = freshSession\n" +
-                "                freshSession.resetToDefaultState()\n" +
-                "                freshSession.clearTransactions()\n" +
-                "                freshSession.disableDialogs = true\n" +
+                "                app.terminate()\n" +
+                "                retainedSession.resetToDefaultState()\n" +
+                "                retainedSession.clearTransactions()\n" +
+                "                retainedSession.disableDialogs = true\n" +
                 "                app.launch()\n" +
                 #"                XCTAssertTrue(element("s2.sign-detail.screen", in: app)"# + "\n" +
                 "                    .waitForExistence(timeout: 30))"
         XCTAssertEqual(
             unverifiedRetrySource.components(
-                separatedBy: retryStoreKitResetAndRelaunch
+                separatedBy: retainedStoreKitResetAndRelaunch
             ).count - 1,
             1
         )
@@ -3835,7 +3820,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let retryInventoryGateAndPreTapPlacement =
+        let retryReadyTapAndFinalVerifiedWait =
             #"                store = element("s7.2.paywall.store", in: app)"# + "\n" +
                 "                XCTAssertTrue(store.waitForExistence(timeout: 30))\n" +
                 "                XCTAssertTrue(wait(\n" +
@@ -3849,88 +3834,59 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                XCTAssertTrue(purchase.waitForExistence(timeout: 20))\n" +
                 "                XCTAssertTrue(purchase.isEnabled)\n" +
                 "                XCTAssertTrue(purchase.isHittable)\n" +
-                "                let isDifferentiateStoreKitTransactionInventoryDiagnostic =\n" +
-                "                    automationShard?.shardID ==\n" +
-                "                        \"s10.4.current.differentiate-without-color\"\n" +
-                "                        && usedSettingsRetry\n" +
-                "                let transactionInventoryBeforeRetryTap: [String: Any]\n" +
-                "                if isDifferentiateStoreKitTransactionInventoryDiagnostic {\n" +
-                "                    transactionInventoryBeforeRetryTap =\n" +
-                "                        storeKitTestTransactionInventory(in: freshSession)\n" +
-                "                } else {\n" +
-                "                    transactionInventoryBeforeRetryTap = [:]\n" +
-                "                }\n" +
                 "                purchase.tap()\n" +
                 #"                purchaseState = element("s7.2.paywall.purchase-state", in: app)"# + "\n" +
-                "                let transactionInventoryAfterRetryTap: [String: Any]\n" +
-                "                if isDifferentiateStoreKitTransactionInventoryDiagnostic {\n" +
-                "                    transactionInventoryAfterRetryTap =\n" +
-                "                        storeKitTestTransactionInventory(in: freshSession)\n" +
-                "                } else {\n" +
-                "                    transactionInventoryAfterRetryTap = [:]\n" +
-                "                }"
-        XCTAssertEqual(
-            unverifiedRetrySource.components(
-                separatedBy: retryInventoryGateAndPreTapPlacement
-            ).count - 1,
-            1
-        )
-        let retryBranchToFinalVerifiedWait =
-            "                if isDifferentiateStoreKitTransactionInventoryDiagnostic {\n" +
-                "                    try diagnoseDifferentiateWithoutColorStoreKitTransactionInventory(\n" +
-                "                        transactionInventoryBeforeRetryTap:\n" +
-                "                            transactionInventoryBeforeRetryTap,\n" +
-                "                        transactionInventoryAfterRetryTap:\n" +
-                "                            transactionInventoryAfterRetryTap,\n" +
-                "                        session: freshSession,\n" +
-                "                        purchaseState: purchaseState,\n" +
-                "                        store: store,\n" +
-                "                        purchase: purchase,\n" +
-                "                        in: app\n" +
-                "                    )\n" +
-                "                }\n" +
                 "            }\n" +
                 "        }\n" +
                 finalVerifiedPurchaseWait
         XCTAssertEqual(
             purchaseRecoverySource.components(
-                separatedBy: retryBranchToFinalVerifiedWait
+                separatedBy: retryReadyTapAndFinalVerifiedWait
             ).count - 1,
             1
         )
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: "storeKitTestTransactionInventory(in:"
-            ).count - 1,
-            3
-        )
-        XCTAssertEqual(
-            unverifiedRetrySource.components(
-                separatedBy: "storeKitTestTransactionInventory(in: freshSession)"
-            ).count - 1,
-            2
-        )
-        let immediatePreTapInventory =
-            "                    transactionInventoryBeforeRetryTap =\n" +
-                "                        storeKitTestTransactionInventory(in: freshSession)\n" +
-                "                } else {\n" +
-                "                    transactionInventoryBeforeRetryTap = [:]\n" +
-                "                }\n" +
-                "                purchase.tap()"
-        let immediatePostTapInventory =
-            "                purchase.tap()\n" +
-                #"                purchaseState = element("s7.2.paywall.purchase-state", in: app)"# + "\n" +
-                "                let transactionInventoryAfterRetryTap: [String: Any]\n" +
-                "                if isDifferentiateStoreKitTransactionInventoryDiagnostic {\n" +
-                "                    transactionInventoryAfterRetryTap =\n" +
-                "                        storeKitTestTransactionInventory(in: freshSession)"
-        for placementLock in [immediatePreTapInventory, immediatePostTapInventory] {
+        for staleFreshSessionRetryForm in [
+            "                storeKitSession = nil",
+            #"                guard let fixtureURL = Bundle(for: Self.self).url("#,
+            #"                    forResource: "FieldEvidence","#,
+            #"                    withExtension: "storekit""#,
+            #"                    XCTFail("The checked-in StoreKit fixture is required")"#,
+            #"                guard let freshSession = try? SKTestSession(contentsOf: fixtureURL) else {"#,
+            #"                    XCTFail("A fresh StoreKit test session is required")"#,
+            "                storeKitSession = freshSession",
+            "freshSession",
+            "isDifferentiateStoreKitTransactionInventoryDiagnostic",
+            "transactionInventoryBeforeRetryTap",
+            "transactionInventoryAfterRetryTap",
+            "terminalTransactionInventory",
+        ] {
             XCTAssertEqual(
                 unverifiedRetrySource.components(
-                    separatedBy: placementLock
+                    separatedBy: staleFreshSessionRetryForm
+                ).count - 1,
+                0,
+                staleFreshSessionRetryForm
+            )
+        }
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "SKTestSession(contentsOf: fixtureURL)"
+            ).count - 1,
+            1
+        )
+        XCTAssertFalse(uiSource.contains("freshSession"))
+        XCTAssertFalse(uiSource.contains("storeKitSession = nil"))
+        for retainedSessionMutation in [
+            "retainedSession.resetToDefaultState()",
+            "retainedSession.clearTransactions()",
+            "retainedSession.disableDialogs = true",
+        ] {
+            XCTAssertEqual(
+                unverifiedRetrySource.components(
+                    separatedBy: retainedSessionMutation
                 ).count - 1,
                 1,
-                placementLock
+                retainedSessionMutation
             )
         }
         for removedStoreKitRetryDiagnosticForm in [
@@ -4005,7 +3961,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             unverifiedRetrySource.components(
                 separatedBy: "                    return usedSettingsRetry"
             ).count - 1,
-            2
+            1
         )
         XCTAssertFalse(uiSource.contains("buyProduct("))
         for noRetrySource in [purchaseRecoveryPrefix, purchaseRecoverySuffix] {
@@ -4048,7 +4004,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "    @MainActor\n" +
                 "    private func captureAvailablePaywallAndPurchase(\n" +
                 "        in app: XCUIApplication\n" +
-                "    ) throws -> Bool {\n" +
+                "    ) -> Bool {\n" +
                 "        var usedSettingsRetry = false"
         let availablePurchaseFunctionEnd =
             "\n\n    @MainActor\n" +
@@ -4073,29 +4029,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 availablePurchaseFunctionStartRange.lowerBound..<availablePurchaseFunctionEndRange.lowerBound
             ]
         )
-        for throwingStoreKitDiagnosticCallChainLock in [
-            "        try captureAlternativeCompletedCheckStates(in: app)",
-            "    private func captureAlternativeCompletedCheckStates(\n" +
-                "        in app: XCUIApplication\n" +
-                "    ) throws {",
-            "        try purchaseBlockedEvaluationAndBeginFreshCheck(in: app)",
-            "    private func purchaseBlockedEvaluationAndBeginFreshCheck(\n" +
-                "        in app: XCUIApplication\n" +
-                "    ) throws {",
-            "        let usedSettingsRetry = try captureAvailablePaywallAndPurchase(in: app)",
-            "    private func captureAvailablePaywallAndPurchase(\n" +
-                "        in app: XCUIApplication\n" +
-                "    ) throws -> Bool {",
-        ] {
-            XCTAssertEqual(
-                uiSource.components(
-                    separatedBy: throwingStoreKitDiagnosticCallChainLock
-                ).count - 1,
-                1,
-                throwingStoreKitDiagnosticCallChainLock
-            )
-        }
-        for removedNonthrowingStoreKitDiagnosticCallChainLock in [
+        for restoredNonthrowingStoreKitCallChainLock in [
             "        captureAlternativeCompletedCheckStates(in: app)",
             "    private func captureAlternativeCompletedCheckStates(\n" +
                 "        in app: XCUIApplication\n" +
@@ -4111,10 +4045,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertEqual(
                 uiSource.components(
-                    separatedBy: removedNonthrowingStoreKitDiagnosticCallChainLock
+                    separatedBy: restoredNonthrowingStoreKitCallChainLock
+                ).count - 1,
+                1,
+                restoredNonthrowingStoreKitCallChainLock
+            )
+        }
+        for removedThrowingStoreKitDiagnosticCallChainLock in [
+            "        try captureAlternativeCompletedCheckStates(in: app)",
+            "    private func captureAlternativeCompletedCheckStates(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) throws {",
+            "        try purchaseBlockedEvaluationAndBeginFreshCheck(in: app)",
+            "    private func purchaseBlockedEvaluationAndBeginFreshCheck(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) throws {",
+            "        let usedSettingsRetry = try captureAvailablePaywallAndPurchase(in: app)",
+            "    private func captureAvailablePaywallAndPurchase(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) throws -> Bool {",
+        ] {
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: removedThrowingStoreKitDiagnosticCallChainLock
                 ).count - 1,
                 0,
-                removedNonthrowingStoreKitDiagnosticCallChainLock
+                removedThrowingStoreKitDiagnosticCallChainLock
             )
         }
         XCTAssertEqual(
@@ -4133,7 +4089,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             availablePurchaseFunctionSource.components(
                 separatedBy: "return usedSettingsRetry"
             ).count - 1,
-            12
+            11
         )
         XCTAssertFalse(availablePurchaseFunctionSource.contains("\n            return\n"))
         XCTAssertFalse(availablePurchaseFunctionSource.contains("\n                    return\n"))
@@ -4167,7 +4123,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource[purchaseCallerStartRange.lowerBound..<purchaseCallerEndRange.lowerBound]
         )
         let postCloseSettingsRestoration =
-            "        let usedSettingsRetry = try captureAvailablePaywallAndPurchase(in: app)\n" +
+            "        let usedSettingsRetry = captureAvailablePaywallAndPurchase(in: app)\n" +
                 "\n" +
                 #"        let close = element("s7.2.paywall.close", in: app)"# + "\n" +
                 "        scrollDown(close, in: app)\n" +
@@ -4200,576 +4156,34 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
 
-        let storeKitTransactionDiagnosticStart =
-            "    @MainActor\n" +
-                "    private func diagnoseDifferentiateWithoutColorStoreKitTransactionInventory(\n" +
-                "        transactionInventoryBeforeRetryTap: [String: Any],\n" +
-                "        transactionInventoryAfterRetryTap: [String: Any],\n" +
-                "        session: SKTestSession,\n" +
-                "        purchaseState: XCUIElement,\n" +
-                "        store: XCUIElement,\n" +
-                "        purchase: XCUIElement,\n" +
-                "        in app: XCUIApplication\n" +
-                "    ) throws {"
-        let storeKitTransactionDiagnosticEnd =
-            "\n\n    @MainActor\n" +
-                "    private func firstPurchaseButton(in app: XCUIApplication) -> XCUIElement {"
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: storeKitTransactionDiagnosticStart
-            ).count - 1,
-            1
-        )
-        guard let storeKitTransactionDiagnosticStartRange = uiSource.range(
-            of: storeKitTransactionDiagnosticStart
-        ), let storeKitTransactionDiagnosticEndRange = uiSource.range(
-            of: storeKitTransactionDiagnosticEnd,
-            range: storeKitTransactionDiagnosticStartRange.upperBound..<uiSource.endIndex
-        ) else {
-            XCTFail("Missing the bounded StoreKit transaction-inventory diagnostic helper source slice")
-            return
-        }
-        let storeKitTransactionDiagnosticSource = String(
-            uiSource[
-                storeKitTransactionDiagnosticStartRange.lowerBound..<storeKitTransactionDiagnosticEndRange.lowerBound
-            ]
-        )
-        let storeKitRetryDiagnosticSource = storeKitTransactionDiagnosticSource
-        let storeKitTransactionSerializerStart =
-            "    @MainActor\n" +
-                "    private func storeKitTestTransactionObject(\n" +
-                "        _ transaction: SKTestTransaction,\n" +
-                "        ordinal: Int\n" +
-                "    ) -> [String: Any] {"
-        guard let storeKitTransactionSerializerStartRange = uiSource.range(
-            of: storeKitTransactionSerializerStart
-        ) else {
-            XCTFail("Missing the bounded StoreKit transaction serializers")
-            return
-        }
-        let storeKitTransactionSerializerSource = String(
-            uiSource[
-                storeKitTransactionSerializerStartRange.lowerBound..<storeKitTransactionDiagnosticStartRange.lowerBound
-            ]
-        )
-        let storeKitTransactionObjectFields = [
-            #""ordinal": ordinal"#,
-            #""identifier": transaction.identifier"#,
-            #""originalTransactionIdentifier":"#,
-            "transaction.originalTransactionIdentifier",
-            #""productIdentifier": transaction.productIdentifier"#,
-            #""state": String(describing: transaction.state)"#,
-            #""stateRawValue": Int(transaction.state.rawValue)"#,
-            #""purchaseDateSecondsSince1970":"#,
-            "transaction.purchaseDate.timeIntervalSince1970",
-            #""cancelDateSecondsSince1970": cancelDate"#,
-            #""expirationDateSecondsSince1970": expirationDate"#,
-            #""autoRenewingEnabled": transaction.autoRenewingEnabled"#,
-            #""hasPurchaseIssue": transaction.hasPurchaseIssue"#,
-            #""pendingAskToBuyConfirmation":"#,
-            "transaction.pendingAskToBuyConfirmation",
-        ]
-        for field in storeKitTransactionObjectFields {
-            XCTAssertEqual(
-                storeKitTransactionSerializerSource.components(
-                    separatedBy: field
-                ).count - 1,
-                1,
-                field
-            )
-        }
-        for nullableDateLock in [
-            "if let value = transaction.cancelDate {",
-            "cancelDate = value.timeIntervalSince1970",
-            "if let value = transaction.expirationDate {",
-            "expirationDate = value.timeIntervalSince1970",
-        ] {
-            XCTAssertEqual(
-                storeKitTransactionSerializerSource.components(
-                    separatedBy: nullableDateLock
-                ).count - 1,
-                1,
-                nullableDateLock
-            )
-        }
-        XCTAssertEqual(
-            storeKitTransactionSerializerSource.components(
-                separatedBy: "NSNull()"
-            ).count - 1,
-            2
-        )
-        let storeKitTransactionInventorySerializer =
-            "    @MainActor\n" +
-                "    private func storeKitTestTransactionInventory(\n" +
-                "        in session: SKTestSession\n" +
-                "    ) -> [String: Any] {\n" +
-                "        let transactions = session.allTransactions()\n" +
-                "        return [\n" +
-                "            \"count\": transactions.count,\n" +
-                "            \"transactions\": transactions.enumerated().map { pair in\n" +
-                "                storeKitTestTransactionObject(\n" +
-                "                    pair.element,\n" +
-                "                    ordinal: pair.offset\n" +
-                "                )\n" +
-                "            },\n" +
-                "        ]\n" +
-                "    }"
-        XCTAssertEqual(
-            storeKitTransactionSerializerSource.components(
-                separatedBy: storeKitTransactionInventorySerializer
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            uiSource.components(separatedBy: "session.allTransactions()").count - 1,
-            1
-        )
-        XCTAssertEqual(
-            storeKitTransactionSerializerSource.components(
-                separatedBy: "transactions.enumerated().map { pair in"
-            ).count - 1,
-            1
-        )
-        let storeKitRetryDiagnosticQueries =
-            "        let paywallScreens = app.descendants(matching: .any).matching(\n" +
-                #"            identifier: "s7.2.paywall.screen""# + "\n" +
-                "        )\n" +
-                "        let stores = app.descendants(matching: .any).matching(\n" +
-                #"            identifier: "s7.2.paywall.store""# + "\n" +
-                "        )\n" +
-                "        let purchaseStates = app.descendants(matching: .any).matching(\n" +
-                #"            identifier: "s7.2.paywall.purchase-state""# + "\n" +
-                "        )\n" +
-                "        let purchaseButtons = app.buttons.matching(NSPredicate(\n" +
-                #"            format: "label CONTAINS[c] 'Subscribe' OR label CONTAINS[c] 'Trial' OR label CONTAINS[c] '$59.99'""# + "\n" +
-                "        ))"
-        XCTAssertEqual(
-            storeKitRetryDiagnosticSource.components(
-                separatedBy: storeKitRetryDiagnosticQueries
-            ).count - 1,
-            1
-        )
-        let unchangedSubscribePredicate =
-            #"format: "label CONTAINS[c] 'Subscribe' OR label CONTAINS[c] 'Trial' OR label CONTAINS[c] '$59.99'""#
-        XCTAssertEqual(
-            storeKitRetryDiagnosticSource.components(
-                separatedBy: unchangedSubscribePredicate
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            uiSource.components(separatedBy: unchangedSubscribePredicate).count - 1,
-            2
-        )
-        for queryBinding in [
-            "let paywallScreens = app.descendants(matching: .any).matching(",
-            "let stores = app.descendants(matching: .any).matching(",
-            "let purchaseStates = app.descendants(matching: .any).matching(",
-            "let purchaseButtons = app.buttons.matching(NSPredicate(",
-        ] {
-            XCTAssertEqual(
-                storeKitRetryDiagnosticSource.components(
-                    separatedBy: queryBinding
-                ).count - 1,
-                1,
-                queryBinding
-            )
-        }
-
-        let storeKitRetryFrameSerializer =
-            "        func frameObject(_ frame: CGRect) -> [String: Any] {\n" +
-                "            [\n" +
-                "                \"x\": Double(frame.origin.x),\n" +
-                "                \"y\": Double(frame.origin.y),\n" +
-                "                \"width\": Double(frame.size.width),\n" +
-                "                \"height\": Double(frame.size.height),\n" +
-                "            ]\n" +
-                "        }"
-        let storeKitRetryElementSerializer =
-            "        func elementObject(_ element: XCUIElement) -> [String: Any] {\n" +
-                "            let value: Any\n" +
-                "            if let elementValue = element.value {\n" +
-                "                value = String(describing: elementValue)\n" +
-                "            } else {\n" +
-                "                value = NSNull()\n" +
-                "            }\n" +
-                "            return [\n" +
-                "                \"identifier\": element.identifier,\n" +
-                "                \"label\": element.label,\n" +
-                "                \"value\": value,\n" +
-                "                \"elementTypeRawValue\": Int(element.elementType.rawValue),\n" +
-                "                \"frame\": frameObject(element.frame),\n" +
-                "                \"exists\": element.exists,\n" +
-                "                \"isHittable\": element.isHittable,\n" +
-                "                \"isEnabled\": element.isEnabled,\n" +
-                "            ]\n" +
-                "        }"
-        let storeKitRetryQuerySerializer =
-            "        func queryObject(_ query: XCUIElementQuery) -> [String: Any] {\n" +
-                "            let count = query.count\n" +
-                "            return [\n" +
-                "                \"count\": count,\n" +
-                "                \"elements\": (0..<count).map { index in\n" +
-                "                    elementObject(query.element(boundBy: index))\n" +
-                "                },\n" +
-                "            ]\n" +
-                "        }"
-        let storeKitRetrySampleSerializer =
-            "        func sampleObject() -> [String: Any] {\n" +
-                "            [\n" +
-                "                \"application\": [\n" +
-                "                    \"state\": String(describing: app.state),\n" +
-                "                    \"stateRawValue\": Int(app.state.rawValue),\n" +
-                "                    \"isRunningForeground\": app.state == .runningForeground,\n" +
-                "                    \"frame\": frameObject(app.frame),\n" +
-                "                ],\n" +
-                "                \"queries\": [\n" +
-                "                    \"paywallScreen\": queryObject(paywallScreens),\n" +
-                "                    \"store\": queryObject(stores),\n" +
-                "                    \"purchaseState\": queryObject(purchaseStates),\n" +
-                "                    \"purchaseButtons\": queryObject(purchaseButtons),\n" +
-                "                ],\n" +
-                "                \"selected\": [\n" +
-                "                    \"store\": elementObject(store),\n" +
-                "                    \"purchaseState\": elementObject(purchaseState),\n" +
-                "                    \"purchase\": elementObject(purchase),\n" +
-                "                ],\n" +
-                "            ]\n" +
-                "        }"
-        for serializer in [
-            storeKitRetryFrameSerializer,
-            storeKitRetryElementSerializer,
-            storeKitRetryQuerySerializer,
-            storeKitRetrySampleSerializer,
-        ] {
-            XCTAssertEqual(
-                storeKitRetryDiagnosticSource.components(
-                    separatedBy: serializer
-                ).count - 1,
-                1,
-                serializer
-            )
-        }
-        for publicOrContextField in [
-            #""identifier":"#,
-            #""label":"#,
-            #""value":"#,
-            #""elementTypeRawValue":"#,
-            #""exists":"#,
-            #""isHittable":"#,
-            #""isEnabled":"#,
-            "String(describing: elementValue)",
-            "NSNull()",
-            "Int(element.elementType.rawValue)",
-            #""application":"#,
-            #""state":"#,
-            #""stateRawValue":"#,
-            #""isRunningForeground":"#,
-            #""queries":"#,
-            #""selected":"#,
-        ] {
-            XCTAssertEqual(
-                storeKitRetryDiagnosticSource.components(
-                    separatedBy: publicOrContextField
-                ).count - 1,
-                1,
-                publicOrContextField
-            )
-        }
-        XCTAssertEqual(
-            storeKitRetryDiagnosticSource.components(
-                separatedBy: #""frame":"#
-            ).count - 1,
-            2
-        )
-        XCTAssertEqual(
-            storeKitRetryDiagnosticSource.components(
-                separatedBy: "let count = query.count"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            storeKitRetryDiagnosticSource.components(
-                separatedBy: "(0..<count).map { index in"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            storeKitRetryDiagnosticSource.components(
-                separatedBy: "query.element(boundBy: index)"
-            ).count - 1,
-            1
-        )
-
-        let storeKitRetryStartSample =
-            "        let startedAt = Date()\n" +
-                "        let startSample = sampleObject()"
-        let storeKitTransactionVerifiedOnlyWaiter =
-            "        let verifiedPurchaseLabel =\n" +
-                "            \"Complete: Purchase verified. Subscription access is ready.\"\n" +
-                "        let verifiedExpectation = XCTNSPredicateExpectation(\n" +
-                "            predicate: NSPredicate(\n" +
-                "                format: \"label == %@\",\n" +
-                "                verifiedPurchaseLabel\n" +
-                "            ),\n" +
-                "            object: purchaseState\n" +
-                "        )\n" +
-                "        let verifiedWaitResult = XCTWaiter.wait(\n" +
-                "            for: [verifiedExpectation],\n" +
-                "            timeout: 45\n" +
-                "        )"
-        let storeKitRetryTerminalSample =
-            "        let terminalTransactionInventory =\n" +
-                "            storeKitTestTransactionInventory(in: session)\n" +
-                "        let terminalSample = sampleObject()"
-        for sampleOrWaiter in [
-            storeKitRetryStartSample,
-            storeKitTransactionVerifiedOnlyWaiter,
-            storeKitRetryTerminalSample,
-        ] {
-            XCTAssertEqual(
-                storeKitRetryDiagnosticSource.components(
-                    separatedBy: sampleOrWaiter
-                ).count - 1,
-                1,
-                sampleOrWaiter
-            )
-        }
-        let verifiedWaitThenTerminalInventory =
-            storeKitTransactionVerifiedOnlyWaiter + "\n\n" +
-                storeKitRetryTerminalSample
-        XCTAssertEqual(
-            storeKitRetryDiagnosticSource.components(
-                separatedBy: verifiedWaitThenTerminalInventory
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            storeKitRetryDiagnosticSource.components(
-                separatedBy: "XCTWaiter.wait("
-            ).count - 1,
-            1
-        )
-        XCTAssertFalse(storeKitRetryDiagnosticSource.contains("XCTAssert"))
-        for removedInclusiveWaiterForm in [
-            "label == %@ OR label == %@",
-            "unverifiedPurchaseLabel",
-            "terminalExpectation",
-            "for: [terminalExpectation]",
-        ] {
-            XCTAssertFalse(
-                storeKitRetryDiagnosticSource.contains(removedInclusiveWaiterForm),
-                removedInclusiveWaiterForm
-            )
-        }
-
-        for attachmentConstructor in [
-            "let attachmentPrefix =\n" +
-                "            \"S10.4 s10.4.current.differentiate-without-color StoreKit transaction-inventory diagnostic\"",
-            "let startScreenshot = XCTAttachment(screenshot: app.screenshot())",
-            "let startTree = XCTAttachment(string: app.debugDescription)",
-            "let terminalScreenshot = XCTAttachment(screenshot: app.screenshot())",
-            "let terminalTree = XCTAttachment(string: app.debugDescription)",
-        ] {
-            XCTAssertEqual(
-                storeKitRetryDiagnosticSource.components(
-                    separatedBy: attachmentConstructor
-                ).count - 1,
-                1,
-                attachmentConstructor
-            )
-        }
-        XCTAssertEqual(
-            storeKitRetryDiagnosticSource.components(
-                separatedBy: "XCTAttachment("
-            ).count - 1,
-            4
-        )
-        XCTAssertEqual(
-            storeKitRetryDiagnosticSource.components(
-                separatedBy: ".lifetime = .keepAlways"
-            ).count - 1,
-            4
-        )
-        XCTAssertEqual(
-            storeKitRetryDiagnosticSource.components(
-                separatedBy: "        add("
-            ).count - 1,
-            4
-        )
-        for attachmentName in [
+        for removedStoreKitTransactionDiagnosticForm in [
+            "diagnoseDifferentiateWithoutColorStoreKitTransactionInventory",
+            "storeKitTestTransactionObject",
+            "storeKitTestTransactionInventory",
+            "isDifferentiateStoreKitTransactionInventoryDiagnostic",
+            "transactionInventoryBeforeRetryTap",
+            "transactionInventoryAfterRetryTap",
+            "terminalTransactionInventory",
+            "S10_4_STOREKIT_TRANSACTION_INVENTORY_DIAGNOSTIC",
+            "StoreKit transaction-inventory diagnostic",
+            "StoreKit transaction-inventory diagnostic completed nonaccepting",
+            "sessionMatchesRetainedProperty",
+            "storeKitSessionPresent",
+            #""transactionInventories":"#,
+            #""beforeRetryTap":"#,
+            #""afterRetryTap":"#,
+            "S10.4 s10.4.current.differentiate-without-color StoreKit transaction-inventory diagnostic",
             #"startScreenshot.name = "\(attachmentPrefix) start app""#,
             #"startTree.name = "\(attachmentPrefix) start accessibility tree""#,
             #"terminalScreenshot.name = "\(attachmentPrefix) terminal app""#,
             #"terminalTree.name = "\(attachmentPrefix) terminal accessibility tree""#,
         ] {
             XCTAssertEqual(
-                storeKitRetryDiagnosticSource.components(
-                    separatedBy: attachmentName
-                ).count - 1,
-                1,
-                attachmentName
-            )
-        }
-        let startAttachmentsBeforeVerifiedWait =
-            "        let startTree = XCTAttachment(string: app.debugDescription)\n" +
-                "        startTree.name = \"\\(attachmentPrefix) start accessibility tree\"\n" +
-                "        startTree.lifetime = .keepAlways\n" +
-                "        add(startTree)\n\n" +
-                "        let verifiedPurchaseLabel ="
-        XCTAssertEqual(
-            storeKitRetryDiagnosticSource.components(
-                separatedBy: startAttachmentsBeforeVerifiedWait
-            ).count - 1,
-            1
-        )
-
-        let storeKitTransactionDiagnosticRecord =
-            "        printJSONLine(\n" +
-                "            prefix: \"S10_4_STOREKIT_TRANSACTION_INVENTORY_DIAGNOSTIC\",\n" +
-                "            object: [\n" +
-                "                \"shardID\": \"s10.4.current.differentiate-without-color\",\n" +
-                "                \"usedSettingsRetry\": true,\n" +
-                "                \"storeKitSessionPresent\": storeKitSession != nil,\n" +
-                "                \"sessionMatchesRetainedProperty\": storeKitSession === session,\n" +
-                "                \"verifiedWaitResult\": String(describing: verifiedWaitResult),\n" +
-                "                \"elapsedMilliseconds\": max(\n" +
-                "                    0,\n" +
-                "                    Date().timeIntervalSince(startedAt) * 1_000\n" +
-                "                ),\n" +
-                "                \"start\": startSample,\n" +
-                "                \"terminal\": terminalSample,\n" +
-                "                \"transactionInventories\": [\n" +
-                "                    \"beforeRetryTap\": transactionInventoryBeforeRetryTap,\n" +
-                "                    \"afterRetryTap\": transactionInventoryAfterRetryTap,\n" +
-                "                    \"terminal\": terminalTransactionInventory,\n" +
-                "                ],\n" +
-                "            ]\n" +
-                "        )"
-        let storeKitTransactionDiagnosticTerminal =
-            "        throw AutomationConfigurationError.invalid(\n" +
-                "            \"S10.4 differentiate-without-color StoreKit transaction-inventory diagnostic completed nonaccepting\"\n" +
-                "        )"
-        XCTAssertEqual(
-            storeKitRetryDiagnosticSource.components(
-                separatedBy: storeKitTransactionDiagnosticRecord
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            storeKitRetryDiagnosticSource.components(
-                separatedBy: storeKitTransactionDiagnosticTerminal
-            ).count - 1,
-            1
-        )
-        let storeKitTransactionEmitterThenTerminal =
-            storeKitTransactionDiagnosticRecord + "\n" +
-                storeKitTransactionDiagnosticTerminal
-        XCTAssertEqual(
-            storeKitRetryDiagnosticSource.components(
-                separatedBy: storeKitTransactionEmitterThenTerminal
-            ).count - 1,
-            1
-        )
-        let terminalAttachmentsThenEmitter =
-            "        let terminalScreenshot = XCTAttachment(screenshot: app.screenshot())\n" +
-                "        terminalScreenshot.name = \"\\(attachmentPrefix) terminal app\"\n" +
-                "        terminalScreenshot.lifetime = .keepAlways\n" +
-                "        add(terminalScreenshot)\n\n" +
-                "        let terminalTree = XCTAttachment(string: app.debugDescription)\n" +
-                "        terminalTree.name = \"\\(attachmentPrefix) terminal accessibility tree\"\n" +
-                "        terminalTree.lifetime = .keepAlways\n" +
-                "        add(terminalTree)\n\n" +
-                storeKitTransactionDiagnosticRecord
-        XCTAssertEqual(
-            storeKitRetryDiagnosticSource.components(
-                separatedBy: terminalAttachmentsThenEmitter
-            ).count - 1,
-            1
-        )
-        for (fragment, count) in [
-            ("S10_4_STOREKIT_TRANSACTION_INVENTORY_DIAGNOSTIC", 1),
-            ("printJSONLine(", 1),
-            ("throw AutomationConfigurationError.invalid(", 1),
-            (#""shardID": "s10.4.current.differentiate-without-color""#, 1),
-            (#""usedSettingsRetry": true"#, 1),
-            (#""storeKitSessionPresent": storeKitSession != nil"#, 1),
-            (#""sessionMatchesRetainedProperty": storeKitSession === session"#, 1),
-            (#""verifiedWaitResult": String(describing: verifiedWaitResult)"#, 1),
-            (#""elapsedMilliseconds": max("#, 1),
-            (#""start": startSample"#, 1),
-            (#""terminal": terminalSample"#, 1),
-            (#""transactionInventories":"#, 1),
-            (#""beforeRetryTap": transactionInventoryBeforeRetryTap"#, 1),
-            (#""afterRetryTap": transactionInventoryAfterRetryTap"#, 1),
-            (#""terminal": terminalTransactionInventory"#, 1),
-        ] {
-            XCTAssertEqual(
-                storeKitRetryDiagnosticSource.components(
-                    separatedBy: fragment
-                ).count - 1,
-                count,
-                fragment
-            )
-        }
-        for prohibitedDiagnosticForm in [
-            ".tap()",
-            "scroll(",
-            ".swipe",
-            ".press(",
-            ".coordinate(",
-            ".typeText(",
-            "scrollDown(",
-            "navigateBack(",
-            "setToggle(",
-            "app.launch()",
-            "app.terminate()",
-            "app.activate()",
-            "resetToDefaultState",
-            "clearTransactions",
-            "disableDialogs",
-            "failTransactionsEnabled",
-            "interruptedPurchasesEnabled",
-            "askToBuyEnabled",
-            "approveAskToBuyTransaction",
-            "declineAskToBuyTransaction",
-            "refundTransaction",
-            "expireSubscription",
-            "deleteTransaction",
-            "storeKitSession = nil",
-            "storeKitSession = session",
-            "sleep(",
-            "Thread.sleep",
-            "performAccessibilityAudit",
-            "captureBaseline(",
-            "waitForLocalizedLabel(",
-            "state.paywall.purchase-complete",
-            "attachCandidate(",
-            "assertMigrationStateCoverage",
-            "emitAutomatedLabAccessibilityRowsIfNeeded",
-            "eligibleExceptions",
-            "S10_MIGRATION_STATE",
-            "S10_4_AX_STATE",
-            "S10_4_CONTRAST",
-            "S10_4_CANDIDATE",
-            "S10_4_TASK",
-            "S10_4_SHARD_RECEIPT",
-            "automatedEvidenceIDs.append",
-            "add(candidate)",
-            "XCTFail",
-            "XCTSkip",
-            "buyProduct(",
-            "Product.purchase(",
-            "currentEntitlements",
-            "CGRect(",
-            #""count": 1"#,
-        ] {
-            XCTAssertEqual(
-                storeKitRetryDiagnosticSource.components(
-                    separatedBy: prohibitedDiagnosticForm
+                uiSource.components(
+                    separatedBy: removedStoreKitTransactionDiagnosticForm
                 ).count - 1,
                 0,
-                prohibitedDiagnosticForm
+                removedStoreKitTransactionDiagnosticForm
             )
         }
 

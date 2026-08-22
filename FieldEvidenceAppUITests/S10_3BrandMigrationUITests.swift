@@ -509,7 +509,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         app.launch()
 
         completeWorkAndResolvedRecheckAtXXXL(in: app)
-        try captureAlternativeCompletedCheckStates(in: app)
+        captureAlternativeCompletedCheckStates(in: app)
         captureDifferentIssueStatesBeforeRecovery(in: app)
         app.terminate()
         app.launch()
@@ -2353,7 +2353,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func captureAlternativeCompletedCheckStates(
         in app: XCUIApplication
-    ) throws {
+    ) {
         beginFreshCheck(in: app)
         acceptImportedPhotoWithoutBaseline(
             in: app,
@@ -2374,7 +2374,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         captureBaseline("state.check-review.no-visible-issue", in: app)
         saveCheckAndReturnToSign(in: app)
 
-        try purchaseBlockedEvaluationAndBeginFreshCheck(in: app)
+        purchaseBlockedEvaluationAndBeginFreshCheck(in: app)
         acceptImportedPhotoWithoutBaseline(
             in: app,
             heading: "1 of 2 · Wide view"
@@ -2440,14 +2440,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func purchaseBlockedEvaluationAndBeginFreshCheck(
         in app: XCUIApplication
-    ) throws {
+    ) {
         let start = element("s2.sign-detail.start-check", in: app)
         scroll(start, in: app)
         assertControl(start, label: "Start Check")
         start.tap()
         XCTAssertTrue(element("s7.2.paywall.screen", in: app)
             .waitForExistence(timeout: 30))
-        let usedSettingsRetry = try captureAvailablePaywallAndPurchase(in: app)
+        let usedSettingsRetry = captureAvailablePaywallAndPurchase(in: app)
 
         let close = element("s7.2.paywall.close", in: app)
         scrollDown(close, in: app)
@@ -3182,7 +3182,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func captureAvailablePaywallAndPurchase(
         in app: XCUIApplication
-    ) throws -> Bool {
+    ) -> Bool {
         var usedSettingsRetry = false
         let productName = element("s7.2.paywall.product-name", in: app)
         let duration = element("s7.2.paywall.duration", in: app)
@@ -3268,23 +3268,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 .completed
             )
             if purchaseState.label == unverifiedPurchaseLabel {
+                guard let retainedSession = storeKitSession else {
+                    XCTFail("The retained StoreKit test session is required")
+                    return usedSettingsRetry
+                }
                 app.terminate()
-                storeKitSession = nil
-                guard let fixtureURL = Bundle(for: Self.self).url(
-                    forResource: "FieldEvidence",
-                    withExtension: "storekit"
-                ) else {
-                    XCTFail("The checked-in StoreKit fixture is required")
-                    return usedSettingsRetry
-                }
-                guard let freshSession = try? SKTestSession(contentsOf: fixtureURL) else {
-                    XCTFail("A fresh StoreKit test session is required")
-                    return usedSettingsRetry
-                }
-                storeKitSession = freshSession
-                freshSession.resetToDefaultState()
-                freshSession.clearTransactions()
-                freshSession.disableDialogs = true
+                retainedSession.resetToDefaultState()
+                retainedSession.clearTransactions()
+                retainedSession.disableDialogs = true
                 app.launch()
                 XCTAssertTrue(element("s2.sign-detail.screen", in: app)
                     .waitForExistence(timeout: 30))
@@ -3313,39 +3304,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTAssertTrue(purchase.waitForExistence(timeout: 20))
                 XCTAssertTrue(purchase.isEnabled)
                 XCTAssertTrue(purchase.isHittable)
-                let isDifferentiateStoreKitTransactionInventoryDiagnostic =
-                    automationShard?.shardID ==
-                        "s10.4.current.differentiate-without-color"
-                        && usedSettingsRetry
-                let transactionInventoryBeforeRetryTap: [String: Any]
-                if isDifferentiateStoreKitTransactionInventoryDiagnostic {
-                    transactionInventoryBeforeRetryTap =
-                        storeKitTestTransactionInventory(in: freshSession)
-                } else {
-                    transactionInventoryBeforeRetryTap = [:]
-                }
                 purchase.tap()
                 purchaseState = element("s7.2.paywall.purchase-state", in: app)
-                let transactionInventoryAfterRetryTap: [String: Any]
-                if isDifferentiateStoreKitTransactionInventoryDiagnostic {
-                    transactionInventoryAfterRetryTap =
-                        storeKitTestTransactionInventory(in: freshSession)
-                } else {
-                    transactionInventoryAfterRetryTap = [:]
-                }
-                if isDifferentiateStoreKitTransactionInventoryDiagnostic {
-                    try diagnoseDifferentiateWithoutColorStoreKitTransactionInventory(
-                        transactionInventoryBeforeRetryTap:
-                            transactionInventoryBeforeRetryTap,
-                        transactionInventoryAfterRetryTap:
-                            transactionInventoryAfterRetryTap,
-                        session: freshSession,
-                        purchaseState: purchaseState,
-                        store: store,
-                        purchase: purchase,
-                        in: app
-                    )
-                }
             }
         }
         waitForLocalizedLabel(
@@ -4722,206 +4682,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 timeout: timeout
             ), file: file, line: line)
         }
-    }
-
-    @MainActor
-    private func storeKitTestTransactionObject(
-        _ transaction: SKTestTransaction,
-        ordinal: Int
-    ) -> [String: Any] {
-        let cancelDate: Any
-        if let value = transaction.cancelDate {
-            cancelDate = value.timeIntervalSince1970
-        } else {
-            cancelDate = NSNull()
-        }
-        let expirationDate: Any
-        if let value = transaction.expirationDate {
-            expirationDate = value.timeIntervalSince1970
-        } else {
-            expirationDate = NSNull()
-        }
-        return [
-            "ordinal": ordinal,
-            "identifier": transaction.identifier,
-            "originalTransactionIdentifier":
-                transaction.originalTransactionIdentifier,
-            "productIdentifier": transaction.productIdentifier,
-            "state": String(describing: transaction.state),
-            "stateRawValue": Int(transaction.state.rawValue),
-            "purchaseDateSecondsSince1970":
-                transaction.purchaseDate.timeIntervalSince1970,
-            "cancelDateSecondsSince1970": cancelDate,
-            "expirationDateSecondsSince1970": expirationDate,
-            "autoRenewingEnabled": transaction.autoRenewingEnabled,
-            "hasPurchaseIssue": transaction.hasPurchaseIssue,
-            "pendingAskToBuyConfirmation":
-                transaction.pendingAskToBuyConfirmation,
-        ]
-    }
-
-    @MainActor
-    private func storeKitTestTransactionInventory(
-        in session: SKTestSession
-    ) -> [String: Any] {
-        let transactions = session.allTransactions()
-        return [
-            "count": transactions.count,
-            "transactions": transactions.enumerated().map { pair in
-                storeKitTestTransactionObject(
-                    pair.element,
-                    ordinal: pair.offset
-                )
-            },
-        ]
-    }
-
-    @MainActor
-    private func diagnoseDifferentiateWithoutColorStoreKitTransactionInventory(
-        transactionInventoryBeforeRetryTap: [String: Any],
-        transactionInventoryAfterRetryTap: [String: Any],
-        session: SKTestSession,
-        purchaseState: XCUIElement,
-        store: XCUIElement,
-        purchase: XCUIElement,
-        in app: XCUIApplication
-    ) throws {
-        let paywallScreens = app.descendants(matching: .any).matching(
-            identifier: "s7.2.paywall.screen"
-        )
-        let stores = app.descendants(matching: .any).matching(
-            identifier: "s7.2.paywall.store"
-        )
-        let purchaseStates = app.descendants(matching: .any).matching(
-            identifier: "s7.2.paywall.purchase-state"
-        )
-        let purchaseButtons = app.buttons.matching(NSPredicate(
-            format: "label CONTAINS[c] 'Subscribe' OR label CONTAINS[c] 'Trial' OR label CONTAINS[c] '$59.99'"
-        ))
-
-        func frameObject(_ frame: CGRect) -> [String: Any] {
-            [
-                "x": Double(frame.origin.x),
-                "y": Double(frame.origin.y),
-                "width": Double(frame.size.width),
-                "height": Double(frame.size.height),
-            ]
-        }
-        func elementObject(_ element: XCUIElement) -> [String: Any] {
-            let value: Any
-            if let elementValue = element.value {
-                value = String(describing: elementValue)
-            } else {
-                value = NSNull()
-            }
-            return [
-                "identifier": element.identifier,
-                "label": element.label,
-                "value": value,
-                "elementTypeRawValue": Int(element.elementType.rawValue),
-                "frame": frameObject(element.frame),
-                "exists": element.exists,
-                "isHittable": element.isHittable,
-                "isEnabled": element.isEnabled,
-            ]
-        }
-        func queryObject(_ query: XCUIElementQuery) -> [String: Any] {
-            let count = query.count
-            return [
-                "count": count,
-                "elements": (0..<count).map { index in
-                    elementObject(query.element(boundBy: index))
-                },
-            ]
-        }
-        func sampleObject() -> [String: Any] {
-            [
-                "application": [
-                    "state": String(describing: app.state),
-                    "stateRawValue": Int(app.state.rawValue),
-                    "isRunningForeground": app.state == .runningForeground,
-                    "frame": frameObject(app.frame),
-                ],
-                "queries": [
-                    "paywallScreen": queryObject(paywallScreens),
-                    "store": queryObject(stores),
-                    "purchaseState": queryObject(purchaseStates),
-                    "purchaseButtons": queryObject(purchaseButtons),
-                ],
-                "selected": [
-                    "store": elementObject(store),
-                    "purchaseState": elementObject(purchaseState),
-                    "purchase": elementObject(purchase),
-                ],
-            ]
-        }
-
-        let startedAt = Date()
-        let startSample = sampleObject()
-        let attachmentPrefix =
-            "S10.4 s10.4.current.differentiate-without-color StoreKit transaction-inventory diagnostic"
-
-        let startScreenshot = XCTAttachment(screenshot: app.screenshot())
-        startScreenshot.name = "\(attachmentPrefix) start app"
-        startScreenshot.lifetime = .keepAlways
-        add(startScreenshot)
-
-        let startTree = XCTAttachment(string: app.debugDescription)
-        startTree.name = "\(attachmentPrefix) start accessibility tree"
-        startTree.lifetime = .keepAlways
-        add(startTree)
-
-        let verifiedPurchaseLabel =
-            "Complete: Purchase verified. Subscription access is ready."
-        let verifiedExpectation = XCTNSPredicateExpectation(
-            predicate: NSPredicate(
-                format: "label == %@",
-                verifiedPurchaseLabel
-            ),
-            object: purchaseState
-        )
-        let verifiedWaitResult = XCTWaiter.wait(
-            for: [verifiedExpectation],
-            timeout: 45
-        )
-
-        let terminalTransactionInventory =
-            storeKitTestTransactionInventory(in: session)
-        let terminalSample = sampleObject()
-        let terminalScreenshot = XCTAttachment(screenshot: app.screenshot())
-        terminalScreenshot.name = "\(attachmentPrefix) terminal app"
-        terminalScreenshot.lifetime = .keepAlways
-        add(terminalScreenshot)
-
-        let terminalTree = XCTAttachment(string: app.debugDescription)
-        terminalTree.name = "\(attachmentPrefix) terminal accessibility tree"
-        terminalTree.lifetime = .keepAlways
-        add(terminalTree)
-
-        printJSONLine(
-            prefix: "S10_4_STOREKIT_TRANSACTION_INVENTORY_DIAGNOSTIC",
-            object: [
-                "shardID": "s10.4.current.differentiate-without-color",
-                "usedSettingsRetry": true,
-                "storeKitSessionPresent": storeKitSession != nil,
-                "sessionMatchesRetainedProperty": storeKitSession === session,
-                "verifiedWaitResult": String(describing: verifiedWaitResult),
-                "elapsedMilliseconds": max(
-                    0,
-                    Date().timeIntervalSince(startedAt) * 1_000
-                ),
-                "start": startSample,
-                "terminal": terminalSample,
-                "transactionInventories": [
-                    "beforeRetryTap": transactionInventoryBeforeRetryTap,
-                    "afterRetryTap": transactionInventoryAfterRetryTap,
-                    "terminal": terminalTransactionInventory,
-                ],
-            ]
-        )
-        throw AutomationConfigurationError.invalid(
-            "S10.4 differentiate-without-color StoreKit transaction-inventory diagnostic completed nonaccepting"
-        )
     }
 
     @MainActor
