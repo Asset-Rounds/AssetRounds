@@ -339,8 +339,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 236_263,
-            sha256: "A2599DB44FC3C01BF9EC4920FA7986422AE816861293E654EB8B95996073F214"
+            byteCount: 243_079,
+            sha256: "BDDFA02776AB7E9C25218601167BEE2AB246F798EA0DAEE1F5BF218FDFF8E003"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -6566,17 +6566,332 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(captureWidePositioningSource.contains(prohibited), prohibited)
         }
 
-        for removedReportCorrectionDiagnostic in [
-            "S10_4_REPORT_CORRECTION_HEADER_CONTEXT_DIAGNOSTIC",
-            "S10_4_REPORT_CORRECTION_HEADER_AUDIT_DIAGNOSTIC",
-            "S10_4_REPORT_CORRECTION_HEADER_AUDIT_COUNT_DIAGNOSTIC",
-            "Report-correction-header diagnostic",
+        for staleReportCorrectionDiagnosticForm in [
             "let reportCorrectionHeaderDiagnosticShardIDs: Set<String> = [",
             "reportCorrectionHeaderDiagnosticShardIDs.contains(shard.shardID)",
         ] {
             XCTAssertFalse(
-                uiSource.contains(removedReportCorrectionDiagnostic),
-                removedReportCorrectionDiagnostic
+                uiSource.contains(staleReportCorrectionDiagnosticForm),
+                staleReportCorrectionDiagnosticForm
+            )
+        }
+
+        let reportCorrectionHeaderDiagnosticStart =
+            #"            if shard.shardID == "s10.4.current.reduce-transparency","# +
+                "\n" +
+                #"               stateID == "state.report-correction.validation-error" {"#
+        let reportCorrectionHeaderDiagnosticEnd =
+            "\n\n            let eligibleExceptions = " +
+                "Self.contrastAuditExceptionSignatures.filter {"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: reportCorrectionHeaderDiagnosticStart
+            ).count - 1,
+            1
+        )
+        guard let reportCorrectionHeaderDiagnosticStartRange = uiSource.range(
+            of: reportCorrectionHeaderDiagnosticStart
+        ), let reportCorrectionHeaderDiagnosticEndRange = uiSource.range(
+            of: reportCorrectionHeaderDiagnosticEnd,
+            range: reportCorrectionHeaderDiagnosticStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the isolated reduce-transparency Report-correction-header diagnostic")
+            return
+        }
+        let reportCorrectionHeaderDiagnosticSource = String(
+            uiSource[
+                reportCorrectionHeaderDiagnosticStartRange.lowerBound..<reportCorrectionHeaderDiagnosticEndRange.lowerBound
+            ]
+        )
+
+        let reportCorrectionHeaderQueryBindings = [
+            "                let headerElements = app.descendants(matching: .any).matching(\n" +
+                #"                    identifier: "s4.5.correction.header""# + "\n" +
+                "                )",
+            "                let correctionScrollViews = app.scrollViews.containing(\n" +
+                "                    .button,\n" +
+                #"                    identifier: "s4.5.correction.save""# + "\n" +
+                "                )",
+            "                let navigationBars = app.navigationBars",
+            "                let validationElements = app.descendants(matching: .any).matching(\n" +
+                #"                    identifier: "s4.5.correction.validation""# + "\n" +
+                "                )",
+            "                let saveElements = app.descendants(matching: .any).matching(\n" +
+                #"                    identifier: "s4.5.correction.save""# + "\n" +
+                "                )",
+            "                let keyboards = app.keyboards",
+            "                let inputViews = app.otherElements.matching(\n" +
+                #"                    NSPredicate(format: "identifier == %@", "inputView")"# + "\n" +
+                "                )",
+            "                let tabBars = app.tabBars",
+        ]
+        XCTAssertEqual(reportCorrectionHeaderQueryBindings.count, 8)
+        for binding in reportCorrectionHeaderQueryBindings {
+            XCTAssertEqual(
+                reportCorrectionHeaderDiagnosticSource.components(
+                    separatedBy: binding
+                ).count - 1,
+                1,
+                binding
+            )
+        }
+        let reportCorrectionHeaderIdentityGuard =
+            "                let header = headerElements.firstMatch\n" +
+                "                guard headerElements.count == 1,\n" +
+                "                      header.exists,\n" +
+                #"                      header.label == "Correct report","# + "\n" +
+                "                      header.elementType == .staticText else {"
+        XCTAssertEqual(
+            reportCorrectionHeaderDiagnosticSource.components(
+                separatedBy: reportCorrectionHeaderIdentityGuard
+            ).count - 1,
+            1
+        )
+
+        let reportCorrectionHeaderElementFields = [
+            #""identifier": element.identifier"#,
+            #""label": element.label"#,
+            #""elementType": String(describing: element.elementType)"#,
+            #""frame": self.auditFrameObject(element.frame)"#,
+            #""exists": element.exists"#,
+            #""isHittable": element.isHittable"#,
+        ]
+        for field in reportCorrectionHeaderElementFields {
+            XCTAssertEqual(
+                reportCorrectionHeaderDiagnosticSource.components(
+                    separatedBy: field
+                ).count - 1,
+                1,
+                field
+            )
+        }
+        for queryEnumerationLock in [
+            "let cardinality = query.count",
+            #""cardinality": cardinality"#,
+            "(0..<cardinality).map { index in",
+            "query.element(boundBy: index)",
+        ] {
+            XCTAssertEqual(
+                reportCorrectionHeaderDiagnosticSource.components(
+                    separatedBy: queryEnumerationLock
+                ).count - 1,
+                1,
+                queryEnumerationLock
+            )
+        }
+        XCTAssertEqual(
+            reportCorrectionHeaderDiagnosticSource.components(
+                separatedBy: #"prefix: "S10_4_REPORT_CORRECTION_HEADER_CONTEXT_DIAGNOSTIC""#
+            ).count - 1,
+            1
+        )
+        let reportCorrectionHeaderContextBindings = [
+            #""application": diagnosticElementObject(app)"#,
+            #""header": diagnosticQueryObject(headerElements)"#,
+            #""reportCorrectionScrollView": diagnosticQueryObject("#,
+            #""navigationBar": diagnosticQueryObject(navigationBars)"#,
+            #""validation": diagnosticQueryObject(validationElements)"#,
+            #""save": diagnosticQueryObject(saveElements)"#,
+            #""keyboard": diagnosticQueryObject(keyboards)"#,
+            #""inputView": diagnosticQueryObject(inputViews)"#,
+            #""tabBar": diagnosticQueryObject(tabBars)"#,
+        ]
+        for binding in reportCorrectionHeaderContextBindings {
+            XCTAssertEqual(
+                reportCorrectionHeaderDiagnosticSource.components(
+                    separatedBy: binding
+                ).count - 1,
+                1,
+                binding
+            )
+        }
+
+        let reportCorrectionHeaderAttachmentPaths = [
+            "XCTAttachment(screenshot: app.screenshot())",
+            "XCTAttachment(string: app.debugDescription)",
+            "XCTAttachment(screenshot: header.screenshot())",
+            "XCTAttachment(\n                            screenshot: auditedElement.screenshot()",
+        ]
+        XCTAssertEqual(
+            reportCorrectionHeaderDiagnosticSource.components(
+                separatedBy: "XCTAttachment("
+            ).count - 1,
+            4
+        )
+        for path in reportCorrectionHeaderAttachmentPaths {
+            XCTAssertEqual(
+                reportCorrectionHeaderDiagnosticSource.components(
+                    separatedBy: path
+                ).count - 1,
+                1,
+                path
+            )
+        }
+        let reportCorrectionHeaderAttachmentNames = [
+            "S10.4 reduce-transparency Report-correction-header diagnostic app",
+            "S10.4 reduce-transparency Report-correction-header diagnostic accessibility tree",
+            "S10.4 reduce-transparency Report-correction-header diagnostic header",
+            "S10.4 reduce-transparency Report-correction-header audit issue ",
+        ]
+        for name in reportCorrectionHeaderAttachmentNames {
+            XCTAssertEqual(
+                reportCorrectionHeaderDiagnosticSource.components(
+                    separatedBy: name
+                ).count - 1,
+                1,
+                name
+            )
+        }
+        XCTAssertEqual(
+            reportCorrectionHeaderDiagnosticSource.components(
+                separatedBy: ".lifetime = .keepAlways"
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            reportCorrectionHeaderDiagnosticSource.components(
+                separatedBy: ".name ="
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            reportCorrectionHeaderDiagnosticSource.components(
+                separatedBy: "add("
+            ).count - 1,
+            4
+        )
+
+        XCTAssertEqual(
+            reportCorrectionHeaderDiagnosticSource.components(
+                separatedBy: "try app.performAccessibilityAudit(for: .contrast) { issue in"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            reportCorrectionHeaderDiagnosticSource.components(
+                separatedBy: "return true"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            reportCorrectionHeaderDiagnosticSource.components(
+                separatedBy: "return false"
+            ).count - 1,
+            0
+        )
+        XCTAssertEqual(
+            reportCorrectionHeaderDiagnosticSource.components(
+                separatedBy: "NSNull()"
+            ).count - 1,
+            4
+        )
+        let reportCorrectionHeaderAuditFields = [
+            #""issueOrdinal": observedIssueCount"#,
+            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
+            #""compactDescription": issue.compactDescription"#,
+            #""detailedDescription": issue.detailedDescription"#,
+            #""elementIdentifier": NSNull()"#,
+            #""elementLabel": NSNull()"#,
+            #""elementType": NSNull()"#,
+            #""elementFrame": NSNull()"#,
+            #""applicationFrame": self.auditFrameObject(app.frame)"#,
+        ]
+        for field in reportCorrectionHeaderAuditFields {
+            XCTAssertEqual(
+                reportCorrectionHeaderDiagnosticSource.components(
+                    separatedBy: field
+                ).count - 1,
+                1,
+                field
+            )
+        }
+        for callbackAssignment in [
+            #"diagnostic["elementIdentifier"] = auditedElement.identifier"#,
+            #"diagnostic["elementLabel"] = auditedElement.label"#,
+            #"diagnostic["elementType"] = String("#,
+            #"diagnostic["elementFrame"] = self.auditFrameObject("#,
+        ] {
+            XCTAssertEqual(
+                reportCorrectionHeaderDiagnosticSource.components(
+                    separatedBy: callbackAssignment
+                ).count - 1,
+                1,
+                callbackAssignment
+            )
+        }
+        for prefix in [
+            "S10_4_REPORT_CORRECTION_HEADER_AUDIT_DIAGNOSTIC",
+            "S10_4_REPORT_CORRECTION_HEADER_AUDIT_COUNT_DIAGNOSTIC",
+        ] {
+            XCTAssertEqual(
+                reportCorrectionHeaderDiagnosticSource.components(
+                    separatedBy: prefix
+                ).count - 1,
+                1,
+                prefix
+            )
+        }
+        XCTAssertEqual(
+            reportCorrectionHeaderDiagnosticSource.components(
+                separatedBy: "printJSONLine("
+            ).count - 1,
+            3
+        )
+        let reportCorrectionHeaderTerminal =
+            "                throw AutomationConfigurationError.invalid(\n" +
+                #"                    "S10.4 reduce-transparency Report-correction-header diagnostic completed nonaccepting""# +
+                "\n" +
+                "                )\n" +
+                "            }"
+        XCTAssertTrue(
+            reportCorrectionHeaderDiagnosticSource.hasSuffix(
+                reportCorrectionHeaderTerminal
+            )
+        )
+        for prohibited in [
+            ".tap(",
+            ".press(",
+            ".coordinate(",
+            ".swipe",
+            ".typeText(",
+            "wait(",
+            "waitFor",
+            "Thread.sleep",
+            "sleep(",
+            "Date(",
+            "captureBaseline(",
+            "assertMigrationStateCoverage",
+            "emitAutomatedLabAccessibilityRowsIfNeeded",
+            "automationAXTreeDigests",
+            "automationContrastExceptions",
+            "attachCandidate",
+            "S10_4_AX",
+            "S10_4_CONTRAST",
+            "S10_4_CANDIDATE",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+            "receipt",
+            "retention",
+            "CGRect(",
+            "expectedFrame",
+            "frame ==",
+            #""auditTypeRawValue": "1""#,
+            #""compactDescription": "Contrast failed""#,
+            #""detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode""#,
+            #""elementIdentifier": "s4.5.correction.header""#,
+            #""elementLabel": "Correct report""#,
+            #""elementType": "XCUIElementType""#,
+            #""elementFrame": ["#,
+            #""applicationFrame": ["#,
+            "automationContrastExceptions[",
+            "matchedExceptions",
+            "contrastEvidence",
+            "automatedEvidenceIDs.append(",
+            "return false",
+        ] {
+            XCTAssertFalse(
+                reportCorrectionHeaderDiagnosticSource.contains(prohibited),
+                prohibited
             )
         }
 
