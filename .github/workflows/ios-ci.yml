@@ -919,6 +919,32 @@ jobs:
               },
               {
                 shardID: "s10.4.current.ax-text",
+                stateID: "state.report-history.ready",
+                taskID: "report_comprehension",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS",
+                exceptionOwner: "palatis3",
+                exceptionExpiresAt: "2026-11-20",
+                exceptionRationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the lower North Campus label whose frozen public node frame intersects native bottom chrome after bounded positioning makes the header safe and hittable and moves the Visit composite below the application; an exact remaining positive ScrollView drag is unrecognized with zero measured header, lower-label, and Visit movement, while ReportsRootView already renders the label with primaryText; the exception is limited to the frozen public issue signature.",
+                ignoredAuditIssues: [
+                  {
+                    auditTypeRawValue: "1",
+                    compactDescription: "Contrast failed",
+                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+                    elementIdentifier: "",
+                    elementLabel: "North Campus",
+                    elementType: "XCUIElementType(rawValue: 48)",
+                    elementFrame: {
+                      x: 32,
+                      y: 823.66666666666663,
+                      width: 329.33333333333331,
+                      height: 63.333333333333371
+                    },
+                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}
+                  }
+                ]
+              },
+              {
+                shardID: "s10.4.current.ax-text",
                 stateID: "state.check-preflight.ready",
                 taskID: "one_handed_start",
                 exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION",
@@ -1128,10 +1154,10 @@ jobs:
             ]
           ' > "$contrast_exception_authority_path"
           jq -e --arg today "$(date -u +%F)" '
-            length == 11
-            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 10
-            and ([.[].exceptionIssueID] | unique | length) == 11
-            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 6
+            length == 12
+            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 11
+            and ([.[].exceptionIssueID] | unique | length) == 12
+            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 7
             and ([.[]
               | select(.exceptionIssueID | IN(
                   "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER",
@@ -1151,7 +1177,7 @@ jobs:
                   "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER",
                   "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER"
                 )) | not)
-              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 5
+              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 6
             and ([.[] | {shardID, stateID, taskID, exceptionIssueID}]
               | sort_by(.shardID, .stateID, .exceptionIssueID)) == ([
               {
@@ -1171,6 +1197,12 @@ jobs:
                 stateID: "state.new-sign.editing",
                 taskID: "one_handed_start",
                 exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME"
+              },
+              {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.report-history.ready",
+                taskID: "report_comprehension",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS"
               },
               {
                 shardID: "s10.4.current.default-light",
@@ -1346,6 +1378,8 @@ jobs:
               def taskIssueLimit($shardID; $taskID):
                 if $shardID == "s10.4.current.ax-text"
                    and $taskID == "one_handed_start" then 3
+                elif $shardID == "s10.4.current.ax-text"
+                     and $taskID == "report_comprehension" then 1
                 elif $shardID == "s10.4.current.default-light"
                      and $taskID == "report_comprehension" then 1
                 elif $shardID == "s10.4.current.default-dark"
@@ -1365,6 +1399,8 @@ jobs:
               def taskStateLimit($shardID; $taskID):
                 if $shardID == "s10.4.current.ax-text"
                    and $taskID == "one_handed_start" then 2
+                elif $shardID == "s10.4.current.ax-text"
+                     and $taskID == "report_comprehension" then 1
                 elif $shardID == "s10.4.current.default-light"
                      and $taskID == "report_comprehension" then 1
                 elif $shardID == "s10.4.current.default-dark"
@@ -1440,9 +1476,9 @@ jobs:
                      and (($matchedAuthorities | length) > 1
                        or ($matchedExceptionStateIDs | length) > 1) then
                    error("reduce-transparency contrast exception bound exceeded")
-                 elif $shard == "s10.4.current.ax-text"
-                      and (($matchedAuthorities | length) > 3
-                        or ($matchedExceptionStateIDs | length) > 2) then
+                elif $shard == "s10.4.current.ax-text"
+                     and (($matchedAuthorities | length) > 4
+                       or ($matchedExceptionStateIDs | length) > 3) then
                    error("AX-text contrast exception bound exceeded")
                  elif $shard != "s10.4.current.default-light"
                       and $shard != "s10.4.current.default-dark"
@@ -1661,6 +1697,8 @@ jobs:
                    and $stateID == "state.check-preflight.ready" then 2
                 elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.new-sign.editing" then 1
+                elif $shardID == "s10.4.current.ax-text"
+                     and $stateID == "state.report-history.ready" then 1
                 elif $shardID == "s10.4.current.default-light"
                      and $stateID == "state.report-correction.validation-error" then 1
                 elif $shardID == "s10.4.current.default-dark"
@@ -1752,8 +1790,8 @@ jobs:
                         ($matchedAuthorities | length) <= 1
                         and ($matchedExceptionStateIDs | length) <= 1
                       elif $shard == "s10.4.current.ax-text" then
-                        ($matchedAuthorities | length) <= 3
-                        and ($matchedExceptionStateIDs | length) <= 2
+                        ($matchedAuthorities | length) <= 4
+                        and ($matchedExceptionStateIDs | length) <= 3
                       else
                         ($matchedAuthorities | length) == 0
                         and ($matchedExceptionStateIDs | length) == 0

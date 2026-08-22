@@ -178,6 +178,28 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
         ),
         ContrastAuditExceptionSignature(
+            issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS",
+            shardID: "s10.4.current.ax-text",
+            stateID: "state.report-history.ready",
+            taskID: "report_comprehension",
+            owner: "palatis3",
+            expiresAt: "2026-11-20",
+            rationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the lower North Campus label whose frozen public node frame intersects native bottom chrome after bounded positioning makes the header safe and hittable and moves the Visit composite below the application; an exact remaining positive ScrollView drag is unrecognized with zero measured header, lower-label, and Visit movement, while ReportsRootView already renders the label with primaryText; the exception is limited to the frozen public issue signature.",
+            auditTypeRawValue: "1",
+            compactDescription: "Contrast failed",
+            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+            elementIdentifier: "",
+            elementLabel: "North Campus",
+            elementTypeDescription: "XCUIElementType(rawValue: 48)",
+            elementFrame: CGRect(
+                x: 32,
+                y: 823.66666666666663,
+                width: 329.33333333333331,
+                height: 63.333333333333371
+            ),
+            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
+        ),
+        ContrastAuditExceptionSignature(
             issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-FEEDBACK-PRIVACY",
             shardID: "s10.4.current.default-dark",
             stateID: "state.feedback.review-ready",
@@ -1863,13 +1885,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 )
         }
 
-        func lowerNorthCampus() -> XCUIElement? {
-            guard hasExactNorthCampusTexts() else { return nil }
-            let first = northCampusTexts.element(boundBy: 0)
-            let second = northCampusTexts.element(boundBy: 1)
-            return first.frame.minY < second.frame.minY ? second : first
-        }
-
         func hasExactRoute() -> Bool {
             let applicationFrame = app.frame
             let historyScreenFrame = historyScreen.frame
@@ -1941,13 +1956,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let contentInset: CGFloat = 16
         let receiverInset: CGFloat = 24
         let minimumGestureDistance: CGFloat = 44
-        for attemptIndex in 0..<4 {
+        for _ in 0..<4 {
             guard hasExactRoute() else {
                 XCTFail("Report-history AX-text positioned diagnostic route changed.")
-                return false
-            }
-            guard let lowerNorthCampusElement = lowerNorthCampus() else {
-                XCTFail("Report-history AX-text lower North Campus is ambiguous.")
                 return false
             }
             let applicationFrame = app.frame
@@ -1965,7 +1976,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let receiverTop = liveTop + receiverInset
             let receiverBottom = liveBottom - receiverInset
             let headerFrame = historyHeader.frame
-            let lowerNorthCampusFrame = lowerNorthCampusElement.frame
             let visitCompositeFrame = visitComposite.frame
             guard !applicationFrame.isNull,
                   !applicationFrame.isEmpty,
@@ -1979,8 +1989,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   !liveScrollFrame.isEmpty,
                   !headerFrame.isNull,
                   !headerFrame.isEmpty,
-                  !lowerNorthCampusFrame.isNull,
-                  !lowerNorthCampusFrame.isEmpty,
                   !visitCompositeFrame.isNull,
                   !visitCompositeFrame.isEmpty,
                   headerFrame.maxY < visitCompositeFrame.minY,
@@ -1993,18 +2001,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             if headerFrame.minY >= safeTop,
                headerFrame.maxY <= safeBottom,
                historyHeader.isHittable,
-               lowerNorthCampusFrame.minY >= applicationFrame.maxY,
-               !lowerNorthCampusElement.isHittable,
                visitCompositeFrame.minY >= applicationFrame.maxY,
                !visitComposite.isHittable {
                 return true
             }
 
             let minimumShift = max(
-                max(
-                    safeTop - headerFrame.minY,
-                    applicationFrame.maxY - lowerNorthCampusFrame.minY
-                ),
+                safeTop - headerFrame.minY,
                 applicationFrame.maxY - visitCompositeFrame.minY
             )
             let maximumShift = safeBottom - headerFrame.maxY
@@ -2042,7 +2045,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 CGVector(dx: 0, dy: dragDistance)
             )
             let headerMinYBeforeDrag = headerFrame.minY
-            let lowerNorthCampusMinYBeforeDrag = lowerNorthCampusFrame.minY
             let visitMinYBeforeDrag = visitCompositeFrame.minY
             dragStart.press(
                 forDuration: 0.2,
@@ -2054,62 +2056,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTFail("Report-history AX-text positioned diagnostic route changed after drag.")
                 return false
             }
-            guard let movedLowerNorthCampus = lowerNorthCampus() else {
-                XCTFail("Report-history AX-text lower North Campus changed after drag.")
-                return false
-            }
-            let applicationFrameAfterDrag = app.frame
-            let headerFrameAfterDrag = historyHeader.frame
-            let lowerNorthCampusFrameAfterDrag = movedLowerNorthCampus.frame
-            let visitCompositeFrameAfterDrag = visitComposite.frame
-            let observedHeaderShift =
-                headerFrameAfterDrag.minY - headerMinYBeforeDrag
-            let observedLowerNorthCampusShift =
-                lowerNorthCampusFrameAfterDrag.minY
-                - lowerNorthCampusMinYBeforeDrag
-            let observedVisitShift =
-                visitCompositeFrameAfterDrag.minY - visitMinYBeforeDrag
-            printJSONLine(
-                prefix: "S10_4_REPORT_HISTORY_POSITIONING_DIAGNOSTIC",
-                object: [
-                    "attemptOrdinal": attemptIndex + 1,
-                    "applicationFrameBefore": auditFrameObject(applicationFrame),
-                    "applicationFrameAfter": auditFrameObject(
-                        applicationFrameAfterDrag
-                    ),
-                    "headerFrameBefore": auditFrameObject(headerFrame),
-                    "headerFrameAfter": auditFrameObject(headerFrameAfterDrag),
-                    "lowerNorthCampusFrameBefore": auditFrameObject(
-                        lowerNorthCampusFrame
-                    ),
-                    "lowerNorthCampusFrameAfter": auditFrameObject(
-                        lowerNorthCampusFrameAfterDrag
-                    ),
-                    "visitCompositeFrameBefore": auditFrameObject(
-                        visitCompositeFrame
-                    ),
-                    "visitCompositeFrameAfter": auditFrameObject(
-                        visitCompositeFrameAfterDrag
-                    ),
-                    "safeTop": safeTop,
-                    "safeBottom": safeBottom,
-                    "minimumShift": minimumShift,
-                    "maximumShift": maximumShift,
-                    "recognizedMinimum": recognizedMinimum,
-                    "recognizedMaximum": recognizedMaximum,
-                    "requestedDistance": dragDistance,
-                    "receiverCapacity": receiverCapacity,
-                    "observedHeaderShift": observedHeaderShift,
-                    "observedLowerNorthCampusShift":
-                        observedLowerNorthCampusShift,
-                    "observedVisitShift": observedVisitShift,
-                ]
-            )
+            let observedHeaderShift = historyHeader.frame.minY - headerMinYBeforeDrag
+            let observedVisitShift = visitComposite.frame.minY - visitMinYBeforeDrag
             guard observedHeaderShift > 0,
-                  observedLowerNorthCampusShift > 0,
                   observedVisitShift > 0,
                   observedHeaderShift * dragDistance > 0,
-                  observedLowerNorthCampusShift * dragDistance > 0,
                   observedVisitShift * dragDistance > 0 else {
                 XCTFail("Report-history AX-text positioned diagnostic drag was not recognized.")
                 return false
@@ -2118,10 +2069,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         guard hasExactRoute() else {
             XCTFail("Report-history AX-text positioned diagnostic final route changed.")
-            return false
-        }
-        guard let finalLowerNorthCampus = lowerNorthCampus() else {
-            XCTFail("Report-history AX-text final lower North Campus is ambiguous.")
             return false
         }
         let finalApplicationFrame = app.frame
@@ -2139,7 +2086,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             min(finalApplicationFrame.maxY, finalTabBarFrame.minY)
         ) - contentInset
         let finalHeaderFrame = historyHeader.frame
-        let finalLowerNorthCampusFrame = finalLowerNorthCampus.frame
         let finalVisitCompositeFrame = visitComposite.frame
         guard !finalApplicationFrame.isNull,
               !finalApplicationFrame.isEmpty,
@@ -2151,16 +2097,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               !finalTabBarFrame.isEmpty,
               !finalHeaderFrame.isNull,
               !finalHeaderFrame.isEmpty,
-              !finalLowerNorthCampusFrame.isNull,
-              !finalLowerNorthCampusFrame.isEmpty,
               !finalVisitCompositeFrame.isNull,
               !finalVisitCompositeFrame.isEmpty,
               finalSafeBottom > finalSafeTop,
               finalHeaderFrame.minY >= finalSafeTop,
               finalHeaderFrame.maxY <= finalSafeBottom,
               historyHeader.isHittable,
-              finalLowerNorthCampusFrame.minY >= finalApplicationFrame.maxY,
-              !finalLowerNorthCampus.isHittable,
               finalVisitCompositeFrame.minY >= finalApplicationFrame.maxY,
               !visitComposite.isHittable else {
             XCTFail("Report-history AX-text positioned diagnostic final geometry is unsafe.")
@@ -4316,186 +4258,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             line: line
         )
         do {
-            if shard.shardID == "s10.4.current.ax-text",
-               stateID == "state.report-history.ready" {
-                let reportHistoryScreens = app.descendants(matching: .any).matching(
-                    identifier: "s4.4.history.screen"
-                )
-                let reportHistoryHeaders = app.staticTexts.matching(
-                    identifier: "s4.4.history.header"
-                )
-                let northCampusTexts = app.staticTexts.matching(
-                    NSPredicate(format: "label == %@", "North Campus")
-                )
-                let viewReportControls = app.buttons.matching(
-                    identifier: "s4.4.reports.view-report"
-                )
-                let reportHistoryScrollViews = app.scrollViews.containing(
-                    .button,
-                    identifier: "s4.4.reports.view-report"
-                )
-                let reportHistoryNavigationBars = app.navigationBars.matching(
-                    identifier: "Report history"
-                )
-                let reportHistoryTabBars = app.tabBars
-                let reportHistoryVisits = app.descendants(matching: .any).matching(
-                    identifier: "s4.4.reports.visit"
-                )
-                let reportHistoryVisitComposites = reportHistoryVisits.firstMatch
-                    .descendants(matching: .staticText).matching(
-                        NSPredicate(format: "label BEGINSWITH %@", "Visit, ")
-                    )
-
-                let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
-                    element in
-                    let value: Any
-                    if let elementValue = element.value {
-                        value = String(describing: elementValue)
-                    } else {
-                        value = NSNull()
-                    }
-                    return [
-                        "identifier": element.identifier,
-                        "label": element.label,
-                        "value": value,
-                        "elementType": String(describing: element.elementType),
-                        "frame": self.auditFrameObject(element.frame),
-                        "exists": element.exists,
-                        "isHittable": element.isHittable,
-                    ]
-                }
-                let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
-                    query in
-                    let cardinality = query.count
-                    return [
-                        "cardinality": cardinality,
-                        "elements": (0..<cardinality).map { index in
-                            diagnosticElementObject(query.element(boundBy: index))
-                        },
-                    ]
-                }
-
-                var applicationObject = diagnosticElementObject(app)
-                applicationObject["state"] = String(describing: app.state)
-                applicationObject["stateRawValue"] = Int(app.state.rawValue)
-                applicationObject["isRunningForeground"] =
-                    app.state == .runningForeground
-                let context: [String: Any] = [
-                    "shardID": shard.shardID,
-                    "stateID": stateID,
-                    "application": applicationObject,
-                    "reportHistoryScreen": diagnosticQueryObject(
-                        reportHistoryScreens
-                    ),
-                    "reportHistoryHeader": diagnosticQueryObject(
-                        reportHistoryHeaders
-                    ),
-                    "northCampus": diagnosticQueryObject(northCampusTexts),
-                    "viewReport": diagnosticQueryObject(viewReportControls),
-                    "reportHistoryScrollView": diagnosticQueryObject(
-                        reportHistoryScrollViews
-                    ),
-                    "reportHistoryNavigationBar": diagnosticQueryObject(
-                        reportHistoryNavigationBars
-                    ),
-                    "reportHistoryTabBar": diagnosticQueryObject(
-                        reportHistoryTabBars
-                    ),
-                    "reportHistoryVisit": diagnosticQueryObject(
-                        reportHistoryVisits
-                    ),
-                    "reportHistoryVisitComposite": diagnosticQueryObject(
-                        reportHistoryVisitComposites
-                    ),
-                ]
-                printJSONLine(
-                    prefix: "S10_4_REPORT_HISTORY_CONTEXT_DIAGNOSTIC",
-                    object: context
-                )
-
-                let attachmentPrefix =
-                    "S10.4 s10.4.current.ax-text Report-history contrast diagnostic"
-                let appAttachment = XCTAttachment(screenshot: app.screenshot())
-                appAttachment.name = "\(attachmentPrefix) app"
-                appAttachment.lifetime = .keepAlways
-                add(appAttachment)
-
-                let treeAttachment = XCTAttachment(string: app.debugDescription)
-                treeAttachment.name = "\(attachmentPrefix) accessibility tree"
-                treeAttachment.lifetime = .keepAlways
-                add(treeAttachment)
-
-                let contextData = try JSONSerialization.data(
-                    withJSONObject: context,
-                    options: [.prettyPrinted, .sortedKeys]
-                )
-                let contextString = String(decoding: contextData, as: UTF8.self)
-                let historyContextElement = reportHistoryScreens.firstMatch
-                let historyContextAttachment: XCTAttachment
-                if historyContextElement.exists {
-                    historyContextAttachment = XCTAttachment(
-                        screenshot: historyContextElement.screenshot()
-                    )
-                } else {
-                    historyContextAttachment = XCTAttachment(string: contextString)
-                }
-                historyContextAttachment.name =
-                    "\(attachmentPrefix) Report-history route context"
-                historyContextAttachment.lifetime = .keepAlways
-                add(historyContextAttachment)
-
-                var observedIssueCount = 0
-                try app.performAccessibilityAudit(for: .contrast) { issue in
-                    observedIssueCount += 1
-                    var diagnostic: [String: Any] = [
-                        "shardID": shard.shardID,
-                        "stateID": stateID,
-                        "issueOrdinal": observedIssueCount,
-                        "auditTypeRawValue": String(issue.auditType.rawValue),
-                        "compactDescription": issue.compactDescription,
-                        "detailedDescription": issue.detailedDescription,
-                        "elementIdentifier": NSNull(),
-                        "elementLabel": NSNull(),
-                        "elementType": NSNull(),
-                        "elementFrame": NSNull(),
-                        "applicationFrame": self.auditFrameObject(app.frame),
-                    ]
-                    if let auditedElement = issue.element {
-                        diagnostic["elementIdentifier"] = auditedElement.identifier
-                        diagnostic["elementLabel"] = auditedElement.label
-                        diagnostic["elementType"] = String(
-                            describing: auditedElement.elementType
-                        )
-                        diagnostic["elementFrame"] = self.auditFrameObject(
-                            auditedElement.frame
-                        )
-                        let issueAttachment = XCTAttachment(
-                            screenshot: auditedElement.screenshot()
-                        )
-                        issueAttachment.name =
-                            "\(attachmentPrefix) audit issue \(observedIssueCount)"
-                        issueAttachment.lifetime = .keepAlways
-                        self.add(issueAttachment)
-                    }
-                    self.printJSONLine(
-                        prefix: "S10_4_REPORT_HISTORY_AUDIT_DIAGNOSTIC",
-                        object: diagnostic
-                    )
-                    return true
-                }
-                printJSONLine(
-                    prefix: "S10_4_REPORT_HISTORY_AUDIT_COUNT_DIAGNOSTIC",
-                    object: [
-                        "shardID": shard.shardID,
-                        "stateID": stateID,
-                        "issueCount": observedIssueCount,
-                    ]
-                )
-                throw AutomationConfigurationError.invalid(
-                    "S10.4 AX-text Report-history contrast diagnostic completed nonaccepting"
-                )
-            }
-
             let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
                 $0.shardID == shard.shardID && $0.stateID == stateID
             }
@@ -4830,6 +4592,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 permittedExceptionStateIDs = [
                     "state.check-preflight.ready",
                     "state.new-sign.editing",
+                ]
+            case ("s10.4.current.ax-text", "report_comprehension"):
+                taskIssueLimit = 1
+                taskStateLimit = 1
+                permittedExceptionStateIDs = [
+                    "state.report-history.ready",
                 ]
             case ("s10.4.current.default-light", "report_comprehension"):
                 taskIssueLimit = 1

@@ -105,8 +105,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             workflowPath,
-            byteCount: 110_973,
-            sha256: "FF25FCF08E4589BBF2B3657502579A2A4720F77D8388369B8CB50FD8B187E1D1"
+            byteCount: 113_339,
+            sha256: "BEC94B7AF2983F37C06D448C9EC1B384137220A2154FCD4D9898D2048E8B90F3"
         )
         let workflowSource = try text(workflowPath)
         let retainStepMarker = "      - name: Retain S10.4 shard evidence\n"
@@ -339,8 +339,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 263_424,
-            sha256: "70FB72FD69DF43B0BF9AC04D9A0CEDA7E1F81AB60301C52110A407186A275577"
+            byteCount: 252_336,
+            sha256: "D326D4DFF90CC42229AC1DD40CC1E8255AD7B8A43AE5F57AD3542C140980C70C"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2807,10 +2807,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 reportHistoryDiagnosticPositioningStartRange.lowerBound..<reportHistoryDiagnosticPositioningEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(reportHistoryDiagnosticPositioningSource.utf8.count, 17_131)
+        XCTAssertEqual(reportHistoryDiagnosticPositioningSource.utf8.count, 13_066)
         XCTAssertEqual(
             Data(reportHistoryDiagnosticPositioningSource.utf8).sha256,
-            "BB4CCBAF877819827823C12CCAC2F7B9A3FAE92571C8F9D3CE149D6A40CDA400"
+            "CF59279AB3B55DD4DA485361FBDA659234DE3B753403AB9F22AC330E33181C02"
         )
 
         let reportHistoryDiagnosticPositioningQueries = [
@@ -2896,31 +2896,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let reportHistoryDiagnosticLowerNorthCampusResolver =
-            "        func lowerNorthCampus() -> XCUIElement? {\n" +
-                "            guard hasExactNorthCampusTexts() else { return nil }\n" +
-                "            let first = northCampusTexts.element(boundBy: 0)\n" +
-                "            let second = northCampusTexts.element(boundBy: 1)\n" +
-                "            return first.frame.minY < second.frame.minY ? second : first\n" +
-                "        }"
-        XCTAssertEqual(
-            reportHistoryDiagnosticPositioningSource.components(
-                separatedBy: reportHistoryDiagnosticLowerNorthCampusResolver
-            ).count - 1,
-            1
-        )
-        for reportHistoryDiagnosticLowerNorthCampusBinding in [
-            "            guard let lowerNorthCampusElement = lowerNorthCampus() else {",
-            "               !lowerNorthCampusElement.isHittable,",
-        ] {
-            XCTAssertEqual(
-                reportHistoryDiagnosticPositioningSource.components(
-                    separatedBy: reportHistoryDiagnosticLowerNorthCampusBinding
-                ).count - 1,
-                1,
-                reportHistoryDiagnosticLowerNorthCampusBinding
-            )
-        }
         for diagnosticPositioningConstant in [
             "        let contentInset: CGFloat = 16",
             "        let receiverInset: CGFloat = 24",
@@ -3029,7 +3004,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            let receiverTop = liveTop + receiverInset\n" +
                 "            let receiverBottom = liveBottom - receiverInset\n" +
                 "            let headerFrame = historyHeader.frame\n" +
-                "            let lowerNorthCampusFrame = lowerNorthCampusElement.frame\n" +
                 "            let visitCompositeFrame = visitComposite.frame"
         XCTAssertEqual(
             reportHistoryDiagnosticPositioningSource.components(
@@ -3039,10 +3013,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let reportHistoryDiagnosticPositiveInterval =
             "            let minimumShift = max(\n" +
-                "                max(\n" +
-                "                    safeTop - headerFrame.minY,\n" +
-                "                    applicationFrame.maxY - lowerNorthCampusFrame.minY\n" +
-                "                ),\n" +
+                "                safeTop - headerFrame.minY,\n" +
                 "                applicationFrame.maxY - visitCompositeFrame.minY\n" +
                 "            )\n" +
                 "            let maximumShift = safeBottom - headerFrame.maxY\n" +
@@ -3088,7 +3059,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                CGVector(dx: 0, dy: dragDistance)\n" +
                 "            )\n" +
                 "            let headerMinYBeforeDrag = headerFrame.minY\n" +
-                "            let lowerNorthCampusMinYBeforeDrag = lowerNorthCampusFrame.minY\n" +
                 "            let visitMinYBeforeDrag = visitCompositeFrame.minY\n" +
                 "            dragStart.press(\n" +
                 "                forDuration: 0.2,\n" +
@@ -3103,58 +3073,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         let reportHistoryDiagnosticObservedShift =
-            "            let applicationFrameAfterDrag = app.frame\n" +
-                "            let headerFrameAfterDrag = historyHeader.frame\n" +
-                "            let lowerNorthCampusFrameAfterDrag = movedLowerNorthCampus.frame\n" +
-                "            let visitCompositeFrameAfterDrag = visitComposite.frame\n" +
-                "            let observedHeaderShift =\n" +
-                "                headerFrameAfterDrag.minY - headerMinYBeforeDrag\n" +
-                "            let observedLowerNorthCampusShift =\n" +
-                "                lowerNorthCampusFrameAfterDrag.minY\n" +
-                "                - lowerNorthCampusMinYBeforeDrag\n" +
-                "            let observedVisitShift =\n" +
-                "                visitCompositeFrameAfterDrag.minY - visitMinYBeforeDrag\n" +
-                "            printJSONLine(\n" +
-                #"                prefix: "S10_4_REPORT_HISTORY_POSITIONING_DIAGNOSTIC","# + "\n" +
-                "                object: [\n" +
-                #"                    "attemptOrdinal": attemptIndex + 1,"# + "\n" +
-                #"                    "applicationFrameBefore": auditFrameObject(applicationFrame),"# + "\n" +
-                "                    \"applicationFrameAfter\": auditFrameObject(\n" +
-                "                        applicationFrameAfterDrag\n" +
-                "                    ),\n" +
-                #"                    "headerFrameBefore": auditFrameObject(headerFrame),"# + "\n" +
-                "                    \"headerFrameAfter\": auditFrameObject(headerFrameAfterDrag),\n" +
-                "                    \"lowerNorthCampusFrameBefore\": auditFrameObject(\n" +
-                "                        lowerNorthCampusFrame\n" +
-                "                    ),\n" +
-                "                    \"lowerNorthCampusFrameAfter\": auditFrameObject(\n" +
-                "                        lowerNorthCampusFrameAfterDrag\n" +
-                "                    ),\n" +
-                "                    \"visitCompositeFrameBefore\": auditFrameObject(\n" +
-                "                        visitCompositeFrame\n" +
-                "                    ),\n" +
-                "                    \"visitCompositeFrameAfter\": auditFrameObject(\n" +
-                "                        visitCompositeFrameAfterDrag\n" +
-                "                    ),\n" +
-                #"                    "safeTop": safeTop,"# + "\n" +
-                #"                    "safeBottom": safeBottom,"# + "\n" +
-                #"                    "minimumShift": minimumShift,"# + "\n" +
-                #"                    "maximumShift": maximumShift,"# + "\n" +
-                #"                    "recognizedMinimum": recognizedMinimum,"# + "\n" +
-                #"                    "recognizedMaximum": recognizedMaximum,"# + "\n" +
-                #"                    "requestedDistance": dragDistance,"# + "\n" +
-                #"                    "receiverCapacity": receiverCapacity,"# + "\n" +
-                #"                    "observedHeaderShift": observedHeaderShift,"# + "\n" +
-                "                    \"observedLowerNorthCampusShift\":\n" +
-                "                        observedLowerNorthCampusShift,\n" +
-                #"                    "observedVisitShift": observedVisitShift,"# + "\n" +
-                "                ]\n" +
-                "            )\n" +
+            "            let observedHeaderShift = historyHeader.frame.minY - headerMinYBeforeDrag\n" +
+                "            let observedVisitShift = visitComposite.frame.minY - visitMinYBeforeDrag\n" +
                 "            guard observedHeaderShift > 0,\n" +
-                "                  observedLowerNorthCampusShift > 0,\n" +
                 "                  observedVisitShift > 0,\n" +
                 "                  observedHeaderShift * dragDistance > 0,\n" +
-                "                  observedLowerNorthCampusShift * dragDistance > 0,\n" +
                 "                  observedVisitShift * dragDistance > 0 else {\n" +
                 #"                XCTFail("Report-history AX-text positioned diagnostic drag was not recognized.")"# + "\n" +
                 "                return false\n" +
@@ -3165,38 +3088,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        for telemetryField in [
-            #"                prefix: "S10_4_REPORT_HISTORY_POSITIONING_DIAGNOSTIC","#,
-            #"                    "attemptOrdinal": attemptIndex + 1,"#,
-            #"                    "applicationFrameBefore": auditFrameObject(applicationFrame),"#,
-            #"                    "applicationFrameAfter": auditFrameObject("#,
-            #"                    "headerFrameBefore": auditFrameObject(headerFrame),"#,
-            #"                    "headerFrameAfter": auditFrameObject(headerFrameAfterDrag),"#,
-            #"                    "lowerNorthCampusFrameBefore": auditFrameObject("#,
-            #"                    "lowerNorthCampusFrameAfter": auditFrameObject("#,
-            #"                    "visitCompositeFrameBefore": auditFrameObject("#,
-            #"                    "visitCompositeFrameAfter": auditFrameObject("#,
-            #"                    "safeTop": safeTop,"#,
-            #"                    "safeBottom": safeBottom,"#,
-            #"                    "minimumShift": minimumShift,"#,
-            #"                    "maximumShift": maximumShift,"#,
-            #"                    "recognizedMinimum": recognizedMinimum,"#,
-            #"                    "recognizedMaximum": recognizedMaximum,"#,
-            #"                    "requestedDistance": dragDistance,"#,
-            #"                    "receiverCapacity": receiverCapacity,"#,
-            #"                    "observedHeaderShift": observedHeaderShift,"#,
-            #"                    "observedLowerNorthCampusShift":"#,
-            #"                    "observedVisitShift": observedVisitShift,"#,
-        ] {
-            XCTAssertEqual(
-                reportHistoryDiagnosticPositioningSource.components(
-                    separatedBy: telemetryField
-                ).count - 1,
-                1,
-                telemetryField
-            )
-        }
-
         let reportHistoryDiagnosticFinalGeometry =
             "        let finalApplicationFrame = app.frame\n" +
                 "        let finalScrollFrame = historyScrollView.frame.intersection(\n" +
@@ -3213,7 +3104,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            min(finalApplicationFrame.maxY, finalTabBarFrame.minY)\n" +
                 "        ) - contentInset\n" +
                 "        let finalHeaderFrame = historyHeader.frame\n" +
-                "        let finalLowerNorthCampusFrame = finalLowerNorthCampus.frame\n" +
                 "        let finalVisitCompositeFrame = visitComposite.frame"
         XCTAssertEqual(
             reportHistoryDiagnosticPositioningSource.components(
@@ -3226,8 +3116,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "              finalHeaderFrame.minY >= finalSafeTop,\n" +
                 "              finalHeaderFrame.maxY <= finalSafeBottom,\n" +
                 "              historyHeader.isHittable,\n" +
-                "              finalLowerNorthCampusFrame.minY >= finalApplicationFrame.maxY,\n" +
-                "              !finalLowerNorthCampus.isHittable,\n" +
                 "              finalVisitCompositeFrame.minY >= finalApplicationFrame.maxY,\n" +
                 "              !visitComposite.isHittable else {\n" +
                 #"            XCTFail("Report-history AX-text positioned diagnostic final geometry is unsafe.")"# + "\n" +
@@ -3260,11 +3148,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("historyTabBar.exists", 1),
             ("reportHistoryVisit.exists", 1),
             ("visitComposite.exists", 1),
-            ("lowerNorthCampus()", 4),
-            ("for attemptIndex in 0..<4", 1),
+            ("for _ in 0..<4", 1),
             ("historyScrollView.coordinate(", 1),
             ("dragStart.press(", 1),
-            ("printJSONLine(", 1),
             ("forDuration: 0.2", 1),
             ("withVelocity: .slow", 1),
             ("thenHoldForDuration: 0.2", 1),
@@ -3294,6 +3180,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "ContrastAuditExceptionSignature",
             "captureBaseline(",
             "attachCandidate(",
+            "printJSONLine(",
             "automationContrastExceptions",
             "automationAXTreeDigests",
             "eligibleExceptions",
@@ -3311,305 +3198,62 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
 
-        let reportHistoryDiagnosticGate =
+        let removedReportHistoryDiagnosticFragments = [
             #"            if shard.shardID == "s10.4.current.ax-text","# + "\n" +
-                #"               stateID == "state.report-history.ready" {"#
-        XCTAssertEqual(
-            uiSource.components(separatedBy: reportHistoryDiagnosticGate).count - 1,
-            1
-        )
-        let reportHistoryEligibleExceptionsBinding =
-            "            let eligibleExceptions = " +
-                "Self.contrastAuditExceptionSignatures.filter {"
-        guard let reportHistoryDiagnosticStartRange = uiSource.range(
-            of: reportHistoryDiagnosticGate
-        ), let reportHistoryDiagnosticEndRange = uiSource.range(
-            of: reportHistoryEligibleExceptionsBinding,
-            range: reportHistoryDiagnosticStartRange.upperBound..<uiSource.endIndex
-        ) else {
-            XCTFail("Missing the bounded AX-text Report-history diagnostic slice")
-            return
-        }
-        let reportHistoryDiagnosticSource = String(
-            uiSource[
-                reportHistoryDiagnosticStartRange.lowerBound..<reportHistoryDiagnosticEndRange.lowerBound
-            ]
-        )
-        XCTAssertEqual(reportHistoryDiagnosticSource.utf8.count, 8_768)
-        XCTAssertEqual(
-            Data(reportHistoryDiagnosticSource.utf8).sha256,
-            "7E061A79A39F6894A00F84625ACBB444182D472CFED3A44E68A59FAD376E10A9"
-        )
-
-        let reportHistoryDiagnosticQueries = [
-            "let reportHistoryScreens = app.descendants(matching: .any).matching(\n" +
-                #"                    identifier: "s4.4.history.screen""#,
-            "let reportHistoryHeaders = app.staticTexts.matching(\n" +
-                #"                    identifier: "s4.4.history.header""#,
-            "let northCampusTexts = app.staticTexts.matching(\n" +
-                #"                    NSPredicate(format: "label == %@", "North Campus")"#,
-            "let viewReportControls = app.buttons.matching(\n" +
-                #"                    identifier: "s4.4.reports.view-report""#,
-            "let reportHistoryScrollViews = app.scrollViews.containing(\n" +
-                "                    .button,\n" +
-                #"                    identifier: "s4.4.reports.view-report""#,
-            "let reportHistoryNavigationBars = app.navigationBars.matching(\n" +
-                #"                    identifier: "Report history""#,
-            "let reportHistoryTabBars = app.tabBars",
-            "let reportHistoryVisits = app.descendants(matching: .any).matching(\n" +
-                #"                    identifier: "s4.4.reports.visit""#,
-            "let reportHistoryVisitComposites = reportHistoryVisits.firstMatch\n" +
-                "                    .descendants(matching: .staticText).matching(\n" +
-                #"                        NSPredicate(format: "label BEGINSWITH %@", "Visit, ")"#,
-        ]
-        XCTAssertEqual(reportHistoryDiagnosticQueries.count, 9)
-        for query in reportHistoryDiagnosticQueries {
-            XCTAssertEqual(
-                reportHistoryDiagnosticSource.components(separatedBy: query).count - 1,
-                1,
-                query
-            )
-        }
-
-        let reportHistoryElementSerializer =
-            "                let diagnosticElementObject: (XCUIElement) -> [String: Any] = {\n" +
-                "                    element in\n" +
-                "                    let value: Any\n" +
-                "                    if let elementValue = element.value {\n" +
-                "                        value = String(describing: elementValue)\n" +
-                "                    } else {\n" +
-                "                        value = NSNull()\n" +
-                "                    }\n" +
-                "                    return [\n" +
-                #"                        "identifier": element.identifier,"# + "\n" +
-                #"                        "label": element.label,"# + "\n" +
-                #"                        "value": value,"# + "\n" +
-                #"                        "elementType": String(describing: element.elementType),"# + "\n" +
-                #"                        "frame": self.auditFrameObject(element.frame),"# + "\n" +
-                #"                        "exists": element.exists,"# + "\n" +
-                #"                        "isHittable": element.isHittable,"# + "\n" +
-                "                    ]\n" +
-                "                }"
-        XCTAssertEqual(
-            reportHistoryDiagnosticSource.components(
-                separatedBy: reportHistoryElementSerializer
-            ).count - 1,
-            1
-        )
-        let reportHistoryQuerySerializer =
-            "                let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {\n" +
-                "                    query in\n" +
-                "                    let cardinality = query.count\n" +
-                "                    return [\n" +
-                #"                        "cardinality": cardinality,"# + "\n" +
-                #"                        "elements": (0..<cardinality).map { index in"# + "\n" +
-                "                            diagnosticElementObject(query.element(boundBy: index))\n" +
-                "                        },\n" +
-                "                    ]\n" +
-                "                }"
-        XCTAssertEqual(
-            reportHistoryDiagnosticSource.components(
-                separatedBy: reportHistoryQuerySerializer
-            ).count - 1,
-            1
-        )
-        let reportHistoryApplicationSerializer =
-            "                var applicationObject = diagnosticElementObject(app)\n" +
-                #"                applicationObject["state"] = String(describing: app.state)"# + "\n" +
-                #"                applicationObject["stateRawValue"] = Int(app.state.rawValue)"# + "\n" +
-                #"                applicationObject["isRunningForeground"] ="# + "\n" +
-                "                    app.state == .runningForeground"
-        XCTAssertEqual(
-            reportHistoryDiagnosticSource.components(
-                separatedBy: reportHistoryApplicationSerializer
-            ).count - 1,
-            1
-        )
-        for (contextBinding, count) in [
-            (#""shardID": shard.shardID"#, 3),
-            (#""stateID": stateID"#, 3),
-            (#""application": applicationObject"#, 1),
-            (#""reportHistoryScreen": diagnosticQueryObject("#, 1),
-            (#""reportHistoryHeader": diagnosticQueryObject("#, 1),
-            (#""northCampus": diagnosticQueryObject(northCampusTexts)"#, 1),
-            (#""viewReport": diagnosticQueryObject(viewReportControls)"#, 1),
-            (#""reportHistoryScrollView": diagnosticQueryObject("#, 1),
-            (#""reportHistoryNavigationBar": diagnosticQueryObject("#, 1),
-            (#""reportHistoryTabBar": diagnosticQueryObject("#, 1),
-            (#""reportHistoryVisit": diagnosticQueryObject("#, 1),
-            (#""reportHistoryVisitComposite": diagnosticQueryObject("#, 1),
-        ] {
-            XCTAssertEqual(
-                reportHistoryDiagnosticSource.components(
-                    separatedBy: contextBinding
-                ).count - 1,
-                count,
-                contextBinding
-            )
-        }
-
-        for prefix in [
+                #"               stateID == "state.report-history.ready" {"#,
             "S10_4_REPORT_HISTORY_CONTEXT_DIAGNOSTIC",
             "S10_4_REPORT_HISTORY_AUDIT_DIAGNOSTIC",
             "S10_4_REPORT_HISTORY_AUDIT_COUNT_DIAGNOSTIC",
-        ] {
-            XCTAssertEqual(
-                reportHistoryDiagnosticSource.components(separatedBy: prefix).count - 1,
-                1,
-                prefix
-            )
-            XCTAssertEqual(uiSource.components(separatedBy: prefix).count - 1, 1, prefix)
-        }
-        let reportHistoryAttachmentLocks = [
-            "let attachmentPrefix =\n" +
-                #"                    "S10.4 s10.4.current.ax-text Report-history contrast diagnostic""#,
-            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
-            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
-            "let historyContextAttachment: XCTAttachment",
-            "historyContextAttachment = XCTAttachment(\n" +
-                "                        screenshot: historyContextElement.screenshot()",
-            "historyContextAttachment = XCTAttachment(string: contextString)",
-            "let issueAttachment = XCTAttachment(\n" +
-                "                            screenshot: auditedElement.screenshot()",
-            #"appAttachment.name = "\(attachmentPrefix) app""#,
-            #"treeAttachment.name = "\(attachmentPrefix) accessibility tree""#,
-            #""\(attachmentPrefix) Report-history route context""#,
-            #""\(attachmentPrefix) audit issue \(observedIssueCount)""#,
+            "S10_4_REPORT_HISTORY_POSITIONING_DIAGNOSTIC",
+            "S10.4 s10.4.current.ax-text Report-history contrast diagnostic",
+            "let reportHistoryScreens = app.descendants(matching: .any).matching(",
+            "let reportHistoryHeaders = app.staticTexts.matching(",
+            "diagnosticElementObject",
+            "diagnosticQueryObject",
+            "historyContextAttachment",
+            "lowerNorthCampusElement",
+            "lowerNorthCampusFrame",
+            "lowerNorthCampusMinYBeforeDrag",
+            "observedLowerNorthCampusShift",
+            "finalLowerNorthCampus",
+            "applicationFrameAfterDrag",
+            "applicationFrame.maxY - lowerNorthCampusFrame.minY",
+            "lowerNorthCampusFrame.minY >= applicationFrame.maxY",
+            "!lowerNorthCampusElement.isHittable",
+            "!finalLowerNorthCampus.isHittable",
         ]
-        for attachmentLock in reportHistoryAttachmentLocks {
+        for fragment in removedReportHistoryDiagnosticFragments {
             XCTAssertEqual(
-                reportHistoryDiagnosticSource.components(
-                    separatedBy: attachmentLock
-                ).count - 1,
-                1,
-                attachmentLock
+                uiSource.components(separatedBy: fragment).count - 1,
+                0,
+                fragment
+            )
+            XCTAssertEqual(
+                workflowSource.components(separatedBy: fragment).count - 1,
+                0,
+                fragment
             )
         }
-        for (attachmentCardinalityLock, count) in [
-            ("XCTAttachment(", 5),
-            (".lifetime = .keepAlways", 4),
-            ("add(appAttachment)", 1),
-            ("add(treeAttachment)", 1),
-            ("add(historyContextAttachment)", 1),
-            ("self.add(issueAttachment)", 1),
-        ] {
-            XCTAssertEqual(
-                reportHistoryDiagnosticSource.components(
-                    separatedBy: attachmentCardinalityLock
-                ).count - 1,
-                count,
-                attachmentCardinalityLock
-            )
-        }
-
-        let reportHistoryCallbackFields = [
-            #""issueOrdinal": observedIssueCount"#,
-            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
-            #""compactDescription": issue.compactDescription"#,
-            #""detailedDescription": issue.detailedDescription"#,
-            #""elementIdentifier": NSNull()"#,
-            #""elementLabel": NSNull()"#,
-            #""elementType": NSNull()"#,
-            #""elementFrame": NSNull()"#,
-            #""applicationFrame": self.auditFrameObject(app.frame)"#,
-            #"diagnostic["elementIdentifier"] = auditedElement.identifier"#,
-            #"diagnostic["elementLabel"] = auditedElement.label"#,
-            #"diagnostic["elementType"] = String("#,
-            #"diagnostic["elementFrame"] = self.auditFrameObject("#,
+        let removedReportHistoryDiagnosticAttachmentAndCallbackFragments = [
+            "Report-history route context",
+            "audit issue \\(observedIssueCount)",
+            "S10.4 AX-text Report-history contrast diagnostic completed nonaccepting",
         ]
-        for callbackField in reportHistoryCallbackFields {
+        for fragment in removedReportHistoryDiagnosticAttachmentAndCallbackFragments {
             XCTAssertEqual(
-                reportHistoryDiagnosticSource.components(
-                    separatedBy: callbackField
-                ).count - 1,
-                1,
-                callbackField
+                uiSource.components(separatedBy: fragment).count - 1,
+                0,
+                fragment
             )
         }
-        let reportHistoryCallbackStart = "                var observedIssueCount = 0"
-        let reportHistoryCallbackEnd =
-            "                printJSONLine(\n" +
-                #"                    prefix: "S10_4_REPORT_HISTORY_AUDIT_COUNT_DIAGNOSTIC","#
-        guard let reportHistoryCallbackStartRange = reportHistoryDiagnosticSource.range(
-            of: reportHistoryCallbackStart
-        ), let reportHistoryCallbackEndRange = reportHistoryDiagnosticSource.range(
-            of: reportHistoryCallbackEnd,
-            range: reportHistoryCallbackStartRange.upperBound..<reportHistoryDiagnosticSource.endIndex
-        ) else {
-            XCTFail("Missing the bounded Report-history audit callback")
-            return
-        }
-        let reportHistoryCallbackSource = String(
-            reportHistoryDiagnosticSource[
-                reportHistoryCallbackStartRange.lowerBound..<reportHistoryCallbackEndRange.lowerBound
-            ]
-        )
-        XCTAssertEqual(
-            reportHistoryCallbackSource.components(separatedBy: "NSNull()").count - 1,
-            4
-        )
-        for (auditCardinalityLock, count) in [
-            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 1),
-            ("var observedIssueCount = 0", 1),
-            ("observedIssueCount += 1", 1),
-            ("NSNull()", 5),
-            ("return true", 1),
-            ("return false", 0),
-            (#""issueCount": observedIssueCount"#, 1),
-        ] {
-            XCTAssertEqual(
-                reportHistoryDiagnosticSource.components(
-                    separatedBy: auditCardinalityLock
-                ).count - 1,
-                count,
-                auditCardinalityLock
-            )
-        }
-        XCTAssertEqual(
-            reportHistoryDiagnosticSource.components(
-                separatedBy: "printJSONLine("
+        let reportHistoryResidualDiagnosticMutation =
+            uiSource + "\nS10_4_REPORT_HISTORY_AUDIT_COUNT_DIAGNOSTIC"
+        XCTAssertNotEqual(
+            reportHistoryResidualDiagnosticMutation.components(
+                separatedBy: "S10_4_REPORT_HISTORY_AUDIT_COUNT_DIAGNOSTIC"
             ).count - 1,
-            3
+            0
         )
-        let reportHistoryDiagnosticTerminal =
-            "                throw AutomationConfigurationError.invalid(\n" +
-                #"                    "S10.4 AX-text Report-history contrast diagnostic completed nonaccepting""# + "\n" +
-                "                )\n" +
-                "            }\n\n"
-        XCTAssertTrue(reportHistoryDiagnosticSource.hasSuffix(reportHistoryDiagnosticTerminal))
-
-        for prohibitedReportHistoryDiagnosticForm in [
-            "tap(",
-            "swipe",
-            "press(",
-            "coordinate(",
-            "typeText(",
-            "scroll(",
-            "waitForExistence",
-            "sleep(",
-            "Thread.sleep",
-            "CGRect(",
-            "count ==",
-            "attachCandidate(",
-            "S10_MIGRATION_STATE",
-            #"prefix: "S10_4_AX_STATE""#,
-            #"prefix: "S10_4_AX""#,
-            #"prefix: "S10_4_CONTRAST""#,
-            "automationAXTreeDigests",
-            "automationContrastExceptions",
-            "contrastAuditExceptionSignatures",
-            "stateIssueLimit",
-            "matchingExceptions",
-            "matchedExceptions",
-            "receipt",
-        ] {
-            XCTAssertFalse(
-                reportHistoryDiagnosticSource.contains(
-                    prohibitedReportHistoryDiagnosticForm
-                ),
-                prohibitedReportHistoryDiagnosticForm
-            )
-        }
 
         let restoredEligibleExceptionsBinding =
             "            let eligibleExceptions = " +
@@ -3706,7 +3350,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             contrastAuthoritySource.components(
                 separatedBy: "ContrastAuditExceptionSignature("
             ).count - 1,
-            11
+            12
         )
         for prohibitedReduceMotionSavingTaskExpansion in [
             #"case ("s10.4.current.reduce-motion", "work_and_recheck")"#,
@@ -3743,10 +3387,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "    private func assertFirstReceiptAndReport(in app: XCUIApplication) {",
             "            guard scrollReportPreviewForAXText(preview, in: app) else { return }",
         ] {
-            XCTAssertEqual(
-                uiSource.components(
+        XCTAssertEqual(
+            uiSource.components(
                     separatedBy: restoredReportDetailRoute
-                ).count - 1,
+            ).count - 1,
                 1,
                 restoredReportDetailRoute
             )
@@ -7440,6 +7084,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION",
+            "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-FEEDBACK-PRIVACY",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER",
@@ -7453,6 +7098,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Customer / site name even though the audit-owned crop visibly renders black text on white and the public node is bound to the top navigation-region frame; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Before you begin while the frozen public node frame is bottom-clipped outside the 402x874 application frame in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the I confirm this is the site's time zone label even though the audit-owned crop contains only the iOS keyboard and the frozen public node frame is fully keyboard-occluded in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the lower North Campus label whose frozen public node frame intersects native bottom chrome after bounded positioning makes the header safe and hittable and moves the Visit composite below the application; an exact remaining positive ScrollView drag is unrecognized with zero measured header, lower-label, and Visit movement, while ReportsRootView already renders the label with primaryText; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Feedback privacy copy while the frozen public node frame is top-clipped outside the 402x874 application frame and its remaining slice is bound to native status/navigation chrome; the live Feedback composition simultaneously preserves the frozen App-metadata and Save-diagnostics clearances, and the audit-owned crop confirms that unobscured primaryText renders white on the dark elevated surface; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in default light even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in default dark even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
@@ -7467,7 +7113,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             exceptionIDs.filter { !$0.hasSuffix("REPORT-CORRECTION-HEADER") }.count,
-            5
+            6
         )
         for lock in exceptionIDs {
             XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1, lock)
@@ -7487,6 +7133,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("state.new-sign.editing", 1),
             ("state.sample-report.ready", 1),
             ("state.feedback.review-ready", 1),
+            ("state.report-history.ready", 1),
             ("state.report-correction.validation-error", 6),
         ]
         for (stateID, expectedCount) in uiExceptionStateCounts {
@@ -7499,37 +7146,37 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(separatedBy: "ContrastAuditExceptionSignature(").count - 1,
-            11
+            12
         )
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: #"issueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            11
+            12
         )
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            22
+            24
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"owner: "palatis3""#).count - 1,
-            11
+            12
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionOwner: "palatis3""#)
                 .count - 1,
-            11
+            12
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"expiresAt: "2026-11-20""#).count - 1,
-            11
+            12
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionExpiresAt: "2026-11-20""#)
                 .count - 1,
-            11
+            12
         )
 
         let signatureLocks = [
@@ -7540,6 +7187,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"elementLabel: "Customer / site name""#,
             #"elementLabel: "Before you begin""#,
             #"elementLabel: "I confirm this is the site's time zone.""#,
+            #"elementLabel: "North Campus""#,
             #"elementIdentifier: "s8.4.feedback.privacy""#,
             #"elementLabel: "Your message stays editable. Only app version, build, device model, and iOS version are prefilled; customer and inspection content is never prefilled.""#,
             #"issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER""#,
@@ -7548,11 +7196,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"issueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER""#,
             #"issueID: "S10.4-XCUI-CONTRAST-FP-DIFFERENTIATE-WITHOUT-COLOR-REPORT-CORRECTION-HEADER""#,
             #"issueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER""#,
+            #"issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS""#,
             #"shardID: "s10.4.current.default-light""#,
             #"shardID: "s10.4.current.increased-contrast""#,
             #"shardID: "s10.4.current.reduce-motion""#,
             #"shardID: "s10.4.current.differentiate-without-color""#,
             #"shardID: "s10.4.current.reduce-transparency""#,
+            #"shardID: "s10.4.current.ax-text""#,
+            #"stateID: "state.report-history.ready""#,
             #"stateID: "state.report-correction.validation-error""#,
             #"elementIdentifier: "s4.5.correction.header""#,
             #"elementLabel: "Correct report""#,
@@ -7569,6 +7220,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "y: 547",
             "width: 238.33333333333331",
             "height: 249.33333333333337",
+            "y: 823.66666666666663",
+            "width: 329.33333333333331",
+            "height: 63.333333333333371",
             "y: -34.333333333333343",
             "width: 298.33333333333331",
             "height: 86.333333333333343",
@@ -7585,6 +7239,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode""#,
             #"elementIdentifier: """#,
             #"elementLabel: "Before you begin""#,
+            #"elementLabel: "North Campus""#,
             #"elementLabel: $timeZoneLabel"#,
             #"elementIdentifier: "s8.4.feedback.privacy""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER""#,
@@ -7593,11 +7248,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DIFFERENTIATE-WITHOUT-COLOR-REPORT-CORRECTION-HEADER""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER""#,
+            #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS""#,
             #"shardID: "s10.4.current.default-light""#,
             #"shardID: "s10.4.current.increased-contrast""#,
             #"shardID: "s10.4.current.reduce-motion""#,
             #"shardID: "s10.4.current.differentiate-without-color""#,
             #"shardID: "s10.4.current.reduce-transparency""#,
+            #"shardID: "s10.4.current.ax-text""#,
+            #"stateID: "state.report-history.ready""#,
             #"stateID: "state.report-correction.validation-error""#,
             #"elementIdentifier: "s4.5.correction.header""#,
             #"elementLabel: "Correct report""#,
@@ -7614,6 +7272,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "y: 547",
             "width: 238.33333333333331",
             "height: 249.33333333333337",
+            "y: 823.66666666666663",
+            "width: 329.33333333333331",
+            "height: 63.333333333333371",
             "y: -34.333333333333343",
             "width: 298.33333333333331",
             "height: 86.333333333333343",
@@ -7621,6 +7282,228 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ]
         for lock in workflowSignatureLocks {
             XCTAssertTrue(workflowSource.contains(lock), lock)
+        }
+
+        let reportHistoryRationale =
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the lower North Campus label whose frozen public node frame intersects native bottom chrome after bounded positioning makes the header safe and hittable and moves the Visit composite below the application; an exact remaining positive ScrollView drag is unrecognized with zero measured header, lower-label, and Visit movement, while ReportsRootView already renders the label with primaryText; the exception is limited to the frozen public issue signature."
+        let reportHistoryUIAuthority =
+            "        ContrastAuditExceptionSignature(\n" +
+                #"            issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS","# + "\n" +
+                #"            shardID: "s10.4.current.ax-text","# + "\n" +
+                #"            stateID: "state.report-history.ready","# + "\n" +
+                #"            taskID: "report_comprehension","# + "\n" +
+                #"            owner: "palatis3","# + "\n" +
+                #"            expiresAt: "2026-11-20","# + "\n" +
+                "            rationale: \"" + reportHistoryRationale + "\",\n" +
+                #"            auditTypeRawValue: "1","# + "\n" +
+                #"            compactDescription: "Contrast failed","# + "\n" +
+                #"            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode","# + "\n" +
+                #"            elementIdentifier: "","# + "\n" +
+                #"            elementLabel: "North Campus","# + "\n" +
+                #"            elementTypeDescription: "XCUIElementType(rawValue: 48)","# + "\n" +
+                "            elementFrame: CGRect(\n" +
+                "                x: 32,\n" +
+                "                y: 823.66666666666663,\n" +
+                "                width: 329.33333333333331,\n" +
+                "                height: 63.333333333333371\n" +
+                "            ),\n" +
+                "            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)\n" +
+                "        ),"
+        XCTAssertEqual(
+            uiSource.components(separatedBy: reportHistoryUIAuthority).count - 1,
+            1
+        )
+        let reportHistoryWorkflowAuthority =
+            "              {\n" +
+                #"                shardID: "s10.4.current.ax-text","# + "\n" +
+                #"                stateID: "state.report-history.ready","# + "\n" +
+                #"                taskID: "report_comprehension","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS","# + "\n" +
+                #"                exceptionOwner: "palatis3","# + "\n" +
+                #"                exceptionExpiresAt: "2026-11-20","# + "\n" +
+                "                exceptionRationale: \"" + reportHistoryRationale + "\",\n" +
+                "                ignoredAuditIssues: [\n" +
+                "                  {\n" +
+                #"                    auditTypeRawValue: "1","# + "\n" +
+                #"                    compactDescription: "Contrast failed","# + "\n" +
+                #"                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode","# + "\n" +
+                #"                    elementIdentifier: "","# + "\n" +
+                #"                    elementLabel: "North Campus","# + "\n" +
+                #"                    elementType: "XCUIElementType(rawValue: 48)","# + "\n" +
+                "                    elementFrame: {\n" +
+                "                      x: 32,\n" +
+                "                      y: 823.66666666666663,\n" +
+                "                      width: 329.33333333333331,\n" +
+                "                      height: 63.333333333333371\n" +
+                "                    },\n" +
+                "                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}\n" +
+                "                  }\n" +
+                "                ]\n" +
+                "              },"
+        XCTAssertEqual(
+            workflowSource.components(separatedBy: reportHistoryWorkflowAuthority).count - 1,
+            1
+        )
+        let reportHistoryWorkflowTuple =
+            "              {\n" +
+                #"                shardID: "s10.4.current.ax-text","# + "\n" +
+                #"                stateID: "state.report-history.ready","# + "\n" +
+                #"                taskID: "report_comprehension","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS""# + "\n" +
+                "              },"
+        XCTAssertEqual(
+            workflowSource.components(separatedBy: reportHistoryWorkflowTuple).count - 1,
+            1
+        )
+
+        let reportHistoryMissingUIAuthority = uiSource.replacingOccurrences(
+            of: reportHistoryUIAuthority,
+            with: ""
+        )
+        XCTAssertEqual(
+            reportHistoryMissingUIAuthority.components(
+                separatedBy: reportHistoryUIAuthority
+            ).count - 1,
+            0
+        )
+        let reportHistoryDuplicateUIAuthority = uiSource.replacingOccurrences(
+            of: reportHistoryUIAuthority,
+            with: reportHistoryUIAuthority + "\n" + reportHistoryUIAuthority
+        )
+        XCTAssertEqual(
+            reportHistoryDuplicateUIAuthority.components(
+                separatedBy: reportHistoryUIAuthority
+            ).count - 1,
+            2
+        )
+
+        let reportHistoryMissingWorkflowAuthority = workflowSource.replacingOccurrences(
+            of: reportHistoryWorkflowAuthority,
+            with: ""
+        )
+        XCTAssertEqual(
+            reportHistoryMissingWorkflowAuthority.components(
+                separatedBy: reportHistoryWorkflowAuthority
+            ).count - 1,
+            0
+        )
+        let reportHistoryDuplicateWorkflowAuthority = workflowSource.replacingOccurrences(
+            of: reportHistoryWorkflowAuthority,
+            with: reportHistoryWorkflowAuthority + "\n" + reportHistoryWorkflowAuthority
+        )
+        XCTAssertEqual(
+            reportHistoryDuplicateWorkflowAuthority.components(
+                separatedBy: reportHistoryWorkflowAuthority
+            ).count - 1,
+            2
+        )
+
+        let reportHistoryWorkflowAuthorityFieldMutations = [
+            (
+                "duplicate issue ID",
+                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS",
+                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME"
+            ),
+            (
+                "ineligible shard",
+                "shardID: \"s10.4.current.ax-text\"",
+                "shardID: \"s10.4.minimum.bounded\""
+            ),
+            (
+                "wrong state",
+                "stateID: \"state.report-history.ready\"",
+                "stateID: \"state.report-detail.ready\""
+            ),
+            (
+                "wrong task",
+                "taskID: \"report_comprehension\"",
+                "taskID: \"history_recovery\""
+            ),
+            (
+                "wrong owner",
+                "exceptionOwner: \"palatis3\"",
+                "exceptionOwner: \"unknown\""
+            ),
+            (
+                "expired authority",
+                "exceptionExpiresAt: \"2026-11-20\"",
+                "exceptionExpiresAt: \"2026-08-21\""
+            ),
+            (
+                "drifted rationale",
+                "the exception is limited to the frozen public issue signature.",
+                "the exception is not limited to the frozen public issue signature."
+            ),
+            (
+                "wrong audit type",
+                "auditTypeRawValue: \"1\"",
+                "auditTypeRawValue: \"2\""
+            ),
+            (
+                "wrong compact description",
+                "compactDescription: \"Contrast failed\"",
+                "compactDescription: \"Contrast passed\""
+            ),
+            (
+                "wrong detailed description",
+                "detailedDescription: \"Contrast failed for SwiftUI.AccessibilityNode\"",
+                "detailedDescription: \"Contrast failed for another node\""
+            ),
+            (
+                "wrong element identifier",
+                "elementIdentifier: \"\"",
+                "elementIdentifier: \"unexpected\""
+            ),
+            (
+                "wrong element label",
+                "elementLabel: \"North Campus\"",
+                "elementLabel: \"South Campus\""
+            ),
+            (
+                "wrong element type",
+                "elementType: \"XCUIElementType(rawValue: 48)\"",
+                "elementType: \"XCUIElementType(rawValue: 49)\""
+            ),
+            ("wrong frame x", "                      x: 32,", "                      x: 31,"),
+            (
+                "wrong frame y",
+                "                      y: 823.66666666666663,",
+                "                      y: 823.66666666666664,"
+            ),
+            (
+                "wrong frame width",
+                "                      width: 329.33333333333331,",
+                "                      width: 329.33333333333332,"
+            ),
+            (
+                "wrong frame height",
+                "                      height: 63.333333333333371",
+                "                      height: 63.333333333333372"
+            ),
+            (
+                "wrong application frame",
+                "applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
+                "applicationFrame: {x: 0, y: 0, width: 401, height: 874}"
+            ),
+        ]
+        for (label, originalField, mutatedField) in reportHistoryWorkflowAuthorityFieldMutations {
+            XCTAssertTrue(reportHistoryWorkflowAuthority.contains(originalField), label)
+            let mutatedAuthority = reportHistoryWorkflowAuthority.replacingOccurrences(
+                of: originalField,
+                with: mutatedField
+            )
+            XCTAssertNotEqual(mutatedAuthority, reportHistoryWorkflowAuthority, label)
+            let mutatedWorkflowSource = workflowSource.replacingOccurrences(
+                of: reportHistoryWorkflowAuthority,
+                with: mutatedAuthority
+            )
+            XCTAssertEqual(
+                mutatedWorkflowSource.components(
+                    separatedBy: reportHistoryWorkflowAuthority
+                ).count - 1,
+                0,
+                label
+            )
         }
 
         let defaultLightUIAuthorityStart =
@@ -8126,6 +8009,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                    "state.report-correction.validation-error","# + "\n" +
                 #"                    "state.sample-report.ready","# + "\n" +
                 #"                ]"#,
+            #"case ("s10.4.current.ax-text", "report_comprehension")"#,
+            #"taskIssueLimit = 1"#,
+            #"taskStateLimit = 1"#,
+            #"permittedExceptionStateIDs = ["# + "\n" +
+                #"                    "state.report-history.ready","# + "\n" +
+                #"                ]"#,
             #"case ("s10.4.current.increased-contrast", "report_comprehension")"#,
             #"case ("s10.4.current.differentiate-without-color", "report_comprehension")"#,
             #"taskIssueLimit = 1"#,
@@ -8167,6 +8056,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for lock in taskExceptionLocks {
             XCTAssertTrue(uiSource.contains(lock), lock)
         }
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: #"case ("s10.4.current.ax-text""#
+            ).count - 1,
+            2
+        )
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: #"case ("s10.4.current.default-light""#
@@ -8216,6 +8111,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: defaultLightTaskExceptionBound
+            ).count - 1,
+            1
+        )
+        let axReportHistoryTaskExceptionBound =
+            #"            case ("s10.4.current.ax-text", "report_comprehension"):"# +
+                "\n" +
+                "                taskIssueLimit = 1\n" +
+                "                taskStateLimit = 1\n" +
+                "                permittedExceptionStateIDs = [\n" +
+                #"                    "state.report-history.ready","# +
+                "\n" +
+                "                ]"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: axReportHistoryTaskExceptionBound
             ).count - 1,
             1
         )
@@ -8276,10 +8186,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "contrast_exception_authority_path=",
             #"if .result == "PASS" then"#,
             #"elif .result == "EXCEPTION" then"#,
-            #"length == 11"#,
-            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 10"#,
-            #"and ([.[].exceptionIssueID] | unique | length) == 11"#,
-            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 6"#,
+            #"length == 12"#,
+            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 11"#,
+            #"and ([.[].exceptionIssueID] | unique | length) == 12"#,
+            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 7"#,
             #"| select(.exceptionIssueID | IN("#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER","#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER","#,
@@ -8290,7 +8200,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 1"#,
             #"| select((.exceptionIssueID | IN("#,
             #")) | not)"#,
-            #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 5"#,
+            #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 6"#,
             #"and (.exceptionOwner == "palatis3")"#,
             #"and (.exceptionExpiresAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"))"#,
             #"and ($today <= .exceptionExpiresAt)"#,
@@ -8323,6 +8233,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"error("contrast exception on ineligible shard")"#,
             #"def taskIssueLimit($shardID; $taskID):"#,
             #"and $taskID == "one_handed_start" then 3"#,
+            #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
+                #"                     and $taskID == "report_comprehension" then 1"#,
             #"and $taskID == "report_comprehension" then 2"#,
             #"and $taskID == "history_recovery" then 1"#,
             #"and $taskID == "report_comprehension" then 1"#,
@@ -8359,10 +8271,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"($matchedAuthorities | length) > 1"#,
             #"($matchedExceptionStateIDs | length) > 1"#,
             #"elif $shard == "s10.4.current.ax-text" then"#,
-            #"($matchedAuthorities | length) > 3"#,
+            #"($matchedAuthorities | length) > 4"#,
+            #"($matchedExceptionStateIDs | length) > 3"#,
             #"stateIssueLimit($shardID; $stateID)"#,
             #"and $stateID == "state.check-preflight.ready" then 2"#,
             #"and $stateID == "state.new-sign.editing" then 1"#,
+            #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
+                #"                     and $stateID == "state.report-history.ready" then 1"#,
             #"and ($stateID == "state.feedback.review-ready""#,
             #"or $stateID == "state.report-correction.validation-error""#,
             #"or $stateID == "state.sample-report.ready") then 1"#,
@@ -8397,7 +8312,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER\",\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER\"\n" +
                 "                )) | not)\n" +
-                "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 5"
+                "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 6"
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: workflowHeaderSharedOneAndHistoricalFive
@@ -8655,12 +8570,110 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let axWorkflowAggregateBound =
             #"elif $shard == "s10.4.current.ax-text""# + "\n" +
-                #"                      and (($matchedAuthorities | length) > 3"# + "\n" +
-                #"                        or ($matchedExceptionStateIDs | length) > 2) then"#
+                #"                     and (($matchedAuthorities | length) > 4"# + "\n" +
+                #"                       or ($matchedExceptionStateIDs | length) > 3) then"#
         XCTAssertEqual(
             workflowSource.components(separatedBy: axWorkflowAggregateBound).count - 1,
             1
         )
+        let axWorkflowTaskIssueBound =
+            #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
+                #"                     and $taskID == "report_comprehension" then 1"#
+        XCTAssertEqual(
+            workflowSource.components(separatedBy: axWorkflowTaskIssueBound).count - 1,
+            2
+        )
+        let axWorkflowTaskIssueFunctionBound =
+            #"              def taskIssueLimit($shardID; $taskID):"# + "\n" +
+                #"                if $shardID == "s10.4.current.ax-text""# + "\n" +
+                #"                   and $taskID == "one_handed_start" then 3"# + "\n" +
+                #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
+                #"                     and $taskID == "report_comprehension" then 1"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: axWorkflowTaskIssueFunctionBound
+            ).count - 1,
+            1
+        )
+        let axWorkflowTaskStateFunctionBound =
+            #"              def taskStateLimit($shardID; $taskID):"# + "\n" +
+                #"                if $shardID == "s10.4.current.ax-text""# + "\n" +
+                #"                   and $taskID == "one_handed_start" then 2"# + "\n" +
+                #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
+                #"                     and $taskID == "report_comprehension" then 1"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: axWorkflowTaskStateFunctionBound
+            ).count - 1,
+            1
+        )
+        let axWorkflowStateIssueBound =
+            #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
+                #"                     and $stateID == "state.report-history.ready" then 1"#
+        XCTAssertEqual(
+            workflowSource.components(separatedBy: axWorkflowStateIssueBound).count - 1,
+            1
+        )
+        let axWorkflowDownstreamBound =
+            #"                      elif $shard == "s10.4.current.ax-text" then"# + "\n" +
+                #"                        ($matchedAuthorities | length) <= 4"# + "\n" +
+                #"                        and ($matchedExceptionStateIDs | length) <= 3"#
+        XCTAssertEqual(
+            workflowSource.components(separatedBy: axWorkflowDownstreamBound).count - 1,
+            1
+        )
+        let axWorkflowLimitMutations = [
+            (
+                "AX task issue limit expansion",
+                axWorkflowTaskIssueFunctionBound,
+                axWorkflowTaskIssueFunctionBound.replacingOccurrences(
+                    of: #"and $taskID == "report_comprehension" then 1"#,
+                    with: #"and $taskID == "report_comprehension" then 2"#
+                )
+            ),
+            (
+                "AX task state limit expansion",
+                axWorkflowTaskStateFunctionBound,
+                axWorkflowTaskStateFunctionBound.replacingOccurrences(
+                    of: #"and $taskID == "report_comprehension" then 1"#,
+                    with: #"and $taskID == "report_comprehension" then 2"#
+                )
+            ),
+            (
+                "AX Report-history state issue limit expansion",
+                axWorkflowStateIssueBound,
+                axWorkflowStateIssueBound.replacingOccurrences(
+                    of: "then 1",
+                    with: "then 2"
+                )
+            ),
+            (
+                "AX aggregate limit expansion",
+                axWorkflowAggregateBound,
+                axWorkflowAggregateBound
+                    .replacingOccurrences(of: "> 4", with: "> 5")
+                    .replacingOccurrences(of: "> 3", with: "> 4")
+            ),
+            (
+                "AX downstream limit expansion",
+                axWorkflowDownstreamBound,
+                axWorkflowDownstreamBound
+                    .replacingOccurrences(of: "<= 4", with: "<= 5")
+                    .replacingOccurrences(of: "<= 3", with: "<= 4")
+            ),
+        ]
+        for (label, canonicalBound, mutatedBound) in axWorkflowLimitMutations {
+            XCTAssertNotEqual(mutatedBound, canonicalBound, label)
+            let mutatedWorkflowSource = workflowSource.replacingOccurrences(
+                of: canonicalBound,
+                with: mutatedBound
+            )
+            XCTAssertEqual(
+                mutatedWorkflowSource.components(separatedBy: canonicalBound).count - 1,
+                0,
+                label
+            )
+        }
         for staleLock in [
             #"length == 7"#,
             #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 6"#,
@@ -8713,7 +8726,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workflowSource.components(
                 separatedBy: #"taskID: "report_comprehension""#
             ).count - 1,
-            14
+            16
         )
         XCTAssertFalse(workflowSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
         XCTAssertFalse(
