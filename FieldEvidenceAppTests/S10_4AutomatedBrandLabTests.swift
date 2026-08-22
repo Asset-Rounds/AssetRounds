@@ -3345,9 +3345,34 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             recordWorkSourcePath,
             byteCount: 14_867,
-            sha256: "B2DF8E9F3E2C2A1E2B89C332742F4D4E2E56E2115CAFE867625C9F1B924FC2E6"
+            sha256: "F51E4F1FCED9CD3B4C18E219646135B4DD0B102F174F569236F521C23E9957DD"
         )
         let recordWorkSource = try text(recordWorkSourcePath)
+        XCTAssertEqual(
+            recordWorkSource.components(
+                separatedBy:
+                    "usesImportedFixtureForUITest ? 30_000_000_000 : 5_000_000_000"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            recordWorkSource.components(
+                separatedBy: "30_000_000_000"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            recordWorkSource.components(
+                separatedBy: "15_000_000_000"
+            ).count - 1,
+            0
+        )
+        XCTAssertEqual(
+            recordWorkSource.components(
+                separatedBy: "5_000_000_000"
+            ).count - 1,
+            1
+        )
         let recordWorkDynamicKeyboardMode =
             "            .padding(DesignTokens.Spacing.space16)\n" +
                 "        }\n" +
@@ -4433,7 +4458,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (
                 "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
                 14_867,
-                "B2DF8E9F3E2C2A1E2B89C332742F4D4E2E56E2115CAFE867625C9F1B924FC2E6",
+                "F51E4F1FCED9CD3B4C18E219646135B4DD0B102F174F569236F521C23E9957DD",
                 [
                     #"AssetRoundsPrimaryAction("Record work", action: save)"#,
                     "AssetRoundsSecondaryAction(\n" +

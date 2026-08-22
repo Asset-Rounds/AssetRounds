@@ -270,7 +270,7 @@ struct RecordWorkView: View {
             completedAt: now
         )
         let minimumSavingPresentationNanoseconds: UInt64 =
-            usesImportedFixtureForUITest ? 15_000_000_000 : 5_000_000_000
+            usesImportedFixtureForUITest ? 30_000_000_000 : 5_000_000_000
         Task {
             let minimumSavingPresentation = Task<Void, Never> {
                 try? await Task.sleep(
