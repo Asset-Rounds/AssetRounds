@@ -533,7 +533,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             .waitForExistence(timeout: 30))
         recordMetric("cold_launch_to_welcome", since: coldLaunchStartedAt)
 
-        assertLightFirstSignValidationAndCreation(in: app)
+        try assertLightFirstSignValidationAndCreation(in: app)
         completeVisibleIssueCheck(in: app)
         assertFirstReceiptAndReport(in: app)
         assertReportsIndex(in: app)
@@ -567,7 +567,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func assertLightFirstSignValidationAndCreation(
         in app: XCUIApplication
-    ) {
+    ) throws {
         let shell = element("s1.shell.screen", in: app)
         XCTAssertTrue(shell.waitForExistence(timeout: 30))
         XCTAssertEqual(shell.value as? String, effectiveAppearanceName(fallback: "Light"))
@@ -1008,6 +1008,240 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(deleteMessage.waitForExistence(timeout: 5))
         XCTAssertTrue(siteLabel.waitForExistence(timeout: 5))
         let deleteConfirmationStateID = "state.sign-detail.delete-confirmation"
+        if automationShard?.shardID == "s10.4.minimum.double-length" {
+            let diagnosticQueries: [(String, XCUIElementQuery)] = [
+                (
+                    "detail",
+                    app.descendants(matching: .any)
+                        .matching(identifier: "s2.sign-detail.screen")
+                ),
+                (
+                    "deleteScreen",
+                    app.descendants(matching: .any)
+                        .matching(identifier: "s6.1.delete.screen")
+                ),
+                (
+                    "deleteMessage",
+                    app.descendants(matching: .any)
+                        .matching(identifier: "s6.1.delete.message")
+                ),
+                (
+                    "cancelDelete",
+                    app.descendants(matching: .any)
+                        .matching(identifier: "s6.1.delete.cancel")
+                ),
+                (
+                    "confirmDelete",
+                    app.descendants(matching: .any)
+                        .matching(identifier: "s6.1.delete.confirm")
+                ),
+                (
+                    "siteLabel",
+                    app.descendants(matching: .any)
+                        .matching(identifier: "s2.sign-detail.site-label")
+                ),
+                (
+                    "messageScrollViews",
+                    app.scrollViews.containing(
+                        .staticText,
+                        identifier: "s6.1.delete.message"
+                    )
+                ),
+                (
+                    "cancelScrollViews",
+                    app.scrollViews.containing(
+                        .button,
+                        identifier: "s6.1.delete.cancel"
+                    )
+                ),
+                (
+                    "confirmScrollViews",
+                    app.scrollViews.containing(
+                        .button,
+                        identifier: "s6.1.delete.confirm"
+                    )
+                ),
+                (
+                    "siteScrollViews",
+                    app.scrollViews.containing(
+                        .staticText,
+                        identifier: "s2.sign-detail.site-label"
+                    )
+                ),
+            ]
+            let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
+                element in
+                let valueObject: Any
+                if let value = element.value as? String {
+                    valueObject = value
+                } else {
+                    valueObject = NSNull()
+                }
+                return [
+                    "exists": element.exists,
+                    "isHittable": element.isHittable,
+                    "identifier": element.identifier,
+                    "label": element.label,
+                    "value": valueObject,
+                    "elementTypeRawValue": element.elementType.rawValue,
+                    "frame": self.auditFrameObject(element.frame),
+                ]
+            }
+            let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
+                query in
+                let count = query.count
+                var elements: [[String: Any]] = []
+                for index in 0..<count {
+                    elements.append(
+                        diagnosticElementObject(query.element(boundBy: index))
+                    )
+                }
+                return [
+                    "count": count,
+                    "elements": elements,
+                ]
+            }
+            var diagnosticQueryObjects: [String: Any] = [:]
+            for (name, query) in diagnosticQueries {
+                diagnosticQueryObjects[name] = diagnosticQueryObject(query)
+            }
+
+            let diagnosticViewportTop = detail.frame.minY
+            let diagnosticViewportBottom = detail.frame.maxY
+            let diagnosticPreferredMinimumShift = max(
+                diagnosticViewportTop - deleteScreen.frame.minY,
+                max(
+                    diagnosticViewportTop - deleteMessage.frame.minY,
+                    max(
+                        diagnosticViewportTop - cancelDelete.frame.minY,
+                        diagnosticViewportTop - confirmDelete.frame.minY
+                    )
+                )
+            )
+            let diagnosticPreferredMaximumShift = min(
+                diagnosticViewportTop - siteLabel.frame.maxY,
+                min(
+                    diagnosticViewportBottom - deleteScreen.frame.maxY,
+                    min(
+                        diagnosticViewportBottom - deleteMessage.frame.maxY,
+                        min(
+                            diagnosticViewportBottom - cancelDelete.frame.maxY,
+                            diagnosticViewportBottom - confirmDelete.frame.maxY
+                        )
+                    )
+                )
+            )
+            let diagnosticFallbackMinimumShift = max(
+                diagnosticViewportTop - deleteMessage.frame.minY,
+                max(
+                    diagnosticViewportTop - cancelDelete.frame.minY,
+                    diagnosticViewportTop - confirmDelete.frame.minY
+                )
+            )
+            let diagnosticFallbackMaximumShift = min(
+                diagnosticViewportTop - siteLabel.frame.maxY,
+                min(
+                    diagnosticViewportTop - deleteScreen.frame.maxY,
+                    min(
+                        diagnosticViewportBottom - deleteMessage.frame.maxY,
+                        min(
+                            diagnosticViewportBottom - cancelDelete.frame.maxY,
+                            diagnosticViewportBottom - confirmDelete.frame.maxY
+                        )
+                    )
+                )
+            )
+            let diagnosticPreferredContainsZero =
+                diagnosticPreferredMinimumShift <= 0
+                && diagnosticPreferredMaximumShift >= 0
+            let diagnosticFallbackContainsZero =
+                diagnosticFallbackMinimumShift <= 0
+                && diagnosticFallbackMaximumShift >= 0
+            var diagnosticTargetDistance: CGFloat?
+            if !diagnosticPreferredContainsZero,
+               !diagnosticFallbackContainsZero,
+               diagnosticPreferredMinimumShift <= diagnosticPreferredMaximumShift {
+                let farPreferredDistance =
+                    diagnosticPreferredMaximumShift < 0
+                    ? diagnosticPreferredMinimumShift
+                    : diagnosticPreferredMaximumShift
+                if abs(farPreferredDistance) >= 44 {
+                    diagnosticTargetDistance = farPreferredDistance
+                }
+            }
+            if !diagnosticPreferredContainsZero,
+               !diagnosticFallbackContainsZero,
+               diagnosticTargetDistance == nil,
+               diagnosticFallbackMinimumShift <= diagnosticFallbackMaximumShift {
+                let farFallbackDistance =
+                    diagnosticFallbackMaximumShift < 0
+                    ? diagnosticFallbackMinimumShift
+                    : diagnosticFallbackMaximumShift
+                if abs(farFallbackDistance) >= 44 {
+                    diagnosticTargetDistance = farFallbackDistance
+                }
+            }
+            let diagnosticTargetDistanceObject: Any
+            if let diagnosticTargetDistance {
+                diagnosticTargetDistanceObject = Double(diagnosticTargetDistance)
+            } else {
+                diagnosticTargetDistanceObject = NSNull()
+            }
+
+            let appScreenshot = XCTAttachment(screenshot: app.screenshot())
+            appScreenshot.name = "S10.4 double-length delete diagnostic app"
+            appScreenshot.lifetime = .keepAlways
+            add(appScreenshot)
+            let appTree = XCTAttachment(string: app.debugDescription)
+            appTree.name = "S10.4 double-length delete diagnostic tree"
+            appTree.lifetime = .keepAlways
+            add(appTree)
+            let detailScreenshot = XCTAttachment(screenshot: detail.screenshot())
+            detailScreenshot.name = "S10.4 double-length delete diagnostic detail"
+            detailScreenshot.lifetime = .keepAlways
+            add(detailScreenshot)
+            let messageScreenshot = XCTAttachment(
+                screenshot: deleteMessage.screenshot()
+            )
+            messageScreenshot.name = "S10.4 double-length delete diagnostic message"
+            messageScreenshot.lifetime = .keepAlways
+            add(messageScreenshot)
+
+            printJSONLine(
+                prefix: "S10_4_DOUBLE_LENGTH_DELETE_DIAGNOSTIC",
+                object: [
+                    "shardID": "s10.4.minimum.double-length",
+                    "stateID": deleteConfirmationStateID,
+                    "applicationStateRawValue": app.state.rawValue,
+                    "applicationFrame": auditFrameObject(app.frame),
+                    "detailViewportFrame": auditFrameObject(detail.frame),
+                    "queries": diagnosticQueryObjects,
+                    "preferredMinimumShift": Double(
+                        diagnosticPreferredMinimumShift
+                    ),
+                    "preferredMaximumShift": Double(
+                        diagnosticPreferredMaximumShift
+                    ),
+                    "fallbackMinimumShift": Double(
+                        diagnosticFallbackMinimumShift
+                    ),
+                    "fallbackMaximumShift": Double(
+                        diagnosticFallbackMaximumShift
+                    ),
+                    "preferredContainsZero": diagnosticPreferredContainsZero,
+                    "fallbackContainsZero": diagnosticFallbackContainsZero,
+                    "preferredIntervalFeasible": diagnosticPreferredMinimumShift
+                        <= diagnosticPreferredMaximumShift,
+                    "fallbackIntervalFeasible": diagnosticFallbackMinimumShift
+                        <= diagnosticFallbackMaximumShift,
+                    "recognizedMinimumDistance": 44,
+                    "targetDistance": diagnosticTargetDistanceObject,
+                ]
+            )
+            throw AutomationConfigurationError.invalid(
+                "S10.4 minimum double-length delete-confirmation diagnostic"
+            )
+        }
         let runsAXTextDeleteConfirmationDiagnostic =
             automationShard?.shardID == "s10.4.current.ax-text"
         if runsAXTextDeleteConfirmationDiagnostic {
