@@ -339,8 +339,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 239_639,
-            sha256: "0D68EB070BA1A5FE4821A71AAF923DD4ED102EC786868EE9C9833E41FAEE3C89"
+            byteCount: 241_201,
+            sha256: "14350FAF304A2885AEBA2B1A379C605BFD4C0022BDCD27064BFDAD940C7D33CD"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1085,6 +1085,51 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             return
         }
         let keyboardHelperSource = String(uiSource[keyboardHelperStartRange.lowerBound..<keyboardHelperEndRange.lowerBound])
+        let postSwipeOffAppKeyboardAcceptance =
+            "            if keyboardFrame.minY >= applicationFrame.maxY {\n" +
+                "                app.swipeDown()\n" +
+                "                if wait(\n" +
+                "                    for: keyboard,\n" +
+                #"                    predicate: "exists == false","# + "\n" +
+                "                    timeout: 10\n" +
+                "                ) {\n" +
+                "                    guard app.state == .runningForeground else {\n" +
+                "                        XCTFail(\n" +
+                #"                            "The app left the foreground while dismissing the minimum-profile keyboard.""# + "\n" +
+                "                        )\n" +
+                "                        return\n" +
+                "                    }\n" +
+                "                    return\n" +
+                "                }\n" +
+                "                let postSwipeApplicationFrame = app.frame\n" +
+                "                let postSwipeKeyboardFrame = keyboard.frame\n" +
+                "                let keyboardFocusIsAbsent = NSPredicate(\n" +
+                #"                    format: "hasKeyboardFocus == false""# + "\n" +
+                "                ).evaluate(with: keyboard)\n" +
+                "                let keyboardDescendantCount = keyboard.descendants(\n" +
+                "                    matching: .any\n" +
+                "                ).count\n" +
+                "                let keyboardKeyCount = keyboard.keys.count\n" +
+                "                guard !postSwipeApplicationFrame.isEmpty,\n" +
+                "                      !postSwipeKeyboardFrame.isEmpty,\n" +
+                "                      postSwipeKeyboardFrame.minY >= postSwipeApplicationFrame.maxY,\n" +
+                "                      keyboardFocusIsAbsent,\n" +
+                "                      keyboardDescendantCount == 0,\n" +
+                "                      keyboardKeyCount == 0,\n" +
+                "                      app.state == .runningForeground else {\n" +
+                "                    XCTFail(\n" +
+                #"                        "The minimum-profile off-app keyboard wrapper did not become inert.""# + "\n" +
+                "                    )\n" +
+                "                    return\n" +
+                "                }\n" +
+                "                return\n" +
+                "            } else {"
+        XCTAssertEqual(
+            keyboardHelperSource.components(
+                separatedBy: postSwipeOffAppKeyboardAcceptance
+            ).count - 1,
+            1
+        )
         let keyboardHelperLocks = [
             "let keyboard = app.keyboards.firstMatch",
             "guard keyboard.exists else { return }",
@@ -1098,9 +1143,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "guard !applicationFrame.isEmpty,",
             "!keyboardFrame.isEmpty else {",
             "keyboardFrame.minY >= applicationFrame.maxY",
-            "if keyboardFrame.minY >= applicationFrame.maxY {\n" +
-                "                app.swipeDown()\n" +
-                "            } else {",
+            "let postSwipeApplicationFrame = app.frame",
+            "let postSwipeKeyboardFrame = keyboard.frame",
+            #"format: "hasKeyboardFocus == false""#,
+            "keyboard.descendants(",
+            "matching: .any",
+            "keyboard.keys.count",
+            "postSwipeKeyboardFrame.minY >= postSwipeApplicationFrame.maxY",
+            "keyboardDescendantCount == 0",
+            "keyboardKeyCount == 0",
+            #"The app left the foreground while dismissing the minimum-profile keyboard."#,
+            #"The minimum-profile off-app keyboard wrapper did not become inert."#,
             "returnKey.elementType == .button",
             #"returnKey.label.lowercased() == "return""#,
             "let expectedKeyboardFrame = CGRect(",
@@ -1135,6 +1188,41 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             keyboardHelperSource.components(separatedBy: "app.swipeDown()").count - 1,
             2
         )
+        XCTAssertEqual(
+            keyboardHelperSource.components(
+                separatedBy: #"predicate: "exists == false""#
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            keyboardHelperSource.components(separatedBy: "timeout: 10").count - 1,
+            2
+        )
+        XCTAssertEqual(
+            keyboardHelperSource.components(
+                separatedBy: "app.state == .runningForeground"
+            ).count - 1,
+            3
+        )
+        for exactOnce in [
+            "keyboardFrame.minY >= applicationFrame.maxY",
+            "let postSwipeApplicationFrame = app.frame",
+            "let postSwipeKeyboardFrame = keyboard.frame",
+            "postSwipeKeyboardFrame.minY >= postSwipeApplicationFrame.maxY",
+            #"format: "hasKeyboardFocus == false""#,
+            "keyboard.descendants(",
+            "matching: .any",
+            "keyboard.keys.count",
+            #"The app left the foreground while dismissing the minimum-profile keyboard."#,
+            #"The minimum-profile off-app keyboard wrapper did not become inert."#,
+        ] {
+            XCTAssertEqual(
+                keyboardHelperSource.components(separatedBy: exactOnce).count - 1,
+                1,
+                exactOnce
+            )
+        }
+        XCTAssertFalse(keyboardHelperSource.contains("keyboard.hasKeyboardFocus"))
         let commonKeyboardPostcondition =
             "        guard wait(\n" +
                 "            for: keyboard,\n" +
@@ -1153,6 +1241,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "sleep(",
             "Thread.sleep",
             "tolerance",
+            "epsilon",
             "ScrollView",
         ] {
             XCTAssertFalse(

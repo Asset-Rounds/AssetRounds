@@ -5065,6 +5065,41 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
             if keyboardFrame.minY >= applicationFrame.maxY {
                 app.swipeDown()
+                if wait(
+                    for: keyboard,
+                    predicate: "exists == false",
+                    timeout: 10
+                ) {
+                    guard app.state == .runningForeground else {
+                        XCTFail(
+                            "The app left the foreground while dismissing the minimum-profile keyboard."
+                        )
+                        return
+                    }
+                    return
+                }
+                let postSwipeApplicationFrame = app.frame
+                let postSwipeKeyboardFrame = keyboard.frame
+                let keyboardFocusIsAbsent = NSPredicate(
+                    format: "hasKeyboardFocus == false"
+                ).evaluate(with: keyboard)
+                let keyboardDescendantCount = keyboard.descendants(
+                    matching: .any
+                ).count
+                let keyboardKeyCount = keyboard.keys.count
+                guard !postSwipeApplicationFrame.isEmpty,
+                      !postSwipeKeyboardFrame.isEmpty,
+                      postSwipeKeyboardFrame.minY >= postSwipeApplicationFrame.maxY,
+                      keyboardFocusIsAbsent,
+                      keyboardDescendantCount == 0,
+                      keyboardKeyCount == 0,
+                      app.state == .runningForeground else {
+                    XCTFail(
+                        "The minimum-profile off-app keyboard wrapper did not become inert."
+                    )
+                    return
+                }
+                return
             } else {
                 guard returnKey.elementType == .button,
                       returnKey.label.lowercased() == "return" else {
