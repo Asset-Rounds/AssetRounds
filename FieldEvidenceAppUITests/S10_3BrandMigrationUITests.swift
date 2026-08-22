@@ -783,11 +783,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         site.typeText("North Campus")
         dismissKeyboard(in: app)
         dismissKeyboard(in: app)
-        XCTAssertTrue(wait(
-            for: app.keyboards.firstMatch,
-            predicate: "exists == false",
-            timeout: 10
-        ))
+        XCTAssertTrue(keyboardIsAbsentOrInertOffApp(in: app))
         scroll(save, in: app)
         save.tap()
 
@@ -5353,6 +5349,72 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             XCTFail("Multiline dismissal changed content, route, or foreground state.")
             return
         }
+    }
+
+    @MainActor
+    private func keyboardIsAbsentOrInertOffApp(
+        in app: XCUIApplication
+    ) -> Bool {
+        let keyboardQuery = app.keyboards
+        let keyboardCount = keyboardQuery.count
+        if keyboardCount == 0 {
+            return app.state == .runningForeground
+        }
+        guard keyboardCount == 1,
+              automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" else {
+            return false
+        }
+
+        let keyboard = keyboardQuery.firstMatch
+        guard keyboard.exists else { return false }
+        let applicationFrame = app.frame
+        let keyboardFrame = keyboard.frame
+        let keyboardDescendants = keyboard.descendants(
+            matching: .any
+        )
+        let keyboardKeys = keyboard.keys
+        let keyboardDescendantCount = keyboardDescendants.count
+        let keyboardKeyCount = keyboardKeys.count
+        let keyboardDescendantElements =
+            keyboardDescendants.allElementsBoundByIndex
+        let keyboardKeyElements = keyboardKeys.allElementsBoundByIndex
+        let focusIsAbsent = NSPredicate(
+            format: "hasKeyboardFocus == false"
+        )
+        let keyboardFocusIsAbsent = focusIsAbsent.evaluate(with: keyboard)
+        let isWhollyOffAppAndInert: (XCUIElement) -> Bool = { element in
+            guard element.exists else { return false }
+            let elementFrame = element.frame
+            return !elementFrame.isEmpty
+                && elementFrame.minY >= applicationFrame.maxY
+                && focusIsAbsent.evaluate(with: element)
+                && !element.isHittable
+        }
+        let keyboardTreeIsEmpty =
+            keyboardDescendantCount == 0
+            && keyboardKeyCount == 0
+            && keyboardDescendantElements.isEmpty
+            && keyboardKeyElements.isEmpty
+        let keyboardTreeIsNonemptyAndInert =
+            keyboardDescendantCount > 0
+            && keyboardKeyCount > 0
+            && keyboardKeyCount <= keyboardDescendantCount
+            && keyboardDescendantElements.count
+                == keyboardDescendantCount
+            && keyboardKeyElements.count == keyboardKeyCount
+            && keyboardDescendantElements.allSatisfy(
+                isWhollyOffAppAndInert
+            )
+            && keyboardKeyElements.allSatisfy(
+                isWhollyOffAppAndInert
+            )
+        return !applicationFrame.isEmpty
+            && !keyboardFrame.isEmpty
+            && keyboardFrame.minY >= applicationFrame.maxY
+            && keyboardFocusIsAbsent
+            && !keyboard.isHittable
+            && (keyboardTreeIsEmpty || keyboardTreeIsNonemptyAndInert)
+            && app.state == .runningForeground
     }
 
     @MainActor

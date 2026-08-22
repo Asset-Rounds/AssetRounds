@@ -339,8 +339,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 256_757,
-            sha256: "E6CB40D83D5BF467F7F0034BA6C80B25E07A24A022C4288E5BEDB47648C53CC9"
+            byteCount: 259_359,
+            sha256: "AFCA35F42C070C99BB04576BB723534689AA82219E09E4148703DF84F8CE497B"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1085,6 +1085,158 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             return
         }
         let keyboardHelperSource = String(uiSource[keyboardHelperStartRange.lowerBound..<keyboardHelperEndRange.lowerBound])
+        XCTAssertEqual(keyboardHelperSource.utf8.count, 5_456)
+        XCTAssertEqual(
+            Data(keyboardHelperSource.utf8).sha256,
+            "90449D0206CB73E7D739329EC932E170C179364F431B24B7951E637F40230DA9"
+        )
+
+        let passiveKeyboardHelperStart =
+            "    @MainActor\n" +
+                "    private func keyboardIsAbsentOrInertOffApp(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) -> Bool {"
+        let passiveKeyboardHelperEnd = "\n\n" + keyboardHelperStart
+        XCTAssertEqual(
+            uiSource.components(separatedBy: passiveKeyboardHelperStart).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "keyboardIsAbsentOrInertOffApp("
+            ).count - 1,
+            2
+        )
+        guard let passiveKeyboardHelperStartRange = uiSource.range(
+            of: passiveKeyboardHelperStart
+        ), let passiveKeyboardHelperEndRange = uiSource.range(
+            of: passiveKeyboardHelperEnd,
+            range: passiveKeyboardHelperStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded passive keyboard postcondition helper")
+            return
+        }
+        let passiveKeyboardHelperSource = String(
+            uiSource[
+                passiveKeyboardHelperStartRange.lowerBound..<passiveKeyboardHelperEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(passiveKeyboardHelperSource.utf8.count, 2_686)
+        XCTAssertEqual(
+            Data(passiveKeyboardHelperSource.utf8).sha256,
+            "409318C12E31EC223DE3AA602085A378C1FEE6E35669FCC81413F3A341E57E34"
+        )
+
+        let passiveKeyboardHelperContracts = [
+            "        let keyboardQuery = app.keyboards",
+            "        let keyboardCount = keyboardQuery.count",
+            "        if keyboardCount == 0 {",
+            "            return app.state == .runningForeground",
+            "        guard keyboardCount == 1,",
+            #"              automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" else {"#,
+            "        let keyboard = keyboardQuery.firstMatch",
+            "        guard keyboard.exists else { return false }",
+            "        let applicationFrame = app.frame",
+            "        let keyboardFrame = keyboard.frame",
+            "        let keyboardDescendants = keyboard.descendants(\n" +
+                "            matching: .any\n" +
+                "        )",
+            "        let keyboardKeys = keyboard.keys",
+            "        let keyboardDescendantCount = keyboardDescendants.count",
+            "        let keyboardKeyCount = keyboardKeys.count",
+            "        let keyboardDescendantElements =\n" +
+                "            keyboardDescendants.allElementsBoundByIndex",
+            "        let keyboardKeyElements = keyboardKeys.allElementsBoundByIndex",
+            "        let focusIsAbsent = NSPredicate(\n" +
+                #"            format: "hasKeyboardFocus == false""# + "\n" +
+                "        )",
+            "        let keyboardFocusIsAbsent = focusIsAbsent.evaluate(with: keyboard)",
+            "        let isWhollyOffAppAndInert: (XCUIElement) -> Bool = { element in",
+            "            guard element.exists else { return false }",
+            "            let elementFrame = element.frame",
+            "            return !elementFrame.isEmpty\n" +
+                "                && elementFrame.minY >= applicationFrame.maxY\n" +
+                "                && focusIsAbsent.evaluate(with: element)\n" +
+                "                && !element.isHittable",
+            "        let keyboardTreeIsEmpty =",
+            "        let keyboardTreeIsNonemptyAndInert =",
+            "            && (keyboardTreeIsEmpty || keyboardTreeIsNonemptyAndInert)",
+            "        return !applicationFrame.isEmpty",
+            "            && !keyboardFrame.isEmpty",
+            "            && keyboardFrame.minY >= applicationFrame.maxY",
+            "            && keyboardFocusIsAbsent",
+            "            && !keyboard.isHittable",
+            "            && (keyboardTreeIsEmpty || keyboardTreeIsNonemptyAndInert)",
+            "            && app.state == .runningForeground",
+        ]
+        for contract in passiveKeyboardHelperContracts {
+            XCTAssertTrue(
+                passiveKeyboardHelperSource.contains(contract),
+                contract
+            )
+        }
+        for (passiveKeyboardHelperFragment, count) in [
+            ("keyboardDescendantCount", 5),
+            ("keyboardKeyCount", 5),
+            ("keyboardDescendantElements", 4),
+            ("keyboardKeyElements", 4),
+            ("focusIsAbsent", 3),
+            ("keyboardFocusIsAbsent", 2),
+            ("isWhollyOffAppAndInert", 3),
+            ("keyboardTreeIsEmpty", 2),
+            ("keyboardTreeIsNonemptyAndInert", 2),
+            ("allElementsBoundByIndex", 2),
+            ("allSatisfy(", 2),
+            ("return false", 3),
+            ("return app.state == .runningForeground", 1),
+            ("app.state == .runningForeground", 2),
+        ] {
+            XCTAssertEqual(
+                passiveKeyboardHelperSource.components(
+                    separatedBy: passiveKeyboardHelperFragment
+                ).count - 1,
+                count,
+                passiveKeyboardHelperFragment
+            )
+        }
+        for prohibitedPassiveKeyboardHelperForm in [
+            "tap(",
+            ".tap",
+            "press(",
+            "coordinate(",
+            "swipe",
+            "wait(",
+            "waitFor",
+            "timeout",
+            "sleep(",
+            "Thread.sleep",
+            "dismissKeyboard(",
+            "scroll(",
+            "typeText(",
+            "XCTAttachment",
+            "printJSONLine",
+            "attachCandidate",
+            "performAccessibilityAudit",
+            "audit",
+            "automationAX",
+            "automationContrast",
+            "eligibleExceptions",
+            "receipt",
+            "711",
+            "880",
+            "402",
+            "874",
+            "375",
+            "216",
+            "CGRect(",
+        ] {
+            XCTAssertFalse(
+                passiveKeyboardHelperSource.contains(
+                    prohibitedPassiveKeyboardHelperForm
+                ),
+                prohibitedPassiveKeyboardHelperForm
+            )
+        }
         let postSwipeOffAppKeyboardAcceptance =
             "            if keyboardFrame.minY >= applicationFrame.maxY {\n" +
                 "                app.swipeDown()\n" +
@@ -1407,6 +1559,39 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for lock in defaultKeyboardCallerLocks {
             XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1)
         }
+        let northCampusPassiveKeyboardCaller =
+            #"        site.typeText("North Campus")"# + "\n" +
+                "        dismissKeyboard(in: app)\n" +
+                "        dismissKeyboard(in: app)\n" +
+                "        XCTAssertTrue(keyboardIsAbsentOrInertOffApp(in: app))\n" +
+                "        scroll(save, in: app)"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: northCampusPassiveKeyboardCaller
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "XCTAssertTrue(keyboardIsAbsentOrInertOffApp(in: app))"
+            ).count - 1,
+            1
+        )
+        let staleNorthCampusKeyboardCaller =
+            #"        site.typeText("North Campus")"# + "\n" +
+                "        dismissKeyboard(in: app)\n" +
+                "        dismissKeyboard(in: app)\n" +
+                "        XCTAssertTrue(wait(\n" +
+                "            for: app.keyboards.firstMatch,\n" +
+                #"            predicate: "exists == false","# + "\n" +
+                "            timeout: 10\n" +
+                "        ))"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: staleNorthCampusKeyboardCaller
+            ).count - 1,
+            0
+        )
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: "dismissMultilineKeyboard(\n            afterEditing:"
