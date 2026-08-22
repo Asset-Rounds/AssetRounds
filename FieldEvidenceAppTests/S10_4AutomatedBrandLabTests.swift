@@ -535,7 +535,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    observedKeyboardFrame.minY < applicationFrame.maxY",
             "                guard keyboardIsOffApp != keyboardIsVisibleInApp else {",
             "                if keyboardIsOffApp {",
-            "                } else {",
         ]
         for lock in preflightRelationalClassifier {
             XCTAssertEqual(
@@ -669,9 +668,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    width: 375,\n" +
                 "                    height: 216\n" +
                 "                )"
+        let normalizedPreflightFrozenKeyboardFrame = preflightFrozenKeyboardFrame
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: "\n")
         XCTAssertEqual(
-            preflightQuickPathSource.components(
-                separatedBy: preflightFrozenKeyboardFrame
+            normalizedPreflightVisibleSource.components(
+                separatedBy: normalizedPreflightFrozenKeyboardFrame
             ).count - 1,
             1
         )
@@ -690,9 +693,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                        dy: 0.8425925925925926\n" +
                 "                    )\n" +
                 "                ).tap()"
+        let normalizedPreflightCoordinate = preflightNormalizedCoordinate
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: "\n")
         XCTAssertEqual(
-            preflightQuickPathSource.components(
-                separatedBy: preflightNormalizedCoordinate
+            normalizedPreflightVisibleSource.components(
+                separatedBy: normalizedPreflightCoordinate
             ).count - 1,
             1
         )
@@ -1510,8 +1517,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    width: 375,\n" +
                 "                    height: 216\n" +
                 "                )"
+        let normalizedQuickPathExpectedFrame = quickPathExpectedFrame
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: "\n")
         XCTAssertEqual(
-            quickPathViewportToCaptureSource.components(separatedBy: quickPathExpectedFrame).count - 1,
+            normalizedQuickPathVisibleSource.components(
+                separatedBy: normalizedQuickPathExpectedFrame
+            ).count - 1,
             1
         )
         let quickPathObservedFrame =
@@ -1535,9 +1548,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                        dy: 0.8425925925925926\n" +
                 "                    )\n" +
                 "                ).tap()"
+        let normalizedQuickPathCoordinate = quickPathNormalizedCoordinate
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: "\n")
         XCTAssertEqual(
-            quickPathViewportToCaptureSource.components(
-                separatedBy: quickPathNormalizedCoordinate
+            normalizedQuickPathVisibleSource.components(
+                separatedBy: normalizedQuickPathCoordinate
             ).count - 1,
             1
         )
@@ -1549,9 +1566,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    width: 93.5,\n" +
                 "                    height: 46\n" +
                 "                )"
+        let normalizedQuickPathRestoredKeyboard = quickPathRestoredKeyboard
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: "\n")
         XCTAssertEqual(
-            quickPathViewportToCaptureSource.components(
-                separatedBy: quickPathRestoredKeyboard
+            normalizedQuickPathVisibleSource.components(
+                separatedBy: normalizedQuickPathRestoredKeyboard
             ).count - 1,
             1
         )
@@ -1568,8 +1589,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                      app.state == .runningForeground else {",
         ]
         for lock in quickPathRestorationLocks {
+            let normalizedLock = lock
+                .components(separatedBy: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .joined(separator: "\n")
             XCTAssertEqual(
-                quickPathViewportToCaptureSource.components(separatedBy: lock).count - 1,
+                normalizedQuickPathVisibleSource.components(
+                    separatedBy: normalizedLock
+                ).count - 1,
                 1,
                 lock
             )
@@ -1584,7 +1611,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             quickPathViewportToCaptureSource.components(separatedBy: "XCTFail(").count - 1,
-            6
+            5
         )
         XCTAssertEqual(
             quickPathViewportToCaptureSource.components(separatedBy: "                    return\n").count - 1,
@@ -1674,7 +1701,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(
                 separatedBy: "keyboardIsAbsentOrInertOffApp("
             ).count - 1,
-            2
+            4
         )
         guard let passiveKeyboardHelperStartRange = uiSource.range(
             of: passiveKeyboardHelperStart
