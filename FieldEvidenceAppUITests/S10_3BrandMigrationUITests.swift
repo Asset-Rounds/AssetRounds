@@ -3657,6 +3657,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             XCTFail("Diagnostics route ScrollView is missing.")
             return
         }
+        if automationShard?.shardID ==
+            "s10.4.current.differentiate-without-color" {
+            try diagnoseDifferentiateWithoutColorDiagnosticsPositioning(in: app)
+        }
         let topClearance: CGFloat = 12
         let bottomClearance: CGFloat = 16
         let minimumGestureDistance: CGFloat = 44
@@ -3887,6 +3891,308 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         cancelRestore.tap()
         XCTAssertTrue(element("s1.settings.screen", in: app)
             .waitForExistence(timeout: 30))
+    }
+
+    @MainActor
+    private func diagnoseDifferentiateWithoutColorDiagnosticsPositioning(
+        in app: XCUIApplication
+    ) throws {
+        let diagnosticsScreenQuery = app.descendants(matching: .any)
+            .matching(identifier: "s8.3.diagnostics.screen")
+        let diagnosticsHeadingQuery = app.descendants(matching: .any)
+            .matching(identifier: "s8.3.diagnostics.heading")
+        let diagnosticsAuthorityQuery = app.descendants(matching: .any)
+            .matching(identifier: "s8.3.diagnostics.authority")
+        let diagnosticsExportQuery = app.descendants(matching: .any)
+            .matching(identifier: "s8.3.diagnostics.export")
+        let navigationBars = app.navigationBars
+        let signsTabQuery = app.descendants(matching: .any)
+            .matching(identifier: "s1.tab.signs")
+        let diagnosticsScrollViews = app.scrollViews.containing(
+            .staticText,
+            identifier: "s8.3.diagnostics.heading"
+        )
+
+        func elementObject(_ value: XCUIElement) -> [String: Any] {
+            let publicValue: Any
+            if let rawValue = value.value {
+                publicValue = String(describing: rawValue)
+            } else {
+                publicValue = NSNull()
+            }
+            return [
+                "exists": value.exists,
+                "isHittable": value.isHittable,
+                "identifier": value.identifier,
+                "label": value.label,
+                "value": publicValue,
+                "elementTypeRawValue": String(describing: value.elementType.rawValue),
+                "frame": auditFrameObject(value.frame),
+            ]
+        }
+
+        func queryObject(_ query: XCUIElementQuery) -> [String: Any] {
+            let count = query.count
+            var elements: [[String: Any]] = []
+            if count > 0 {
+                for index in 0..<count {
+                    elements.append(elementObject(query.element(boundBy: index)))
+                }
+            }
+            return ["count": count, "elements": elements]
+        }
+
+        func routeObject() -> [String: Any] {
+            [
+                "diagnosticsScreen": queryObject(diagnosticsScreenQuery),
+                "diagnosticsHeading": queryObject(diagnosticsHeadingQuery),
+                "diagnosticsAuthority": queryObject(diagnosticsAuthorityQuery),
+                "diagnosticsExport": queryObject(diagnosticsExportQuery),
+                "navigationBars": queryObject(navigationBars),
+                "signsTab": queryObject(signsTabQuery),
+                "diagnosticsScrollViews": queryObject(diagnosticsScrollViews),
+            ]
+        }
+
+        let startedAt = CFAbsoluteTimeGetCurrent()
+        let preScreenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        preScreenshot.name =
+            "S10.4 s10.4.current.differentiate-without-color Diagnostics positioning telemetry pre app"
+        preScreenshot.lifetime = .keepAlways
+        add(preScreenshot)
+        let preTree = XCTAttachment(string: app.debugDescription)
+        preTree.name =
+            "S10.4 s10.4.current.differentiate-without-color Diagnostics positioning telemetry pre accessibility tree"
+        preTree.lifetime = .keepAlways
+        add(preTree)
+
+        let startQueries = routeObject()
+        let diagnosticsHeading = diagnosticsHeadingQuery.firstMatch
+        let diagnosticsAuthority = diagnosticsAuthorityQuery.firstMatch
+        let diagnosticsExport = diagnosticsExportQuery.firstMatch
+        let navigationBar = navigationBars.firstMatch
+        let signsTab = signsTabQuery.firstMatch
+        let diagnosticsScrollView = diagnosticsScrollViews.firstMatch
+        let topClearance: CGFloat = 12
+        let bottomClearance: CGFloat = 16
+        let minimumGestureDistance: CGFloat = 44
+        let dragInset: CGFloat = 24
+
+        var telemetry: [String: Any] = [
+            "shardID": automationShard?.shardID ?? "UNSET",
+            "deviceProfileID": automationShard?.deviceProfileID ?? "UNSET",
+            "applicationStateRawValue": String(describing: app.state.rawValue),
+            "foreground": app.state == .runningForeground,
+            "applicationFrame": auditFrameObject(app.frame),
+            "startQueries": startQueries,
+            "topClearance": Double(topClearance),
+            "bottomClearance": Double(bottomClearance),
+            "minimumGestureDistance": Double(minimumGestureDistance),
+            "dragInset": Double(dragInset),
+            "headingFrame": auditFrameObject(diagnosticsHeading.frame),
+            "authorityFrame": auditFrameObject(diagnosticsAuthority.frame),
+            "exportFrame": auditFrameObject(diagnosticsExport.frame),
+            "navigationFrame": auditFrameObject(navigationBar.frame),
+            "signsTabFrame": auditFrameObject(signsTab.frame),
+            "scrollViewFrame": auditFrameObject(diagnosticsScrollView.frame),
+            "receiverFrame": auditFrameObject(diagnosticsScrollView.frame),
+            "recognizedMinimum": NSNull(),
+            "recognizedMaximum": NSNull(),
+            "requiredFinalDirection": NSNull(),
+            "upwardCapacity": NSNull(),
+            "downwardCapacity": NSNull(),
+            "dragStart": NSNull(),
+            "dragEnd": NSNull(),
+            "requestedDistance": NSNull(),
+            "authorityFrameBefore": NSNull(),
+            "authorityFrameAfter": NSNull(),
+            "actualDistance": NSNull(),
+            "observedUndertravel": NSNull(),
+            "postMinimumShift": NSNull(),
+            "postMaximumShift": NSNull(),
+            "actionCount": 0,
+            "selectedBranch": "UNSET",
+            "failureReason": NSNull(),
+        ]
+        let minimumShift = navigationBar.frame.maxY
+            + topClearance
+            - diagnosticsAuthority.frame.minY
+        let maximumShift = min(
+            navigationBar.frame.maxY - diagnosticsHeading.frame.maxY,
+            signsTab.frame.minY
+                - bottomClearance
+                - diagnosticsExport.frame.maxY
+        )
+        telemetry["initialMinimumShift"] = Double(minimumShift)
+        telemetry["initialMaximumShift"] = Double(maximumShift)
+
+        var failureReason: String?
+        var requestedDistance: CGFloat?
+        var dragStart: XCUICoordinate?
+        var dragEnd: XCUICoordinate?
+
+        if diagnosticsScrollViews.count != 1 {
+            telemetry["selectedBranch"] = "route-cardinality"
+            failureReason = "heading-containing ScrollView count was not one"
+        } else if minimumShift > maximumShift {
+            telemetry["selectedBranch"] = "interval-impossible"
+            failureReason = "interval impossible"
+        } else if minimumShift <= 0, maximumShift >= 0 {
+            telemetry["selectedBranch"] = "zero-containing"
+        } else {
+            let dragOrigin = diagnosticsScrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.01, dy: 0.45)
+            )
+            let startPoint = dragOrigin.screenPoint
+            let upwardCapacity = startPoint.y
+                - (diagnosticsScrollView.frame.minY + dragInset)
+            let downwardCapacity = diagnosticsScrollView.frame.maxY
+                - dragInset
+                - startPoint.y
+            telemetry["upwardCapacity"] = Double(upwardCapacity)
+            telemetry["downwardCapacity"] = Double(downwardCapacity)
+            telemetry["dragStart"] = auditFrameObject(
+                CGRect(origin: startPoint, size: .zero)
+            )
+            if upwardCapacity < minimumGestureDistance
+                || downwardCapacity < minimumGestureDistance {
+                telemetry["selectedBranch"] = "receiver-capacity"
+                failureReason = "receiver capacity below 44"
+            } else if maximumShift < 0 {
+                telemetry["selectedBranch"] = "negative"
+                telemetry["requiredFinalDirection"] = -1.0
+                let recognizedMinimum = max(
+                    minimumShift,
+                    -upwardCapacity
+                )
+                let recognizedMaximum = min(
+                    maximumShift,
+                    -minimumGestureDistance
+                )
+                telemetry["recognizedMinimum"] = Double(recognizedMinimum)
+                telemetry["recognizedMaximum"] = Double(recognizedMaximum)
+                if recognizedMinimum <= recognizedMaximum {
+                    requestedDistance = recognizedMaximum
+                    dragStart = dragOrigin
+                    dragEnd = dragOrigin.withOffset(
+                        CGVector(dx: 0, dy: recognizedMaximum)
+                    )
+                } else {
+                    failureReason = "negative recognized interval empty"
+                }
+            } else if minimumShift > 0 {
+                telemetry["selectedBranch"] = "positive"
+                telemetry["requiredFinalDirection"] = 1.0
+                let recognizedMinimum = max(
+                    minimumShift,
+                    minimumGestureDistance
+                )
+                let recognizedMaximum = min(
+                    maximumShift,
+                    downwardCapacity
+                )
+                telemetry["recognizedMinimum"] = Double(recognizedMinimum)
+                telemetry["recognizedMaximum"] = Double(recognizedMaximum)
+                if recognizedMinimum <= recognizedMaximum {
+                    requestedDistance = recognizedMinimum
+                    dragStart = dragOrigin
+                    dragEnd = dragOrigin.withOffset(
+                        CGVector(dx: 0, dy: recognizedMinimum)
+                    )
+                } else {
+                    failureReason = "positive recognized interval empty"
+                }
+            } else {
+                telemetry["selectedBranch"] = "directionless"
+                failureReason = "interval has no signed direction"
+            }
+        }
+
+        if let requestedDistance, let dragStart, let dragEnd,
+           failureReason == nil {
+            telemetry["requestedDistance"] = Double(requestedDistance)
+            telemetry["dragEnd"] = auditFrameObject(
+                CGRect(origin: dragEnd.screenPoint, size: .zero)
+            )
+            let authorityBefore = diagnosticsAuthority.frame
+            telemetry["authorityFrameBefore"] = auditFrameObject(authorityBefore)
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            telemetry["actionCount"] = 1
+            let authorityAfter = diagnosticsAuthority.frame
+            telemetry["authorityFrameAfter"] = auditFrameObject(authorityAfter)
+            let actualDistance = authorityAfter.minY - authorityBefore.minY
+            telemetry["actualDistance"] = Double(actualDistance)
+            telemetry["observedUndertravel"] = Double(
+                max(0, abs(requestedDistance) - abs(actualDistance))
+            )
+            if actualDistance * requestedDistance <= 0 {
+                failureReason = "signed movement was not recognized"
+            }
+        }
+
+        let postMinimumShift = navigationBar.frame.maxY
+            + topClearance
+            - diagnosticsAuthority.frame.minY
+        let postMaximumShift = min(
+            navigationBar.frame.maxY - diagnosticsHeading.frame.maxY,
+            signsTab.frame.minY
+                - bottomClearance
+                - diagnosticsExport.frame.maxY
+        )
+        telemetry["postMinimumShift"] = Double(postMinimumShift)
+        telemetry["postMaximumShift"] = Double(postMaximumShift)
+        telemetry["postHeadingFrame"] = auditFrameObject(diagnosticsHeading.frame)
+        telemetry["postAuthorityFrame"] = auditFrameObject(diagnosticsAuthority.frame)
+        telemetry["postExportFrame"] = auditFrameObject(diagnosticsExport.frame)
+        telemetry["postNavigationFrame"] = auditFrameObject(navigationBar.frame)
+        telemetry["postSignsTabFrame"] = auditFrameObject(signsTab.frame)
+        telemetry["postScrollViewFrame"] = auditFrameObject(diagnosticsScrollView.frame)
+        telemetry["finalMinimumShift"] = Double(postMinimumShift)
+        telemetry["finalMaximumShift"] = Double(postMaximumShift)
+        telemetry["terminalApplicationStateRawValue"] = String(
+            describing: app.state.rawValue
+        )
+        telemetry["terminalForeground"] = app.state == .runningForeground
+        telemetry["terminalApplicationFrame"] = auditFrameObject(app.frame)
+        telemetry["terminalQueries"] = routeObject()
+        if let failureReason {
+            telemetry["failureReason"] = failureReason
+        } else {
+            telemetry["failureReason"] = NSNull()
+        }
+        telemetry["terminalReason"] = failureReason ?? (
+            requestedDistance == nil
+                ? "zero-containing interval reached"
+                : "one action completed"
+        )
+        telemetry["elapsedMilliseconds"] = Int(
+            (CFAbsoluteTimeGetCurrent() - startedAt) * 1000
+        )
+        telemetry["actionCount"] = requestedDistance == nil ? 0 : 1
+
+        let terminalScreenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        terminalScreenshot.name =
+            "S10.4 s10.4.current.differentiate-without-color Diagnostics positioning telemetry terminal app"
+        terminalScreenshot.lifetime = .keepAlways
+        add(terminalScreenshot)
+        let terminalTree = XCTAttachment(string: app.debugDescription)
+        terminalTree.name =
+            "S10.4 s10.4.current.differentiate-without-color Diagnostics positioning telemetry terminal accessibility tree"
+        terminalTree.lifetime = .keepAlways
+        add(terminalTree)
+
+        printJSONLine(
+            prefix: "S10_4_DIAGNOSTICS_POSITIONING_TELEMETRY",
+            object: telemetry
+        )
+        throw AutomationConfigurationError.invalid(
+            "S10.4 differentiate-without-color Diagnostics positioning telemetry completed nonaccepting"
+        )
     }
 
    @MainActor
