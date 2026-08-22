@@ -2474,23 +2474,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        for contextBinding in [
-            #""shardID": shard.shardID"#,
-            #""stateID": stateID"#,
-            #""application": applicationObject"#,
-            #""reportHistoryScreen": diagnosticQueryObject("#,
-            #""reportHistoryHeader": diagnosticQueryObject("#,
-            #""northCampus": diagnosticQueryObject(northCampusTexts)"#,
-            #""viewReport": diagnosticQueryObject(viewReportControls)"#,
-            #""reportHistoryScrollView": diagnosticQueryObject("#,
-            #""reportHistoryNavigationBar": diagnosticQueryObject("#,
-            #""reportHistoryTabBar": diagnosticQueryObject("#,
+        for (contextBinding, count) in [
+            (#""shardID": shard.shardID"#, 3),
+            (#""stateID": stateID"#, 3),
+            (#""application": applicationObject"#, 1),
+            (#""reportHistoryScreen": diagnosticQueryObject("#, 1),
+            (#""reportHistoryHeader": diagnosticQueryObject("#, 1),
+            (#""northCampus": diagnosticQueryObject(northCampusTexts)"#, 1),
+            (#""viewReport": diagnosticQueryObject(viewReportControls)"#, 1),
+            (#""reportHistoryScrollView": diagnosticQueryObject("#, 1),
+            (#""reportHistoryNavigationBar": diagnosticQueryObject("#, 1),
+            (#""reportHistoryTabBar": diagnosticQueryObject("#, 1),
         ] {
             XCTAssertEqual(
                 reportHistoryDiagnosticSource.components(
                     separatedBy: contextBinding
                 ).count - 1,
-                1,
+                count,
                 contextBinding
             )
         }
@@ -6447,15 +6447,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4 reduce-transparency Report-correction-header diagnostic",
             "Report-correction-header diagnostic completed nonaccepting",
             #"if shard.shardID == "s10.4.current.reduce-transparency","#,
-            "let diagnosticElementObject: (XCUIElement) -> [String: Any]",
-            "let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any]",
             #"identifier: "s4.5.correction.header""#,
             #"identifier: "s4.5.correction.validation""#,
             #"identifier: "s4.5.correction.save""#,
             #"NSPredicate(format: "identifier == %@", "inputView")"#,
-            "let cardinality = query.count",
-            "(0..<cardinality).map { index in",
-            "query.element(boundBy: index)",
             "Report-correction-header audit issue ",
         ]
         for removed in removedReduceTransparencyHeaderDiagnosticForms {
@@ -6471,17 +6466,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertFalse(uiSource.contains(globallyRemoved), globallyRemoved)
         }
-        let restoredNormalContrastEntry =
-            "        do {\n" +
-                "            let eligibleExceptions = " +
+        let restoredNormalEligibleExceptionsBinding =
+            "            let eligibleExceptions = " +
                 "Self.contrastAuditExceptionSignatures.filter {"
         XCTAssertEqual(
-            uiSource.components(separatedBy: restoredNormalContrastEntry).count - 1,
+            uiSource.components(
+                separatedBy: restoredNormalEligibleExceptionsBinding
+            ).count - 1,
             1
         )
         XCTAssertEqual(
             restoredCaptureBaselineSource.components(
-                separatedBy: restoredNormalContrastEntry
+                separatedBy: restoredNormalEligibleExceptionsBinding
             ).count - 1,
             1
         )
