@@ -309,11 +309,43 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 229_184,
-            sha256: "A2387F6DB488F638E5953170D2256EB2A8C1AB4CF4038121F0E483E57C769B06"
+            byteCount: 229_280,
+            sha256: "5104D599734D7D566D7A2BF33E7A9280A1B7352CAA4C5DD348F0C5E30F90F99F"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
+        let minimumKeyboardThrowingCall =
+            "        try assertLightFirstSignValidationAndCreation(in: app)"
+        let minimumKeyboardThrowingSignature =
+            "    private func assertLightFirstSignValidationAndCreation(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) throws {"
+        for throwingMinimumKeyboardLock in [
+            minimumKeyboardThrowingCall,
+            minimumKeyboardThrowingSignature,
+        ] {
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: throwingMinimumKeyboardLock
+                ).count - 1,
+                1,
+                throwingMinimumKeyboardLock
+            )
+        }
+        for staleNonthrowingMinimumKeyboardLock in [
+            "        assertLightFirstSignValidationAndCreation(in: app)",
+            "    private func assertLightFirstSignValidationAndCreation(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) {",
+        ] {
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: staleNonthrowingMinimumKeyboardLock
+                ).count - 1,
+                0,
+                staleNonthrowingMinimumKeyboardLock
+            )
+        }
         for throwingDiagnosticsCallChainLock in [
             "        try assertMonthlyPaywallAtXXXL(in: app)",
             "    private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) throws {",
@@ -1224,7 +1256,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                \"isHittable\": element.isHittable,\n" +
                 "            ]\n" +
                 "            if includesKeyboardFocus {\n" +
-                "                object[\"hasKeyboardFocus\"] = element.hasKeyboardFocus\n" +
+                "                object[\"hasKeyboardFocus\"] = NSPredicate(\n" +
+                "                    format: \"hasKeyboardFocus == true\"\n" +
+                "                ).evaluate(with: element)\n" +
                 "            }\n" +
                 "            return object\n" +
                 "        }"
@@ -1245,7 +1279,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "String(describing: elementValue)",
             "NSNull()",
             "Int(element.elementType.rawValue)",
-            "element.hasKeyboardFocus",
+            #"format: "hasKeyboardFocus == true""#,
+            ").evaluate(with: element)",
         ] {
             XCTAssertEqual(
                 minimumKeyboardDiagnosticSource.components(
@@ -1255,6 +1290,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 publicField
             )
         }
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "element.hasKeyboardFocus"
+            ).count - 1,
+            0
+        )
         XCTAssertEqual(
             minimumKeyboardDiagnosticSource.components(
                 separatedBy: #""frame":"#
@@ -3184,6 +3225,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "timeout: 90",
         ] {
             XCTAssertFalse(purchaseRecoverySource.contains(prohibited), prohibited)
+        }
+        for deferredStoreKitDiagnosticImplementation in [
+            "diagnoseDifferentiateWithoutColorStoreKitRetry",
+            "S10_4_STOREKIT_RETRY_RESULT_DIAGNOSTIC",
+        ] {
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: deferredStoreKitDiagnosticImplementation
+                ).count - 1,
+                0,
+                deferredStoreKitDiagnosticImplementation
+            )
         }
 
         let availablePurchaseFunctionStart =

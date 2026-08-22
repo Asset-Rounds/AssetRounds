@@ -445,7 +445,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             .waitForExistence(timeout: 30))
         recordMetric("cold_launch_to_welcome", since: coldLaunchStartedAt)
 
-        assertLightFirstSignValidationAndCreation(in: app)
+        try assertLightFirstSignValidationAndCreation(in: app)
         completeVisibleIssueCheck(in: app)
         assertFirstReceiptAndReport(in: app)
         assertReportsIndex(in: app)
@@ -479,7 +479,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func assertLightFirstSignValidationAndCreation(
         in app: XCUIApplication
-    ) {
+    ) throws {
         let shell = element("s1.shell.screen", in: app)
         XCTAssertTrue(shell.waitForExistence(timeout: 30))
         XCTAssertEqual(shell.value as? String, effectiveAppearanceName(fallback: "Light"))
@@ -4747,7 +4747,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 "isHittable": element.isHittable,
             ]
             if includesKeyboardFocus {
-                object["hasKeyboardFocus"] = element.hasKeyboardFocus
+                object["hasKeyboardFocus"] = NSPredicate(
+                    format: "hasKeyboardFocus == true"
+                ).evaluate(with: element)
             }
             return object
         }
