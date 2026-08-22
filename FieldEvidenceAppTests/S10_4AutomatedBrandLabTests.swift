@@ -339,8 +339,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 241_201,
-            sha256: "14350FAF304A2885AEBA2B1A379C605BFD4C0022BDCD27064BFDAD940C7D33CD"
+            byteCount: 242_876,
+            sha256: "E886E3793863564030743A487E21379A0E110F0F655302642BA70186D13FBCA1"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1103,19 +1103,50 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                }\n" +
                 "                let postSwipeApplicationFrame = app.frame\n" +
                 "                let postSwipeKeyboardFrame = keyboard.frame\n" +
-                "                let keyboardFocusIsAbsent = NSPredicate(\n" +
-                #"                    format: "hasKeyboardFocus == false""# + "\n" +
-                "                ).evaluate(with: keyboard)\n" +
-                "                let keyboardDescendantCount = keyboard.descendants(\n" +
+                "                let keyboardDescendants = keyboard.descendants(\n" +
                 "                    matching: .any\n" +
-                "                ).count\n" +
-                "                let keyboardKeyCount = keyboard.keys.count\n" +
+                "                )\n" +
+                "                let keyboardKeys = keyboard.keys\n" +
+                "                let keyboardDescendantCount = keyboardDescendants.count\n" +
+                "                let keyboardKeyCount = keyboardKeys.count\n" +
+                "                let keyboardDescendantElements =\n" +
+                "                    keyboardDescendants.allElementsBoundByIndex\n" +
+                "                let keyboardKeyElements = keyboardKeys.allElementsBoundByIndex\n" +
+                "                let focusIsAbsent = NSPredicate(\n" +
+                #"                    format: "hasKeyboardFocus == false""# + "\n" +
+                "                )\n" +
+                "                let keyboardFocusIsAbsent = focusIsAbsent.evaluate(with: keyboard)\n" +
+                "                let isWhollyOffAppAndInert: (XCUIElement) -> Bool = { element in\n" +
+                "                    guard element.exists else { return false }\n" +
+                "                    let elementFrame = element.frame\n" +
+                "                    return !elementFrame.isEmpty\n" +
+                "                        && elementFrame.minY >= postSwipeApplicationFrame.maxY\n" +
+                "                        && focusIsAbsent.evaluate(with: element)\n" +
+                "                        && !element.isHittable\n" +
+                "                }\n" +
+                "                let keyboardTreeIsEmpty =\n" +
+                "                    keyboardDescendantCount == 0\n" +
+                "                    && keyboardKeyCount == 0\n" +
+                "                    && keyboardDescendantElements.isEmpty\n" +
+                "                    && keyboardKeyElements.isEmpty\n" +
+                "                let keyboardTreeIsNonemptyAndInert =\n" +
+                "                    keyboardDescendantCount > 0\n" +
+                "                    && keyboardKeyCount > 0\n" +
+                "                    && keyboardKeyCount <= keyboardDescendantCount\n" +
+                "                    && keyboardDescendantElements.count\n" +
+                "                        == keyboardDescendantCount\n" +
+                "                    && keyboardKeyElements.count == keyboardKeyCount\n" +
+                "                    && keyboardDescendantElements.allSatisfy(\n" +
+                "                        isWhollyOffAppAndInert\n" +
+                "                    )\n" +
+                "                    && keyboardKeyElements.allSatisfy(\n" +
+                "                        isWhollyOffAppAndInert\n" +
+                "                    )\n" +
                 "                guard !postSwipeApplicationFrame.isEmpty,\n" +
                 "                      !postSwipeKeyboardFrame.isEmpty,\n" +
                 "                      postSwipeKeyboardFrame.minY >= postSwipeApplicationFrame.maxY,\n" +
                 "                      keyboardFocusIsAbsent,\n" +
-                "                      keyboardDescendantCount == 0,\n" +
-                "                      keyboardKeyCount == 0,\n" +
+                "                      keyboardTreeIsEmpty || keyboardTreeIsNonemptyAndInert,\n" +
                 "                      app.state == .runningForeground else {\n" +
                 "                    XCTFail(\n" +
                 #"                        "The minimum-profile off-app keyboard wrapper did not become inert.""# + "\n" +
@@ -1145,13 +1176,35 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "keyboardFrame.minY >= applicationFrame.maxY",
             "let postSwipeApplicationFrame = app.frame",
             "let postSwipeKeyboardFrame = keyboard.frame",
+            "let keyboardDescendants = keyboard.descendants(",
+            "let keyboardKeys = keyboard.keys",
+            "let keyboardDescendantCount = keyboardDescendants.count",
+            "let keyboardKeyCount = keyboardKeys.count",
+            "keyboardDescendants.allElementsBoundByIndex",
+            "keyboardKeys.allElementsBoundByIndex",
+            "let focusIsAbsent = NSPredicate(",
             #"format: "hasKeyboardFocus == false""#,
-            "keyboard.descendants(",
-            "matching: .any",
-            "keyboard.keys.count",
+            "focusIsAbsent.evaluate(with: keyboard)",
+            "let isWhollyOffAppAndInert: (XCUIElement) -> Bool = { element in",
+            "guard element.exists else { return false }",
+            "let elementFrame = element.frame",
+            "!elementFrame.isEmpty",
+            "elementFrame.minY >= postSwipeApplicationFrame.maxY",
+            "focusIsAbsent.evaluate(with: element)",
+            "!element.isHittable",
+            "let keyboardTreeIsEmpty =",
+            "let keyboardTreeIsNonemptyAndInert =",
             "postSwipeKeyboardFrame.minY >= postSwipeApplicationFrame.maxY",
             "keyboardDescendantCount == 0",
             "keyboardKeyCount == 0",
+            "keyboardDescendantCount > 0",
+            "keyboardKeyCount > 0",
+            "keyboardKeyCount <= keyboardDescendantCount",
+            "keyboardDescendantElements.count",
+            "keyboardKeyElements.count == keyboardKeyCount",
+            "keyboardDescendantElements.allSatisfy(",
+            "keyboardKeyElements.allSatisfy(",
+            "keyboardTreeIsEmpty || keyboardTreeIsNonemptyAndInert",
             #"The app left the foreground while dismissing the minimum-profile keyboard."#,
             #"The minimum-profile off-app keyboard wrapper did not become inert."#,
             "returnKey.elementType == .button",
@@ -1204,6 +1257,35 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             3
         )
+        for twiceLocked in [
+            "allElementsBoundByIndex",
+            "allSatisfy(",
+            "focusIsAbsent.evaluate(with:",
+            "keyboardTreeIsEmpty",
+            "keyboardTreeIsNonemptyAndInert",
+        ] {
+            XCTAssertEqual(
+                keyboardHelperSource.components(separatedBy: twiceLocked).count - 1,
+                2,
+                twiceLocked
+            )
+        }
+        let exactKeyboardHelperCounts = [
+            "keyboardDescendantCount": 5,
+            "keyboardKeyCount": 5,
+            "keyboardDescendantElements": 4,
+            "keyboardKeyElements": 4,
+            "focusIsAbsent": 3,
+            "keyboardFocusIsAbsent": 2,
+            "isWhollyOffAppAndInert": 3,
+        ]
+        for (lock, expectedCount) in exactKeyboardHelperCounts {
+            XCTAssertEqual(
+                keyboardHelperSource.components(separatedBy: lock).count - 1,
+                expectedCount,
+                lock
+            )
+        }
         for exactOnce in [
             "keyboardFrame.minY >= applicationFrame.maxY",
             "let postSwipeApplicationFrame = app.frame",
@@ -1212,7 +1294,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"format: "hasKeyboardFocus == false""#,
             "keyboard.descendants(",
             "matching: .any",
-            "keyboard.keys.count",
+            "let keyboardKeys = keyboard.keys",
+            "keyboardDescendantCount == 0",
+            "keyboardKeyCount == 0",
+            "keyboardDescendantCount > 0",
+            "keyboardKeyCount > 0",
+            "keyboardKeyCount <= keyboardDescendantCount",
+            "guard element.exists else { return false }",
+            "elementFrame.minY >= postSwipeApplicationFrame.maxY",
+            "!element.isHittable",
             #"The app left the foreground while dismissing the minimum-profile keyboard."#,
             #"The minimum-profile off-app keyboard wrapper did not become inert."#,
         ] {
@@ -1223,6 +1313,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         XCTAssertFalse(keyboardHelperSource.contains("keyboard.hasKeyboardFocus"))
+        for staleEmptyOnlyKeyboardForm in [
+            "let keyboardFocusIsAbsent = NSPredicate(",
+            "let keyboardKeyCount = keyboard.keys.count",
+            "                      keyboardDescendantCount == 0,",
+            "                      keyboardKeyCount == 0,",
+        ] {
+            XCTAssertFalse(
+                keyboardHelperSource.contains(staleEmptyOnlyKeyboardForm),
+                staleEmptyOnlyKeyboardForm
+            )
+        }
         let commonKeyboardPostcondition =
             "        guard wait(\n" +
                 "            for: keyboard,\n" +

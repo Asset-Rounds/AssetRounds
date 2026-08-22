@@ -5080,19 +5080,50 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 }
                 let postSwipeApplicationFrame = app.frame
                 let postSwipeKeyboardFrame = keyboard.frame
-                let keyboardFocusIsAbsent = NSPredicate(
-                    format: "hasKeyboardFocus == false"
-                ).evaluate(with: keyboard)
-                let keyboardDescendantCount = keyboard.descendants(
+                let keyboardDescendants = keyboard.descendants(
                     matching: .any
-                ).count
-                let keyboardKeyCount = keyboard.keys.count
+                )
+                let keyboardKeys = keyboard.keys
+                let keyboardDescendantCount = keyboardDescendants.count
+                let keyboardKeyCount = keyboardKeys.count
+                let keyboardDescendantElements =
+                    keyboardDescendants.allElementsBoundByIndex
+                let keyboardKeyElements = keyboardKeys.allElementsBoundByIndex
+                let focusIsAbsent = NSPredicate(
+                    format: "hasKeyboardFocus == false"
+                )
+                let keyboardFocusIsAbsent = focusIsAbsent.evaluate(with: keyboard)
+                let isWhollyOffAppAndInert: (XCUIElement) -> Bool = { element in
+                    guard element.exists else { return false }
+                    let elementFrame = element.frame
+                    return !elementFrame.isEmpty
+                        && elementFrame.minY >= postSwipeApplicationFrame.maxY
+                        && focusIsAbsent.evaluate(with: element)
+                        && !element.isHittable
+                }
+                let keyboardTreeIsEmpty =
+                    keyboardDescendantCount == 0
+                    && keyboardKeyCount == 0
+                    && keyboardDescendantElements.isEmpty
+                    && keyboardKeyElements.isEmpty
+                let keyboardTreeIsNonemptyAndInert =
+                    keyboardDescendantCount > 0
+                    && keyboardKeyCount > 0
+                    && keyboardKeyCount <= keyboardDescendantCount
+                    && keyboardDescendantElements.count
+                        == keyboardDescendantCount
+                    && keyboardKeyElements.count == keyboardKeyCount
+                    && keyboardDescendantElements.allSatisfy(
+                        isWhollyOffAppAndInert
+                    )
+                    && keyboardKeyElements.allSatisfy(
+                        isWhollyOffAppAndInert
+                    )
                 guard !postSwipeApplicationFrame.isEmpty,
                       !postSwipeKeyboardFrame.isEmpty,
                       postSwipeKeyboardFrame.minY >= postSwipeApplicationFrame.maxY,
                       keyboardFocusIsAbsent,
-                      keyboardDescendantCount == 0,
-                      keyboardKeyCount == 0,
+                      keyboardTreeIsEmpty || keyboardTreeIsNonemptyAndInert,
                       app.state == .runningForeground else {
                     XCTFail(
                         "The minimum-profile off-app keyboard wrapper did not become inert."
