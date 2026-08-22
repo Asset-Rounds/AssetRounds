@@ -339,41 +339,41 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 237_861,
-            sha256: "C548305742D9468963E099A6AB019A8474E903AD2B60F32D1F5FC64BA6617F49"
+            byteCount: 231_556,
+            sha256: "69180A9317B989AA71BB0573B69E3D21F0D4FDD3E72E48AFBCA3F494CD94EBB3"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
-        let minimumKeyboardThrowingCall =
-            "        try assertLightFirstSignValidationAndCreation(in: app)"
-        let minimumKeyboardThrowingSignature =
+        let minimumKeyboardNonthrowingCall =
+            "        assertLightFirstSignValidationAndCreation(in: app)"
+        let minimumKeyboardNonthrowingSignature =
             "    private func assertLightFirstSignValidationAndCreation(\n" +
                 "        in app: XCUIApplication\n" +
-                "    ) throws {"
-        for throwingMinimumKeyboardLock in [
-            minimumKeyboardThrowingCall,
-            minimumKeyboardThrowingSignature,
+                "    ) {"
+        for nonthrowingMinimumKeyboardLock in [
+            minimumKeyboardNonthrowingCall,
+            minimumKeyboardNonthrowingSignature,
         ] {
             XCTAssertEqual(
                 uiSource.components(
-                    separatedBy: throwingMinimumKeyboardLock
+                    separatedBy: nonthrowingMinimumKeyboardLock
                 ).count - 1,
                 1,
-                throwingMinimumKeyboardLock
+                nonthrowingMinimumKeyboardLock
             )
         }
-        for staleNonthrowingMinimumKeyboardLock in [
-            "        assertLightFirstSignValidationAndCreation(in: app)",
+        for staleThrowingMinimumKeyboardLock in [
+            "        try assertLightFirstSignValidationAndCreation(in: app)",
             "    private func assertLightFirstSignValidationAndCreation(\n" +
                 "        in app: XCUIApplication\n" +
-                "    ) {",
+                "    ) throws {",
         ] {
             XCTAssertEqual(
                 uiSource.components(
-                    separatedBy: staleNonthrowingMinimumKeyboardLock
+                    separatedBy: staleThrowingMinimumKeyboardLock
                 ).count - 1,
                 0,
-                staleNonthrowingMinimumKeyboardLock
+                staleThrowingMinimumKeyboardLock
             )
         }
         for throwingDiagnosticsCallChainLock in [
@@ -1093,6 +1093,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "returnKey.tap()",
             #"automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
             "&& returnKey.exists {",
+            "let applicationFrame = app.frame",
+            "let keyboardFrame = keyboard.frame",
+            "guard !applicationFrame.isEmpty,",
+            "!keyboardFrame.isEmpty else {",
+            "keyboardFrame.minY >= applicationFrame.maxY",
+            "if keyboardFrame.minY >= applicationFrame.maxY {\n" +
+                "                app.swipeDown()\n" +
+                "            } else {",
             "returnKey.elementType == .button",
             #"returnKey.label.lowercased() == "return""#,
             "let expectedKeyboardFrame = CGRect(",
@@ -1100,11 +1108,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "y: 451,",
             "width: 375,",
             "height: 216",
+            "guard keyboardFrame == expectedKeyboardFrame,",
             "returnFrame.minX == 281.5",
             "returnFrame.width == 93.5",
+            "keyboard.coordinate(",
+            "withNormalizedOffset: CGVector(",
             "dx: 0.8753333333333333,",
             "dy: 0.5740740740740741",
+            ").tap()",
             "app.swipeDown()",
+            "        } else {\n" +
+                "            app.swipeDown()\n" +
+                "        }",
             #"predicate: "exists == false""#,
             "timeout: 10",
             "app.state == .runningForeground",
@@ -1118,505 +1133,73 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             keyboardHelperSource.components(separatedBy: "app.swipeDown()").count - 1,
+            2
+        )
+        let commonKeyboardPostcondition =
+            "        guard wait(\n" +
+                "            for: keyboard,\n" +
+                #"            predicate: "exists == false","# + "\n" +
+                "            timeout: 10\n" +
+                "        ), app.state == .runningForeground else {"
+        XCTAssertEqual(
+            keyboardHelperSource.components(
+                separatedBy: commonKeyboardPostcondition
+            ).count - 1,
             1
         )
+        for prohibitedKeyboardHelperForm in [
+            "711",
+            "880",
+            "sleep(",
+            "Thread.sleep",
+            "tolerance",
+            "ScrollView",
+        ] {
+            XCTAssertFalse(
+                keyboardHelperSource.contains(prohibitedKeyboardHelperForm),
+                prohibitedKeyboardHelperForm
+            )
+        }
         XCTAssertEqual(
             uiSource.components(separatedBy: "dismissKeyboard(in: app)").count - 1,
             6
         )
-        let minimumKeyboardDiagnosticGate =
-            "        if let shard = automationShard,\n" +
-                #"           shard.shardID == "s10.4.minimum.minimum-os" {"# + "\n" +
-                "            try runMinimumKeyboardGeometryDiagnostic(in: app, shard: shard)\n" +
-                "        }"
-        let minimumKeyboardDiagnosticCaller =
-            #"        sign.typeText("Monument Sign")"# + "\n" +
-                minimumKeyboardDiagnosticGate + "\n" +
-                "        dismissKeyboard(in: app)"
-        let minimumKeyboardDiagnosticCallerAndCapture =
-            minimumKeyboardDiagnosticCaller + "\n" +
-                #"        captureBaseline("state.new-sign.editing", in: app)"#
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: minimumKeyboardDiagnosticGate
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: minimumKeyboardDiagnosticCaller
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: minimumKeyboardDiagnosticCallerAndCapture
-            ).count - 1,
-            1
-        )
-        let minimumKeyboardDiagnosticStart =
-            "    @MainActor\n" +
-                "    private func runMinimumKeyboardGeometryDiagnostic(\n" +
-                "        in app: XCUIApplication,\n" +
-                "        shard: AutomationShard\n" +
-                "    ) throws {"
-        let minimumKeyboardDiagnosticEnd =
-            "\n\n    @MainActor\n" +
-                "    private func dismissKeyboard(in app: XCUIApplication) {"
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: minimumKeyboardDiagnosticStart
-            ).count - 1,
-            1
-        )
-        guard let minimumKeyboardDiagnosticStartRange = uiSource.range(
-            of: minimumKeyboardDiagnosticStart
-        ), let minimumKeyboardDiagnosticEndRange = uiSource.range(
-            of: minimumKeyboardDiagnosticEnd,
-            range: minimumKeyboardDiagnosticStartRange.upperBound..<uiSource.endIndex
-        ) else {
-            XCTFail("Missing the bounded minimum-keyboard diagnostic helper source slice")
-            return
-        }
-        let minimumKeyboardDiagnosticSource = String(
-            uiSource[
-                minimumKeyboardDiagnosticStartRange.lowerBound..<minimumKeyboardDiagnosticEndRange.lowerBound
-            ]
-        )
-        let minimumKeyboardDiagnosticQueries =
-            "        let newSignScreens = app.descendants(matching: .any).matching(\n" +
-                #"            identifier: "s2.new-sign.screen""# + "\n" +
-                "        )\n" +
-                "        let signDetailScreens = app.descendants(matching: .any).matching(\n" +
-                #"            identifier: "s2.sign-detail.screen""# + "\n" +
-                "        )\n" +
-                "        let signFields = app.descendants(matching: .any).matching(\n" +
-                #"            identifier: "s2.new-sign.sign-label""# + "\n" +
-                "        )\n" +
-                "        let keyboards = app.keyboards\n" +
-                "        let returnButtons = keyboards.buttons.matching(\n" +
-                #"            NSPredicate(format: "label == %@", "Return")"# + "\n" +
-                "        )\n" +
-                "        let inputViews = app.otherElements.matching(\n" +
-                #"            NSPredicate(format: "identifier == %@", "inputView")"# + "\n" +
-                "        )\n" +
-                "        let navigationBars = app.navigationBars\n" +
-                "        let tabBars = app.tabBars"
-        XCTAssertEqual(
-            minimumKeyboardDiagnosticSource.components(
-                separatedBy: minimumKeyboardDiagnosticQueries
-            ).count - 1,
-            1
-        )
-        for queryField in [
+        let removedMinimumKeyboardDiagnosticForms = [
+            "runMinimumKeyboardGeometryDiagnostic",
+            "S10_4_MINIMUM_KEYBOARD_GEOMETRY_DIAGNOSTIC",
+            "minimum keyboard geometry diagnostic completed nonaccepting",
+            #"shard.shardID == "s10.4.minimum.minimum-os""#,
             #"identifier: "s2.new-sign.screen""#,
             #"identifier: "s2.sign-detail.screen""#,
             #"identifier: "s2.new-sign.sign-label""#,
-            "let keyboards = app.keyboards",
-            "let returnButtons = keyboards.buttons.matching(",
             #"NSPredicate(format: "label == %@", "Return")"#,
-            #"NSPredicate(format: "identifier == %@", "inputView")"#,
-            "let navigationBars = app.navigationBars",
-            "let tabBars = app.tabBars",
-        ] {
-            XCTAssertEqual(
-                minimumKeyboardDiagnosticSource.components(
-                    separatedBy: queryField
-                ).count - 1,
-                1,
-                queryField
-            )
-        }
-
-        let minimumKeyboardDiagnosticCounts =
-            "        let newSignScreenCount = newSignScreens.count\n" +
-                "        let signDetailScreenCount = signDetailScreens.count\n" +
-                "        let signFieldCount = signFields.count\n" +
-                "        let keyboardCount = keyboards.count\n" +
-                "        let returnButtonCount = returnButtons.count\n" +
-                "        let inputViewCount = inputViews.count\n" +
-                "        let navigationBarCount = navigationBars.count\n" +
-                "        let tabBarCount = tabBars.count"
-        XCTAssertEqual(
-            minimumKeyboardDiagnosticSource.components(
-                separatedBy: minimumKeyboardDiagnosticCounts
-            ).count - 1,
-            1
-        )
-        for countBinding in [
-            "let newSignScreenCount = newSignScreens.count",
-            "let signDetailScreenCount = signDetailScreens.count",
-            "let signFieldCount = signFields.count",
-            "let keyboardCount = keyboards.count",
-            "let returnButtonCount = returnButtons.count",
-            "let inputViewCount = inputViews.count",
-            "let navigationBarCount = navigationBars.count",
-            "let tabBarCount = tabBars.count",
-        ] {
-            XCTAssertEqual(
-                minimumKeyboardDiagnosticSource.components(
-                    separatedBy: countBinding
-                ).count - 1,
-                1,
-                countBinding
-            )
-        }
-
-        let minimumKeyboardDiagnosticFrameSerializer =
-            "        let diagnosticFrameObject: (CGRect) -> [String: Any] = { frame in\n" +
-                "            [\n" +
-                "                \"x\": Double(frame.origin.x),\n" +
-                "                \"y\": Double(frame.origin.y),\n" +
-                "                \"width\": Double(frame.size.width),\n" +
-                "                \"height\": Double(frame.size.height),\n" +
-                "            ]\n" +
-                "        }"
-        XCTAssertEqual(
-            minimumKeyboardDiagnosticSource.components(
-                separatedBy: minimumKeyboardDiagnosticFrameSerializer
-            ).count - 1,
-            1
-        )
-        let minimumKeyboardDiagnosticElementSerializer =
-            "        let diagnosticElementObject: (XCUIElement, Bool) -> [String: Any] = {\n" +
-                "            element, includesKeyboardFocus in\n" +
-                "            let value: Any\n" +
-                "            if let elementValue = element.value {\n" +
-                "                value = String(describing: elementValue)\n" +
-                "            } else {\n" +
-                "                value = NSNull()\n" +
-                "            }\n" +
-                "            var object: [String: Any] = [\n" +
-                "                \"identifier\": element.identifier,\n" +
-                "                \"label\": element.label,\n" +
-                "                \"value\": value,\n" +
-                "                \"elementTypeRawValue\": Int(element.elementType.rawValue),\n" +
-                "                \"frame\": diagnosticFrameObject(element.frame),\n" +
-                "                \"exists\": element.exists,\n" +
-                "                \"isHittable\": element.isHittable,\n" +
-                "            ]\n" +
-                "            if includesKeyboardFocus {\n" +
-                "                object[\"hasKeyboardFocus\"] = NSPredicate(\n" +
-                "                    format: \"hasKeyboardFocus == true\"\n" +
-                "                ).evaluate(with: element)\n" +
-                "            }\n" +
-                "            return object\n" +
-                "        }"
-        XCTAssertEqual(
-            minimumKeyboardDiagnosticSource.components(
-                separatedBy: minimumKeyboardDiagnosticElementSerializer
-            ).count - 1,
-            1
-        )
-        for publicField in [
-            #""identifier":"#,
-            #""label":"#,
-            #""value":"#,
-            #""elementTypeRawValue":"#,
-            #""exists":"#,
-            #""isHittable":"#,
-            #""hasKeyboardFocus""#,
-            "String(describing: elementValue)",
-            "NSNull()",
-            "Int(element.elementType.rawValue)",
-            #"format: "hasKeyboardFocus == true""#,
-            ").evaluate(with: element)",
-        ] {
-            XCTAssertEqual(
-                minimumKeyboardDiagnosticSource.components(
-                    separatedBy: publicField
-                ).count - 1,
-                1,
-                publicField
-            )
+            "minimum keyboard geometry app",
+            "minimum keyboard geometry accessibility tree",
+            "minimum keyboard geometry keyboard",
+            "minimum keyboard geometry Return",
+        ]
+        for removed in removedMinimumKeyboardDiagnosticForms {
+            XCTAssertFalse(uiSource.contains(removed), removed)
         }
         XCTAssertEqual(
             uiSource.components(
-                separatedBy: "element.hasKeyboardFocus"
-            ).count - 1,
-            0
-        )
-        XCTAssertEqual(
-            minimumKeyboardDiagnosticSource.components(
-                separatedBy: #""frame":"#
+                separatedBy: #"NSPredicate(format: "identifier == %@", "inputView")"#
             ).count - 1,
             2
         )
-
-        let minimumKeyboardDiagnosticQuerySerializer =
-            "        let diagnosticQueryObject: (\n" +
-                "            XCUIElementQuery,\n" +
-                "            Int,\n" +
-                "            Bool\n" +
-                "        ) -> [String: Any] = { query, count, includesKeyboardFocus in\n" +
-                "            [\n" +
-                "                \"count\": count,\n" +
-                "                \"elements\": (0..<count).map { index in\n" +
-                "                    diagnosticElementObject(\n" +
-                "                        query.element(boundBy: index),\n" +
-                "                        includesKeyboardFocus\n" +
-                "                    )\n" +
-                "                },\n" +
-                "            ]\n" +
-                "        }"
+        let restoredMinimumKeyboardCaller =
+            #"        sign.typeText("Monument Sign")"# + "\n" +
+                "        dismissKeyboard(in: app)\n" +
+                #"        captureBaseline("state.new-sign.editing", in: app)"#
         XCTAssertEqual(
-            minimumKeyboardDiagnosticSource.components(
-                separatedBy: minimumKeyboardDiagnosticQuerySerializer
+            uiSource.components(
+                separatedBy: restoredMinimumKeyboardCaller
             ).count - 1,
             1
-        )
-        for queryEnumerationLock in [
-            "(0..<count).map { index in",
-            "query.element(boundBy: index)",
-            "\"count\": count",
-            "\"elements\":",
-        ] {
-            XCTAssertEqual(
-                minimumKeyboardDiagnosticSource.components(
-                    separatedBy: queryEnumerationLock
-                ).count - 1,
-                1,
-                queryEnumerationLock
-            )
-        }
-
-        let minimumKeyboardDiagnosticApplicationObject =
-            "                \"shardID\": shard.shardID,\n" +
-                "                \"application\": [\n" +
-                "                    \"state\": String(describing: app.state),\n" +
-                "                    \"stateRawValue\": Int(app.state.rawValue),\n" +
-                "                    \"frame\": diagnosticFrameObject(app.frame),\n" +
-                "                ],"
-        XCTAssertEqual(
-            minimumKeyboardDiagnosticSource.components(
-                separatedBy: minimumKeyboardDiagnosticApplicationObject
-            ).count - 1,
-            1
-        )
-        for applicationField in [
-            "String(describing: app.state)",
-            "Int(app.state.rawValue)",
-            "diagnosticFrameObject(app.frame)",
-        ] {
-            XCTAssertEqual(
-                minimumKeyboardDiagnosticSource.components(
-                    separatedBy: applicationField
-                ).count - 1,
-                1,
-                applicationField
-            )
-        }
-
-        let minimumKeyboardDiagnosticAttachments =
-            "        let appAttachment = XCTAttachment(screenshot: app.screenshot())\n" +
-                "        appAttachment.name =\n" +
-                #"            "S10.4 \(shard.shardID) minimum keyboard geometry app""# + "\n" +
-                "        appAttachment.lifetime = .keepAlways\n" +
-                "        add(appAttachment)\n" +
-                "\n" +
-                "        let treeAttachment = XCTAttachment(string: app.debugDescription)\n" +
-                "        treeAttachment.name =\n" +
-                #"            "S10.4 \(shard.shardID) minimum keyboard geometry accessibility tree""# + "\n" +
-                "        treeAttachment.lifetime = .keepAlways\n" +
-                "        add(treeAttachment)\n" +
-                "\n" +
-                "        let keyboardAttachment: XCTAttachment\n" +
-                "        if keyboardCount > 0 {\n" +
-                "            keyboardAttachment = XCTAttachment(\n" +
-                "                screenshot: keyboards.element(boundBy: 0).screenshot()\n" +
-                "            )\n" +
-                "        } else {\n" +
-                "            keyboardAttachment = XCTAttachment(\n" +
-                #"                string: "shardID=\(shard.shardID)\nquery=keyboard\nstatus=absent""# + "\n" +
-                "            )\n" +
-                "        }\n" +
-                "        keyboardAttachment.name =\n" +
-                #"            "S10.4 \(shard.shardID) minimum keyboard geometry keyboard""# + "\n" +
-                "        keyboardAttachment.lifetime = .keepAlways\n" +
-                "        add(keyboardAttachment)\n" +
-                "\n" +
-                "        let returnAttachment: XCTAttachment\n" +
-                "        if returnButtonCount > 0 {\n" +
-                "            returnAttachment = XCTAttachment(\n" +
-                "                screenshot: returnButtons.element(boundBy: 0).screenshot()\n" +
-                "            )\n" +
-                "        } else {\n" +
-                "            returnAttachment = XCTAttachment(\n" +
-                #"                string: "shardID=\(shard.shardID)\nquery=Return\nstatus=absent""# + "\n" +
-                "            )\n" +
-                "        }\n" +
-                "        returnAttachment.name =\n" +
-                #"            "S10.4 \(shard.shardID) minimum keyboard geometry Return""# + "\n" +
-                "        returnAttachment.lifetime = .keepAlways\n" +
-                "        add(returnAttachment)"
-        XCTAssertEqual(
-            minimumKeyboardDiagnosticSource.components(
-                separatedBy: minimumKeyboardDiagnosticAttachments
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            minimumKeyboardDiagnosticSource.components(
-                separatedBy: "XCTAttachment("
-            ).count - 1,
-            6
-        )
-        XCTAssertEqual(
-            minimumKeyboardDiagnosticSource.components(
-                separatedBy: ".lifetime = .keepAlways"
-            ).count - 1,
-            4
-        )
-        XCTAssertEqual(
-            minimumKeyboardDiagnosticSource.components(
-                separatedBy: "add("
-            ).count - 1,
-            4
-        )
-        for runtimeAttachmentLock in [
-            "app.screenshot()",
-            "app.debugDescription",
-            "keyboards.element(boundBy: 0).screenshot()",
-            "returnButtons.element(boundBy: 0).screenshot()",
-            "query=keyboard",
-            "query=Return",
-            "status=absent",
-        ] {
-            XCTAssertEqual(
-                minimumKeyboardDiagnosticSource.components(
-                    separatedBy: runtimeAttachmentLock
-                ).count - 1,
-                runtimeAttachmentLock == "status=absent" ? 2 : 1,
-                runtimeAttachmentLock
-            )
-        }
-
-        let minimumKeyboardDiagnosticTerminal =
-            "        printJSONLine(\n" +
-                #"            prefix: "S10_4_MINIMUM_KEYBOARD_GEOMETRY_DIAGNOSTIC","# + "\n" +
-                "            object: [\n" +
-                "                \"shardID\": shard.shardID,\n" +
-                "                \"application\": [\n" +
-                "                    \"state\": String(describing: app.state),\n" +
-                "                    \"stateRawValue\": Int(app.state.rawValue),\n" +
-                "                    \"frame\": diagnosticFrameObject(app.frame),\n" +
-                "                ],\n" +
-                "                \"newSignScreen\": diagnosticQueryObject(\n" +
-                "                    newSignScreens,\n" +
-                "                    newSignScreenCount,\n" +
-                "                    false\n" +
-                "                ),\n" +
-                "                \"signDetailScreen\": diagnosticQueryObject(\n" +
-                "                    signDetailScreens,\n" +
-                "                    signDetailScreenCount,\n" +
-                "                    false\n" +
-                "                ),\n" +
-                "                \"signField\": diagnosticQueryObject(\n" +
-                "                    signFields,\n" +
-                "                    signFieldCount,\n" +
-                "                    true\n" +
-                "                ),\n" +
-                "                \"keyboard\": diagnosticQueryObject(\n" +
-                "                    keyboards,\n" +
-                "                    keyboardCount,\n" +
-                "                    false\n" +
-                "                ),\n" +
-                "                \"returnButton\": diagnosticQueryObject(\n" +
-                "                    returnButtons,\n" +
-                "                    returnButtonCount,\n" +
-                "                    false\n" +
-                "                ),\n" +
-                "                \"inputView\": diagnosticQueryObject(\n" +
-                "                    inputViews,\n" +
-                "                    inputViewCount,\n" +
-                "                    false\n" +
-                "                ),\n" +
-                "                \"navigationBar\": diagnosticQueryObject(\n" +
-                "                    navigationBars,\n" +
-                "                    navigationBarCount,\n" +
-                "                    false\n" +
-                "                ),\n" +
-                "                \"tabBar\": diagnosticQueryObject(\n" +
-                "                    tabBars,\n" +
-                "                    tabBarCount,\n" +
-                "                    false\n" +
-                "                ),\n" +
-                "            ]\n" +
-                "        )\n" +
-                "        throw AutomationConfigurationError.invalid(\n" +
-                #"            "S10.4 \(shard.shardID) minimum keyboard geometry diagnostic completed nonaccepting""# + "\n" +
-                "        )"
-        XCTAssertEqual(
-            minimumKeyboardDiagnosticSource.components(
-                separatedBy: minimumKeyboardDiagnosticTerminal
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            minimumKeyboardDiagnosticSource.components(
-                separatedBy: "printJSONLine("
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            minimumKeyboardDiagnosticSource.components(
-                separatedBy: "throw AutomationConfigurationError.invalid("
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            minimumKeyboardDiagnosticSource.components(
-                separatedBy: "shard.shardID"
-            ).count - 1,
-            8
         )
 
-        for prohibitedMinimumKeyboardDiagnosticForm in [
-            ".tap(",
-            ".press(",
-            ".coordinate(",
-            ".swipe",
-            ".typeText(",
-            "dismissKeyboard(",
-            "wait(",
-            "waitFor",
-            "Thread.sleep",
-            "sleep(",
-            "Date(",
-            "performAccessibilityAudit(",
-            "captureBaseline(",
-            "assertMigrationStateCoverage",
-            "emitAutomatedLabAccessibilityRowsIfNeeded",
-            "automationAXTreeDigests",
-            "automationContrastExceptions",
-            "eligibleExceptions",
-            "attachCandidate",
-            "S10_4_AX",
-            "S10_4_CONTRAST",
-            "S10_4_CANDIDATE",
-            "S10_4_TASK",
-            "S10_4_SHARD_RECEIPT",
-            "receipt",
-            "retention",
-            "CGRect(",
-            "expectedKeyboardFrame",
-            "frame ==",
-            "281.5",
-            "451",
-            "216",
-            "93.5",
-            "return false",
-            "XCTFail(",
-        ] {
-            XCTAssertFalse(
-                minimumKeyboardDiagnosticSource.contains(
-                    prohibitedMinimumKeyboardDiagnosticForm
-                ),
-                prohibitedMinimumKeyboardDiagnosticForm
-            )
-        }
         let defaultKeyboardCallerLocks = [
-            minimumKeyboardDiagnosticCaller,
+            restoredMinimumKeyboardCaller,
             #"site.typeText("North Campus")"# + "\n" +
                 "        dismissKeyboard(in: app)\n" +
                 "        dismissKeyboard(in: app)",
@@ -1674,7 +1257,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         guard let multilineHelperStartRange = uiSource.range(of: multilineHelperStart),
               let multilineKeyboardEndRange = uiSource.range(
-                of: minimumKeyboardDiagnosticStart,
+                of: keyboardHelperStart,
                 range: multilineHelperStartRange.upperBound..<uiSource.endIndex
               ) else {
             XCTFail("Missing the dedicated multiline keyboard helper source slice")

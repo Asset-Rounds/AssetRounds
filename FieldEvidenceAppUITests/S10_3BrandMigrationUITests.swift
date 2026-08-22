@@ -511,7 +511,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             .waitForExistence(timeout: 30))
         recordMetric("cold_launch_to_welcome", since: coldLaunchStartedAt)
 
-        try assertLightFirstSignValidationAndCreation(in: app)
+        assertLightFirstSignValidationAndCreation(in: app)
         completeVisibleIssueCheck(in: app)
         assertFirstReceiptAndReport(in: app)
         assertReportsIndex(in: app)
@@ -545,7 +545,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func assertLightFirstSignValidationAndCreation(
         in app: XCUIApplication
-    ) throws {
+    ) {
         let shell = element("s1.shell.screen", in: app)
         XCTAssertTrue(shell.waitForExistence(timeout: 30))
         XCTAssertEqual(shell.value as? String, effectiveAppearanceName(fallback: "Light"))
@@ -603,10 +603,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         scroll(sign, in: app)
         sign.tap()
         sign.typeText("Monument Sign")
-        if let shard = automationShard,
-           shard.shardID == "s10.4.minimum.minimum-os" {
-            try runMinimumKeyboardGeometryDiagnostic(in: app, shard: shard)
-        }
         dismissKeyboard(in: app)
         captureBaseline("state.new-sign.editing", in: app)
 
@@ -4885,185 +4881,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func runMinimumKeyboardGeometryDiagnostic(
-        in app: XCUIApplication,
-        shard: AutomationShard
-    ) throws {
-        let newSignScreens = app.descendants(matching: .any).matching(
-            identifier: "s2.new-sign.screen"
-        )
-        let signDetailScreens = app.descendants(matching: .any).matching(
-            identifier: "s2.sign-detail.screen"
-        )
-        let signFields = app.descendants(matching: .any).matching(
-            identifier: "s2.new-sign.sign-label"
-        )
-        let keyboards = app.keyboards
-        let returnButtons = keyboards.buttons.matching(
-            NSPredicate(format: "label == %@", "Return")
-        )
-        let inputViews = app.otherElements.matching(
-            NSPredicate(format: "identifier == %@", "inputView")
-        )
-        let navigationBars = app.navigationBars
-        let tabBars = app.tabBars
-
-        let newSignScreenCount = newSignScreens.count
-        let signDetailScreenCount = signDetailScreens.count
-        let signFieldCount = signFields.count
-        let keyboardCount = keyboards.count
-        let returnButtonCount = returnButtons.count
-        let inputViewCount = inputViews.count
-        let navigationBarCount = navigationBars.count
-        let tabBarCount = tabBars.count
-
-        let diagnosticFrameObject: (CGRect) -> [String: Any] = { frame in
-            [
-                "x": Double(frame.origin.x),
-                "y": Double(frame.origin.y),
-                "width": Double(frame.size.width),
-                "height": Double(frame.size.height),
-            ]
-        }
-        let diagnosticElementObject: (XCUIElement, Bool) -> [String: Any] = {
-            element, includesKeyboardFocus in
-            let value: Any
-            if let elementValue = element.value {
-                value = String(describing: elementValue)
-            } else {
-                value = NSNull()
-            }
-            var object: [String: Any] = [
-                "identifier": element.identifier,
-                "label": element.label,
-                "value": value,
-                "elementTypeRawValue": Int(element.elementType.rawValue),
-                "frame": diagnosticFrameObject(element.frame),
-                "exists": element.exists,
-                "isHittable": element.isHittable,
-            ]
-            if includesKeyboardFocus {
-                object["hasKeyboardFocus"] = NSPredicate(
-                    format: "hasKeyboardFocus == true"
-                ).evaluate(with: element)
-            }
-            return object
-        }
-        let diagnosticQueryObject: (
-            XCUIElementQuery,
-            Int,
-            Bool
-        ) -> [String: Any] = { query, count, includesKeyboardFocus in
-            [
-                "count": count,
-                "elements": (0..<count).map { index in
-                    diagnosticElementObject(
-                        query.element(boundBy: index),
-                        includesKeyboardFocus
-                    )
-                },
-            ]
-        }
-
-        let appAttachment = XCTAttachment(screenshot: app.screenshot())
-        appAttachment.name =
-            "S10.4 \(shard.shardID) minimum keyboard geometry app"
-        appAttachment.lifetime = .keepAlways
-        add(appAttachment)
-
-        let treeAttachment = XCTAttachment(string: app.debugDescription)
-        treeAttachment.name =
-            "S10.4 \(shard.shardID) minimum keyboard geometry accessibility tree"
-        treeAttachment.lifetime = .keepAlways
-        add(treeAttachment)
-
-        let keyboardAttachment: XCTAttachment
-        if keyboardCount > 0 {
-            keyboardAttachment = XCTAttachment(
-                screenshot: keyboards.element(boundBy: 0).screenshot()
-            )
-        } else {
-            keyboardAttachment = XCTAttachment(
-                string: "shardID=\(shard.shardID)\nquery=keyboard\nstatus=absent"
-            )
-        }
-        keyboardAttachment.name =
-            "S10.4 \(shard.shardID) minimum keyboard geometry keyboard"
-        keyboardAttachment.lifetime = .keepAlways
-        add(keyboardAttachment)
-
-        let returnAttachment: XCTAttachment
-        if returnButtonCount > 0 {
-            returnAttachment = XCTAttachment(
-                screenshot: returnButtons.element(boundBy: 0).screenshot()
-            )
-        } else {
-            returnAttachment = XCTAttachment(
-                string: "shardID=\(shard.shardID)\nquery=Return\nstatus=absent"
-            )
-        }
-        returnAttachment.name =
-            "S10.4 \(shard.shardID) minimum keyboard geometry Return"
-        returnAttachment.lifetime = .keepAlways
-        add(returnAttachment)
-
-        printJSONLine(
-            prefix: "S10_4_MINIMUM_KEYBOARD_GEOMETRY_DIAGNOSTIC",
-            object: [
-                "shardID": shard.shardID,
-                "application": [
-                    "state": String(describing: app.state),
-                    "stateRawValue": Int(app.state.rawValue),
-                    "frame": diagnosticFrameObject(app.frame),
-                ],
-                "newSignScreen": diagnosticQueryObject(
-                    newSignScreens,
-                    newSignScreenCount,
-                    false
-                ),
-                "signDetailScreen": diagnosticQueryObject(
-                    signDetailScreens,
-                    signDetailScreenCount,
-                    false
-                ),
-                "signField": diagnosticQueryObject(
-                    signFields,
-                    signFieldCount,
-                    true
-                ),
-                "keyboard": diagnosticQueryObject(
-                    keyboards,
-                    keyboardCount,
-                    false
-                ),
-                "returnButton": diagnosticQueryObject(
-                    returnButtons,
-                    returnButtonCount,
-                    false
-                ),
-                "inputView": diagnosticQueryObject(
-                    inputViews,
-                    inputViewCount,
-                    false
-                ),
-                "navigationBar": diagnosticQueryObject(
-                    navigationBars,
-                    navigationBarCount,
-                    false
-                ),
-                "tabBar": diagnosticQueryObject(
-                    tabBars,
-                    tabBarCount,
-                    false
-                ),
-            ]
-        )
-        throw AutomationConfigurationError.invalid(
-            "S10.4 \(shard.shardID) minimum keyboard geometry diagnostic completed nonaccepting"
-        )
-    }
-
-    @MainActor
     private func dismissKeyboard(in app: XCUIApplication) {
         let keyboard = app.keyboards.firstMatch
         guard keyboard.exists else { return }
@@ -5072,30 +4889,41 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             returnKey.tap()
         } else if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
             && returnKey.exists {
-            guard returnKey.elementType == .button,
-                  returnKey.label.lowercased() == "return" else {
-                XCTFail("The minimum-profile Return key identity is not frozen.")
+            let applicationFrame = app.frame
+            let keyboardFrame = keyboard.frame
+            guard !applicationFrame.isEmpty,
+                  !keyboardFrame.isEmpty else {
+                XCTFail("The minimum-profile application or keyboard frame is empty.")
                 return
             }
-            let expectedKeyboardFrame = CGRect(
-                x: 0,
-                y: 451,
-                width: 375,
-                height: 216
-            )
-            let returnFrame = returnKey.frame
-            guard keyboard.frame == expectedKeyboardFrame,
-                  returnFrame.minX == 281.5,
-                  returnFrame.width == 93.5 else {
-                XCTFail("The minimum-profile keyboard geometry is not frozen.")
-                return
-            }
-            keyboard.coordinate(
-                withNormalizedOffset: CGVector(
-                    dx: 0.8753333333333333,
-                    dy: 0.5740740740740741
+            if keyboardFrame.minY >= applicationFrame.maxY {
+                app.swipeDown()
+            } else {
+                guard returnKey.elementType == .button,
+                      returnKey.label.lowercased() == "return" else {
+                    XCTFail("The minimum-profile Return key identity is not frozen.")
+                    return
+                }
+                let expectedKeyboardFrame = CGRect(
+                    x: 0,
+                    y: 451,
+                    width: 375,
+                    height: 216
                 )
-            ).tap()
+                let returnFrame = returnKey.frame
+                guard keyboardFrame == expectedKeyboardFrame,
+                      returnFrame.minX == 281.5,
+                      returnFrame.width == 93.5 else {
+                    XCTFail("The minimum-profile keyboard geometry is not frozen.")
+                    return
+                }
+                keyboard.coordinate(
+                    withNormalizedOffset: CGVector(
+                        dx: 0.8753333333333333,
+                        dy: 0.5740740740740741
+                    )
+                ).tap()
+            }
         } else {
             app.swipeDown()
         }
