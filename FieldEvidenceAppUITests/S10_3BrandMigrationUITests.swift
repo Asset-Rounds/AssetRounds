@@ -2736,14 +2736,22 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 .completed
             )
             if purchaseState.label == unverifiedPurchaseLabel {
-                guard let session = storeKitSession else {
-                    XCTFail("The retained StoreKit test session is required")
+                app.terminate()
+                guard let fixtureURL = Bundle(for: Self.self).url(
+                    forResource: "FieldEvidence",
+                    withExtension: "storekit"
+                ) else {
+                    XCTFail("The checked-in StoreKit fixture is required")
                     return usedSettingsRetry
                 }
-                app.terminate()
-                session.resetToDefaultState()
-                session.clearTransactions()
-                session.disableDialogs = true
+                guard let freshSession = try? SKTestSession(contentsOf: fixtureURL) else {
+                    XCTFail("A fresh StoreKit test session is required")
+                    return usedSettingsRetry
+                }
+                storeKitSession = freshSession
+                freshSession.resetToDefaultState()
+                freshSession.clearTransactions()
+                freshSession.disableDialogs = true
                 app.launch()
                 XCTAssertTrue(element("s2.sign-detail.screen", in: app)
                     .waitForExistence(timeout: 30))

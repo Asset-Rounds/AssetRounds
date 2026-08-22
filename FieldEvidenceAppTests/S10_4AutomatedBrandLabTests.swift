@@ -309,8 +309,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 208_403,
-            sha256: "C979F41EF44C22036DB40D889D3E79E697E725EF5AA7C9695C76C896D4C26E92"
+            byteCount: 208_818,
+            sha256: "8FA5370B281C22909B4974B8209AE8001F8C90FBB3F8ABE2BB722D4BF1C5F815"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2130,11 +2130,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let exactRetryLocks = [
             unverifiedRetryStart,
-            "                guard let session = storeKitSession else {",
             "                app.terminate()",
-            "                session.resetToDefaultState()",
-            "                session.clearTransactions()",
-            "                session.disableDialogs = true",
+            #"                guard let fixtureURL = Bundle(for: Self.self).url("#,
+            #"                    forResource: "FieldEvidence","#,
+            #"                    withExtension: "storekit""#,
+            "                ) else {",
+            #"                    XCTFail("The checked-in StoreKit fixture is required")"#,
+            "                    return usedSettingsRetry",
+            "                }",
+            #"                guard let freshSession = try? SKTestSession(contentsOf: fixtureURL) else {"#,
+            #"                    XCTFail("A fresh StoreKit test session is required")"#,
+            "                    return usedSettingsRetry",
+            "                }",
+            "                storeKitSession = freshSession",
+            "                freshSession.resetToDefaultState()",
+            "                freshSession.clearTransactions()",
+            "                freshSession.disableDialogs = true",
             "                app.launch()",
             #"                XCTAssertTrue(element("s2.sign-detail.screen", in: app)"#,
             #"                let retrySettings = element("s1.settings.button", in: app)"#,
@@ -2168,9 +2179,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let retryStoreKitResetAndRelaunch =
             "                app.terminate()\n" +
-                "                session.resetToDefaultState()\n" +
-                "                session.clearTransactions()\n" +
-                "                session.disableDialogs = true\n" +
+                #"                guard let fixtureURL = Bundle(for: Self.self).url("# + "\n" +
+                #"                    forResource: "FieldEvidence","# + "\n" +
+                #"                    withExtension: "storekit""# + "\n" +
+                "                ) else {\n" +
+                #"                    XCTFail("The checked-in StoreKit fixture is required")"# + "\n" +
+                "                    return usedSettingsRetry\n" +
+                "                }\n" +
+                #"                guard let freshSession = try? SKTestSession(contentsOf: fixtureURL) else {"# + "\n" +
+                #"                    XCTFail("A fresh StoreKit test session is required")"# + "\n" +
+                "                    return usedSettingsRetry\n" +
+                "                }\n" +
+                "                storeKitSession = freshSession\n" +
+                "                freshSession.resetToDefaultState()\n" +
+                "                freshSession.clearTransactions()\n" +
+                "                freshSession.disableDialogs = true\n" +
                 "                app.launch()\n" +
                 #"                XCTAssertTrue(element("s2.sign-detail.screen", in: app)"# + "\n" +
                 "                    .waitForExistence(timeout: 30))"
@@ -2297,7 +2320,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             unverifiedRetrySource.components(
                 separatedBy: "                    return usedSettingsRetry"
             ).count - 1,
-            1
+            2
         )
         XCTAssertFalse(uiSource.contains("buyProduct("))
         for noRetrySource in [purchaseRecoveryPrefix, purchaseRecoverySuffix] {
@@ -2382,7 +2405,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             availablePurchaseFunctionSource.components(
                 separatedBy: "return usedSettingsRetry"
             ).count - 1,
-            11
+            12
         )
         XCTAssertFalse(availablePurchaseFunctionSource.contains("\n            return\n"))
         XCTAssertFalse(availablePurchaseFunctionSource.contains("\n                    return\n"))
