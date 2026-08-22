@@ -274,6 +274,79 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let sourceParts = expectedSourceTest.components(separatedBy: "::")
         XCTAssertEqual(sourceParts.count, 2)
+        let worklightComponentsPath =
+            "FieldEvidenceApp/DesignSystem/WorklightComponents.swift"
+        try assertFile(
+            worklightComponentsPath,
+            byteCount: 22_720,
+            sha256: "333A2B8462C86E7EB2D37E65E7501BCBAA80B3002BAD77251EA56669D9569C71"
+        )
+        let worklightComponentsSource = try text(worklightComponentsPath)
+        let emptyStateStartMarker = "struct AssetRoundsEmptyState: View {"
+        let emptyStateEndMarker = "enum AssetRoundsBrandSymbolRendering: String, CaseIterable {"
+        let emptyStateStartParts = worklightComponentsSource.components(
+            separatedBy: emptyStateStartMarker
+        )
+        guard emptyStateStartParts.count == 2 else {
+            XCTFail("The shared empty-state component must have one exact owner")
+            return
+        }
+        let emptyStateTail = emptyStateStartParts[1]
+        guard let emptyStateEnd = emptyStateTail.range(of: emptyStateEndMarker) else {
+            XCTFail("The shared empty-state component has no exact end boundary")
+            return
+        }
+        let emptyStateSource = String(emptyStateTail[..<emptyStateEnd.lowerBound])
+        let emptyStateMessagePrimaryText =
+            "            message\n" +
+                "                .font(DesignTokens.Typography.primaryBody)\n" +
+                "                .foregroundStyle(DesignTokens.SemanticColors.primaryText)\n" +
+                "                .fixedSize(horizontal: false, vertical: true)"
+        XCTAssertEqual(
+            emptyStateSource.components(
+                separatedBy: emptyStateMessagePrimaryText
+            ).count - 1,
+            1
+        )
+        let emptyStateMessageSecondaryText =
+            "            message\n" +
+                "                .font(DesignTokens.Typography.primaryBody)\n" +
+                "                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)\n" +
+                "                .fixedSize(horizontal: false, vertical: true)"
+        XCTAssertEqual(
+            emptyStateSource.components(
+                separatedBy: emptyStateMessageSecondaryText
+            ).count - 1,
+            0
+        )
+        let emptyStateTitleContract =
+            "            title\n" +
+                "                .font(DesignTokens.Typography.screenTitle)\n" +
+                "                .foregroundStyle(DesignTokens.SemanticColors.brandHeading)\n" +
+                "                .fixedSize(horizontal: false, vertical: true)\n" +
+                "                .accessibilityAddTraits(.isHeader)"
+        XCTAssertEqual(
+            emptyStateSource.components(separatedBy: emptyStateTitleContract).count - 1,
+            1
+        )
+        let emptyStateActionContract =
+            "            if let actionLabel, let action {\n" +
+                "                AssetRoundsPrimaryAction(action: action) {\n" +
+                "                    actionLabel\n" +
+                "                }\n" +
+                "            }"
+        XCTAssertEqual(
+            emptyStateSource.components(separatedBy: emptyStateActionContract).count - 1,
+            1
+        )
+        let emptyStateLayoutContract =
+            "        .padding(DesignTokens.Spacing.space24)\n" +
+                "        .frame(maxWidth: .infinity, alignment: .leading)\n" +
+                "        .background(DesignTokens.SemanticColors.workBackground)"
+        XCTAssertEqual(
+            emptyStateSource.components(separatedBy: emptyStateLayoutContract).count - 1,
+            1
+        )
         let diagnosticExportPath =
             "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift"
         try assertFile(

@@ -568,7 +568,7 @@ struct AssetRoundsEmptyState: View {
 
             message
                 .font(DesignTokens.Typography.primaryBody)
-                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let actionLabel, let action {
