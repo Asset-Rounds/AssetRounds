@@ -760,44 +760,112 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
             let preActionSiteValue = site.value as? String
+            let preActionSignValue = sign.value as? String
             let preActionErrorLabel = error.label
             let preActionErrorValue = error.value as? String
+            let newSignRoute = element("s2.new-sign.screen", in: app)
+            let preActionNewSignRouteExists = newSignRoute.exists
+            let preActionDetailRouteExists = validationDetailRoute.exists
             let returnKey = app.keyboards.buttons["Return"]
             if !returnKey.waitForExistence(timeout: 1) || !returnKey.isHittable {
-                let expectedKeyboardFrame = CGRect(
-                    x: 0,
-                    y: 451,
-                    width: 375,
-                    height: 216
-                )
+                let applicationFrame = app.frame
                 let observedKeyboardFrame = keyboard.frame
-                guard observedKeyboardFrame == expectedKeyboardFrame else {
-                    XCTFail("The iOS 18 keyboard frame does not match the frozen QuickPath tutorial evidence.")
+                guard !applicationFrame.isNull,
+                      !applicationFrame.isEmpty,
+                      !observedKeyboardFrame.isNull,
+                      !observedKeyboardFrame.isEmpty else {
+                    XCTFail("The minimum-profile application or keyboard frame is empty.")
                     return
                 }
-                keyboard.coordinate(
-                    withNormalizedOffset: CGVector(
-                        dx: 0.5,
-                        dy: 0.8425925925925926
-                    )
-                ).tap()
-                let restoredKeyboard = app.keyboards.firstMatch
-                guard returnKey.waitForExistence(timeout: 10),
-                      returnKey.isHittable,
-                      restoredKeyboard.waitForExistence(timeout: 10),
-                      restoredKeyboard.frame == observedKeyboardFrame,
-                      wait(
-                          for: site,
-                          predicate: "hasKeyboardFocus == true",
-                          timeout: 10
-                      ),
-                      error.waitForExistence(timeout: 10),
-                      (site.value as? String) == preActionSiteValue,
-                      error.label == preActionErrorLabel,
-                      (error.value as? String) == preActionErrorValue,
-                      app.state == .runningForeground else {
-                    XCTFail("The new-sign validation state or content was not restored after dismissing the QuickPath tutorial.")
+
+                let keyboardIsOffApp =
+                    observedKeyboardFrame.minY >= applicationFrame.maxY
+                let keyboardIsVisibleInApp =
+                    observedKeyboardFrame.minY < applicationFrame.maxY
+                guard keyboardIsOffApp != keyboardIsVisibleInApp else {
+                    XCTFail("The minimum-profile keyboard geometry is not classifiable.")
                     return
+                }
+
+                if keyboardIsOffApp {
+                    let inputAssistantViews = app.descendants(
+                        matching: .other
+                    ).matching(identifier: "SystemInputAssistantView")
+                    let inputAssistantView = inputAssistantViews.firstMatch
+                    guard inputAssistantViews.count == 1,
+                          inputAssistantView.exists,
+                          !inputAssistantView.frame.isNull,
+                          !inputAssistantView.frame.isEmpty,
+                          inputAssistantView.frame.minY
+                            >= applicationFrame.maxY,
+                          keyboardIsAbsentOrInertOffApp(in: app),
+                          wait(
+                              for: site,
+                              predicate: "hasKeyboardFocus == true",
+                              timeout: 10
+                          ),
+                          newSignRoute.exists
+                            == preActionNewSignRouteExists,
+                          validationDetailRoute.exists
+                            == preActionDetailRouteExists,
+                          (site.value as? String) == preActionSiteValue,
+                          (sign.value as? String) == preActionSignValue,
+                          error.label == preActionErrorLabel,
+                          (error.value as? String) == preActionErrorValue,
+                          app.state == .runningForeground else {
+                        XCTFail("The minimum-profile off-app new-sign keyboard is not inert with preserved state.")
+                        return
+                    }
+                } else {
+                    let expectedKeyboardFrame = CGRect(
+                        x: 0,
+                        y: 451,
+                        width: 375,
+                        height: 216
+                    )
+                    guard observedKeyboardFrame == expectedKeyboardFrame else {
+                        XCTFail("The iOS 18 keyboard frame does not match the frozen QuickPath tutorial evidence.")
+                        return
+                    }
+                    keyboard.coordinate(
+                        withNormalizedOffset: CGVector(
+                            dx: 0.5,
+                            dy: 0.8425925925925926
+                        )
+                    ).tap()
+                    let restoredKeyboard = app.keyboards.firstMatch
+                    let expectedReturnFrame = CGRect(
+                        x: 281.5,
+                        y: 620,
+                        width: 93.5,
+                        height: 46
+                    )
+                    guard returnKey.waitForExistence(timeout: 10),
+                          returnKey.elementType == .button,
+                          returnKey.identifier == "Return",
+                          returnKey.label.lowercased() == "return",
+                          returnKey.frame == expectedReturnFrame,
+                          returnKey.isHittable,
+                          restoredKeyboard.waitForExistence(timeout: 10),
+                          restoredKeyboard.frame == observedKeyboardFrame,
+                          wait(
+                              for: site,
+                              predicate: "hasKeyboardFocus == true",
+                              timeout: 10
+                          ),
+                          error.waitForExistence(timeout: 10),
+                          newSignRoute.exists
+                            == preActionNewSignRouteExists,
+                          validationDetailRoute.exists
+                            == preActionDetailRouteExists,
+                          (site.value as? String) == preActionSiteValue,
+                          (sign.value as? String) == preActionSignValue,
+                          error.label == preActionErrorLabel,
+                          (error.value as? String) == preActionErrorValue,
+                          app.state == .runningForeground else {
+                        XCTFail("The new-sign validation state or content was not restored after dismissing the QuickPath tutorial.")
+                        return
+                    }
                 }
             }
         }
@@ -1028,14 +1096,49 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let zone = element("s3.preflight.time-zone", in: app)
         if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
             let returnKey = app.keyboards.buttons["Return"]
-            if !returnKey.waitForExistence(timeout: 1) {
+            if !returnKey.waitForExistence(timeout: 1) || !returnKey.isHittable {
                 let preActionZoneLabel = zone.label
                 let preActionZoneValue = zone.value as? String
                 let preActionPreflightExists = preflight.exists
                 let detailRoute = element("s2.sign-detail.screen", in: app)
                 let preActionDetailRouteExists = detailRoute.exists
                 let keyboard = app.keyboards.firstMatch
+                let preflightScrollViews = app.scrollViews.containing(
+                    .textField,
+                    identifier: "s3.preflight.time-zone"
+                )
+                let preflightNavigationBars = app.navigationBars.matching(
+                    identifier: "Ready for night check"
+                )
+                let inputAssistantViews = app.descendants(
+                    matching: .other
+                ).matching(identifier: "SystemInputAssistantView")
+                let afterDarkToggles = app.switches.matching(
+                    identifier: "s3.preflight.after-dark"
+                )
+                let safePositionToggles = app.switches.matching(
+                    identifier: "s3.preflight.safe-position"
+                )
+                let preflightScrollView = preflightScrollViews.firstMatch
+                let preflightNavigationBar = preflightNavigationBars.firstMatch
+                let inputAssistantView = inputAssistantViews.firstMatch
+                let afterDark = afterDarkToggles.firstMatch
+                let safePosition = safePositionToggles.firstMatch
+                let preActionAfterDarkLabel = afterDark.label
+                let preActionAfterDarkValue = afterDark.value as? String
+                let preActionSafePositionLabel = safePosition.label
+                let preActionSafePositionValue = safePosition.value as? String
                 guard keyboard.waitForExistence(timeout: 10),
+                      preflightScrollViews.count == 1,
+                      preflightNavigationBars.count == 1,
+                      inputAssistantViews.count == 1,
+                      afterDarkToggles.count == 1,
+                      safePositionToggles.count == 1,
+                      preflightScrollView.exists,
+                      preflightNavigationBar.exists,
+                      inputAssistantView.exists,
+                      afterDark.exists,
+                      safePosition.exists,
                       wait(
                           for: zone,
                           predicate: "hasKeyboardFocus == true",
@@ -1047,52 +1150,388 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     XCTFail("The iOS 18 preflight QuickPath state is incomplete.")
                     return
                 }
-                let expectedKeyboardFrame = CGRect(
-                    x: 0,
-                    y: 451,
-                    width: 375,
-                    height: 216
-                )
+                let applicationFrame = app.frame
                 let observedKeyboardFrame = keyboard.frame
-                guard observedKeyboardFrame == expectedKeyboardFrame else {
-                    XCTFail("The iOS 18 preflight keyboard frame does not match the frozen QuickPath tutorial evidence.")
+                guard !applicationFrame.isNull,
+                      !applicationFrame.isEmpty,
+                      !observedKeyboardFrame.isNull,
+                      !observedKeyboardFrame.isEmpty else {
+                    XCTFail("The minimum-profile preflight application or keyboard frame is empty.")
                     return
                 }
-                keyboard.coordinate(
-                    withNormalizedOffset: CGVector(
-                        dx: 0.5,
-                        dy: 0.8425925925925926
-                    )
-                ).tap()
-                let restoredKeyboard = app.keyboards.firstMatch
-                let restoredDoneKey = app.keyboards.buttons["Done"]
-                let expectedDoneFrame = CGRect(
-                    x: 281.5,
-                    y: 620,
-                    width: 93.5,
-                    height: 46
-                )
-                guard restoredDoneKey.waitForExistence(timeout: 10),
-                      restoredDoneKey.elementType == .button,
-                      restoredDoneKey.identifier == "Done",
-                      restoredDoneKey.label == "done",
-                      restoredDoneKey.frame == expectedDoneFrame,
-                      restoredDoneKey.isHittable,
-                      restoredKeyboard.waitForExistence(timeout: 10),
-                      restoredKeyboard.frame == observedKeyboardFrame,
-                      wait(
-                          for: zone,
-                          predicate: "hasKeyboardFocus == true",
-                          timeout: 10
-                      ),
-                      preflight.waitForExistence(timeout: 10),
-                      preflight.exists == preActionPreflightExists,
-                      detailRoute.exists == preActionDetailRouteExists,
-                      zone.label == preActionZoneLabel,
-                      (zone.value as? String) == preActionZoneValue,
-                      app.state == .runningForeground else {
-                    XCTFail("The preflight state or content was not restored after dismissing the QuickPath tutorial.")
+
+                let keyboardIsOffApp =
+                    observedKeyboardFrame.minY >= applicationFrame.maxY
+                let keyboardIsVisibleInApp =
+                    observedKeyboardFrame.minY < applicationFrame.maxY
+                guard keyboardIsOffApp != keyboardIsVisibleInApp else {
+                    XCTFail("The minimum-profile preflight keyboard geometry is not classifiable.")
                     return
+                }
+
+                if keyboardIsOffApp {
+                    let inputAssistantFrame = inputAssistantView.frame
+                    guard inputAssistantViews.count == 1,
+                          !inputAssistantFrame.isNull,
+                          !inputAssistantFrame.isEmpty,
+                          inputAssistantFrame.minY
+                            >= applicationFrame.maxY,
+                          keyboardIsAbsentOrInertOffApp(in: app),
+                          wait(
+                              for: zone,
+                              predicate: "hasKeyboardFocus == true",
+                              timeout: 10
+                          ),
+                          preflight.exists
+                            == preActionPreflightExists,
+                          detailRoute.exists
+                            == preActionDetailRouteExists,
+                          zone.label == preActionZoneLabel,
+                          (zone.value as? String) == preActionZoneValue,
+                          afterDark.label == preActionAfterDarkLabel,
+                          (afterDark.value as? String)
+                            == preActionAfterDarkValue,
+                          safePosition.label
+                            == preActionSafePositionLabel,
+                          (safePosition.value as? String)
+                            == preActionSafePositionValue,
+                          app.state == .runningForeground else {
+                        XCTFail("The minimum-profile off-app preflight keyboard is not inert with preserved state.")
+                        return
+                    }
+                } else {
+                    let expectedKeyboardFrame = CGRect(
+                        x: 0,
+                        y: 451,
+                        width: 375,
+                        height: 216
+                    )
+                    let observedAssistantFrame = inputAssistantView.frame
+                    guard observedKeyboardFrame == expectedKeyboardFrame,
+                          !observedAssistantFrame.isNull,
+                          !observedAssistantFrame.isEmpty,
+                          observedAssistantFrame.minY
+                            < applicationFrame.maxY,
+                          observedAssistantFrame.maxY
+                            <= applicationFrame.maxY else {
+                        XCTFail("The iOS 18 preflight keyboard or assistant does not match the visible QuickPath evidence.")
+                        return
+                    }
+                    keyboard.coordinate(
+                        withNormalizedOffset: CGVector(
+                            dx: 0.5,
+                            dy: 0.8425925925925926
+                        )
+                    ).tap()
+                    let restoredKeyboard = app.keyboards.firstMatch
+                    let restoredDoneKey = app.keyboards.buttons["Done"]
+                    let expectedDoneFrame = CGRect(
+                        x: 281.5,
+                        y: 620,
+                        width: 93.5,
+                        height: 46
+                    )
+                    guard restoredDoneKey.waitForExistence(timeout: 10),
+                          restoredDoneKey.elementType == .button,
+                          restoredDoneKey.identifier == "Done",
+                          restoredDoneKey.label == "done",
+                          restoredDoneKey.frame == expectedDoneFrame,
+                          restoredDoneKey.isHittable,
+                          restoredKeyboard.waitForExistence(timeout: 10),
+                          restoredKeyboard.frame == observedKeyboardFrame,
+                          inputAssistantViews.count == 1,
+                          inputAssistantView.exists,
+                          inputAssistantView.frame
+                            == observedAssistantFrame,
+                          wait(
+                              for: zone,
+                              predicate: "hasKeyboardFocus == true",
+                              timeout: 10
+                          ),
+                          preflight.waitForExistence(timeout: 10),
+                          preflight.exists
+                            == preActionPreflightExists,
+                          detailRoute.exists
+                            == preActionDetailRouteExists,
+                          zone.label == preActionZoneLabel,
+                          (zone.value as? String) == preActionZoneValue,
+                          afterDark.label == preActionAfterDarkLabel,
+                          (afterDark.value as? String)
+                            == preActionAfterDarkValue,
+                          safePosition.label
+                            == preActionSafePositionLabel,
+                          (safePosition.value as? String)
+                            == preActionSafePositionValue,
+                          app.state == .runningForeground else {
+                        XCTFail("The preflight state or content was not restored after dismissing the QuickPath tutorial.")
+                        return
+                    }
+
+                    let verticalInset: CGFloat = 16
+                    let receiverInset: CGFloat = 24
+                    let minimumGestureDistance: CGFloat = 44
+                    var preflightPositioningDirection: CGFloat?
+                    for _ in 0..<4 {
+                        guard app.state == .runningForeground,
+                              preflightScrollViews.count == 1,
+                              preflightNavigationBars.count == 1,
+                              inputAssistantViews.count == 1,
+                              afterDarkToggles.count == 1,
+                              safePositionToggles.count == 1,
+                              preflightScrollView.exists,
+                              preflightNavigationBar.exists,
+                              inputAssistantView.exists,
+                              afterDark.exists,
+                              safePosition.exists,
+                              restoredKeyboard.exists,
+                              restoredDoneKey.exists else {
+                            XCTFail("The visible preflight positioning route changed.")
+                            return
+                        }
+                        let liveApplicationFrame = app.frame
+                        let scrollFrame = preflightScrollView.frame
+                        let liveScrollFrame = scrollFrame.intersection(
+                            liveApplicationFrame
+                        )
+                        let navigationFrame = preflightNavigationBar.frame
+                        let assistantFrame = inputAssistantView.frame
+                        let safeTop = max(
+                            liveScrollFrame.minY,
+                            navigationFrame.maxY
+                        ) + verticalInset
+                        let safeBottom = min(
+                            liveScrollFrame.maxY,
+                            assistantFrame.minY
+                        ) - verticalInset
+                        let receiverTop = max(
+                            liveScrollFrame.minY,
+                            navigationFrame.maxY
+                        ) + receiverInset
+                        let receiverBottom = min(
+                            liveScrollFrame.maxY,
+                            assistantFrame.minY
+                        ) - receiverInset
+                        let afterDarkFrame = afterDark.frame
+                        let safePositionFrame = safePosition.frame
+                        let targetTop = min(
+                            afterDarkFrame.minY,
+                            safePositionFrame.minY
+                        )
+                        let targetBottom = max(
+                            afterDarkFrame.maxY,
+                            safePositionFrame.maxY
+                        )
+                        guard !liveApplicationFrame.isNull,
+                              !liveApplicationFrame.isEmpty,
+                              !scrollFrame.isNull,
+                              !scrollFrame.isEmpty,
+                              !liveScrollFrame.isNull,
+                              !liveScrollFrame.isEmpty,
+                              !navigationFrame.isNull,
+                              !navigationFrame.isEmpty,
+                              !assistantFrame.isNull,
+                              !assistantFrame.isEmpty,
+                              !afterDarkFrame.isNull,
+                              !afterDarkFrame.isEmpty,
+                              !safePositionFrame.isNull,
+                              !safePositionFrame.isEmpty,
+                              assistantFrame == observedAssistantFrame,
+                              restoredKeyboard.frame
+                                == observedKeyboardFrame,
+                              safeBottom > safeTop,
+                              receiverBottom > receiverTop,
+                              targetBottom - targetTop
+                                <= safeBottom - safeTop else {
+                            XCTFail("The visible preflight keyboard-safe geometry is invalid.")
+                            return
+                        }
+                        if afterDarkFrame.minY >= safeTop,
+                           afterDarkFrame.maxY <= safeBottom,
+                           safePositionFrame.minY >= safeTop,
+                           safePositionFrame.maxY <= safeBottom,
+                           afterDark.isHittable,
+                           safePosition.isHittable {
+                            break
+                        }
+
+                        let minimumShift = max(
+                            safeTop - afterDarkFrame.minY,
+                            safeTop - safePositionFrame.minY
+                        )
+                        let maximumShift = min(
+                            safeBottom - afterDarkFrame.maxY,
+                            safeBottom - safePositionFrame.maxY
+                        )
+                        let receiverCapacity = receiverBottom - receiverTop
+                        guard minimumShift <= maximumShift,
+                              receiverCapacity
+                                >= minimumGestureDistance else {
+                            XCTFail("The visible preflight controls have no common feasible interval.")
+                            return
+                        }
+                        let dragDistance: CGFloat
+                        if maximumShift < 0 {
+                            let recognizedMinimum = max(
+                                minimumShift,
+                                -receiverCapacity
+                            )
+                            let recognizedMaximum = min(
+                                maximumShift,
+                                -minimumGestureDistance
+                            )
+                            if recognizedMinimum <= recognizedMaximum {
+                                dragDistance = recognizedMaximum
+                            } else if maximumShift < -receiverCapacity {
+                                dragDistance = -receiverCapacity
+                            } else {
+                                XCTFail("The visible preflight upward shift is not recognizable.")
+                                return
+                            }
+                        } else if minimumShift > 0 {
+                            let recognizedMinimum = max(
+                                minimumShift,
+                                minimumGestureDistance
+                            )
+                            let recognizedMaximum = min(
+                                maximumShift,
+                                receiverCapacity
+                            )
+                            if recognizedMinimum <= recognizedMaximum {
+                                dragDistance = recognizedMinimum
+                            } else if minimumShift > receiverCapacity {
+                                dragDistance = receiverCapacity
+                            } else {
+                                XCTFail("The visible preflight downward shift is not recognizable.")
+                                return
+                            }
+                        } else {
+                            XCTFail("The visible preflight controls are contained but not hittable.")
+                            return
+                        }
+
+                        let dragDirection: CGFloat = dragDistance > 0
+                            ? 1
+                            : -1
+                        if let preflightPositioningDirection {
+                            guard dragDirection
+                                == preflightPositioningDirection else {
+                                XCTFail("The visible preflight correction would reverse direction.")
+                                return
+                            }
+                        } else {
+                            preflightPositioningDirection = dragDirection
+                        }
+
+                        let scrollOrigin = preflightScrollView.coordinate(
+                            withNormalizedOffset: CGVector(dx: 0, dy: 0)
+                        )
+                        let dragStartOffsetY = dragDistance > 0
+                            ? receiverTop - scrollFrame.minY
+                            : receiverBottom - scrollFrame.minY
+                        let dragStart = scrollOrigin.withOffset(
+                            CGVector(
+                                dx: scrollFrame.width / 2,
+                                dy: dragStartOffsetY
+                            )
+                        )
+                        let dragEnd = dragStart.withOffset(
+                            CGVector(dx: 0, dy: dragDistance)
+                        )
+                        let afterDarkMinYBeforeDrag = afterDarkFrame.minY
+                        let safePositionMinYBeforeDrag =
+                            safePositionFrame.minY
+                        dragStart.press(
+                            forDuration: 0.2,
+                            thenDragTo: dragEnd,
+                            withVelocity: .slow,
+                            thenHoldForDuration: 0.2
+                        )
+                        let afterDarkMovement =
+                            afterDark.frame.minY - afterDarkMinYBeforeDrag
+                        let safePositionMovement =
+                            safePosition.frame.minY
+                                - safePositionMinYBeforeDrag
+                        guard afterDarkMovement * dragDistance > 0,
+                              safePositionMovement * dragDistance > 0 else {
+                            XCTFail("The visible preflight positioning gesture did not make signed progress.")
+                            return
+                        }
+                    }
+
+                    let finalApplicationFrame = app.frame
+                    let finalScrollFrame = preflightScrollView.frame
+                        .intersection(finalApplicationFrame)
+                    let finalNavigationFrame =
+                        preflightNavigationBar.frame
+                    let finalAssistantFrame = inputAssistantView.frame
+                    let finalSafeTop = max(
+                        finalScrollFrame.minY,
+                        finalNavigationFrame.maxY
+                    ) + verticalInset
+                    let finalSafeBottom = min(
+                        finalScrollFrame.maxY,
+                        finalAssistantFrame.minY
+                    ) - verticalInset
+                    let finalAfterDarkFrame = afterDark.frame
+                    let finalSafePositionFrame = safePosition.frame
+                    guard app.state == .runningForeground,
+                          preflightScrollViews.count == 1,
+                          preflightNavigationBars.count == 1,
+                          inputAssistantViews.count == 1,
+                          afterDarkToggles.count == 1,
+                          safePositionToggles.count == 1,
+                          preflightScrollView.exists,
+                          preflightNavigationBar.exists,
+                          inputAssistantView.exists,
+                          afterDark.exists,
+                          safePosition.exists,
+                          restoredKeyboard.exists,
+                          restoredKeyboard.frame
+                            == observedKeyboardFrame,
+                          restoredDoneKey.exists,
+                          restoredDoneKey.elementType == .button,
+                          restoredDoneKey.identifier == "Done",
+                          restoredDoneKey.label == "done",
+                          restoredDoneKey.frame == expectedDoneFrame,
+                          restoredDoneKey.isHittable,
+                          finalAssistantFrame == observedAssistantFrame,
+                          wait(
+                              for: zone,
+                              predicate: "hasKeyboardFocus == true",
+                              timeout: 10
+                          ),
+                          preflight.exists
+                            == preActionPreflightExists,
+                          detailRoute.exists
+                            == preActionDetailRouteExists,
+                          zone.label == preActionZoneLabel,
+                          (zone.value as? String) == preActionZoneValue,
+                          afterDark.label == preActionAfterDarkLabel,
+                          (afterDark.value as? String)
+                            == preActionAfterDarkValue,
+                          safePosition.label
+                            == preActionSafePositionLabel,
+                          (safePosition.value as? String)
+                            == preActionSafePositionValue,
+                          !finalApplicationFrame.isNull,
+                          !finalApplicationFrame.isEmpty,
+                          !finalScrollFrame.isNull,
+                          !finalScrollFrame.isEmpty,
+                          !finalNavigationFrame.isNull,
+                          !finalNavigationFrame.isEmpty,
+                          !finalAssistantFrame.isNull,
+                          !finalAssistantFrame.isEmpty,
+                          finalAfterDarkFrame.minY >= finalSafeTop,
+                          finalAfterDarkFrame.maxY
+                            <= finalSafeBottom,
+                          finalSafePositionFrame.minY >= finalSafeTop,
+                          finalSafePositionFrame.maxY
+                            <= finalSafeBottom,
+                          afterDark.isHittable,
+                          safePosition.isHittable else {
+                        XCTFail("The visible preflight state was not fully restored and positioned before capture.")
+                        return
+                    }
                 }
             }
         }

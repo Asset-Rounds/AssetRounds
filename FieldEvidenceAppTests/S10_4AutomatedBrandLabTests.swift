@@ -339,8 +339,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 252_405,
-            sha256: "F5BB60B57E2649BA27FE48C2424BB33482B757D7F579D7103CEEFD9678C511E3"
+            byteCount: 275_795,
+            sha256: "487EB8C38451C509FCBFC477BA6C7F75AFFFADF7CD61CEAFC8EF928549B91690"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -495,9 +495,25 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             preflightQuickPathSource.components(separatedBy: preflightMinimumGate).count - 1,
             1
         )
+        guard let preflightMinimumStartRange = preflightQuickPathSource.range(
+            of: preflightMinimumGate
+        ) else {
+            XCTFail("Missing the minimum-profile preflight source slice")
+            return
+        }
+        let preflightMinimumSource = String(
+            preflightQuickPathSource[
+                preflightMinimumStartRange.lowerBound..<preflightQuickPathSource.endIndex
+            ]
+        )
+        XCTAssertEqual(preflightMinimumSource.utf8.count, 23_121)
+        XCTAssertEqual(
+            Data(preflightMinimumSource.utf8).sha256,
+            "F8FC3E5144D26D6D9F2ABBEBE7E4B48E049298E0D8518B607D61136DA8BB484A"
+        )
         let preflightReturnAbsenceDiscriminator =
             #"            let returnKey = app.keyboards.buttons["Return"]"# + "\n" +
-                #"            if !returnKey.waitForExistence(timeout: 1) {"#
+                #"            if !returnKey.waitForExistence(timeout: 1) || !returnKey.isHittable {"#
         XCTAssertEqual(
             preflightQuickPathSource.components(
                 separatedBy: preflightReturnAbsenceDiscriminator
@@ -505,6 +521,107 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         XCTAssertFalse(preflightQuickPathSource.contains("returnKey.exists"))
+
+        let preflightRelationalClassifier = [
+            "                let applicationFrame = app.frame",
+            "                let observedKeyboardFrame = keyboard.frame",
+            "                guard !applicationFrame.isNull,\n" +
+                "                      !applicationFrame.isEmpty,\n" +
+                "                      !observedKeyboardFrame.isNull,\n" +
+                "                      !observedKeyboardFrame.isEmpty else {",
+            "                let keyboardIsOffApp =\n" +
+                "                    observedKeyboardFrame.minY >= applicationFrame.maxY",
+            "                let keyboardIsVisibleInApp =\n" +
+                "                    observedKeyboardFrame.minY < applicationFrame.maxY",
+            "                guard keyboardIsOffApp != keyboardIsVisibleInApp else {",
+            "                if keyboardIsOffApp {",
+            "                } else {",
+        ]
+        for lock in preflightRelationalClassifier {
+            XCTAssertEqual(
+                preflightQuickPathSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        guard let preflightOffAppStartRange = preflightQuickPathSource.range(
+            of: "                if keyboardIsOffApp {"
+        ), let preflightVisibleStartRange = preflightQuickPathSource.range(
+            of: "                } else {",
+            range: preflightOffAppStartRange.upperBound..<preflightQuickPathSource.endIndex
+        ) else {
+            XCTFail("Missing the preflight keyboard class branches")
+            return
+        }
+        let preflightOffAppSource = String(
+            preflightQuickPathSource[
+                preflightOffAppStartRange.lowerBound..<preflightVisibleStartRange.lowerBound
+            ]
+        )
+        let preflightVisibleSource = String(
+            preflightQuickPathSource[
+                preflightVisibleStartRange.lowerBound..<preflightQuickPathSource.endIndex
+            ]
+        )
+        let normalizedPreflightVisibleSource = preflightVisibleSource
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: "\n")
+        let preflightOffAppGuard =
+            "                    let inputAssistantFrame = inputAssistantView.frame\n" +
+                "                    guard inputAssistantViews.count == 1,\n" +
+                "                          !inputAssistantFrame.isNull,\n" +
+                "                          !inputAssistantFrame.isEmpty,\n" +
+                "                          inputAssistantFrame.minY\n" +
+                "                            >= applicationFrame.maxY,\n" +
+                "                          keyboardIsAbsentOrInertOffApp(in: app),\n" +
+                "                          wait(\n" +
+                "                              for: zone,\n" +
+                #"                              predicate: "hasKeyboardFocus == true","# + "\n" +
+                "                              timeout: 10\n" +
+                "                          ),\n" +
+                "                          preflight.exists\n" +
+                "                            == preActionPreflightExists,\n" +
+                "                          detailRoute.exists\n" +
+                "                            == preActionDetailRouteExists,\n" +
+                "                          zone.label == preActionZoneLabel,\n" +
+                "                          (zone.value as? String) == preActionZoneValue,\n" +
+                "                          afterDark.label == preActionAfterDarkLabel,\n" +
+                "                          (afterDark.value as? String)\n" +
+                "                            == preActionAfterDarkValue,\n" +
+                "                          safePosition.label\n" +
+                "                            == preActionSafePositionLabel,\n" +
+                "                          (safePosition.value as? String)\n" +
+                "                            == preActionSafePositionValue,\n" +
+                "                          app.state == .runningForeground else {"
+        XCTAssertEqual(
+            preflightOffAppSource.components(separatedBy: preflightOffAppGuard).count - 1,
+            1
+        )
+        for prohibitedOffAppAction in [
+            "tap(",
+            "press(",
+            "coordinate(",
+            "swipe",
+            "scroll(",
+            "typeText(",
+            "dismissKeyboard(",
+            "app.swipe",
+            "app.coordinate",
+            "Thread.sleep",
+            "Task.sleep",
+            "sleep(",
+            "tolerance",
+            "epsilon",
+            "711",
+            "880",
+            "-91",
+        ] {
+            XCTAssertFalse(
+                preflightOffAppSource.contains(prohibitedOffAppAction),
+                prohibitedOffAppAction
+            )
+        }
 
         let preflightPreActionSnapshots = [
             "                let preActionZoneLabel = zone.label",
@@ -523,6 +640,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let preflightPrecondition =
             "                guard keyboard.waitForExistence(timeout: 10),\n" +
+                "                      preflightScrollViews.count == 1,\n" +
+                "                      preflightNavigationBars.count == 1,\n" +
+                "                      inputAssistantViews.count == 1,\n" +
+                "                      afterDarkToggles.count == 1,\n" +
+                "                      safePositionToggles.count == 1,\n" +
+                "                      preflightScrollView.exists,\n" +
+                "                      preflightNavigationBar.exists,\n" +
+                "                      inputAssistantView.exists,\n" +
+                "                      afterDark.exists,\n" +
+                "                      safePosition.exists,\n" +
                 "                      wait(\n" +
                 "                          for: zone,\n" +
                 #"                          predicate: "hasKeyboardFocus == true","# + "\n" +
@@ -549,8 +676,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         let preflightObservedKeyboardFrame =
-            "                let observedKeyboardFrame = keyboard.frame\n" +
-                "                guard observedKeyboardFrame == expectedKeyboardFrame else {"
+            "                let observedKeyboardFrame = keyboard.frame"
         XCTAssertEqual(
             preflightQuickPathSource.components(
                 separatedBy: preflightObservedKeyboardFrame
@@ -570,52 +696,302 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let preflightRestorationGuard =
-            "                let restoredKeyboard = app.keyboards.firstMatch\n" +
-                #"                let restoredDoneKey = app.keyboards.buttons["Done"]"# + "\n" +
-                "                let expectedDoneFrame = CGRect(\n" +
-                "                    x: 281.5,\n" +
-                "                    y: 620,\n" +
-                "                    width: 93.5,\n" +
-                "                    height: 46\n" +
-                "                )\n" +
-                "                guard restoredDoneKey.waitForExistence(timeout: 10),\n" +
-                "                      restoredDoneKey.elementType == .button,\n" +
-                #"                      restoredDoneKey.identifier == "Done","# + "\n" +
-                #"                      restoredDoneKey.label == "done","# + "\n" +
-                "                      restoredDoneKey.frame == expectedDoneFrame,\n" +
-                "                      restoredDoneKey.isHittable,\n" +
-                "                      restoredKeyboard.waitForExistence(timeout: 10),\n" +
-                "                      restoredKeyboard.frame == observedKeyboardFrame,\n" +
-                "                      wait(\n" +
-                "                          for: zone,\n" +
-                #"                          predicate: "hasKeyboardFocus == true","# + "\n" +
-                "                          timeout: 10\n" +
-                "                      ),\n" +
-                "                      preflight.waitForExistence(timeout: 10),\n" +
-                "                      preflight.exists == preActionPreflightExists,\n" +
-                "                      detailRoute.exists == preActionDetailRouteExists,\n" +
-                "                      zone.label == preActionZoneLabel,\n" +
-                "                      (zone.value as? String) == preActionZoneValue,\n" +
-                "                      app.state == .runningForeground else {"
+        for retainedVisiblePreflightLock in [
+            preflightFrozenKeyboardFrame,
+            preflightNormalizedCoordinate,
+            "                    let observedAssistantFrame = inputAssistantView.frame",
+            "                    guard observedKeyboardFrame == expectedKeyboardFrame,\n" +
+                "                          !observedAssistantFrame.isNull,\n" +
+                "                          !observedAssistantFrame.isEmpty,\n" +
+                "                          observedAssistantFrame.minY\n" +
+                "                            < applicationFrame.maxY,\n" +
+                "                          observedAssistantFrame.maxY\n" +
+                "                            <= applicationFrame.maxY else {",
+            "                    let restoredDoneKey = app.keyboards.buttons[\"Done\"]",
+            "                    let expectedDoneFrame = CGRect(\n" +
+                "                        x: 281.5,\n" +
+                "                        y: 620,\n" +
+                "                        width: 93.5,\n" +
+                "                        height: 46\n" +
+                "                    )",
+            "                           inputAssistantViews.count == 1,\n" +
+            "                           inputAssistantView.exists,\n" +
+                "                           inputAssistantView.frame\n" +
+                "                             == observedAssistantFrame,",
+            "                           finalAssistantFrame == observedAssistantFrame,",
+            "                           finalAfterDarkFrame.minY >= finalSafeTop,\n" +
+                "                           finalAfterDarkFrame.maxY\n" +
+                "                             <= finalSafeBottom,\n" +
+                "                           finalSafePositionFrame.minY >= finalSafeTop,\n" +
+                "                           finalSafePositionFrame.maxY\n" +
+                "                             <= finalSafeBottom,\n" +
+                "                           afterDark.isHittable,\n" +
+                "                           safePosition.isHittable else {",
+        ] {
+            let normalizedLock = retainedVisiblePreflightLock
+                .components(separatedBy: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .joined(separator: "\n")
+            XCTAssertEqual(
+                normalizedPreflightVisibleSource.components(
+                    separatedBy: normalizedLock
+                ).count - 1,
+                1,
+                retainedVisiblePreflightLock
+            )
+        }
+        let normalizedPreflightRestoredContentLock = [
+            "afterDark.label == preActionAfterDarkLabel,",
+            "(afterDark.value as? String)",
+            "== preActionAfterDarkValue,",
+            "safePosition.label",
+            "== preActionSafePositionLabel,",
+            "(safePosition.value as? String)",
+            "== preActionSafePositionValue,",
+        ].joined(separator: "\n")
         XCTAssertEqual(
-            preflightQuickPathSource.components(
-                separatedBy: preflightRestorationGuard
+            normalizedPreflightVisibleSource.components(
+                separatedBy: normalizedPreflightRestoredContentLock
             ).count - 1,
-            1
+            2
         )
+        let normalizedPreflightRestoredDoneLock = [
+            "restoredDoneKey.elementType == .button,",
+            #"restoredDoneKey.identifier == "Done","#,
+            #"restoredDoneKey.label == "done","#,
+            "restoredDoneKey.frame == expectedDoneFrame,",
+            "restoredDoneKey.isHittable,",
+        ].joined(separator: "\n")
+        XCTAssertEqual(
+            normalizedPreflightVisibleSource.components(
+                separatedBy: normalizedPreflightRestoredDoneLock
+            ).count - 1,
+            2
+        )
+        let preflightVisiblePositioningLocks = [
+            "                    let verticalInset: CGFloat = 16",
+            "                    let receiverInset: CGFloat = 24",
+            "                    let minimumGestureDistance: CGFloat = 44",
+            "                    var preflightPositioningDirection: CGFloat?",
+            "                    for _ in 0..<4 {",
+            "                         let liveApplicationFrame = app.frame",
+            "                         let scrollFrame = preflightScrollView.frame",
+            "                         let liveScrollFrame = scrollFrame.intersection(\n" +
+                "                             liveApplicationFrame\n" +
+                "                         )",
+            "                         let navigationFrame = preflightNavigationBar.frame",
+            "                         let assistantFrame = inputAssistantView.frame",
+            "                         let safeTop = max(\n" +
+                "                             liveScrollFrame.minY,\n" +
+                "                             navigationFrame.maxY\n" +
+                "                         ) + verticalInset",
+            "                         let safeBottom = min(\n" +
+                "                             liveScrollFrame.maxY,\n" +
+                "                             assistantFrame.minY\n" +
+                "                         ) - verticalInset",
+            "                         let receiverTop = max(\n" +
+                "                             liveScrollFrame.minY,\n" +
+                "                             navigationFrame.maxY\n" +
+                "                         ) + receiverInset",
+            "                         let receiverBottom = min(\n" +
+                "                             liveScrollFrame.maxY,\n" +
+                "                             assistantFrame.minY\n" +
+                "                         ) - receiverInset",
+            "                         let targetTop = min(\n" +
+                "                             afterDarkFrame.minY,\n" +
+                "                             safePositionFrame.minY\n" +
+                "                         )",
+            "                         let targetBottom = max(\n" +
+                "                             afterDarkFrame.maxY,\n" +
+                "                             safePositionFrame.maxY\n" +
+                "                         )",
+            "                     let finalApplicationFrame = app.frame",
+            "                     let finalScrollFrame = preflightScrollView.frame\n" +
+                "                         .intersection(finalApplicationFrame)",
+            "                     let finalSafeTop = max(\n" +
+                "                         finalScrollFrame.minY,\n" +
+                "                         finalNavigationFrame.maxY\n" +
+                "                     ) + verticalInset",
+            "                     let finalSafeBottom = min(\n" +
+                "                         finalScrollFrame.maxY,\n" +
+                "                         finalAssistantFrame.minY\n" +
+                "                     ) - verticalInset",
+            "                     let finalAfterDarkFrame = afterDark.frame",
+            "                     let finalSafePositionFrame = safePosition.frame",
+            "                               safeBottom > safeTop,\n" +
+                "                               receiverBottom > receiverTop,\n" +
+                "                               targetBottom - targetTop\n" +
+                "                                 <= safeBottom - safeTop else {",
+            "                         let minimumShift = max(\n" +
+                "                             safeTop - afterDarkFrame.minY,\n" +
+                "                             safeTop - safePositionFrame.minY\n" +
+                "                         )",
+            "                         let maximumShift = min(\n" +
+                "                             safeBottom - afterDarkFrame.maxY,\n" +
+                "                             safeBottom - safePositionFrame.maxY\n" +
+                "                         )",
+            "                         let receiverCapacity = receiverBottom - receiverTop",
+            "                         guard minimumShift <= maximumShift,\n" +
+                "                               receiverCapacity\n" +
+                "                                 >= minimumGestureDistance else {",
+            "                             let recognizedMinimum = max(\n" +
+                "                                 minimumShift,\n" +
+                "                                 -receiverCapacity\n" +
+                "                             )",
+            "                             let recognizedMaximum = min(\n" +
+                "                                 maximumShift,\n" +
+                "                                 -minimumGestureDistance\n" +
+                "                             )",
+            "                             if recognizedMinimum <= recognizedMaximum {\n" +
+                "                                 dragDistance = recognizedMaximum\n" +
+                "                             } else if maximumShift < -receiverCapacity {\n" +
+                "                                 dragDistance = -receiverCapacity\n" +
+                "                             } else {\n" +
+                #"                                 XCTFail("The visible preflight upward shift is not recognizable.")"# + "\n" +
+                "                                 return\n" +
+                "                             }",
+            "                             let recognizedMinimum = max(\n" +
+                "                                 minimumShift,\n" +
+                "                                 minimumGestureDistance\n" +
+                "                             )",
+            "                             let recognizedMaximum = min(\n" +
+                "                                 maximumShift,\n" +
+                "                                 receiverCapacity\n" +
+                "                             )",
+            "                             if recognizedMinimum <= recognizedMaximum {\n" +
+                "                                 dragDistance = recognizedMinimum\n" +
+                "                             } else if minimumShift > receiverCapacity {\n" +
+                "                                 dragDistance = receiverCapacity\n" +
+                "                             } else {\n" +
+                #"                                 XCTFail("The visible preflight downward shift is not recognizable.")"# + "\n" +
+                "                                 return\n" +
+                "                             }",
+            "                             dragDistance = recognizedMaximum",
+            "                             dragDistance = recognizedMinimum",
+            "                         let dragDirection: CGFloat = dragDistance > 0\n" +
+                "                             ? 1\n" +
+                "                             : -1",
+            "                         if let preflightPositioningDirection {\n" +
+                "                             guard dragDirection\n" +
+                "                                 == preflightPositioningDirection else {\n" +
+                #"                                 XCTFail("The visible preflight correction would reverse direction.")"# + "\n" +
+                "                                 return\n" +
+                "                             }\n" +
+                "                         } else {\n" +
+                "                             preflightPositioningDirection = dragDirection\n" +
+                "                         }",
+            "                         let scrollOrigin = preflightScrollView.coordinate(\n" +
+                "                             withNormalizedOffset: CGVector(dx: 0, dy: 0)\n" +
+                "                         )",
+            "                         let dragStartOffsetY = dragDistance > 0\n" +
+                "                             ? receiverTop - scrollFrame.minY\n" +
+                "                             : receiverBottom - scrollFrame.minY",
+            "                         dragStart.press(\n" +
+                "                             forDuration: 0.2,\n" +
+                "                             thenDragTo: dragEnd,\n" +
+                "                             withVelocity: .slow,\n" +
+                "                             thenHoldForDuration: 0.2\n" +
+                "                         )",
+            "                         let afterDarkMovement =\n" +
+                "                             afterDark.frame.minY - afterDarkMinYBeforeDrag",
+            "                         let safePositionMovement =\n" +
+                "                             safePosition.frame.minY\n" +
+                "                                 - safePositionMinYBeforeDrag",
+            "                         guard afterDarkMovement * dragDistance > 0,\n" +
+                "                               safePositionMovement * dragDistance > 0 else {",
+        ]
+        for lock in preflightVisiblePositioningLocks {
+            let normalizedLock = lock
+                .components(separatedBy: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .joined(separator: "\n")
+            XCTAssertEqual(
+                normalizedPreflightVisibleSource.components(
+                    separatedBy: normalizedLock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        for (queryCardinalityLock, count) in [
+            ("preflightScrollViews.count == 1", 2),
+            ("preflightNavigationBars.count == 1", 2),
+            ("inputAssistantViews.count == 1", 3),
+            ("afterDarkToggles.count == 1", 2),
+            ("safePositionToggles.count == 1", 2),
+        ] {
+            XCTAssertEqual(
+                preflightVisibleSource.components(
+                    separatedBy: queryCardinalityLock
+                ).count - 1,
+                count,
+                queryCardinalityLock
+            )
+        }
+        for (preflightDirectionLock, count) in [
+            ("preflightPositioningDirection", 4),
+            ("dragDirection", 3),
+            ("maximumShift < -receiverCapacity", 1),
+            ("dragDistance = -receiverCapacity", 1),
+            ("minimumShift > receiverCapacity", 1),
+            ("dragDistance = receiverCapacity", 1),
+        ] {
+            XCTAssertEqual(
+                preflightVisibleSource.components(
+                    separatedBy: preflightDirectionLock
+                ).count - 1,
+                count,
+                preflightDirectionLock
+            )
+        }
+        for prohibitedVisiblePreflightForm in [
+            "app.swipeUp()",
+            "app.swipeDown()",
+            "app.coordinate(",
+            "preflightScrollView.swipeUp()",
+            "preflightScrollView.swipeDown()",
+            "Thread.sleep",
+            "Task.sleep",
+            "sleep(",
+            "tolerance",
+            "epsilon",
+            "711",
+            "880",
+            "-91",
+        ] {
+            XCTAssertFalse(
+                preflightQuickPathSource.contains(prohibitedVisiblePreflightForm),
+                prohibitedVisiblePreflightForm
+            )
+        }
+        for (preflightActionLock, count) in [
+            ("keyboard.coordinate(", 1),
+            ("preflightScrollView.coordinate(", 1),
+            ("dragStart.press(", 1),
+            ("forDuration: 0.2", 1),
+            ("withVelocity: .slow", 1),
+            ("thenHoldForDuration: 0.2", 1),
+        ] {
+            XCTAssertEqual(
+                preflightVisibleSource.components(
+                    separatedBy: preflightActionLock
+                ).count - 1,
+                count,
+                preflightActionLock
+            )
+        }
         let preflightIncompleteFailure =
             "                    XCTFail(\"The iOS 18 preflight QuickPath state is incomplete.\")\n" +
                 "                    return\n" +
                 "                }"
         let preflightFrameFailure =
-            "                    XCTFail(\"The iOS 18 preflight keyboard frame does not match the frozen QuickPath tutorial evidence.\")\n" +
+            "                    XCTFail(\"The minimum-profile preflight application or keyboard frame is empty.\")\n" +
                 "                    return\n" +
                 "                }"
         let preflightRestorationFailure =
-            "                    XCTFail(\"The preflight state or content was not restored after dismissing the QuickPath tutorial.\")\n" +
-                "                    return\n" +
-                "                }"
+            "                        XCTFail(\"The preflight state or content was not restored after dismissing the QuickPath tutorial.\")\n" +
+                "                        return\n" +
+                "                    }"
         for lock in [
             preflightIncompleteFailure,
             preflightFrameFailure,
@@ -629,23 +1005,33 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             preflightQuickPathSource.components(separatedBy: "XCTFail(").count - 1,
-            3
+            15
         )
         XCTAssertEqual(
             preflightQuickPathSource.components(separatedBy: "                    return\n").count - 1,
-            3
+            15
         )
         XCTAssertFalse(
             preflightQuickPathSource.contains(
                 "guard returnKey.waitForExistence(timeout: 10)"
             )
         )
-        let preflightQuickPathCapturePrecededByRestoration =
-            preflightRestorationFailure + "\n            }\n        }\n" +
+        let preflightFinalFailure =
+            "                        XCTFail(\"The visible preflight state was not fully restored and positioned before capture.\")\n" +
+                "                        return\n" +
+                "                    }"
+        XCTAssertEqual(
+            preflightQuickPathSource.components(
+                separatedBy: preflightFinalFailure
+            ).count - 1,
+            1
+        )
+        let preflightQuickPathCapturePrecededByFinalGuard =
+            preflightFinalFailure + "\n                }\n            }\n        }\n" +
                 preflightQuickPathCapture
         XCTAssertEqual(
             uiSource.components(
-                separatedBy: preflightQuickPathCapturePrecededByRestoration
+                separatedBy: preflightQuickPathCapturePrecededByFinalGuard
             ).count - 1,
             1
         )
@@ -915,6 +1301,25 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        guard let h135SourceStartRange = uiSource.range(
+            of: quickPathProfileGuard
+        ), let h135CaptureRange = uiSource.range(
+            of: quickPathCapture,
+            range: h135SourceStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the minimum-profile new-sign source slice")
+            return
+        }
+        let h135Source = String(
+            uiSource[
+                h135SourceStartRange.lowerBound..<h135CaptureRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(h135Source.utf8.count, 5_796)
+        XCTAssertEqual(
+            Data(h135Source.utf8).sha256,
+            "3350DA2976EE30EDD944F2C80295C4751256AA1DFDF5EAD005898EBDB5EF610B"
+        )
         let quickPathSemanticSnapshots = [
             "            let preActionSiteValue = site.value as? String",
             "            let preActionErrorLabel = error.label",
@@ -941,6 +1346,157 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         )
         XCTAssertFalse(quickPathViewportToCaptureSource.contains("returnKey.exists"))
+
+        let quickPathRelationalClassifier = [
+            "                let applicationFrame = app.frame",
+            "                let observedKeyboardFrame = keyboard.frame",
+            "                guard !applicationFrame.isNull,\n" +
+                "                      !applicationFrame.isEmpty,\n" +
+                "                      !observedKeyboardFrame.isNull,\n" +
+                "                      !observedKeyboardFrame.isEmpty else {",
+            "                let keyboardIsOffApp =\n" +
+                "                    observedKeyboardFrame.minY >= applicationFrame.maxY",
+            "                let keyboardIsVisibleInApp =\n" +
+                "                    observedKeyboardFrame.minY < applicationFrame.maxY",
+            "                guard keyboardIsOffApp != keyboardIsVisibleInApp else {",
+            "                if keyboardIsOffApp {",
+            "                } else {",
+        ]
+        for lock in quickPathRelationalClassifier {
+            XCTAssertEqual(
+                quickPathViewportToCaptureSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        guard let quickPathOffAppStartRange = quickPathViewportToCaptureSource.range(
+            of: "                if keyboardIsOffApp {"
+        ), let quickPathVisibleStartRange = quickPathViewportToCaptureSource.range(
+            of: "                } else {",
+            range: quickPathOffAppStartRange.upperBound..<quickPathViewportToCaptureSource.endIndex
+        ) else {
+            XCTFail("Missing the new-sign keyboard class branches")
+            return
+        }
+        let quickPathOffAppSource = String(
+            quickPathViewportToCaptureSource[
+                quickPathOffAppStartRange.lowerBound..<quickPathVisibleStartRange.lowerBound
+            ]
+        )
+        let quickPathVisibleSource = String(
+            quickPathViewportToCaptureSource[
+                quickPathVisibleStartRange.lowerBound..<quickPathViewportToCaptureSource.endIndex
+            ]
+        )
+        let normalizedQuickPathVisibleSource = quickPathVisibleSource
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: "\n")
+        let quickPathOffAppGuard =
+            "                    guard inputAssistantViews.count == 1,\n" +
+                "                          inputAssistantView.exists,\n" +
+                "                          !inputAssistantView.frame.isNull,\n" +
+                "                          !inputAssistantView.frame.isEmpty,\n" +
+                "                          inputAssistantView.frame.minY\n" +
+                "                            >= applicationFrame.maxY,\n" +
+                "                          keyboardIsAbsentOrInertOffApp(in: app),\n" +
+                "                          wait(\n" +
+                "                              for: site,\n" +
+                #"                              predicate: "hasKeyboardFocus == true","# + "\n" +
+                "                              timeout: 10\n" +
+                "                          ),\n" +
+                "                          newSignRoute.exists\n" +
+                "                            == preActionNewSignRouteExists,\n" +
+                "                          validationDetailRoute.exists\n" +
+                "                            == preActionDetailRouteExists,\n" +
+                "                          (site.value as? String) == preActionSiteValue,\n" +
+                "                          (sign.value as? String) == preActionSignValue,\n" +
+                "                          error.label == preActionErrorLabel,\n" +
+                "                          (error.value as? String) == preActionErrorValue,\n" +
+                "                          app.state == .runningForeground else {"
+        XCTAssertEqual(
+            quickPathOffAppSource.components(separatedBy: quickPathOffAppGuard).count - 1,
+            1
+        )
+        for prohibitedOffAppAction in [
+            "tap(",
+            "press(",
+            "coordinate(",
+            "swipe",
+            "scroll(",
+            "typeText(",
+            "dismissKeyboard(",
+            "app.swipe",
+            "app.coordinate",
+            "Thread.sleep",
+            "Task.sleep",
+            "sleep(",
+            "tolerance",
+            "epsilon",
+            "711",
+            "880",
+            "-91",
+        ] {
+            XCTAssertFalse(
+                quickPathOffAppSource.contains(prohibitedOffAppAction),
+                prohibitedOffAppAction
+            )
+        }
+        for retainedVisibleQuickPathLock in [
+            "                let expectedKeyboardFrame = CGRect(\n" +
+                "                    x: 0,\n" +
+                "                    y: 451,\n" +
+                "                    width: 375,\n" +
+                "                    height: 216\n" +
+                "                )",
+            "                keyboard.coordinate(\n" +
+                "                    withNormalizedOffset: CGVector(\n" +
+                "                        dx: 0.5,\n" +
+                "                        dy: 0.8425925925925926\n" +
+                "                    )\n" +
+                "                ).tap()",
+            "                let expectedReturnFrame = CGRect(\n" +
+                "                    x: 281.5,\n" +
+                "                    y: 620,\n" +
+                "                    width: 93.5,\n" +
+                "                    height: 46\n" +
+                "                )",
+            "                          returnKey.elementType == .button,\n" +
+                #"                          returnKey.identifier == "Return","# + "\n" +
+                #"                          returnKey.label.lowercased() == "return","# + "\n" +
+                "                          returnKey.frame == expectedReturnFrame,\n" +
+                "                          returnKey.isHittable,",
+        ] {
+            let normalizedLock = retainedVisibleQuickPathLock
+                .components(separatedBy: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .joined(separator: "\n")
+            XCTAssertEqual(
+                normalizedQuickPathVisibleSource.components(
+                    separatedBy: normalizedLock
+                ).count - 1,
+                1,
+                retainedVisibleQuickPathLock
+            )
+        }
+        for prohibitedQuickPathForm in [
+            "711",
+            "880",
+            "-91",
+            "app.swipeUp()",
+            "app.swipeDown()",
+            "app.coordinate(",
+            "Thread.sleep",
+            "Task.sleep",
+            "sleep(",
+            "tolerance",
+            "epsilon",
+        ] {
+            XCTAssertFalse(
+                quickPathViewportToCaptureSource.contains(prohibitedQuickPathForm),
+                prohibitedQuickPathForm
+            )
+        }
         XCTAssertEqual(
             quickPathViewportToCaptureSource.components(
                 separatedBy: "returnKey.isHittable"
@@ -959,16 +1515,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         let quickPathObservedFrame =
-            "                let observedKeyboardFrame = keyboard.frame\n" +
-                "                guard observedKeyboardFrame == expectedKeyboardFrame else {"
+            "                let observedKeyboardFrame = keyboard.frame"
         XCTAssertEqual(
             quickPathViewportToCaptureSource.components(separatedBy: quickPathObservedFrame).count - 1,
             1
         )
         let quickPathFrameFailure =
-            "                    XCTFail(\"The iOS 18 keyboard frame does not match the frozen QuickPath tutorial evidence.\")\n" +
-                "                    return\n" +
-                "                }"
+            "                        XCTFail(\"The iOS 18 keyboard frame does not match the frozen QuickPath tutorial evidence.\")\n" +
+                "                        return\n" +
+                "                    }"
         XCTAssertEqual(
             quickPathViewportToCaptureSource.components(separatedBy: quickPathFrameFailure).count - 1,
             1
@@ -988,10 +1543,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let quickPathRestoredKeyboard =
             "                let restoredKeyboard = app.keyboards.firstMatch\n" +
-                "                guard returnKey.waitForExistence(timeout: 10),\n" +
-                "                      returnKey.isHittable,\n" +
-                "                      restoredKeyboard.waitForExistence(timeout: 10),\n" +
-                "                      restoredKeyboard.frame == observedKeyboardFrame,"
+                "                let expectedReturnFrame = CGRect(\n" +
+                "                    x: 281.5,\n" +
+                "                    y: 620,\n" +
+                "                    width: 93.5,\n" +
+                "                    height: 46\n" +
+                "                )"
         XCTAssertEqual(
             quickPathViewportToCaptureSource.components(
                 separatedBy: quickPathRestoredKeyboard
@@ -1018,23 +1575,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         let quickPathRestorationFailure =
-            "                    XCTFail(\"The new-sign validation state or content was not restored after dismissing the QuickPath tutorial.\")\n" +
-                "                    return\n" +
-                "                }"
+            "                        XCTFail(\"The new-sign validation state or content was not restored after dismissing the QuickPath tutorial.\")\n" +
+                "                        return\n" +
+                "                    }"
         XCTAssertEqual(
             quickPathViewportToCaptureSource.components(separatedBy: quickPathRestorationFailure).count - 1,
             1
         )
         XCTAssertEqual(
             quickPathViewportToCaptureSource.components(separatedBy: "XCTFail(").count - 1,
-            2
+            6
         )
         XCTAssertEqual(
             quickPathViewportToCaptureSource.components(separatedBy: "                    return\n").count - 1,
-            2
+            5
         )
         let quickPathCapturePrecededByRestoration =
-            quickPathRestorationFailure + "\n            }\n        }\n" + quickPathCapture
+            quickPathRestorationFailure + "\n                }\n            }\n        }\n" + quickPathCapture
         XCTAssertEqual(
             uiSource.components(separatedBy: quickPathCapturePrecededByRestoration).count - 1,
             1
