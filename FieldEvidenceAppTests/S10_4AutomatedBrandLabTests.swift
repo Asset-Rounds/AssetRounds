@@ -2788,18 +2788,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
 
-        let restoredCaptureBaselineEntry =
-            "        dismissHostedAppleIntelligenceNotificationIfPresent(\n" +
-                "            in: app,\n" +
-                "            file: file,\n" +
-                "            line: line\n" +
-                "        )\n" +
-                "        do {\n" +
-                "            let eligibleExceptions = " +
+        let restoredEligibleExceptionsBinding =
+            "            let eligibleExceptions = " +
                 "Self.contrastAuditExceptionSignatures.filter {"
         XCTAssertEqual(
             uiSource.components(
-                separatedBy: restoredCaptureBaselineEntry
+                separatedBy: restoredEligibleExceptionsBinding
             ).count - 1,
             1
         )
@@ -6730,7 +6724,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let reportCorrectionHeaderAttachmentNames = [
             "S10.4 reduce-transparency Report-correction-header diagnostic app",
             "S10.4 reduce-transparency Report-correction-header diagnostic accessibility tree",
-            "S10.4 reduce-transparency Report-correction-header diagnostic header",
+            "                headerAttachment.name =\n" +
+                #"                    "S10.4 reduce-transparency Report-correction-header diagnostic header""#,
             "S10.4 reduce-transparency Report-correction-header audit issue ",
         ]
         for name in reportCorrectionHeaderAttachmentNames {
