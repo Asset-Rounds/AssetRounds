@@ -3313,11 +3313,33 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTAssertTrue(purchase.waitForExistence(timeout: 20))
                 XCTAssertTrue(purchase.isEnabled)
                 XCTAssertTrue(purchase.isHittable)
+                let isDifferentiateStoreKitTransactionInventoryDiagnostic =
+                    automationShard?.shardID ==
+                        "s10.4.current.differentiate-without-color"
+                        && usedSettingsRetry
+                let transactionInventoryBeforeRetryTap: [String: Any]
+                if isDifferentiateStoreKitTransactionInventoryDiagnostic {
+                    transactionInventoryBeforeRetryTap =
+                        storeKitTestTransactionInventory(in: freshSession)
+                } else {
+                    transactionInventoryBeforeRetryTap = [:]
+                }
                 purchase.tap()
                 purchaseState = element("s7.2.paywall.purchase-state", in: app)
-                if automationShard?.shardID == "s10.4.current.differentiate-without-color",
-                   usedSettingsRetry {
-                    try diagnoseDifferentiateWithoutColorStoreKitRetry(
+                let transactionInventoryAfterRetryTap: [String: Any]
+                if isDifferentiateStoreKitTransactionInventoryDiagnostic {
+                    transactionInventoryAfterRetryTap =
+                        storeKitTestTransactionInventory(in: freshSession)
+                } else {
+                    transactionInventoryAfterRetryTap = [:]
+                }
+                if isDifferentiateStoreKitTransactionInventoryDiagnostic {
+                    try diagnoseDifferentiateWithoutColorStoreKitTransactionInventory(
+                        transactionInventoryBeforeRetryTap:
+                            transactionInventoryBeforeRetryTap,
+                        transactionInventoryAfterRetryTap:
+                            transactionInventoryAfterRetryTap,
+                        session: freshSession,
                         purchaseState: purchaseState,
                         store: store,
                         purchase: purchase,
@@ -4773,7 +4795,62 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func diagnoseDifferentiateWithoutColorStoreKitRetry(
+    private func storeKitTestTransactionObject(
+        _ transaction: SKTestTransaction,
+        ordinal: Int
+    ) -> [String: Any] {
+        let cancelDate: Any
+        if let value = transaction.cancelDate {
+            cancelDate = value.timeIntervalSince1970
+        } else {
+            cancelDate = NSNull()
+        }
+        let expirationDate: Any
+        if let value = transaction.expirationDate {
+            expirationDate = value.timeIntervalSince1970
+        } else {
+            expirationDate = NSNull()
+        }
+        return [
+            "ordinal": ordinal,
+            "identifier": transaction.identifier,
+            "originalTransactionIdentifier":
+                transaction.originalTransactionIdentifier,
+            "productIdentifier": transaction.productIdentifier,
+            "state": String(describing: transaction.state),
+            "stateRawValue": Int(transaction.state.rawValue),
+            "purchaseDateSecondsSince1970":
+                transaction.purchaseDate.timeIntervalSince1970,
+            "cancelDateSecondsSince1970": cancelDate,
+            "expirationDateSecondsSince1970": expirationDate,
+            "autoRenewingEnabled": transaction.autoRenewingEnabled,
+            "hasPurchaseIssue": transaction.hasPurchaseIssue,
+            "pendingAskToBuyConfirmation":
+                transaction.pendingAskToBuyConfirmation,
+        ]
+    }
+
+    @MainActor
+    private func storeKitTestTransactionInventory(
+        in session: SKTestSession
+    ) -> [String: Any] {
+        let transactions = session.allTransactions()
+        return [
+            "count": transactions.count,
+            "transactions": transactions.enumerated().map { pair in
+                storeKitTestTransactionObject(
+                    pair.element,
+                    ordinal: pair.offset
+                )
+            },
+        ]
+    }
+
+    @MainActor
+    private func diagnoseDifferentiateWithoutColorStoreKitTransactionInventory(
+        transactionInventoryBeforeRetryTap: [String: Any],
+        transactionInventoryAfterRetryTap: [String: Any],
+        session: SKTestSession,
         purchaseState: XCUIElement,
         store: XCUIElement,
         purchase: XCUIElement,
@@ -4852,7 +4929,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let startedAt = Date()
         let startSample = sampleObject()
         let attachmentPrefix =
-            "S10.4 s10.4.current.differentiate-without-color StoreKit retry diagnostic"
+            "S10.4 s10.4.current.differentiate-without-color StoreKit transaction-inventory diagnostic"
 
         let startScreenshot = XCTAttachment(screenshot: app.screenshot())
         startScreenshot.name = "\(attachmentPrefix) start app"
@@ -4866,21 +4943,20 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         let verifiedPurchaseLabel =
             "Complete: Purchase verified. Subscription access is ready."
-        let unverifiedPurchaseLabel =
-            "Purchase couldn’t be verified. Your existing data is still available. Try again."
-        let terminalExpectation = XCTNSPredicateExpectation(
+        let verifiedExpectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(
-                format: "label == %@ OR label == %@",
-                verifiedPurchaseLabel,
-                unverifiedPurchaseLabel
+                format: "label == %@",
+                verifiedPurchaseLabel
             ),
             object: purchaseState
         )
-        let waitResult = XCTWaiter.wait(
-            for: [terminalExpectation],
+        let verifiedWaitResult = XCTWaiter.wait(
+            for: [verifiedExpectation],
             timeout: 45
         )
 
+        let terminalTransactionInventory =
+            storeKitTestTransactionInventory(in: session)
         let terminalSample = sampleObject()
         let terminalScreenshot = XCTAttachment(screenshot: app.screenshot())
         terminalScreenshot.name = "\(attachmentPrefix) terminal app"
@@ -4893,22 +4969,28 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         add(terminalTree)
 
         printJSONLine(
-            prefix: "S10_4_STOREKIT_RETRY_RESULT_DIAGNOSTIC",
+            prefix: "S10_4_STOREKIT_TRANSACTION_INVENTORY_DIAGNOSTIC",
             object: [
                 "shardID": "s10.4.current.differentiate-without-color",
                 "usedSettingsRetry": true,
                 "storeKitSessionPresent": storeKitSession != nil,
-                "waitResult": String(describing: waitResult),
+                "sessionMatchesRetainedProperty": storeKitSession === session,
+                "verifiedWaitResult": String(describing: verifiedWaitResult),
                 "elapsedMilliseconds": max(
                     0,
                     Date().timeIntervalSince(startedAt) * 1_000
                 ),
                 "start": startSample,
                 "terminal": terminalSample,
+                "transactionInventories": [
+                    "beforeRetryTap": transactionInventoryBeforeRetryTap,
+                    "afterRetryTap": transactionInventoryAfterRetryTap,
+                    "terminal": terminalTransactionInventory,
+                ],
             ]
         )
         throw AutomationConfigurationError.invalid(
-            "S10.4 differentiate-without-color StoreKit retry diagnostic completed nonaccepting"
+            "S10.4 differentiate-without-color StoreKit transaction-inventory diagnostic completed nonaccepting"
         )
     }
 
