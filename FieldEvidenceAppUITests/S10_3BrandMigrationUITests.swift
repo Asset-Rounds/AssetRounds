@@ -465,7 +465,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         app.launch()
 
         completeWorkAndResolvedRecheckAtXXXL(in: app)
-        captureAlternativeCompletedCheckStates(in: app)
+        try captureAlternativeCompletedCheckStates(in: app)
         captureDifferentIssueStatesBeforeRecovery(in: app)
         app.terminate()
         app.launch()
@@ -1968,7 +1968,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func captureAlternativeCompletedCheckStates(
         in app: XCUIApplication
-    ) {
+    ) throws {
         beginFreshCheck(in: app)
         acceptImportedPhotoWithoutBaseline(
             in: app,
@@ -1989,7 +1989,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         captureBaseline("state.check-review.no-visible-issue", in: app)
         saveCheckAndReturnToSign(in: app)
 
-        purchaseBlockedEvaluationAndBeginFreshCheck(in: app)
+        try purchaseBlockedEvaluationAndBeginFreshCheck(in: app)
         acceptImportedPhotoWithoutBaseline(
             in: app,
             heading: "1 of 2 · Wide view"
@@ -2055,14 +2055,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func purchaseBlockedEvaluationAndBeginFreshCheck(
         in app: XCUIApplication
-    ) {
+    ) throws {
         let start = element("s2.sign-detail.start-check", in: app)
         scroll(start, in: app)
         assertControl(start, label: "Start Check")
         start.tap()
         XCTAssertTrue(element("s7.2.paywall.screen", in: app)
             .waitForExistence(timeout: 30))
-        let usedSettingsRetry = captureAvailablePaywallAndPurchase(in: app)
+        let usedSettingsRetry = try captureAvailablePaywallAndPurchase(in: app)
 
         let close = element("s7.2.paywall.close", in: app)
         scrollDown(close, in: app)
@@ -2797,7 +2797,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func captureAvailablePaywallAndPurchase(
         in app: XCUIApplication
-    ) -> Bool {
+    ) throws -> Bool {
         var usedSettingsRetry = false
         let productName = element("s7.2.paywall.product-name", in: app)
         let duration = element("s7.2.paywall.duration", in: app)
@@ -2930,6 +2930,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTAssertTrue(purchase.isHittable)
                 purchase.tap()
                 purchaseState = element("s7.2.paywall.purchase-state", in: app)
+                if automationShard?.shardID == "s10.4.current.differentiate-without-color",
+                   usedSettingsRetry {
+                    try diagnoseDifferentiateWithoutColorStoreKitRetry(
+                        purchaseState: purchaseState,
+                        store: store,
+                        purchase: purchase,
+                        in: app
+                    )
+                }
             }
         }
         waitForLocalizedLabel(
@@ -4514,6 +4523,146 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 timeout: timeout
             ), file: file, line: line)
         }
+    }
+
+    @MainActor
+    private func diagnoseDifferentiateWithoutColorStoreKitRetry(
+        purchaseState: XCUIElement,
+        store: XCUIElement,
+        purchase: XCUIElement,
+        in app: XCUIApplication
+    ) throws {
+        let paywallScreens = app.descendants(matching: .any).matching(
+            identifier: "s7.2.paywall.screen"
+        )
+        let stores = app.descendants(matching: .any).matching(
+            identifier: "s7.2.paywall.store"
+        )
+        let purchaseStates = app.descendants(matching: .any).matching(
+            identifier: "s7.2.paywall.purchase-state"
+        )
+        let purchaseButtons = app.buttons.matching(NSPredicate(
+            format: "label CONTAINS[c] 'Subscribe' OR label CONTAINS[c] 'Trial' OR label CONTAINS[c] '$59.99'"
+        ))
+
+        func frameObject(_ frame: CGRect) -> [String: Any] {
+            [
+                "x": Double(frame.origin.x),
+                "y": Double(frame.origin.y),
+                "width": Double(frame.size.width),
+                "height": Double(frame.size.height),
+            ]
+        }
+        func elementObject(_ element: XCUIElement) -> [String: Any] {
+            let value: Any
+            if let elementValue = element.value {
+                value = String(describing: elementValue)
+            } else {
+                value = NSNull()
+            }
+            return [
+                "identifier": element.identifier,
+                "label": element.label,
+                "value": value,
+                "elementTypeRawValue": Int(element.elementType.rawValue),
+                "frame": frameObject(element.frame),
+                "exists": element.exists,
+                "isHittable": element.isHittable,
+                "isEnabled": element.isEnabled,
+            ]
+        }
+        func queryObject(_ query: XCUIElementQuery) -> [String: Any] {
+            let count = query.count
+            return [
+                "count": count,
+                "elements": (0..<count).map { index in
+                    elementObject(query.element(boundBy: index))
+                },
+            ]
+        }
+        func sampleObject() -> [String: Any] {
+            [
+                "application": [
+                    "state": String(describing: app.state),
+                    "stateRawValue": Int(app.state.rawValue),
+                    "isRunningForeground": app.state == .runningForeground,
+                    "frame": frameObject(app.frame),
+                ],
+                "queries": [
+                    "paywallScreen": queryObject(paywallScreens),
+                    "store": queryObject(stores),
+                    "purchaseState": queryObject(purchaseStates),
+                    "purchaseButtons": queryObject(purchaseButtons),
+                ],
+                "selected": [
+                    "store": elementObject(store),
+                    "purchaseState": elementObject(purchaseState),
+                    "purchase": elementObject(purchase),
+                ],
+            ]
+        }
+
+        let startedAt = Date()
+        let startSample = sampleObject()
+        let attachmentPrefix =
+            "S10.4 s10.4.current.differentiate-without-color StoreKit retry diagnostic"
+
+        let startScreenshot = XCTAttachment(screenshot: app.screenshot())
+        startScreenshot.name = "\(attachmentPrefix) start app"
+        startScreenshot.lifetime = .keepAlways
+        add(startScreenshot)
+
+        let startTree = XCTAttachment(string: app.debugDescription)
+        startTree.name = "\(attachmentPrefix) start accessibility tree"
+        startTree.lifetime = .keepAlways
+        add(startTree)
+
+        let verifiedPurchaseLabel =
+            "Complete: Purchase verified. Subscription access is ready."
+        let unverifiedPurchaseLabel =
+            "Purchase couldn’t be verified. Your existing data is still available. Try again."
+        let terminalExpectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "label == %@ OR label == %@",
+                verifiedPurchaseLabel,
+                unverifiedPurchaseLabel
+            ),
+            object: purchaseState
+        )
+        let waitResult = XCTWaiter.wait(
+            for: [terminalExpectation],
+            timeout: 45
+        )
+
+        let terminalSample = sampleObject()
+        let terminalScreenshot = XCTAttachment(screenshot: app.screenshot())
+        terminalScreenshot.name = "\(attachmentPrefix) terminal app"
+        terminalScreenshot.lifetime = .keepAlways
+        add(terminalScreenshot)
+
+        let terminalTree = XCTAttachment(string: app.debugDescription)
+        terminalTree.name = "\(attachmentPrefix) terminal accessibility tree"
+        terminalTree.lifetime = .keepAlways
+        add(terminalTree)
+
+        printJSONLine(
+            prefix: "S10_4_STOREKIT_RETRY_RESULT_DIAGNOSTIC",
+            object: [
+                "shardID": "s10.4.current.differentiate-without-color",
+                "usedSettingsRetry": true,
+                "storeKitSessionPresent": storeKitSession != nil,
+                "waitResult": String(describing: waitResult),
+                "elapsedMilliseconds": max(
+                    0,
+                    Date().timeIntervalSince(startedAt) * 1_000
+                ),
+                "start": startSample,
+                "terminal": terminalSample,
+            ]
+        )
+        throw AutomationConfigurationError.invalid(
+            "S10.4 differentiate-without-color StoreKit retry diagnostic completed nonaccepting"
+        )
     }
 
     @MainActor
