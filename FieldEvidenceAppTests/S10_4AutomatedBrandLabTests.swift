@@ -1504,7 +1504,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            ]\n" +
                 "        )\n" +
                 "        throw AutomationConfigurationError.invalid(\n" +
-                #"            "S10.4 \(shard.shardID) minimum keyboard geometry diagnostic completed nonaccepting"# + "\n" +
+                #"            "S10.4 \(shard.shardID) minimum keyboard geometry diagnostic completed nonaccepting""# + "\n" +
                 "        )"
         XCTAssertEqual(
             minimumKeyboardDiagnosticSource.components(
@@ -1634,7 +1634,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         guard let multilineHelperStartRange = uiSource.range(of: multilineHelperStart),
               let multilineKeyboardEndRange = uiSource.range(
-                of: keyboardHelperStart,
+                of: minimumKeyboardDiagnosticStart,
                 range: multilineHelperStartRange.upperBound..<uiSource.endIndex
               ) else {
             XCTFail("Missing the dedicated multiline keyboard helper source slice")
