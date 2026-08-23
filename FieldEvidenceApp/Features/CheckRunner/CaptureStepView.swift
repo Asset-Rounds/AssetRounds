@@ -56,7 +56,6 @@ struct CaptureStepView: View {
         .modifier(
             CaptureTabBarVisibility(
                 hidesOnLegacyOS: usesImportedCaptureFixturesForUITest
-                    && (cameraStatus == .denied || cameraStatus == .restricted)
             )
         )
         .navigationBarTitleDisplayMode(.inline)

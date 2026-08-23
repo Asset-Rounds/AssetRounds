@@ -9117,8 +9117,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift"
         try assertFile(
             captureSourcePath,
-            byteCount: 17_450,
-            sha256: "DC42EDA292080E67F9CDB5EB18B081E38F367839CD944196A7AB4F53100AEE36"
+            byteCount: 17_370,
+            sha256: "B4A7FDD087CCBE4B0644EA81184209CDEADC960176D5C61CE851A5145FDA0782"
         )
         let captureSource = try text(captureSourcePath)
         let capturePrimaryOwners = [
@@ -13491,10 +13491,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let modifierSource = String(captureSource[modifierStart.lowerBound...])
 
-        let legacyPredicate =
-            "usesImportedCaptureFixturesForUITest\n" +
-                "                    && " +
-                "(cameraStatus == .denied || cameraStatus == .restricted)"
+        let legacyPredicate = "usesImportedCaptureFixturesForUITest"
         let rootModifierCall =
             "        .modifier(\n" +
                 "            CaptureTabBarVisibility(\n" +
@@ -13570,18 +13567,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (usesFixtures: Bool, status: CameraAuthorizationStatus?, hides: Bool)
         ] = [
             (false, nil, false),
+            (false, .notDetermined, false),
+            (false, .authorized, false),
             (false, .denied, false),
             (false, .restricted, false),
-            (true, nil, false),
-            (true, .notDetermined, false),
-            (true, .authorized, false),
+            (true, nil, true),
+            (true, .notDetermined, true),
+            (true, .authorized, true),
             (true, .denied, true),
             (true, .restricted, true),
         ]
         for row in legacyTruthTable {
-            let hidesOnLegacyOS =
-                row.usesFixtures
-                    && (row.status == .denied || row.status == .restricted)
+            let hidesOnLegacyOS = row.usesFixtures
             XCTAssertEqual(hidesOnLegacyOS, row.hides)
         }
 
@@ -13612,11 +13609,30 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 unconditionalLegacyModifier
             ),
             (
-                "fixture-only legacy hiding",
+                "constant true legacy hiding",
                 rootModifierCall,
                 rootModifierCall.replacingOccurrences(
                     of: legacyPredicate,
-                    with: "usesImportedCaptureFixturesForUITest"
+                    with: "true"
+                )
+            ),
+            (
+                "constant false legacy hiding",
+                rootModifierCall,
+                rootModifierCall.replacingOccurrences(
+                    of: legacyPredicate,
+                    with: "false"
+                )
+            ),
+            (
+                "stale fixture-and-status gate",
+                rootModifierCall,
+                rootModifierCall.replacingOccurrences(
+                    of: legacyPredicate,
+                    with:
+                        "usesImportedCaptureFixturesForUITest\n" +
+                        "                    && " +
+                        "(cameraStatus == .denied || cameraStatus == .restricted)"
                 )
             ),
             (
@@ -13631,8 +13647,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "disjunctive fixture gate",
                 rootModifierCall,
                 rootModifierCall.replacingOccurrences(
-                    of: "                    && ",
-                    with: "                    || "
+                    of: legacyPredicate,
+                    with:
+                        "usesImportedCaptureFixturesForUITest\n" +
+                        "                    || " +
+                        "(cameraStatus == .denied || cameraStatus == .restricted)"
                 )
             ),
             (
@@ -13641,46 +13660,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 rootModifierCall.replacingOccurrences(
                     of: "usesImportedCaptureFixturesForUITest",
                     with: "!usesImportedCaptureFixturesForUITest"
-                )
-            ),
-            (
-                "denied omitted",
-                rootModifierCall,
-                rootModifierCall.replacingOccurrences(
-                    of: "(cameraStatus == .denied || cameraStatus == .restricted)",
-                    with: "(cameraStatus == .restricted)"
-                )
-            ),
-            (
-                "restricted omitted",
-                rootModifierCall,
-                rootModifierCall.replacingOccurrences(
-                    of: "(cameraStatus == .denied || cameraStatus == .restricted)",
-                    with: "(cameraStatus == .denied)"
-                )
-            ),
-            (
-                "denied inverted",
-                rootModifierCall,
-                rootModifierCall.replacingOccurrences(
-                    of: "cameraStatus == .denied",
-                    with: "cameraStatus != .denied"
-                )
-            ),
-            (
-                "restricted inverted",
-                rootModifierCall,
-                rootModifierCall.replacingOccurrences(
-                    of: "cameraStatus == .restricted",
-                    with: "cameraStatus != .restricted"
-                )
-            ),
-            (
-                "both camera states required",
-                rootModifierCall,
-                rootModifierCall.replacingOccurrences(
-                    of: "cameraStatus == .denied || cameraStatus == .restricted",
-                    with: "cameraStatus == .denied && cameraStatus == .restricted"
                 )
             ),
         ]
