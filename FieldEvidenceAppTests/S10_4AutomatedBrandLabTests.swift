@@ -109,6 +109,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             sha256: "3F432ECAB0BE5CF3714BD76F151782B9B8DD7C949E4B11A6DB5C84B0C0605F98"
         )
         let workflowSource = try text(workflowPath)
+        let unitPath = "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift"
+        let unitSource = try text(unitPath)
         let retainStepMarker = "      - name: Retain S10.4 shard evidence\n"
         let retainBoundaryMarker =
             "      - name: Begin evidence-finalization budget\n"
@@ -8737,14 +8739,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let reportsIndexNorthUIAuthority = String(
             uiSource[
-                reportsIndexNorthUIStartRange.lowerBound
-                    ..<reportsIndexVisitUIStartRange.lowerBound
+                reportsIndexNorthUIStartRange.lowerBound ..<
+                    reportsIndexVisitUIStartRange.lowerBound
             ]
         )
         let reportsIndexVisitUIAuthority = String(
             uiSource[
-                reportsIndexVisitUIStartRange.lowerBound
-                    ..<reportsIndexVisitUIEndRange.lowerBound
+                reportsIndexVisitUIStartRange.lowerBound ..<
+                    reportsIndexVisitUIEndRange.lowerBound
             ]
         )
         let reportsIndexSignatureBlockStart =
@@ -8764,8 +8766,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let reportsIndexSignatureBlock = String(
             uiSource[
-                reportsIndexSignatureBlockStartRange.lowerBound
-                    ..<reportsIndexSignatureBlockEndRange.lowerBound
+                reportsIndexSignatureBlockStartRange.lowerBound ..<
+                    reportsIndexSignatureBlockEndRange.lowerBound
             ]
         )
         XCTAssertEqual(reportsIndexSignatureBlock.utf8.count, 2_745)
@@ -8864,16 +8866,56 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let reportsIndexNorthWorkflowAuthority = String(
             workflowSource[
-                reportsIndexNorthWorkflowStartRange.lowerBound
-                    ..<reportsIndexVisitWorkflowStartRange.lowerBound
+                reportsIndexNorthWorkflowStartRange.lowerBound ..<
+                    reportsIndexVisitWorkflowStartRange.lowerBound
             ]
         )
         let reportsIndexVisitWorkflowAuthority = String(
             workflowSource[
-                reportsIndexVisitWorkflowStartRange.lowerBound
-                    ..<reportsIndexVisitWorkflowEndRange.lowerBound
+                reportsIndexVisitWorkflowStartRange.lowerBound ..<
+                    reportsIndexVisitWorkflowEndRange.lowerBound
             ]
         )
+        let unitRangeOperator = "." + ".<"
+        let correctedUnitRangeLocks = [
+            "reportsIndexNorthUIStartRange.lowerBound " + unitRangeOperator + "\n" +
+                "                    reportsIndexVisitUIStartRange.lowerBound",
+            "reportsIndexVisitUIStartRange.lowerBound " + unitRangeOperator + "\n" +
+                "                    reportsIndexVisitUIEndRange.lowerBound",
+            "reportsIndexSignatureBlockStartRange.lowerBound " + unitRangeOperator + "\n" +
+                "                    reportsIndexSignatureBlockEndRange.lowerBound",
+            "reportsIndexNorthWorkflowStartRange.lowerBound " + unitRangeOperator + "\n" +
+                "                    reportsIndexVisitWorkflowStartRange.lowerBound",
+            "reportsIndexVisitWorkflowStartRange.lowerBound " + unitRangeOperator + "\n" +
+                "                    reportsIndexVisitWorkflowEndRange.lowerBound",
+        ]
+        let staleUnitRangeLocks = [
+            "reportsIndexNorthUIStartRange.lowerBound\n" +
+                "                    " + unitRangeOperator +
+                "reportsIndexVisitUIStartRange.lowerBound",
+            "reportsIndexVisitUIStartRange.lowerBound\n" +
+                "                    " + unitRangeOperator +
+                "reportsIndexVisitUIEndRange.lowerBound",
+            "reportsIndexSignatureBlockStartRange.lowerBound\n" +
+                "                    " + unitRangeOperator +
+                "reportsIndexSignatureBlockEndRange.lowerBound",
+            "reportsIndexNorthWorkflowStartRange.lowerBound\n" +
+                "                    " + unitRangeOperator +
+                "reportsIndexVisitWorkflowStartRange.lowerBound",
+            "reportsIndexVisitWorkflowStartRange.lowerBound\n" +
+                "                    " + unitRangeOperator +
+                "reportsIndexVisitWorkflowEndRange.lowerBound",
+        ]
+        for lock in correctedUnitRangeLocks {
+            XCTAssertEqual(unitSource.components(separatedBy: lock).count - 1, 1, lock)
+        }
+        for staleLock in staleUnitRangeLocks {
+            XCTAssertEqual(
+                unitSource.components(separatedBy: staleLock).count - 1,
+                0,
+                staleLock
+            )
+        }
         let reportsIndexNorthWorkflowLocks = [
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS""#,
             #"shardID: "s10.4.current.ax-text""#,
