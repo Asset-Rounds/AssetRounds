@@ -917,12 +917,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"                && timeZoneRow.identifier == "s2.sign-detail.time-zone""#,
             #"                && timeZoneRow.label == "Time zone, America/New_York""#,
             #"                && (timeZoneRow.value as? String) == """#,
-            "                && timeZoneRow.isHittable",
             "                && timeZoneStaticText.elementType == .staticText",
             "                && timeZoneStaticText.identifier.isEmpty",
             #"                && timeZoneStaticText.label == "America/New_York""#,
             #"                && (timeZoneStaticText.value as? String) == """#,
-            "                && timeZoneStaticText.isHittable",
             "                && timeZoneScrollView.elementType == .scrollView",
             #"                && timeZoneScrollView.identifier == "s2.sign-detail.screen""#,
             #"                && (timeZoneScrollView.value as? String) == """#,
@@ -946,10 +944,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 lock
             )
         }
+        for lock in [
+            "                && timeZoneRow.isHittable",
+            "                && timeZoneStaticText.isHittable",
+        ] {
+            XCTAssertEqual(
+                signDetailPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                2,
+                lock
+            )
+        }
         for (lock, count) in [
             (".count == 1", 6),
             (".firstMatch", 6),
-            (#"(value as? String) == """#, 6),
             ("let hasExactRoute: () -> Bool", 1),
             ("hasExactRoute()", 4),
         ] {
@@ -1173,12 +1182,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                      targetAfterDrag.minY < previousTargetMinYAfterDrag else {",
             "            previousRowMinYAfterDrag = rowAfterDrag.minY",
             "            previousTargetMinYAfterDrag = targetAfterDrag.minY",
-            "              finalRowFrame.minY >= finalSafeTop,",
-            "              finalRowFrame.maxY <= finalSafeBottom,",
-            "              finalTargetFrame.minY >= finalSafeTop,",
-            "              finalTargetFrame.maxY <= finalSafeBottom,",
-            "              timeZoneRow.isHittable,",
-            "              timeZoneStaticText.isHittable",
+            "                    && finalRowFrame.minY >= finalSafeTop",
+            "                    && finalRowFrame.maxY <= finalSafeBottom",
+            "                    && finalTargetFrame.minY >= finalSafeTop",
+            "                    && finalTargetFrame.maxY <= finalSafeBottom",
+            "                    && timeZoneRow.isHittable",
+            "                    && timeZoneStaticText.isHittable",
         ]
         for lock in signDetailProgressLocks {
             XCTAssertEqual(
@@ -4707,7 +4716,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "    ) -> Bool {"
         let reportHistoryDiagnosticPositioningEnd =
             "\n\n    @MainActor\n" +
-                "    private func completeWorkAndResolvedRecheckAtXXXL("
+                "    private func positionSignDetailTimeZoneForAXText("
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: reportHistoryDiagnosticPositioningStart
