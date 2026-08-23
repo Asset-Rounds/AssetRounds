@@ -414,8 +414,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 336_829,
-            sha256: "E403B4DDA6176502F1B4953699BC8D8525FDB41E1B98D64281F71366D77206A2"
+            byteCount: 340_210,
+            sha256: "C03880944B3CA56C0C9D2A68D0CD8B2881119E06EE76080A15CDE32584A2FE9F"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -4578,6 +4578,70 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workSavingPositioningStartRange.lowerBound..<workSavingPositioningEndRange.upperBound
             ]
         )
+        XCTAssertEqual(workSavingPositioningSource.utf8.count, 13_516)
+        XCTAssertEqual(
+            Data(workSavingPositioningSource.utf8).sha256,
+            "57E407C65C9B7A6F1550F213B8C336F8EA577D74A1A49158455B78BF26CB0D2F"
+        )
+
+        let workSavingPositioningDiagnostic =
+            "                    if workEditingAXTextEnabled {\n" +
+                "                        printJSONLine(\n" +
+                #"                            prefix: "S10_4_WORK_SAVING_POSITIONING_DIAGNOSTIC","# + "\n" +
+                "                            object: [\n" +
+                #"                                "shardID": automationShard?.shardID ?? "","# + "\n" +
+                #"                                "deviceProfileID": automationShard?.deviceProfileID ?? "","# + "\n" +
+                #"                                "stateID": "state.work.saving","# + "\n" +
+                #"                                "failure": "downward-unrecognized","# + "\n" +
+                #"                                "applicationFrame": auditFrameObject(applicationFrame),"# + "\n" +
+                #"                                "navigationFrame": auditFrameObject(navigationFrame),"# + "\n" +
+                #"                                "scrollFrame": auditFrameObject(scrollFrame),"# + "\n" +
+                #"                                "liveScrollFrame": auditFrameObject(liveScrollFrame),"# + "\n" +
+                #"                                "tabBarFrame": auditFrameObject(tabBarFrame),"# + "\n" +
+                #"                                "noteFrame": auditFrameObject(noteFrame),"# + "\n" +
+                #"                                "helperFrame": auditFrameObject(helperFrame),"# + "\n" +
+                #"                                "liveBottom": Double(liveBottom),"# + "\n" +
+                #"                                "safeTop": Double(safeTop),"# + "\n" +
+                #"                                "safeBottom": Double(safeBottom),"# + "\n" +
+                #"                                "safeHeight": Double(safeBottom - safeTop),"# + "\n" +
+                #"                                "receiverTop": Double(receiverTop),"# + "\n" +
+                #"                                "receiverBottom": Double(receiverBottom),"# + "\n" +
+                #"                                "receiverCapacity": Double(receiverCapacity),"# + "\n" +
+                #"                                "targetTop": Double(targetTop),"# + "\n" +
+                #"                                "targetBottom": Double(targetBottom),"# + "\n" +
+                #"                                "targetSpan": Double(targetBottom - targetTop),"# + "\n" +
+                #"                                "minimumShift": Double(minimumShift),"# + "\n" +
+                #"                                "maximumShift": Double(maximumShift),"# + "\n" +
+                #"                                "recognizedMinimum": Double(recognizedMinimum),"# + "\n" +
+                #"                                "recognizedMaximum": Double(recognizedMaximum),"# + "\n" +
+                #"                                "minimumGestureDistance": Double(minimumGestureDistance),"# + "\n" +
+                #"                                "minimumShiftExceedsReceiverCapacity":"# + "\n" +
+                "                                    minimumShift > receiverCapacity,\n" +
+                #"                                "maximumShiftBelowMinimumGestureDistance":"# + "\n" +
+                "                                    maximumShift < minimumGestureDistance,\n" +
+                "                            ]\n" +
+                "                        )\n" +
+                "                        let savingDiagnosticScreenshot = XCTAttachment(\n" +
+                "                            screenshot: XCUIScreen.main.screenshot()\n" +
+                "                        )\n" +
+                "                        savingDiagnosticScreenshot.name =\n" +
+                #"                            "S10.4 AX-text work-saving positioning diagnostic screenshot""# + "\n" +
+                "                        savingDiagnosticScreenshot.lifetime = .keepAlways\n" +
+                "                        add(savingDiagnosticScreenshot)\n" +
+                "                        let savingDiagnosticTree = XCTAttachment(\n" +
+                "                            string: app.debugDescription\n" +
+                "                        )\n" +
+                "                        savingDiagnosticTree.name =\n" +
+                #"                            "S10.4 AX-text work-saving positioning diagnostic tree""# + "\n" +
+                "                        savingDiagnosticTree.lifetime = .keepAlways\n" +
+                "                        add(savingDiagnosticTree)\n" +
+                "                    }\n"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingPositioningDiagnostic
+            ).count - 1,
+            1
+        )
 
         let workSavingNoteAndTabBindings =
             "        let workNoteHeadings = app.staticTexts.matching(\n" +
@@ -4759,6 +4823,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    receiverCapacity\n" +
                 "                )\n" +
                 "                guard recognizedMinimum <= recognizedMaximum else {\n" +
+                workSavingPositioningDiagnostic +
                 #"                    XCTFail("Record-work saving downward shift is not recognizable.")"# + "\n" +
                 "                    return\n" +
                 "                }\n" +
@@ -4773,6 +4838,98 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let workSavingDiagnosticTerminal =
+            workSavingPositioningDiagnostic +
+                #"                    XCTFail("Record-work saving downward shift is not recognizable.")"# + "\n" +
+                "                    return"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingDiagnosticTerminal
+            ).count - 1,
+            1
+        )
+        for (workSavingDiagnosticLock, count) in [
+            (#"prefix: "S10_4_WORK_SAVING_POSITIONING_DIAGNOSTIC""#, 1),
+            (#""shardID": automationShard?.shardID ?? """#, 1),
+            (#""deviceProfileID": automationShard?.deviceProfileID ?? """#, 1),
+            (#""stateID": "state.work.saving""#, 1),
+            (#""failure": "downward-unrecognized""#, 1),
+            ("auditFrameObject(", 7),
+            (#""applicationFrame": auditFrameObject(applicationFrame)"#, 1),
+            (#""navigationFrame": auditFrameObject(navigationFrame)"#, 1),
+            (#""scrollFrame": auditFrameObject(scrollFrame)"#, 1),
+            (#""liveScrollFrame": auditFrameObject(liveScrollFrame)"#, 1),
+            (#""tabBarFrame": auditFrameObject(tabBarFrame)"#, 1),
+            (#""noteFrame": auditFrameObject(noteFrame)"#, 1),
+            (#""helperFrame": auditFrameObject(helperFrame)"#, 1),
+            (#""liveBottom": Double(liveBottom)"#, 1),
+            (#""safeTop": Double(safeTop)"#, 1),
+            (#""safeBottom": Double(safeBottom)"#, 1),
+            (#""safeHeight": Double(safeBottom - safeTop)"#, 1),
+            (#""receiverTop": Double(receiverTop)"#, 1),
+            (#""receiverBottom": Double(receiverBottom)"#, 1),
+            (#""receiverCapacity": Double(receiverCapacity)"#, 1),
+            (#""targetTop": Double(targetTop)"#, 1),
+            (#""targetBottom": Double(targetBottom)"#, 1),
+            (#""targetSpan": Double(targetBottom - targetTop)"#, 1),
+            (#""minimumShift": Double(minimumShift)"#, 1),
+            (#""maximumShift": Double(maximumShift)"#, 1),
+            (#""recognizedMinimum": Double(recognizedMinimum)"#, 1),
+            (#""recognizedMaximum": Double(recognizedMaximum)"#, 1),
+            (#""minimumGestureDistance": Double(minimumGestureDistance)"#, 1),
+            (#""minimumShiftExceedsReceiverCapacity":"#, 1),
+            ("minimumShift > receiverCapacity", 1),
+            (#""maximumShiftBelowMinimumGestureDistance":"#, 1),
+            ("maximumShift < minimumGestureDistance", 1),
+            ("XCTAttachment(", 2),
+            ("XCUIScreen.main.screenshot()", 1),
+            ("XCTAttachment(\n                            string: app.debugDescription", 1),
+            (".lifetime = .keepAlways", 2),
+            ("add(savingDiagnostic", 2),
+        ] {
+            XCTAssertEqual(
+                workSavingPositioningDiagnostic.components(
+                    separatedBy: workSavingDiagnosticLock
+                ).count - 1,
+                count,
+                workSavingDiagnosticLock
+            )
+        }
+        for prohibitedWorkSavingDiagnosticForm in [
+            "app.descendants(",
+            ".matching(",
+            ".firstMatch",
+            "element(boundBy:",
+            ".count",
+            ".tap(",
+            "press(",
+            "coordinate(",
+            "swipe",
+            "scroll(",
+            "waitForExistence",
+            "waitForNonExistence",
+            "Thread.sleep",
+            "sleep(",
+            "performAccessibilityAudit(",
+            "captureBaseline(",
+            "attachCandidate(",
+            "emitAutomatedLabAccessibilityRowsIfNeeded",
+            "emitAutomationTaskEvidence",
+            "emitAutomationShardReceipt",
+            "eligibleExceptions",
+            "ContrastAuditExceptionSignature",
+            "throw ",
+            "return true",
+            "XCTFail(",
+            "XCTExpectFailure",
+        ] {
+            XCTAssertFalse(
+                workSavingPositioningDiagnostic.contains(
+                    prohibitedWorkSavingDiagnosticForm
+                ),
+                prohibitedWorkSavingDiagnosticForm
+            )
+        }
         XCTAssertEqual(
             workSavingPositioningSource.components(
                 separatedBy: "                CGVector(dx: 0, dy: dragDistance)"
@@ -4927,6 +5084,26 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        for (workSavingInvariant, count) in [
+            ("XCTFail(", 9),
+            ("return\n", 9),
+            ("dragStart.press(", 1),
+            ("XCTAttachment(", 2),
+            (".lifetime = .keepAlways", 2),
+            ("printJSONLine(", 1),
+            ("auditFrameObject(", 7),
+            ("automationShard", 2),
+            ("XCUIScreen.main.screenshot()", 1),
+            ("app.debugDescription", 1),
+        ] {
+            XCTAssertEqual(
+                workSavingPositioningSource.components(
+                    separatedBy: workSavingInvariant
+                ).count - 1,
+                count,
+                workSavingInvariant
+            )
+        }
 
         for (workSavingCardinalityLock, count) in [
             ("app.state == .runningForeground", 3),
@@ -4980,7 +5157,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "guard minimumShift > 0",
             "Record-work saving has no feasible downward correction.",
             "workHelper.frame.minY > helperMinYBeforeDrag",
-            "automationShard",
             "ContrastAuditExceptionSignature",
             "app.swipeUp()",
             "app.swipeDown()",
@@ -4994,8 +5170,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "epsilon",
             "tolerance",
             "performAccessibilityAudit(",
-            "XCTAttachment(",
-            "printJSONLine(",
             "attachCandidate(",
             "automationContrastExceptions",
             "automationAXTreeDigests",
@@ -5004,8 +5178,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "throw ",
             "tap(",
             "swipe",
-            "diagnostic",
-            "audit",
             #"captureBaseline("state.work.editing"#,
             #"captureBaseline("state.report-correction"#,
         ] {

@@ -4086,6 +4086,57 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     receiverCapacity
                 )
                 guard recognizedMinimum <= recognizedMaximum else {
+                    if workEditingAXTextEnabled {
+                        printJSONLine(
+                            prefix: "S10_4_WORK_SAVING_POSITIONING_DIAGNOSTIC",
+                            object: [
+                                "shardID": automationShard?.shardID ?? "",
+                                "deviceProfileID": automationShard?.deviceProfileID ?? "",
+                                "stateID": "state.work.saving",
+                                "failure": "downward-unrecognized",
+                                "applicationFrame": auditFrameObject(applicationFrame),
+                                "navigationFrame": auditFrameObject(navigationFrame),
+                                "scrollFrame": auditFrameObject(scrollFrame),
+                                "liveScrollFrame": auditFrameObject(liveScrollFrame),
+                                "tabBarFrame": auditFrameObject(tabBarFrame),
+                                "noteFrame": auditFrameObject(noteFrame),
+                                "helperFrame": auditFrameObject(helperFrame),
+                                "liveBottom": Double(liveBottom),
+                                "safeTop": Double(safeTop),
+                                "safeBottom": Double(safeBottom),
+                                "safeHeight": Double(safeBottom - safeTop),
+                                "receiverTop": Double(receiverTop),
+                                "receiverBottom": Double(receiverBottom),
+                                "receiverCapacity": Double(receiverCapacity),
+                                "targetTop": Double(targetTop),
+                                "targetBottom": Double(targetBottom),
+                                "targetSpan": Double(targetBottom - targetTop),
+                                "minimumShift": Double(minimumShift),
+                                "maximumShift": Double(maximumShift),
+                                "recognizedMinimum": Double(recognizedMinimum),
+                                "recognizedMaximum": Double(recognizedMaximum),
+                                "minimumGestureDistance": Double(minimumGestureDistance),
+                                "minimumShiftExceedsReceiverCapacity":
+                                    minimumShift > receiverCapacity,
+                                "maximumShiftBelowMinimumGestureDistance":
+                                    maximumShift < minimumGestureDistance,
+                            ]
+                        )
+                        let savingDiagnosticScreenshot = XCTAttachment(
+                            screenshot: XCUIScreen.main.screenshot()
+                        )
+                        savingDiagnosticScreenshot.name =
+                            "S10.4 AX-text work-saving positioning diagnostic screenshot"
+                        savingDiagnosticScreenshot.lifetime = .keepAlways
+                        add(savingDiagnosticScreenshot)
+                        let savingDiagnosticTree = XCTAttachment(
+                            string: app.debugDescription
+                        )
+                        savingDiagnosticTree.name =
+                            "S10.4 AX-text work-saving positioning diagnostic tree"
+                        savingDiagnosticTree.lifetime = .keepAlways
+                        add(savingDiagnosticTree)
+                    }
                     XCTFail("Record-work saving downward shift is not recognizable.")
                     return
                 }
