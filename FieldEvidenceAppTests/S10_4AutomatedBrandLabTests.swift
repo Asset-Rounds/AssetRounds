@@ -414,8 +414,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 323_322,
-            sha256: "4DC388270881F132D89B901D5F377DE255CA4BCE1C9893F6BD4345B9DCDBD600"
+            byteCount: 331_105,
+            sha256: "C150ABFC87B62FBCAE4B1332E9223C2969718DBE567E61692F0DC1349133354F"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -757,14 +757,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "    private func positionSignDetailTimeZoneForAXText(\n" +
                 "        in app: XCUIApplication\n" +
                 "    ) -> Bool {"
+        let workValidationDiagnosticHelperStart =
+            "    @MainActor\n" +
+                "    private func diagnoseAXTextWorkValidationContrast(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) throws {"
         let signDetailRouteHeadStart =
             "    @MainActor\n" + signDetailOpenIssueSignature
         let signDetailRecordWorkTap = "        recordWork.tap()"
         guard let signDetailPositioningHelperStartRange = uiSource.range(
             of: signDetailPositioningHelperStart
+        ), let workValidationDiagnosticHelperStartRange = uiSource.range(
+            of: workValidationDiagnosticHelperStart,
+            range: signDetailPositioningHelperStartRange.upperBound..<uiSource.endIndex
         ), let signDetailRouteHeadStartRange = uiSource.range(
             of: signDetailRouteHeadStart,
-            range: signDetailPositioningHelperStartRange.upperBound..<uiSource.endIndex
+            range: workValidationDiagnosticHelperStartRange.upperBound..<uiSource.endIndex
         ), let signDetailRecordWorkTapRange = uiSource.range(
             of: signDetailRecordWorkTap,
             range: signDetailRouteHeadStartRange.upperBound..<uiSource.endIndex
@@ -775,13 +783,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let signDetailPositioningHelperSource = String(
             uiSource[
                 signDetailPositioningHelperStartRange.lowerBound ..<
-                    signDetailRouteHeadStartRange.lowerBound
+                    workValidationDiagnosticHelperStartRange.lowerBound
             ]
         )
         XCTAssertEqual(signDetailPositioningHelperSource.utf8.count, 15_476)
         XCTAssertEqual(
             Data(signDetailPositioningHelperSource.utf8).sha256,
             "6FC659E4657089B4932B3AF614A1C3238179FCEFA97F863D7E58143D94ABF262"
+        )
+        let workValidationDiagnosticHelperSource = String(
+            uiSource[
+                workValidationDiagnosticHelperStartRange.lowerBound ..<
+                    signDetailRouteHeadStartRange.lowerBound
+            ]
         )
         let signDetailRouteHeadSource = String(
             uiSource[
@@ -793,6 +807,35 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(
             Data(signDetailRouteHeadSource.utf8).sha256,
             "26FFC59CB430880855552D15BFF36CA21D766F8E3A39E7F6B520AB6A1F8B8326"
+        )
+        XCTAssertEqual(workValidationDiagnosticHelperSource.utf8.count, 7_646)
+        XCTAssertEqual(
+            Data(workValidationDiagnosticHelperSource.utf8).sha256,
+            "A01AB7F16946AFBB742B5AA671B54659458530BA8368DD11F28E029C825C4310"
+        )
+        let workValidationRouteStart =
+            #"        let description = element("s5.1.work.description", in: app)"#
+        let workValidationRouteEnd = "        scroll(description, in: app)"
+        guard let workValidationRouteStartRange = uiSource.range(
+            of: workValidationRouteStart,
+            range: signDetailRecordWorkTapRange.upperBound..<uiSource.endIndex
+        ), let workValidationRouteEndRange = uiSource.range(
+            of: workValidationRouteEnd,
+            range: workValidationRouteStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded AX-text work-validation diagnostic route")
+            return
+        }
+        let workValidationRouteSource = String(
+            uiSource[
+                workValidationRouteStartRange.lowerBound ..<
+                    workValidationRouteEndRange.upperBound
+            ]
+        )
+        XCTAssertEqual(workValidationRouteSource.utf8.count, 674)
+        XCTAssertEqual(
+            Data(workValidationRouteSource.utf8).sha256,
+            "83CB0D9D09FCAF2D83F725639D40004596713F96B33B732A6F30E0F99F9FEC52"
         )
 
         let signDetailPositioningGate =
@@ -1312,7 +1355,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for removedSignDetailDiagnosticForm in [
             "S10_4_SIGN_DETAIL_OPEN_ISSUE_CONTRAST_DIAGNOSTIC",
             "S10.4 sign-detail open-issue contrast diagnostic",
-            "let diagnosticQueries: [(String, XCUIElementQuery)]",
             "let diagnosticIssueObjects:",
             "let diagnosticAuditedElements:",
             "diagnosticAuditedElementObjects",
@@ -1323,6 +1365,344 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 ).count - 1,
                 0,
                 removedSignDetailDiagnosticForm
+            )
+        }
+
+        let workValidationDiagnosticGate =
+            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
+        let workValidationDiagnosticCall =
+            "            try diagnoseAXTextWorkValidationContrast(in: app)"
+        let workValidationBaseline =
+            #"        captureBaseline("state.work.validation-error", in: app)"#
+        let workValidationCallAdjacency =
+            #"        let validation = element("s5.1.work.validation", in: app)"# +
+                "\n" +
+                "        XCTAssertTrue(validation.waitForExistence(timeout: 10))\n" +
+                #"        assertLocalizedLabel(validation, equals: "Short description")"# +
+                "\n" +
+                workValidationDiagnosticGate + "\n" +
+                workValidationDiagnosticCall + "\n" +
+                "        }\n" +
+                workValidationBaseline + "\n" +
+                workValidationRouteEnd
+        XCTAssertEqual(
+            workValidationRouteSource.components(
+                separatedBy: workValidationCallAdjacency
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: workValidationDiagnosticHelperStart
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: workValidationDiagnosticCall
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workValidationRouteSource.components(
+                separatedBy: workValidationDiagnosticGate
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workValidationRouteSource.components(
+                separatedBy: workValidationBaseline
+            ).count - 1,
+            1
+        )
+
+        let workValidationQueryLocks = [
+            "        let shortDescriptionPredicate = NSPredicate(\n" +
+                #"            format: "label == %@","# + "\n" +
+                #"            "Short description""# + "\n" +
+                "        )",
+            "        let workScreens = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s5.1.work.screen""# + "\n" +
+                "        )",
+            "        let descriptionFields = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s5.1.work.description""# + "\n" +
+                "        )",
+            "        let validationLabels = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s5.1.work.validation""# + "\n" +
+                "        )",
+            "        let shortDescriptionStaticTexts = app.staticTexts.matching(\n" +
+                "            shortDescriptionPredicate\n" +
+                "        )",
+            "        let descriptionScrollViews = app.scrollViews.containing(\n" +
+                "            .any,\n" +
+                #"            identifier: "s5.1.work.description""# + "\n" +
+                "        )",
+            "        let navigationBars = app.navigationBars.matching(\n" +
+                #"            identifier: "Record work""# + "\n" +
+                "        )",
+            "        let tabBars = app.tabBars",
+            "        let keyboards = app.keyboards",
+        ]
+        for lock in workValidationQueryLocks {
+            XCTAssertEqual(
+                workValidationDiagnosticHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        for queryTuple in [
+            #"            ("workScreens", workScreens),"#,
+            #"            ("descriptionFields", descriptionFields),"#,
+            #"            ("validationLabels", validationLabels),"#,
+            #"            ("shortDescriptionStaticTexts", shortDescriptionStaticTexts),"#,
+            #"            ("descriptionScrollViews", descriptionScrollViews),"#,
+            #"            ("navigationBars", navigationBars),"#,
+            #"            ("tabBars", tabBars),"#,
+            #"            ("keyboards", keyboards),"#,
+        ] {
+            XCTAssertEqual(
+                workValidationDiagnosticHelperSource.components(
+                    separatedBy: queryTuple
+                ).count - 1,
+                1,
+                queryTuple
+            )
+        }
+        for (queryLiteral, count) in [
+            (#"s5.1.work.screen"#, 1),
+            (#"s5.1.work.description"#, 2),
+            (#"s5.1.work.validation"#, 1),
+            (#"Short description"#, 1),
+            (#"Record work"#, 1),
+            ("app.tabBars", 1),
+            ("app.keyboards", 1),
+        ] {
+            XCTAssertEqual(
+                workValidationDiagnosticHelperSource.components(
+                    separatedBy: queryLiteral
+                ).count - 1,
+                count,
+                queryLiteral
+            )
+        }
+
+        let workValidationElementSerializerStart =
+            "        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {"
+        let workValidationQuerySerializerStart =
+            "        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {"
+        let workValidationQueryCollectionStart =
+            "        var diagnosticQueryObjects: [String: Any] = [:]"
+        guard let workValidationElementSerializerStartRange =
+            workValidationDiagnosticHelperSource.range(
+                of: workValidationElementSerializerStart
+            ), let workValidationQuerySerializerStartRange =
+                workValidationDiagnosticHelperSource.range(
+                    of: workValidationQuerySerializerStart,
+                    range: workValidationElementSerializerStartRange.upperBound ..<
+                        workValidationDiagnosticHelperSource.endIndex
+                ), let workValidationQueryCollectionStartRange =
+                workValidationDiagnosticHelperSource.range(
+                    of: workValidationQueryCollectionStart,
+                    range: workValidationQuerySerializerStartRange.upperBound ..<
+                        workValidationDiagnosticHelperSource.endIndex
+                ) else {
+            XCTFail("Missing the work-validation diagnostic serializers")
+            return
+        }
+        let workValidationElementSerializerSource = String(
+            workValidationDiagnosticHelperSource[
+                workValidationElementSerializerStartRange.lowerBound ..<
+                    workValidationQuerySerializerStartRange.lowerBound
+            ]
+        )
+        let workValidationQuerySerializerSource = String(
+            workValidationDiagnosticHelperSource[
+                workValidationQuerySerializerStartRange.lowerBound ..<
+                    workValidationQueryCollectionStartRange.lowerBound
+            ]
+        )
+        var workValidationElementFieldStart =
+            workValidationElementSerializerSource.startIndex
+        for field in [
+            #"                "exists": element.exists,"#,
+            #"                "isHittable": element.isHittable,"#,
+            #"                "identifier": element.identifier,"#,
+            #"                "label": element.label,"#,
+            #"                "value": valueObject,"#,
+            #"                "elementTypeRawValue": element.elementType.rawValue,"#,
+            #"                "elementTypeDescription": String(describing: element.elementType),"#,
+            #"                "frame": self.auditFrameObject(element.frame),"#,
+        ] {
+            guard let fieldRange = workValidationElementSerializerSource.range(
+                of: field,
+                range: workValidationElementFieldStart ..<
+                    workValidationElementSerializerSource.endIndex
+            ) else {
+                XCTFail("Missing ordered work-validation element field: \(field)")
+                return
+            }
+            workValidationElementFieldStart = fieldRange.upperBound
+        }
+        for (serializerLock, count) in [
+            ("let count = query.count", 1),
+            ("for index in 0..<count", 1),
+            ("query.element(boundBy: index)", 1),
+            (#"                "count": count,"#, 1),
+            (#"                "elements": elements,"#, 1),
+        ] {
+            XCTAssertEqual(
+                workValidationQuerySerializerSource.components(
+                    separatedBy: serializerLock
+                ).count - 1,
+                count,
+                serializerLock
+            )
+        }
+
+        for (diagnosticLock, count) in [
+            (#"prefix: "S10_4_WORK_VALIDATION_ROUTE_DIAGNOSTIC""#, 1),
+            (#"prefix: "S10_4_WORK_VALIDATION_CONTRAST_DIAGNOSTIC""#, 1),
+            (#"prefix: "S10_4_WORK_VALIDATION_CONTRAST_DIAGNOSTIC_COUNT""#, 1),
+            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 1),
+            ("observedIssueCount += 1", 1),
+            ("diagnosticAuditedElements.append(auditedElement)", 1),
+            ("return true", 1),
+            ("return false", 0),
+            ("NSNull()", 6),
+            ("XCTAttachment(", 4),
+            (".lifetime = .keepAlways", 4),
+            ("add(", 4),
+            ("screenshot: app.screenshot()", 1),
+            ("diagnosticAuditedElements.enumerated()", 1),
+            ("auditedElement.screenshot()", 1),
+            (#""observedIssueCount": observedIssueCount,"#, 1),
+            (#""auditedElementCount": diagnosticAuditedElements.count,"#, 1),
+            (#""S10.4 AX-text Record-work validation contrast diagnostic""#, 1),
+        ] {
+            XCTAssertEqual(
+                workValidationDiagnosticHelperSource.components(
+                    separatedBy: diagnosticLock
+                ).count - 1,
+                count,
+                diagnosticLock
+            )
+        }
+        for attachmentName in [
+            #"S10.4 work-validation contrast diagnostic app"#,
+            #"S10.4 work-validation contrast diagnostic tree"#,
+            #"S10.4 work-validation contrast diagnostic work-route"#,
+            #"S10.4 work-validation contrast diagnostic element \(index + 1)"#,
+        ] {
+            XCTAssertEqual(
+                workValidationDiagnosticHelperSource.components(
+                    separatedBy: attachmentName
+                ).count - 1,
+                1,
+                attachmentName
+            )
+        }
+
+        let workValidationRouteFields = [
+            #"                "shardID": automationShard?.shardID ?? "","#,
+            #"                "deviceProfileID": automationShard?.deviceProfileID ?? "","#,
+            #"                "stateID": "state.work.validation-error","#,
+            #"                "elapsedMilliseconds": diagnosticElapsedMilliseconds,"#,
+            #"                "applicationStateRawValue": app.state.rawValue,"#,
+            #"                "isRunningForeground": app.state == .runningForeground,"#,
+            #"                "applicationFrame": auditFrameObject(app.frame),"#,
+            #"                "queries": diagnosticQueryObjects,"#,
+        ]
+        let workValidationIssueFields = [
+            #"                    "shardID": automationShard?.shardID ?? "","#,
+            #"                    "deviceProfileID": automationShard?.deviceProfileID ?? "","#,
+            #"                    "stateID": "state.work.validation-error","#,
+            #"                    "ordinal": observedIssueCount,"#,
+            #"                    "auditTypeRawValue": String(issue.auditType.rawValue),"#,
+            #"                    "compactDescription": issue.compactDescription,"#,
+            #"                    "detailedDescription": issue.detailedDescription,"#,
+            #"                    "elementIdentifier": elementIdentifier,"#,
+            #"                    "elementLabel": elementLabel,"#,
+            #"                    "elementType": elementType,"#,
+            #"                    "elementFrame": elementFrame,"#,
+            #"                    "applicationFrame": auditFrameObject(app.frame),"#,
+            #"                    "auditedElement": auditedElementObject,"#,
+        ]
+        for orderedFields in [workValidationRouteFields, workValidationIssueFields] {
+            var fieldSearchStart = workValidationDiagnosticHelperSource.startIndex
+            for field in orderedFields {
+                guard let fieldRange = workValidationDiagnosticHelperSource.range(
+                    of: field,
+                    range: fieldSearchStart ..<
+                        workValidationDiagnosticHelperSource.endIndex
+                ) else {
+                    XCTFail("Missing ordered work-validation diagnostic field: \(field)")
+                    return
+                }
+                fieldSearchStart = fieldRange.upperBound
+            }
+        }
+
+        let workValidationOrderAnchors = [
+            #"prefix: "S10_4_WORK_VALIDATION_ROUTE_DIAGNOSTIC""#,
+            "let appScreenshot = XCTAttachment",
+            "try app.performAccessibilityAudit(for: .contrast) { issue in",
+            #"prefix: "S10_4_WORK_VALIDATION_CONTRAST_DIAGNOSTIC""#,
+            #"prefix: "S10_4_WORK_VALIDATION_CONTRAST_DIAGNOSTIC_COUNT""#,
+            "for (index, auditedElement) in diagnosticAuditedElements.enumerated()",
+            #""S10.4 AX-text Record-work validation contrast diagnostic""#,
+        ]
+        var workValidationOrderSearchStart =
+            workValidationDiagnosticHelperSource.startIndex
+        for anchor in workValidationOrderAnchors {
+            guard let anchorRange = workValidationDiagnosticHelperSource.range(
+                of: anchor,
+                range: workValidationOrderSearchStart ..<
+                    workValidationDiagnosticHelperSource.endIndex
+            ) else {
+                XCTFail("Missing ordered work-validation diagnostic anchor: \(anchor)")
+                return
+            }
+            workValidationOrderSearchStart = anchorRange.upperBound
+        }
+
+        for prohibitedWorkValidationDiagnosticForm in [
+            "return false",
+            "XCTFail(",
+            "XCTAssert",
+            "waitForExistence",
+            ".tap(",
+            ".swipe",
+            ".coordinate(",
+            ".press(",
+            "thenDragTo:",
+            "scroll(",
+            ".typeText(",
+            "Thread.sleep",
+            "sleep(",
+            "CGRect(",
+            ".count == 1",
+            ".firstMatch",
+            "frame ==",
+            "captureBaseline(",
+            "eligibleExceptions",
+            "ContrastAuditExceptionSignature",
+            "automationAXTreeDigests",
+            "automationContrastExceptions",
+            "S10_MIGRATION_STATE",
+            #"prefix: "S10_4_AX_STATE""#,
+            #"prefix: "S10_4_CONTRAST""#,
+            "S10.4 candidate",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+            "S10_4_AUDIT_DIAGNOSTIC",
+        ] {
+            XCTAssertFalse(
+                workValidationDiagnosticHelperSource.contains(
+                    prohibitedWorkValidationDiagnosticForm
+                ),
+                prohibitedWorkValidationDiagnosticForm
             )
         }
         let preflightReturnAbsenceDiscriminator =

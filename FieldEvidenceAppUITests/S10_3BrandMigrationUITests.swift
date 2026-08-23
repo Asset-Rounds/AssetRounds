@@ -3486,6 +3486,183 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
+    private func diagnoseAXTextWorkValidationContrast(
+        in app: XCUIApplication
+    ) throws {
+        let diagnosticStartedAt = ProcessInfo.processInfo.systemUptime
+        let shortDescriptionPredicate = NSPredicate(
+            format: "label == %@",
+            "Short description"
+        )
+        let workScreens = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.screen"
+        )
+        let descriptionFields = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.description"
+        )
+        let validationLabels = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.validation"
+        )
+        let shortDescriptionStaticTexts = app.staticTexts.matching(
+            shortDescriptionPredicate
+        )
+        let descriptionScrollViews = app.scrollViews.containing(
+            .any,
+            identifier: "s5.1.work.description"
+        )
+        let navigationBars = app.navigationBars.matching(
+            identifier: "Record work"
+        )
+        let tabBars = app.tabBars
+        let keyboards = app.keyboards
+        let diagnosticQueries: [(String, XCUIElementQuery)] = [
+            ("workScreens", workScreens),
+            ("descriptionFields", descriptionFields),
+            ("validationLabels", validationLabels),
+            ("shortDescriptionStaticTexts", shortDescriptionStaticTexts),
+            ("descriptionScrollViews", descriptionScrollViews),
+            ("navigationBars", navigationBars),
+            ("tabBars", tabBars),
+            ("keyboards", keyboards),
+        ]
+        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
+            element in
+            let valueObject: Any
+            if let value = element.value as? String {
+                valueObject = value
+            } else {
+                valueObject = NSNull()
+            }
+            return [
+                "exists": element.exists,
+                "isHittable": element.isHittable,
+                "identifier": element.identifier,
+                "label": element.label,
+                "value": valueObject,
+                "elementTypeRawValue": element.elementType.rawValue,
+                "elementTypeDescription": String(describing: element.elementType),
+                "frame": self.auditFrameObject(element.frame),
+            ]
+        }
+        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
+            query in
+            let count = query.count
+            var elements: [[String: Any]] = []
+            for index in 0..<count {
+                elements.append(
+                    diagnosticElementObject(query.element(boundBy: index))
+                )
+            }
+            return [
+                "count": count,
+                "elements": elements,
+            ]
+        }
+        var diagnosticQueryObjects: [String: Any] = [:]
+        for (name, query) in diagnosticQueries {
+            diagnosticQueryObjects[name] = diagnosticQueryObject(query)
+        }
+        let diagnosticElapsedMilliseconds = Int(
+            (ProcessInfo.processInfo.systemUptime - diagnosticStartedAt) * 1_000
+        )
+        printJSONLine(
+            prefix: "S10_4_WORK_VALIDATION_ROUTE_DIAGNOSTIC",
+            object: [
+                "shardID": automationShard?.shardID ?? "",
+                "deviceProfileID": automationShard?.deviceProfileID ?? "",
+                "stateID": "state.work.validation-error",
+                "elapsedMilliseconds": diagnosticElapsedMilliseconds,
+                "applicationStateRawValue": app.state.rawValue,
+                "isRunningForeground": app.state == .runningForeground,
+                "applicationFrame": auditFrameObject(app.frame),
+                "queries": diagnosticQueryObjects,
+            ]
+        )
+
+        let appScreenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        appScreenshot.name = "S10.4 work-validation contrast diagnostic app"
+        appScreenshot.lifetime = .keepAlways
+        add(appScreenshot)
+        let appTree = XCTAttachment(string: app.debugDescription)
+        appTree.name = "S10.4 work-validation contrast diagnostic tree"
+        appTree.lifetime = .keepAlways
+        add(appTree)
+        let workRouteScreenshot = XCTAttachment(
+            screenshot: app.screenshot()
+        )
+        workRouteScreenshot.name =
+            "S10.4 work-validation contrast diagnostic work-route"
+        workRouteScreenshot.lifetime = .keepAlways
+        add(workRouteScreenshot)
+
+        var observedIssueCount = 0
+        var diagnosticAuditedElements: [XCUIElement] = []
+        try app.performAccessibilityAudit(for: .contrast) { issue in
+            observedIssueCount += 1
+            let auditedElementObject: Any
+            let elementIdentifier: Any
+            let elementLabel: Any
+            let elementType: Any
+            let elementFrame: Any
+            if let auditedElement = issue.element {
+                diagnosticAuditedElements.append(auditedElement)
+                auditedElementObject = diagnosticElementObject(auditedElement)
+                elementIdentifier = auditedElement.identifier
+                elementLabel = auditedElement.label
+                elementType = String(describing: auditedElement.elementType)
+                elementFrame = auditFrameObject(auditedElement.frame)
+            } else {
+                auditedElementObject = NSNull()
+                elementIdentifier = NSNull()
+                elementLabel = NSNull()
+                elementType = NSNull()
+                elementFrame = NSNull()
+            }
+            printJSONLine(
+                prefix: "S10_4_WORK_VALIDATION_CONTRAST_DIAGNOSTIC",
+                object: [
+                    "shardID": automationShard?.shardID ?? "",
+                    "deviceProfileID": automationShard?.deviceProfileID ?? "",
+                    "stateID": "state.work.validation-error",
+                    "ordinal": observedIssueCount,
+                    "auditTypeRawValue": String(issue.auditType.rawValue),
+                    "compactDescription": issue.compactDescription,
+                    "detailedDescription": issue.detailedDescription,
+                    "elementIdentifier": elementIdentifier,
+                    "elementLabel": elementLabel,
+                    "elementType": elementType,
+                    "elementFrame": elementFrame,
+                    "applicationFrame": auditFrameObject(app.frame),
+                    "auditedElement": auditedElementObject,
+                ]
+            )
+            return true
+        }
+        printJSONLine(
+            prefix: "S10_4_WORK_VALIDATION_CONTRAST_DIAGNOSTIC_COUNT",
+            object: [
+                "shardID": automationShard?.shardID ?? "",
+                "deviceProfileID": automationShard?.deviceProfileID ?? "",
+                "stateID": "state.work.validation-error",
+                "observedIssueCount": observedIssueCount,
+                "auditedElementCount": diagnosticAuditedElements.count,
+            ]
+        )
+        for (index, auditedElement) in diagnosticAuditedElements.enumerated() {
+            let elementScreenshot = XCTAttachment(
+                screenshot: auditedElement.screenshot()
+            )
+            elementScreenshot.name =
+                "S10.4 work-validation contrast diagnostic element \(index + 1)"
+            elementScreenshot.lifetime = .keepAlways
+            add(elementScreenshot)
+        }
+        throw AutomationConfigurationError.invalid(
+            "S10.4 AX-text Record-work validation contrast diagnostic"
+        )
+    }
+
+    @MainActor
     private func completeWorkAndResolvedRecheckAtXXXL(
         in app: XCUIApplication
     ) throws {
@@ -3518,6 +3695,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let validation = element("s5.1.work.validation", in: app)
         XCTAssertTrue(validation.waitForExistence(timeout: 10))
         assertLocalizedLabel(validation, equals: "Short description")
+        if automationShard?.shardID == "s10.4.current.ax-text" {
+            try diagnoseAXTextWorkValidationContrast(in: app)
+        }
         captureBaseline("state.work.validation-error", in: app)
         scroll(description, in: app)
         assertMinimumGeometry(description)
