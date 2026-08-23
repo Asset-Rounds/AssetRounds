@@ -536,7 +536,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         assertLightFirstSignValidationAndCreation(in: app)
         completeVisibleIssueCheck(in: app)
         assertFirstReceiptAndReport(in: app)
-        assertReportsIndex(in: app)
+        try assertReportsIndex(in: app)
 
         app.terminate()
         app.launchArguments.removeAll {
@@ -2236,7 +2236,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func assertReportsIndex(in app: XCUIApplication) {
+    private func assertReportsIndex(in app: XCUIApplication) throws {
         let history = element("s4.4.sign-detail.report-history", in: app)
         scroll(history, in: app)
         assertControl(history, label: "Report history")
@@ -2259,8 +2259,139 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let reportsTab = element("s1.tab.reports", in: app)
         XCTAssertTrue(reportsTab.waitForExistence(timeout: 20))
         reportsTab.tap()
-        XCTAssertTrue(element("s4.4.reports.screen", in: app)
-            .waitForExistence(timeout: 30))
+        let reportsScreen = element("s4.4.reports.screen", in: app)
+        XCTAssertTrue(reportsScreen.waitForExistence(timeout: 30))
+        if automationShard?.shardID == "s10.4.current.ax-text" {
+            let northCampusPredicate = NSPredicate(
+                format: "label == %@",
+                "North Campus"
+            )
+            let diagnosticQueries: [(String, XCUIElementQuery)] = [
+                (
+                    "reportsScreens",
+                    app.descendants(matching: .any).matching(
+                        identifier: "s4.4.reports.screen"
+                    )
+                ),
+                (
+                    "northCampusStaticTexts",
+                    app.staticTexts.matching(northCampusPredicate)
+                ),
+                (
+                    "reportVisits",
+                    app.descendants(matching: .any).matching(
+                        identifier: "s4.4.reports.visit"
+                    )
+                ),
+                (
+                    "northCampusScrollViews",
+                    app.scrollViews.containing(northCampusPredicate)
+                ),
+                ("tabBars", app.tabBars),
+                ("navigationBars", app.navigationBars),
+            ]
+            let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
+                element in
+                let valueObject: Any
+                if let value = element.value as? String {
+                    valueObject = value
+                } else {
+                    valueObject = NSNull()
+                }
+                return [
+                    "exists": element.exists,
+                    "identifier": element.identifier,
+                    "label": element.label,
+                    "value": valueObject,
+                    "elementTypeRawValue": element.elementType.rawValue,
+                    "frame": self.auditFrameObject(element.frame),
+                    "isHittable": element.isHittable,
+                ]
+            }
+            let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
+                query in
+                let count = query.count
+                var elements: [[String: Any]] = []
+                for index in 0..<count {
+                    elements.append(
+                        diagnosticElementObject(query.element(boundBy: index))
+                    )
+                }
+                return [
+                    "count": count,
+                    "elements": elements,
+                ]
+            }
+            var diagnosticQueryObjects: [String: Any] = [:]
+            for (name, query) in diagnosticQueries {
+                diagnosticQueryObjects[name] = diagnosticQueryObject(query)
+            }
+
+            var diagnosticIssueObjects: [[String: Any]] = []
+            var diagnosticAuditedElements: [XCUIElement] = []
+            try app.performAccessibilityAudit(for: .contrast) { issue in
+                let elementObject: Any
+                if let auditedElement = issue.element {
+                    diagnosticAuditedElements.append(auditedElement)
+                    elementObject = diagnosticElementObject(auditedElement)
+                } else {
+                    elementObject = NSNull()
+                }
+                diagnosticIssueObjects.append([
+                    "auditTypeRawValue": String(issue.auditType.rawValue),
+                    "compactDescription": issue.compactDescription,
+                    "detailedDescription": issue.detailedDescription,
+                    "element": elementObject,
+                ])
+                return true
+            }
+            guard diagnosticIssueObjects.count == 1,
+                  diagnosticAuditedElements.count == 1,
+                  let auditedElement = diagnosticAuditedElements.first else {
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 reports-index contrast diagnostic cardinality"
+                )
+            }
+
+            let appScreenshot = XCTAttachment(screenshot: app.screenshot())
+            appScreenshot.name = "S10.4 reports-index contrast diagnostic app"
+            appScreenshot.lifetime = .keepAlways
+            add(appScreenshot)
+            let appTree = XCTAttachment(string: app.debugDescription)
+            appTree.name = "S10.4 reports-index contrast diagnostic tree"
+            appTree.lifetime = .keepAlways
+            add(appTree)
+            let reportsScreenshot = XCTAttachment(
+                screenshot: reportsScreen.screenshot()
+            )
+            reportsScreenshot.name =
+                "S10.4 reports-index contrast diagnostic reports"
+            reportsScreenshot.lifetime = .keepAlways
+            add(reportsScreenshot)
+            let elementScreenshot = XCTAttachment(
+                screenshot: auditedElement.screenshot()
+            )
+            elementScreenshot.name =
+                "S10.4 reports-index contrast diagnostic element"
+            elementScreenshot.lifetime = .keepAlways
+            add(elementScreenshot)
+
+            printJSONLine(
+                prefix: "S10_4_REPORTS_INDEX_CONTRAST_DIAGNOSTIC",
+                object: [
+                    "shardID": "s10.4.current.ax-text",
+                    "stateID": "state.reports-index.ready",
+                    "applicationStateRawValue": app.state.rawValue,
+                    "applicationFrame": auditFrameObject(app.frame),
+                    "queries": diagnosticQueryObjects,
+                    "issueCount": diagnosticIssueObjects.count,
+                    "issues": diagnosticIssueObjects,
+                ]
+            )
+            throw AutomationConfigurationError.invalid(
+                "S10.4 reports-index contrast diagnostic"
+            )
+        }
         captureBaseline("state.reports-index.ready", in: app)
 
         let signsTab = element("s1.tab.signs", in: app)

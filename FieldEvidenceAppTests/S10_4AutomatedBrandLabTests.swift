@@ -412,8 +412,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 288_233,
-            sha256: "3CED70569E69943814951BF05694ED9A6665AFC28F6CBAE6F42AF8A5F3831DB2"
+            byteCount: 293_912,
+            sha256: "F371F8A9C265297865920D035DD5727FB8B4F260C6F048B60D0D8FA3E94E33D9"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -611,6 +611,161 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 removedPreflightNavigationLookup
             )
         }
+
+        let reportsIndexStart =
+            "    private func assertReportsIndex(in app: XCUIApplication) throws {"
+        let reportsIndexEnd =
+            "\n    @MainActor\n    private func positionLowerNorthCampusForAXText("
+        guard let reportsIndexStartRange = uiSource.range(of: reportsIndexStart),
+              let reportsIndexEndRange = uiSource.range(
+                of: reportsIndexEnd,
+                range: reportsIndexStartRange.upperBound..<uiSource.endIndex
+              ) else {
+            XCTFail("Missing the reports-index source slice")
+            return
+        }
+        let reportsIndexSource = String(
+            uiSource[
+                reportsIndexStartRange.lowerBound..<reportsIndexEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(reportsIndexSource.utf8.count, 7_202)
+        XCTAssertEqual(
+            Data(reportsIndexSource.utf8).sha256,
+            "2DF0DCCFB9CB9B307449C74F896D2939C3FDA3E28306D0A4DCD245447422CE7B"
+        )
+        let reportsDiagnosticGate =
+            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
+        let reportsBaseline =
+            #"        captureBaseline("state.reports-index.ready", in: app)"#
+        guard let reportsDiagnosticStartRange = reportsIndexSource.range(
+            of: reportsDiagnosticGate,
+            options: .backwards
+        ), let reportsBaselineRange = reportsIndexSource.range(
+            of: reportsBaseline,
+            range: reportsDiagnosticStartRange.upperBound..<reportsIndexSource.endIndex
+        ) else {
+            XCTFail("Missing the reports-index diagnostic slice")
+            return
+        }
+        let reportsDiagnosticSource = String(
+            reportsIndexSource[
+                reportsDiagnosticStartRange.lowerBound..<reportsBaselineRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(reportsDiagnosticSource.utf8.count, 5_639)
+        XCTAssertEqual(
+            Data(reportsDiagnosticSource.utf8).sha256,
+            "DD542D373615491BF0E47B43084A44B0C6EF2E528C000A65809688CDDC731F3A"
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: reportsIndexStart).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: "try assertReportsIndex(in: app)").count - 1,
+            1
+        )
+        XCTAssertLessThan(
+            reportsIndexSource.distance(
+                from: reportsIndexSource.startIndex,
+                to: reportsDiagnosticStartRange.lowerBound
+            ),
+            reportsIndexSource.distance(
+                from: reportsIndexSource.startIndex,
+                to: reportsBaselineRange.lowerBound
+            )
+        )
+        let reportsQueryLocks = [
+            "reportsScreens",
+            "northCampusStaticTexts",
+            "reportVisits",
+            "northCampusScrollViews",
+            "tabBars",
+            "navigationBars",
+        ]
+        for queryName in reportsQueryLocks {
+            XCTAssertEqual(
+                reportsDiagnosticSource.components(
+                    separatedBy: "\"\(queryName)\""
+                ).count - 1,
+                1,
+                queryName
+            )
+        }
+        for (fragment, count) in [
+            (#"format: "label == %@""#, 1),
+            (#""North Campus""#, 1),
+            ("let count = query.count", 1),
+            ("for index in 0..<count", 1),
+            ("query.element(boundBy: index)", 1),
+            ("if let value = element.value as? String", 1),
+            ("valueObject = NSNull()", 1),
+            (#""exists": element.exists"#, 1),
+            (#""identifier": element.identifier"#, 1),
+            (#""label": element.label"#, 1),
+            (#""value": valueObject"#, 1),
+            (#""elementTypeRawValue": element.elementType.rawValue"#, 1),
+            (#""frame": self.auditFrameObject(element.frame)"#, 1),
+            (#""isHittable": element.isHittable"#, 1),
+            ("try app.performAccessibilityAudit(for: .contrast)", 1),
+            ("return true", 1),
+            ("diagnosticIssueObjects.count == 1", 1),
+            ("diagnosticAuditedElements.count == 1", 1),
+            (#""auditTypeRawValue": String(issue.auditType.rawValue)"#, 1),
+            (#""compactDescription": issue.compactDescription"#, 1),
+            (#""detailedDescription": issue.detailedDescription"#, 1),
+            (#""element": elementObject"#, 1),
+            (#""applicationStateRawValue": app.state.rawValue"#, 1),
+            (#""applicationFrame": auditFrameObject(app.frame)"#, 1),
+            (#"prefix: "S10_4_REPORTS_INDEX_CONTRAST_DIAGNOSTIC""#, 1),
+            (#""issueCount": diagnosticIssueObjects.count"#, 1),
+            (#""issues": diagnosticIssueObjects"#, 1),
+            ("throw AutomationConfigurationError.invalid(", 2),
+            (".lifetime = .keepAlways", 4),
+            ("add(", 4),
+        ] {
+            XCTAssertEqual(
+                reportsDiagnosticSource.components(separatedBy: fragment).count - 1,
+                count,
+                fragment
+            )
+        }
+        for attachmentName in [
+            "S10.4 reports-index contrast diagnostic app",
+            "S10.4 reports-index contrast diagnostic tree",
+            "S10.4 reports-index contrast diagnostic reports",
+            "S10.4 reports-index contrast diagnostic element",
+        ] {
+            XCTAssertEqual(
+                reportsDiagnosticSource.components(separatedBy: attachmentName).count - 1,
+                1,
+                attachmentName
+            )
+        }
+        for prohibitedReportsDiagnosticForm in [
+            "tap(", "swipe", "coordinate(", "press(", "thenDragTo:",
+            "scroll(", "waitForExistence", "sleep", "captureBaseline(",
+            "S10_4_AX_STATE", "S10_4_CONTRAST\"", "automatedEvidenceIDs",
+            "return false", "ContrastAuditExceptionSignature(",
+            "contrastAuditExceptionSignatures.append",
+        ] {
+            XCTAssertFalse(
+                reportsDiagnosticSource.contains(prohibitedReportsDiagnosticForm),
+                prohibitedReportsDiagnosticForm
+            )
+        }
+        let unchangedReportsContinuation =
+            reportsBaseline + "\n\n" +
+                #"        let signsTab = element("s1.tab.signs", in: app)"# + "\n" +
+                "        XCTAssertTrue(signsTab.waitForExistence(timeout: 20))\n" +
+                "        signsTab.tap()"
+        XCTAssertEqual(
+            reportsIndexSource.components(
+                separatedBy: unchangedReportsContinuation
+            ).count - 1,
+            1
+        )
         let preflightReturnAbsenceDiscriminator =
             #"            let returnKey = app.keyboards.buttons["Return"]"# + "\n" +
                 #"            if !returnKey.waitForExistence(timeout: 1) || !returnKey.isHittable {"#
