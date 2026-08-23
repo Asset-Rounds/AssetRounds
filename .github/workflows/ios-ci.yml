@@ -1022,6 +1022,32 @@ jobs:
                 ]
               },
               {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.work.validation-error",
+                taskID: "work_and_recheck",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION",
+                exceptionOwner: "palatis3",
+                exceptionExpiresAt: "2026-11-20",
+                exceptionRationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Short description field label whose frozen public frame intersects native Record work navigation chrome and is not hittable, while the separate identified Short description validation node is fully visible, hittable, and rendered with primaryText; the audit-owned crop confirms the issue is limited to that chrome-overlapped composition, and the exception is limited to the frozen public issue signature.",
+                ignoredAuditIssues: [
+                  {
+                    auditTypeRawValue: "1",
+                    compactDescription: "Contrast failed",
+                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+                    elementIdentifier: "",
+                    elementLabel: "Short description",
+                    elementType: "XCUIElementType(rawValue: 48)",
+                    elementFrame: {
+                      x: 30.333333333333332,
+                      y: 36.666666666666686,
+                      width: 333.66666666666663,
+                      height: 51.333333333333314
+                    },
+                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}
+                  }
+                ]
+              },
+              {
                 shardID: "s10.4.current.default-dark",
                 stateID: "state.feedback.review-ready",
                 taskID: "history_recovery",
@@ -1206,10 +1232,10 @@ jobs:
             ]
           ' > "$contrast_exception_authority_path"
           jq -e --arg today "$(date -u +%F)" '
-            length == 14
-            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 12
-            and ([.[].exceptionIssueID] | unique | length) == 14
-            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 9
+            length == 15
+            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 13
+            and ([.[].exceptionIssueID] | unique | length) == 15
+            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 10
             and ([.[]
               | select(.exceptionIssueID | IN(
                   "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER",
@@ -1229,7 +1255,7 @@ jobs:
                   "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER",
                   "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER"
                 )) | not)
-              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 8
+              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 9
             and ([.[] | {shardID, stateID, taskID, exceptionIssueID}]
               | sort_by(.shardID, .stateID, .exceptionIssueID)) == ([
               {
@@ -1267,6 +1293,12 @@ jobs:
                 stateID: "state.reports-index.ready",
                 taskID: "report_comprehension",
                 exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT"
+              },
+              {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.work.validation-error",
+                taskID: "work_and_recheck",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION"
               },
               {
                 shardID: "s10.4.current.default-light",
@@ -1444,6 +1476,8 @@ jobs:
                    and $taskID == "one_handed_start" then 3
                 elif $shardID == "s10.4.current.ax-text"
                      and $taskID == "report_comprehension" then 3
+                elif $shardID == "s10.4.current.ax-text"
+                     and $taskID == "work_and_recheck" then 1
                 elif $shardID == "s10.4.current.default-light"
                      and $taskID == "report_comprehension" then 1
                 elif $shardID == "s10.4.current.default-dark"
@@ -1465,6 +1499,8 @@ jobs:
                    and $taskID == "one_handed_start" then 2
                 elif $shardID == "s10.4.current.ax-text"
                      and $taskID == "report_comprehension" then 2
+                elif $shardID == "s10.4.current.ax-text"
+                     and $taskID == "work_and_recheck" then 1
                 elif $shardID == "s10.4.current.default-light"
                      and $taskID == "report_comprehension" then 1
                 elif $shardID == "s10.4.current.default-dark"
@@ -1542,8 +1578,8 @@ jobs:
                        or ($matchedExceptionStateIDs | length) > 1) then
                    error("reduce-transparency contrast exception bound exceeded")
                 elif $shard == "s10.4.current.ax-text"
-                     and (($matchedAuthorities | length) > 6
-                       or ($matchedExceptionStateIDs | length) > 4) then
+                     and (($matchedAuthorities | length) > 7
+                       or ($matchedExceptionStateIDs | length) > 5) then
                    error("AX-text contrast exception bound exceeded")
                  elif $shard != "s10.4.current.default-light"
                       and $shard != "s10.4.current.default-dark"
@@ -1766,6 +1802,8 @@ jobs:
                      and $stateID == "state.report-history.ready" then 1
                 elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.reports-index.ready" then 2
+                elif $shardID == "s10.4.current.ax-text"
+                     and $stateID == "state.work.validation-error" then 1
                 elif $shardID == "s10.4.current.default-light"
                      and $stateID == "state.report-correction.validation-error" then 1
                 elif $shardID == "s10.4.current.default-dark"
@@ -1857,8 +1895,8 @@ jobs:
                         ($matchedAuthorities | length) <= 1
                         and ($matchedExceptionStateIDs | length) <= 1
                       elif $shard == "s10.4.current.ax-text" then
-                        ($matchedAuthorities | length) <= 6
-                        and ($matchedExceptionStateIDs | length) <= 4
+                        ($matchedAuthorities | length) <= 7
+                        and ($matchedExceptionStateIDs | length) <= 5
                       else
                         ($matchedAuthorities | length) == 0
                         and ($matchedExceptionStateIDs | length) == 0
