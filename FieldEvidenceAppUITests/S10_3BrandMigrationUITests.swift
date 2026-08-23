@@ -1647,12 +1647,23 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             } else {
                                 preflightPositioningDirection = dragDirection
                             }
+                            let dragStartPoint = CGPoint(
+                                x: liveScrollFrame.minX + receiverInset,
+                                y: receiverBottom
+                            )
+                            guard liveScrollFrame.contains(dragStartPoint),
+                                  !zone.frame.contains(dragStartPoint) else {
+                                XCTFail(
+                                    "The minimum double-length preflight drag receiver overlaps the focused time-zone field."
+                                )
+                                return
+                            }
                             let scrollOrigin = preflightScrollView.coordinate(
                                 withNormalizedOffset: CGVector(dx: 0, dy: 0)
                             )
                             let dragStart = scrollOrigin.withOffset(
                                 CGVector(
-                                    dx: scrollFrame.width / 2,
+                                    dx: dragStartPoint.x - scrollFrame.minX,
                                     dy: receiverBottom - scrollFrame.minY
                                 )
                             )

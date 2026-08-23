@@ -414,8 +414,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 312_699,
-            sha256: "4E1E4E1653FF6555E51A1691E974845CDA2F8F21F23EA513731F43610C26A04E"
+            byteCount: 313_348,
+            sha256: "2F2DFF05485EDD830005B6EFB458D6A7AAEB0AC5EE2484F45151D92D5DAFD9AA"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -581,10 +581,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 preflightMinimumStartRange.lowerBound..<preflightQuickPathSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightMinimumSource.utf8.count, 38_776)
+        XCTAssertEqual(preflightMinimumSource.utf8.count, 39_425)
         XCTAssertEqual(
             Data(preflightMinimumSource.utf8).sha256,
-            "6AA33838F9B0A34EB9D2338EB46B06908BE0F63D573E20985B9915011821C1BA"
+            "E4EBE04661EB28102A1C3F82FAAA200C9E3DF7D7187A6DCB86599EB0DE8E454A"
         )
         for (preflightNavigationBinding, count) in [
             ("let preflightNavigationBars = app.navigationBars", 1),
@@ -1146,10 +1146,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 preflightOffAppSource.startIndex..<minimumDoubleLengthPositioningStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(minimumDoubleLengthPositioningSource.utf8.count, 15_738)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.utf8.count, 16_387)
         XCTAssertEqual(
             Data(minimumDoubleLengthPositioningSource.utf8).sha256,
-            "6B07CAA60D138C8E593B4DE19CA59E92EB418621FE6AE2D936095CFD161F1BE7"
+            "37ADC4F044ECAC6D8276071C69B8F23453D1A556351B0BAE72FC976F421AEBE0"
         )
         XCTAssertEqual(
             preflightOffAppSource.components(
@@ -1300,9 +1300,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "guard dragDirection\n" +
                 "== preflightPositioningDirection else {",
             "preflightPositioningDirection = dragDirection",
+            "let dragStartPoint = CGPoint(\n" +
+                "x: liveScrollFrame.minX + receiverInset,\n" +
+                "y: receiverBottom\n" +
+                ")",
+            "guard liveScrollFrame.contains(dragStartPoint),\n" +
+                "!zone.frame.contains(dragStartPoint) else {",
+            #""The minimum double-length preflight drag receiver overlaps the focused time-zone field.""#,
             "let scrollOrigin = preflightScrollView.coordinate(\n" +
                 "withNormalizedOffset: CGVector(dx: 0, dy: 0)\n" +
                 ")",
+            "dx: dragStartPoint.x - scrollFrame.minX",
             "dy: receiverBottom - scrollFrame.minY",
             "let dragEnd = dragStart.withOffset(\n" +
                 "CGVector(dx: 0, dy: dragDistance)\n" +
@@ -1382,6 +1390,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("keyboardIsAbsentOrInertOffApp(in: app)", 3),
             ("preflightPositioningDirection", 4),
             ("dragDirection", 3),
+            ("dragStartPoint", 4),
+            ("CGPoint(", 1),
+            ("zone.frame", 1),
             ("preflightScrollView.coordinate(", 1),
             ("dragStart.press(", 1),
             ("forDuration: 0.2", 1),
@@ -1416,6 +1427,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "497.5",
             "-521.512451171875",
             "711",
+            "scrollFrame.width / 2",
             "app.coordinate(",
             "keyboard.coordinate(",
             ".swipe",
