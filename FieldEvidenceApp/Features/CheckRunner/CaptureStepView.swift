@@ -53,7 +53,12 @@ struct CaptureStepView: View {
                 captureScroll
             }
         }
-        .modifier(CaptureTabBarVisibility())
+        .modifier(
+            CaptureTabBarVisibility(
+                hidesOnLegacyOS: usesImportedCaptureFixturesForUITest
+                    && (cameraStatus == .denied || cameraStatus == .restricted)
+            )
+        )
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -437,9 +442,13 @@ struct CaptureStepView: View {
 }
 
 private struct CaptureTabBarVisibility: ViewModifier {
+    let hidesOnLegacyOS: Bool
+
     @ViewBuilder
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
+            content.toolbar(.hidden, for: .tabBar)
+        } else if hidesOnLegacyOS {
             content.toolbar(.hidden, for: .tabBar)
         } else {
             content
