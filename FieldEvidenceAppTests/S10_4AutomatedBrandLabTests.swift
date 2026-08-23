@@ -414,8 +414,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 291_133,
-            sha256: "502C5F7C5056CADC844B1C6C2E1BA3D54CC35CDAC8C598D3E75127A6D1FBCB42"
+            byteCount: 296_960,
+            sha256: "6D9255F937CAF233075E67282AED44A065BFD06D2BCD1AB7379CAED19B0C16D4"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -678,11 +678,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "northCampusStaticTexts",
             "reportVisits",
             "northCampusScrollViews",
-            "let diagnosticQueries: [(String, XCUIElementQuery)] = [",
-            "var diagnosticQueryObjects",
-            "var diagnosticIssueObjects",
-            "var diagnosticAuditedElements",
-            "let diagnosticAuditedElementObjects",
             #"let reportsScreen = element("s4.4.reports.screen", in: app)"#,
         ] {
             XCTAssertEqual(
@@ -691,6 +686,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 ).count - 1,
                 0,
                 removedReportsIndexDiagnosticForm
+            )
+        }
+        for removedReportsIndexSerializerForm in [
+            "let diagnosticQueries: [(String, XCUIElementQuery)] = [",
+            "var diagnosticQueryObjects",
+            "var diagnosticIssueObjects",
+            "var diagnosticAuditedElements",
+            "let diagnosticAuditedElementObjects",
+        ] {
+            XCTAssertEqual(
+                reportsIndexSource.components(
+                    separatedBy: removedReportsIndexSerializerForm
+                ).count - 1,
+                0,
+                removedReportsIndexSerializerForm
             )
         }
         let residualReportsIndexDiagnosticMutation =
@@ -712,6 +722,361 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+
+        let signDetailOpenIssueCaller =
+            "        try completeWorkAndResolvedRecheckAtXXXL(in: app)"
+        let signDetailOpenIssueSignature =
+            "    private func completeWorkAndResolvedRecheckAtXXXL(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) throws {"
+        XCTAssertEqual(
+            uiSource.components(separatedBy: signDetailOpenIssueCaller).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: signDetailOpenIssueSignature).count - 1,
+            1
+        )
+        for staleNonthrowingSignDetailForm in [
+            "        completeWorkAndResolvedRecheckAtXXXL(in: app)",
+            "    private func completeWorkAndResolvedRecheckAtXXXL(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) {",
+        ] {
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: staleNonthrowingSignDetailForm
+                ).count - 1,
+                0,
+                staleNonthrowingSignDetailForm
+            )
+        }
+
+        let signDetailRouteHeadStart =
+            "    @MainActor\n" + signDetailOpenIssueSignature
+        let signDetailRecordWorkTap = "        recordWork.tap()"
+        guard let signDetailRouteHeadStartRange = uiSource.range(
+            of: signDetailRouteHeadStart
+        ), let signDetailRecordWorkTapRange = uiSource.range(
+            of: signDetailRecordWorkTap,
+            range: signDetailRouteHeadStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded sign-detail open-issue route head")
+            return
+        }
+        let signDetailRouteHeadSource = String(
+            uiSource[
+                signDetailRouteHeadStartRange.lowerBound..<signDetailRecordWorkTapRange.upperBound
+            ]
+        )
+        XCTAssertEqual(signDetailRouteHeadSource.utf8.count, 6_525)
+        XCTAssertEqual(
+            Data(signDetailRouteHeadSource.utf8).sha256,
+            "1E32DE28280CC3871A9016FF67F393096BB8EF015B0F1D31A9F54A6E89AE4609"
+        )
+
+        let signDetailDiagnosticGate =
+            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
+        let signDetailOpenIssueBaseline =
+            #"        captureBaseline("state.sign-detail.open-issue", in: app)"#
+        guard let signDetailDiagnosticStartRange = signDetailRouteHeadSource.range(
+            of: signDetailDiagnosticGate
+        ), let signDetailOpenIssueBaselineRange = signDetailRouteHeadSource.range(
+            of: signDetailOpenIssueBaseline,
+            range: signDetailDiagnosticStartRange.upperBound ..<
+                signDetailRouteHeadSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded AX-text sign-detail open-issue diagnostic")
+            return
+        }
+        let signDetailDiagnosticSource = String(
+            signDetailRouteHeadSource[
+                signDetailDiagnosticStartRange.lowerBound ..<
+                    signDetailOpenIssueBaselineRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(signDetailDiagnosticSource.utf8.count, 5_816)
+        XCTAssertEqual(
+            Data(signDetailDiagnosticSource.utf8).sha256,
+            "84F1A372319F91F375AA939AF7BE43A0E9247F444818E0FFC9BF0934F5E8C5D7"
+        )
+        XCTAssertEqual(
+            signDetailRouteHeadSource.components(
+                separatedBy: signDetailDiagnosticGate
+            ).count - 1,
+            1
+        )
+        let signDetailWaitBeforeDiagnostic =
+            #"        let signDetail = element("s2.sign-detail.screen", in: app)"# +
+                "\n" +
+                "        XCTAssertTrue(signDetail.waitForExistence(timeout: 30))\n" +
+                signDetailDiagnosticGate
+        XCTAssertEqual(
+            signDetailRouteHeadSource.components(
+                separatedBy: signDetailWaitBeforeDiagnostic
+            ).count - 1,
+            1
+        )
+
+        let signDetailDiagnosticQueryLocks = [
+            "            let timeZonePredicate = NSPredicate(\n" +
+                #"                format: "label == %@","# + "\n" +
+                #"                "America/New_York""# + "\n" +
+                "            )",
+            #"                    "signDetailScreens","#,
+            #"                        identifier: "s2.sign-detail.screen""#,
+            #"                    "timeZoneRows","#,
+            #"                        identifier: "s2.sign-detail.time-zone""#,
+            #"                    "timeZoneStaticTexts","#,
+            "                    app.staticTexts.matching(timeZonePredicate)",
+            #"                    "timeZoneScrollViews","#,
+            "                    app.scrollViews.containing(timeZonePredicate)",
+            #"                ("navigationBars", app.navigationBars),"#,
+            #"                ("tabBars", app.tabBars),"#,
+        ]
+        for lock in signDetailDiagnosticQueryLocks {
+            XCTAssertEqual(
+                signDetailDiagnosticSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        for (lock, count) in [
+            ("let diagnosticQueries: [(String, XCUIElementQuery)] = [", 1),
+            ("let diagnosticElementObject: (XCUIElement) -> [String: Any]", 1),
+            ("let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any]", 1),
+            ("let count = query.count", 1),
+            ("for index in 0..<count", 1),
+            ("query.element(boundBy: index)", 1),
+            ("for (name, query) in diagnosticQueries", 1),
+            ("diagnosticElementObject", 4),
+            ("diagnosticQueryObject", 5),
+            ("diagnosticQueryObjects", 3),
+            ("diagnosticIssueObjects", 4),
+            ("diagnosticAuditedElements", 4),
+            ("diagnosticAuditedElementObjects", 3),
+            ("NSNull()", 2),
+        ] {
+            XCTAssertEqual(
+                signDetailDiagnosticSource.components(separatedBy: lock).count - 1,
+                count,
+                lock
+            )
+        }
+        let signDetailDiagnosticElementFieldLocks = [
+            #"                    "exists": element.exists,"#,
+            #"                    "identifier": element.identifier,"#,
+            #"                    "label": element.label,"#,
+            #"                    "value": valueObject,"#,
+            #"                    "elementTypeRawValue": element.elementType.rawValue,"#,
+            #"                    "frame": self.auditFrameObject(element.frame),"#,
+            #"                    "isHittable": element.isHittable,"#,
+            "                if let value = element.value as? String {",
+            "                    valueObject = NSNull()",
+        ]
+        for lock in signDetailDiagnosticElementFieldLocks {
+            XCTAssertEqual(
+                signDetailDiagnosticSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+
+        let signDetailDiagnosticIssueLocks = [
+            "            try app.performAccessibilityAudit(for: .contrast) { issue in",
+            "                if let auditedElement = issue.element {",
+            "                    diagnosticAuditedElements.append(auditedElement)",
+            "                    elementObject = diagnosticElementObject(auditedElement)",
+            "                diagnosticIssueObjects.append([",
+            #"                    "auditTypeRawValue": String(issue.auditType.rawValue),"#,
+            #"                    "compactDescription": issue.compactDescription,"#,
+            #"                    "detailedDescription": issue.detailedDescription,"#,
+            #"                    "element": elementObject,"#,
+            "                return true",
+            "            let diagnosticAuditedElementObjects = diagnosticAuditedElements.map(\n" +
+                "                diagnosticElementObject\n" +
+                "            )",
+        ]
+        for lock in signDetailDiagnosticIssueLocks {
+            XCTAssertEqual(
+                signDetailDiagnosticSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        let signDetailDiagnosticJSONLocks = [
+            #"prefix: "S10_4_SIGN_DETAIL_OPEN_ISSUE_CONTRAST_DIAGNOSTIC""#,
+            #"                    "shardID": "s10.4.current.ax-text","#,
+            #"                    "stateID": "state.sign-detail.open-issue","#,
+            #"                    "applicationStateRawValue": app.state.rawValue,"#,
+            #"                    "applicationFrame": auditFrameObject(app.frame),"#,
+            #"                    "queries": diagnosticQueryObjects,"#,
+            #"                    "issueCount": diagnosticIssueObjects.count,"#,
+            #"                    "issues": diagnosticIssueObjects,"#,
+            #"                    "auditedElementCount": diagnosticAuditedElementObjects.count,"#,
+            #"                    "auditedElements": diagnosticAuditedElementObjects,"#,
+        ]
+        for lock in signDetailDiagnosticJSONLocks {
+            XCTAssertEqual(
+                signDetailDiagnosticSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+
+        let signDetailDiagnosticAttachmentLocks = [
+            "            let appScreenshot = XCTAttachment(screenshot: app.screenshot())",
+            #"                "S10.4 sign-detail open-issue contrast diagnostic app""#,
+            "            let appTree = XCTAttachment(string: app.debugDescription)",
+            #"                "S10.4 sign-detail open-issue contrast diagnostic tree""#,
+            "            let signDetailScreenshot = XCTAttachment(\n" +
+                "                screenshot: signDetail.screenshot()\n" +
+                "            )",
+            #"                "S10.4 sign-detail open-issue contrast diagnostic sign-detail""#,
+            "            for (index, auditedElement) in diagnosticAuditedElements.enumerated() {",
+            "                let elementScreenshot = XCTAttachment(\n" +
+                "                    screenshot: auditedElement.screenshot()\n" +
+                "                )",
+            #"                    "S10.4 sign-detail open-issue contrast diagnostic element \(index + 1)""#,
+        ]
+        for lock in signDetailDiagnosticAttachmentLocks {
+            XCTAssertEqual(
+                signDetailDiagnosticSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        for (lock, count) in [
+            ("XCTAttachment(", 4),
+            (".lifetime = .keepAlways", 4),
+            ("add(", 4),
+            ("printJSONLine(", 1),
+            ("performAccessibilityAudit(for: .contrast)", 1),
+            ("return true", 1),
+            ("throw AutomationConfigurationError.invalid(", 1),
+        ] {
+            XCTAssertEqual(
+                signDetailDiagnosticSource.components(separatedBy: lock).count - 1,
+                count,
+                lock
+            )
+        }
+
+        let signDetailDiagnosticJSON =
+            #"prefix: "S10_4_SIGN_DETAIL_OPEN_ISSUE_CONTRAST_DIAGNOSTIC""#
+        let signDetailDiagnosticFirstAttachment =
+            "let appScreenshot = XCTAttachment(screenshot: app.screenshot())"
+        let signDetailDiagnosticTreeAttachment =
+            "let appTree = XCTAttachment(string: app.debugDescription)"
+        let signDetailDiagnosticRouteAttachment =
+            "let signDetailScreenshot = XCTAttachment("
+        let signDetailDiagnosticElementAttachmentLoop =
+            "for (index, auditedElement) in diagnosticAuditedElements.enumerated()"
+        let signDetailDiagnosticTerminal =
+            "            throw AutomationConfigurationError.invalid(\n" +
+                #"                "S10.4 sign-detail open-issue contrast diagnostic""# +
+                "\n            )"
+        guard let signDetailDiagnosticAuditRange = signDetailDiagnosticSource.range(
+            of: "try app.performAccessibilityAudit(for: .contrast)"
+        ), let signDetailDiagnosticJSONRange = signDetailDiagnosticSource.range(
+            of: signDetailDiagnosticJSON
+        ), let signDetailDiagnosticFirstAttachmentRange = signDetailDiagnosticSource.range(
+            of: signDetailDiagnosticFirstAttachment
+        ), let signDetailDiagnosticTreeAttachmentRange = signDetailDiagnosticSource.range(
+            of: signDetailDiagnosticTreeAttachment
+        ), let signDetailDiagnosticRouteAttachmentRange = signDetailDiagnosticSource.range(
+            of: signDetailDiagnosticRouteAttachment
+        ), let signDetailDiagnosticElementAttachmentLoopRange =
+            signDetailDiagnosticSource.range(
+                of: signDetailDiagnosticElementAttachmentLoop
+            ), let signDetailDiagnosticTerminalRange = signDetailDiagnosticSource.range(
+                of: signDetailDiagnosticTerminal
+            ) else {
+            XCTFail("Missing sign-detail diagnostic emission ordering")
+            return
+        }
+        XCTAssertLessThan(
+            signDetailDiagnosticAuditRange.lowerBound,
+            signDetailDiagnosticJSONRange.lowerBound
+        )
+        XCTAssertLessThan(
+            signDetailDiagnosticJSONRange.lowerBound,
+            signDetailDiagnosticFirstAttachmentRange.lowerBound
+        )
+        XCTAssertLessThan(
+            signDetailDiagnosticFirstAttachmentRange.lowerBound,
+            signDetailDiagnosticTreeAttachmentRange.lowerBound
+        )
+        XCTAssertLessThan(
+            signDetailDiagnosticTreeAttachmentRange.lowerBound,
+            signDetailDiagnosticRouteAttachmentRange.lowerBound
+        )
+        XCTAssertLessThan(
+            signDetailDiagnosticRouteAttachmentRange.lowerBound,
+            signDetailDiagnosticElementAttachmentLoopRange.lowerBound
+        )
+        XCTAssertLessThan(
+            signDetailDiagnosticElementAttachmentLoopRange.lowerBound,
+            signDetailDiagnosticTerminalRange.lowerBound
+        )
+        let signDetailDiagnosticTerminalBeforeContinuation =
+            signDetailDiagnosticTerminal + "\n        }\n" +
+                signDetailOpenIssueBaseline + "\n\n" +
+                #"        let recordWork = element("s5.1.sign-detail.record-work", in: app)"# +
+                "\n        scroll(recordWork, in: app)\n" +
+                #"        assertControl(recordWork, label: "Record work")"# +
+                "\n" + signDetailRecordWorkTap
+        XCTAssertEqual(
+            signDetailRouteHeadSource.components(
+                separatedBy: signDetailDiagnosticTerminalBeforeContinuation
+            ).count - 1,
+            1
+        )
+
+        for prohibitedSignDetailDiagnosticForm in [
+            ".tap(",
+            ".swipe",
+            ".coordinate(",
+            ".press(",
+            "thenDragTo:",
+            ".typeText(",
+            "scroll(",
+            "waitForExistence",
+            "Thread.sleep",
+            "sleep(",
+            "return false",
+            "captureBaseline(",
+            "guard diagnosticIssueObjects",
+            "guard diagnosticAuditedElements",
+            "diagnosticIssueObjects.first",
+            "diagnosticAuditedElements.first",
+            ".first",
+            "count ==",
+            "Set(",
+            "Dictionary(",
+            ".filter(",
+            ".sorted(",
+            ".reduce(",
+            "deduplic",
+            "suppress",
+            "matchingExceptions",
+            "ContrastAuditExceptionSignature",
+            "contrastAuditExceptionSignatures",
+            "automationContrastExceptions",
+            "automationAXTreeDigests",
+            "automatedEvidenceIDs",
+            "attachCandidate(",
+            #"prefix: "S10_4_AX_STATE""#,
+            #"prefix: "S10_4_CONTRAST""#,
+            "S10_4_CANDIDATE",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+        ] {
+            XCTAssertFalse(
+                signDetailDiagnosticSource.contains(prohibitedSignDetailDiagnosticForm),
+                prohibitedSignDetailDiagnosticForm
+            )
+        }
         let preflightReturnAbsenceDiscriminator =
             #"            let returnKey = app.keyboards.buttons["Return"]"# + "\n" +
                 #"            if !returnKey.waitForExistence(timeout: 1) || !returnKey.isHittable {"#
