@@ -3597,7 +3597,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         var observedIssueCount = 0
         var diagnosticAuditedElements: [XCUIElement] = []
-        try app.performAccessibilityAudit(for: .contrast) { issue in
+        try app.performAccessibilityAudit(for: .contrast) { [self] issue in
             observedIssueCount += 1
             let auditedElementObject: Any
             let elementIdentifier: Any

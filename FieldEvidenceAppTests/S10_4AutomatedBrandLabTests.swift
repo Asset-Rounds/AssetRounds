@@ -414,8 +414,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 331_105,
-            sha256: "C150ABFC87B62FBCAE4B1332E9223C2969718DBE567E61692F0DC1349133354F"
+            byteCount: 331_112,
+            sha256: "3E36388AD2AEFFAF6E666EF52A96D864AC9E86566950044752B856F7F2AF1E2B"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -808,10 +808,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(signDetailRouteHeadSource.utf8).sha256,
             "26FFC59CB430880855552D15BFF36CA21D766F8E3A39E7F6B520AB6A1F8B8326"
         )
-        XCTAssertEqual(workValidationDiagnosticHelperSource.utf8.count, 7_646)
+        XCTAssertEqual(workValidationDiagnosticHelperSource.utf8.count, 7_653)
         XCTAssertEqual(
             Data(workValidationDiagnosticHelperSource.utf8).sha256,
-            "A01AB7F16946AFBB742B5AA671B54659458530BA8368DD11F28E029C825C4310"
+            "1E2823F5C2D1EA9C2880ADE78669B624698198692B5F456CD003F1E34075DA86"
         )
         let workValidationRouteStart =
             #"        let description = element("s5.1.work.description", in: app)"#
@@ -1565,7 +1565,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (#"prefix: "S10_4_WORK_VALIDATION_ROUTE_DIAGNOSTIC""#, 1),
             (#"prefix: "S10_4_WORK_VALIDATION_CONTRAST_DIAGNOSTIC""#, 1),
             (#"prefix: "S10_4_WORK_VALIDATION_CONTRAST_DIAGNOSTIC_COUNT""#, 1),
-            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 1),
+            ("try app.performAccessibilityAudit(for: .contrast) { [self] issue in", 1),
+            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 0),
             ("observedIssueCount += 1", 1),
             ("diagnosticAuditedElements.append(auditedElement)", 1),
             ("return true", 1),
@@ -1647,7 +1648,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workValidationOrderAnchors = [
             #"prefix: "S10_4_WORK_VALIDATION_ROUTE_DIAGNOSTIC""#,
             "let appScreenshot = XCTAttachment",
-            "try app.performAccessibilityAudit(for: .contrast) { issue in",
+            "try app.performAccessibilityAudit(for: .contrast) { [self] issue in",
             #"prefix: "S10_4_WORK_VALIDATION_CONTRAST_DIAGNOSTIC""#,
             #"prefix: "S10_4_WORK_VALIDATION_CONTRAST_DIAGNOSTIC_COUNT""#,
             "for (index, auditedElement) in diagnosticAuditedElements.enumerated()",
