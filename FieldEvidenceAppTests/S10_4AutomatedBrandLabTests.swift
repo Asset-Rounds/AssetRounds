@@ -414,8 +414,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 325_014,
-            sha256: "DD59863F20069358C29C2F9A60BBB703260F3CF8DAADC614C1B1BB04ADE5797F"
+            byteCount: 342_206,
+            sha256: "50D2F6D4CE876F7907CCB539882090AAA3BEF234346EBA9325F0DE2CAA60D25D"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -3848,7 +3848,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let workEditingDirectGesture =
+        let workEditingDirectGestureSetup =
             "            let scrollOrigin = workScrollView.coordinate(\n" +
                 "                withNormalizedOffset: CGVector(dx: 0, dy: 0)\n" +
                 "            )\n" +
@@ -3861,8 +3861,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            let dragEnd = dragStart.withOffset(\n" +
                 "                CGVector(dx: 0, dy: dragDistance)\n" +
                 "            )\n" +
-                "            let helperMinYBeforeDrag = helperFrame.minY\n" +
-                "            dragStart.press(\n" +
+                "            let helperMinYBeforeDrag = helperFrame.minY"
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingDirectGestureSetup
+            ).count - 1,
+            1
+        )
+        let workEditingDirectGestureDelivery =
+            "            dragStart.press(\n" +
                 "                forDuration: 0.2,\n" +
                 "                thenDragTo: dragEnd,\n" +
                 "                withVelocity: .slow,\n" +
@@ -3870,7 +3877,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            )"
         XCTAssertEqual(
             workEditingPositioningSource.components(
-                separatedBy: workEditingDirectGesture
+                separatedBy: workEditingDirectGestureDelivery
             ).count - 1,
             1
         )
@@ -3930,15 +3937,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         for (workEditingCardinalityLock, count) in [
-            ("workHelperTexts.count == 1", 4),
-            ("workScrollViews.count == 1", 4),
-            ("workNavigationBars.count == 1", 4),
-            ("workHelper.exists", 4),
-            ("workScrollView.exists", 3),
-            ("workNavigationBar.exists", 3),
-            ("workPreview.exists", 2),
-            ("workPreview.isHittable", 1),
-            ("app.state == .runningForeground", 2),
+            ("workHelperTexts.count == 1", 5),
+            ("workScrollViews.count == 1", 5),
+            ("workNavigationBars.count == 1", 5),
+            ("workHelper.exists", 5),
+            ("workScrollView.exists", 4),
+            ("workNavigationBar.exists", 4),
+            ("workPreview.exists", 3),
+            ("workPreview.isHittable", 2),
+            ("app.state == .runningForeground", 4),
             ("workScrollView.coordinate(", 1),
             ("dragStart.press(", 1),
             ("forDuration: 0.2", 1),
@@ -3951,6 +3958,346 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 ).count - 1,
                 count,
                 workEditingCardinalityLock
+            )
+        }
+        XCTAssertEqual(
+            workEditingPositioningSource.components(separatedBy: "XCTFail(").count - 1,
+            7
+        )
+        XCTAssertEqual(
+            workEditingPositioningSource.components(separatedBy: "return\n").count - 1,
+            7
+        )
+
+        let workEditingDiagnosticGate =
+            "        let workEditingDiagnosticEnabled =\n" +
+                "            automationShard?.shardID == \"s10.4.current.ax-text\""
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingDiagnosticGate
+            ).count - 1,
+            1
+        )
+        let workEditingDiagnosticQueryMap =
+            "        let workEditingDiagnosticQueries: [(String, XCUIElementQuery)] = [\n" +
+                "            (\"workScreens\", workEditingDiagnosticWorkScreens),\n" +
+                "            (\"helperTexts\", workHelperTexts),\n" +
+                "            (\"previewElements\", workEditingDiagnosticPreviewElements),\n" +
+                "            (\"scrollViews\", workScrollViews),\n" +
+                "            (\"navigationBars\", workNavigationBars),\n" +
+                "            (\"tabBars\", workEditingDiagnosticTabBars),\n" +
+                "        ]"
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingDiagnosticQueryMap
+            ).count - 1,
+            1
+        )
+        for workEditingDiagnosticQueryDeclaration in [
+            "        let workEditingDiagnosticWorkScreens = " +
+                "app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s5.1.work.screen""# + "\n" +
+                "        )",
+            "        let workEditingDiagnosticPreviewElements = " +
+                "app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s5.1.work.photo""# + "\n" +
+                "        )",
+            "        let workEditingDiagnosticTabBars = app.tabBars",
+        ] {
+            XCTAssertEqual(
+                workEditingPositioningSource.components(
+                    separatedBy: workEditingDiagnosticQueryDeclaration
+                ).count - 1,
+                1,
+                workEditingDiagnosticQueryDeclaration
+            )
+        }
+        for (workEditingDiagnosticQueryLock, count) in [
+            (#"identifier: "s5.1.work.screen""#, 1),
+            (#"identifier: "s5.1.work.photo""#, 2),
+            ("let workEditingDiagnosticTabBars = app.tabBars", 1),
+            ("let count = query.count", 1),
+            ("for index in 0..<count {", 1),
+            ("query.element(boundBy: index)", 1),
+            (#""count": count"#, 1),
+            (#""elements": elements"#, 1),
+        ] {
+            XCTAssertEqual(
+                workEditingPositioningSource.components(
+                    separatedBy: workEditingDiagnosticQueryLock
+                ).count - 1,
+                count,
+                workEditingDiagnosticQueryLock
+            )
+        }
+        for workEditingDiagnosticPublicFieldLock in [
+            #""exists": element.exists"#,
+            #""isHittable": element.isHittable"#,
+            #""identifier": element.identifier"#,
+            #""label": element.label"#,
+            #""value": ((element.value as? String) as Any?) ?? NSNull()"#,
+            #""elementTypeRawValue": element.elementType.rawValue"#,
+            #""elementTypeDescription": String(describing: element.elementType)"#,
+            #""frame": workEditingDiagnosticFrameObject(element.frame)"#,
+            "frame.origin.x.isFinite",
+            "frame.origin.y.isFinite",
+            "frame.size.width.isFinite",
+            "frame.size.height.isFinite",
+            "? auditFrameObject(frame) as Any",
+            ": NSNull()",
+        ] {
+            XCTAssertEqual(
+                workEditingPositioningSource.components(
+                    separatedBy: workEditingDiagnosticPublicFieldLock
+                ).count - 1,
+                1,
+                workEditingDiagnosticPublicFieldLock
+            )
+        }
+        for (workEditingDiagnosticEnvelopeLock, count) in [
+            (#""shardID": automationShard?.shardID ?? """#, 2),
+            (#""deviceProfileID": automationShard?.deviceProfileID ?? """#, 2),
+            (#""stateID": "state.work.editing""#, 2),
+            (#""phase": phase"#, 1),
+            (#""sampleOrdinal": workEditingDiagnosticSampleCount"#, 1),
+            (#""attemptOrdinal": attemptOrdinalObject"#, 1),
+            (#""elapsedMilliseconds": elapsedMilliseconds"#, 1),
+            (#""applicationStateRawValue": app.state.rawValue"#, 1),
+            (#""isRunningForeground": app.state == .runningForeground"#, 1),
+            (#""applicationFrame": workEditingDiagnosticFrameObject(app.frame)"#, 1),
+            (#""queries": queryObjects"#, 1),
+            (#""details": details"#, 1),
+        ] {
+            XCTAssertEqual(
+                workEditingPositioningSource.components(
+                    separatedBy: workEditingDiagnosticEnvelopeLock
+                ).count - 1,
+                count,
+                workEditingDiagnosticEnvelopeLock
+            )
+        }
+        for (workEditingDiagnosticTelemetryLock, count) in [
+            (#""requestedDistance""#, 2),
+            (#""observedHelperDistance""#, 1),
+            (#""observedPreviewDistance""#, 1),
+            (#""safeTop""#, 2),
+            (#""safeBottom""#, 2),
+            (#""receiverTop""#, 1),
+            (#""receiverBottom""#, 1),
+            (#""minimumShift""#, 1),
+            (#""maximumShift""#, 1),
+            (#""receiverCapacity""#, 1),
+            (#""recognizedMinimum""#, 1),
+            (#""recognizedMaximum""#, 1),
+            (#""predicates""#, 1),
+            (#""helperIsHittable""#, 1),
+            (#""previewIsHittable""#, 1),
+            (#""previewContainedInApplication""#, 1),
+            (#""previewContainedInLiveScroll""#, 1),
+            (#""previewContainedInSafeBand""#, 1),
+            (#""previewIntersectsNavigation""#, 1),
+            (#""previewIntersectsTabBar""#, 1),
+        ] {
+            XCTAssertEqual(
+                workEditingPositioningSource.components(
+                    separatedBy: workEditingDiagnosticTelemetryLock
+                ).count - 1,
+                count,
+                workEditingDiagnosticTelemetryLock
+            )
+        }
+        for workEditingFinalPredicateLock in [
+            #""applicationRunningForeground""#,
+            #""helperTextCountIsOne""#,
+            #""scrollViewCountIsOne""#,
+            #""navigationBarCountIsOne""#,
+            #""tabBarCountIsOne""#,
+            #""helperExists""#,
+            #""scrollViewExists""#,
+            #""navigationBarExists""#,
+            #""previewExists""#,
+            #""tabBarExists""#,
+            #""applicationFrameIsValid""#,
+            #""navigationFrameIsValid""#,
+            #""scrollFrameIsValid""#,
+            #""helperFrameIsValid""#,
+            #""previewFrameIsValid""#,
+            #""tabBarFrameIsValid""#,
+            #""helperAboveSafeTop""#,
+            #""helperBelowSafeBottom""#,
+            #""previewContainedInApplication""#,
+            #""previewContainedInLiveScroll""#,
+            #""previewContainedInSafeBand""#,
+            #""previewIntersectsNavigation""#,
+            #""previewIntersectsTabBar""#,
+        ] {
+            XCTAssertTrue(
+                workEditingPositioningSource.contains(workEditingFinalPredicateLock),
+                workEditingFinalPredicateLock
+            )
+        }
+        let workEditingDiagnosticInitial =
+            "            emitWorkEditingPositioningDiagnostic(\n" +
+                "                \"initial\","
+        let workEditingDiagnosticBeforeGesture =
+            "                emitWorkEditingPositioningDiagnostic(\n" +
+                "                    \"beforeGesture\","
+        let workEditingDiagnosticPress = "            dragStart.press("
+        let workEditingDiagnosticAfterGesture =
+            "                emitWorkEditingPositioningDiagnostic(\n" +
+                "                    \"afterGesture\","
+        let workEditingDiagnosticFinal =
+            "            emitWorkEditingPositioningDiagnostic(\n" +
+                "                \"final\","
+        let workEditingDiagnosticCount =
+            #"                prefix: "S10_4_WORK_EDITING_POSITIONING_DIAGNOSTIC_COUNT""#
+        let workEditingDiagnosticTerminalAttachment =
+            "            let terminalScreenshot = XCTAttachment("
+        let workEditingDiagnosticThrow =
+            #"                "S10.4 AX-text Record-work editing positioning diagnostic""#
+        for workEditingDiagnosticPhaseLock in [
+            workEditingDiagnosticInitial,
+            workEditingDiagnosticBeforeGesture,
+            workEditingDiagnosticAfterGesture,
+            workEditingDiagnosticFinal,
+        ] {
+            XCTAssertEqual(
+                workEditingPositioningSource.components(
+                    separatedBy: workEditingDiagnosticPhaseLock
+                ).count - 1,
+                1,
+                workEditingDiagnosticPhaseLock
+            )
+        }
+        guard let workEditingDiagnosticInitialRange = workEditingPositioningSource.range(
+            of: workEditingDiagnosticInitial
+        ), let workEditingDiagnosticBeforeGestureRange = workEditingPositioningSource.range(
+            of: workEditingDiagnosticBeforeGesture,
+            range: workEditingDiagnosticInitialRange.upperBound..<workEditingPositioningSource.endIndex
+        ), let workEditingDiagnosticPressRange = workEditingPositioningSource.range(
+            of: workEditingDiagnosticPress,
+            range: workEditingDiagnosticBeforeGestureRange.upperBound..<workEditingPositioningSource.endIndex
+        ), let workEditingDiagnosticAfterGestureRange = workEditingPositioningSource.range(
+            of: workEditingDiagnosticAfterGesture,
+            range: workEditingDiagnosticPressRange.upperBound..<workEditingPositioningSource.endIndex
+        ), let workEditingDiagnosticFinalRange = workEditingPositioningSource.range(
+            of: workEditingDiagnosticFinal,
+            range: workEditingDiagnosticAfterGestureRange.upperBound..<workEditingPositioningSource.endIndex
+        ), let workEditingDiagnosticCountRange = workEditingPositioningSource.range(
+            of: workEditingDiagnosticCount,
+            range: workEditingDiagnosticFinalRange.upperBound..<workEditingPositioningSource.endIndex
+        ), let workEditingDiagnosticTerminalAttachmentRange =
+            workEditingPositioningSource.range(
+                of: workEditingDiagnosticTerminalAttachment,
+                range: workEditingDiagnosticCountRange.upperBound..<workEditingPositioningSource.endIndex
+            ), let workEditingDiagnosticThrowRange = workEditingPositioningSource.range(
+                of: workEditingDiagnosticThrow,
+                range: workEditingDiagnosticTerminalAttachmentRange.upperBound..<workEditingPositioningSource.endIndex
+            ) else {
+            XCTFail("Missing ordered Record-work editing diagnostic telemetry")
+            return
+        }
+        XCTAssertLessThan(
+            workEditingDiagnosticInitialRange.lowerBound,
+            workEditingDiagnosticBeforeGestureRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workEditingDiagnosticBeforeGestureRange.lowerBound,
+            workEditingDiagnosticPressRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workEditingDiagnosticPressRange.lowerBound,
+            workEditingDiagnosticAfterGestureRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workEditingDiagnosticAfterGestureRange.lowerBound,
+            workEditingDiagnosticFinalRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workEditingDiagnosticFinalRange.lowerBound,
+            workEditingDiagnosticCountRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workEditingDiagnosticCountRange.lowerBound,
+            workEditingDiagnosticTerminalAttachmentRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workEditingDiagnosticTerminalAttachmentRange.lowerBound,
+            workEditingDiagnosticThrowRange.lowerBound
+        )
+        for (workEditingDiagnosticEvidenceLock, count) in [
+            (#"prefix: "S10_4_WORK_EDITING_POSITIONING_DIAGNOSTIC""#, 1),
+            (#"prefix: "S10_4_WORK_EDITING_POSITIONING_DIAGNOSTIC_COUNT""#, 1),
+            ("XCTAttachment(", 4),
+            (".lifetime = .keepAlways", 4),
+            ("            add(", 4),
+            (#""S10.4 AX-text work-editing positioning diagnostic start screenshot""#, 1),
+            (#""S10.4 AX-text work-editing positioning diagnostic start tree""#, 1),
+            (#""S10.4 AX-text work-editing positioning diagnostic terminal screenshot""#, 1),
+            (#""S10.4 AX-text work-editing positioning diagnostic terminal tree""#, 1),
+            (#""S10.4 AX-text Record-work editing positioning diagnostic""#, 1),
+        ] {
+            XCTAssertEqual(
+                workEditingPositioningSource.components(
+                    separatedBy: workEditingDiagnosticEvidenceLock
+                ).count - 1,
+                count,
+                workEditingDiagnosticEvidenceLock
+            )
+        }
+
+        let workEditingDiagnosticTerminalStart =
+            "        if workEditingDiagnosticEnabled {\n" +
+                "            let finalPreviewFrame = workPreview.frame"
+        let workEditingDiagnosticTerminalEnd =
+            "        guard app.state == .runningForeground,"
+        guard let workEditingDiagnosticTerminalStartRange =
+            workEditingPositioningSource.range(of: workEditingDiagnosticTerminalStart),
+              let workEditingDiagnosticTerminalEndRange =
+                workEditingPositioningSource.range(
+                    of: workEditingDiagnosticTerminalEnd,
+                    range: workEditingDiagnosticTerminalStartRange.upperBound..<workEditingPositioningSource.endIndex
+                ) else {
+            XCTFail("Missing the terminal Record-work editing diagnostic branch")
+            return
+        }
+        let workEditingDiagnosticTerminalSource = String(
+            workEditingPositioningSource[
+                workEditingDiagnosticTerminalStartRange.lowerBound..<workEditingDiagnosticTerminalEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(
+            workEditingDiagnosticTerminalSource.components(
+                separatedBy: "throw AutomationConfigurationError.invalid("
+            ).count - 1,
+            1
+        )
+        for prohibitedWorkEditingDiagnosticTerminalForm in [
+            "return\n",
+            "continue",
+            "XCTFail(",
+            ".tap()",
+            ".swipeUp()",
+            ".swipeDown()",
+            "scroll(",
+            ".coordinate(",
+            ".press(",
+            "performAccessibilityAudit",
+            "Thread.sleep",
+            "CGRect(",
+            "captureBaseline(",
+            "S10_4_AX_STATE",
+            "S10_4_CONTRAST",
+            #"printJSONLine(prefix: "S10_4_AX""#,
+            "S10.4 candidate",
+            "emitAutomationTaskEvidence",
+            "emitAutomationShardReceipt",
+        ] {
+            XCTAssertFalse(
+                workEditingDiagnosticTerminalSource.contains(
+                    prohibitedWorkEditingDiagnosticTerminalForm
+                ),
+                prohibitedWorkEditingDiagnosticTerminalForm
             )
         }
         let workEditingCaptureThenSave =

@@ -3590,6 +3590,124 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let verticalInset: CGFloat = 16
         let receiverInset: CGFloat = 24
         let minimumGestureDistance: CGFloat = 44
+        let workEditingDiagnosticEnabled =
+            automationShard?.shardID == "s10.4.current.ax-text"
+        let workEditingDiagnosticStartedAt = ProcessInfo.processInfo.systemUptime
+        let workEditingDiagnosticWorkScreens = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.screen"
+        )
+        let workEditingDiagnosticPreviewElements = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.photo"
+        )
+        let workEditingDiagnosticTabBars = app.tabBars
+        let workEditingDiagnosticQueries: [(String, XCUIElementQuery)] = [
+            ("workScreens", workEditingDiagnosticWorkScreens),
+            ("helperTexts", workHelperTexts),
+            ("previewElements", workEditingDiagnosticPreviewElements),
+            ("scrollViews", workScrollViews),
+            ("navigationBars", workNavigationBars),
+            ("tabBars", workEditingDiagnosticTabBars),
+        ]
+        let workEditingDiagnosticFrameObject: (CGRect) -> Any = { [self] frame in
+            frame.origin.x.isFinite
+                && frame.origin.y.isFinite
+                && frame.size.width.isFinite
+                && frame.size.height.isFinite
+                ? auditFrameObject(frame) as Any
+                : NSNull()
+        }
+        let workEditingDiagnosticElementObject: (XCUIElement) -> [String: Any] = {
+            element in
+            [
+                "exists": element.exists,
+                "isHittable": element.isHittable,
+                "identifier": element.identifier,
+                "label": element.label,
+                "value": ((element.value as? String) as Any?) ?? NSNull(),
+                "elementTypeRawValue": element.elementType.rawValue,
+                "elementTypeDescription": String(describing: element.elementType),
+                "frame": workEditingDiagnosticFrameObject(element.frame),
+            ]
+        }
+        var workEditingDiagnosticSampleCount = 0
+        var workEditingDiagnosticCompletedGestureCount = 0
+        let emitWorkEditingPositioningDiagnostic:
+            (String, Int?, [String: Any]) -> Void = {
+                [self] phase, attemptOrdinal, details in
+                workEditingDiagnosticSampleCount += 1
+                var queryObjects: [String: Any] = [:]
+                for (name, query) in workEditingDiagnosticQueries {
+                    let count = query.count
+                    var elements: [[String: Any]] = []
+                    for index in 0..<count {
+                        elements.append(
+                            workEditingDiagnosticElementObject(
+                                query.element(boundBy: index)
+                            )
+                        )
+                    }
+                    queryObjects[name] = [
+                        "count": count,
+                        "elements": elements,
+                    ]
+                }
+                let attemptOrdinalObject: Any
+                if let attemptOrdinal = attemptOrdinal {
+                    attemptOrdinalObject = attemptOrdinal
+                } else {
+                    attemptOrdinalObject = NSNull()
+                }
+                let elapsedMilliseconds = Int(
+                    (ProcessInfo.processInfo.systemUptime
+                        - workEditingDiagnosticStartedAt) * 1_000
+                )
+                printJSONLine(
+                    prefix: "S10_4_WORK_EDITING_POSITIONING_DIAGNOSTIC",
+                    object: [
+                        "shardID": automationShard?.shardID ?? "",
+                        "deviceProfileID": automationShard?.deviceProfileID ?? "",
+                        "stateID": "state.work.editing",
+                        "phase": phase,
+                        "sampleOrdinal": workEditingDiagnosticSampleCount,
+                        "attemptOrdinal": attemptOrdinalObject,
+                        "elapsedMilliseconds": elapsedMilliseconds,
+                        "applicationStateRawValue": app.state.rawValue,
+                        "isRunningForeground": app.state == .runningForeground,
+                        "applicationFrame": workEditingDiagnosticFrameObject(app.frame),
+                        "queries": queryObjects,
+                        "details": details,
+                    ]
+                )
+            }
+        if workEditingDiagnosticEnabled {
+            emitWorkEditingPositioningDiagnostic(
+                "initial",
+                nil,
+                [
+                    "verticalInset": Double(verticalInset),
+                    "receiverInset": Double(receiverInset),
+                    "minimumGestureDistance": Double(minimumGestureDistance),
+                    "helperFrame": workEditingDiagnosticFrameObject(workHelper.frame),
+                    "previewFrame": workEditingDiagnosticFrameObject(workPreview.frame),
+                    "scrollFrame": workEditingDiagnosticFrameObject(workScrollView.frame),
+                    "navigationFrame": workEditingDiagnosticFrameObject(
+                        workNavigationBar.frame
+                    ),
+                ]
+            )
+            let startScreenshot = XCTAttachment(
+                screenshot: XCUIScreen.main.screenshot()
+            )
+            startScreenshot.name =
+                "S10.4 AX-text work-editing positioning diagnostic start screenshot"
+            startScreenshot.lifetime = .keepAlways
+            add(startScreenshot)
+            let startTree = XCTAttachment(string: app.debugDescription)
+            startTree.name =
+                "S10.4 AX-text work-editing positioning diagnostic start tree"
+            startTree.lifetime = .keepAlways
+            add(startTree)
+        }
         for _ in 0..<4 {
             guard app.state == .runningForeground,
                   workHelperTexts.count == 1,
@@ -3670,12 +3788,98 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 CGVector(dx: 0, dy: dragDistance)
             )
             let helperMinYBeforeDrag = helperFrame.minY
+            var workEditingDiagnosticPreviewFrameBeforeDrag = CGRect.null
+            let workEditingDiagnosticGestureOrdinal =
+                workEditingDiagnosticCompletedGestureCount + 1
+            if workEditingDiagnosticEnabled {
+                workEditingDiagnosticPreviewFrameBeforeDrag = workPreview.frame
+                emitWorkEditingPositioningDiagnostic(
+                    "beforeGesture",
+                    workEditingDiagnosticGestureOrdinal,
+                    [
+                        "geometry": [
+                            "applicationFrame": workEditingDiagnosticFrameObject(
+                                applicationFrame
+                            ),
+                            "navigationFrame": workEditingDiagnosticFrameObject(
+                                navigationFrame
+                            ),
+                            "scrollFrame": workEditingDiagnosticFrameObject(scrollFrame),
+                            "liveScrollFrame": workEditingDiagnosticFrameObject(
+                                liveScrollFrame
+                            ),
+                            "helperFrame": workEditingDiagnosticFrameObject(helperFrame),
+                            "previewFrame": workEditingDiagnosticFrameObject(
+                                workEditingDiagnosticPreviewFrameBeforeDrag
+                            ),
+                            "safeTop": Double(safeTop),
+                            "safeBottom": Double(safeBottom),
+                            "receiverTop": Double(receiverTop),
+                            "receiverBottom": Double(receiverBottom),
+                            "minimumShift": Double(minimumShift),
+                            "maximumShift": Double(maximumShift),
+                            "receiverCapacity": Double(receiverCapacity),
+                            "recognizedMinimum": Double(recognizedMinimum),
+                            "recognizedMaximum": Double(recognizedMaximum),
+                        ],
+                        "gesture": [
+                            "requestedDistance": Double(dragDistance),
+                            "startPoint": [
+                                "x": Double(scrollFrame.midX),
+                                "y": Double(receiverTop),
+                            ],
+                            "endPoint": [
+                                "x": Double(scrollFrame.midX),
+                                "y": Double(receiverTop + dragDistance),
+                            ],
+                        ],
+                    ]
+                )
+            }
             dragStart.press(
                 forDuration: 0.2,
                 thenDragTo: dragEnd,
                 withVelocity: .slow,
                 thenHoldForDuration: 0.2
             )
+            if workEditingDiagnosticEnabled {
+                workEditingDiagnosticCompletedGestureCount += 1
+                let helperFrameAfterDrag = workHelper.frame
+                let previewFrameAfterDrag = workPreview.frame
+                let observedHelperDistance =
+                    helperFrameAfterDrag.minY - helperFrame.minY
+                let observedPreviewDistance =
+                    previewFrameAfterDrag.minY
+                        - workEditingDiagnosticPreviewFrameBeforeDrag.minY
+                emitWorkEditingPositioningDiagnostic(
+                    "afterGesture",
+                    workEditingDiagnosticGestureOrdinal,
+                    [
+                        "geometry": [
+                            "helperFrameBefore": workEditingDiagnosticFrameObject(
+                                helperFrame
+                            ),
+                            "helperFrameAfter": workEditingDiagnosticFrameObject(
+                                helperFrameAfterDrag
+                            ),
+                            "previewFrameBefore": workEditingDiagnosticFrameObject(
+                                workEditingDiagnosticPreviewFrameBeforeDrag
+                            ),
+                            "previewFrameAfter": workEditingDiagnosticFrameObject(
+                                previewFrameAfterDrag
+                            ),
+                        ],
+                        "gesture": [
+                            "requestedDistance": Double(dragDistance),
+                            "observedHelperDistance": Double(observedHelperDistance),
+                            "observedPreviewDistance": Double(observedPreviewDistance),
+                            "helperMovedDownward": observedHelperDistance > 0,
+                            "previewMovedDownward": observedPreviewDistance > 0,
+                            "previewMovedUpward": observedPreviewDistance < 0,
+                        ],
+                    ]
+                )
+            }
             guard workHelperTexts.count == 1,
                   workScrollViews.count == 1,
                   workNavigationBars.count == 1,
@@ -3696,6 +3900,124 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         ) + verticalInset
         let finalSafeBottom = finalScrollFrame.maxY - verticalInset
         let finalHelperFrame = workHelper.frame
+        if workEditingDiagnosticEnabled {
+            let finalPreviewFrame = workPreview.frame
+            let finalTabBar = workEditingDiagnosticTabBars.firstMatch
+            let finalTabBarExists = finalTabBar.exists
+            let finalTabBarFrame = finalTabBarExists ? finalTabBar.frame : CGRect.null
+            let finalApplicationFrameIsValid =
+                !finalApplicationFrame.isNull && !finalApplicationFrame.isEmpty
+            let finalNavigationFrameIsValid =
+                !finalNavigationFrame.isNull && !finalNavigationFrame.isEmpty
+            let finalScrollFrameIsValid =
+                !finalScrollFrame.isNull && !finalScrollFrame.isEmpty
+            let finalHelperFrameIsValid =
+                !finalHelperFrame.isNull && !finalHelperFrame.isEmpty
+            let finalPreviewFrameIsValid =
+                !finalPreviewFrame.isNull && !finalPreviewFrame.isEmpty
+            let finalTabBarFrameIsValid =
+                !finalTabBarFrame.isNull && !finalTabBarFrame.isEmpty
+            let finalHelperAboveSafeTop = finalHelperFrameIsValid
+                && finalHelperFrame.minY >= finalSafeTop
+            let finalHelperBelowSafeBottom = finalHelperFrameIsValid
+                && finalHelperFrame.maxY <= finalSafeBottom
+            let finalHelperIsHittable = workHelper.isHittable
+            let finalPreviewIsHittable = workPreview.isHittable
+            let finalPreviewContainedInApplication = finalPreviewFrameIsValid
+                && finalApplicationFrameIsValid
+                && finalApplicationFrame.contains(finalPreviewFrame)
+            let finalPreviewContainedInLiveScroll = finalPreviewFrameIsValid
+                && finalScrollFrameIsValid
+                && finalScrollFrame.contains(finalPreviewFrame)
+            let finalPreviewContainedInSafeBand = finalPreviewFrameIsValid
+                && finalPreviewFrame.minY >= finalSafeTop
+                && finalPreviewFrame.maxY <= finalSafeBottom
+            let finalPreviewIntersectsNavigation = finalPreviewFrameIsValid
+                && finalNavigationFrameIsValid
+                && finalPreviewFrame.intersects(finalNavigationFrame)
+            let finalPreviewIntersectsTabBar = finalPreviewFrameIsValid
+                && finalTabBarFrameIsValid
+                && finalPreviewFrame.intersects(finalTabBarFrame)
+            emitWorkEditingPositioningDiagnostic(
+                "final",
+                nil,
+                [
+                    "geometry": [
+                        "applicationFrame": workEditingDiagnosticFrameObject(
+                            finalApplicationFrame
+                        ),
+                        "navigationFrame": workEditingDiagnosticFrameObject(
+                            finalNavigationFrame
+                        ),
+                        "scrollFrame": workEditingDiagnosticFrameObject(finalScrollFrame),
+                        "helperFrame": workEditingDiagnosticFrameObject(finalHelperFrame),
+                        "previewFrame": workEditingDiagnosticFrameObject(finalPreviewFrame),
+                        "tabBarFrame": workEditingDiagnosticFrameObject(finalTabBarFrame),
+                        "safeTop": Double(finalSafeTop),
+                        "safeBottom": Double(finalSafeBottom),
+                    ],
+                    "predicates": [
+                        "applicationRunningForeground":
+                            app.state == .runningForeground,
+                        "helperTextCountIsOne": workHelperTexts.count == 1,
+                        "scrollViewCountIsOne": workScrollViews.count == 1,
+                        "navigationBarCountIsOne": workNavigationBars.count == 1,
+                        "tabBarCountIsOne": workEditingDiagnosticTabBars.count == 1,
+                        "helperExists": workHelper.exists,
+                        "scrollViewExists": workScrollView.exists,
+                        "navigationBarExists": workNavigationBar.exists,
+                        "previewExists": workPreview.exists,
+                        "tabBarExists": finalTabBarExists,
+                        "applicationFrameIsValid": finalApplicationFrameIsValid,
+                        "navigationFrameIsValid": finalNavigationFrameIsValid,
+                        "scrollFrameIsValid": finalScrollFrameIsValid,
+                        "helperFrameIsValid": finalHelperFrameIsValid,
+                        "previewFrameIsValid": finalPreviewFrameIsValid,
+                        "tabBarFrameIsValid": finalTabBarFrameIsValid,
+                        "helperAboveSafeTop": finalHelperAboveSafeTop,
+                        "helperBelowSafeBottom": finalHelperBelowSafeBottom,
+                        "helperIsHittable": finalHelperIsHittable,
+                        "previewIsHittable": finalPreviewIsHittable,
+                        "previewContainedInApplication":
+                            finalPreviewContainedInApplication,
+                        "previewContainedInLiveScroll":
+                            finalPreviewContainedInLiveScroll,
+                        "previewContainedInSafeBand": finalPreviewContainedInSafeBand,
+                        "previewIntersectsNavigation":
+                            finalPreviewIntersectsNavigation,
+                        "previewIntersectsTabBar": finalPreviewIntersectsTabBar,
+                    ],
+                ]
+            )
+            printJSONLine(
+                prefix: "S10_4_WORK_EDITING_POSITIONING_DIAGNOSTIC_COUNT",
+                object: [
+                    "shardID": automationShard?.shardID ?? "",
+                    "deviceProfileID": automationShard?.deviceProfileID ?? "",
+                    "stateID": "state.work.editing",
+                    "sampleCount": workEditingDiagnosticSampleCount,
+                    "completedGestureCount":
+                        workEditingDiagnosticCompletedGestureCount,
+                    "finalHelperIsHittable": finalHelperIsHittable,
+                    "finalPreviewIsHittable": finalPreviewIsHittable,
+                ]
+            )
+            let terminalScreenshot = XCTAttachment(
+                screenshot: XCUIScreen.main.screenshot()
+            )
+            terminalScreenshot.name =
+                "S10.4 AX-text work-editing positioning diagnostic terminal screenshot"
+            terminalScreenshot.lifetime = .keepAlways
+            add(terminalScreenshot)
+            let terminalTree = XCTAttachment(string: app.debugDescription)
+            terminalTree.name =
+                "S10.4 AX-text work-editing positioning diagnostic terminal tree"
+            terminalTree.lifetime = .keepAlways
+            add(terminalTree)
+            throw AutomationConfigurationError.invalid(
+                "S10.4 AX-text Record-work editing positioning diagnostic"
+            )
+        }
         guard app.state == .runningForeground,
               workHelperTexts.count == 1,
               workScrollViews.count == 1,
