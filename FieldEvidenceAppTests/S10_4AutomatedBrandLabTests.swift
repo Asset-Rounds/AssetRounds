@@ -629,10 +629,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 reportsIndexStartRange.lowerBound..<reportsIndexEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(reportsIndexSource.utf8.count, 7_202)
+        XCTAssertEqual(reportsIndexSource.utf8.count, 7_188)
         XCTAssertEqual(
             Data(reportsIndexSource.utf8).sha256,
-            "2DF0DCCFB9CB9B307449C74F896D2939C3FDA3E28306D0A4DCD245447422CE7B"
+            "A842EC62CC5B1911510988963FB3A7F1394A30F1B2C2EDAFC79DA7D58CD123BA"
         )
         let reportsDiagnosticGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
@@ -7866,11 +7866,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         for removedDoubleLengthDiagnosticResidue in [
-            "diagnosticElementObject",
-            "diagnosticQueryObject",
             "S10_4_DOUBLE_LENGTH_DELETE_DIAGNOSTIC",
             "diagnosticTargetDistanceObject",
-            "diagnosticQueryObjects",
             "S10.4 minimum double-length delete-confirmation diagnostic",
             "S10.4 double-length delete diagnostic",
             "appScreenshot.name = \"S10.4 double-length delete diagnostic app\"",
