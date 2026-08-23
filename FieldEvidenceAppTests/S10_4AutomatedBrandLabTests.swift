@@ -414,8 +414,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 342_358,
-            sha256: "585DED562BABB344C963C5DBB8492D3B2C33C0B33251E135FAC2A9312B70E00A"
+            byteCount: 342_928,
+            sha256: "7CEB3D8A9B1F018929B7373120F213221EAE9943F849507CFE445835FBA8E063"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -724,10 +724,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 preflightMinimumStartRange.lowerBound..<preflightQuickPathSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightMinimumSource.utf8.count, 39_425)
+        XCTAssertEqual(preflightMinimumSource.utf8.count, 39_995)
         XCTAssertEqual(
             Data(preflightMinimumSource.utf8).sha256,
-            "E4EBE04661EB28102A1C3F82FAAA200C9E3DF7D7187A6DCB86599EB0DE8E454A"
+            "BC7AA64B88114A7EE7472311340B96ACE41C9C551E6B87D3442FB8C21E2974C2"
         )
         for (preflightNavigationBinding, count) in [
             ("let preflightNavigationBars = app.navigationBars", 1),
@@ -1620,10 +1620,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 preflightOffAppSource.startIndex..<minimumDoubleLengthPositioningStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(minimumDoubleLengthPositioningSource.utf8.count, 16_387)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.utf8.count, 16_957)
         XCTAssertEqual(
             Data(minimumDoubleLengthPositioningSource.utf8).sha256,
-            "37ADC4F044ECAC6D8276071C69B8F23453D1A556351B0BAE72FC976F421AEBE0"
+            "72D734F5AA3860A8B2D18841D7568969433F7963D5E688CEFB0288F9E33BAE92"
         )
         XCTAssertEqual(
             preflightOffAppSource.components(
@@ -1754,10 +1754,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "}",
             "guard maximumShift < 0 else {",
             "let receiverCapacity = receiverBottom - receiverTop",
-            "guard receiverCapacity >= minimumGestureDistance,\n" +
-                "abs(maximumShift)\n" +
-                ">= minimumGestureDistance else {",
-            "if abs(maximumShift) <= receiverCapacity {\n" +
+            "guard receiverCapacity >= minimumGestureDistance else {",
+            "if maximumShift > -minimumGestureDistance {",
+            "let recognizedResidualDistance =\n" +
+                "-minimumGestureDistance",
+            "guard minimumShift\n" +
+                "<= recognizedResidualDistance else {",
+            "dragDistance = recognizedResidualDistance",
+            "} else if abs(maximumShift) <= receiverCapacity {\n" +
                 "dragDistance = maximumShift\n" +
                 "} else {",
             "let stagedDistance = max(\n" +
@@ -1848,6 +1852,27 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 lock
             )
         }
+        guard let recognizedResidualBranch =
+            normalizedMinimumDoubleLengthPositioningSource.range(
+                of: "if maximumShift > -minimumGestureDistance {"
+            ), let directMaximumShiftBranch =
+            normalizedMinimumDoubleLengthPositioningSource.range(
+                of: "} else if abs(maximumShift) <= receiverCapacity {"
+            ), let stagedMaximumShiftBranch =
+            normalizedMinimumDoubleLengthPositioningSource.range(
+                of: "let stagedDistance = max("
+            ) else {
+            XCTFail("Missing the minimum double-length residual branch order")
+            return
+        }
+        XCTAssertLessThan(
+            recognizedResidualBranch.lowerBound,
+            directMaximumShiftBranch.lowerBound
+        )
+        XCTAssertLessThan(
+            directMaximumShiftBranch.lowerBound,
+            stagedMaximumShiftBranch.lowerBound
+        )
         for (lock, count) in [
             ("preflightScrollViews.count == 1", 3),
             ("preflightNavigationBars.count == 1", 3),
@@ -1915,6 +1940,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "sleep(",
             "tolerance",
             "epsilon",
+            "abs(maximumShift)\n>= minimumGestureDistance",
+            "maximumShift >= -minimumGestureDistance",
+            "recognizedResidualDistance = minimumGestureDistance",
+            "recognizedResidualDistance = maximumShift",
+            "minimumShift >= recognizedResidualDistance",
             "performAccessibilityAudit",
             "automationContrastExceptions",
             "matchingExceptions",
@@ -2324,11 +2354,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             preflightQuickPathSource.components(separatedBy: "XCTFail(").count - 1,
-            25
+            26
         )
         XCTAssertEqual(
             preflightQuickPathSource.components(separatedBy: "                    return\n").count - 1,
-            25
+            26
         )
         XCTAssertFalse(
             preflightQuickPathSource.contains(

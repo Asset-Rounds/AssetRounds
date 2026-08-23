@@ -1630,16 +1630,25 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 return
                             }
                             let receiverCapacity = receiverBottom - receiverTop
-                            guard receiverCapacity >= minimumGestureDistance,
-                                  abs(maximumShift)
-                                    >= minimumGestureDistance else {
+                            guard receiverCapacity >= minimumGestureDistance else {
                                 XCTFail(
                                     "The minimum double-length preflight confirmation has no recognized upward shift."
                                 )
                                 return
                             }
                             let dragDistance: CGFloat
-                            if abs(maximumShift) <= receiverCapacity {
+                            if maximumShift > -minimumGestureDistance {
+                                let recognizedResidualDistance =
+                                    -minimumGestureDistance
+                                guard minimumShift
+                                    <= recognizedResidualDistance else {
+                                    XCTFail(
+                                        "The minimum double-length preflight confirmation has no recognized upward shift."
+                                    )
+                                    return
+                                }
+                                dragDistance = recognizedResidualDistance
+                            } else if abs(maximumShift) <= receiverCapacity {
                                 dragDistance = maximumShift
                             } else {
                                 let stagedDistance = max(
