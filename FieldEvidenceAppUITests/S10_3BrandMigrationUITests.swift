@@ -2345,13 +2345,24 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 ])
                 return true
             }
-            guard diagnosticIssueObjects.count == 1,
-                  diagnosticAuditedElements.count == 1,
-                  let auditedElement = diagnosticAuditedElements.first else {
-                throw AutomationConfigurationError.invalid(
-                    "S10.4 reports-index contrast diagnostic cardinality"
-                )
-            }
+            let diagnosticAuditedElementObjects = diagnosticAuditedElements.map(
+                diagnosticElementObject
+            )
+
+            printJSONLine(
+                prefix: "S10_4_REPORTS_INDEX_CONTRAST_DIAGNOSTIC",
+                object: [
+                    "shardID": "s10.4.current.ax-text",
+                    "stateID": "state.reports-index.ready",
+                    "applicationStateRawValue": app.state.rawValue,
+                    "applicationFrame": auditFrameObject(app.frame),
+                    "queries": diagnosticQueryObjects,
+                    "issueCount": diagnosticIssueObjects.count,
+                    "issues": diagnosticIssueObjects,
+                    "auditedElementCount": diagnosticAuditedElementObjects.count,
+                    "auditedElements": diagnosticAuditedElementObjects,
+                ]
+            )
 
             let appScreenshot = XCTAttachment(screenshot: app.screenshot())
             appScreenshot.name = "S10.4 reports-index contrast diagnostic app"
@@ -2368,26 +2379,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 "S10.4 reports-index contrast diagnostic reports"
             reportsScreenshot.lifetime = .keepAlways
             add(reportsScreenshot)
-            let elementScreenshot = XCTAttachment(
-                screenshot: auditedElement.screenshot()
-            )
-            elementScreenshot.name =
-                "S10.4 reports-index contrast diagnostic element"
-            elementScreenshot.lifetime = .keepAlways
-            add(elementScreenshot)
-
-            printJSONLine(
-                prefix: "S10_4_REPORTS_INDEX_CONTRAST_DIAGNOSTIC",
-                object: [
-                    "shardID": "s10.4.current.ax-text",
-                    "stateID": "state.reports-index.ready",
-                    "applicationStateRawValue": app.state.rawValue,
-                    "applicationFrame": auditFrameObject(app.frame),
-                    "queries": diagnosticQueryObjects,
-                    "issueCount": diagnosticIssueObjects.count,
-                    "issues": diagnosticIssueObjects,
-                ]
-            )
+            for (index, auditedElement) in diagnosticAuditedElements.enumerated() {
+                let elementScreenshot = XCTAttachment(
+                    screenshot: auditedElement.screenshot()
+                )
+                elementScreenshot.name =
+                    "S10.4 reports-index contrast diagnostic element \(index + 1)"
+                elementScreenshot.lifetime = .keepAlways
+                add(elementScreenshot)
+            }
             throw AutomationConfigurationError.invalid(
                 "S10.4 reports-index contrast diagnostic"
             )

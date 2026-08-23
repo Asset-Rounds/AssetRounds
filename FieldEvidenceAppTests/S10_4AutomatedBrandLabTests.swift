@@ -412,8 +412,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 293_912,
-            sha256: "F371F8A9C265297865920D035DD5727FB8B4F260C6F048B60D0D8FA3E94E33D9"
+            byteCount: 293_987,
+            sha256: "A2BFC5204630228C37FB44505ABFFBA5B888DF38D1B04F2FFF3BEB86D68CE6C1"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -629,10 +629,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 reportsIndexStartRange.lowerBound..<reportsIndexEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(reportsIndexSource.utf8.count, 7_188)
+        XCTAssertEqual(reportsIndexSource.utf8.count, 7_263)
         XCTAssertEqual(
             Data(reportsIndexSource.utf8).sha256,
-            "A842EC62CC5B1911510988963FB3A7F1394A30F1B2C2EDAFC79DA7D58CD123BA"
+            "220E3133CA8DD5B786BC6EACBD63819D63F7003E9E8199DA58B5F4CCCBFED35C"
         )
         let reportsDiagnosticGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
@@ -653,10 +653,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 reportsDiagnosticStartRange.lowerBound..<reportsBaselineRange.lowerBound
             ]
         )
-        XCTAssertEqual(reportsDiagnosticSource.utf8.count, 5_639)
+        XCTAssertEqual(reportsDiagnosticSource.utf8.count, 5_714)
         XCTAssertEqual(
             Data(reportsDiagnosticSource.utf8).sha256,
-            "DD542D373615491BF0E47B43084A44B0C6EF2E528C000A65809688CDDC731F3A"
+            "6ED1055ADFB22DCEFB7DD855852417D37D53A90621AD9C0F7B16673A85596BCB"
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: reportsIndexStart).count - 1,
@@ -710,8 +710,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (#""isHittable": element.isHittable"#, 1),
             ("try app.performAccessibilityAudit(for: .contrast)", 1),
             ("return true", 1),
-            ("diagnosticIssueObjects.count == 1", 1),
-            ("diagnosticAuditedElements.count == 1", 1),
+            ("diagnosticIssueObjects.append([", 1),
+            ("diagnosticAuditedElements.append(auditedElement)", 1),
+            ("let diagnosticAuditedElementObjects = diagnosticAuditedElements.map(", 1),
+            ("diagnosticElementObject\n            )", 1),
             (#""auditTypeRawValue": String(issue.auditType.rawValue)"#, 1),
             (#""compactDescription": issue.compactDescription"#, 1),
             (#""detailedDescription": issue.detailedDescription"#, 1),
@@ -721,7 +723,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (#"prefix: "S10_4_REPORTS_INDEX_CONTRAST_DIAGNOSTIC""#, 1),
             (#""issueCount": diagnosticIssueObjects.count"#, 1),
             (#""issues": diagnosticIssueObjects"#, 1),
-            ("throw AutomationConfigurationError.invalid(", 2),
+            (#""auditedElementCount": diagnosticAuditedElementObjects.count"#, 1),
+            (#""auditedElements": diagnosticAuditedElementObjects"#, 1),
+            ("for (index, auditedElement) in diagnosticAuditedElements.enumerated()", 1),
+            (#""S10.4 reports-index contrast diagnostic element \(index + 1)""#, 1),
+            ("throw AutomationConfigurationError.invalid(", 1),
             (".lifetime = .keepAlways", 4),
             ("add(", 4),
         ] {
@@ -743,12 +749,48 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 attachmentName
             )
         }
+        let reportsDiagnosticJSON =
+            #"prefix: "S10_4_REPORTS_INDEX_CONTRAST_DIAGNOSTIC""#
+        let reportsDiagnosticFirstAttachment =
+            "let appScreenshot = XCTAttachment(screenshot: app.screenshot())"
+        let reportsDiagnosticElementLoop =
+            "for (index, auditedElement) in diagnosticAuditedElements.enumerated()"
+        let reportsDiagnosticTerminal =
+            "throw AutomationConfigurationError.invalid("
+        guard let reportsDiagnosticJSONRange = reportsDiagnosticSource.range(
+            of: reportsDiagnosticJSON
+        ), let reportsDiagnosticFirstAttachmentRange = reportsDiagnosticSource.range(
+            of: reportsDiagnosticFirstAttachment
+        ), let reportsDiagnosticElementLoopRange = reportsDiagnosticSource.range(
+            of: reportsDiagnosticElementLoop
+        ), let reportsDiagnosticTerminalRange = reportsDiagnosticSource.range(
+            of: reportsDiagnosticTerminal
+        ) else {
+            XCTFail("Missing reports-index diagnostic emission order")
+            return
+        }
+        XCTAssertLessThan(
+            reportsDiagnosticJSONRange.lowerBound,
+            reportsDiagnosticFirstAttachmentRange.lowerBound
+        )
+        XCTAssertLessThan(
+            reportsDiagnosticFirstAttachmentRange.lowerBound,
+            reportsDiagnosticElementLoopRange.lowerBound
+        )
+        XCTAssertLessThan(
+            reportsDiagnosticElementLoopRange.lowerBound,
+            reportsDiagnosticTerminalRange.lowerBound
+        )
         for prohibitedReportsDiagnosticForm in [
             "tap(", "swipe", "coordinate(", "press(", "thenDragTo:",
             "scroll(", "waitForExistence", "sleep", "captureBaseline(",
             "S10_4_AX_STATE", "S10_4_CONTRAST\"", "automatedEvidenceIDs",
             "return false", "ContrastAuditExceptionSignature(",
             "contrastAuditExceptionSignatures.append",
+            "guard diagnosticIssueObjects.count",
+            "guard diagnosticAuditedElements.count",
+            "diagnosticAuditedElements.first",
+            "S10.4 reports-index contrast diagnostic cardinality",
         ] {
             XCTAssertFalse(
                 reportsDiagnosticSource.contains(prohibitedReportsDiagnosticForm),
