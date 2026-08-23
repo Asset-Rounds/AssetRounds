@@ -105,10 +105,25 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             workflowPath,
-            byteCount: 119_616,
-            sha256: "5ED565DBDE07C49788211AD95E885769E018CCFA56B2D3C70062BA7600E0F9CA"
+            byteCount: 119_630,
+            sha256: "363E3AC6F8FA251C0B3749DF5089CBB282C7319E176651BB1D8BDE6A4D97E4B4"
         )
         let workflowSource = try text(workflowPath)
+        let warpBuildRunnerLine = "    runs-on: warp-macos-26-arm64-6x"
+        let githubHostedRunnerLine = "    runs-on: macos-26"
+        XCTAssertEqual(workflowSource.components(separatedBy: warpBuildRunnerLine).count - 1, 1)
+        XCTAssertEqual(workflowSource.components(separatedBy: githubHostedRunnerLine).count - 1, 0)
+        let predecessorWorkflowSource = workflowSource.replacingOccurrences(
+            of: warpBuildRunnerLine,
+            with: githubHostedRunnerLine
+        )
+        XCTAssertNotEqual(predecessorWorkflowSource, workflowSource)
+        let predecessorWorkflowData = Data(predecessorWorkflowSource.utf8)
+        XCTAssertEqual(predecessorWorkflowData.count, 119_616)
+        XCTAssertEqual(
+            predecessorWorkflowData.sha256,
+            "5ED565DBDE07C49788211AD95E885769E018CCFA56B2D3C70062BA7600E0F9CA"
+        )
         let unitPath = "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift"
         let unitSource = try text(unitPath)
         let retainStepMarker = "      - name: Retain S10.4 shard evidence\n"
