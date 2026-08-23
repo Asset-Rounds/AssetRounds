@@ -579,8 +579,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 341_039,
-            sha256: "1B8C6E4481C463CB5CEBB666732199021075CA9813173F01FC4A4171DFDCE3AF"
+            byteCount: 350_932,
+            sha256: "65F2BE76B62C7911CB461ECF6A29249A12380C7B6172EE5ABFD994E498F00CE4"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1644,7 +1644,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for removedSignDetailDiagnosticForm in [
             "S10_4_SIGN_DETAIL_OPEN_ISSUE_CONTRAST_DIAGNOSTIC",
             "S10.4 sign-detail open-issue contrast diagnostic",
-            "let diagnosticQueries: [(String, XCUIElementQuery)]",
             "let diagnosticIssueObjects:",
             "let diagnosticAuditedElements:",
             "diagnosticAuditedElementObjects",
@@ -13424,6 +13423,703 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     .path
             )
         )
+    }
+
+    func testMinimumOSCameraDeniedContrastDiagnosticIsPassiveAndTerminal() throws {
+        let uiSource = try text(
+            "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift"
+        )
+
+        func assertOrdered(
+            _ fragments: [String],
+            in source: String,
+            label: String
+        ) throws {
+            var searchStart = source.startIndex
+            for fragment in fragments {
+                let range = try XCTUnwrap(
+                    source.range(
+                        of: fragment,
+                        range: searchStart..<source.endIndex
+                    ),
+                    "Missing ordered \(label): \(fragment)"
+                )
+                searchStart = range.upperBound
+            }
+        }
+
+        let diagnosticHelperStart =
+            "    @MainActor\n" +
+                "    private func diagnoseMinimumOSCameraDeniedContrast(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) throws {"
+        let cameraRecoveryStart =
+            "    @MainActor\n" +
+                "    private func recoverCameraDenialAndResume(in app: XCUIApplication) throws {"
+        let cameraRecoveryEnd =
+            "\n\n    @MainActor\n" +
+                "    private func recoverInjectedPDFFailureAtXXXL(in app: XCUIApplication) {"
+        let diagnosticHelperStartRange = try XCTUnwrap(
+            uiSource.range(of: diagnosticHelperStart)
+        )
+        let cameraRecoveryStartRange = try XCTUnwrap(
+            uiSource.range(
+                of: cameraRecoveryStart,
+                range: diagnosticHelperStartRange.upperBound..<uiSource.endIndex
+            )
+        )
+        let cameraRecoveryEndRange = try XCTUnwrap(
+            uiSource.range(
+                of: cameraRecoveryEnd,
+                range: cameraRecoveryStartRange.upperBound..<uiSource.endIndex
+            )
+        )
+        let diagnosticHelperSource = String(
+            uiSource[
+                diagnosticHelperStartRange.lowerBound..<cameraRecoveryStartRange.lowerBound
+            ]
+        )
+        let cameraRecoverySource = String(
+            uiSource[
+                cameraRecoveryStartRange.lowerBound..<cameraRecoveryEndRange.lowerBound
+            ]
+        )
+
+        let throwingCallChainLocks = [
+            "        try completeVisibleIssueCheck(in: app)",
+            "    private func completeVisibleIssueCheck(in app: XCUIApplication) throws {",
+            "        try recoverCameraDenialAndResume(in: app)",
+            "    private func recoverCameraDenialAndResume(in app: XCUIApplication) throws {",
+            "            try diagnoseMinimumOSCameraDeniedContrast(in: app)",
+            diagnosticHelperStart,
+        ]
+        for lock in throwingCallChainLocks {
+            XCTAssertEqual(
+                uiSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        for staleNonthrowingForm in [
+            "        completeVisibleIssueCheck(in: app)",
+            "    private func completeVisibleIssueCheck(in app: XCUIApplication) {",
+            "        recoverCameraDenialAndResume(in: app)",
+            "    private func recoverCameraDenialAndResume(in app: XCUIApplication) {",
+            "            diagnoseMinimumOSCameraDeniedContrast(in: app)",
+            "    private func diagnoseMinimumOSCameraDeniedContrast(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) {",
+        ] {
+            XCTAssertEqual(
+                uiSource.components(separatedBy: staleNonthrowingForm).count - 1,
+                0,
+                staleNonthrowingForm
+            )
+        }
+        for maskedThrowingForm in [
+            "        try? completeVisibleIssueCheck(in: app)",
+            "        try! completeVisibleIssueCheck(in: app)",
+            "        try? recoverCameraDenialAndResume(in: app)",
+            "        try! recoverCameraDenialAndResume(in: app)",
+            "            try? diagnoseMinimumOSCameraDeniedContrast(in: app)",
+            "            try! diagnoseMinimumOSCameraDeniedContrast(in: app)",
+        ] {
+            XCTAssertEqual(
+                uiSource.components(separatedBy: maskedThrowingForm).count - 1,
+                0,
+                maskedThrowingForm
+            )
+        }
+        let exactTopRouteCallChain =
+            "        assertLightFirstSignValidationAndCreation(in: app)\n" +
+                "        try completeVisibleIssueCheck(in: app)\n" +
+                "        assertFirstReceiptAndReport(in: app)"
+        let exactCaptureRouteCallChain =
+            "        captureBaseline(\"state.capture.wide-ready\", in: app)\n" +
+                "        try recoverCameraDenialAndResume(in: app)\n\n" +
+                "        acceptImportedPhoto("
+        XCTAssertEqual(
+            uiSource.components(separatedBy: exactTopRouteCallChain).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: exactCaptureRouteCallChain).count - 1,
+            1
+        )
+
+        let diagnosticGate =
+            "        if automationShard?.shardID == \"s10.4.minimum.minimum-os\",\n" +
+                "           automationShard?.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\" {\n" +
+                "            try diagnoseMinimumOSCameraDeniedContrast(in: app)\n" +
+                "        }"
+        let normalCameraDeniedBaseline =
+            "        captureBaseline(\"state.capture.camera-denied\", in: app)"
+        let exactSettingsGateAndBaseline =
+            "        let settings = element(\"s3.capture.open-settings\", in: app)\n" +
+                "        XCTAssertTrue(settings.waitForExistence(timeout: 15))\n" +
+                "        assertLocalizedLabel(settings, equals: \"Open Settings\")\n" +
+                "        assertUnidentifiedLocalizedLabel(\n" +
+                "            \"Choose a photo, open Settings, or leave this check incomplete and return later.\",\n" +
+                "            in: app\n" +
+                "        )\n" +
+                diagnosticGate + "\n" +
+                normalCameraDeniedBaseline
+        XCTAssertEqual(
+            cameraRecoverySource.components(
+                separatedBy: exactSettingsGateAndBaseline
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            cameraRecoverySource.components(
+                separatedBy: "automationShard?"
+            ).count - 1,
+            2
+        )
+        try assertOrdered(
+            [
+                exactSettingsGateAndBaseline,
+                "        let cannotComplete = element(\"s3.capture.cannot-complete\", in: app)",
+                "        scroll(cannotComplete, in: app)",
+                "        cannotComplete.tap()",
+                "        XCTAssertTrue(element(\"s3.outcome.screen\", in: app)",
+                "        app.terminate()",
+                "        app.launch()",
+                "        let heading = element(\"s3.capture.heading\", in: app)",
+            ],
+            in: cameraRecoverySource,
+            label: "camera-denied terminal route"
+        )
+        for maskedRecoveryForm in ["do {", "catch {", "try?", "try!"] {
+            XCTAssertFalse(
+                cameraRecoverySource.contains(maskedRecoveryForm),
+                maskedRecoveryForm
+            )
+        }
+
+        XCTAssertTrue(
+            diagnosticHelperSource.hasPrefix(
+                diagnosticHelperStart + "\n        let shard = automationShard!"
+            )
+        )
+        let identifierQueries = [
+            ("captureScreens", "s3.capture.screen"),
+            ("captureHeadings", "s3.capture.heading"),
+            ("takePhotoButtons", "s3.capture.take-photo"),
+            ("choosePhotosButtons", "s3.capture.choose-photos"),
+            ("openSettingsButtons", "s3.capture.open-settings"),
+            ("cannotCompleteButtons", "s3.capture.cannot-complete"),
+            ("importFixtureButtons", "s3.capture.import-fixture"),
+            ("capturePreviews", "s3.capture.preview"),
+            ("signsTabs", "s1.tab.signs"),
+            ("reportsTabs", "s1.tab.reports"),
+        ]
+        for (binding, identifier) in identifierQueries {
+            let declaration =
+                "        let \(binding) = app.descendants(matching: .any).matching(\n" +
+                    "            identifier: \"\(identifier)\"\n" +
+                    "        )"
+            XCTAssertEqual(
+                diagnosticHelperSource.components(
+                    separatedBy: declaration
+                ).count - 1,
+                1,
+                binding
+            )
+        }
+        let labelQueries = [
+            ("blockedCameraLabels", "Blocked: Camera access unavailable"),
+            (
+                "denialInstructionLabels",
+                "Choose a photo, open Settings, or leave this check incomplete and return later."
+            ),
+        ]
+        for (binding, label) in labelQueries {
+            let declaration =
+                "        let \(binding) = app.descendants(matching: .any).matching(\n" +
+                    "            NSPredicate(\n" +
+                    "                format: \"label == %@\",\n" +
+                    "                \"\(label)\"\n" +
+                    "            )\n" +
+                    "        )"
+            XCTAssertEqual(
+                diagnosticHelperSource.components(
+                    separatedBy: declaration
+                ).count - 1,
+                1,
+                binding
+            )
+        }
+        let captureNavigationQuery =
+            "        let captureNavigationBars = app.navigationBars.matching(\n" +
+                "            identifier: \"Capture\"\n" +
+                "        )"
+        XCTAssertEqual(
+            diagnosticHelperSource.components(
+                separatedBy: captureNavigationQuery
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            diagnosticHelperSource.components(
+                separatedBy: "        let tabBars = app.tabBars"
+            ).count - 1,
+            1
+        )
+
+        let queryBindings =
+            identifierQueries.map { $0.0 }
+                + labelQueries.map { $0.0 }
+                + ["captureNavigationBars", "tabBars"]
+        XCTAssertEqual(queryBindings.count, 14)
+        let exactQueryRows = queryBindings
+            .map { "            (\"\($0)\", \($0))," }
+            .joined(separator: "\n")
+        let exactQueryBlock =
+            "        let diagnosticQueries: [(String, XCUIElementQuery)] = [\n" +
+                exactQueryRows + "\n" +
+                "        ]"
+        XCTAssertEqual(
+            diagnosticHelperSource.components(
+                separatedBy: exactQueryBlock
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "let diagnosticQueries: [(String, XCUIElementQuery)] = ["
+            ).count - 1,
+            1
+        )
+
+        let elementSerializerStart =
+            "        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {"
+        let querySerializerStart =
+            "        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {"
+        let queryCollectionStart =
+            "        var diagnosticQueryObjects: [String: Any] = [:]"
+        let elementSerializerStartRange = try XCTUnwrap(
+            diagnosticHelperSource.range(of: elementSerializerStart)
+        )
+        let querySerializerStartRange = try XCTUnwrap(
+            diagnosticHelperSource.range(
+                of: querySerializerStart,
+                range: elementSerializerStartRange.upperBound..<diagnosticHelperSource.endIndex
+            )
+        )
+        let queryCollectionStartRange = try XCTUnwrap(
+            diagnosticHelperSource.range(
+                of: queryCollectionStart,
+                range: querySerializerStartRange.upperBound..<diagnosticHelperSource.endIndex
+            )
+        )
+        let elementSerializerSource = String(
+            diagnosticHelperSource[
+                elementSerializerStartRange.lowerBound..<querySerializerStartRange.lowerBound
+            ]
+        )
+        let querySerializerSource = String(
+            diagnosticHelperSource[
+                querySerializerStartRange.lowerBound..<queryCollectionStartRange.lowerBound
+            ]
+        )
+        let exactStringOrNullValue =
+            "            let valueObject: Any\n" +
+                "            if let value = element.value as? String {\n" +
+                "                valueObject = value\n" +
+                "            } else {\n" +
+                "                valueObject = NSNull()\n" +
+                "            }"
+        XCTAssertEqual(
+            elementSerializerSource.components(
+                separatedBy: exactStringOrNullValue
+            ).count - 1,
+            1
+        )
+        try assertOrdered(
+            [
+                "                \"exists\": element.exists,",
+                "                \"isHittable\": element.isHittable,",
+                "                \"identifier\": element.identifier,",
+                "                \"label\": element.label,",
+                "                \"value\": valueObject,",
+                "                \"elementTypeRawValue\": Int(element.elementType.rawValue),",
+                "                \"elementTypeDescription\": String(describing: element.elementType),",
+                "                \"frame\": self.auditFrameObject(element.frame),",
+            ],
+            in: elementSerializerSource,
+            label: "camera-denied node field"
+        )
+        XCTAssertEqual(
+            elementSerializerSource.components(separatedBy: "NSNull()").count - 1,
+            1
+        )
+        XCTAssertFalse(
+            elementSerializerSource.contains("String(describing: element.value)")
+        )
+        for (lock, count) in [
+            ("let count = query.count", 1),
+            ("for index in 0..<count", 1),
+            ("query.element(boundBy: index)", 1),
+            ("                \"count\": count,", 1),
+            ("                \"elements\": elements,", 1),
+        ] {
+            XCTAssertEqual(
+                querySerializerSource.components(separatedBy: lock).count - 1,
+                count,
+                lock
+            )
+        }
+        XCTAssertEqual(
+            diagnosticHelperSource.components(
+                separatedBy: "        for (name, query) in diagnosticQueries {\n" +
+                    "            diagnosticQueryObjects[name] = diagnosticQueryObject(query)\n" +
+                    "        }"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            diagnosticHelperSource.components(separatedBy: ".count").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            diagnosticHelperSource.components(
+                separatedBy: "element(boundBy:"
+            ).count - 1,
+            2
+        )
+
+        let routeDiagnosticStart =
+            "        printJSONLine(\n" +
+                "            prefix: \"S10_4_MINIMUM_CAMERA_DENIED_ROUTE_DIAGNOSTIC\","
+        let firstAttachmentStart =
+            "        let appScreenshotAttachment = XCTAttachment("
+        let auditStart =
+            "        try app.performAccessibilityAudit(for: .contrast) { [self] issue in"
+        let countDiagnosticStart =
+            "        printJSONLine(\n" +
+                "            prefix: \"S10_4_MINIMUM_CAMERA_DENIED_CONTRAST_DIAGNOSTIC_COUNT\","
+        let auditedAttachmentStart =
+            "        let auditedElementAttachment: XCTAttachment"
+        let routeDiagnosticStartRange = try XCTUnwrap(
+            diagnosticHelperSource.range(of: routeDiagnosticStart)
+        )
+        let firstAttachmentStartRange = try XCTUnwrap(
+            diagnosticHelperSource.range(
+                of: firstAttachmentStart,
+                range: routeDiagnosticStartRange.upperBound..<diagnosticHelperSource.endIndex
+            )
+        )
+        let auditStartRange = try XCTUnwrap(
+            diagnosticHelperSource.range(
+                of: auditStart,
+                range: firstAttachmentStartRange.upperBound..<diagnosticHelperSource.endIndex
+            )
+        )
+        let countDiagnosticStartRange = try XCTUnwrap(
+            diagnosticHelperSource.range(
+                of: countDiagnosticStart,
+                range: auditStartRange.upperBound..<diagnosticHelperSource.endIndex
+            )
+        )
+        let auditedAttachmentStartRange = try XCTUnwrap(
+            diagnosticHelperSource.range(
+                of: auditedAttachmentStart,
+                range: countDiagnosticStartRange.upperBound..<diagnosticHelperSource.endIndex
+            )
+        )
+        let routeDiagnosticSource = String(
+            diagnosticHelperSource[
+                routeDiagnosticStartRange.lowerBound..<firstAttachmentStartRange.lowerBound
+            ]
+        )
+        let auditSource = String(
+            diagnosticHelperSource[
+                auditStartRange.lowerBound..<countDiagnosticStartRange.lowerBound
+            ]
+        )
+        let countDiagnosticSource = String(
+            diagnosticHelperSource[
+                countDiagnosticStartRange.lowerBound..<auditedAttachmentStartRange.lowerBound
+            ]
+        )
+
+        try assertOrdered(
+            [
+                "                \"shardID\": shard.shardID,",
+                "                \"requirementID\": shard.requirementID,",
+                "                \"deviceProfileID\": shard.deviceProfileID,",
+                "                \"stateID\": \"state.capture.camera-denied\",",
+                "                \"applicationStateRawValue\": app.state.rawValue,",
+                "                \"isRunningForeground\": app.state == .runningForeground,",
+                "                \"applicationFrame\": auditFrameObject(app.frame),",
+                "                \"queries\": diagnosticQueryObjects,",
+            ],
+            in: routeDiagnosticSource,
+            label: "camera-denied route field"
+        )
+        try assertOrdered(
+            [
+                "                    \"shardID\": shard.shardID,",
+                "                    \"requirementID\": shard.requirementID,",
+                "                    \"deviceProfileID\": shard.deviceProfileID,",
+                "                    \"stateID\": \"state.capture.camera-denied\",",
+                "                    \"ordinal\": observedIssueCount,",
+                "                    \"auditTypeRawValue\": String(issue.auditType.rawValue),",
+                "                    \"compactDescription\": issue.compactDescription,",
+                "                    \"detailedDescription\": issue.detailedDescription,",
+                "                    \"elementIdentifier\": elementIdentifier,",
+                "                    \"elementLabel\": elementLabel,",
+                "                    \"elementType\": elementType,",
+                "                    \"elementFrame\": elementFrame,",
+                "                    \"applicationFrame\": auditFrameObject(app.frame),",
+                "                    \"auditedElement\": auditedElementObject,",
+            ],
+            in: auditSource,
+            label: "camera-denied public audit field"
+        )
+        try assertOrdered(
+            [
+                "                \"shardID\": shard.shardID,",
+                "                \"requirementID\": shard.requirementID,",
+                "                \"deviceProfileID\": shard.deviceProfileID,",
+                "                \"stateID\": \"state.capture.camera-denied\",",
+                "                \"observedIssueCount\": observedIssueCount,",
+            ],
+            in: countDiagnosticSource,
+            label: "camera-denied count field"
+        )
+        let exactAbsentAuditFields =
+            "            } else {\n" +
+                "                auditedElementObject = NSNull()\n" +
+                "                elementIdentifier = NSNull()\n" +
+                "                elementLabel = NSNull()\n" +
+                "                elementType = NSNull()\n" +
+                "                elementFrame = NSNull()\n" +
+                "            }"
+        XCTAssertEqual(
+            auditSource.components(
+                separatedBy: exactAbsentAuditFields
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            auditSource.components(separatedBy: "NSNull()").count - 1,
+            5
+        )
+        XCTAssertEqual(
+            diagnosticHelperSource.components(separatedBy: "NSNull()").count - 1,
+            6
+        )
+
+        for (lock, count) in [
+            ("try app.performAccessibilityAudit(for: .contrast) { [self] issue in", 1),
+            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 0),
+            ("observedIssueCount += 1", 1),
+            ("var firstAuditedElementScreenshot: XCUIScreenshot? = nil", 1),
+            ("auditedElementObject = diagnosticElementObject(auditedElement)", 1),
+            ("if firstAuditedElementScreenshot == nil", 1),
+            ("firstAuditedElementScreenshot = auditedElement.screenshot()", 1),
+            ("return true", 1),
+            ("return false", 0),
+            ("printJSONLine(", 3),
+            ("XCTAttachment(", 6),
+            (".name =", 4),
+            (".lifetime = .keepAlways", 4),
+            ("add(", 4),
+        ] {
+            XCTAssertEqual(
+                diagnosticHelperSource.components(separatedBy: lock).count - 1,
+                count,
+                lock
+            )
+        }
+        for prefix in [
+            "prefix: \"S10_4_MINIMUM_CAMERA_DENIED_ROUTE_DIAGNOSTIC\",",
+            "prefix: \"S10_4_MINIMUM_CAMERA_DENIED_CONTRAST_DIAGNOSTIC\",",
+            "prefix: \"S10_4_MINIMUM_CAMERA_DENIED_CONTRAST_DIAGNOSTIC_COUNT\",",
+        ] {
+            XCTAssertEqual(
+                diagnosticHelperSource.components(separatedBy: prefix).count - 1,
+                1,
+                prefix
+            )
+        }
+        for attachmentLock in [
+            "let appScreenshotAttachment = XCTAttachment(",
+            "screenshot: XCUIScreen.main.screenshot()",
+            "let appTreeAttachment = XCTAttachment(string: app.debugDescription)",
+            "let firstCaptureRoute = captureScreens.element(boundBy: 0)",
+            "if firstCaptureRoute.exists {",
+            "screenshot: firstCaptureRoute.screenshot()",
+            "let captureRouteAttachment: XCTAttachment",
+            "let auditedElementAttachment: XCTAttachment",
+            "if let firstAuditedElementScreenshot {",
+            "screenshot: firstAuditedElementScreenshot",
+            "Capture-route element was absent during the minimum-OS camera-denied contrast diagnostic.",
+            "No audited element screenshot was available during the minimum-OS camera-denied contrast diagnostic.",
+            "S10.4 minimum-OS camera-denied contrast diagnostic app",
+            "S10.4 minimum-OS camera-denied contrast diagnostic tree",
+            "S10.4 minimum-OS camera-denied contrast diagnostic capture-route",
+            "S10.4 minimum-OS camera-denied contrast diagnostic audited-element",
+            "add(appScreenshotAttachment)",
+            "add(appTreeAttachment)",
+            "add(captureRouteAttachment)",
+            "add(auditedElementAttachment)",
+        ] {
+            XCTAssertEqual(
+                diagnosticHelperSource.components(
+                    separatedBy: attachmentLock
+                ).count - 1,
+                1,
+                attachmentLock
+            )
+        }
+        XCTAssertEqual(
+            diagnosticHelperSource.components(
+                separatedBy: "captureRouteAttachment = XCTAttachment("
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            diagnosticHelperSource.components(
+                separatedBy: "auditedElementAttachment = XCTAttachment("
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            auditSource.components(separatedBy: ".append(").count - 1,
+            0
+        )
+        XCTAssertEqual(
+            auditSource.components(separatedBy: ".enumerated()").count - 1,
+            0
+        )
+
+        let terminal =
+            "        throw AutomationConfigurationError.invalid(\n" +
+                "            \"S10.4 minimum-OS camera-denied contrast diagnostic completed nonaccepting\"\n" +
+                "        )\n" +
+                "    }"
+        XCTAssertTrue(diagnosticHelperSource.hasSuffix(terminal + "\n\n"))
+        XCTAssertEqual(
+            diagnosticHelperSource.components(
+                separatedBy: "throw AutomationConfigurationError.invalid("
+            ).count - 1,
+            1
+        )
+        try assertOrdered(
+            [
+                "prefix: \"S10_4_MINIMUM_CAMERA_DENIED_ROUTE_DIAGNOSTIC\",",
+                "let appScreenshotAttachment = XCTAttachment(",
+                "try app.performAccessibilityAudit(for: .contrast) { [self] issue in",
+                "prefix: \"S10_4_MINIMUM_CAMERA_DENIED_CONTRAST_DIAGNOSTIC\",",
+                "prefix: \"S10_4_MINIMUM_CAMERA_DENIED_CONTRAST_DIAGNOSTIC_COUNT\",",
+                "let auditedElementAttachment: XCTAttachment",
+                terminal,
+            ],
+            in: diagnosticHelperSource,
+            label: "camera-denied diagnostic event"
+        )
+
+        for prohibited in [
+            ".tap(", ".doubleTap(", ".press(", ".coordinate(", ".swipe",
+            ".typeText(", ".adjust(", "scroll(", "wait(", "waitFor",
+            "Thread.sleep", "Task.sleep", "sleep(", "XCTWaiter", "XCTAssert",
+            "XCTFail(", "app.launch(", "app.terminate(", "app.screenshot()",
+            "CGRect(", "CGPoint(", "CGVector(", "frame ==", ".count ==",
+            "count !=", "observedIssueCount ==", ".firstMatch",
+            "allElementsBoundByIndex", "eligibleExceptions",
+            "ContrastAuditExceptionSignature", "contrastAuditExceptionSignatures",
+            "stateIssueLimit", "matchingExceptions", "matchedExceptions",
+            "automationContrastExceptions", "automationAXTreeDigests",
+            "captureBaseline(", "attachCandidate(", "S10_MIGRATION_STATE",
+            "prefix: \"S10_4_AX_STATE\"", "prefix: \"S10_4_AX\"",
+            "prefix: \"S10_4_CONTRAST\"", "S10_4_CANDIDATE", "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT", "receipt", "retention", "\"result\":",
+            "\"PASS\"", "\"EXCEPTION\"", "do {", "catch {", "try?", "try!",
+        ] {
+            XCTAssertFalse(
+                diagnosticHelperSource.contains(prohibited),
+                prohibited
+            )
+        }
+
+        let gateAndBaseline = diagnosticGate + "\n" + normalCameraDeniedBaseline
+        let missingTabBarQuery = exactQueryBlock.replacingOccurrences(
+            of: "            (\"tabBars\", tabBars),\n",
+            with: ""
+        )
+        let negativeMutations: [(String, String, String, String)] = [
+            (
+                "wrong shard",
+                cameraRecoverySource,
+                diagnosticGate,
+                diagnosticGate.replacingOccurrences(
+                    of: "s10.4.minimum.minimum-os",
+                    with: "s10.4.current.default-light"
+                )
+            ),
+            (
+                "wrong profile",
+                cameraRecoverySource,
+                diagnosticGate,
+                diagnosticGate.replacingOccurrences(
+                    of: "iphone-se-3-ios-18.0-minimum",
+                    with: "iphone-17-ios-26.2-current"
+                )
+            ),
+            (
+                "disjunctive gate",
+                cameraRecoverySource,
+                diagnosticGate,
+                diagnosticGate.replacingOccurrences(
+                    of: "\",\n           automationShard",
+                    with: "\" ||\n           automationShard"
+                )
+            ),
+            (
+                "diagnostic after baseline",
+                cameraRecoverySource,
+                gateAndBaseline,
+                normalCameraDeniedBaseline + "\n" + diagnosticGate
+            ),
+            (
+                "missing query",
+                diagnosticHelperSource,
+                exactQueryBlock,
+                missingTabBarQuery
+            ),
+            (
+                "fixed callback cardinality",
+                diagnosticHelperSource,
+                "            for index in 0..<count {",
+                "            for index in 0..<1 {"
+            ),
+            (
+                "uncaptured audit callback",
+                diagnosticHelperSource,
+                auditStart,
+                "        try app.performAccessibilityAudit(for: .contrast) { issue in"
+            ),
+            (
+                "rejected audit issue",
+                diagnosticHelperSource,
+                "            return true",
+                "            return false"
+            ),
+            (
+                "accepting terminal",
+                diagnosticHelperSource,
+                terminal,
+                "        return\n    }"
+            ),
+        ]
+        for (label, source, canonical, mutation) in negativeMutations {
+            XCTAssertTrue(source.contains(canonical), label)
+            XCTAssertNotEqual(canonical, mutation, label)
+            XCTAssertFalse(source.contains(mutation), label)
+        }
     }
 
     func testFrozenInventoryDerivesExactUnpromotedVisualAndAccessibilityMatrices() throws {

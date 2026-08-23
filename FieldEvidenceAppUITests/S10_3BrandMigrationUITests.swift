@@ -600,7 +600,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         recordMetric("cold_launch_to_welcome", since: coldLaunchStartedAt)
 
         assertLightFirstSignValidationAndCreation(in: app)
-        completeVisibleIssueCheck(in: app)
+        try completeVisibleIssueCheck(in: app)
         assertFirstReceiptAndReport(in: app)
         assertReportsIndex(in: app)
 
@@ -1409,7 +1409,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func completeVisibleIssueCheck(in app: XCUIApplication) {
+    private func completeVisibleIssueCheck(in app: XCUIApplication) throws {
         let start = element("s2.sign-detail.start-check", in: app)
         scroll(start, in: app)
         assertControl(start, label: "Start Check")
@@ -2495,7 +2495,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
         }
         captureBaseline("state.capture.wide-ready", in: app)
-        recoverCameraDenialAndResume(in: app)
+        try recoverCameraDenialAndResume(in: app)
 
         acceptImportedPhoto(
             in: app,
@@ -5876,7 +5876,232 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func recoverCameraDenialAndResume(in app: XCUIApplication) {
+    private func diagnoseMinimumOSCameraDeniedContrast(
+        in app: XCUIApplication
+    ) throws {
+        let shard = automationShard!
+        let captureScreens = app.descendants(matching: .any).matching(
+            identifier: "s3.capture.screen"
+        )
+        let captureHeadings = app.descendants(matching: .any).matching(
+            identifier: "s3.capture.heading"
+        )
+        let takePhotoButtons = app.descendants(matching: .any).matching(
+            identifier: "s3.capture.take-photo"
+        )
+        let choosePhotosButtons = app.descendants(matching: .any).matching(
+            identifier: "s3.capture.choose-photos"
+        )
+        let openSettingsButtons = app.descendants(matching: .any).matching(
+            identifier: "s3.capture.open-settings"
+        )
+        let cannotCompleteButtons = app.descendants(matching: .any).matching(
+            identifier: "s3.capture.cannot-complete"
+        )
+        let importFixtureButtons = app.descendants(matching: .any).matching(
+            identifier: "s3.capture.import-fixture"
+        )
+        let capturePreviews = app.descendants(matching: .any).matching(
+            identifier: "s3.capture.preview"
+        )
+        let signsTabs = app.descendants(matching: .any).matching(
+            identifier: "s1.tab.signs"
+        )
+        let reportsTabs = app.descendants(matching: .any).matching(
+            identifier: "s1.tab.reports"
+        )
+        let blockedCameraLabels = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "label == %@",
+                "Blocked: Camera access unavailable"
+            )
+        )
+        let denialInstructionLabels = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "label == %@",
+                "Choose a photo, open Settings, or leave this check incomplete and return later."
+            )
+        )
+        let captureNavigationBars = app.navigationBars.matching(
+            identifier: "Capture"
+        )
+        let tabBars = app.tabBars
+        let diagnosticQueries: [(String, XCUIElementQuery)] = [
+            ("captureScreens", captureScreens),
+            ("captureHeadings", captureHeadings),
+            ("takePhotoButtons", takePhotoButtons),
+            ("choosePhotosButtons", choosePhotosButtons),
+            ("openSettingsButtons", openSettingsButtons),
+            ("cannotCompleteButtons", cannotCompleteButtons),
+            ("importFixtureButtons", importFixtureButtons),
+            ("capturePreviews", capturePreviews),
+            ("signsTabs", signsTabs),
+            ("reportsTabs", reportsTabs),
+            ("blockedCameraLabels", blockedCameraLabels),
+            ("denialInstructionLabels", denialInstructionLabels),
+            ("captureNavigationBars", captureNavigationBars),
+            ("tabBars", tabBars),
+        ]
+        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
+            element in
+            let valueObject: Any
+            if let value = element.value as? String {
+                valueObject = value
+            } else {
+                valueObject = NSNull()
+            }
+            return [
+                "exists": element.exists,
+                "isHittable": element.isHittable,
+                "identifier": element.identifier,
+                "label": element.label,
+                "value": valueObject,
+                "elementTypeRawValue": Int(element.elementType.rawValue),
+                "elementTypeDescription": String(describing: element.elementType),
+                "frame": self.auditFrameObject(element.frame),
+            ]
+        }
+        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
+            query in
+            let count = query.count
+            var elements: [[String: Any]] = []
+            for index in 0..<count {
+                elements.append(
+                    diagnosticElementObject(query.element(boundBy: index))
+                )
+            }
+            return [
+                "count": count,
+                "elements": elements,
+            ]
+        }
+        var diagnosticQueryObjects: [String: Any] = [:]
+        for (name, query) in diagnosticQueries {
+            diagnosticQueryObjects[name] = diagnosticQueryObject(query)
+        }
+        printJSONLine(
+            prefix: "S10_4_MINIMUM_CAMERA_DENIED_ROUTE_DIAGNOSTIC",
+            object: [
+                "shardID": shard.shardID,
+                "requirementID": shard.requirementID,
+                "deviceProfileID": shard.deviceProfileID,
+                "stateID": "state.capture.camera-denied",
+                "applicationStateRawValue": app.state.rawValue,
+                "isRunningForeground": app.state == .runningForeground,
+                "applicationFrame": auditFrameObject(app.frame),
+                "queries": diagnosticQueryObjects,
+            ]
+        )
+
+        let appScreenshotAttachment = XCTAttachment(
+            screenshot: XCUIScreen.main.screenshot()
+        )
+        appScreenshotAttachment.name =
+            "S10.4 minimum-OS camera-denied contrast diagnostic app"
+        appScreenshotAttachment.lifetime = .keepAlways
+        add(appScreenshotAttachment)
+
+        let appTreeAttachment = XCTAttachment(string: app.debugDescription)
+        appTreeAttachment.name =
+            "S10.4 minimum-OS camera-denied contrast diagnostic tree"
+        appTreeAttachment.lifetime = .keepAlways
+        add(appTreeAttachment)
+
+        let firstCaptureRoute = captureScreens.element(boundBy: 0)
+        let captureRouteAttachment: XCTAttachment
+        if firstCaptureRoute.exists {
+            captureRouteAttachment = XCTAttachment(
+                screenshot: firstCaptureRoute.screenshot()
+            )
+        } else {
+            captureRouteAttachment = XCTAttachment(
+                string: "Capture-route element was absent during the minimum-OS camera-denied contrast diagnostic."
+            )
+        }
+        captureRouteAttachment.name =
+            "S10.4 minimum-OS camera-denied contrast diagnostic capture-route"
+        captureRouteAttachment.lifetime = .keepAlways
+        add(captureRouteAttachment)
+
+        var observedIssueCount = 0
+        var firstAuditedElementScreenshot: XCUIScreenshot? = nil
+        try app.performAccessibilityAudit(for: .contrast) { [self] issue in
+            observedIssueCount += 1
+            let auditedElementObject: Any
+            let elementIdentifier: Any
+            let elementLabel: Any
+            let elementType: Any
+            let elementFrame: Any
+            if let auditedElement = issue.element {
+                auditedElementObject = diagnosticElementObject(auditedElement)
+                elementIdentifier = auditedElement.identifier
+                elementLabel = auditedElement.label
+                elementType = String(describing: auditedElement.elementType)
+                elementFrame = auditFrameObject(auditedElement.frame)
+                if firstAuditedElementScreenshot == nil {
+                    firstAuditedElementScreenshot = auditedElement.screenshot()
+                }
+            } else {
+                auditedElementObject = NSNull()
+                elementIdentifier = NSNull()
+                elementLabel = NSNull()
+                elementType = NSNull()
+                elementFrame = NSNull()
+            }
+            printJSONLine(
+                prefix: "S10_4_MINIMUM_CAMERA_DENIED_CONTRAST_DIAGNOSTIC",
+                object: [
+                    "shardID": shard.shardID,
+                    "requirementID": shard.requirementID,
+                    "deviceProfileID": shard.deviceProfileID,
+                    "stateID": "state.capture.camera-denied",
+                    "ordinal": observedIssueCount,
+                    "auditTypeRawValue": String(issue.auditType.rawValue),
+                    "compactDescription": issue.compactDescription,
+                    "detailedDescription": issue.detailedDescription,
+                    "elementIdentifier": elementIdentifier,
+                    "elementLabel": elementLabel,
+                    "elementType": elementType,
+                    "elementFrame": elementFrame,
+                    "applicationFrame": auditFrameObject(app.frame),
+                    "auditedElement": auditedElementObject,
+                ]
+            )
+            return true
+        }
+        printJSONLine(
+            prefix: "S10_4_MINIMUM_CAMERA_DENIED_CONTRAST_DIAGNOSTIC_COUNT",
+            object: [
+                "shardID": shard.shardID,
+                "requirementID": shard.requirementID,
+                "deviceProfileID": shard.deviceProfileID,
+                "stateID": "state.capture.camera-denied",
+                "observedIssueCount": observedIssueCount,
+            ]
+        )
+
+        let auditedElementAttachment: XCTAttachment
+        if let firstAuditedElementScreenshot {
+            auditedElementAttachment = XCTAttachment(
+                screenshot: firstAuditedElementScreenshot
+            )
+        } else {
+            auditedElementAttachment = XCTAttachment(
+                string: "No audited element screenshot was available during the minimum-OS camera-denied contrast diagnostic."
+            )
+        }
+        auditedElementAttachment.name =
+            "S10.4 minimum-OS camera-denied contrast diagnostic audited-element"
+        auditedElementAttachment.lifetime = .keepAlways
+        add(auditedElementAttachment)
+
+        throw AutomationConfigurationError.invalid(
+            "S10.4 minimum-OS camera-denied contrast diagnostic completed nonaccepting"
+        )
+    }
+
+    @MainActor
+    private func recoverCameraDenialAndResume(in app: XCUIApplication) throws {
         let takePhoto = element("s3.capture.take-photo", in: app)
         scroll(takePhoto, in: app)
         assertControl(takePhoto, label: "Take photo")
@@ -5889,6 +6114,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             "Choose a photo, open Settings, or leave this check incomplete and return later.",
             in: app
         )
+        if automationShard?.shardID == "s10.4.minimum.minimum-os",
+           automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+            try diagnoseMinimumOSCameraDeniedContrast(in: app)
+        }
         captureBaseline("state.capture.camera-denied", in: app)
 
         let cannotComplete = element("s3.capture.cannot-complete", in: app)
