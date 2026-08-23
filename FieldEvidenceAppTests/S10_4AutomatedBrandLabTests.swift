@@ -414,8 +414,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 296_960,
-            sha256: "6D9255F937CAF233075E67282AED44A065BFD06D2BCD1AB7379CAED19B0C16D4"
+            byteCount: 312_699,
+            sha256: "4E1E4E1653FF6555E51A1691E974845CDA2F8F21F23EA513731F43610C26A04E"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -581,18 +581,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 preflightMinimumStartRange.lowerBound..<preflightQuickPathSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightMinimumSource.utf8.count, 23_037)
+        XCTAssertEqual(preflightMinimumSource.utf8.count, 38_776)
         XCTAssertEqual(
             Data(preflightMinimumSource.utf8).sha256,
-            "60F8009037AC6ADE2BF3AEB756A1FDA2E107D6F626ABCEC84E7463C08E74B6CA"
+            "6AA33838F9B0A34EB9D2338EB46B06908BE0F63D573E20985B9915011821C1BA"
         )
         for (preflightNavigationBinding, count) in [
             ("let preflightNavigationBars = app.navigationBars", 1),
             ("let preflightNavigationBar = preflightNavigationBars.firstMatch", 1),
-            ("preflightNavigationBars.count == 1", 3),
-            ("preflightNavigationBar.exists", 3),
-            ("preflightNavigationBar.frame", 2),
-            ("let navigationFrame = preflightNavigationBar.frame", 1),
+            ("preflightNavigationBars.count == 1", 6),
+            ("preflightNavigationBar.exists", 6),
+            ("preflightNavigationBar.frame", 4),
+            ("let navigationFrame = preflightNavigationBar.frame", 2),
             ("let finalNavigationFrame =\n" +
                 "                        preflightNavigationBar.frame", 1),
         ] {
@@ -1112,7 +1112,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         guard let preflightOffAppStartRange = preflightQuickPathSource.range(
             of: "                if keyboardIsOffApp {"
         ), let preflightVisibleStartRange = preflightQuickPathSource.range(
-            of: "                } else {",
+            of: "\n                } else {",
             range: preflightOffAppStartRange.upperBound..<preflightQuickPathSource.endIndex
         ) else {
             XCTFail("Missing the preflight keyboard class branches")
@@ -1127,6 +1127,35 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             preflightQuickPathSource[
                 preflightVisibleStartRange.lowerBound..<preflightQuickPathSource.endIndex
             ]
+        )
+        let minimumDoubleLengthPositioningGate =
+            "                    if automationShard?.shardID\n" +
+                #"                        == "s10.4.minimum.double-length" {"#
+        guard let minimumDoubleLengthPositioningStartRange =
+            preflightOffAppSource.range(of: minimumDoubleLengthPositioningGate) else {
+            XCTFail("Missing the minimum double-length off-app positioning slice")
+            return
+        }
+        let minimumDoubleLengthPositioningSource = String(
+            preflightOffAppSource[
+                minimumDoubleLengthPositioningStartRange.lowerBound..<preflightOffAppSource.endIndex
+            ]
+        )
+        let passivePreflightOffAppSource = String(
+            preflightOffAppSource[
+                preflightOffAppSource.startIndex..<minimumDoubleLengthPositioningStartRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.utf8.count, 15_738)
+        XCTAssertEqual(
+            Data(minimumDoubleLengthPositioningSource.utf8).sha256,
+            "6B07CAA60D138C8E593B4DE19CA59E92EB418621FE6AE2D936095CFD161F1BE7"
+        )
+        XCTAssertEqual(
+            preflightOffAppSource.components(
+                separatedBy: minimumDoubleLengthPositioningGate
+            ).count - 1,
+            1
         )
         let normalizedPreflightVisibleSource = preflightVisibleSource
             .components(separatedBy: "\n")
@@ -1183,8 +1212,239 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "-91",
         ] {
             XCTAssertFalse(
-                preflightOffAppSource.contains(prohibitedOffAppAction),
+                passivePreflightOffAppSource.contains(prohibitedOffAppAction),
                 prohibitedOffAppAction
+            )
+        }
+        let normalizedMinimumDoubleLengthPositioningSource =
+            minimumDoubleLengthPositioningSource
+                .components(separatedBy: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .joined(separator: "\n")
+        let minimumDoubleLengthPositioningLocks = [
+            "if automationShard?.shardID\n" +
+                #"== "s10.4.minimum.double-length" {"#,
+            "let preflightTabBars = app.tabBars",
+            "let confirmationLabel =\n" +
+                #""I confirm this is the site's time zone. " +"# + "\n" +
+                #""I confirm this is the site's time zone.""#,
+            "let confirmationTexts = app.staticTexts.matching(\n" +
+                "NSPredicate(\n" +
+                #"format: "label == %@","# + "\n" +
+                "confirmationLabel\n" +
+                ")\n" +
+                ")",
+            "let preflightTabBar = preflightTabBars.firstMatch",
+            "let confirmationText = confirmationTexts.firstMatch",
+            "let observedAssistantFrame = inputAssistantFrame",
+            "let verticalInset: CGFloat = 16",
+            "let receiverInset: CGFloat = 24",
+            "let minimumGestureDistance: CGFloat = 44",
+            "var preflightPositioningDirection: CGFloat?",
+            "for _ in 0..<4 {",
+            "let liveApplicationFrame = app.frame",
+            "let scrollFrame = preflightScrollView.frame",
+            "let liveScrollFrame = scrollFrame.intersection(\n" +
+                "liveApplicationFrame\n" +
+                ")",
+            "let navigationFrame = preflightNavigationBar.frame",
+            "let tabBarFrame = preflightTabBar.frame",
+            "let confirmationFrame = confirmationText.frame",
+            "let liveBottom = min(\n" +
+                "liveScrollFrame.maxY,\n" +
+                "min(\n" +
+                "liveApplicationFrame.maxY,\n" +
+                "tabBarFrame.minY\n" +
+                ")\n" +
+                ")",
+            "let safeTop = max(\n" +
+                "liveScrollFrame.minY,\n" +
+                "navigationFrame.maxY\n" +
+                ") + verticalInset",
+            "let safeBottom = liveBottom - verticalInset",
+            "let receiverTop = max(\n" +
+                "liveScrollFrame.minY,\n" +
+                "navigationFrame.maxY\n" +
+                ") + receiverInset",
+            "let receiverBottom = liveBottom - receiverInset",
+            "let minimumShift =\n" +
+                "safeTop - confirmationFrame.minY",
+            "let maximumShift =\n" +
+                "safeBottom - confirmationFrame.maxY",
+            "confirmationFrame.height\n" +
+                "<= safeBottom - safeTop,\n" +
+                "minimumShift <= maximumShift else {",
+            "if confirmationFrame.minY >= safeTop,\n" +
+                "confirmationFrame.maxY <= safeBottom {\n" +
+                "break\n" +
+                "}",
+            "guard maximumShift < 0 else {",
+            "let receiverCapacity = receiverBottom - receiverTop",
+            "guard receiverCapacity >= minimumGestureDistance,\n" +
+                "abs(maximumShift)\n" +
+                ">= minimumGestureDistance else {",
+            "if abs(maximumShift) <= receiverCapacity {\n" +
+                "dragDistance = maximumShift\n" +
+                "} else {",
+            "let stagedDistance = max(\n" +
+                "-receiverCapacity,\n" +
+                "maximumShift + minimumGestureDistance\n" +
+                ")",
+            "guard stagedDistance\n" +
+                "<= -minimumGestureDistance else {",
+            "dragDistance = stagedDistance",
+            "let dragDirection: CGFloat = dragDistance > 0\n" +
+                "? 1\n" +
+                ": -1",
+            "if let preflightPositioningDirection {\n" +
+                "guard dragDirection\n" +
+                "== preflightPositioningDirection else {",
+            "preflightPositioningDirection = dragDirection",
+            "let scrollOrigin = preflightScrollView.coordinate(\n" +
+                "withNormalizedOffset: CGVector(dx: 0, dy: 0)\n" +
+                ")",
+            "dy: receiverBottom - scrollFrame.minY",
+            "let dragEnd = dragStart.withOffset(\n" +
+                "CGVector(dx: 0, dy: dragDistance)\n" +
+                ")",
+            "dragStart.press(\n" +
+                "forDuration: 0.2,\n" +
+                "thenDragTo: dragEnd,\n" +
+                "withVelocity: .slow,\n" +
+                "thenHoldForDuration: 0.2\n" +
+                ")",
+            "let confirmationMovement =\n" +
+                "confirmationText.frame.minY\n" +
+                "- confirmationMinYBeforeDrag",
+            "guard confirmationMovement * dragDistance > 0 else {",
+            "let finalApplicationFrame = app.frame",
+            "let finalScrollFrame = preflightScrollView.frame.intersection(\n" +
+                "finalApplicationFrame\n" +
+                ")",
+            "let finalNavigationFrame = preflightNavigationBar.frame",
+            "let finalTabBarFrame = preflightTabBar.frame",
+            "let finalConfirmationFrame = confirmationText.frame",
+            "let finalSafeTop = max(\n" +
+                "finalScrollFrame.minY,\n" +
+                "finalNavigationFrame.maxY\n" +
+                ") + verticalInset",
+            "let finalSafeBottom = min(\n" +
+                "finalScrollFrame.maxY,\n" +
+                "min(\n" +
+                "finalApplicationFrame.maxY,\n" +
+                "finalTabBarFrame.minY\n" +
+                ")\n" +
+                ") - verticalInset",
+            "preflight.exists\n" +
+                "== preActionPreflightExists,\n" +
+                "detailRoute.exists\n" +
+                "== preActionDetailRouteExists,",
+            "wait(\n" +
+                "for: zone,\n" +
+                #"predicate: "hasKeyboardFocus == true","# + "\n" +
+                "timeout: 10\n" +
+                ")",
+            "zone.label == preActionZoneLabel,\n" +
+                "(zone.value as? String)\n" +
+                "== preActionZoneValue,",
+            "afterDark.label == preActionAfterDarkLabel,\n" +
+                "(afterDark.value as? String)\n" +
+                "== preActionAfterDarkValue,",
+            "safePosition.label\n" +
+                "== preActionSafePositionLabel,\n" +
+                "(safePosition.value as? String)\n" +
+                "== preActionSafePositionValue,",
+            "finalConfirmationFrame.minY >= finalSafeTop,\n" +
+                "finalConfirmationFrame.maxY <= finalSafeBottom else {",
+        ]
+        for lock in minimumDoubleLengthPositioningLocks {
+            XCTAssertEqual(
+                normalizedMinimumDoubleLengthPositioningSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        for (lock, count) in [
+            ("preflightScrollViews.count == 1", 3),
+            ("preflightNavigationBars.count == 1", 3),
+            ("preflightTabBars.count == 1", 3),
+            ("confirmationTexts.count == 1", 3),
+            ("inputAssistantViews.count == 1", 3),
+            ("preflightScrollView.exists", 3),
+            ("preflightNavigationBar.exists", 3),
+            ("preflightTabBar.exists", 3),
+            ("confirmationText.exists", 3),
+            ("confirmationText.identifier.isEmpty", 3),
+            ("confirmationText.elementType == .staticText", 3),
+            ("confirmationText.label == confirmationLabel", 3),
+            ("keyboardIsAbsentOrInertOffApp(in: app)", 3),
+            ("preflightPositioningDirection", 4),
+            ("dragDirection", 3),
+            ("preflightScrollView.coordinate(", 1),
+            ("dragStart.press(", 1),
+            ("forDuration: 0.2", 1),
+            ("withVelocity: .slow", 1),
+            ("thenHoldForDuration: 0.2", 1),
+        ] {
+            XCTAssertEqual(
+                minimumDoubleLengthPositioningSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                count,
+                lock
+            )
+        }
+        let minimumDoubleLengthFinalGuardTail =
+            "                              finalConfirmationFrame.minY >= finalSafeTop,\n" +
+                "                              finalConfirmationFrame.maxY <= finalSafeBottom else {\n" +
+                "                            XCTFail(\n" +
+                #"                                "The minimum double-length preflight confirmation was not fully contained before capture.""# +
+                "\n                            )\n" +
+                "                            return\n" +
+                "                        }\n" +
+                "                    }"
+        XCTAssertTrue(
+            minimumDoubleLengthPositioningSource.hasSuffix(
+                minimumDoubleLengthFinalGuardTail
+            )
+        )
+        for prohibitedMinimumDoubleLengthPositioningForm in [
+            "626.012451171875",
+            "1123.512451171875",
+            "497.5",
+            "-521.512451171875",
+            "711",
+            "app.coordinate(",
+            "keyboard.coordinate(",
+            ".swipe",
+            ".tap(",
+            "scroll(",
+            "typeText(",
+            "dismissKeyboard(",
+            "setToggle(",
+            "Thread.sleep",
+            "Task.sleep",
+            "sleep(",
+            "tolerance",
+            "epsilon",
+            "performAccessibilityAudit",
+            "automationContrastExceptions",
+            "matchingExceptions",
+            "captureBaseline(",
+            "attachCandidate(",
+            "S10_4_AX_STATE",
+            "S10_4_CONTRAST",
+            "S10_4_CANDIDATE",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+        ] {
+            XCTAssertFalse(
+                minimumDoubleLengthPositioningSource.contains(
+                    prohibitedMinimumDoubleLengthPositioningForm
+                ),
+                prohibitedMinimumDoubleLengthPositioningForm
             )
         }
 
@@ -1578,11 +1838,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             preflightQuickPathSource.components(separatedBy: "XCTFail(").count - 1,
-            15
+            24
         )
         XCTAssertEqual(
             preflightQuickPathSource.components(separatedBy: "                    return\n").count - 1,
-            15
+            24
         )
         XCTAssertFalse(
             preflightQuickPathSource.contains(
@@ -2368,7 +2628,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(
                 separatedBy: "keyboardIsAbsentOrInertOffApp("
             ).count - 1,
-            4
+            7
         )
         guard let passiveKeyboardHelperStartRange = uiSource.range(
             of: passiveKeyboardHelperStart

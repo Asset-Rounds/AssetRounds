@@ -1502,6 +1502,280 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         XCTFail("The minimum-profile off-app preflight keyboard is not inert with preserved state.")
                         return
                     }
+                    if automationShard?.shardID
+                        == "s10.4.minimum.double-length" {
+                        let preflightTabBars = app.tabBars
+                        let confirmationLabel =
+                            "I confirm this is the site's time zone. " +
+                            "I confirm this is the site's time zone."
+                        let confirmationTexts = app.staticTexts.matching(
+                            NSPredicate(
+                                format: "label == %@",
+                                confirmationLabel
+                            )
+                        )
+                        let preflightTabBar = preflightTabBars.firstMatch
+                        let confirmationText = confirmationTexts.firstMatch
+                        let observedAssistantFrame = inputAssistantFrame
+                        let verticalInset: CGFloat = 16
+                        let receiverInset: CGFloat = 24
+                        let minimumGestureDistance: CGFloat = 44
+                        var preflightPositioningDirection: CGFloat?
+                        for _ in 0..<4 {
+                            guard app.state == .runningForeground,
+                                  preflightScrollViews.count == 1,
+                                  preflightNavigationBars.count == 1,
+                                  preflightTabBars.count == 1,
+                                  confirmationTexts.count == 1,
+                                  preflightScrollView.exists,
+                                  preflightNavigationBar.exists,
+                                  preflightTabBar.exists,
+                                  confirmationText.exists,
+                                  confirmationText.identifier.isEmpty,
+                                  confirmationText.elementType == .staticText,
+                                  confirmationText.label == confirmationLabel,
+                                  keyboard.exists,
+                                  keyboard.frame == observedKeyboardFrame,
+                                  inputAssistantViews.count == 1,
+                                  inputAssistantView.exists,
+                                  inputAssistantView.frame
+                                    == observedAssistantFrame,
+                                  keyboardIsAbsentOrInertOffApp(in: app) else {
+                                XCTFail(
+                                    "The minimum double-length preflight positioning route changed."
+                                )
+                                return
+                            }
+                            let liveApplicationFrame = app.frame
+                            let scrollFrame = preflightScrollView.frame
+                            let liveScrollFrame = scrollFrame.intersection(
+                                liveApplicationFrame
+                            )
+                            let navigationFrame = preflightNavigationBar.frame
+                            let tabBarFrame = preflightTabBar.frame
+                            let confirmationFrame = confirmationText.frame
+                            let liveBottom = min(
+                                liveScrollFrame.maxY,
+                                min(
+                                    liveApplicationFrame.maxY,
+                                    tabBarFrame.minY
+                                )
+                            )
+                            let safeTop = max(
+                                liveScrollFrame.minY,
+                                navigationFrame.maxY
+                            ) + verticalInset
+                            let safeBottom = liveBottom - verticalInset
+                            let receiverTop = max(
+                                liveScrollFrame.minY,
+                                navigationFrame.maxY
+                            ) + receiverInset
+                            let receiverBottom = liveBottom - receiverInset
+                            let minimumShift =
+                                safeTop - confirmationFrame.minY
+                            let maximumShift =
+                                safeBottom - confirmationFrame.maxY
+                            guard !liveApplicationFrame.isNull,
+                                  !liveApplicationFrame.isEmpty,
+                                  !scrollFrame.isNull,
+                                  !scrollFrame.isEmpty,
+                                  !liveScrollFrame.isNull,
+                                  !liveScrollFrame.isEmpty,
+                                  !navigationFrame.isNull,
+                                  !navigationFrame.isEmpty,
+                                  !tabBarFrame.isNull,
+                                  !tabBarFrame.isEmpty,
+                                  !confirmationFrame.isNull,
+                                  !confirmationFrame.isEmpty,
+                                  safeBottom > safeTop,
+                                  receiverBottom > receiverTop,
+                                  confirmationFrame.height
+                                    <= safeBottom - safeTop,
+                                  minimumShift <= maximumShift else {
+                                XCTFail(
+                                    "The minimum double-length preflight positioning geometry is invalid."
+                                )
+                                return
+                            }
+                            if confirmationFrame.minY >= safeTop,
+                               confirmationFrame.maxY <= safeBottom {
+                                break
+                            }
+                            guard maximumShift < 0 else {
+                                XCTFail(
+                                    "The minimum double-length preflight confirmation requires a non-upward shift."
+                                )
+                                return
+                            }
+                            let receiverCapacity = receiverBottom - receiverTop
+                            guard receiverCapacity >= minimumGestureDistance,
+                                  abs(maximumShift)
+                                    >= minimumGestureDistance else {
+                                XCTFail(
+                                    "The minimum double-length preflight confirmation has no recognized upward shift."
+                                )
+                                return
+                            }
+                            let dragDistance: CGFloat
+                            if abs(maximumShift) <= receiverCapacity {
+                                dragDistance = maximumShift
+                            } else {
+                                let stagedDistance = max(
+                                    -receiverCapacity,
+                                    maximumShift + minimumGestureDistance
+                                )
+                                guard stagedDistance
+                                    <= -minimumGestureDistance else {
+                                    XCTFail(
+                                        "The minimum double-length preflight confirmation cannot reserve a recognized final shift."
+                                    )
+                                    return
+                                }
+                                dragDistance = stagedDistance
+                            }
+                            let dragDirection: CGFloat = dragDistance > 0
+                                ? 1
+                                : -1
+                            if let preflightPositioningDirection {
+                                guard dragDirection
+                                    == preflightPositioningDirection else {
+                                    XCTFail(
+                                        "The minimum double-length preflight correction would reverse direction."
+                                    )
+                                    return
+                                }
+                            } else {
+                                preflightPositioningDirection = dragDirection
+                            }
+                            let scrollOrigin = preflightScrollView.coordinate(
+                                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+                            )
+                            let dragStart = scrollOrigin.withOffset(
+                                CGVector(
+                                    dx: scrollFrame.width / 2,
+                                    dy: receiverBottom - scrollFrame.minY
+                                )
+                            )
+                            let dragEnd = dragStart.withOffset(
+                                CGVector(dx: 0, dy: dragDistance)
+                            )
+                            let confirmationMinYBeforeDrag =
+                                confirmationFrame.minY
+                            dragStart.press(
+                                forDuration: 0.2,
+                                thenDragTo: dragEnd,
+                                withVelocity: .slow,
+                                thenHoldForDuration: 0.2
+                            )
+                            guard app.state == .runningForeground,
+                                  preflightScrollViews.count == 1,
+                                  preflightNavigationBars.count == 1,
+                                  preflightTabBars.count == 1,
+                                  confirmationTexts.count == 1,
+                                  preflightScrollView.exists,
+                                  preflightNavigationBar.exists,
+                                  preflightTabBar.exists,
+                                  confirmationText.exists,
+                                  confirmationText.identifier.isEmpty,
+                                  confirmationText.elementType == .staticText,
+                                  confirmationText.label == confirmationLabel,
+                                  keyboard.exists,
+                                  keyboard.frame == observedKeyboardFrame,
+                                  inputAssistantViews.count == 1,
+                                  inputAssistantView.exists,
+                                  inputAssistantView.frame
+                                    == observedAssistantFrame,
+                                  keyboardIsAbsentOrInertOffApp(in: app) else {
+                                XCTFail(
+                                    "The minimum double-length preflight positioning route changed after the gesture."
+                                )
+                                return
+                            }
+                            let confirmationMovement =
+                                confirmationText.frame.minY
+                                    - confirmationMinYBeforeDrag
+                            guard confirmationMovement * dragDistance > 0 else {
+                                XCTFail(
+                                    "The minimum double-length preflight positioning gesture did not make signed progress."
+                                )
+                                return
+                            }
+                        }
+                        let finalApplicationFrame = app.frame
+                        let finalScrollFrame = preflightScrollView.frame.intersection(
+                            finalApplicationFrame
+                        )
+                        let finalNavigationFrame = preflightNavigationBar.frame
+                        let finalTabBarFrame = preflightTabBar.frame
+                        let finalConfirmationFrame = confirmationText.frame
+                        let finalSafeTop = max(
+                            finalScrollFrame.minY,
+                            finalNavigationFrame.maxY
+                        ) + verticalInset
+                        let finalSafeBottom = min(
+                            finalScrollFrame.maxY,
+                            min(
+                                finalApplicationFrame.maxY,
+                                finalTabBarFrame.minY
+                            )
+                        ) - verticalInset
+                        guard app.state == .runningForeground,
+                              preflightScrollViews.count == 1,
+                              preflightNavigationBars.count == 1,
+                              preflightTabBars.count == 1,
+                              confirmationTexts.count == 1,
+                              preflightScrollView.exists,
+                              preflightNavigationBar.exists,
+                              preflightTabBar.exists,
+                              confirmationText.exists,
+                              confirmationText.identifier.isEmpty,
+                              confirmationText.elementType == .staticText,
+                              confirmationText.label == confirmationLabel,
+                              keyboard.exists,
+                              keyboard.frame == observedKeyboardFrame,
+                              inputAssistantViews.count == 1,
+                              inputAssistantView.exists,
+                              inputAssistantView.frame
+                                == observedAssistantFrame,
+                              keyboardIsAbsentOrInertOffApp(in: app),
+                              preflight.exists
+                                == preActionPreflightExists,
+                              detailRoute.exists
+                                == preActionDetailRouteExists,
+                              wait(
+                                  for: zone,
+                                  predicate: "hasKeyboardFocus == true",
+                                  timeout: 10
+                              ),
+                              zone.label == preActionZoneLabel,
+                              (zone.value as? String)
+                                == preActionZoneValue,
+                              afterDark.label == preActionAfterDarkLabel,
+                              (afterDark.value as? String)
+                                == preActionAfterDarkValue,
+                              safePosition.label
+                                == preActionSafePositionLabel,
+                              (safePosition.value as? String)
+                                == preActionSafePositionValue,
+                              !finalApplicationFrame.isNull,
+                              !finalApplicationFrame.isEmpty,
+                              !finalScrollFrame.isNull,
+                              !finalScrollFrame.isEmpty,
+                              !finalNavigationFrame.isNull,
+                              !finalNavigationFrame.isEmpty,
+                              !finalTabBarFrame.isNull,
+                              !finalTabBarFrame.isEmpty,
+                              !finalConfirmationFrame.isNull,
+                              !finalConfirmationFrame.isEmpty,
+                              finalSafeBottom > finalSafeTop,
+                              finalConfirmationFrame.minY >= finalSafeTop,
+                              finalConfirmationFrame.maxY <= finalSafeBottom else {
+                            XCTFail(
+                                "The minimum double-length preflight confirmation was not fully contained before capture."
+                            )
+                            return
+                        }
+                    }
                 } else {
                     let expectedKeyboardFrame = CGRect(
                         x: 0,
