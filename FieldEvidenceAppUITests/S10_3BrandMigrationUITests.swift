@@ -3960,6 +3960,25 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let workTabBars = app.tabBars
         let workNoteHeading = workNoteHeadings.firstMatch
         let workTabBar = workTabBars.firstMatch
+        var savingInitialHelperToPreviewSeparation: CGFloat?
+        var savingInitialAXTextCompositionIsValid = !workEditingAXTextEnabled
+        if workEditingAXTextEnabled {
+            let savingInitialHelperFrame = workHelper.frame
+            let savingInitialPreviewFrame = workPreviewImage.frame
+            let savingInitialTabFrame = workEditingTabBar.frame
+            let savingInitialSeparation =
+                savingInitialPreviewFrame.minY - savingInitialHelperFrame.maxY
+            savingInitialHelperToPreviewSeparation = savingInitialSeparation
+            savingInitialAXTextCompositionIsValid =
+                workEditingAXTextFallbackAccepted
+                    && initialHelperToPreviewSeparation != nil
+                    && workEditingComposition()
+                    && workEditingFrameIsValid(savingInitialHelperFrame)
+                    && workEditingFrameIsValid(savingInitialPreviewFrame)
+                    && workEditingFrameIsValid(savingInitialTabFrame)
+                    && savingInitialSeparation
+                        == initialHelperToPreviewSeparation
+        }
         guard app.state == .runningForeground,
               workNoteHeadings.count == 1,
               workTabBars.count == 1,
@@ -3975,10 +3994,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               workScrollView.exists,
               workNavigationBar.exists,
               workPreview.exists,
-              progress.exists else {
+              progress.exists,
+              savingInitialAXTextCompositionIsValid else {
             XCTFail("Record-work saving positioning route changed.")
             return
         }
+        var provenSavingGestureCount = 0
         for _ in 0..<4 {
             guard app.state == .runningForeground,
                   workNoteHeadings.count == 1,
@@ -4047,6 +4068,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 break
             }
 
+            var previewMinYBeforeDrag: CGFloat?
+            var savingAXTextPreviewFrameIsValid = !workEditingAXTextEnabled
+            if workEditingAXTextEnabled {
+                let previewFrame = workPreviewImage.frame
+                previewMinYBeforeDrag = previewFrame.minY
+                savingAXTextPreviewFrameIsValid =
+                    workEditingFrameIsValid(previewFrame)
+            }
             let minimumShift = max(
                 safeTop - noteFrame.minY,
                 safeTop - helperFrame.minY
@@ -4057,7 +4086,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
             let receiverCapacity = receiverBottom - receiverTop
             guard minimumShift <= maximumShift,
-                  receiverCapacity >= minimumGestureDistance else {
+                  receiverCapacity >= minimumGestureDistance,
+                  savingAXTextPreviewFrameIsValid else {
                 XCTFail("Record-work saving has no feasible recognized shift.")
                 return
             }
@@ -4121,6 +4151,17 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
             let observedNoteShift = workNoteHeading.frame.minY - noteMinYBeforeDrag
             let observedHelperShift = workHelper.frame.minY - helperMinYBeforeDrag
+            var savingAXTextCoMovementIsValid = !workEditingAXTextEnabled
+            if workEditingAXTextEnabled,
+               let previewMinYBeforeDrag {
+                let observedPreviewFrame = workPreviewImage.frame
+                let observedPreviewShift =
+                    observedPreviewFrame.minY - previewMinYBeforeDrag
+                savingAXTextCoMovementIsValid =
+                    workEditingFrameIsValid(observedPreviewFrame)
+                        && observedPreviewShift * dragDistance > 0
+                        && observedPreviewShift == observedHelperShift
+            }
             guard workNoteHeadings.count == 1,
                   workTabBars.count == 1,
                   workHelperTexts.count == 1,
@@ -4131,9 +4172,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   workHelper.exists,
                   progress.exists,
                   observedNoteShift * dragDistance > 0,
-                  observedHelperShift * dragDistance > 0 else {
+                  observedHelperShift * dragDistance > 0,
+                  savingAXTextCoMovementIsValid else {
                 XCTFail("Record-work saving positioning gesture was not recognized.")
                 return
+            }
+            if workEditingAXTextEnabled {
+                provenSavingGestureCount += 1
             }
         }
         let savingFinalApplicationFrame = app.frame
@@ -4153,6 +4198,33 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let savingFinalSafeBottom = savingFinalLiveBottom - verticalInset
         let savingFinalNoteFrame = workNoteHeading.frame
         let savingFinalHelperFrame = workHelper.frame
+        var workSavingAXTextFallbackAccepted = false
+        if workEditingAXTextEnabled,
+           let savingInitialHelperToPreviewSeparation {
+            let savingFinalPreviewFrame = workPreviewImage.frame
+            let savingFinalExactTabFrame = workEditingTabBar.frame
+            let savingFinalExactPreviewIsHittable = workPreviewImage.isHittable
+            let savingFinalHelperToPreviewSeparation =
+                savingFinalPreviewFrame.minY - savingFinalHelperFrame.maxY
+            let savingFinalAXTextCompositionIsValid =
+                workEditingFrameIsValid(savingFinalPreviewFrame)
+                    && workEditingFrameIsValid(savingFinalExactTabFrame)
+                    && workEditingComposition()
+            workSavingAXTextFallbackAccepted =
+                !savingFinalExactPreviewIsHittable
+                    && workEditingAXTextFallbackAccepted
+                    && provenSavingGestureCount >= 1
+                    && provenSavingGestureCount <= 4
+                    && savingFinalAXTextCompositionIsValid
+                    && savingFinalHelperToPreviewSeparation
+                        == savingInitialHelperToPreviewSeparation
+                    && savingFinalHelperFrame.maxY
+                        < savingFinalExactTabFrame.minY
+                    && savingFinalHelperFrame.maxY
+                        < savingFinalPreviewFrame.minY
+                    && savingFinalPreviewFrame.minY
+                        > savingFinalExactTabFrame.minY
+        }
         guard app.state == .runningForeground,
               workNoteHeadings.count == 1,
               workTabBars.count == 1,
@@ -4188,7 +4260,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               savingFinalHelperFrame.maxY <= savingFinalSafeBottom,
               workNoteHeading.isHittable,
               workHelper.isHittable,
-              workPreview.isHittable else {
+              (workPreview.isHittable
+                || (workEditingAXTextEnabled
+                    && workSavingAXTextFallbackAccepted)) else {
             XCTFail("Record-work saving composition is outside the safe viewport.")
             return
         }

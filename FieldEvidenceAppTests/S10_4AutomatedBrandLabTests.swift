@@ -414,8 +414,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 337_014,
-            sha256: "CB304B35857ADBDFC287C4DCBA663C8F975871F60A40FAC6AE2AB40E71CBC308"
+            byteCount: 341_039,
+            sha256: "1B8C6E4481C463CB5CEBB666732199021075CA9813173F01FC4A4171DFDCE3AF"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -4578,10 +4578,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workSavingPositioningStartRange.lowerBound..<workSavingPositioningEndRange.upperBound
             ]
         )
-        XCTAssertEqual(workSavingPositioningSource.utf8.count, 10_320)
+        XCTAssertEqual(workSavingPositioningSource.utf8.count, 14_345)
         XCTAssertEqual(
             Data(workSavingPositioningSource.utf8).sha256,
-            "EDEC9F03152A6B70DABA2BDA0EA28007C52DBC662D4EDE28726C1EC511DE8C72"
+            "2E422D4B64FFE87707D55B5E6878F002B7085394B85C17336CC6FBC694880E58"
         )
 
         let workSavingNoteAndTabBindings =
@@ -4594,6 +4594,33 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(
             workSavingPositioningSource.components(
                 separatedBy: workSavingNoteAndTabBindings
+            ).count - 1,
+            1
+        )
+
+        let workSavingInitialAXTextProof =
+            "        var savingInitialHelperToPreviewSeparation: CGFloat?\n" +
+                "        var savingInitialAXTextCompositionIsValid = !workEditingAXTextEnabled\n" +
+                "        if workEditingAXTextEnabled {\n" +
+                "            let savingInitialHelperFrame = workHelper.frame\n" +
+                "            let savingInitialPreviewFrame = workPreviewImage.frame\n" +
+                "            let savingInitialTabFrame = workEditingTabBar.frame\n" +
+                "            let savingInitialSeparation =\n" +
+                "                savingInitialPreviewFrame.minY - savingInitialHelperFrame.maxY\n" +
+                "            savingInitialHelperToPreviewSeparation = savingInitialSeparation\n" +
+                "            savingInitialAXTextCompositionIsValid =\n" +
+                "                workEditingAXTextFallbackAccepted\n" +
+                "                    && initialHelperToPreviewSeparation != nil\n" +
+                "                    && workEditingComposition()\n" +
+                "                    && workEditingFrameIsValid(savingInitialHelperFrame)\n" +
+                "                    && workEditingFrameIsValid(savingInitialPreviewFrame)\n" +
+                "                    && workEditingFrameIsValid(savingInitialTabFrame)\n" +
+                "                    && savingInitialSeparation\n" +
+                "                        == initialHelperToPreviewSeparation\n" +
+                "        }"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingInitialAXTextProof
             ).count - 1,
             1
         )
@@ -4614,13 +4641,31 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "              workScrollView.exists,\n" +
                 "              workNavigationBar.exists,\n" +
                 "              workPreview.exists,\n" +
-                "              progress.exists else {\n" +
+                "              progress.exists,\n" +
+                "              savingInitialAXTextCompositionIsValid else {\n" +
                 #"            XCTFail("Record-work saving positioning route changed.")"# + "\n" +
                 "            return\n" +
                 "        }"
         XCTAssertEqual(
             workSavingPositioningSource.components(
                 separatedBy: workSavingInitialGuard
+            ).count - 1,
+            1
+        )
+        let workSavingInitialProofAdjacency =
+            workSavingNoteAndTabBindings + "\n"
+                + workSavingInitialAXTextProof + "\n"
+                + workSavingInitialGuard
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingInitialProofAdjacency
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: "        var provenSavingGestureCount = 0\n" +
+                    "        for _ in 0..<4 {"
             ).count - 1,
             1
         )
@@ -4724,6 +4769,31 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
 
+        let workSavingAXTextPreviewBeforeGesture =
+            "            var previewMinYBeforeDrag: CGFloat?\n" +
+                "            var savingAXTextPreviewFrameIsValid = !workEditingAXTextEnabled\n" +
+                "            if workEditingAXTextEnabled {\n" +
+                "                let previewFrame = workPreviewImage.frame\n" +
+                "                previewMinYBeforeDrag = previewFrame.minY\n" +
+                "                savingAXTextPreviewFrameIsValid =\n" +
+                "                    workEditingFrameIsValid(previewFrame)\n" +
+                "            }"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingAXTextPreviewBeforeGesture
+            ).count - 1,
+            1
+        )
+        let workSavingStopThenAXTextPreview =
+            workSavingStopCondition + "\n\n"
+                + workSavingAXTextPreviewBeforeGesture
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingStopThenAXTextPreview
+            ).count - 1,
+            1
+        )
+
         let workSavingSignedInterval =
             "            let minimumShift = max(\n" +
                 "                safeTop - noteFrame.minY,\n" +
@@ -4735,7 +4805,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            )\n" +
                 "            let receiverCapacity = receiverBottom - receiverTop\n" +
                 "            guard minimumShift <= maximumShift,\n" +
-                "                  receiverCapacity >= minimumGestureDistance else {\n" +
+                "                  receiverCapacity >= minimumGestureDistance,\n" +
+                "                  savingAXTextPreviewFrameIsValid else {\n" +
                 #"                XCTFail("Record-work saving has no feasible recognized shift.")"# + "\n" +
                 "                return\n" +
                 "            }\n" +
@@ -4860,6 +4931,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workSavingObservedShiftGuard =
             "            let observedNoteShift = workNoteHeading.frame.minY - noteMinYBeforeDrag\n" +
                 "            let observedHelperShift = workHelper.frame.minY - helperMinYBeforeDrag\n" +
+                "            var savingAXTextCoMovementIsValid = !workEditingAXTextEnabled\n" +
+                "            if workEditingAXTextEnabled,\n" +
+                "               let previewMinYBeforeDrag {\n" +
+                "                let observedPreviewFrame = workPreviewImage.frame\n" +
+                "                let observedPreviewShift =\n" +
+                "                    observedPreviewFrame.minY - previewMinYBeforeDrag\n" +
+                "                savingAXTextCoMovementIsValid =\n" +
+                "                    workEditingFrameIsValid(observedPreviewFrame)\n" +
+                "                        && observedPreviewShift * dragDistance > 0\n" +
+                "                        && observedPreviewShift == observedHelperShift\n" +
+                "            }\n" +
                 "            guard workNoteHeadings.count == 1,\n" +
                 "                  workTabBars.count == 1,\n" +
                 "                  workHelperTexts.count == 1,\n" +
@@ -4870,13 +4952,31 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                  workHelper.exists,\n" +
                 "                  progress.exists,\n" +
                 "                  observedNoteShift * dragDistance > 0,\n" +
-                "                  observedHelperShift * dragDistance > 0 else {\n" +
+                "                  observedHelperShift * dragDistance > 0,\n" +
+                "                  savingAXTextCoMovementIsValid else {\n" +
                 #"                XCTFail("Record-work saving positioning gesture was not recognized.")"# + "\n" +
                 "                return\n" +
                 "            }"
         XCTAssertEqual(
             workSavingPositioningSource.components(
                 separatedBy: workSavingObservedShiftGuard
+            ).count - 1,
+            1
+        )
+        let workSavingAXTextProvenGestureIncrement =
+            "            if workEditingAXTextEnabled {\n" +
+                "                provenSavingGestureCount += 1\n" +
+                "            }"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingAXTextProvenGestureIncrement
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingObservedShiftGuard + "\n" +
+                    workSavingAXTextProvenGestureIncrement
             ).count - 1,
             1
         )
@@ -4916,6 +5016,58 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 savingFinalFrameBinding
             )
         }
+        let workSavingFinalAXTextFallback =
+            "        var workSavingAXTextFallbackAccepted = false\n" +
+                "        if workEditingAXTextEnabled,\n" +
+                "           let savingInitialHelperToPreviewSeparation {\n" +
+                "            let savingFinalPreviewFrame = workPreviewImage.frame\n" +
+                "            let savingFinalExactTabFrame = workEditingTabBar.frame\n" +
+                "            let savingFinalExactPreviewIsHittable = workPreviewImage.isHittable\n" +
+                "            let savingFinalHelperToPreviewSeparation =\n" +
+                "                savingFinalPreviewFrame.minY - savingFinalHelperFrame.maxY\n" +
+                "            let savingFinalAXTextCompositionIsValid =\n" +
+                "                workEditingFrameIsValid(savingFinalPreviewFrame)\n" +
+                "                    && workEditingFrameIsValid(savingFinalExactTabFrame)\n" +
+                "                    && workEditingComposition()\n" +
+                "            workSavingAXTextFallbackAccepted =\n" +
+                "                !savingFinalExactPreviewIsHittable\n" +
+                "                    && workEditingAXTextFallbackAccepted\n" +
+                "                    && provenSavingGestureCount >= 1\n" +
+                "                    && provenSavingGestureCount <= 4\n" +
+                "                    && savingFinalAXTextCompositionIsValid\n" +
+                "                    && savingFinalHelperToPreviewSeparation\n" +
+                "                        == savingInitialHelperToPreviewSeparation\n" +
+                "                    && savingFinalHelperFrame.maxY\n" +
+                "                        < savingFinalExactTabFrame.minY\n" +
+                "                    && savingFinalHelperFrame.maxY\n" +
+                "                        < savingFinalPreviewFrame.minY\n" +
+                "                    && savingFinalPreviewFrame.minY\n" +
+                "                        > savingFinalExactTabFrame.minY\n" +
+                "        }"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingFinalAXTextFallback
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy:
+                    "        let savingFinalHelperFrame = workHelper.frame\n" +
+                        workSavingFinalAXTextFallback
+            ).count - 1,
+            1
+        )
+        let workSavingDirectFirstHittability =
+            "              (workPreview.isHittable\n" +
+                "                || (workEditingAXTextEnabled\n" +
+                "                    && workSavingAXTextFallbackAccepted)) else {"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingDirectFirstHittability
+            ).count - 1,
+            1
+        )
         let workSavingFinalGuard =
             "        guard app.state == .runningForeground,\n" +
                 "              workNoteHeadings.count == 1,\n" +
@@ -4952,7 +5104,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "              savingFinalHelperFrame.maxY <= savingFinalSafeBottom,\n" +
                 "              workNoteHeading.isHittable,\n" +
                 "              workHelper.isHittable,\n" +
-                "              workPreview.isHittable else {\n" +
+                workSavingDirectFirstHittability + "\n" +
                 #"            XCTFail("Record-work saving composition is outside the safe viewport.")"# + "\n" +
                 "            return\n" +
                 "        }"
@@ -4984,9 +5136,25 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("coordinate(", 1),
             ("waitForExistence", 1),
             ("captureBaseline(", 1),
-            ("workEditingAXTextEnabled", 1),
+            ("workEditingAXTextEnabled", 10),
             ("minimumShift > receiverCapacity", 1),
             ("dragDistance = receiverCapacity", 1),
+            ("workEditingComposition()", 2),
+            ("workEditingFrameIsValid(", 7),
+            ("workPreviewImage.frame", 4),
+            ("workEditingTabBar.frame", 2),
+            ("workPreviewImage.isHittable", 1),
+            ("workPreview.isHittable", 1),
+            ("workEditingAXTextFallbackAccepted", 2),
+            ("initialHelperToPreviewSeparation", 2),
+            ("provenSavingGestureCount", 4),
+            ("previewMinYBeforeDrag", 4),
+            ("savingInitialHelperToPreviewSeparation", 4),
+            ("savingInitialAXTextCompositionIsValid", 3),
+            ("savingAXTextPreviewFrameIsValid", 3),
+            ("savingAXTextCoMovementIsValid", 3),
+            ("workSavingAXTextFallbackAccepted", 3),
+            ("savingFinalExactTabFrame", 4),
             ("XCTAttachment(", 0),
             (".lifetime = .keepAlways", 0),
             ("printJSONLine(", 0),
@@ -5028,7 +5196,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("progress.exists", 4),
             ("workNoteHeading.isHittable", 2),
             ("workHelper.isHittable", 2),
-            ("workPreview.isHittable", 1),
             ("workTabBar.frame", 2),
             ("workNoteHeading.frame", 3),
         ] {
@@ -5050,6 +5217,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let workScrollView =",
             "let workNavigationBar =",
             "let workPreview =",
+            "let workPreviewImages =",
+            "let workPreviewImage =",
+            "let workEditingTabBars =",
+            "let workEditingTabBar =",
+            "let workEditingFrameIsValid",
+            "let workEditingComposition",
+            "let workEditingAXTextFallbackAccepted =",
+            "app.images.matching(",
             "let verticalInset",
             "let receiverInset",
             "let minimumGestureDistance",
@@ -5065,11 +5240,31 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "else if !workEditingAXTextEnabled",
             "else if workEditingAXTextEnabled {",
             "627",
+            "309.7",
+            "1125.3333",
             "maximumShift < minimumGestureDistance",
             "maximumShiftBelowMinimumGestureDistance",
             "recognizedResidual",
             "subMinimum",
             "dragDistance = maximumShift",
+            "provenSavingGestureCount == 0",
+            "provenSavingGestureCount >= 0",
+            "provenSavingGestureCount == 2",
+            "provenSavingGestureCount == 3",
+            "observedPreviewShift >= 0",
+            "observedHelperShift >= 0",
+            "observedPreviewShift != observedHelperShift",
+            "observedHelperShift != observedPreviewShift",
+            "savingFinalExactTabFrame.maxY",
+            "savingFinalPreviewFrame.intersection(savingFinalExactTabFrame)",
+            "savingFinalPreviewFrame.intersects(savingFinalExactTabFrame)",
+            "savingFinalExactTabFrame.intersection(savingFinalPreviewFrame)",
+            "savingFinalExactTabFrame.intersects(savingFinalPreviewFrame)",
+            "workEditingAXTextEnabled || workPreview.isHittable",
+            "workPreview.isHittable || workEditingAXTextEnabled",
+            "workSavingAXTextFallbackAccepted = true",
+            "savingFinalWorkPreviewIsHittable",
+            "workSavingPreviewHittabilityAccepted",
             "ContrastAuditExceptionSignature",
             "app.swipeUp()",
             "app.swipeDown()",
@@ -5084,6 +5279,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "XCTWaiter",
             "epsilon",
             "tolerance",
+            "abs(",
             "performAccessibilityAudit(",
             "attachCandidate(",
             "emitAutomatedLabAccessibilityRowsIfNeeded",
