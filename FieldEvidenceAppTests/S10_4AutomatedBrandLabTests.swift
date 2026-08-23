@@ -414,8 +414,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 342_928,
-            sha256: "7CEB3D8A9B1F018929B7373120F213221EAE9943F849507CFE445835FBA8E063"
+            byteCount: 336_829,
+            sha256: "E403B4DDA6176502F1B4953699BC8D8525FDB41E1B98D64281F71366D77206A2"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -3938,7 +3938,46 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workEditingPositioningStartRange.lowerBound..<workEditingPositioningEndRange.upperBound
             ]
         )
-        let workEditingBindingGuard =
+        XCTAssertEqual(workEditingPositioningSource.utf8.count, 17_661)
+        XCTAssertEqual(
+            Data(workEditingPositioningSource.utf8).sha256,
+            "9A3A66DC493DB1ABCE1787524CBC17E76FB11EC3D4B436EC87B3CF2A8153E009"
+        )
+
+        for workEditingDiagnosticResidue in [
+            "workEditingDiagnostic",
+            "emitWorkEditingPositioningDiagnostic",
+            "S10_4_WORK_EDITING_POSITIONING_DIAGNOSTIC",
+            "S10_4_WORK_EDITING_POSITIONING_DIAGNOSTIC_COUNT",
+            #""elementTypeRawValue""#,
+            #""elementTypeDescription""#,
+            #""sampleOrdinal""#,
+            #""elapsedMilliseconds""#,
+            #""queries":"#,
+            "XCTAttachment(",
+            ".lifetime = .keepAlways",
+            "throw AutomationConfigurationError.invalid(",
+            "S10.4 AX-text Record-work editing positioning diagnostic",
+        ] {
+            XCTAssertEqual(
+                workEditingPositioningSource.components(
+                    separatedBy: workEditingDiagnosticResidue
+                ).count - 1,
+                0,
+                workEditingDiagnosticResidue
+            )
+        }
+
+        let workEditingAXTextGate =
+            "        let workEditingAXTextEnabled =\n" +
+                #"            automationShard?.shardID == "s10.4.current.ax-text""#
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingAXTextGate
+            ).count - 1,
+            1
+        )
+        let workEditingPassiveBindings =
             "        let workHelperTexts = app.staticTexts.matching(\n" +
                 #"            NSPredicate(format: "label == %@", workHelperLabel)"# + "\n" +
                 "        )\n" +
@@ -3948,53 +3987,185 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        )\n" +
                 "        let workNavigationBars = app.navigationBars.matching(\n" +
                 #"            identifier: "Record work""# + "\n" +
-                "        )\n" +
-                "        guard workHelperTexts.count == 1,\n" +
-                "              workScrollViews.count == 1,\n" +
-                "              workNavigationBars.count == 1 else {\n" +
-                #"            XCTFail("Record-work editing positioning bindings are ambiguous.")"# + "\n" +
-                "            return\n" +
-                "        }\n" +
-                "        let workHelper = workHelperTexts.firstMatch\n" +
-                "        let workScrollView = workScrollViews.firstMatch\n" +
-                "        let workNavigationBar = workNavigationBars.firstMatch\n" +
-                "        guard workHelper.exists,\n" +
-                "              workScrollView.exists,\n" +
-                "              workNavigationBar.exists else {\n" +
-                #"            XCTFail("Record-work editing positioning bindings are missing.")"# + "\n" +
-                "            return\n" +
-                "        }\n" +
-                "        let verticalInset: CGFloat = 16\n" +
-                "        let receiverInset: CGFloat = 24\n" +
-                "        let minimumGestureDistance: CGFloat = 44"
+                "        )"
         XCTAssertEqual(
             workEditingPositioningSource.components(
-                separatedBy: workEditingBindingGuard
+                separatedBy: workEditingPassiveBindings
             ).count - 1,
             1
         )
-        let workEditingLiveGeometry =
+        let workEditingPassiveAXBindings =
+            "        let workPreviewImages = app.images.matching(\n" +
+                #"            NSPredicate(format: "identifier == %@", "s5.1.work.photo")"# + "\n" +
+                "        )\n" +
+                "        let workEditingTabBars = app.tabBars\n" +
+                "        let workPreviewImage = workPreviewImages.firstMatch\n" +
+                "        let workEditingTabBar = workEditingTabBars.firstMatch"
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingPassiveAXBindings
+            ).count - 1,
+            1
+        )
+        for (workEditingIdentityLock, count) in [
+            ("workHelperTexts.count == 1", 5),
+            ("workPreviewImages.count == 1", 1),
+            ("workScrollViews.count == 1", 5),
+            ("workNavigationBars.count == 1", 5),
+            ("workEditingTabBars.count == 1", 1),
+            ("workHelper.exists", 5),
+            ("workPreviewImage.exists", 1),
+            ("workScrollView.exists", 4),
+            ("workNavigationBar.exists", 4),
+            ("workEditingTabBar.exists", 1),
+            ("workPreview.exists", 2),
+            ("app.state == .runningForeground", 3),
+            ("workHelper.elementType == .staticText", 1),
+            ("workHelper.identifier.isEmpty", 1),
+            ("workHelper.label == workHelperLabel", 1),
+            (#"(workHelper.value as? String) == """#, 1),
+            ("workPreviewImage.elementType == .image", 1),
+            (#"workPreviewImage.identifier == "s5.1.work.photo""#, 1),
+            ("workPreviewImage.label == workHelperLabel", 1),
+            (#"(workPreviewImage.value as? String) == """#, 1),
+            ("workScrollView.elementType == .scrollView", 1),
+            (#"workScrollView.identifier == "s5.1.work.screen""#, 1),
+            (#"workScrollView.label == """#, 1),
+            (#"(workScrollView.value as? String) == """#, 1),
+            ("workNavigationBar.elementType == .navigationBar", 1),
+            (#"workNavigationBar.identifier == "Record work""#, 1),
+            (#"workNavigationBar.label == """#, 1),
+            (#"(workNavigationBar.value as? String) == """#, 1),
+            ("workEditingTabBar.elementType == .tabBar", 1),
+            (#"workEditingTabBar.identifier == """#, 1),
+            (#"workEditingTabBar.label == "Tab Bar""#, 1),
+            (#"(workEditingTabBar.value as? String) == """#, 1),
+        ] {
+            XCTAssertEqual(
+                workEditingPositioningSource.components(
+                    separatedBy: workEditingIdentityLock
+                ).count - 1,
+                count,
+                workEditingIdentityLock
+            )
+        }
+
+        let workEditingFrameValidator =
+            "        let workEditingFrameIsValid: (CGRect) -> Bool = { frame in\n" +
+                "            !frame.isNull\n" +
+                "                && !frame.isEmpty\n" +
+                "                && frame.origin.x.isFinite\n" +
+                "                && frame.origin.y.isFinite\n" +
+                "                && frame.size.width.isFinite\n" +
+                "                && frame.size.height.isFinite\n" +
+                "        }"
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingFrameValidator
+            ).count - 1,
+            1
+        )
+        let workEditingInitialFrames =
+            "            let initialApplicationFrame = app.frame\n" +
+                "            let initialNavigationFrame = workNavigationBar.frame\n" +
+                "            let initialScrollRawFrame = workScrollView.frame\n" +
+                "            let initialTabFrame = workEditingTabBar.frame\n" +
+                "            let initialHelperFrame = workHelper.frame\n" +
+                "            let initialPreviewFrame = workPreviewImage.frame"
+        let workEditingInitialScrollAndSafeTop =
+            "                let initialScrollFrame = initialScrollRawFrame.intersection(\n" +
+                "                    initialApplicationFrame\n" +
+                "                )\n" +
+                "                if workEditingFrameIsValid(initialScrollFrame) {\n" +
+                "                    let initialSafeTop = max(\n" +
+                "                        initialScrollFrame.minY,\n" +
+                "                        initialNavigationFrame.maxY\n" +
+                "                    ) + verticalInset"
+        let workEditingInitialDisjointProof =
+            "                    let requiredHelperDownwardMovement =\n" +
+                "                        initialSafeTop - initialHelperFrame.minY\n" +
+                "                    let previewRoomToTabTop =\n" +
+                "                        initialTabFrame.minY - initialPreviewFrame.minY\n" +
+                "                    let exactSeparation =\n" +
+                "                        initialPreviewFrame.minY - initialHelperFrame.maxY\n" +
+                "                    initialHelperToPreviewSeparation = exactSeparation\n" +
+                "                    workEditingInitialSeparation =\n" +
+                "                        requiredHelperDownwardMovement > 0\n" +
+                "                            && previewRoomToTabTop > 0\n" +
+                "                            && requiredHelperDownwardMovement >= previewRoomToTabTop\n" +
+                "                            && exactSeparation > 0\n" +
+                "                    workEditingInitialProof =\n" +
+                "                        workEditingInitialSeparation"
+        let workEditingInitialFailClosed =
+            "            guard workEditingInitialProof else {\n" +
+                #"                XCTFail("Record-work editing AX-text rigid composition proof failed.")"# + "\n" +
+                "                return\n" +
+                "            }"
+        for workEditingInitialLock in [
+            workEditingInitialFrames,
+            workEditingInitialScrollAndSafeTop,
+            workEditingInitialDisjointProof,
+            workEditingInitialFailClosed,
+        ] {
+            XCTAssertEqual(
+                workEditingPositioningSource.components(
+                    separatedBy: workEditingInitialLock
+                ).count - 1,
+                1,
+                workEditingInitialLock
+            )
+        }
+        guard let workEditingInitialFramesRange =
+                workEditingPositioningSource.range(of: workEditingInitialFrames),
+              let workEditingInitialScrollRange =
+                workEditingPositioningSource.range(
+                    of: workEditingInitialScrollAndSafeTop,
+                    range:
+                        workEditingInitialFramesRange.upperBound
+                        ..< workEditingPositioningSource.endIndex
+                ),
+              let workEditingInitialProofRange =
+                workEditingPositioningSource.range(
+                    of: workEditingInitialDisjointProof,
+                    range:
+                        workEditingInitialScrollRange.upperBound
+                        ..< workEditingPositioningSource.endIndex
+                ),
+              let workEditingInitialFailRange =
+                workEditingPositioningSource.range(
+                    of: workEditingInitialFailClosed,
+                    range:
+                        workEditingInitialProofRange.upperBound
+                        ..< workEditingPositioningSource.endIndex
+                ) else {
+            XCTFail("Missing ordered live Record-work AX-text initial proof")
+            return
+        }
+        XCTAssertLessThan(
+            workEditingInitialFramesRange.lowerBound,
+            workEditingInitialScrollRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workEditingInitialScrollRange.lowerBound,
+            workEditingInitialProofRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workEditingInitialProofRange.lowerBound,
+            workEditingInitialFailRange.lowerBound
+        )
+
+        let workEditingLiveRecomputation =
             "            let scrollFrame = workScrollView.frame\n" +
                 "            let applicationFrame = app.frame\n" +
                 "            let navigationFrame = workNavigationBar.frame\n" +
-                "            let liveScrollFrame = scrollFrame.intersection(applicationFrame)\n" +
-                "            let safeTop = max(\n" +
-                "                liveScrollFrame.minY,\n" +
-                "                navigationFrame.maxY\n" +
-                "            ) + verticalInset\n" +
-                "            let safeBottom = liveScrollFrame.maxY - verticalInset\n" +
-                "            let receiverTop = max(\n" +
-                "                liveScrollFrame.minY,\n" +
-                "                navigationFrame.maxY\n" +
-                "            ) + receiverInset\n" +
-                "            let receiverBottom = liveScrollFrame.maxY - receiverInset\n" +
-                "            let helperFrame = workHelper.frame"
-        XCTAssertEqual(
-            workEditingPositioningSource.components(
-                separatedBy: workEditingLiveGeometry
-            ).count - 1,
-            1
-        )
+                "            let helperFrame = workHelper.frame\n" +
+                "            let previewFrame = workPreviewImage.frame"
+        let workEditingLiveViewport =
+            "            if rawFramesAreValid {\n" +
+                "                liveScrollFrame = scrollFrame.intersection(applicationFrame)\n" +
+                "            }\n" +
+                "            let liveFramesAreValid =\n" +
+                "                rawFramesAreValid && workEditingFrameIsValid(liveScrollFrame)"
         let workEditingPositiveInterval =
             "            let minimumShift = safeTop - helperFrame.minY\n" +
                 "            let maximumShift = safeBottom - helperFrame.maxY\n" +
@@ -4010,115 +4181,151 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            guard minimumShift > 0,\n" +
                 "                  minimumShift <= maximumShift,\n" +
                 "                  receiverCapacity >= minimumGestureDistance,\n" +
-                "                  recognizedMinimum <= recognizedMaximum else {\n" +
-                #"                XCTFail("Record-work editing has no feasible downward correction.")"# + "\n" +
-                "                return\n" +
-                "            }\n" +
-                "            let dragDistance = recognizedMinimum"
-        XCTAssertEqual(
-            workEditingPositioningSource.components(
-                separatedBy: workEditingPositiveInterval
-            ).count - 1,
-            1
-        )
-        let workEditingDirectGestureSetup =
-            "            let scrollOrigin = workScrollView.coordinate(\n" +
-                "                withNormalizedOffset: CGVector(dx: 0, dy: 0)\n" +
-                "            )\n" +
-                "            let dragStart = scrollOrigin.withOffset(\n" +
-                "                CGVector(\n" +
-                "                    dx: scrollFrame.width / 2,\n" +
-                "                    dy: receiverTop - scrollFrame.minY\n" +
-                "                )\n" +
-                "            )\n" +
-                "            let dragEnd = dragStart.withOffset(\n" +
-                "                CGVector(dx: 0, dy: dragDistance)\n" +
-                "            )\n" +
-                "            let helperMinYBeforeDrag = helperFrame.minY"
-        XCTAssertEqual(
-            workEditingPositioningSource.components(
-                separatedBy: workEditingDirectGestureSetup
-            ).count - 1,
-            1
-        )
-        let workEditingDirectGestureDelivery =
+                "                  recognizedMinimum <= recognizedMaximum else {"
+        for workEditingGestureGeometryLock in [
+            workEditingLiveRecomputation,
+            workEditingLiveViewport,
+            workEditingPositiveInterval,
+        ] {
+            XCTAssertEqual(
+                workEditingPositioningSource.components(
+                    separatedBy: workEditingGestureGeometryLock
+                ).count - 1,
+                1,
+                workEditingGestureGeometryLock
+            )
+        }
+
+        let workEditingGestureCaptureStart =
+            "            let helperMinYBeforeDrag = helperFrame.minY\n" +
+                "            let previewMinYBeforeDrag = previewFrame.minY"
+        let workEditingGestureDelivery =
             "            dragStart.press(\n" +
                 "                forDuration: 0.2,\n" +
                 "                thenDragTo: dragEnd,\n" +
                 "                withVelocity: .slow,\n" +
                 "                thenHoldForDuration: 0.2\n" +
                 "            )"
-        XCTAssertEqual(
-            workEditingPositioningSource.components(
-                separatedBy: workEditingDirectGestureDelivery
-            ).count - 1,
-            1
-        )
-        let workEditingFinalGuardAndCapture =
-            "        guard app.state == .runningForeground,\n" +
-                "              workHelperTexts.count == 1,\n" +
-                "              workScrollViews.count == 1,\n" +
-                "              workNavigationBars.count == 1,\n" +
-                "              workHelper.exists,\n" +
-                "              workScrollView.exists,\n" +
-                "              workNavigationBar.exists,\n" +
-                "              workPreview.exists,\n" +
-                "              !finalApplicationFrame.isNull,\n" +
-                "              !finalApplicationFrame.isEmpty,\n" +
-                "              !finalNavigationFrame.isNull,\n" +
-                "              !finalNavigationFrame.isEmpty,\n" +
-                "              !finalScrollFrame.isNull,\n" +
-                "              !finalScrollFrame.isEmpty,\n" +
-                "              !finalHelperFrame.isNull,\n" +
-                "              !finalHelperFrame.isEmpty,\n" +
-                "              finalHelperFrame.minY >= finalSafeTop,\n" +
-                "              finalHelperFrame.maxY <= finalSafeBottom,\n" +
-                "              workHelper.isHittable,\n" +
-                "              workPreview.isHittable else {\n" +
-                #"            XCTFail("Record-work editing composition is outside the safe viewport.")"# + "\n" +
-                "            return\n" +
-                "        }\n" +
-                #"        captureBaseline("state.work.editing", in: app)"#
-        XCTAssertEqual(
-            workEditingPositioningSource.components(
-                separatedBy: workEditingFinalGuardAndCapture
-            ).count - 1,
-            1
-        )
-        for (workEditingLock, count) in [
-            ("        for _ in 0..<4 {", 1),
-            ("            guard app.state == .runningForeground,", 1),
-            ("            let scrollFrame = workScrollView.frame", 1),
-            ("            let liveScrollFrame = scrollFrame.intersection(applicationFrame)", 1),
-            ("                  safeBottom > safeTop,", 1),
-            ("                  helperFrame.height <= safeBottom - safeTop else {", 1),
-            ("            if helperFrame.minY >= safeTop,", 1),
-            ("               helperFrame.maxY <= safeBottom,", 1),
-            ("               workHelper.isHittable {", 1),
-            ("                  workHelper.frame.minY > helperMinYBeforeDrag else {", 1),
-            ("        let finalScrollFrame = workScrollView.frame.intersection(", 1),
-            ("        let finalSafeTop = max(", 1),
-            ("        let finalSafeBottom = finalScrollFrame.maxY - verticalInset", 1),
-            ("        let finalHelperFrame = workHelper.frame", 1),
+        let workEditingGestureCaptureEnd =
+            "            let observedHelperFrame = workHelper.frame\n" +
+                "            let observedPreviewFrame = workPreviewImage.frame"
+        let workEditingObservedFrameValidity =
+            "            let observedCommonFramesAreValid =\n" +
+                "                workEditingFrameIsValid(observedHelperFrame)\n" +
+                "            let observedAXFramesAreValid =\n" +
+                "                workEditingFrameIsValid(observedPreviewFrame)\n" +
+                "            let observedFramesAreValid =\n" +
+                "                observedCommonFramesAreValid\n" +
+                "                    && (!workEditingAXTextEnabled || observedAXFramesAreValid)"
+        let workEditingGestureProofEnd =
+            "                provenGestureCount += 1"
+        for workEditingGestureLock in [
+            workEditingGestureCaptureStart,
+            workEditingGestureDelivery,
+            workEditingGestureCaptureEnd,
+            workEditingObservedFrameValidity,
+            workEditingGestureProofEnd,
         ] {
             XCTAssertEqual(
                 workEditingPositioningSource.components(
-                    separatedBy: workEditingLock
+                    separatedBy: workEditingGestureLock
                 ).count - 1,
-                count,
-                workEditingLock
+                1,
+                workEditingGestureLock
             )
         }
-        for (workEditingCardinalityLock, count) in [
-            ("workHelperTexts.count == 1", 5),
-            ("workScrollViews.count == 1", 5),
-            ("workNavigationBars.count == 1", 5),
-            ("workHelper.exists", 5),
-            ("workScrollView.exists", 4),
-            ("workNavigationBar.exists", 4),
-            ("workPreview.exists", 3),
-            ("workPreview.isHittable", 2),
-            ("app.state == .runningForeground", 4),
+        guard let workEditingGestureCaptureStartRange =
+                workEditingPositioningSource.range(of: workEditingGestureCaptureStart),
+              let workEditingGestureDeliveryRange =
+                workEditingPositioningSource.range(
+                    of: workEditingGestureDelivery,
+                    range:
+                        workEditingGestureCaptureStartRange.upperBound
+                        ..< workEditingPositioningSource.endIndex
+                ),
+              let workEditingGestureCaptureEndRange =
+                workEditingPositioningSource.range(
+                    of: workEditingGestureCaptureEnd,
+                    range:
+                        workEditingGestureDeliveryRange.upperBound
+                        ..< workEditingPositioningSource.endIndex
+                ),
+              let workEditingGestureProofEndRange =
+                workEditingPositioningSource.range(
+                    of: workEditingGestureProofEnd,
+                    range:
+                        workEditingGestureCaptureEndRange.upperBound
+                        ..< workEditingPositioningSource.endIndex
+                ) else {
+            XCTFail("Missing ordered Record-work helper/photo gesture proof")
+            return
+        }
+        XCTAssertLessThan(
+            workEditingGestureCaptureStartRange.lowerBound,
+            workEditingGestureDeliveryRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workEditingGestureDeliveryRange.lowerBound,
+            workEditingGestureCaptureEndRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workEditingGestureCaptureEndRange.lowerBound,
+            workEditingGestureProofEndRange.lowerBound
+        )
+        let workEditingGestureCaptureAdjacency =
+            workEditingGestureCaptureStart + "\n"
+                + workEditingGestureDelivery + "\n"
+                + workEditingGestureCaptureEnd
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingGestureCaptureAdjacency
+            ).count - 1,
+            1
+        )
+        let workEditingPerGestureProofSource = String(
+            workEditingPositioningSource[
+                workEditingGestureCaptureStartRange.lowerBound
+                    ..< workEditingGestureProofEndRange.upperBound
+            ]
+        )
+        XCTAssertEqual(
+            workEditingPerGestureProofSource.components(
+                separatedBy: ".frame"
+            ).count - 1,
+            2
+        )
+        for prohibitedPerGestureFrame in [
+            "app.frame",
+            "workScrollView.frame",
+            "workNavigationBar.frame",
+            "workEditingTabBar.frame",
+        ] {
+            XCTAssertFalse(
+                workEditingPerGestureProofSource.contains(prohibitedPerGestureFrame),
+                prohibitedPerGestureFrame
+            )
+        }
+        let workEditingEqualPositiveMovement =
+            "                guard let observedHelperDownwardMovement =\n" +
+                "                        observedHelperDownwardMovement,\n" +
+                "                      let observedPreviewDownwardMovement =\n" +
+                "                        observedPreviewDownwardMovement,\n" +
+                "                      observedHelperDownwardMovement > 0,\n" +
+                "                      observedPreviewDownwardMovement > 0,\n" +
+                "                      observedHelperDownwardMovement\n" +
+                "                        == observedPreviewDownwardMovement else {"
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingEqualPositiveMovement
+            ).count - 1,
+            1
+        )
+        for (workEditingGestureProvenanceLock, count) in [
+            ("        var provenGestureCount = 0", 1),
+            ("        for _ in 0..<4 {", 1),
+            ("                provenGestureCount += 1", 1),
+            ("                && provenGestureCount >= 1", 1),
+            ("                && provenGestureCount <= 4", 1),
             ("workScrollView.coordinate(", 1),
             ("dragStart.press(", 1),
             ("forDuration: 0.2", 1),
@@ -4127,352 +4334,193 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertEqual(
                 workEditingPositioningSource.components(
-                    separatedBy: workEditingCardinalityLock
+                    separatedBy: workEditingGestureProvenanceLock
                 ).count - 1,
                 count,
-                workEditingCardinalityLock
+                workEditingGestureProvenanceLock
             )
         }
+
+        let workEditingFinalSeparation =
+            "                    finalHelperToPreviewSeparation =\n" +
+                "                        finalPreviewFrame.minY - finalHelperFrame.maxY"
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingFinalSeparation
+            ).count - 1,
+            1
+        )
+        let workEditingFinalFrameProof =
+            "        let finalApplicationFrame = app.frame\n" +
+                "        let finalNavigationFrame = workNavigationBar.frame\n" +
+                "        let finalScrollRawFrame = workScrollView.frame\n" +
+                "        let finalHelperFrame = workHelper.frame\n" +
+                "        let finalPreviewFrame = workPreviewImage.frame\n" +
+                "        let finalTabFrame = workEditingTabBar.frame\n" +
+                "        let finalCommonFramesAreValid =\n" +
+                "            workEditingFrameIsValid(finalApplicationFrame)\n" +
+                "                && workEditingFrameIsValid(finalNavigationFrame)\n" +
+                "                && workEditingFrameIsValid(finalScrollRawFrame)\n" +
+                "                && workEditingFrameIsValid(finalHelperFrame)\n" +
+                "        let finalAXFramesAreValid =\n" +
+                "            workEditingFrameIsValid(finalPreviewFrame)\n" +
+                "                && workEditingFrameIsValid(finalTabFrame)\n" +
+                "        let finalFramesAreValid =\n" +
+                "            finalCommonFramesAreValid\n" +
+                "                && (!workEditingAXTextEnabled || finalAXFramesAreValid)"
+        let workEditingFinalCompositionProof =
+            "        let finalScrollFrameIsValid = workEditingFrameIsValid(finalScrollFrame)\n" +
+                "        let finalWorkEditingCompositionIsValid =\n" +
+                "            !workEditingAXTextEnabled\n" +
+                "                || (finalFramesAreValid\n" +
+                "                    && finalScrollFrameIsValid\n" +
+                "                    && workEditingComposition())"
+        for workEditingFinalProofLock in [
+            workEditingFinalFrameProof,
+            workEditingFinalCompositionProof,
+        ] {
+            XCTAssertEqual(
+                workEditingPositioningSource.components(
+                    separatedBy: workEditingFinalProofLock
+                ).count - 1,
+                1,
+                workEditingFinalProofLock
+            )
+        }
+        let workEditingAXTextFallback =
+            "        let workEditingAXTextFallbackAccepted =\n" +
+                "            workEditingAXTextEnabled\n" +
+                "                && !finalExactPreviewIsHittable\n" +
+                "                && !finalWorkPreviewIsHittable\n" +
+                "                && workEditingInitialProof\n" +
+                "                && initialHelperToPreviewSeparation != nil\n" +
+                "                && provenGestureCount >= 1\n" +
+                "                && provenGestureCount <= 4\n" +
+                "                && finalFramesAreValid\n" +
+                "                && finalScrollFrameIsValid\n" +
+                "                && finalWorkEditingCompositionIsValid\n" +
+                "                && finalHelperToPreviewSeparation\n" +
+                "                    == initialHelperToPreviewSeparation\n" +
+                "                && finalHelperFrame.maxY < finalTabFrame.minY\n" +
+                "                && finalHelperFrame.maxY < finalPreviewFrame.minY\n" +
+                "                && finalPreviewFrame.minY > finalTabFrame.minY"
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingAXTextFallback
+            ).count - 1,
+            1
+        )
+        let workEditingExplicitHittabilityBranches =
+            "        let workPreviewHittabilityAccepted: Bool\n" +
+                "        if workEditingAXTextEnabled {\n" +
+                "            workPreviewHittabilityAccepted =\n" +
+                "                finalWorkPreviewIsHittable\n" +
+                "                    || workEditingAXTextFallbackAccepted\n" +
+                "        } else {\n" +
+                "            workPreviewHittabilityAccepted = finalWorkPreviewIsHittable\n" +
+                "        }"
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingExplicitHittabilityBranches
+            ).count - 1,
+            1
+        )
+        for (workEditingFinalIdentityLock, count) in [
+            ("let finalExactPreviewIsHittable = workPreviewImage.isHittable", 1),
+            ("let finalWorkPreviewIsHittable = workPreview.isHittable", 1),
+            ("finalWorkEditingCompositionIsValid", 3),
+            ("finalFramesAreValid", 5),
+            ("finalScrollFrameIsValid", 4),
+            ("finalHelperFrame.maxY < finalTabFrame.minY", 1),
+            ("finalHelperFrame.maxY < finalPreviewFrame.minY", 1),
+            ("finalPreviewFrame.minY > finalTabFrame.minY", 1),
+            ("finalHelperToPreviewSeparation", 3),
+            ("initialHelperToPreviewSeparation", 4),
+        ] {
+            XCTAssertEqual(
+                workEditingPositioningSource.components(
+                    separatedBy: workEditingFinalIdentityLock
+                ).count - 1,
+                count,
+                workEditingFinalIdentityLock
+            )
+        }
+
+        let workEditingFinalFailureAndCapture =
+            "              workPreviewHittabilityAccepted else {\n" +
+                #"            XCTFail("Record-work editing composition is outside the safe viewport.")"# + "\n" +
+                "            return\n" +
+                "        }\n" +
+                #"        captureBaseline("state.work.editing", in: app)"#
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingFinalFailureAndCapture
+            ).count - 1,
+            1
+        )
         XCTAssertEqual(
             workEditingPositioningSource.components(separatedBy: "XCTFail(").count - 1,
-            7
+            9
         )
         XCTAssertEqual(
             workEditingPositioningSource.components(separatedBy: "return\n").count - 1,
-            7
+            9
         )
-
-        let workEditingDiagnosticGate =
-            "        let workEditingDiagnosticEnabled =\n" +
-                "            automationShard?.shardID == \"s10.4.current.ax-text\""
-        XCTAssertEqual(
-            workEditingPositioningSource.components(
-                separatedBy: workEditingDiagnosticGate
-            ).count - 1,
-            1
-        )
-        let workEditingDiagnosticQueryMap =
-            "        let workEditingDiagnosticQueries: [(String, XCUIElementQuery)] = [\n" +
-                "            (\"workScreens\", workEditingDiagnosticWorkScreens),\n" +
-                "            (\"helperTexts\", workHelperTexts),\n" +
-                "            (\"previewElements\", workEditingDiagnosticPreviewElements),\n" +
-                "            (\"scrollViews\", workScrollViews),\n" +
-                "            (\"navigationBars\", workNavigationBars),\n" +
-                "            (\"tabBars\", workEditingDiagnosticTabBars),\n" +
-                "        ]"
-        XCTAssertEqual(
-            workEditingPositioningSource.components(
-                separatedBy: workEditingDiagnosticQueryMap
-            ).count - 1,
-            1
-        )
-        for workEditingDiagnosticQueryDeclaration in [
-            "        let workEditingDiagnosticWorkScreens = " +
-                "app.descendants(matching: .any).matching(\n" +
-                #"            identifier: "s5.1.work.screen""# + "\n" +
-                "        )",
-            "        let workEditingDiagnosticPreviewElements = " +
-                "app.descendants(matching: .any).matching(\n" +
-                #"            identifier: "s5.1.work.photo""# + "\n" +
-                "        )",
-            "        let workEditingDiagnosticTabBars = app.tabBars",
+        for (workEditingMechanicalLock, count) in [
+            ("        for _ in 0..<4 {", 1),
+            ("workScrollView.coordinate(", 1),
+            ("dragStart.press(", 1),
+            ("forDuration: 0.2", 1),
+            ("withVelocity: .slow", 1),
+            ("thenHoldForDuration: 0.2", 1),
+            (#"captureBaseline("state.work.editing", in: app)"#, 1),
         ] {
             XCTAssertEqual(
                 workEditingPositioningSource.components(
-                    separatedBy: workEditingDiagnosticQueryDeclaration
-                ).count - 1,
-                1,
-                workEditingDiagnosticQueryDeclaration
-            )
-        }
-        for (workEditingDiagnosticQueryLock, count) in [
-            (#"identifier: "s5.1.work.screen""#, 1),
-            (#"identifier: "s5.1.work.photo""#, 2),
-            ("let workEditingDiagnosticTabBars = app.tabBars", 1),
-            ("let count = query.count", 1),
-            ("for index in 0..<count {", 1),
-            ("query.element(boundBy: index)", 1),
-            (#""count": count"#, 1),
-            (#""elements": elements"#, 1),
-        ] {
-            XCTAssertEqual(
-                workEditingPositioningSource.components(
-                    separatedBy: workEditingDiagnosticQueryLock
+                    separatedBy: workEditingMechanicalLock
                 ).count - 1,
                 count,
-                workEditingDiagnosticQueryLock
+                workEditingMechanicalLock
             )
         }
-        for workEditingDiagnosticPublicFieldLock in [
-            #""exists": element.exists"#,
-            #""isHittable": element.isHittable"#,
-            #""identifier": element.identifier"#,
-            #""label": element.label"#,
-            #""value": ((element.value as? String) as Any?) ?? NSNull()"#,
-            #""elementTypeRawValue": element.elementType.rawValue"#,
-            #""elementTypeDescription": String(describing: element.elementType)"#,
-            #""frame": workEditingDiagnosticFrameObject(element.frame)"#,
-            "frame.origin.x.isFinite",
-            "frame.origin.y.isFinite",
-            "frame.size.width.isFinite",
-            "frame.size.height.isFinite",
-            "? auditFrameObject(frame) as Any",
-            ": NSNull()",
-        ] {
-            XCTAssertEqual(
-                workEditingPositioningSource.components(
-                    separatedBy: workEditingDiagnosticPublicFieldLock
-                ).count - 1,
-                1,
-                workEditingDiagnosticPublicFieldLock
-            )
-        }
-        for (workEditingDiagnosticEnvelopeLock, count) in [
-            (#""shardID": automationShard?.shardID ?? """#, 2),
-            (#""deviceProfileID": automationShard?.deviceProfileID ?? """#, 2),
-            (#""stateID": "state.work.editing""#, 2),
-            (#""phase": phase"#, 1),
-            (#""sampleOrdinal": workEditingDiagnosticSampleCount"#, 1),
-            (#""attemptOrdinal": attemptOrdinalObject"#, 1),
-            (#""elapsedMilliseconds": elapsedMilliseconds"#, 1),
-            (#""applicationStateRawValue": app.state.rawValue"#, 1),
-            (#""isRunningForeground": app.state == .runningForeground"#, 1),
-            (#""applicationFrame": workEditingDiagnosticFrameObject(app.frame)"#, 1),
-            (#""queries": queryObjects"#, 1),
-            (#""details": details"#, 1),
-        ] {
-            XCTAssertEqual(
-                workEditingPositioningSource.components(
-                    separatedBy: workEditingDiagnosticEnvelopeLock
-                ).count - 1,
-                count,
-                workEditingDiagnosticEnvelopeLock
-            )
-        }
-        for (workEditingDiagnosticTelemetryLock, count) in [
-            (#""requestedDistance""#, 2),
-            (#""observedHelperDistance""#, 1),
-            (#""observedPreviewDistance""#, 1),
-            (#""safeTop""#, 2),
-            (#""safeBottom""#, 2),
-            (#""receiverTop""#, 1),
-            (#""receiverBottom""#, 1),
-            (#""minimumShift""#, 1),
-            (#""maximumShift""#, 1),
-            (#""receiverCapacity""#, 1),
-            (#""recognizedMinimum""#, 1),
-            (#""recognizedMaximum""#, 1),
-            (#""predicates""#, 1),
-            (#""helperIsHittable""#, 1),
-            (#""previewIsHittable""#, 1),
-            (#""previewContainedInApplication""#, 1),
-            (#""previewContainedInLiveScroll""#, 1),
-            (#""previewContainedInSafeBand""#, 1),
-            (#""previewIntersectsNavigation""#, 1),
-            (#""previewIntersectsTabBar""#, 1),
-        ] {
-            XCTAssertEqual(
-                workEditingPositioningSource.components(
-                    separatedBy: workEditingDiagnosticTelemetryLock
-                ).count - 1,
-                count,
-                workEditingDiagnosticTelemetryLock
-            )
-        }
-        for workEditingFinalPredicateLock in [
-            #""applicationRunningForeground""#,
-            #""helperTextCountIsOne""#,
-            #""scrollViewCountIsOne""#,
-            #""navigationBarCountIsOne""#,
-            #""tabBarCountIsOne""#,
-            #""helperExists""#,
-            #""scrollViewExists""#,
-            #""navigationBarExists""#,
-            #""previewExists""#,
-            #""tabBarExists""#,
-            #""applicationFrameIsValid""#,
-            #""navigationFrameIsValid""#,
-            #""scrollFrameIsValid""#,
-            #""helperFrameIsValid""#,
-            #""previewFrameIsValid""#,
-            #""tabBarFrameIsValid""#,
-            #""helperAboveSafeTop""#,
-            #""helperBelowSafeBottom""#,
-            #""previewContainedInApplication""#,
-            #""previewContainedInLiveScroll""#,
-            #""previewContainedInSafeBand""#,
-            #""previewIntersectsNavigation""#,
-            #""previewIntersectsTabBar""#,
-        ] {
-            XCTAssertTrue(
-                workEditingPositioningSource.contains(workEditingFinalPredicateLock),
-                workEditingFinalPredicateLock
-            )
-        }
-        let workEditingDiagnosticInitial =
-            "            emitWorkEditingPositioningDiagnostic(\n" +
-                "                \"initial\","
-        let workEditingDiagnosticBeforeGesture =
-            "                emitWorkEditingPositioningDiagnostic(\n" +
-                "                    \"beforeGesture\","
-        let workEditingDiagnosticPress = "            dragStart.press("
-        let workEditingDiagnosticAfterGesture =
-            "                emitWorkEditingPositioningDiagnostic(\n" +
-                "                    \"afterGesture\","
-        let workEditingDiagnosticFinal =
-            "            emitWorkEditingPositioningDiagnostic(\n" +
-                "                \"final\","
-        let workEditingDiagnosticCount =
-            #"                prefix: "S10_4_WORK_EDITING_POSITIONING_DIAGNOSTIC_COUNT""#
-        let workEditingDiagnosticTerminalAttachment =
-            "            let terminalScreenshot = XCTAttachment("
-        let workEditingDiagnosticThrow =
-            #"                "S10.4 AX-text Record-work editing positioning diagnostic""#
-        for workEditingDiagnosticPhaseLock in [
-            workEditingDiagnosticInitial,
-            workEditingDiagnosticBeforeGesture,
-            workEditingDiagnosticAfterGesture,
-            workEditingDiagnosticFinal,
-        ] {
-            XCTAssertEqual(
-                workEditingPositioningSource.components(
-                    separatedBy: workEditingDiagnosticPhaseLock
-                ).count - 1,
-                1,
-                workEditingDiagnosticPhaseLock
-            )
-        }
-        guard let workEditingDiagnosticInitialRange = workEditingPositioningSource.range(
-            of: workEditingDiagnosticInitial
-        ), let workEditingDiagnosticBeforeGestureRange = workEditingPositioningSource.range(
-            of: workEditingDiagnosticBeforeGesture,
-            range: workEditingDiagnosticInitialRange.upperBound..<workEditingPositioningSource.endIndex
-        ), let workEditingDiagnosticPressRange = workEditingPositioningSource.range(
-            of: workEditingDiagnosticPress,
-            range: workEditingDiagnosticBeforeGestureRange.upperBound..<workEditingPositioningSource.endIndex
-        ), let workEditingDiagnosticAfterGestureRange = workEditingPositioningSource.range(
-            of: workEditingDiagnosticAfterGesture,
-            range: workEditingDiagnosticPressRange.upperBound..<workEditingPositioningSource.endIndex
-        ), let workEditingDiagnosticFinalRange = workEditingPositioningSource.range(
-            of: workEditingDiagnosticFinal,
-            range: workEditingDiagnosticAfterGestureRange.upperBound..<workEditingPositioningSource.endIndex
-        ), let workEditingDiagnosticCountRange = workEditingPositioningSource.range(
-            of: workEditingDiagnosticCount,
-            range: workEditingDiagnosticFinalRange.upperBound..<workEditingPositioningSource.endIndex
-        ), let workEditingDiagnosticTerminalAttachmentRange =
-            workEditingPositioningSource.range(
-                of: workEditingDiagnosticTerminalAttachment,
-                range: workEditingDiagnosticCountRange.upperBound..<workEditingPositioningSource.endIndex
-            ), let workEditingDiagnosticThrowRange = workEditingPositioningSource.range(
-                of: workEditingDiagnosticThrow,
-                range: workEditingDiagnosticTerminalAttachmentRange.upperBound..<workEditingPositioningSource.endIndex
-            ) else {
-            XCTFail("Missing ordered Record-work editing diagnostic telemetry")
-            return
-        }
-        XCTAssertLessThan(
-            workEditingDiagnosticInitialRange.lowerBound,
-            workEditingDiagnosticBeforeGestureRange.lowerBound
-        )
-        XCTAssertLessThan(
-            workEditingDiagnosticBeforeGestureRange.lowerBound,
-            workEditingDiagnosticPressRange.lowerBound
-        )
-        XCTAssertLessThan(
-            workEditingDiagnosticPressRange.lowerBound,
-            workEditingDiagnosticAfterGestureRange.lowerBound
-        )
-        XCTAssertLessThan(
-            workEditingDiagnosticAfterGestureRange.lowerBound,
-            workEditingDiagnosticFinalRange.lowerBound
-        )
-        XCTAssertLessThan(
-            workEditingDiagnosticFinalRange.lowerBound,
-            workEditingDiagnosticCountRange.lowerBound
-        )
-        XCTAssertLessThan(
-            workEditingDiagnosticCountRange.lowerBound,
-            workEditingDiagnosticTerminalAttachmentRange.lowerBound
-        )
-        XCTAssertLessThan(
-            workEditingDiagnosticTerminalAttachmentRange.lowerBound,
-            workEditingDiagnosticThrowRange.lowerBound
-        )
-        for (workEditingDiagnosticEvidenceLock, count) in [
-            (#"prefix: "S10_4_WORK_EDITING_POSITIONING_DIAGNOSTIC""#, 1),
-            (#"prefix: "S10_4_WORK_EDITING_POSITIONING_DIAGNOSTIC_COUNT""#, 1),
-            ("XCTAttachment(", 4),
-            (".lifetime = .keepAlways", 4),
-            ("            add(", 4),
-            (#""S10.4 AX-text work-editing positioning diagnostic start screenshot""#, 1),
-            (#""S10.4 AX-text work-editing positioning diagnostic start tree""#, 1),
-            (#""S10.4 AX-text work-editing positioning diagnostic terminal screenshot""#, 1),
-            (#""S10.4 AX-text work-editing positioning diagnostic terminal tree""#, 1),
-            (#""S10.4 AX-text Record-work editing positioning diagnostic""#, 1),
-        ] {
-            XCTAssertEqual(
-                workEditingPositioningSource.components(
-                    separatedBy: workEditingDiagnosticEvidenceLock
-                ).count - 1,
-                count,
-                workEditingDiagnosticEvidenceLock
-            )
-        }
-
-        let workEditingDiagnosticTerminalStart =
-            "        if workEditingDiagnosticEnabled {\n" +
-                "            let finalPreviewFrame = workPreview.frame"
-        let workEditingDiagnosticTerminalEnd =
-            "        guard app.state == .runningForeground,"
-        guard let workEditingDiagnosticTerminalStartRange =
-            workEditingPositioningSource.range(of: workEditingDiagnosticTerminalStart),
-              let workEditingDiagnosticTerminalEndRange =
-                workEditingPositioningSource.range(
-                    of: workEditingDiagnosticTerminalEnd,
-                    range: workEditingDiagnosticTerminalStartRange.upperBound..<workEditingPositioningSource.endIndex
-                ) else {
-            XCTFail("Missing the terminal Record-work editing diagnostic branch")
-            return
-        }
-        let workEditingDiagnosticTerminalSource = String(
-            workEditingPositioningSource[
-                workEditingDiagnosticTerminalStartRange.lowerBound..<workEditingDiagnosticTerminalEndRange.lowerBound
-            ]
-        )
-        XCTAssertEqual(
-            workEditingDiagnosticTerminalSource.components(
-                separatedBy: "throw AutomationConfigurationError.invalid("
-            ).count - 1,
-            1
-        )
-        for prohibitedWorkEditingDiagnosticTerminalForm in [
-            "return\n",
-            "continue",
-            "XCTFail(",
+        for prohibitedWorkEditingForm in [
+            "finalTabFrame.maxY",
+            "finalPreviewFrame.intersection(finalTabFrame)",
+            "finalPreviewFrame.intersects(finalTabFrame)",
+            "finalTabFrame.intersection(finalPreviewFrame)",
+            "finalTabFrame.intersects(finalPreviewFrame)",
+            "provenGestureCount == 0",
+            "provenGestureCount >= 0",
+            "provenGestureCount == 2",
+            "observedHelperDownwardMovement >= 0",
+            "observedPreviewDownwardMovement >= 0",
+            "observedHelperDownwardMovement != observedPreviewDownwardMovement",
+            "workEditingAXTextEnabled || finalWorkPreviewIsHittable",
+            "finalWorkPreviewIsHittable || workEditingAXTextEnabled",
+            "workPreviewHittabilityAccepted = true",
+            "CGRect(",
+            "epsilon",
+            "tolerance",
+            "abs(",
             ".tap()",
             ".swipeUp()",
             ".swipeDown()",
             "scroll(",
-            ".coordinate(",
-            ".press(",
-            "performAccessibilityAudit",
+            "waitForExistence",
+            "waitForNonExistence",
             "Thread.sleep",
-            "CGRect(",
-            "captureBaseline(",
-            "S10_4_AX_STATE",
-            "S10_4_CONTRAST",
-            #"printJSONLine(prefix: "S10_4_AX""#,
-            "S10.4 candidate",
+            "performAccessibilityAudit",
+            "XCTAttachment(",
+            "printJSONLine(",
             "emitAutomationTaskEvidence",
             "emitAutomationShardReceipt",
         ] {
             XCTAssertFalse(
-                workEditingDiagnosticTerminalSource.contains(
-                    prohibitedWorkEditingDiagnosticTerminalForm
-                ),
-                prohibitedWorkEditingDiagnosticTerminalForm
+                workEditingPositioningSource.contains(prohibitedWorkEditingForm),
+                prohibitedWorkEditingForm
             )
         }
+
         let workEditingCaptureThenSave =
             workEditingPositioningEnd + "\n\n" +
                 "        scroll(saveWork, in: app)"
