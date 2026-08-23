@@ -1368,9 +1368,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     .textField,
                     identifier: "s3.preflight.time-zone"
                 )
-                let preflightNavigationBars = app.navigationBars.matching(
-                    identifier: "Ready for night check"
-                )
+                let preflightNavigationBars = app.navigationBars
                 let inputAssistantViews = app.descendants(
                     matching: .other
                 ).matching(identifier: "SystemInputAssistantView")

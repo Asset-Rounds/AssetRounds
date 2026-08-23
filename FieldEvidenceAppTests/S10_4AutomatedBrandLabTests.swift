@@ -412,8 +412,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 288_317,
-            sha256: "D0BC586C7702FFA9A967E17E18EDE2A3E4819170DEBA5BC7EA5C081D9D52BB7D"
+            byteCount: 288_233,
+            sha256: "3CED70569E69943814951BF05694ED9A6665AFC28F6CBAE6F42AF8A5F3831DB2"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -579,11 +579,38 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 preflightMinimumStartRange.lowerBound..<preflightQuickPathSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightMinimumSource.utf8.count, 23_121)
+        XCTAssertEqual(preflightMinimumSource.utf8.count, 23_037)
         XCTAssertEqual(
             Data(preflightMinimumSource.utf8).sha256,
-            "F8FC3E5144D26D6D9F2ABBEBE7E4B48E049298E0D8518B607D61136DA8BB484A"
+            "60F8009037AC6ADE2BF3AEB756A1FDA2E107D6F626ABCEC84E7463C08E74B6CA"
         )
+        for (preflightNavigationBinding, count) in [
+            ("let preflightNavigationBars = app.navigationBars", 1),
+            ("let preflightNavigationBar = preflightNavigationBars.firstMatch", 1),
+            ("preflightNavigationBars.count == 1", 3),
+            ("preflightNavigationBar.exists", 3),
+            ("preflightNavigationBar.frame", 2),
+            ("let navigationFrame = preflightNavigationBar.frame", 1),
+            ("let finalNavigationFrame =\n" +
+                "                        preflightNavigationBar.frame", 1),
+        ] {
+            XCTAssertEqual(
+                preflightMinimumSource.components(
+                    separatedBy: preflightNavigationBinding
+                ).count - 1,
+                count,
+                preflightNavigationBinding
+            )
+        }
+        for removedPreflightNavigationLookup in [
+            "app.navigationBars.matching(",
+            #"identifier: "Ready for night check""#,
+        ] {
+            XCTAssertFalse(
+                preflightMinimumSource.contains(removedPreflightNavigationLookup),
+                removedPreflightNavigationLookup
+            )
+        }
         let preflightReturnAbsenceDiscriminator =
             #"            let returnKey = app.keyboards.buttons["Return"]"# + "\n" +
                 #"            if !returnKey.waitForExistence(timeout: 1) || !returnKey.isHittable {"#
