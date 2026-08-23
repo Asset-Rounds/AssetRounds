@@ -102,28 +102,178 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             byteCount: 6_678,
             sha256: "C023ADE99CAB0F9ED2984C90BCC0E03B0D05A05643DF7185201CC00772E3C8E4"
         )
-        let workflowPath = ".github/workflows/ios-ci.yml"
+        let dispatcherPath = ".github/workflows/ios-ci.yml"
+        try assertFile(
+            dispatcherPath,
+            byteCount: 2_097,
+            sha256: "487AF3F25AA654B6E9DD8934759D6F970781B322ACD2EA16C6F423699A3AA934"
+        )
+        let dispatcherSource = try text(dispatcherPath)
+        let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 119_630,
-            sha256: "363E3AC6F8FA251C0B3749DF5089CBB282C7319E176651BB1D8BDE6A4D97E4B4"
+            byteCount: 119_764,
+            sha256: "E3B011AC1E86724599FC75BC5A6AAEC674CDCEEBC53C59FA8E6AE5DDDF7BE426"
         )
         let workflowSource = try text(workflowPath)
+        let workerCallHeader =
+            "  workflow_call:\n" +
+                "    inputs:\n" +
+                "      runner_label:\n" +
+                "        description: Runner label supplied by the Phase 10 dispatcher\n" +
+                "        required: true\n" +
+                "        type: string\n" +
+                "      run_ui_smoke:"
+        let predecessorDispatchHeader =
+            "  workflow_dispatch:\n" +
+                "    inputs:\n" +
+                "      run_ui_smoke:"
+        let dynamicRunnerLine = #"    runs-on: ${{ inputs.runner_label }}"#
         let warpBuildRunnerLine = "    runs-on: warp-macos-26-arm64-6x"
-        let githubHostedRunnerLine = "    runs-on: macos-26"
-        XCTAssertEqual(workflowSource.components(separatedBy: warpBuildRunnerLine).count - 1, 1)
-        XCTAssertEqual(workflowSource.components(separatedBy: githubHostedRunnerLine).count - 1, 0)
-        let predecessorWorkflowSource = workflowSource.replacingOccurrences(
-            of: warpBuildRunnerLine,
-            with: githubHostedRunnerLine
-        )
+        XCTAssertEqual(workflowSource.components(separatedBy: workerCallHeader).count - 1, 1)
+        XCTAssertEqual(workflowSource.components(separatedBy: dynamicRunnerLine).count - 1, 1)
+        XCTAssertEqual(workflowSource.components(separatedBy: warpBuildRunnerLine).count - 1, 0)
+        XCTAssertEqual(workflowSource.components(separatedBy: "    runs-on: macos-26").count - 1, 0)
+        let predecessorWorkflowSource = workflowSource
+            .replacingOccurrences(
+                of: workerCallHeader,
+                with: predecessorDispatchHeader
+            )
+            .replacingOccurrences(
+                of: dynamicRunnerLine,
+                with: warpBuildRunnerLine
+            )
         XCTAssertNotEqual(predecessorWorkflowSource, workflowSource)
         let predecessorWorkflowData = Data(predecessorWorkflowSource.utf8)
-        XCTAssertEqual(predecessorWorkflowData.count, 119_616)
+        XCTAssertEqual(predecessorWorkflowData.count, 119_630)
         XCTAssertEqual(
             predecessorWorkflowData.sha256,
-            "5ED565DBDE07C49788211AD95E885769E018CCFA56B2D3C70062BA7600E0F9CA"
+            "363E3AC6F8FA251C0B3749DF5089CBB282C7319E176651BB1D8BDE6A4D97E4B4"
         )
+        let dispatcherShardOptions =
+            "        options:\n" +
+                "          - none\n" +
+                "          - s10.4.current.default-light\n" +
+                "          - s10.4.current.default-dark\n" +
+                "          - s10.4.current.increased-contrast\n" +
+                "          - s10.4.current.ax-text\n" +
+                "          - s10.4.current.differentiate-without-color\n" +
+                "          - s10.4.current.reduce-motion\n" +
+                "          - s10.4.current.reduce-transparency\n" +
+                "          - s10.4.minimum.minimum-os\n" +
+                "          - s10.4.minimum.double-length\n" +
+                "          - s10.4.minimum.rtl\n" +
+                "          - s10.4.minimum.rtl-string\n" +
+                "          - s10.4.minimum.tall\n" +
+                "          - s10.4.minimum.accented\n" +
+                "          - s10.4.minimum.bounded"
+        let githubDispatcherShardList =
+            #"["s10.4.current.default-light","s10.4.current.default-dark","s10.4.current.differentiate-without-color","s10.4.current.reduce-transparency","s10.4.minimum.minimum-os","s10.4.minimum.rtl-string","s10.4.minimum.accented"]"#
+        let warpDispatcherShardList =
+            #"["s10.4.current.increased-contrast","s10.4.current.ax-text","s10.4.current.reduce-motion","s10.4.minimum.double-length","s10.4.minimum.rtl","s10.4.minimum.tall","s10.4.minimum.bounded"]"#
+        let dispatcherRunUIInput =
+            "      run_ui_smoke:\n" +
+                "        description: Run the task-authorized XCUITest smoke after build and unit tests\n" +
+                "        required: true\n" +
+                "        default: false\n" +
+                "        type: boolean"
+        let dispatcherShardInput =
+            "      s10_4_shard_id:\n" +
+                "        description: Select one exact S10.4 shard, or none for other tasks\n" +
+                "        required: true\n" +
+                "        default: none\n" +
+                "        type: choice\n" +
+                dispatcherShardOptions
+        let githubDispatcherShardIDs = [
+            "s10.4.current.default-light",
+            "s10.4.current.default-dark",
+            "s10.4.current.differentiate-without-color",
+            "s10.4.current.reduce-transparency",
+            "s10.4.minimum.minimum-os",
+            "s10.4.minimum.rtl-string",
+            "s10.4.minimum.accented",
+        ]
+        let warpDispatcherShardIDs = [
+            "s10.4.current.increased-contrast",
+            "s10.4.current.ax-text",
+            "s10.4.current.reduce-motion",
+            "s10.4.minimum.double-length",
+            "s10.4.minimum.rtl",
+            "s10.4.minimum.tall",
+            "s10.4.minimum.bounded",
+        ]
+        let exactDispatcherShardIDs = Set([
+            "s10.4.current.default-light",
+            "s10.4.current.default-dark",
+            "s10.4.current.increased-contrast",
+            "s10.4.current.ax-text",
+            "s10.4.current.differentiate-without-color",
+            "s10.4.current.reduce-motion",
+            "s10.4.current.reduce-transparency",
+            "s10.4.minimum.minimum-os",
+            "s10.4.minimum.double-length",
+            "s10.4.minimum.rtl",
+            "s10.4.minimum.rtl-string",
+            "s10.4.minimum.tall",
+            "s10.4.minimum.accented",
+            "s10.4.minimum.bounded",
+        ])
+        XCTAssertEqual(dispatcherSource.components(separatedBy: "  workflow_dispatch:").count - 1, 1)
+        XCTAssertEqual(dispatcherSource.components(separatedBy: dispatcherRunUIInput).count - 1, 1)
+        XCTAssertEqual(dispatcherSource.components(separatedBy: dispatcherShardInput).count - 1, 1)
+        XCTAssertEqual(dispatcherSource.components(separatedBy: dispatcherShardOptions).count - 1, 1)
+        XCTAssertEqual(dispatcherSource.components(separatedBy: githubDispatcherShardList).count - 1, 1)
+        XCTAssertEqual(dispatcherSource.components(separatedBy: warpDispatcherShardList).count - 1, 1)
+        XCTAssertEqual(githubDispatcherShardIDs.count, 7)
+        XCTAssertEqual(warpDispatcherShardIDs.count, 7)
+        XCTAssertTrue(Set(githubDispatcherShardIDs).isDisjoint(with: Set(warpDispatcherShardIDs)))
+        XCTAssertEqual(
+            Set(githubDispatcherShardIDs + warpDispatcherShardIDs),
+            exactDispatcherShardIDs
+        )
+        XCTAssertEqual(dispatcherSource.components(separatedBy: "  github-shard:").count - 1, 1)
+        XCTAssertEqual(dispatcherSource.components(separatedBy: "  warpbuild-shard:").count - 1, 1)
+        XCTAssertEqual(
+            dispatcherSource.components(separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml").count - 1,
+            2
+        )
+        XCTAssertEqual(dispatcherSource.components(separatedBy: "      runner_label: macos-26").count - 1, 1)
+        XCTAssertEqual(
+            dispatcherSource.components(separatedBy: "      runner_label: warp-macos-26-arm64-6x").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            dispatcherSource.components(
+                separatedBy: #"      run_ui_smoke: ${{ inputs.run_ui_smoke }}"#
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            dispatcherSource.components(
+                separatedBy: #"      s10_4_shard_id: ${{ inputs.s10_4_shard_id }}"#
+            ).count - 1,
+            2
+        )
+        XCTAssertTrue(
+            dispatcherSource.contains(
+                #"inputs.s10_4_shard_id == 'none' || contains(fromJSON('"# +
+                    githubDispatcherShardList
+            )
+        )
+        XCTAssertFalse(dispatcherSource.contains("          - all"))
+        XCTAssertFalse(dispatcherSource.contains("strategy:"))
+        XCTAssertFalse(dispatcherSource.contains("matrix:"))
+        XCTAssertFalse(dispatcherSource.contains("max-parallel:"))
+        XCTAssertFalse(dispatcherSource.contains("concurrency:"))
+        XCTAssertFalse(dispatcherSource.contains("inputs.runner_label"))
+        XCTAssertFalse(dispatcherSource.contains("runs-on:"))
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: #"  group: ios-ci-${{ github.ref }}-${{ inputs.s10_4_shard_id }}"#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(workflowSource.components(separatedBy: "  cancel-in-progress: false").count - 1, 1)
         let unitPath = "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift"
         let unitSource = try text(unitPath)
         let retainStepMarker = "      - name: Retain S10.4 shard evidence\n"

@@ -9,12 +9,11 @@ on:
         default: false
         type: boolean
       s10_4_shard_id:
-        description: Select all for the Phase 10 batch, one shard for a rerun, or none for other tasks
+        description: Select one exact S10.4 shard, or none for other tasks
         required: true
-        default: all
+        default: none
         type: choice
         options:
-          - all
           - none
           - s10.4.current.default-light
           - s10.4.current.default-dark
@@ -34,35 +33,21 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ios-ci-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
-  github-shards:
-    name: GitHub macOS · ${{ matrix.s10_4_shard_id }}
-    if: ${{ inputs.s10_4_shard_id == 'all' || contains(fromJSON('["s10.4.current.default-light","s10.4.current.increased-contrast","s10.4.current.differentiate-without-color","s10.4.current.reduce-transparency","s10.4.minimum.double-length","s10.4.minimum.rtl-string","s10.4.minimum.accented"]'), inputs.s10_4_shard_id) }}
-    strategy:
-      fail-fast: false
-      max-parallel: 5
-      matrix:
-        s10_4_shard_id: ${{ fromJSON(inputs.s10_4_shard_id == 'all' && '["s10.4.current.default-light","s10.4.current.increased-contrast","s10.4.current.differentiate-without-color","s10.4.current.reduce-transparency","s10.4.minimum.double-length","s10.4.minimum.rtl-string","s10.4.minimum.accented"]' || format('["{0}"]', inputs.s10_4_shard_id)) }}
+  github-shard:
+    name: GitHub macOS · ${{ inputs.s10_4_shard_id }}
+    if: ${{ inputs.s10_4_shard_id == 'none' || contains(fromJSON('["s10.4.current.default-light","s10.4.current.default-dark","s10.4.current.differentiate-without-color","s10.4.current.reduce-transparency","s10.4.minimum.minimum-os","s10.4.minimum.rtl-string","s10.4.minimum.accented"]'), inputs.s10_4_shard_id) }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: macos-26
-      run_ui_smoke: ${{ inputs.s10_4_shard_id != 'none' || inputs.run_ui_smoke }}
-      s10_4_shard_id: ${{ matrix.s10_4_shard_id }}
+      run_ui_smoke: ${{ inputs.run_ui_smoke }}
+      s10_4_shard_id: ${{ inputs.s10_4_shard_id }}
 
-  warpbuild-shards:
-    name: WarpBuild macOS · ${{ matrix.s10_4_shard_id }}
-    if: ${{ inputs.s10_4_shard_id == 'all' || inputs.s10_4_shard_id == 'none' || contains(fromJSON('["s10.4.current.default-dark","s10.4.current.ax-text","s10.4.current.reduce-motion","s10.4.minimum.minimum-os","s10.4.minimum.rtl","s10.4.minimum.tall","s10.4.minimum.bounded"]'), inputs.s10_4_shard_id) }}
-    strategy:
-      fail-fast: false
-      max-parallel: 5
-      matrix:
-        s10_4_shard_id: ${{ fromJSON(inputs.s10_4_shard_id == 'all' && '["s10.4.current.default-dark","s10.4.current.ax-text","s10.4.current.reduce-motion","s10.4.minimum.minimum-os","s10.4.minimum.rtl","s10.4.minimum.tall","s10.4.minimum.bounded"]' || format('["{0}"]', inputs.s10_4_shard_id)) }}
+  warpbuild-shard:
+    name: WarpBuild macOS · ${{ inputs.s10_4_shard_id }}
+    if: ${{ contains(fromJSON('["s10.4.current.increased-contrast","s10.4.current.ax-text","s10.4.current.reduce-motion","s10.4.minimum.double-length","s10.4.minimum.rtl","s10.4.minimum.tall","s10.4.minimum.bounded"]'), inputs.s10_4_shard_id) }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: warp-macos-26-arm64-6x
-      run_ui_smoke: ${{ inputs.s10_4_shard_id != 'none' || inputs.run_ui_smoke }}
-      s10_4_shard_id: ${{ matrix.s10_4_shard_id }}
+      run_ui_smoke: ${{ inputs.run_ui_smoke }}
+      s10_4_shard_id: ${{ inputs.s10_4_shard_id }}
