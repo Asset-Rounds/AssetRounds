@@ -417,36 +417,36 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
-        let minimumKeyboardThrowingCall =
-            "        try assertLightFirstSignValidationAndCreation(in: app)"
-        let minimumKeyboardThrowingSignature =
+        let minimumKeyboardNonthrowingCall =
+            "        assertLightFirstSignValidationAndCreation(in: app)"
+        let minimumKeyboardNonthrowingSignature =
             "    private func assertLightFirstSignValidationAndCreation(\n" +
                 "        in app: XCUIApplication\n" +
-                "    ) throws {"
-        for throwingMinimumKeyboardLock in [
-            minimumKeyboardThrowingCall,
-            minimumKeyboardThrowingSignature,
+                "    ) {"
+        for nonthrowingMinimumKeyboardLock in [
+            minimumKeyboardNonthrowingCall,
+            minimumKeyboardNonthrowingSignature,
         ] {
             XCTAssertEqual(
                 uiSource.components(
-                    separatedBy: throwingMinimumKeyboardLock
+                    separatedBy: nonthrowingMinimumKeyboardLock
                 ).count - 1,
                 1,
-                throwingMinimumKeyboardLock
+                nonthrowingMinimumKeyboardLock
             )
         }
-        for staleNonthrowingMinimumKeyboardLock in [
-            "        assertLightFirstSignValidationAndCreation(in: app)",
+        for removedThrowingMinimumKeyboardLock in [
+            "        try assertLightFirstSignValidationAndCreation(in: app)",
             "    private func assertLightFirstSignValidationAndCreation(\n" +
                 "        in app: XCUIApplication\n" +
-                "    ) {",
+                "    ) throws {",
         ] {
             XCTAssertEqual(
                 uiSource.components(
-                    separatedBy: staleNonthrowingMinimumKeyboardLock
+                    separatedBy: removedThrowingMinimumKeyboardLock
                 ).count - 1,
                 0,
-                staleNonthrowingMinimumKeyboardLock
+                removedThrowingMinimumKeyboardLock
             )
         }
         for throwingDiagnosticsCallChainLock in [
@@ -7385,7 +7385,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"let runsAXTextDeleteConfirmationDiagnostic ="#,
             #"automationShard?.shardID == "s10.4.current.ax-text""#,
             #"if runsAXTextDeleteConfirmationDiagnostic {"#,
-            #"if !runsAXTextDeleteConfirmationDiagnostic {"#,
+            "if !runsAXTextDeleteConfirmationDiagnostic\n" +
+                "            && !runsMinimumDoubleLengthDeleteComposition {",
             "let expectedDeleteMessage =\n" +
                 "                \"Delete this sign, its photos, and its reports from this app? \" +\n" +
                 "                \"This cannot be undone. Your free-report count will not reset. \" +\n" +
@@ -7472,7 +7473,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                  messageScrollViews.firstMatch.identifier == detail.identifier,\n" +
                 "                  cancelScrollViews.firstMatch.identifier == detail.identifier,\n" +
                 "                  confirmScrollViews.firstMatch.identifier == detail.identifier,\n" +
-                "                  siteScrollViews.firstMatch.identifier == detail.identifier,",
+                "                  siteScrollViews.firstMatch.identifier == detail.identifier else {",
             "            let dragInset: CGFloat = 24",
             "            let minimumVisibleIntersection: CGFloat = 44",
             "            for _ in 0..<4 {",
@@ -7591,10 +7592,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 doubleLengthFinalGateStartRange.lowerBound..<doubleLengthFinalGateEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(doubleLengthFinalGateSource.utf8.count, 1_925)
+        XCTAssertEqual(doubleLengthFinalGateSource.utf8.count, 1_924)
         XCTAssertEqual(
             Data(doubleLengthFinalGateSource.utf8).sha256,
-            "8FED3C5E36578370255ADC35BF2F0A55636DECC4B14032186D7552BCEE5B588B"
+            "569209FA78D3C972FA0E2DBE7F946D651406842734143609FCD7462605056F83"
         )
         let doubleLengthFinalGateContracts = [
             "        if runsMinimumDoubleLengthDeleteComposition {\n" +
