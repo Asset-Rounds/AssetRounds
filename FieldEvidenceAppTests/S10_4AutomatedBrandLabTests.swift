@@ -1850,11 +1850,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             preflightQuickPathSource.components(separatedBy: "XCTFail(").count - 1,
-            24
+            25
         )
         XCTAssertEqual(
             preflightQuickPathSource.components(separatedBy: "                    return\n").count - 1,
-            24
+            25
         )
         XCTAssertFalse(
             preflightQuickPathSource.contains(
