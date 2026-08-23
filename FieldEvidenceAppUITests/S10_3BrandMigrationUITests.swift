@@ -6599,7 +6599,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
     private var usesPseudolanguage: Bool {
         guard let shard = automationShard else { return false }
-        return shard.locale != "en-US-release"
+        return [
+            "en-US-double-length",
+            "ar-RTL-string",
+            "en-US-tall",
+            "en-US-accented",
+            "en-US-bounded",
+        ].contains(shard.locale)
     }
 
     @MainActor

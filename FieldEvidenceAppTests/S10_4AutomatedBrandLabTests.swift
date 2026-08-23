@@ -414,11 +414,154 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 342_206,
-            sha256: "50D2F6D4CE876F7907CCB539882090AAA3BEF234346EBA9325F0DE2CAA60D25D"
+            byteCount: 342_358,
+            sha256: "585DED562BABB344C963C5DBB8492D3B2C33C0B33251E135FAC2A9312B70E00A"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
+        let pseudolanguageClassifierStart = try XCTUnwrap(
+            uiSource.range(of: "    private var usesPseudolanguage: Bool {")
+        )
+        let pseudolanguageClassifierEnd = try XCTUnwrap(
+            uiSource.range(
+                of: "\n\n    @MainActor\n    private func assertUnidentifiedLocalizedLabel(",
+                range: pseudolanguageClassifierStart.upperBound..<uiSource.endIndex
+            )
+        )
+        let pseudolanguageClassifierSource = String(
+            uiSource[pseudolanguageClassifierStart.lowerBound..<pseudolanguageClassifierEnd.lowerBound]
+        )
+        let exactPseudolanguageClassifier =
+            "    private var usesPseudolanguage: Bool {\n" +
+                "        guard let shard = automationShard else { return false }\n" +
+                "        return [\n" +
+                "            \"en-US-double-length\",\n" +
+                "            \"ar-RTL-string\",\n" +
+                "            \"en-US-tall\",\n" +
+                "            \"en-US-accented\",\n" +
+                "            \"en-US-bounded\",\n" +
+                "        ].contains(shard.locale)\n" +
+                "    }"
+        XCTAssertEqual(pseudolanguageClassifierSource, exactPseudolanguageClassifier)
+        XCTAssertEqual(
+            uiSource.components(separatedBy: "usesPseudolanguage").count - 1,
+            13
+        )
+        for transformingLocale in [
+            "en-US-double-length",
+            "ar-RTL-string",
+            "en-US-tall",
+            "en-US-accented",
+            "en-US-bounded",
+        ] {
+            XCTAssertEqual(
+                pseudolanguageClassifierSource.components(
+                    separatedBy: "\"\(transformingLocale)\""
+                ).count - 1,
+                1,
+                transformingLocale
+            )
+        }
+        for nontransformingLocale in ["en-US-release", "ar-RTL"] {
+            XCTAssertEqual(
+                pseudolanguageClassifierSource.components(
+                    separatedBy: "\"\(nontransformingLocale)\""
+                ).count - 1,
+                0,
+                nontransformingLocale
+            )
+            XCTAssertNotEqual(
+                pseudolanguageClassifierSource,
+                exactPseudolanguageClassifier.replacingOccurrences(
+                    of: "        ].contains(shard.locale)",
+                    with: "            \"\(nontransformingLocale)\",\n" +
+                        "        ].contains(shard.locale)"
+                ),
+                "A non-transforming locale must not be added"
+            )
+        }
+        for transformingLocale in [
+            "en-US-double-length",
+            "ar-RTL-string",
+            "en-US-tall",
+            "en-US-accented",
+            "en-US-bounded",
+        ] {
+            XCTAssertNotEqual(
+                pseudolanguageClassifierSource,
+                exactPseudolanguageClassifier.replacingOccurrences(
+                    of: "            \"\(transformingLocale)\",\n",
+                    with: ""
+                ),
+                "A string-transforming locale must not be omitted"
+            )
+        }
+        for staleOrInferredClassifier in [
+            "shard.locale != \"en-US-release\"",
+            "shard.locale == \"ar-RTL\"",
+            "shard.locale.hasPrefix",
+            "shard.locale.hasSuffix",
+            "shard.locale.contains",
+            "shard.layoutDirection",
+            "shard.shardID",
+            "shard.requirementID",
+            "shard.accessibilityFeature",
+        ] {
+            XCTAssertFalse(
+                pseudolanguageClassifierSource.contains(staleOrInferredClassifier),
+                staleOrInferredClassifier
+            )
+        }
+        let unidentifiedLabelStart = pseudolanguageClassifierEnd.upperBound
+        let unidentifiedLabelEnd = try XCTUnwrap(
+            uiSource.range(
+                of: "\n\n    @MainActor\n    private func assertLocalizedLabel(",
+                range: unidentifiedLabelStart..<uiSource.endIndex
+            )
+        )
+        let unidentifiedLabelSource = String(
+            uiSource[unidentifiedLabelStart..<unidentifiedLabelEnd.lowerBound]
+        )
+        let exactLabelQuery =
+            "labelledElement(releaseLabel, in: app).waitForExistence(timeout: timeout)"
+        XCTAssertEqual(
+            unidentifiedLabelSource.components(separatedBy: "guard usesPseudolanguage else {").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            unidentifiedLabelSource.components(separatedBy: exactLabelQuery).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            unidentifiedLabelSource.components(
+                separatedBy: "pseudoLabelSentinelValidated"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            unidentifiedLabelSource.components(
+                separatedBy: "app.descendants(matching: .any).allElementsBoundByIndex.contains"
+            ).count - 1,
+            1
+        )
+        XCTAssertLessThan(
+            try XCTUnwrap(unidentifiedLabelSource.range(of: exactLabelQuery)).lowerBound,
+            try XCTUnwrap(unidentifiedLabelSource.range(of: "            return")).lowerBound
+        )
+        XCTAssertLessThan(
+            try XCTUnwrap(unidentifiedLabelSource.range(of: "pseudoLabelSentinelValidated")).lowerBound,
+            try XCTUnwrap(
+                unidentifiedLabelSource.range(
+                    of: "app.descendants(matching: .any).allElementsBoundByIndex.contains"
+                )
+            ).lowerBound
+        )
+        let realRTLShard =
+            "locale: \"ar-RTL\", layoutDirection: \"right_to_left\""
+        let stringRTLShard =
+            "locale: \"ar-RTL-string\", layoutDirection: \"right_to_left\""
+        XCTAssertEqual(uiSource.components(separatedBy: realRTLShard).count - 1, 1)
+        XCTAssertEqual(uiSource.components(separatedBy: stringRTLShard).count - 1, 1)
         let minimumKeyboardNonthrowingCall =
             "        assertLightFirstSignValidationAndCreation(in: app)"
         let minimumKeyboardNonthrowingSignature =
