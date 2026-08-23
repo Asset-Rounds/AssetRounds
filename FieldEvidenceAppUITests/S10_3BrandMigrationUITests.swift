@@ -200,6 +200,50 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
         ),
         ContrastAuditExceptionSignature(
+            issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS",
+            shardID: "s10.4.current.ax-text",
+            stateID: "state.reports-index.ready",
+            taskID: "report_comprehension",
+            owner: "palatis3",
+            expiresAt: "2026-11-20",
+            rationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the Reports-index North Campus label whose frozen public frame intersects native bottom tab chrome even though ReportsRootView already renders it with primaryText; the audit-owned crop confirms the issue is limited to that chrome-overlapped composition, and the exception is limited to the frozen public issue signature.",
+            auditTypeRawValue: "1",
+            compactDescription: "Contrast failed",
+            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+            elementIdentifier: "",
+            elementLabel: "North Campus",
+            elementTypeDescription: "XCUIElementType(rawValue: 48)",
+            elementFrame: CGRect(
+                x: 32,
+                y: 775.33333333333337,
+                width: 329.33333333333331,
+                height: 63.333333333333258
+            ),
+            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
+        ),
+        ContrastAuditExceptionSignature(
+            issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT",
+            shardID: "s10.4.current.ax-text",
+            stateID: "state.reports-index.ready",
+            taskID: "report_comprehension",
+            owner: "palatis3",
+            expiresAt: "2026-11-20",
+            rationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the Reports-index Visit label whose frozen public frame begins inside native bottom tab chrome, extends below the 402x874 application frame, and is not hittable even though ReportsRootView already renders it with primaryText; the audit-owned crop confirms the issue is limited to that chrome-clipped composition, and the exception is limited to the frozen public issue signature.",
+            auditTypeRawValue: "1",
+            compactDescription: "Contrast failed",
+            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+            elementIdentifier: "",
+            elementLabel: "Visit",
+            elementTypeDescription: "XCUIElementType(rawValue: 48)",
+            elementFrame: CGRect(
+                x: 32,
+                y: 850.66666666666663,
+                width: 85.333333333333329,
+                height: 51.333333333333485
+            ),
+            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
+        ),
+        ContrastAuditExceptionSignature(
             issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-FEEDBACK-PRIVACY",
             shardID: "s10.4.current.default-dark",
             stateID: "state.feedback.review-ready",
@@ -536,7 +580,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         assertLightFirstSignValidationAndCreation(in: app)
         completeVisibleIssueCheck(in: app)
         assertFirstReceiptAndReport(in: app)
-        try assertReportsIndex(in: app)
+        assertReportsIndex(in: app)
 
         app.terminate()
         app.launchArguments.removeAll {
@@ -2236,7 +2280,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func assertReportsIndex(in app: XCUIApplication) throws {
+    private func assertReportsIndex(in app: XCUIApplication) {
         let history = element("s4.4.sign-detail.report-history", in: app)
         scroll(history, in: app)
         assertControl(history, label: "Report history")
@@ -2259,139 +2303,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let reportsTab = element("s1.tab.reports", in: app)
         XCTAssertTrue(reportsTab.waitForExistence(timeout: 20))
         reportsTab.tap()
-        let reportsScreen = element("s4.4.reports.screen", in: app)
-        XCTAssertTrue(reportsScreen.waitForExistence(timeout: 30))
-        if automationShard?.shardID == "s10.4.current.ax-text" {
-            let northCampusPredicate = NSPredicate(
-                format: "label == %@",
-                "North Campus"
-            )
-            let diagnosticQueries: [(String, XCUIElementQuery)] = [
-                (
-                    "reportsScreens",
-                    app.descendants(matching: .any).matching(
-                        identifier: "s4.4.reports.screen"
-                    )
-                ),
-                (
-                    "northCampusStaticTexts",
-                    app.staticTexts.matching(northCampusPredicate)
-                ),
-                (
-                    "reportVisits",
-                    app.descendants(matching: .any).matching(
-                        identifier: "s4.4.reports.visit"
-                    )
-                ),
-                (
-                    "northCampusScrollViews",
-                    app.scrollViews.containing(northCampusPredicate)
-                ),
-                ("tabBars", app.tabBars),
-                ("navigationBars", app.navigationBars),
-            ]
-            let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
-                element in
-                let valueObject: Any
-                if let value = element.value as? String {
-                    valueObject = value
-                } else {
-                    valueObject = NSNull()
-                }
-                return [
-                    "exists": element.exists,
-                    "identifier": element.identifier,
-                    "label": element.label,
-                    "value": valueObject,
-                    "elementTypeRawValue": element.elementType.rawValue,
-                    "frame": self.auditFrameObject(element.frame),
-                    "isHittable": element.isHittable,
-                ]
-            }
-            let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
-                query in
-                let count = query.count
-                var elements: [[String: Any]] = []
-                for index in 0..<count {
-                    elements.append(
-                        diagnosticElementObject(query.element(boundBy: index))
-                    )
-                }
-                return [
-                    "count": count,
-                    "elements": elements,
-                ]
-            }
-            var diagnosticQueryObjects: [String: Any] = [:]
-            for (name, query) in diagnosticQueries {
-                diagnosticQueryObjects[name] = diagnosticQueryObject(query)
-            }
-
-            var diagnosticIssueObjects: [[String: Any]] = []
-            var diagnosticAuditedElements: [XCUIElement] = []
-            try app.performAccessibilityAudit(for: .contrast) { issue in
-                let elementObject: Any
-                if let auditedElement = issue.element {
-                    diagnosticAuditedElements.append(auditedElement)
-                    elementObject = diagnosticElementObject(auditedElement)
-                } else {
-                    elementObject = NSNull()
-                }
-                diagnosticIssueObjects.append([
-                    "auditTypeRawValue": String(issue.auditType.rawValue),
-                    "compactDescription": issue.compactDescription,
-                    "detailedDescription": issue.detailedDescription,
-                    "element": elementObject,
-                ])
-                return true
-            }
-            let diagnosticAuditedElementObjects = diagnosticAuditedElements.map(
-                diagnosticElementObject
-            )
-
-            printJSONLine(
-                prefix: "S10_4_REPORTS_INDEX_CONTRAST_DIAGNOSTIC",
-                object: [
-                    "shardID": "s10.4.current.ax-text",
-                    "stateID": "state.reports-index.ready",
-                    "applicationStateRawValue": app.state.rawValue,
-                    "applicationFrame": auditFrameObject(app.frame),
-                    "queries": diagnosticQueryObjects,
-                    "issueCount": diagnosticIssueObjects.count,
-                    "issues": diagnosticIssueObjects,
-                    "auditedElementCount": diagnosticAuditedElementObjects.count,
-                    "auditedElements": diagnosticAuditedElementObjects,
-                ]
-            )
-
-            let appScreenshot = XCTAttachment(screenshot: app.screenshot())
-            appScreenshot.name = "S10.4 reports-index contrast diagnostic app"
-            appScreenshot.lifetime = .keepAlways
-            add(appScreenshot)
-            let appTree = XCTAttachment(string: app.debugDescription)
-            appTree.name = "S10.4 reports-index contrast diagnostic tree"
-            appTree.lifetime = .keepAlways
-            add(appTree)
-            let reportsScreenshot = XCTAttachment(
-                screenshot: reportsScreen.screenshot()
-            )
-            reportsScreenshot.name =
-                "S10.4 reports-index contrast diagnostic reports"
-            reportsScreenshot.lifetime = .keepAlways
-            add(reportsScreenshot)
-            for (index, auditedElement) in diagnosticAuditedElements.enumerated() {
-                let elementScreenshot = XCTAttachment(
-                    screenshot: auditedElement.screenshot()
-                )
-                elementScreenshot.name =
-                    "S10.4 reports-index contrast diagnostic element \(index + 1)"
-                elementScreenshot.lifetime = .keepAlways
-                add(elementScreenshot)
-            }
-            throw AutomationConfigurationError.invalid(
-                "S10.4 reports-index contrast diagnostic"
-            )
-        }
+        XCTAssertTrue(element("s4.4.reports.screen", in: app)
+            .waitForExistence(timeout: 30))
         captureBaseline("state.reports-index.ready", in: app)
 
         let signsTab = element("s1.tab.signs", in: app)
@@ -5093,7 +5006,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
             let stateIssueLimit =
                 shard.shardID == "s10.4.current.ax-text"
-                && stateID == "state.check-preflight.ready" ? 2 : 1
+                && (
+                    stateID == "state.check-preflight.ready"
+                        || stateID == "state.reports-index.ready"
+                ) ? 2 : 1
             guard eligibleExceptions.count <= stateIssueLimit else {
                 throw AutomationConfigurationError.invalid(
                     "S10.4 contrast exception eligibility is ambiguous"
@@ -5424,10 +5340,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     "state.new-sign.editing",
                 ]
             case ("s10.4.current.ax-text", "report_comprehension"):
-                taskIssueLimit = 1
-                taskStateLimit = 1
+                taskIssueLimit = 3
+                taskStateLimit = 2
                 permittedExceptionStateIDs = [
                     "state.report-history.ready",
+                    "state.reports-index.ready",
                 ]
             case ("s10.4.current.default-light", "report_comprehension"):
                 taskIssueLimit = 1

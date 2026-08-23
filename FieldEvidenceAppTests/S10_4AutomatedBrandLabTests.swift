@@ -105,8 +105,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             workflowPath,
-            byteCount: 113_339,
-            sha256: "BEC94B7AF2983F37C06D448C9EC1B384137220A2154FCD4D9898D2048E8B90F3"
+            byteCount: 117_267,
+            sha256: "3F432ECAB0BE5CF3714BD76F151782B9B8DD7C949E4B11A6DB5C84B0C0605F98"
         )
         let workflowSource = try text(workflowPath)
         let retainStepMarker = "      - name: Retain S10.4 shard evidence\n"
@@ -412,8 +412,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 293_987,
-            sha256: "A2BFC5204630228C37FB44505ABFFBA5B888DF38D1B04F2FFF3BEB86D68CE6C1"
+            byteCount: 291_133,
+            sha256: "502C5F7C5056CADC844B1C6C2E1BA3D54CC35CDAC8C598D3E75127A6D1FBCB42"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -613,7 +613,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
 
         let reportsIndexStart =
-            "    private func assertReportsIndex(in app: XCUIApplication) throws {"
+            "    private func assertReportsIndex(in app: XCUIApplication) {"
         let reportsIndexEnd =
             "\n    @MainActor\n    private func positionLowerNorthCampusForAXText("
         guard let reportsIndexStartRange = uiSource.range(of: reportsIndexStart),
@@ -629,174 +629,76 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 reportsIndexStartRange.lowerBound..<reportsIndexEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(reportsIndexSource.utf8.count, 7_263)
+        XCTAssertEqual(reportsIndexSource.utf8.count, 1_513)
         XCTAssertEqual(
             Data(reportsIndexSource.utf8).sha256,
-            "220E3133CA8DD5B786BC6EACBD63819D63F7003E9E8199DA58B5F4CCCBFED35C"
-        )
-        let reportsDiagnosticGate =
-            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
-        let reportsBaseline =
-            #"        captureBaseline("state.reports-index.ready", in: app)"#
-        guard let reportsDiagnosticStartRange = reportsIndexSource.range(
-            of: reportsDiagnosticGate,
-            options: .backwards
-        ), let reportsBaselineRange = reportsIndexSource.range(
-            of: reportsBaseline,
-            range: reportsDiagnosticStartRange.upperBound..<reportsIndexSource.endIndex
-        ) else {
-            XCTFail("Missing the reports-index diagnostic slice")
-            return
-        }
-        let reportsDiagnosticSource = String(
-            reportsIndexSource[
-                reportsDiagnosticStartRange.lowerBound..<reportsBaselineRange.lowerBound
-            ]
-        )
-        XCTAssertEqual(reportsDiagnosticSource.utf8.count, 5_714)
-        XCTAssertEqual(
-            Data(reportsDiagnosticSource.utf8).sha256,
-            "6ED1055ADFB22DCEFB7DD855852417D37D53A90621AD9C0F7B16673A85596BCB"
+            "7FA0D9FD19E7B8FD37DD718893A776B4D94D84CC6B5DCD2521B377A5BF27238A"
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: reportsIndexStart).count - 1,
             1
         )
+        let reportsIndexCall = "        assertReportsIndex(in: app)"
         XCTAssertEqual(
-            uiSource.components(separatedBy: "try assertReportsIndex(in: app)").count - 1,
+            uiSource.components(separatedBy: reportsIndexCall).count - 1,
             1
         )
-        XCTAssertLessThan(
-            reportsIndexSource.distance(
-                from: reportsIndexSource.startIndex,
-                to: reportsDiagnosticStartRange.lowerBound
-            ),
-            reportsIndexSource.distance(
-                from: reportsIndexSource.startIndex,
-                to: reportsBaselineRange.lowerBound
+        for removedThrowingReportsIndexForm in [
+            "        try assertReportsIndex(in: app)",
+            "    private func assertReportsIndex(in app: XCUIApplication) throws {",
+        ] {
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: removedThrowingReportsIndexForm
+                ).count - 1,
+                0,
+                removedThrowingReportsIndexForm
             )
+        }
+        let restoredReportsScreenWait =
+            #"        XCTAssertTrue(element("s4.4.reports.screen", in: app)"# + "\n" +
+                "            .waitForExistence(timeout: 30))"
+        let reportsBaseline =
+            #"        captureBaseline("state.reports-index.ready", in: app)"#
+        let restoredReportsAcceptance =
+            restoredReportsScreenWait + "\n" + reportsBaseline
+        XCTAssertEqual(
+            reportsIndexSource.components(
+                separatedBy: restoredReportsAcceptance
+            ).count - 1,
+            1
         )
-        let reportsQueryLocks = [
+        for removedReportsIndexDiagnosticForm in [
+            "S10_4_REPORTS_INDEX_CONTRAST_DIAGNOSTIC",
+            "S10.4 reports-index contrast diagnostic",
+            "let northCampusPredicate = NSPredicate(",
             "reportsScreens",
             "northCampusStaticTexts",
             "reportVisits",
             "northCampusScrollViews",
-            "tabBars",
-            "navigationBars",
-        ]
-        for queryName in reportsQueryLocks {
+            "let diagnosticQueries: [(String, XCUIElementQuery)] = [",
+            "var diagnosticQueryObjects",
+            "var diagnosticIssueObjects",
+            "var diagnosticAuditedElements",
+            "let diagnosticAuditedElementObjects",
+            #"let reportsScreen = element("s4.4.reports.screen", in: app)"#,
+        ] {
             XCTAssertEqual(
-                reportsDiagnosticSource.components(
-                    separatedBy: "\"\(queryName)\""
+                uiSource.components(
+                    separatedBy: removedReportsIndexDiagnosticForm
                 ).count - 1,
-                1,
-                queryName
+                0,
+                removedReportsIndexDiagnosticForm
             )
         }
-        for (fragment, count) in [
-            (#"format: "label == %@""#, 1),
-            (#""North Campus""#, 1),
-            ("let count = query.count", 1),
-            ("for index in 0..<count", 1),
-            ("query.element(boundBy: index)", 1),
-            ("if let value = element.value as? String", 1),
-            ("valueObject = NSNull()", 1),
-            (#""exists": element.exists"#, 1),
-            (#""identifier": element.identifier"#, 1),
-            (#""label": element.label"#, 1),
-            (#""value": valueObject"#, 1),
-            (#""elementTypeRawValue": element.elementType.rawValue"#, 1),
-            (#""frame": self.auditFrameObject(element.frame)"#, 1),
-            (#""isHittable": element.isHittable"#, 1),
-            ("try app.performAccessibilityAudit(for: .contrast)", 1),
-            ("return true", 1),
-            ("diagnosticIssueObjects.append([", 1),
-            ("diagnosticAuditedElements.append(auditedElement)", 1),
-            ("let diagnosticAuditedElementObjects = diagnosticAuditedElements.map(", 1),
-            ("diagnosticElementObject\n            )", 1),
-            (#""auditTypeRawValue": String(issue.auditType.rawValue)"#, 1),
-            (#""compactDescription": issue.compactDescription"#, 1),
-            (#""detailedDescription": issue.detailedDescription"#, 1),
-            (#""element": elementObject"#, 1),
-            (#""applicationStateRawValue": app.state.rawValue"#, 1),
-            (#""applicationFrame": auditFrameObject(app.frame)"#, 1),
-            (#"prefix: "S10_4_REPORTS_INDEX_CONTRAST_DIAGNOSTIC""#, 1),
-            (#""issueCount": diagnosticIssueObjects.count"#, 1),
-            (#""issues": diagnosticIssueObjects"#, 1),
-            (#""auditedElementCount": diagnosticAuditedElementObjects.count"#, 1),
-            (#""auditedElements": diagnosticAuditedElementObjects"#, 1),
-            ("for (index, auditedElement) in diagnosticAuditedElements.enumerated()", 1),
-            (#""S10.4 reports-index contrast diagnostic element \(index + 1)""#, 1),
-            ("throw AutomationConfigurationError.invalid(", 1),
-            (".lifetime = .keepAlways", 4),
-            ("add(", 4),
-        ] {
-            XCTAssertEqual(
-                reportsDiagnosticSource.components(separatedBy: fragment).count - 1,
-                count,
-                fragment
-            )
-        }
-        for attachmentName in [
-            "S10.4 reports-index contrast diagnostic app",
-            "S10.4 reports-index contrast diagnostic tree",
-            "S10.4 reports-index contrast diagnostic reports",
-            "S10.4 reports-index contrast diagnostic element",
-        ] {
-            XCTAssertEqual(
-                reportsDiagnosticSource.components(separatedBy: attachmentName).count - 1,
-                1,
-                attachmentName
-            )
-        }
-        let reportsDiagnosticJSON =
-            #"prefix: "S10_4_REPORTS_INDEX_CONTRAST_DIAGNOSTIC""#
-        let reportsDiagnosticFirstAttachment =
-            "let appScreenshot = XCTAttachment(screenshot: app.screenshot())"
-        let reportsDiagnosticElementLoop =
-            "for (index, auditedElement) in diagnosticAuditedElements.enumerated()"
-        let reportsDiagnosticTerminal =
-            "throw AutomationConfigurationError.invalid("
-        guard let reportsDiagnosticJSONRange = reportsDiagnosticSource.range(
-            of: reportsDiagnosticJSON
-        ), let reportsDiagnosticFirstAttachmentRange = reportsDiagnosticSource.range(
-            of: reportsDiagnosticFirstAttachment
-        ), let reportsDiagnosticElementLoopRange = reportsDiagnosticSource.range(
-            of: reportsDiagnosticElementLoop
-        ), let reportsDiagnosticTerminalRange = reportsDiagnosticSource.range(
-            of: reportsDiagnosticTerminal
-        ) else {
-            XCTFail("Missing reports-index diagnostic emission order")
-            return
-        }
-        XCTAssertLessThan(
-            reportsDiagnosticJSONRange.lowerBound,
-            reportsDiagnosticFirstAttachmentRange.lowerBound
+        let residualReportsIndexDiagnosticMutation =
+            uiSource + "\nS10_4_REPORTS_INDEX_CONTRAST_DIAGNOSTIC"
+        XCTAssertNotEqual(
+            residualReportsIndexDiagnosticMutation.components(
+                separatedBy: "S10_4_REPORTS_INDEX_CONTRAST_DIAGNOSTIC"
+            ).count - 1,
+            0
         )
-        XCTAssertLessThan(
-            reportsDiagnosticFirstAttachmentRange.lowerBound,
-            reportsDiagnosticElementLoopRange.lowerBound
-        )
-        XCTAssertLessThan(
-            reportsDiagnosticElementLoopRange.lowerBound,
-            reportsDiagnosticTerminalRange.lowerBound
-        )
-        for prohibitedReportsDiagnosticForm in [
-            "tap(", "swipe", "coordinate(", "press(", "thenDragTo:",
-            "scroll(", "waitForExistence", "sleep", "captureBaseline(",
-            "S10_4_AX_STATE", "S10_4_CONTRAST\"", "automatedEvidenceIDs",
-            "return false", "ContrastAuditExceptionSignature(",
-            "contrastAuditExceptionSignatures.append",
-            "guard diagnosticIssueObjects.count",
-            "guard diagnosticAuditedElements.count",
-            "diagnosticAuditedElements.first",
-            "S10.4 reports-index contrast diagnostic cardinality",
-        ] {
-            XCTAssertFalse(
-                reportsDiagnosticSource.contains(prohibitedReportsDiagnosticForm),
-                prohibitedReportsDiagnosticForm
-            )
-        }
         let unchangedReportsContinuation =
             reportsBaseline + "\n\n" +
                 #"        let signsTab = element("s1.tab.signs", in: app)"# + "\n" +
@@ -4495,7 +4397,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             contrastAuthoritySource.components(
                 separatedBy: "ContrastAuditExceptionSignature("
             ).count - 1,
-            12
+            14
         )
         for prohibitedReduceMotionSavingTaskExpansion in [
             #"case ("s10.4.current.reduce-motion", "work_and_recheck")"#,
@@ -8518,6 +8420,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS",
+            "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS",
+            "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-FEEDBACK-PRIVACY",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER",
@@ -8532,6 +8436,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Before you begin while the frozen public node frame is bottom-clipped outside the 402x874 application frame in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the I confirm this is the site's time zone label even though the audit-owned crop contains only the iOS keyboard and the frozen public node frame is fully keyboard-occluded in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the lower North Campus label whose frozen public node frame intersects native bottom chrome after bounded positioning makes the header safe and hittable and moves the Visit composite below the application; an exact remaining positive ScrollView drag is unrecognized with zero measured header, lower-label, and Visit movement, while ReportsRootView already renders the label with primaryText; the exception is limited to the frozen public issue signature.",
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the Reports-index North Campus label whose frozen public frame intersects native bottom tab chrome even though ReportsRootView already renders it with primaryText; the audit-owned crop confirms the issue is limited to that chrome-overlapped composition, and the exception is limited to the frozen public issue signature.",
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the Reports-index Visit label whose frozen public frame begins inside native bottom tab chrome, extends below the 402x874 application frame, and is not hittable even though ReportsRootView already renders it with primaryText; the audit-owned crop confirms the issue is limited to that chrome-clipped composition, and the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Feedback privacy copy while the frozen public node frame is top-clipped outside the 402x874 application frame and its remaining slice is bound to native status/navigation chrome; the live Feedback composition simultaneously preserves the frozen App-metadata and Save-diagnostics clearances, and the audit-owned crop confirms that unobscured primaryText renders white on the dark elevated surface; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in default light even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in default dark even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
@@ -8546,7 +8452,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             exceptionIDs.filter { !$0.hasSuffix("REPORT-CORRECTION-HEADER") }.count,
-            6
+            8
         )
         for lock in exceptionIDs {
             XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1, lock)
@@ -8567,6 +8473,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("state.sample-report.ready", 1),
             ("state.feedback.review-ready", 1),
             ("state.report-history.ready", 1),
+            ("state.reports-index.ready", 2),
             ("state.report-correction.validation-error", 6),
         ]
         for (stateID, expectedCount) in uiExceptionStateCounts {
@@ -8579,37 +8486,37 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(separatedBy: "ContrastAuditExceptionSignature(").count - 1,
-            12
+            14
         )
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: #"issueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            12
+            14
         )
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            24
+            28
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"owner: "palatis3""#).count - 1,
-            12
+            14
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionOwner: "palatis3""#)
                 .count - 1,
-            12
+            14
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"expiresAt: "2026-11-20""#).count - 1,
-            12
+            14
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionExpiresAt: "2026-11-20""#)
                 .count - 1,
-            12
+            14
         )
 
         let signatureLocks = [
@@ -8630,6 +8537,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"issueID: "S10.4-XCUI-CONTRAST-FP-DIFFERENTIATE-WITHOUT-COLOR-REPORT-CORRECTION-HEADER""#,
             #"issueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER""#,
             #"issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS""#,
+            #"issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS""#,
+            #"issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT""#,
             #"shardID: "s10.4.current.default-light""#,
             #"shardID: "s10.4.current.increased-contrast""#,
             #"shardID: "s10.4.current.reduce-motion""#,
@@ -8637,6 +8546,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"shardID: "s10.4.current.reduce-transparency""#,
             #"shardID: "s10.4.current.ax-text""#,
             #"stateID: "state.report-history.ready""#,
+            #"stateID: "state.reports-index.ready""#,
             #"stateID: "state.report-correction.validation-error""#,
             #"elementIdentifier: "s4.5.correction.header""#,
             #"elementLabel: "Correct report""#,
@@ -8656,6 +8566,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "y: 823.66666666666663",
             "width: 329.33333333333331",
             "height: 63.333333333333371",
+            "y: 775.33333333333337",
+            "height: 63.333333333333258",
+            "y: 850.66666666666663",
+            "width: 85.333333333333329",
+            "height: 51.333333333333485",
             "y: -34.333333333333343",
             "width: 298.33333333333331",
             "height: 86.333333333333343",
@@ -8682,6 +8597,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-DIFFERENTIATE-WITHOUT-COLOR-REPORT-CORRECTION-HEADER""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS""#,
+            #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS""#,
+            #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT""#,
             #"shardID: "s10.4.current.default-light""#,
             #"shardID: "s10.4.current.increased-contrast""#,
             #"shardID: "s10.4.current.reduce-motion""#,
@@ -8689,6 +8606,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"shardID: "s10.4.current.reduce-transparency""#,
             #"shardID: "s10.4.current.ax-text""#,
             #"stateID: "state.report-history.ready""#,
+            #"stateID: "state.reports-index.ready""#,
             #"stateID: "state.report-correction.validation-error""#,
             #"elementIdentifier: "s4.5.correction.header""#,
             #"elementLabel: "Correct report""#,
@@ -8708,6 +8626,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "y: 823.66666666666663",
             "width: 329.33333333333331",
             "height: 63.333333333333371",
+            "y: 775.33333333333337",
+            "height: 63.333333333333258",
+            "y: 850.66666666666663",
+            "width: 85.333333333333329",
+            "height: 51.333333333333485",
             "y: -34.333333333333343",
             "width: 298.33333333333331",
             "height: 86.333333333333343",
@@ -8788,6 +8711,592 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workflowSource.components(separatedBy: reportHistoryWorkflowTuple).count - 1,
             1
         )
+
+        let reportsIndexNorthRationale =
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the Reports-index North Campus label whose frozen public frame intersects native bottom tab chrome even though ReportsRootView already renders it with primaryText; the audit-owned crop confirms the issue is limited to that chrome-overlapped composition, and the exception is limited to the frozen public issue signature."
+        let reportsIndexVisitRationale =
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the Reports-index Visit label whose frozen public frame begins inside native bottom tab chrome, extends below the 402x874 application frame, and is not hittable even though ReportsRootView already renders it with primaryText; the audit-owned crop confirms the issue is limited to that chrome-clipped composition, and the exception is limited to the frozen public issue signature."
+
+        let reportsIndexNorthUIAuthorityStart =
+            #"            issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS","#
+        let reportsIndexVisitUIAuthorityStart =
+            #"            issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT","#
+        let reportsIndexVisitUIAuthorityEnd =
+            #"            issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-FEEDBACK-PRIVACY","#
+        guard let reportsIndexNorthUIStartRange = uiSource.range(
+            of: reportsIndexNorthUIAuthorityStart
+        ), let reportsIndexVisitUIStartRange = uiSource.range(
+            of: reportsIndexVisitUIAuthorityStart,
+            range: reportsIndexNorthUIStartRange.upperBound..<uiSource.endIndex
+        ), let reportsIndexVisitUIEndRange = uiSource.range(
+            of: reportsIndexVisitUIAuthorityEnd,
+            range: reportsIndexVisitUIStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the exact Reports-index UI contrast authorities")
+            return
+        }
+        let reportsIndexNorthUIAuthority = String(
+            uiSource[
+                reportsIndexNorthUIStartRange.lowerBound
+                    ..<reportsIndexVisitUIStartRange.lowerBound
+            ]
+        )
+        let reportsIndexVisitUIAuthority = String(
+            uiSource[
+                reportsIndexVisitUIStartRange.lowerBound
+                    ..<reportsIndexVisitUIEndRange.lowerBound
+            ]
+        )
+        let reportsIndexSignatureBlockStart =
+            "        ContrastAuditExceptionSignature(\n" +
+                reportsIndexNorthUIAuthorityStart
+        let reportsIndexSignatureBlockEnd =
+            "        ContrastAuditExceptionSignature(\n" +
+                reportsIndexVisitUIAuthorityEnd
+        guard let reportsIndexSignatureBlockStartRange = uiSource.range(
+            of: reportsIndexSignatureBlockStart
+        ), let reportsIndexSignatureBlockEndRange = uiSource.range(
+            of: reportsIndexSignatureBlockEnd,
+            range: reportsIndexSignatureBlockStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded Reports-index signature block")
+            return
+        }
+        let reportsIndexSignatureBlock = String(
+            uiSource[
+                reportsIndexSignatureBlockStartRange.lowerBound
+                    ..<reportsIndexSignatureBlockEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(reportsIndexSignatureBlock.utf8.count, 2_745)
+        XCTAssertEqual(
+            Data(reportsIndexSignatureBlock.utf8).sha256,
+            "0E80FA4D20DF2B05E19AD8647B43420A11C79391B183D9790811705831996A01"
+        )
+        let reportsIndexNorthUILocks = [
+            #"issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS""#,
+            #"shardID: "s10.4.current.ax-text""#,
+            #"stateID: "state.reports-index.ready""#,
+            #"taskID: "report_comprehension""#,
+            #"owner: "palatis3""#,
+            #"expiresAt: "2026-11-20""#,
+            "rationale: \"" + reportsIndexNorthRationale + "\"",
+            #"auditTypeRawValue: "1""#,
+            #"compactDescription: "Contrast failed""#,
+            #"detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode""#,
+            #"elementIdentifier: """#,
+            #"elementLabel: "North Campus""#,
+            #"elementTypeDescription: "XCUIElementType(rawValue: 48)""#,
+            "elementFrame: CGRect(\n" +
+                "                x: 32,\n" +
+                "                y: 775.33333333333337,\n" +
+                "                width: 329.33333333333331,\n" +
+                "                height: 63.333333333333258\n" +
+                "            )",
+            "applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)",
+        ]
+        let reportsIndexVisitUILocks = [
+            #"issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT""#,
+            #"shardID: "s10.4.current.ax-text""#,
+            #"stateID: "state.reports-index.ready""#,
+            #"taskID: "report_comprehension""#,
+            #"owner: "palatis3""#,
+            #"expiresAt: "2026-11-20""#,
+            "rationale: \"" + reportsIndexVisitRationale + "\"",
+            #"auditTypeRawValue: "1""#,
+            #"compactDescription: "Contrast failed""#,
+            #"detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode""#,
+            #"elementIdentifier: """#,
+            #"elementLabel: "Visit""#,
+            #"elementTypeDescription: "XCUIElementType(rawValue: 48)""#,
+            "elementFrame: CGRect(\n" +
+                "                x: 32,\n" +
+                "                y: 850.66666666666663,\n" +
+                "                width: 85.333333333333329,\n" +
+                "                height: 51.333333333333485\n" +
+                "            )",
+            "applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)",
+        ]
+        for lock in reportsIndexNorthUILocks {
+            XCTAssertEqual(
+                reportsIndexNorthUIAuthority.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        for lock in reportsIndexVisitUILocks {
+            XCTAssertEqual(
+                reportsIndexVisitUIAuthority.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+
+        let reportsIndexNorthWorkflowAuthorityStart =
+            "              {\n" +
+                #"                shardID: "s10.4.current.ax-text","# + "\n" +
+                #"                stateID: "state.reports-index.ready","# + "\n" +
+                #"                taskID: "report_comprehension","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS","#
+        let reportsIndexVisitWorkflowAuthorityStart =
+            "              {\n" +
+                #"                shardID: "s10.4.current.ax-text","# + "\n" +
+                #"                stateID: "state.reports-index.ready","# + "\n" +
+                #"                taskID: "report_comprehension","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT","#
+        let reportsIndexVisitWorkflowAuthorityEnd =
+            "              {\n" +
+                #"                shardID: "s10.4.current.ax-text","# + "\n" +
+                #"                stateID: "state.check-preflight.ready","# + "\n" +
+                #"                taskID: "one_handed_start","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION","#
+        guard let reportsIndexNorthWorkflowStartRange = workflowSource.range(
+            of: reportsIndexNorthWorkflowAuthorityStart
+        ), let reportsIndexVisitWorkflowStartRange = workflowSource.range(
+            of: reportsIndexVisitWorkflowAuthorityStart,
+            range: reportsIndexNorthWorkflowStartRange.upperBound..<workflowSource.endIndex
+        ), let reportsIndexVisitWorkflowEndRange = workflowSource.range(
+            of: reportsIndexVisitWorkflowAuthorityEnd,
+            range: reportsIndexVisitWorkflowStartRange.upperBound..<workflowSource.endIndex
+        ) else {
+            XCTFail("Missing the exact Reports-index workflow contrast authorities")
+            return
+        }
+        let reportsIndexNorthWorkflowAuthority = String(
+            workflowSource[
+                reportsIndexNorthWorkflowStartRange.lowerBound
+                    ..<reportsIndexVisitWorkflowStartRange.lowerBound
+            ]
+        )
+        let reportsIndexVisitWorkflowAuthority = String(
+            workflowSource[
+                reportsIndexVisitWorkflowStartRange.lowerBound
+                    ..<reportsIndexVisitWorkflowEndRange.lowerBound
+            ]
+        )
+        let reportsIndexNorthWorkflowLocks = [
+            #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS""#,
+            #"shardID: "s10.4.current.ax-text""#,
+            #"stateID: "state.reports-index.ready""#,
+            #"taskID: "report_comprehension""#,
+            #"exceptionOwner: "palatis3""#,
+            #"exceptionExpiresAt: "2026-11-20""#,
+            "exceptionRationale: \"" + reportsIndexNorthRationale + "\"",
+            #"auditTypeRawValue: "1""#,
+            #"compactDescription: "Contrast failed""#,
+            #"detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode""#,
+            #"elementIdentifier: """#,
+            #"elementLabel: "North Campus""#,
+            #"elementType: "XCUIElementType(rawValue: 48)""#,
+            "elementFrame: {\n" +
+                "                      x: 32,\n" +
+                "                      y: 775.33333333333337,\n" +
+                "                      width: 329.33333333333331,\n" +
+                "                      height: 63.333333333333258\n" +
+                "                    }",
+            "applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
+        ]
+        let reportsIndexVisitWorkflowLocks = [
+            #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT""#,
+            #"shardID: "s10.4.current.ax-text""#,
+            #"stateID: "state.reports-index.ready""#,
+            #"taskID: "report_comprehension""#,
+            #"exceptionOwner: "palatis3""#,
+            #"exceptionExpiresAt: "2026-11-20""#,
+            "exceptionRationale: \"" + reportsIndexVisitRationale + "\"",
+            #"auditTypeRawValue: "1""#,
+            #"compactDescription: "Contrast failed""#,
+            #"detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode""#,
+            #"elementIdentifier: """#,
+            #"elementLabel: "Visit""#,
+            #"elementType: "XCUIElementType(rawValue: 48)""#,
+            "elementFrame: {\n" +
+                "                      x: 32,\n" +
+                "                      y: 850.66666666666663,\n" +
+                "                      width: 85.333333333333329,\n" +
+                "                      height: 51.333333333333485\n" +
+                "                    }",
+            "applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
+        ]
+        for lock in reportsIndexNorthWorkflowLocks {
+            XCTAssertEqual(
+                reportsIndexNorthWorkflowAuthority.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        for lock in reportsIndexVisitWorkflowLocks {
+            XCTAssertEqual(
+                reportsIndexVisitWorkflowAuthority.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+
+        let reportsIndexNorthWorkflowTuple =
+            "              {\n" +
+                #"                shardID: "s10.4.current.ax-text","# + "\n" +
+                #"                stateID: "state.reports-index.ready","# + "\n" +
+                #"                taskID: "report_comprehension","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS""# + "\n" +
+                "              },"
+        let reportsIndexVisitWorkflowTuple =
+            "              {\n" +
+                #"                shardID: "s10.4.current.ax-text","# + "\n" +
+                #"                stateID: "state.reports-index.ready","# + "\n" +
+                #"                taskID: "report_comprehension","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT""# + "\n" +
+                "              },"
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: reportsIndexNorthWorkflowTuple
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: reportsIndexVisitWorkflowTuple
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy:
+                    reportsIndexNorthWorkflowTuple + "\n" +
+                        reportsIndexVisitWorkflowTuple
+            ).count - 1,
+            1
+        )
+
+        for (source, authority, label) in [
+            (uiSource, reportsIndexNorthUIAuthority, "North Campus UI authority"),
+            (uiSource, reportsIndexVisitUIAuthority, "Visit UI authority"),
+            (
+                workflowSource,
+                reportsIndexNorthWorkflowAuthority,
+                "North Campus workflow authority"
+            ),
+            (
+                workflowSource,
+                reportsIndexVisitWorkflowAuthority,
+                "Visit workflow authority"
+            ),
+        ] {
+            XCTAssertEqual(
+                source.components(separatedBy: authority).count - 1,
+                1,
+                label
+            )
+            let missing = source.replacingOccurrences(of: authority, with: "")
+            XCTAssertEqual(
+                missing.components(separatedBy: authority).count - 1,
+                0,
+                label
+            )
+            let duplicated = source.replacingOccurrences(
+                of: authority,
+                with: authority + authority
+            )
+            XCTAssertEqual(
+                duplicated.components(separatedBy: authority).count - 1,
+                2,
+                label
+            )
+        }
+
+        let reportsIndexNorthUIFieldMutations = [
+            (
+                "duplicate issue ID",
+                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS",
+                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT"
+            ),
+            ("wrong shard", "s10.4.current.ax-text", "s10.4.current.default-light"),
+            ("wrong state", "state.reports-index.ready", "state.report-history.ready"),
+            ("wrong task", "report_comprehension", "history_recovery"),
+            ("wrong owner", #"owner: "palatis3""#, #"owner: "unknown""#),
+            ("expired", #"expiresAt: "2026-11-20""#, #"expiresAt: "2026-08-21""#),
+            (
+                "wrong rationale",
+                reportsIndexNorthRationale,
+                "Incorrect reports-index exception rationale."
+            ),
+            ("wrong audit type", #"auditTypeRawValue: "1""#, #"auditTypeRawValue: "2""#),
+            (
+                "wrong compact",
+                #"compactDescription: "Contrast failed""#,
+                #"compactDescription: "Contrast passed""#
+            ),
+            (
+                "wrong detailed",
+                "Contrast failed for SwiftUI.AccessibilityNode",
+                "Contrast failed for another node"
+            ),
+            ("wrong identifier", #"elementIdentifier: """#, #"elementIdentifier: "unexpected""#),
+            ("wrong label", #"elementLabel: "North Campus""#, #"elementLabel: "South Campus""#),
+            (
+                "wrong type",
+                #"elementTypeDescription: "XCUIElementType(rawValue: 48)""#,
+                #"elementTypeDescription: "XCUIElementType(rawValue: 49)""#
+            ),
+            ("wrong x", "                x: 32,", "                x: 31,"),
+            (
+                "wrong y",
+                "                y: 775.33333333333337,",
+                "                y: 775.33333333333338,"
+            ),
+            (
+                "wrong width",
+                "                width: 329.33333333333331,",
+                "                width: 329.33333333333332,"
+            ),
+            (
+                "wrong height",
+                "                height: 63.333333333333258",
+                "                height: 63.333333333333259"
+            ),
+            (
+                "wrong app frame",
+                "applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)",
+                "applicationFrame: CGRect(x: 0, y: 0, width: 401, height: 874)"
+            ),
+        ]
+        let reportsIndexVisitUIFieldMutations = [
+            (
+                "duplicate issue ID",
+                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT",
+                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS"
+            ),
+            ("wrong shard", "s10.4.current.ax-text", "s10.4.current.default-light"),
+            ("wrong state", "state.reports-index.ready", "state.report-history.ready"),
+            ("wrong task", "report_comprehension", "history_recovery"),
+            ("wrong owner", #"owner: "palatis3""#, #"owner: "unknown""#),
+            ("expired", #"expiresAt: "2026-11-20""#, #"expiresAt: "2026-08-21""#),
+            (
+                "wrong rationale",
+                reportsIndexVisitRationale,
+                "Incorrect reports-index exception rationale."
+            ),
+            ("wrong audit type", #"auditTypeRawValue: "1""#, #"auditTypeRawValue: "2""#),
+            (
+                "wrong compact",
+                #"compactDescription: "Contrast failed""#,
+                #"compactDescription: "Contrast passed""#
+            ),
+            (
+                "wrong detailed",
+                "Contrast failed for SwiftUI.AccessibilityNode",
+                "Contrast failed for another node"
+            ),
+            ("wrong identifier", #"elementIdentifier: """#, #"elementIdentifier: "unexpected""#),
+            ("wrong label", #"elementLabel: "Visit""#, #"elementLabel: "Stage""#),
+            (
+                "wrong type",
+                #"elementTypeDescription: "XCUIElementType(rawValue: 48)""#,
+                #"elementTypeDescription: "XCUIElementType(rawValue: 49)""#
+            ),
+            ("wrong x", "                x: 32,", "                x: 31,"),
+            (
+                "wrong y",
+                "                y: 850.66666666666663,",
+                "                y: 850.66666666666664,"
+            ),
+            (
+                "wrong width",
+                "                width: 85.333333333333329,",
+                "                width: 85.333333333333330,"
+            ),
+            (
+                "wrong height",
+                "                height: 51.333333333333485",
+                "                height: 51.333333333333486"
+            ),
+            (
+                "wrong app frame",
+                "applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)",
+                "applicationFrame: CGRect(x: 0, y: 0, width: 401, height: 874)"
+            ),
+        ]
+        for (label, original, mutation) in reportsIndexNorthUIFieldMutations {
+            XCTAssertTrue(reportsIndexNorthUIAuthority.contains(original), label)
+            let mutatedAuthority = reportsIndexNorthUIAuthority.replacingOccurrences(
+                of: original,
+                with: mutation
+            )
+            XCTAssertNotEqual(
+                mutatedAuthority,
+                reportsIndexNorthUIAuthority,
+                label
+            )
+            XCTAssertFalse(mutatedAuthority.contains(original), label)
+        }
+        for (label, original, mutation) in reportsIndexVisitUIFieldMutations {
+            XCTAssertTrue(reportsIndexVisitUIAuthority.contains(original), label)
+            let mutatedAuthority = reportsIndexVisitUIAuthority.replacingOccurrences(
+                of: original,
+                with: mutation
+            )
+            XCTAssertNotEqual(
+                mutatedAuthority,
+                reportsIndexVisitUIAuthority,
+                label
+            )
+            XCTAssertFalse(mutatedAuthority.contains(original), label)
+        }
+
+        let reportsIndexNorthWorkflowFieldMutations = [
+            (
+                "duplicate issue ID",
+                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS",
+                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT"
+            ),
+            ("wrong shard", "s10.4.current.ax-text", "s10.4.current.default-light"),
+            ("wrong state", "state.reports-index.ready", "state.report-history.ready"),
+            ("wrong task", "report_comprehension", "history_recovery"),
+            (
+                "wrong owner",
+                #"exceptionOwner: "palatis3""#,
+                #"exceptionOwner: "unknown""#
+            ),
+            (
+                "expired",
+                #"exceptionExpiresAt: "2026-11-20""#,
+                #"exceptionExpiresAt: "2026-08-21""#
+            ),
+            (
+                "wrong rationale",
+                reportsIndexNorthRationale,
+                "Incorrect reports-index exception rationale."
+            ),
+            ("wrong audit type", #"auditTypeRawValue: "1""#, #"auditTypeRawValue: "2""#),
+            (
+                "wrong compact",
+                #"compactDescription: "Contrast failed""#,
+                #"compactDescription: "Contrast passed""#
+            ),
+            (
+                "wrong detailed",
+                "Contrast failed for SwiftUI.AccessibilityNode",
+                "Contrast failed for another node"
+            ),
+            ("wrong identifier", #"elementIdentifier: """#, #"elementIdentifier: "unexpected""#),
+            ("wrong label", #"elementLabel: "North Campus""#, #"elementLabel: "South Campus""#),
+            (
+                "wrong type",
+                #"elementType: "XCUIElementType(rawValue: 48)""#,
+                #"elementType: "XCUIElementType(rawValue: 49)""#
+            ),
+            ("wrong x", "                      x: 32,", "                      x: 31,"),
+            (
+                "wrong y",
+                "                      y: 775.33333333333337,",
+                "                      y: 775.33333333333338,"
+            ),
+            (
+                "wrong width",
+                "                      width: 329.33333333333331,",
+                "                      width: 329.33333333333332,"
+            ),
+            (
+                "wrong height",
+                "                      height: 63.333333333333258",
+                "                      height: 63.333333333333259"
+            ),
+            (
+                "wrong app frame",
+                "applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
+                "applicationFrame: {x: 0, y: 0, width: 401, height: 874}"
+            ),
+        ]
+        let reportsIndexVisitWorkflowFieldMutations = [
+            (
+                "duplicate issue ID",
+                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT",
+                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS"
+            ),
+            ("wrong shard", "s10.4.current.ax-text", "s10.4.current.default-light"),
+            ("wrong state", "state.reports-index.ready", "state.report-history.ready"),
+            ("wrong task", "report_comprehension", "history_recovery"),
+            (
+                "wrong owner",
+                #"exceptionOwner: "palatis3""#,
+                #"exceptionOwner: "unknown""#
+            ),
+            (
+                "expired",
+                #"exceptionExpiresAt: "2026-11-20""#,
+                #"exceptionExpiresAt: "2026-08-21""#
+            ),
+            (
+                "wrong rationale",
+                reportsIndexVisitRationale,
+                "Incorrect reports-index exception rationale."
+            ),
+            ("wrong audit type", #"auditTypeRawValue: "1""#, #"auditTypeRawValue: "2""#),
+            (
+                "wrong compact",
+                #"compactDescription: "Contrast failed""#,
+                #"compactDescription: "Contrast passed""#
+            ),
+            (
+                "wrong detailed",
+                "Contrast failed for SwiftUI.AccessibilityNode",
+                "Contrast failed for another node"
+            ),
+            ("wrong identifier", #"elementIdentifier: """#, #"elementIdentifier: "unexpected""#),
+            ("wrong label", #"elementLabel: "Visit""#, #"elementLabel: "Stage""#),
+            (
+                "wrong type",
+                #"elementType: "XCUIElementType(rawValue: 48)""#,
+                #"elementType: "XCUIElementType(rawValue: 49)""#
+            ),
+            ("wrong x", "                      x: 32,", "                      x: 31,"),
+            (
+                "wrong y",
+                "                      y: 850.66666666666663,",
+                "                      y: 850.66666666666664,"
+            ),
+            (
+                "wrong width",
+                "                      width: 85.333333333333329,",
+                "                      width: 85.333333333333330,"
+            ),
+            (
+                "wrong height",
+                "                      height: 51.333333333333485",
+                "                      height: 51.333333333333486"
+            ),
+            (
+                "wrong app frame",
+                "applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
+                "applicationFrame: {x: 0, y: 0, width: 401, height: 874}"
+            ),
+        ]
+        for (label, original, mutation) in reportsIndexNorthWorkflowFieldMutations {
+            XCTAssertTrue(reportsIndexNorthWorkflowAuthority.contains(original), label)
+            let mutatedAuthority = reportsIndexNorthWorkflowAuthority.replacingOccurrences(
+                of: original,
+                with: mutation
+            )
+            XCTAssertNotEqual(
+                mutatedAuthority,
+                reportsIndexNorthWorkflowAuthority,
+                label
+            )
+            XCTAssertFalse(mutatedAuthority.contains(original), label)
+        }
+        for (label, original, mutation) in reportsIndexVisitWorkflowFieldMutations {
+            XCTAssertTrue(reportsIndexVisitWorkflowAuthority.contains(original), label)
+            let mutatedAuthority = reportsIndexVisitWorkflowAuthority.replacingOccurrences(
+                of: original,
+                with: mutation
+            )
+            XCTAssertNotEqual(
+                mutatedAuthority,
+                reportsIndexVisitWorkflowAuthority,
+                label
+            )
+            XCTAssertFalse(mutatedAuthority.contains(original), label)
+        }
 
         let reportHistoryMissingUIAuthority = uiSource.replacingOccurrences(
             of: reportHistoryUIAuthority,
@@ -9373,7 +9882,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {",
             "let stateIssueLimit =",
             #"shard.shardID == "s10.4.current.ax-text""#,
-            #"&& stateID == "state.check-preflight.ready" ? 2 : 1"#,
+            #"stateID == "state.check-preflight.ready""#,
+            #"|| stateID == "state.reports-index.ready""#,
+            #") ? 2 : 1"#,
             "guard eligibleExceptions.count <= stateIssueLimit else",
             "var matchedExceptions: [ContrastAuditExceptionSignature] = []",
             "if !eligibleExceptions.isEmpty",
@@ -9407,6 +9918,56 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ]
         for lock in failClosedHandlerLocks {
             XCTAssertTrue(uiSource.contains(lock), lock)
+        }
+        let exactAXTwoIssueStateLimit =
+            "            let stateIssueLimit =\n" +
+                #"                shard.shardID == "s10.4.current.ax-text""# + "\n" +
+                "                && (\n" +
+                #"                    stateID == "state.check-preflight.ready""# + "\n" +
+                #"                        || stateID == "state.reports-index.ready""# + "\n" +
+                "                ) ? 2 : 1"
+        XCTAssertEqual(
+            restoredCaptureBaselineSource.components(
+                separatedBy: exactAXTwoIssueStateLimit
+            ).count - 1,
+            1
+        )
+        for (label, mutation) in [
+            (
+                "broadened AX state issue limit",
+                exactAXTwoIssueStateLimit.replacingOccurrences(
+                    of: #"shard.shardID == "s10.4.current.ax-text""#,
+                    with: "true"
+                )
+            ),
+            (
+                "wrong AX state issue limit",
+                exactAXTwoIssueStateLimit.replacingOccurrences(
+                    of: ") ? 2 : 1",
+                    with: ") ? 3 : 1"
+                )
+            ),
+            (
+                "missing Reports-index two-issue state",
+                exactAXTwoIssueStateLimit.replacingOccurrences(
+                    of: "\n" +
+                        #"                        || stateID == "state.reports-index.ready""#,
+                    with: ""
+                )
+            ),
+        ] {
+            XCTAssertNotEqual(mutation, exactAXTwoIssueStateLimit, label)
+            let mutatedUI = uiSource.replacingOccurrences(
+                of: exactAXTwoIssueStateLimit,
+                with: mutation
+            )
+            XCTAssertEqual(
+                mutatedUI.components(
+                    separatedBy: exactAXTwoIssueStateLimit
+                ).count - 1,
+                0,
+                label
+            )
         }
         XCTAssertTrue(uiSource.contains("matchedExceptions.append(matchedException)\n                    return true"))
         XCTAssertTrue(uiSource.contains(#""result": matchedExceptions.isEmpty ? "PASS" : "EXCEPTION""#))
@@ -9443,10 +10004,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                    "state.sample-report.ready","# + "\n" +
                 #"                ]"#,
             #"case ("s10.4.current.ax-text", "report_comprehension")"#,
-            #"taskIssueLimit = 1"#,
-            #"taskStateLimit = 1"#,
+            #"taskIssueLimit = 3"#,
+            #"taskStateLimit = 2"#,
             #"permittedExceptionStateIDs = ["# + "\n" +
                 #"                    "state.report-history.ready","# + "\n" +
+                #"                    "state.reports-index.ready","# + "\n" +
                 #"                ]"#,
             #"case ("s10.4.current.increased-contrast", "report_comprehension")"#,
             #"case ("s10.4.current.differentiate-without-color", "report_comprehension")"#,
@@ -9547,21 +10109,59 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let axReportHistoryTaskExceptionBound =
+        let axReportComprehensionTaskExceptionBound =
             #"            case ("s10.4.current.ax-text", "report_comprehension"):"# +
                 "\n" +
-                "                taskIssueLimit = 1\n" +
-                "                taskStateLimit = 1\n" +
+                "                taskIssueLimit = 3\n" +
+                "                taskStateLimit = 2\n" +
                 "                permittedExceptionStateIDs = [\n" +
                 #"                    "state.report-history.ready","# +
+                "\n" +
+                #"                    "state.reports-index.ready","# +
                 "\n" +
                 "                ]"
         XCTAssertEqual(
             uiSource.components(
-                separatedBy: axReportHistoryTaskExceptionBound
+                separatedBy: axReportComprehensionTaskExceptionBound
             ).count - 1,
             1
         )
+        for (label, mutation) in [
+            (
+                "AX report task issue expansion",
+                axReportComprehensionTaskExceptionBound.replacingOccurrences(
+                    of: "taskIssueLimit = 3",
+                    with: "taskIssueLimit = 4"
+                )
+            ),
+            (
+                "AX report task state expansion",
+                axReportComprehensionTaskExceptionBound.replacingOccurrences(
+                    of: "taskStateLimit = 2",
+                    with: "taskStateLimit = 3"
+                )
+            ),
+            (
+                "AX report task missing Reports-index state",
+                axReportComprehensionTaskExceptionBound.replacingOccurrences(
+                    of: #"                    "state.reports-index.ready","# + "\n",
+                    with: ""
+                )
+            ),
+        ] {
+            XCTAssertNotEqual(mutation, axReportComprehensionTaskExceptionBound, label)
+            let mutatedUI = uiSource.replacingOccurrences(
+                of: axReportComprehensionTaskExceptionBound,
+                with: mutation
+            )
+            XCTAssertEqual(
+                mutatedUI.components(
+                    separatedBy: axReportComprehensionTaskExceptionBound
+                ).count - 1,
+                0,
+                label
+            )
+        }
         let reduceMotionTaskExceptionBound =
             #"            case ("s10.4.current.reduce-motion", "report_comprehension"):"# +
                 "\n" +
@@ -9619,10 +10219,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "contrast_exception_authority_path=",
             #"if .result == "PASS" then"#,
             #"elif .result == "EXCEPTION" then"#,
-            #"length == 12"#,
-            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 11"#,
-            #"and ([.[].exceptionIssueID] | unique | length) == 12"#,
-            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 7"#,
+            #"length == 14"#,
+            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 12"#,
+            #"and ([.[].exceptionIssueID] | unique | length) == 14"#,
+            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 9"#,
             #"| select(.exceptionIssueID | IN("#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER","#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER","#,
@@ -9633,7 +10233,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 1"#,
             #"| select((.exceptionIssueID | IN("#,
             #")) | not)"#,
-            #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 6"#,
+            #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 8"#,
             #"and (.exceptionOwner == "palatis3")"#,
             #"and (.exceptionExpiresAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"))"#,
             #"and ($today <= .exceptionExpiresAt)"#,
@@ -9667,7 +10267,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"def taskIssueLimit($shardID; $taskID):"#,
             #"and $taskID == "one_handed_start" then 3"#,
             #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
-                #"                     and $taskID == "report_comprehension" then 1"#,
+                #"                     and $taskID == "report_comprehension" then 3"#,
             #"and $taskID == "report_comprehension" then 2"#,
             #"and $taskID == "history_recovery" then 1"#,
             #"and $taskID == "report_comprehension" then 1"#,
@@ -9704,13 +10304,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"($matchedAuthorities | length) > 1"#,
             #"($matchedExceptionStateIDs | length) > 1"#,
             #"elif $shard == "s10.4.current.ax-text" then"#,
-            #"($matchedAuthorities | length) > 4"#,
-            #"($matchedExceptionStateIDs | length) > 3"#,
+            #"($matchedAuthorities | length) > 6"#,
+            #"($matchedExceptionStateIDs | length) > 4"#,
             #"stateIssueLimit($shardID; $stateID)"#,
             #"and $stateID == "state.check-preflight.ready" then 2"#,
             #"and $stateID == "state.new-sign.editing" then 1"#,
             #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
                 #"                     and $stateID == "state.report-history.ready" then 1"#,
+            #"and $stateID == "state.reports-index.ready" then 2"#,
             #"and ($stateID == "state.feedback.review-ready""#,
             #"or $stateID == "state.report-correction.validation-error""#,
             #"or $stateID == "state.sample-report.ready") then 1"#,
@@ -9725,7 +10326,72 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for lock in workflowProtocolLocks {
             XCTAssertTrue(workflowSource.contains(lock), lock)
         }
-        let workflowHeaderSharedOneAndHistoricalFive =
+        let workflowAuthorityCardinality =
+            "            length == 14\n" +
+                "            and ([.[] | [.shardID, .stateID] | join(\"|\")] | unique | length) == 12\n" +
+                "            and ([.[].exceptionIssueID] | unique | length) == 14\n" +
+                "            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 9"
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: workflowAuthorityCardinality
+            ).count - 1,
+            1
+        )
+        for (label, mutation) in [
+            (
+                "authority count expansion",
+                workflowAuthorityCardinality.replacingOccurrences(
+                    of: "length == 14",
+                    with: "length == 15"
+                )
+            ),
+            (
+                "authority pair expansion",
+                workflowAuthorityCardinality.replacingOccurrences(
+                    of: "unique | length) == 12",
+                    with: "unique | length) == 13"
+                )
+            ),
+            (
+                "authority issue expansion",
+                workflowAuthorityCardinality.replacingOccurrences(
+                    of: "exceptionIssueID] | unique | length) == 14",
+                    with: "exceptionIssueID] | unique | length) == 15"
+                )
+            ),
+            (
+                "authority signature expansion",
+                workflowAuthorityCardinality.replacingOccurrences(
+                    of: "tojson)] | unique | length) == 9",
+                    with: "tojson)] | unique | length) == 10"
+                )
+            ),
+        ] {
+            XCTAssertNotEqual(mutation, workflowAuthorityCardinality, label)
+            let mutatedWorkflow = workflowSource.replacingOccurrences(
+                of: workflowAuthorityCardinality,
+                with: mutation
+            )
+            XCTAssertEqual(
+                mutatedWorkflow.components(
+                    separatedBy: workflowAuthorityCardinality
+                ).count - 1,
+                0,
+                label
+            )
+        }
+        let staleWorkflowAuthorityCardinality =
+            "            length == 12\n" +
+                "            and ([.[] | [.shardID, .stateID] | join(\"|\")] | unique | length) == 11\n" +
+                "            and ([.[].exceptionIssueID] | unique | length) == 12\n" +
+                "            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 7"
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: staleWorkflowAuthorityCardinality
+            ).count - 1,
+            0
+        )
+        let workflowHeaderSharedOneAndNonHeaderEight =
             "            and ([.[]\n" +
                 "              | select(.exceptionIssueID | IN(\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER\",\n" +
@@ -9745,10 +10411,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER\",\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER\"\n" +
                 "                )) | not)\n" +
-                "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 6"
+                "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 8"
         XCTAssertEqual(
             workflowSource.components(
-                separatedBy: workflowHeaderSharedOneAndHistoricalFive
+                separatedBy: workflowHeaderSharedOneAndNonHeaderEight
             ).count - 1,
             1
         )
@@ -10003,25 +10669,25 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let axWorkflowAggregateBound =
             #"elif $shard == "s10.4.current.ax-text""# + "\n" +
-                #"                     and (($matchedAuthorities | length) > 4"# + "\n" +
-                #"                       or ($matchedExceptionStateIDs | length) > 3) then"#
+                #"                     and (($matchedAuthorities | length) > 6"# + "\n" +
+                #"                       or ($matchedExceptionStateIDs | length) > 4) then"#
         XCTAssertEqual(
             workflowSource.components(separatedBy: axWorkflowAggregateBound).count - 1,
             1
         )
         let axWorkflowTaskIssueBound =
             #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
-                #"                     and $taskID == "report_comprehension" then 1"#
+                #"                     and $taskID == "report_comprehension" then 3"#
         XCTAssertEqual(
             workflowSource.components(separatedBy: axWorkflowTaskIssueBound).count - 1,
-            2
+            1
         )
         let axWorkflowTaskIssueFunctionBound =
-            #"              def taskIssueLimit($shardID; $taskID):"# + "\n" +
+                #"              def taskIssueLimit($shardID; $taskID):"# + "\n" +
                 #"                if $shardID == "s10.4.current.ax-text""# + "\n" +
                 #"                   and $taskID == "one_handed_start" then 3"# + "\n" +
                 #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
-                #"                     and $taskID == "report_comprehension" then 1"#
+                #"                     and $taskID == "report_comprehension" then 3"#
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: axWorkflowTaskIssueFunctionBound
@@ -10029,11 +10695,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         let axWorkflowTaskStateFunctionBound =
-            #"              def taskStateLimit($shardID; $taskID):"# + "\n" +
+                #"              def taskStateLimit($shardID; $taskID):"# + "\n" +
                 #"                if $shardID == "s10.4.current.ax-text""# + "\n" +
                 #"                   and $taskID == "one_handed_start" then 2"# + "\n" +
                 #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
-                #"                     and $taskID == "report_comprehension" then 1"#
+                #"                     and $taskID == "report_comprehension" then 2"#
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: axWorkflowTaskStateFunctionBound
@@ -10047,10 +10713,29 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workflowSource.components(separatedBy: axWorkflowStateIssueBound).count - 1,
             1
         )
+        let axWorkflowReportsIndexStateIssueBound =
+            #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
+                #"                     and $stateID == "state.reports-index.ready" then 2"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: axWorkflowReportsIndexStateIssueBound
+            ).count - 1,
+            1
+        )
+        let axWorkflowGroupedStateIssueBound =
+            #"                     if $shard == "s10.4.current.ax-text""# + "\n" +
+                #"                        and (.[0].stateID == "state.check-preflight.ready""# + "\n" +
+                #"                          or .[0].stateID == "state.reports-index.ready") then 2"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: axWorkflowGroupedStateIssueBound
+            ).count - 1,
+            1
+        )
         let axWorkflowDownstreamBound =
             #"                      elif $shard == "s10.4.current.ax-text" then"# + "\n" +
-                #"                        ($matchedAuthorities | length) <= 4"# + "\n" +
-                #"                        and ($matchedExceptionStateIDs | length) <= 3"#
+                #"                        ($matchedAuthorities | length) <= 6"# + "\n" +
+                #"                        and ($matchedExceptionStateIDs | length) <= 4"#
         XCTAssertEqual(
             workflowSource.components(separatedBy: axWorkflowDownstreamBound).count - 1,
             1
@@ -10060,16 +10745,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "AX task issue limit expansion",
                 axWorkflowTaskIssueFunctionBound,
                 axWorkflowTaskIssueFunctionBound.replacingOccurrences(
-                    of: #"and $taskID == "report_comprehension" then 1"#,
-                    with: #"and $taskID == "report_comprehension" then 2"#
+                    of: #"and $taskID == "report_comprehension" then 3"#,
+                    with: #"and $taskID == "report_comprehension" then 4"#
                 )
             ),
             (
                 "AX task state limit expansion",
                 axWorkflowTaskStateFunctionBound,
                 axWorkflowTaskStateFunctionBound.replacingOccurrences(
-                    of: #"and $taskID == "report_comprehension" then 1"#,
-                    with: #"and $taskID == "report_comprehension" then 2"#
+                    of: #"and $taskID == "report_comprehension" then 2"#,
+                    with: #"and $taskID == "report_comprehension" then 3"#
                 )
             ),
             (
@@ -10081,18 +10766,35 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 )
             ),
             (
+                "AX Reports-index state issue limit expansion",
+                axWorkflowReportsIndexStateIssueBound,
+                axWorkflowReportsIndexStateIssueBound.replacingOccurrences(
+                    of: "then 2",
+                    with: "then 3"
+                )
+            ),
+            (
+                "AX grouped Reports-index state limit removal",
+                axWorkflowGroupedStateIssueBound,
+                axWorkflowGroupedStateIssueBound.replacingOccurrences(
+                    of: "\n" +
+                        #"                          or .[0].stateID == "state.reports-index.ready""#,
+                    with: ""
+                )
+            ),
+            (
                 "AX aggregate limit expansion",
                 axWorkflowAggregateBound,
                 axWorkflowAggregateBound
+                    .replacingOccurrences(of: "> 6", with: "> 7")
                     .replacingOccurrences(of: "> 4", with: "> 5")
-                    .replacingOccurrences(of: "> 3", with: "> 4")
             ),
             (
                 "AX downstream limit expansion",
                 axWorkflowDownstreamBound,
                 axWorkflowDownstreamBound
+                    .replacingOccurrences(of: "<= 6", with: "<= 7")
                     .replacingOccurrences(of: "<= 4", with: "<= 5")
-                    .replacingOccurrences(of: "<= 3", with: "<= 4")
             ),
         ]
         for (label, canonicalBound, mutatedBound) in axWorkflowLimitMutations {
@@ -10159,7 +10861,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workflowSource.components(
                 separatedBy: #"taskID: "report_comprehension""#
             ).count - 1,
-            16
+            20
         )
         XCTAssertFalse(workflowSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
         XCTAssertFalse(
