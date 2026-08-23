@@ -414,8 +414,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 313_348,
-            sha256: "2F2DFF05485EDD830005B6EFB458D6A7AAEB0AC5EE2484F45151D92D5DAFD9AA"
+            byteCount: 323_322,
+            sha256: "4DC388270881F132D89B901D5F377DE255CA4BCE1C9893F6BD4345B9DCDBD600"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -752,329 +752,568 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
 
+        let signDetailPositioningHelperStart =
+            "    @MainActor\n" +
+                "    private func positionSignDetailTimeZoneForAXText(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) -> Bool {"
         let signDetailRouteHeadStart =
             "    @MainActor\n" + signDetailOpenIssueSignature
         let signDetailRecordWorkTap = "        recordWork.tap()"
-        guard let signDetailRouteHeadStartRange = uiSource.range(
-            of: signDetailRouteHeadStart
+        guard let signDetailPositioningHelperStartRange = uiSource.range(
+            of: signDetailPositioningHelperStart
+        ), let signDetailRouteHeadStartRange = uiSource.range(
+            of: signDetailRouteHeadStart,
+            range: signDetailPositioningHelperStartRange.upperBound..<uiSource.endIndex
         ), let signDetailRecordWorkTapRange = uiSource.range(
             of: signDetailRecordWorkTap,
             range: signDetailRouteHeadStartRange.upperBound..<uiSource.endIndex
         ) else {
-            XCTFail("Missing the bounded sign-detail open-issue route head")
+            XCTFail("Missing the bounded AX-text sign-detail positioning sources")
             return
         }
+        let signDetailPositioningHelperSource = String(
+            uiSource[
+                signDetailPositioningHelperStartRange.lowerBound ..<
+                    signDetailRouteHeadStartRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(signDetailPositioningHelperSource.utf8.count, 15_476)
+        XCTAssertEqual(
+            Data(signDetailPositioningHelperSource.utf8).sha256,
+            "6FC659E4657089B4932B3AF614A1C3238179FCEFA97F863D7E58143D94ABF262"
+        )
         let signDetailRouteHeadSource = String(
             uiSource[
-                signDetailRouteHeadStartRange.lowerBound..<signDetailRecordWorkTapRange.upperBound
+                signDetailRouteHeadStartRange.lowerBound ..<
+                    signDetailRecordWorkTapRange.upperBound
             ]
         )
-        XCTAssertEqual(signDetailRouteHeadSource.utf8.count, 6_525)
+        XCTAssertEqual(signDetailRouteHeadSource.utf8.count, 1_023)
         XCTAssertEqual(
             Data(signDetailRouteHeadSource.utf8).sha256,
-            "1E32DE28280CC3871A9016FF67F393096BB8EF015B0F1D31A9F54A6E89AE4609"
+            "26FFC59CB430880855552D15BFF36CA21D766F8E3A39E7F6B520AB6A1F8B8326"
         )
 
-        let signDetailDiagnosticGate =
+        let signDetailPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
+        let signDetailPositioningGuard =
+            "            guard positionSignDetailTimeZoneForAXText(in: app) else {\n" +
+                "                throw AutomationConfigurationError.invalid(\n" +
+                "                    \"S10.4 AX-text sign-detail time-zone positioning failed\"\n" +
+                "                )\n" +
+                "            }"
         let signDetailOpenIssueBaseline =
             #"        captureBaseline("state.sign-detail.open-issue", in: app)"#
-        guard let signDetailDiagnosticStartRange = signDetailRouteHeadSource.range(
-            of: signDetailDiagnosticGate
-        ), let signDetailOpenIssueBaselineRange = signDetailRouteHeadSource.range(
-            of: signDetailOpenIssueBaseline,
-            range: signDetailDiagnosticStartRange.upperBound ..<
-                signDetailRouteHeadSource.endIndex
-        ) else {
-            XCTFail("Missing the bounded AX-text sign-detail open-issue diagnostic")
-            return
-        }
-        let signDetailDiagnosticSource = String(
-            signDetailRouteHeadSource[
-                signDetailDiagnosticStartRange.lowerBound ..<
-                    signDetailOpenIssueBaselineRange.lowerBound
-            ]
-        )
-        XCTAssertEqual(signDetailDiagnosticSource.utf8.count, 5_816)
-        XCTAssertEqual(
-            Data(signDetailDiagnosticSource.utf8).sha256,
-            "84F1A372319F91F375AA939AF7BE43A0E9247F444818E0FFC9BF0934F5E8C5D7"
-        )
+        let signDetailPositioningAdjacency =
+            signDetailPositioningGate + "\n" +
+                signDetailPositioningGuard + "\n" +
+                "        }\n" +
+                signDetailOpenIssueBaseline
         XCTAssertEqual(
             signDetailRouteHeadSource.components(
-                separatedBy: signDetailDiagnosticGate
+                separatedBy: signDetailPositioningAdjacency
             ).count - 1,
             1
         )
-        let signDetailWaitBeforeDiagnostic =
+        let signDetailWaitBeforePositioning =
             #"        let signDetail = element("s2.sign-detail.screen", in: app)"# +
                 "\n" +
                 "        XCTAssertTrue(signDetail.waitForExistence(timeout: 30))\n" +
-                signDetailDiagnosticGate
+                signDetailPositioningGate
         XCTAssertEqual(
             signDetailRouteHeadSource.components(
-                separatedBy: signDetailWaitBeforeDiagnostic
+                separatedBy: signDetailWaitBeforePositioning
             ).count - 1,
             1
         )
-
-        let signDetailDiagnosticQueryLocks = [
-            "            let timeZonePredicate = NSPredicate(\n" +
-                #"                format: "label == %@","# + "\n" +
-                #"                "America/New_York""# + "\n" +
-                "            )",
-            #"                    "signDetailScreens","#,
-            #"                        identifier: "s2.sign-detail.screen""#,
-            #"                    "timeZoneRows","#,
-            #"                        identifier: "s2.sign-detail.time-zone""#,
-            #"                    "timeZoneStaticTexts","#,
-            "                    app.staticTexts.matching(timeZonePredicate)",
-            #"                    "timeZoneScrollViews","#,
-            "                    app.scrollViews.containing(timeZonePredicate)",
-            #"                ("navigationBars", app.navigationBars),"#,
-            #"                ("tabBars", app.tabBars),"#,
-        ]
-        for lock in signDetailDiagnosticQueryLocks {
-            XCTAssertEqual(
-                signDetailDiagnosticSource.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        for (lock, count) in [
-            ("let diagnosticQueries: [(String, XCUIElementQuery)] = [", 1),
-            ("let diagnosticElementObject: (XCUIElement) -> [String: Any]", 1),
-            ("let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any]", 1),
-            ("let count = query.count", 1),
-            ("for index in 0..<count", 1),
-            ("query.element(boundBy: index)", 1),
-            ("for (name, query) in diagnosticQueries", 1),
-            ("diagnosticElementObject", 4),
-            ("diagnosticQueryObject", 5),
-            ("diagnosticQueryObjects", 3),
-            ("diagnosticIssueObjects", 4),
-            ("diagnosticAuditedElements", 4),
-            ("diagnosticAuditedElementObjects", 3),
-            ("NSNull()", 2),
-        ] {
-            XCTAssertEqual(
-                signDetailDiagnosticSource.components(separatedBy: lock).count - 1,
-                count,
-                lock
-            )
-        }
-        let signDetailDiagnosticElementFieldLocks = [
-            #"                    "exists": element.exists,"#,
-            #"                    "identifier": element.identifier,"#,
-            #"                    "label": element.label,"#,
-            #"                    "value": valueObject,"#,
-            #"                    "elementTypeRawValue": element.elementType.rawValue,"#,
-            #"                    "frame": self.auditFrameObject(element.frame),"#,
-            #"                    "isHittable": element.isHittable,"#,
-            "                if let value = element.value as? String {",
-            "                    valueObject = NSNull()",
-        ]
-        for lock in signDetailDiagnosticElementFieldLocks {
-            XCTAssertEqual(
-                signDetailDiagnosticSource.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-
-        let signDetailDiagnosticIssueLocks = [
-            "            try app.performAccessibilityAudit(for: .contrast) { issue in",
-            "                if let auditedElement = issue.element {",
-            "                    diagnosticAuditedElements.append(auditedElement)",
-            "                    elementObject = diagnosticElementObject(auditedElement)",
-            "                diagnosticIssueObjects.append([",
-            #"                    "auditTypeRawValue": String(issue.auditType.rawValue),"#,
-            #"                    "compactDescription": issue.compactDescription,"#,
-            #"                    "detailedDescription": issue.detailedDescription,"#,
-            #"                    "element": elementObject,"#,
-            "                return true",
-            "            let diagnosticAuditedElementObjects = diagnosticAuditedElements.map(\n" +
-                "                diagnosticElementObject\n" +
-                "            )",
-        ]
-        for lock in signDetailDiagnosticIssueLocks {
-            XCTAssertEqual(
-                signDetailDiagnosticSource.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        let signDetailDiagnosticJSONLocks = [
-            #"prefix: "S10_4_SIGN_DETAIL_OPEN_ISSUE_CONTRAST_DIAGNOSTIC""#,
-            #"                    "shardID": "s10.4.current.ax-text","#,
-            #"                    "stateID": "state.sign-detail.open-issue","#,
-            #"                    "applicationStateRawValue": app.state.rawValue,"#,
-            #"                    "applicationFrame": auditFrameObject(app.frame),"#,
-            #"                    "queries": diagnosticQueryObjects,"#,
-            #"                    "issueCount": diagnosticIssueObjects.count,"#,
-            #"                    "issues": diagnosticIssueObjects,"#,
-            #"                    "auditedElementCount": diagnosticAuditedElementObjects.count,"#,
-            #"                    "auditedElements": diagnosticAuditedElementObjects,"#,
-        ]
-        for lock in signDetailDiagnosticJSONLocks {
-            XCTAssertEqual(
-                signDetailDiagnosticSource.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-
-        let signDetailDiagnosticAttachmentLocks = [
-            "            let appScreenshot = XCTAttachment(screenshot: app.screenshot())",
-            #"                "S10.4 sign-detail open-issue contrast diagnostic app""#,
-            "            let appTree = XCTAttachment(string: app.debugDescription)",
-            #"                "S10.4 sign-detail open-issue contrast diagnostic tree""#,
-            "            let signDetailScreenshot = XCTAttachment(\n" +
-                "                screenshot: signDetail.screenshot()\n" +
-                "            )",
-            #"                "S10.4 sign-detail open-issue contrast diagnostic sign-detail""#,
-            "            for (index, auditedElement) in diagnosticAuditedElements.enumerated() {",
-            "                let elementScreenshot = XCTAttachment(\n" +
-                "                    screenshot: auditedElement.screenshot()\n" +
-                "                )",
-            #"                    "S10.4 sign-detail open-issue contrast diagnostic element \(index + 1)""#,
-        ]
-        for lock in signDetailDiagnosticAttachmentLocks {
-            XCTAssertEqual(
-                signDetailDiagnosticSource.components(separatedBy: lock).count - 1,
-                1,
-                lock
-            )
-        }
-        for (lock, count) in [
-            ("XCTAttachment(", 4),
-            (".lifetime = .keepAlways", 4),
-            ("add(", 4),
-            ("printJSONLine(", 1),
-            ("performAccessibilityAudit(for: .contrast)", 1),
-            ("return true", 1),
-            ("throw AutomationConfigurationError.invalid(", 1),
-        ] {
-            XCTAssertEqual(
-                signDetailDiagnosticSource.components(separatedBy: lock).count - 1,
-                count,
-                lock
-            )
-        }
-
-        let signDetailDiagnosticJSON =
-            #"prefix: "S10_4_SIGN_DETAIL_OPEN_ISSUE_CONTRAST_DIAGNOSTIC""#
-        let signDetailDiagnosticFirstAttachment =
-            "let appScreenshot = XCTAttachment(screenshot: app.screenshot())"
-        let signDetailDiagnosticTreeAttachment =
-            "let appTree = XCTAttachment(string: app.debugDescription)"
-        let signDetailDiagnosticRouteAttachment =
-            "let signDetailScreenshot = XCTAttachment("
-        let signDetailDiagnosticElementAttachmentLoop =
-            "for (index, auditedElement) in diagnosticAuditedElements.enumerated()"
-        let signDetailDiagnosticTerminal =
-            "            throw AutomationConfigurationError.invalid(\n" +
-                #"                "S10.4 sign-detail open-issue contrast diagnostic""# +
-                "\n            )"
-        guard let signDetailDiagnosticAuditRange = signDetailDiagnosticSource.range(
-            of: "try app.performAccessibilityAudit(for: .contrast)"
-        ), let signDetailDiagnosticJSONRange = signDetailDiagnosticSource.range(
-            of: signDetailDiagnosticJSON
-        ), let signDetailDiagnosticFirstAttachmentRange = signDetailDiagnosticSource.range(
-            of: signDetailDiagnosticFirstAttachment
-        ), let signDetailDiagnosticTreeAttachmentRange = signDetailDiagnosticSource.range(
-            of: signDetailDiagnosticTreeAttachment
-        ), let signDetailDiagnosticRouteAttachmentRange = signDetailDiagnosticSource.range(
-            of: signDetailDiagnosticRouteAttachment
-        ), let signDetailDiagnosticElementAttachmentLoopRange =
-            signDetailDiagnosticSource.range(
-                of: signDetailDiagnosticElementAttachmentLoop
-            ), let signDetailDiagnosticTerminalRange = signDetailDiagnosticSource.range(
-                of: signDetailDiagnosticTerminal
-            ) else {
-            XCTFail("Missing sign-detail diagnostic emission ordering")
+        XCTAssertEqual(
+            signDetailRouteHeadSource.components(
+                separatedBy: signDetailPositioningGate
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            signDetailRouteHeadSource.components(
+                separatedBy: signDetailPositioningGuard
+            ).count - 1,
+            1
+        )
+        guard let signDetailPositioningGateRange =
+            signDetailRouteHeadSource.range(of: signDetailPositioningGate),
+              let signDetailOpenIssueBaselineRange =
+                signDetailRouteHeadSource.range(
+                    of: signDetailOpenIssueBaseline,
+                    range: signDetailPositioningGateRange.upperBound ..<
+                        signDetailRouteHeadSource.endIndex
+                ) else {
+            XCTFail("Missing the exact sign-detail positioning gate boundary")
             return
         }
-        XCTAssertLessThan(
-            signDetailDiagnosticAuditRange.lowerBound,
-            signDetailDiagnosticJSONRange.lowerBound
-        )
-        XCTAssertLessThan(
-            signDetailDiagnosticJSONRange.lowerBound,
-            signDetailDiagnosticFirstAttachmentRange.lowerBound
-        )
-        XCTAssertLessThan(
-            signDetailDiagnosticFirstAttachmentRange.lowerBound,
-            signDetailDiagnosticTreeAttachmentRange.lowerBound
-        )
-        XCTAssertLessThan(
-            signDetailDiagnosticTreeAttachmentRange.lowerBound,
-            signDetailDiagnosticRouteAttachmentRange.lowerBound
-        )
-        XCTAssertLessThan(
-            signDetailDiagnosticRouteAttachmentRange.lowerBound,
-            signDetailDiagnosticElementAttachmentLoopRange.lowerBound
-        )
-        XCTAssertLessThan(
-            signDetailDiagnosticElementAttachmentLoopRange.lowerBound,
-            signDetailDiagnosticTerminalRange.lowerBound
-        )
-        let signDetailDiagnosticTerminalBeforeContinuation =
-            signDetailDiagnosticTerminal + "\n        }\n" +
-                signDetailOpenIssueBaseline + "\n\n" +
-                #"        let recordWork = element("s5.1.sign-detail.record-work", in: app)"# +
-                "\n        scroll(recordWork, in: app)\n" +
-                #"        assertControl(recordWork, label: "Record work")"# +
-                "\n" + signDetailRecordWorkTap
-        XCTAssertEqual(
-            signDetailRouteHeadSource.components(
-                separatedBy: signDetailDiagnosticTerminalBeforeContinuation
-            ).count - 1,
-            1
+        let signDetailPositioningGateSource = String(
+            signDetailRouteHeadSource[
+                signDetailPositioningGateRange.lowerBound ..<
+                    signDetailOpenIssueBaselineRange.lowerBound
+            ]
         )
 
-        for prohibitedSignDetailDiagnosticForm in [
+        let signDetailQueryLocks = [
+            "        let timeZonePredicate = NSPredicate(\n" +
+                #"            format: "label == %@","# + "\n" +
+                #"            "America/New_York""# + "\n" +
+                "        )",
+            "        let signDetailScreens = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s2.sign-detail.screen""# + "\n" +
+                "        )",
+            "        let timeZoneRows = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s2.sign-detail.time-zone""# + "\n" +
+                "        )",
+            "        let timeZoneStaticTexts = app.staticTexts.matching(timeZonePredicate)",
+            "        let timeZoneScrollViews = app.scrollViews.containing(timeZonePredicate)",
+            "        let navigationBars = app.navigationBars.matching(\n" +
+                #"            identifier: "Sign detail""# + "\n" +
+                "        )",
+            "        let tabBars = app.tabBars",
+        ]
+        for lock in signDetailQueryLocks {
+            XCTAssertEqual(
+                signDetailPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        let signDetailBindingLocks = [
+            "        let signDetailScreen = signDetailScreens.firstMatch",
+            "        let timeZoneRow = timeZoneRows.firstMatch",
+            "        let timeZoneStaticText = timeZoneStaticTexts.firstMatch",
+            "        let timeZoneScrollView = timeZoneScrollViews.firstMatch",
+            "        let navigationBar = navigationBars.firstMatch",
+            "        let tabBar = tabBars.firstMatch",
+        ]
+        for lock in signDetailBindingLocks {
+            XCTAssertEqual(
+                signDetailPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        let signDetailExactRouteLocks = [
+            "            app.state == .runningForeground",
+            "                && signDetailScreens.count == 1",
+            "                && timeZoneRows.count == 1",
+            "                && timeZoneStaticTexts.count == 1",
+            "                && timeZoneScrollViews.count == 1",
+            "                && navigationBars.count == 1",
+            "                && tabBars.count == 1",
+            "                && signDetailScreen.elementType == .scrollView",
+            #"                && signDetailScreen.identifier == "s2.sign-detail.screen""#,
+            #"                && (signDetailScreen.value as? String) == """#,
+            "                && signDetailScreen.isHittable",
+            "                && timeZoneRow.elementType == .staticText",
+            #"                && timeZoneRow.identifier == "s2.sign-detail.time-zone""#,
+            #"                && timeZoneRow.label == "Time zone, America/New_York""#,
+            #"                && (timeZoneRow.value as? String) == """#,
+            "                && timeZoneRow.isHittable",
+            "                && timeZoneStaticText.elementType == .staticText",
+            "                && timeZoneStaticText.identifier.isEmpty",
+            #"                && timeZoneStaticText.label == "America/New_York""#,
+            #"                && (timeZoneStaticText.value as? String) == """#,
+            "                && timeZoneStaticText.isHittable",
+            "                && timeZoneScrollView.elementType == .scrollView",
+            #"                && timeZoneScrollView.identifier == "s2.sign-detail.screen""#,
+            #"                && (timeZoneScrollView.value as? String) == """#,
+            "                && timeZoneScrollView.isHittable",
+            "                && navigationBar.elementType == .navigationBar",
+            #"                && navigationBar.identifier == "Sign detail""#,
+            #"                && (navigationBar.value as? String) == """#,
+            "                && navigationBar.isHittable",
+            "                && tabBar.elementType == .tabBar",
+            "                && tabBar.identifier.isEmpty",
+            #"                && tabBar.label == "Tab Bar""#,
+            #"                && (tabBar.value as? String) == """#,
+            "                && tabBar.isHittable",
+        ]
+        for lock in signDetailExactRouteLocks {
+            XCTAssertEqual(
+                signDetailPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        for (lock, count) in [
+            (".count == 1", 6),
+            (".firstMatch", 6),
+            (#"(value as? String) == """#, 6),
+            ("let hasExactRoute: () -> Bool", 1),
+            ("hasExactRoute()", 4),
+        ] {
+            XCTAssertEqual(
+                signDetailPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                count,
+                lock
+            )
+        }
+
+        let signDetailFrameValidationLocks = [
+            "        let isValidFrame: (CGRect) -> Bool = { frame in\n" +
+                "            !frame.isNull\n" +
+                "                && !frame.isEmpty\n" +
+                "                && !frame.isInfinite\n" +
+                "                && frame.origin.x.isFinite\n" +
+                "                && frame.origin.y.isFinite\n" +
+                "                && frame.size.width.isFinite\n" +
+                "                && frame.size.height.isFinite\n" +
+                "        }",
+            "            let applicationFrame = app.frame",
+            "            let screenFrame = signDetailScreen.frame",
+            "            let rowFrame = timeZoneRow.frame",
+            "            let targetFrame = timeZoneStaticText.frame",
+            "            let scrollFrame = timeZoneScrollView.frame",
+            "            let navigationFrame = navigationBar.frame",
+            "            let tabFrame = tabBar.frame",
+            "            let liveFramesAreValid = isValidFrame(applicationFrame)",
+            "            var liveScrollFrame = CGRect.null",
+            "            if liveFramesAreValid {\n" +
+                "                liveScrollFrame = scrollFrame.intersection(applicationFrame)\n" +
+                "            }",
+            "            guard liveFramesAreValid,",
+            "                  screenFrame == scrollFrame else {",
+            "        let finalFramesAreValid = isValidFrame(finalApplicationFrame)",
+            "            && finalScreenFrame == finalScrollFrame",
+            "        var finalCompositionIsSafe = false",
+            "        if finalFramesAreValid {",
+            "            let finalLiveScrollFrame = finalScrollFrame.intersection(",
+            "            if isValidFrame(finalLiveScrollFrame) {",
+            "        guard finalCompositionIsSafe else {",
+        ]
+        for lock in signDetailFrameValidationLocks {
+            XCTAssertEqual(
+                signDetailPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        guard let liveValidityRange = signDetailPositioningHelperSource.range(
+            of: "            let liveFramesAreValid = isValidFrame(applicationFrame)"
+        ), let liveIntersectionRange = signDetailPositioningHelperSource.range(
+            of: "                liveScrollFrame = scrollFrame.intersection(applicationFrame)",
+            range: liveValidityRange.upperBound..<signDetailPositioningHelperSource.endIndex
+        ), let liveGuardRange = signDetailPositioningHelperSource.range(
+            of: "            guard liveFramesAreValid,",
+            range: liveIntersectionRange.upperBound..<signDetailPositioningHelperSource.endIndex
+        ), let liveArithmeticRange = signDetailPositioningHelperSource.range(
+            of: "            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)",
+            range: liveGuardRange.upperBound..<signDetailPositioningHelperSource.endIndex
+        ), let finalValidityRange = signDetailPositioningHelperSource.range(
+            of: "        let finalFramesAreValid = isValidFrame(finalApplicationFrame)"
+        ), let finalIntersectionRange = signDetailPositioningHelperSource.range(
+            of: "            let finalLiveScrollFrame = finalScrollFrame.intersection(",
+            range: finalValidityRange.upperBound..<signDetailPositioningHelperSource.endIndex
+        ), let finalArithmeticRange = signDetailPositioningHelperSource.range(
+            of: "                let finalSafeTop = max(",
+            range: finalIntersectionRange.upperBound..<signDetailPositioningHelperSource.endIndex
+        ) else {
+            XCTFail("Missing frame-validity-before-arithmetic ordering")
+            return
+        }
+        XCTAssertLessThan(liveValidityRange.lowerBound, liveIntersectionRange.lowerBound)
+        XCTAssertLessThan(liveIntersectionRange.lowerBound, liveGuardRange.lowerBound)
+        XCTAssertLessThan(liveGuardRange.lowerBound, liveArithmeticRange.lowerBound)
+        XCTAssertLessThan(finalValidityRange.lowerBound, finalIntersectionRange.lowerBound)
+        XCTAssertLessThan(finalIntersectionRange.lowerBound, finalArithmeticRange.lowerBound)
+
+        let signDetailGeometryLocks = [
+            "        let verticalInset: CGFloat = 16",
+            "        let receiverInset: CGFloat = 24",
+            "        let minimumGestureDistance: CGFloat = 44",
+            "        var previousRowMinYAfterDrag: CGFloat?",
+            "        var previousTargetMinYAfterDrag: CGFloat?",
+            "        for _ in 0..<4 {",
+            "            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)",
+            "            let safeTop = liveTop + verticalInset",
+            "            let safeBottom = liveBottom - verticalInset",
+            "            let receiverTop = liveTop + receiverInset",
+            "            let receiverBottom = liveBottom - receiverInset",
+            "            let receiverLeft = liveScrollFrame.minX + receiverInset",
+            "            let receiverRight = liveScrollFrame.maxX - receiverInset",
+            "            let receiverCapacity = receiverBottom - receiverTop",
+            "            let minimumShift = max(\n" +
+                "                safeTop - rowFrame.minY,\n" +
+                "                safeTop - targetFrame.minY\n" +
+                "            )",
+            "            let maximumShift = min(\n" +
+                "                safeBottom - rowFrame.maxY,\n" +
+                "                safeBottom - targetFrame.maxY\n" +
+                "            )",
+            "                  (rowIsContained && targetIsContained) || maximumShift < 0 else {",
+            "            if rowIsContained && targetIsContained { break }",
+            "            if maximumShift >= -receiverCapacity {",
+            "                let recognizedMinimum = max(\n" +
+                "                    minimumShift,\n" +
+                "                    -receiverCapacity\n" +
+                "                )",
+            "                let recognizedMaximum = min(\n" +
+                "                    maximumShift,\n" +
+                "                    -minimumGestureDistance\n" +
+                "                )",
+            "                dragDistance = recognizedMaximum",
+            "                let stagedDistance = max(\n" +
+                "                    -receiverCapacity,\n" +
+                "                    maximumShift + minimumGestureDistance\n" +
+                "                )",
+            "                guard stagedDistance <= -minimumGestureDistance else {",
+            "                dragDistance = stagedDistance",
+            "                  dragDistance < 0,",
+            "                  abs(dragDistance) >= minimumGestureDistance else {",
+        ]
+        for lock in signDetailGeometryLocks {
+            XCTAssertEqual(
+                signDetailPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+
+        let signDetailReceiverLocks = [
+            "            let receiverFrame = CGRect(\n" +
+                "                x: receiverLeft,\n" +
+                "                y: receiverTop,\n" +
+                "                width: receiverRight - receiverLeft,\n" +
+                "                height: receiverBottom - receiverTop\n" +
+                "            )",
+            "            let startPoint = CGPoint(\n" +
+                "                x: receiverRight,\n" +
+                "                y: receiverBottom\n" +
+                "            )",
+            "            let endPoint = CGPoint(\n" +
+                "                x: startPoint.x,\n" +
+                "                y: startPoint.y + dragDistance\n" +
+                "            )",
+            "                  isValidFrame(receiverFrame),",
+            "                  startPoint.x >= receiverFrame.minX,",
+            "                  startPoint.x <= receiverFrame.maxX,",
+            "                  startPoint.y >= receiverFrame.minY,",
+            "                  startPoint.y <= receiverFrame.maxY,",
+            "                  endPoint.x >= receiverFrame.minX,",
+            "                  endPoint.x <= receiverFrame.maxX,",
+            "                  endPoint.y >= receiverFrame.minY,",
+            "                  endPoint.y <= receiverFrame.maxY,",
+            "                  liveScrollFrame.contains(startPoint),",
+            "                  liveScrollFrame.contains(endPoint),",
+            "                  !rowFrame.contains(startPoint),",
+            "                  !rowFrame.contains(endPoint),",
+            "                  !targetFrame.contains(startPoint),",
+            "                  !targetFrame.contains(endPoint) else {",
+            "            let scrollOrigin = timeZoneScrollView.coordinate(\n" +
+                "                withNormalizedOffset: CGVector(dx: 0, dy: 0)\n" +
+                "            )",
+            "                    dx: startPoint.x - scrollFrame.minX,",
+            "                    dy: startPoint.y - scrollFrame.minY",
+            "                    dx: endPoint.x - scrollFrame.minX,",
+            "                    dy: endPoint.y - scrollFrame.minY",
+            "                forDuration: 0.2,",
+            "                withVelocity: .slow,",
+            "                thenHoldForDuration: 0.2",
+        ]
+        for lock in signDetailReceiverLocks {
+            XCTAssertEqual(
+                signDetailPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        for (lock, count) in [
+            (".coordinate(", 1),
+            (".press(", 1),
+            ("thenDragTo:", 1),
+            ("forDuration: 0.2", 1),
+            ("withVelocity: .slow", 1),
+            ("thenHoldForDuration: 0.2", 1),
+        ] {
+            XCTAssertEqual(
+                signDetailPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                count,
+                lock
+            )
+        }
+
+        let signDetailProgressLocks = [
+            "            let rowBeforeDrag = rowFrame.minY",
+            "            let targetBeforeDrag = targetFrame.minY",
+            "            let rowAfterDrag = timeZoneRow.frame",
+            "            let targetAfterDrag = timeZoneStaticText.frame",
+            "            var observedRowShift: CGFloat?",
+            "            var observedTargetShift: CGFloat?",
+            "            if isValidFrame(rowAfterDrag), isValidFrame(targetAfterDrag) {",
+            "                observedRowShift = rowAfterDrag.minY - rowBeforeDrag",
+            "                observedTargetShift = targetAfterDrag.minY - targetBeforeDrag",
+            "            guard let observedRowShift,",
+            "                  let observedTargetShift,",
+            "                  observedRowShift * dragDistance > 0,",
+            "                  observedTargetShift * dragDistance > 0 else {",
+            "            if let previousRowMinYAfterDrag,",
+            "               let previousTargetMinYAfterDrag {",
+            "                guard rowAfterDrag.minY < previousRowMinYAfterDrag,",
+            "                      targetAfterDrag.minY < previousTargetMinYAfterDrag else {",
+            "            previousRowMinYAfterDrag = rowAfterDrag.minY",
+            "            previousTargetMinYAfterDrag = targetAfterDrag.minY",
+            "              finalRowFrame.minY >= finalSafeTop,",
+            "              finalRowFrame.maxY <= finalSafeBottom,",
+            "              finalTargetFrame.minY >= finalSafeTop,",
+            "              finalTargetFrame.maxY <= finalSafeBottom,",
+            "              timeZoneRow.isHittable,",
+            "              timeZoneStaticText.isHittable",
+        ]
+        for lock in signDetailProgressLocks {
+            XCTAssertEqual(
+                signDetailPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+
+        let signDetailFailureMessages = [
+            "AX-text sign-detail time-zone positioning bindings are ambiguous.",
+            "AX-text sign-detail time-zone positioning route changed.",
+            "AX-text sign-detail time-zone positioning geometry is invalid.",
+            "AX-text sign-detail time-zone composition has no supported upward interval.",
+            "AX-text sign-detail time-zone direct interval is not recognizable.",
+            "AX-text sign-detail time-zone staged remainder is not recognizable.",
+            "AX-text sign-detail time-zone drag direction is invalid.",
+            "AX-text sign-detail time-zone drag receiver is obstructed.",
+            "AX-text sign-detail time-zone route changed after positioning.",
+            "AX-text sign-detail time-zone gesture made no signed progress.",
+            "AX-text sign-detail time-zone positioning reversed direction.",
+            "AX-text sign-detail time-zone final route is invalid.",
+            "AX-text sign-detail time-zone final composition is unsafe.",
+        ]
+        var signDetailFailureSearchStart =
+            signDetailPositioningHelperSource.startIndex
+        for message in signDetailFailureMessages {
+            XCTAssertEqual(
+                signDetailPositioningHelperSource.components(
+                    separatedBy: message
+                ).count - 1,
+                1,
+                message
+            )
+            guard let messageRange = signDetailPositioningHelperSource.range(
+                of: message,
+                range: signDetailFailureSearchStart ..<
+                    signDetailPositioningHelperSource.endIndex
+            ) else {
+                XCTFail("Missing ordered sign-detail positioning failure message")
+                return
+            }
+            signDetailFailureSearchStart = messageRange.upperBound
+        }
+        for (lock, count) in [
+            ("XCTFail(", 13),
+            ("return false", 13),
+            ("return true", 1),
+        ] {
+            XCTAssertEqual(
+                signDetailPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                count,
+                lock
+            )
+        }
+
+        for prohibitedSignDetailPositioningHelperForm in [
             ".tap(",
             ".swipe",
-            ".coordinate(",
-            ".press(",
-            "thenDragTo:",
-            ".typeText(",
             "scroll(",
             "waitForExistence",
+            ".typeText(",
             "Thread.sleep",
             "sleep(",
-            "return false",
+            "performAccessibilityAudit",
+            "XCTAttachment",
+            "printJSONLine",
+            "NSNull",
+            "S10_4_SIGN_DETAIL_OPEN_ISSUE_CONTRAST_DIAGNOSTIC",
+            "sign-detail open-issue contrast diagnostic",
             "captureBaseline(",
-            "guard diagnosticIssueObjects",
-            "guard diagnosticAuditedElements",
-            "diagnosticIssueObjects.first",
-            "diagnosticAuditedElements.first",
-            ".first",
-            "count ==",
-            "Set(",
-            "Dictionary(",
-            ".filter(",
-            ".sorted(",
-            ".reduce(",
-            "deduplic",
-            "suppress",
-            "matchingExceptions",
             "ContrastAuditExceptionSignature",
             "contrastAuditExceptionSignatures",
             "automationContrastExceptions",
-            "automationAXTreeDigests",
-            "automatedEvidenceIDs",
             "attachCandidate(",
             #"prefix: "S10_4_AX_STATE""#,
             #"prefix: "S10_4_CONTRAST""#,
             "S10_4_CANDIDATE",
             "S10_4_TASK",
             "S10_4_SHARD_RECEIPT",
+            "return false &&",
+            "maximumShift > 0",
+            "minimumShift > 0",
+            "positionedDirection",
+            "observedDirection",
         ] {
             XCTAssertFalse(
-                signDetailDiagnosticSource.contains(prohibitedSignDetailDiagnosticForm),
-                prohibitedSignDetailDiagnosticForm
+                signDetailPositioningHelperSource.contains(
+                    prohibitedSignDetailPositioningHelperForm
+                ),
+                prohibitedSignDetailPositioningHelperForm
+            )
+        }
+        for prohibitedSignDetailGateForm in [
+            ".tap(",
+            ".swipe",
+            ".coordinate(",
+            ".press(",
+            "thenDragTo:",
+            "scroll(",
+            "waitForExistence",
+            "Thread.sleep",
+            "performAccessibilityAudit",
+            "XCTAttachment",
+            "printJSONLine",
+            "NSNull",
+            "S10_4_SIGN_DETAIL_OPEN_ISSUE_CONTRAST_DIAGNOSTIC",
+            "sign-detail open-issue contrast diagnostic",
+            "return",
+        ] {
+            XCTAssertFalse(
+                signDetailPositioningGateSource.contains(
+                    prohibitedSignDetailGateForm
+                ),
+                prohibitedSignDetailGateForm
+            )
+        }
+        for removedSignDetailDiagnosticForm in [
+            "S10_4_SIGN_DETAIL_OPEN_ISSUE_CONTRAST_DIAGNOSTIC",
+            "S10.4 sign-detail open-issue contrast diagnostic",
+            "let diagnosticQueries: [(String, XCUIElementQuery)]",
+            "let diagnosticIssueObjects:",
+            "let diagnosticAuditedElements:",
+            "diagnosticAuditedElementObjects",
+        ] {
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: removedSignDetailDiagnosticForm
+                ).count - 1,
+                0,
+                removedSignDetailDiagnosticForm
             )
         }
         let preflightReturnAbsenceDiscriminator =

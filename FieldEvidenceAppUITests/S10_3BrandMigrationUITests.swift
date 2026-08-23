@@ -3140,6 +3140,352 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
+    private func positionSignDetailTimeZoneForAXText(
+        in app: XCUIApplication
+    ) -> Bool {
+        let timeZonePredicate = NSPredicate(
+            format: "label == %@",
+            "America/New_York"
+        )
+        let signDetailScreens = app.descendants(matching: .any).matching(
+            identifier: "s2.sign-detail.screen"
+        )
+        let timeZoneRows = app.descendants(matching: .any).matching(
+            identifier: "s2.sign-detail.time-zone"
+        )
+        let timeZoneStaticTexts = app.staticTexts.matching(timeZonePredicate)
+        let timeZoneScrollViews = app.scrollViews.containing(timeZonePredicate)
+        let navigationBars = app.navigationBars.matching(
+            identifier: "Sign detail"
+        )
+        let tabBars = app.tabBars
+        let signDetailScreen = signDetailScreens.firstMatch
+        let timeZoneRow = timeZoneRows.firstMatch
+        let timeZoneStaticText = timeZoneStaticTexts.firstMatch
+        let timeZoneScrollView = timeZoneScrollViews.firstMatch
+        let navigationBar = navigationBars.firstMatch
+        let tabBar = tabBars.firstMatch
+        let isValidFrame: (CGRect) -> Bool = { frame in
+            !frame.isNull
+                && !frame.isEmpty
+                && !frame.isInfinite
+                && frame.origin.x.isFinite
+                && frame.origin.y.isFinite
+                && frame.size.width.isFinite
+                && frame.size.height.isFinite
+        }
+        let hasExactRoute: () -> Bool = {
+            app.state == .runningForeground
+                && signDetailScreens.count == 1
+                && timeZoneRows.count == 1
+                && timeZoneStaticTexts.count == 1
+                && timeZoneScrollViews.count == 1
+                && navigationBars.count == 1
+                && tabBars.count == 1
+                && signDetailScreen.exists
+                && signDetailScreen.elementType == .scrollView
+                && signDetailScreen.identifier == "s2.sign-detail.screen"
+                && (signDetailScreen.value as? String) == ""
+                && signDetailScreen.isHittable
+                && timeZoneRow.exists
+                && timeZoneRow.elementType == .staticText
+                && timeZoneRow.identifier == "s2.sign-detail.time-zone"
+                && timeZoneRow.label == "Time zone, America/New_York"
+                && (timeZoneRow.value as? String) == ""
+                && timeZoneRow.isHittable
+                && timeZoneStaticText.exists
+                && timeZoneStaticText.elementType == .staticText
+                && timeZoneStaticText.identifier.isEmpty
+                && timeZoneStaticText.label == "America/New_York"
+                && (timeZoneStaticText.value as? String) == ""
+                && timeZoneStaticText.isHittable
+                && timeZoneScrollView.exists
+                && timeZoneScrollView.elementType == .scrollView
+                && timeZoneScrollView.identifier == "s2.sign-detail.screen"
+                && (timeZoneScrollView.value as? String) == ""
+                && timeZoneScrollView.isHittable
+                && navigationBar.exists
+                && navigationBar.elementType == .navigationBar
+                && navigationBar.identifier == "Sign detail"
+                && (navigationBar.value as? String) == ""
+                && navigationBar.isHittable
+                && tabBar.exists
+                && tabBar.elementType == .tabBar
+                && tabBar.identifier.isEmpty
+                && tabBar.label == "Tab Bar"
+                && (tabBar.value as? String) == ""
+                && tabBar.isHittable
+                && isValidFrame(app.frame)
+                && isValidFrame(signDetailScreen.frame)
+                && isValidFrame(timeZoneRow.frame)
+                && isValidFrame(timeZoneStaticText.frame)
+                && isValidFrame(timeZoneScrollView.frame)
+                && isValidFrame(navigationBar.frame)
+                && isValidFrame(tabBar.frame)
+        }
+        guard hasExactRoute() else {
+            XCTFail("AX-text sign-detail time-zone positioning bindings are ambiguous.")
+            return false
+        }
+
+        let verticalInset: CGFloat = 16
+        let receiverInset: CGFloat = 24
+        let minimumGestureDistance: CGFloat = 44
+        var previousRowMinYAfterDrag: CGFloat?
+        var previousTargetMinYAfterDrag: CGFloat?
+        for _ in 0..<4 {
+            guard hasExactRoute() else {
+                XCTFail("AX-text sign-detail time-zone positioning route changed.")
+                return false
+            }
+            let applicationFrame = app.frame
+            let screenFrame = signDetailScreen.frame
+            let rowFrame = timeZoneRow.frame
+            let targetFrame = timeZoneStaticText.frame
+            let scrollFrame = timeZoneScrollView.frame
+            let navigationFrame = navigationBar.frame
+            let tabFrame = tabBar.frame
+            let liveFramesAreValid = isValidFrame(applicationFrame)
+                && isValidFrame(screenFrame)
+                && isValidFrame(rowFrame)
+                && isValidFrame(targetFrame)
+                && isValidFrame(scrollFrame)
+                && isValidFrame(navigationFrame)
+                && isValidFrame(tabFrame)
+            var liveScrollFrame = CGRect.null
+            if liveFramesAreValid {
+                liveScrollFrame = scrollFrame.intersection(applicationFrame)
+            }
+            guard liveFramesAreValid,
+                  isValidFrame(liveScrollFrame),
+                  screenFrame == scrollFrame else {
+                XCTFail("AX-text sign-detail time-zone positioning geometry is invalid.")
+                return false
+            }
+            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)
+            let liveBottom = min(
+                liveScrollFrame.maxY,
+                min(applicationFrame.maxY, tabFrame.minY)
+            )
+            let safeTop = liveTop + verticalInset
+            let safeBottom = liveBottom - verticalInset
+            let receiverTop = liveTop + receiverInset
+            let receiverBottom = liveBottom - receiverInset
+            let receiverLeft = liveScrollFrame.minX + receiverInset
+            let receiverRight = liveScrollFrame.maxX - receiverInset
+            let receiverCapacity = receiverBottom - receiverTop
+            let minimumShift = max(
+                safeTop - rowFrame.minY,
+                safeTop - targetFrame.minY
+            )
+            let maximumShift = min(
+                safeBottom - rowFrame.maxY,
+                safeBottom - targetFrame.maxY
+            )
+            let rowIsContained = rowFrame.minY >= safeTop
+                && rowFrame.maxY <= safeBottom
+            let targetIsContained = targetFrame.minY >= safeTop
+                && targetFrame.maxY <= safeBottom
+            guard liveTop.isFinite,
+                  liveBottom.isFinite,
+                  safeTop.isFinite,
+                  safeBottom.isFinite,
+                  receiverTop.isFinite,
+                  receiverBottom.isFinite,
+                  receiverLeft.isFinite,
+                  receiverRight.isFinite,
+                  receiverCapacity.isFinite,
+                  minimumShift.isFinite,
+                  maximumShift.isFinite,
+                  liveTop <= liveBottom,
+                  safeTop <= safeBottom,
+                  receiverTop <= receiverBottom,
+                  receiverLeft <= receiverRight,
+                  receiverCapacity >= minimumGestureDistance,
+                  rowFrame.height <= safeBottom - safeTop,
+                  targetFrame.height <= safeBottom - safeTop,
+                  minimumShift <= maximumShift,
+                  (rowIsContained && targetIsContained) || maximumShift < 0 else {
+                XCTFail("AX-text sign-detail time-zone composition has no supported upward interval.")
+                return false
+            }
+            if rowIsContained && targetIsContained { break }
+
+            let dragDistance: CGFloat
+            if maximumShift >= -receiverCapacity {
+                let recognizedMinimum = max(
+                    minimumShift,
+                    -receiverCapacity
+                )
+                let recognizedMaximum = min(
+                    maximumShift,
+                    -minimumGestureDistance
+                )
+                guard recognizedMinimum <= recognizedMaximum else {
+                    XCTFail("AX-text sign-detail time-zone direct interval is not recognizable.")
+                    return false
+                }
+                dragDistance = recognizedMaximum
+            } else {
+                let stagedDistance = max(
+                    -receiverCapacity,
+                    maximumShift + minimumGestureDistance
+                )
+                guard stagedDistance <= -minimumGestureDistance else {
+                    XCTFail("AX-text sign-detail time-zone staged remainder is not recognizable.")
+                    return false
+                }
+                dragDistance = stagedDistance
+            }
+            guard dragDistance.isFinite,
+                  dragDistance < 0,
+                  abs(dragDistance) >= minimumGestureDistance else {
+                XCTFail("AX-text sign-detail time-zone drag direction is invalid.")
+                return false
+            }
+
+            let receiverFrame = CGRect(
+                x: receiverLeft,
+                y: receiverTop,
+                width: receiverRight - receiverLeft,
+                height: receiverBottom - receiverTop
+            )
+            let startPoint = CGPoint(
+                x: receiverRight,
+                y: receiverBottom
+            )
+            let endPoint = CGPoint(
+                x: startPoint.x,
+                y: startPoint.y + dragDistance
+            )
+            guard startPoint.x.isFinite,
+                  startPoint.y.isFinite,
+                  endPoint.x.isFinite,
+                  endPoint.y.isFinite,
+                  isValidFrame(receiverFrame),
+                  startPoint.x >= receiverFrame.minX,
+                  startPoint.x <= receiverFrame.maxX,
+                  startPoint.y >= receiverFrame.minY,
+                  startPoint.y <= receiverFrame.maxY,
+                  endPoint.x >= receiverFrame.minX,
+                  endPoint.x <= receiverFrame.maxX,
+                  endPoint.y >= receiverFrame.minY,
+                  endPoint.y <= receiverFrame.maxY,
+                  liveScrollFrame.contains(startPoint),
+                  liveScrollFrame.contains(endPoint),
+                  !rowFrame.contains(startPoint),
+                  !rowFrame.contains(endPoint),
+                  !targetFrame.contains(startPoint),
+                  !targetFrame.contains(endPoint) else {
+                XCTFail("AX-text sign-detail time-zone drag receiver is obstructed.")
+                return false
+            }
+            let scrollOrigin = timeZoneScrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStart = scrollOrigin.withOffset(
+                CGVector(
+                    dx: startPoint.x - scrollFrame.minX,
+                    dy: startPoint.y - scrollFrame.minY
+                )
+            )
+            let dragEnd = scrollOrigin.withOffset(
+                CGVector(
+                    dx: endPoint.x - scrollFrame.minX,
+                    dy: endPoint.y - scrollFrame.minY
+                )
+            )
+            let rowBeforeDrag = rowFrame.minY
+            let targetBeforeDrag = targetFrame.minY
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            guard hasExactRoute() else {
+                XCTFail("AX-text sign-detail time-zone route changed after positioning.")
+                return false
+            }
+            let rowAfterDrag = timeZoneRow.frame
+            let targetAfterDrag = timeZoneStaticText.frame
+            var observedRowShift: CGFloat?
+            var observedTargetShift: CGFloat?
+            if isValidFrame(rowAfterDrag), isValidFrame(targetAfterDrag) {
+                observedRowShift = rowAfterDrag.minY - rowBeforeDrag
+                observedTargetShift = targetAfterDrag.minY - targetBeforeDrag
+            }
+            guard let observedRowShift,
+                  let observedTargetShift,
+                  observedRowShift * dragDistance > 0,
+                  observedTargetShift * dragDistance > 0 else {
+                XCTFail("AX-text sign-detail time-zone gesture made no signed progress.")
+                return false
+            }
+            if let previousRowMinYAfterDrag,
+               let previousTargetMinYAfterDrag {
+                guard rowAfterDrag.minY < previousRowMinYAfterDrag,
+                      targetAfterDrag.minY < previousTargetMinYAfterDrag else {
+                    XCTFail("AX-text sign-detail time-zone positioning reversed direction.")
+                    return false
+                }
+            }
+            previousRowMinYAfterDrag = rowAfterDrag.minY
+            previousTargetMinYAfterDrag = targetAfterDrag.minY
+        }
+
+        guard hasExactRoute() else {
+            XCTFail("AX-text sign-detail time-zone final route is invalid.")
+            return false
+        }
+        let finalApplicationFrame = app.frame
+        let finalScreenFrame = signDetailScreen.frame
+        let finalRowFrame = timeZoneRow.frame
+        let finalTargetFrame = timeZoneStaticText.frame
+        let finalScrollFrame = timeZoneScrollView.frame
+        let finalNavigationFrame = navigationBar.frame
+        let finalTabFrame = tabBar.frame
+        let finalFramesAreValid = isValidFrame(finalApplicationFrame)
+            && isValidFrame(finalScreenFrame)
+            && isValidFrame(finalRowFrame)
+            && isValidFrame(finalTargetFrame)
+            && isValidFrame(finalScrollFrame)
+            && isValidFrame(finalNavigationFrame)
+            && isValidFrame(finalTabFrame)
+            && finalScreenFrame == finalScrollFrame
+        var finalCompositionIsSafe = false
+        if finalFramesAreValid {
+            let finalLiveScrollFrame = finalScrollFrame.intersection(
+                finalApplicationFrame
+            )
+            if isValidFrame(finalLiveScrollFrame) {
+                let finalSafeTop = max(
+                    finalLiveScrollFrame.minY,
+                    finalNavigationFrame.maxY
+                ) + verticalInset
+                let finalSafeBottom = min(
+                    finalLiveScrollFrame.maxY,
+                    min(finalApplicationFrame.maxY, finalTabFrame.minY)
+                ) - verticalInset
+                finalCompositionIsSafe = finalSafeTop.isFinite
+                    && finalSafeBottom.isFinite
+                    && finalSafeTop <= finalSafeBottom
+                    && finalRowFrame.minY >= finalSafeTop
+                    && finalRowFrame.maxY <= finalSafeBottom
+                    && finalTargetFrame.minY >= finalSafeTop
+                    && finalTargetFrame.maxY <= finalSafeBottom
+                    && timeZoneRow.isHittable
+                    && timeZoneStaticText.isHittable
+            }
+        }
+        guard finalCompositionIsSafe else {
+            XCTFail("AX-text sign-detail time-zone final composition is unsafe.")
+            return false
+        }
+        return true
+    }
+
+    @MainActor
     private func completeWorkAndResolvedRecheckAtXXXL(
         in app: XCUIApplication
     ) throws {
@@ -3149,137 +3495,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let signDetail = element("s2.sign-detail.screen", in: app)
         XCTAssertTrue(signDetail.waitForExistence(timeout: 30))
         if automationShard?.shardID == "s10.4.current.ax-text" {
-            let timeZonePredicate = NSPredicate(
-                format: "label == %@",
-                "America/New_York"
-            )
-            let diagnosticQueries: [(String, XCUIElementQuery)] = [
-                (
-                    "signDetailScreens",
-                    app.descendants(matching: .any).matching(
-                        identifier: "s2.sign-detail.screen"
-                    )
-                ),
-                (
-                    "timeZoneRows",
-                    app.descendants(matching: .any).matching(
-                        identifier: "s2.sign-detail.time-zone"
-                    )
-                ),
-                (
-                    "timeZoneStaticTexts",
-                    app.staticTexts.matching(timeZonePredicate)
-                ),
-                (
-                    "timeZoneScrollViews",
-                    app.scrollViews.containing(timeZonePredicate)
-                ),
-                ("navigationBars", app.navigationBars),
-                ("tabBars", app.tabBars),
-            ]
-            let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
-                element in
-                let valueObject: Any
-                if let value = element.value as? String {
-                    valueObject = value
-                } else {
-                    valueObject = NSNull()
-                }
-                return [
-                    "exists": element.exists,
-                    "identifier": element.identifier,
-                    "label": element.label,
-                    "value": valueObject,
-                    "elementTypeRawValue": element.elementType.rawValue,
-                    "frame": self.auditFrameObject(element.frame),
-                    "isHittable": element.isHittable,
-                ]
-            }
-            let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
-                query in
-                let count = query.count
-                var elements: [[String: Any]] = []
-                for index in 0..<count {
-                    elements.append(
-                        diagnosticElementObject(query.element(boundBy: index))
-                    )
-                }
-                return [
-                    "count": count,
-                    "elements": elements,
-                ]
-            }
-            var diagnosticQueryObjects: [String: Any] = [:]
-            for (name, query) in diagnosticQueries {
-                diagnosticQueryObjects[name] = diagnosticQueryObject(query)
-            }
-
-            var diagnosticIssueObjects: [[String: Any]] = []
-            var diagnosticAuditedElements: [XCUIElement] = []
-            try app.performAccessibilityAudit(for: .contrast) { issue in
-                let elementObject: Any
-                if let auditedElement = issue.element {
-                    diagnosticAuditedElements.append(auditedElement)
-                    elementObject = diagnosticElementObject(auditedElement)
-                } else {
-                    elementObject = NSNull()
-                }
-                diagnosticIssueObjects.append([
-                    "auditTypeRawValue": String(issue.auditType.rawValue),
-                    "compactDescription": issue.compactDescription,
-                    "detailedDescription": issue.detailedDescription,
-                    "element": elementObject,
-                ])
-                return true
-            }
-            let diagnosticAuditedElementObjects = diagnosticAuditedElements.map(
-                diagnosticElementObject
-            )
-
-            printJSONLine(
-                prefix: "S10_4_SIGN_DETAIL_OPEN_ISSUE_CONTRAST_DIAGNOSTIC",
-                object: [
-                    "shardID": "s10.4.current.ax-text",
-                    "stateID": "state.sign-detail.open-issue",
-                    "applicationStateRawValue": app.state.rawValue,
-                    "applicationFrame": auditFrameObject(app.frame),
-                    "queries": diagnosticQueryObjects,
-                    "issueCount": diagnosticIssueObjects.count,
-                    "issues": diagnosticIssueObjects,
-                    "auditedElementCount": diagnosticAuditedElementObjects.count,
-                    "auditedElements": diagnosticAuditedElementObjects,
-                ]
-            )
-
-            let appScreenshot = XCTAttachment(screenshot: app.screenshot())
-            appScreenshot.name =
-                "S10.4 sign-detail open-issue contrast diagnostic app"
-            appScreenshot.lifetime = .keepAlways
-            add(appScreenshot)
-            let appTree = XCTAttachment(string: app.debugDescription)
-            appTree.name =
-                "S10.4 sign-detail open-issue contrast diagnostic tree"
-            appTree.lifetime = .keepAlways
-            add(appTree)
-            let signDetailScreenshot = XCTAttachment(
-                screenshot: signDetail.screenshot()
-            )
-            signDetailScreenshot.name =
-                "S10.4 sign-detail open-issue contrast diagnostic sign-detail"
-            signDetailScreenshot.lifetime = .keepAlways
-            add(signDetailScreenshot)
-            for (index, auditedElement) in diagnosticAuditedElements.enumerated() {
-                let elementScreenshot = XCTAttachment(
-                    screenshot: auditedElement.screenshot()
+            guard positionSignDetailTimeZoneForAXText(in: app) else {
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 AX-text sign-detail time-zone positioning failed"
                 )
-                elementScreenshot.name =
-                    "S10.4 sign-detail open-issue contrast diagnostic element \(index + 1)"
-                elementScreenshot.lifetime = .keepAlways
-                add(elementScreenshot)
             }
-            throw AutomationConfigurationError.invalid(
-                "S10.4 sign-detail open-issue contrast diagnostic"
-            )
         }
         captureBaseline("state.sign-detail.open-issue", in: app)
 
