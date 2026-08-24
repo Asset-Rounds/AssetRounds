@@ -1327,8 +1327,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 395_329,
-            sha256: "83CBFAA968A3C74BE69E1429946108F28D243B9431FA91D5BC80552E7CB6F9C8"
+            byteCount: 435_196,
+            sha256: "D6055EBC45A34BCCE41D433F72FBB21160994BF87B9DDCF690319F72E983058D"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -6877,16 +6877,360 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTFail("Missing the bounded Record-work saving positioning slice")
             return
         }
-        let workSavingPositioningSource = String(
+        let workSavingRouteWithDiagnosticSource = String(
             uiSource[
                 workSavingPositioningStartRange.lowerBound..<workSavingPositioningEndRange.upperBound
             ]
         )
+        XCTAssertEqual(workSavingRouteWithDiagnosticSource.utf8.count, 54_212)
+        XCTAssertEqual(
+            Data(workSavingRouteWithDiagnosticSource.utf8).sha256,
+            "E558D714444C7530B696F7C9D76ABE2DEBB7709901A93F0E8707D98FCD891E10"
+        )
+        let workSavingDiagnosticStart =
+            "            if workEditingAXTextEnabled,\n" +
+                "               provenSavingGestureCount == 1 {"
+        let workSavingDiagnosticEnd =
+            "                throw AutomationConfigurationError.invalid(\n" +
+                "                    \"S10.4 AX-text work-saving positioning diagnostic completed nonaccepting\"\n" +
+                "                )\n" +
+                "            }\n"
+        XCTAssertEqual(
+            workSavingRouteWithDiagnosticSource.components(
+                separatedBy: workSavingDiagnosticStart
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workSavingRouteWithDiagnosticSource.components(
+                separatedBy: workSavingDiagnosticEnd
+            ).count - 1,
+            1
+        )
+        guard let workSavingDiagnosticStartRange =
+                workSavingRouteWithDiagnosticSource.range(
+                    of: workSavingDiagnosticStart
+                ),
+              let workSavingDiagnosticEndRange =
+                workSavingRouteWithDiagnosticSource.range(
+                    of: workSavingDiagnosticEnd,
+                    range: workSavingDiagnosticStartRange.upperBound
+                        ..<workSavingRouteWithDiagnosticSource.endIndex
+                ) else {
+            XCTFail("Missing the bounded AX-text work-saving diagnostic slice")
+            return
+        }
+        let workSavingDiagnosticSource = String(
+            workSavingRouteWithDiagnosticSource[
+                workSavingDiagnosticStartRange.lowerBound
+                    ..<workSavingDiagnosticEndRange.upperBound
+            ]
+        )
+        XCTAssertEqual(workSavingDiagnosticSource.utf8.count, 39_867)
+        XCTAssertEqual(
+            Data(workSavingDiagnosticSource.utf8).sha256,
+            "62B41466DAD36E2E3B8D769290C0EACD37A3A598C46A4C5952103A61B7631286"
+        )
+        let workSavingPositioningSource =
+            String(
+                workSavingRouteWithDiagnosticSource[
+                    workSavingRouteWithDiagnosticSource.startIndex
+                        ..<workSavingDiagnosticStartRange.lowerBound
+                ]
+            )
+                + String(
+                    workSavingRouteWithDiagnosticSource[
+                        workSavingDiagnosticEndRange.upperBound
+                            ..<workSavingRouteWithDiagnosticSource.endIndex
+                    ]
+                )
         XCTAssertEqual(workSavingPositioningSource.utf8.count, 14_345)
         XCTAssertEqual(
             Data(workSavingPositioningSource.utf8).sha256,
             "2E422D4B64FFE87707D55B5E6878F002B7085394B85C17336CC6FBC694880E58"
         )
+        let workSavingDiagnosticAdjacency =
+            "            let noteMinYBeforeDrag = noteFrame.minY\n" +
+                "            let helperMinYBeforeDrag = helperFrame.minY\n" +
+                workSavingDiagnosticStart
+        XCTAssertEqual(
+            workSavingRouteWithDiagnosticSource.components(
+                separatedBy: workSavingDiagnosticAdjacency
+            ).count - 1,
+            1
+        )
+        let workSavingDiagnosticBeforeNormalPress =
+            workSavingDiagnosticEnd
+                + "            dragStart.press(\n" +
+                "                forDuration: 0.2,"
+        XCTAssertEqual(
+            workSavingRouteWithDiagnosticSource.components(
+                separatedBy: workSavingDiagnosticBeforeNormalPress
+            ).count - 1,
+            1
+        )
+        for diagnosticQueryLock in [
+            #"identifier: "s5.1.work.screen""#,
+            #"identifier: "s5.1.work.saving""#,
+            #"("noteHeadings", workNoteHeadings)"#,
+            #"("helperTexts", workHelperTexts)"#,
+            #"("previewImages", workPreviewImages)"#,
+            #"("scrollViews", workScrollViews)"#,
+            #"("navigationBars", workNavigationBars)"#,
+            #"("tabBars", workTabBars)"#,
+        ] {
+            XCTAssertEqual(
+                workSavingDiagnosticSource.components(
+                    separatedBy: diagnosticQueryLock
+                ).count - 1,
+                1,
+                diagnosticQueryLock
+            )
+        }
+        for diagnosticSerializerLock in [
+            "let count = query.count",
+            "for index in 0..<count",
+            "query.element(boundBy: index)",
+            #""exists": element.exists"#,
+            #""isHittable": element.isHittable"#,
+            #""identifier": element.identifier"#,
+            #""label": element.label"#,
+            #""value": ((element.value as? String) as Any?)"#,
+            #""elementTypeRawValue": element.elementType.rawValue"#,
+            #""frame": diagnosticFrameObject(element.frame)"#,
+            #""count": count"#,
+            #""elements": elements"#,
+        ] {
+            XCTAssertEqual(
+                workSavingDiagnosticSource.components(
+                    separatedBy: diagnosticSerializerLock
+                ).count - 1,
+                1,
+                diagnosticSerializerLock
+            )
+        }
+        XCTAssertEqual(
+            workSavingDiagnosticSource.components(
+                separatedBy: "let beforeSample = diagnosticQuerySample()"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workSavingDiagnosticSource.components(
+                separatedBy: "let afterSample = diagnosticQuerySample()"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workSavingDiagnosticSource.components(
+                separatedBy: "counts[name] = count"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workSavingDiagnosticSource.components(
+                separatedBy: "return (objects, counts)"
+            ).count - 1,
+            1
+        )
+        for diagnosticBooleanLock in [
+            "beforeWorkScreenCountIsOne",
+            "beforeSavingCountIsOne",
+            "beforeNoteCountIsOne",
+            "beforeHelperCountIsOne",
+            "beforePreviewCountIsOne",
+            "beforeScrollCountIsOne",
+            "beforeNavigationCountIsOne",
+            "beforeTabCountIsOne",
+            "beforeCardinalityIsExact",
+            "beforeWorkScreenExists",
+            "beforeSavingExists",
+            "beforeNoteExists",
+            "beforeHelperExists",
+            "beforePreviewExists",
+            "beforeScrollExists",
+            "beforeNavigationExists",
+            "beforeTabExists",
+            "beforeExistenceIsExact",
+            "beforeWorkScreenHittable",
+            "beforeSavingHittable",
+            "beforeNoteHittable",
+            "beforeHelperHittable",
+            "beforePreviewHittable",
+            "beforeScrollHittable",
+            "beforeNavigationHittable",
+            "beforeTabHittable",
+            "beforeRouteIsExact",
+            "beforeAllFramesValid",
+            "afterWorkScreenCountIsOne",
+            "afterSavingCountIsOne",
+            "afterNoteCountIsOne",
+            "afterHelperCountIsOne",
+            "afterPreviewCountIsOne",
+            "afterScrollCountIsOne",
+            "afterNavigationCountIsOne",
+            "afterTabCountIsOne",
+            "afterCardinalityIsExact",
+            "afterWorkScreenExists",
+            "afterSavingExists",
+            "afterNoteExists",
+            "afterHelperExists",
+            "afterPreviewExists",
+            "afterScrollExists",
+            "afterNavigationExists",
+            "afterTabExists",
+            "afterExistenceIsExact",
+            "afterWorkScreenHittable",
+            "afterSavingHittable",
+            "afterNoteHittable",
+            "afterHelperHittable",
+            "afterPreviewHittable",
+            "afterScrollHittable",
+            "afterNavigationHittable",
+            "afterTabHittable",
+            "afterRouteIsExact",
+            "afterAllFramesValid",
+            "guardNoteCountIsOne",
+            "guardTabCountIsOne",
+            "guardHelperCountIsOne",
+            "guardScrollCountIsOne",
+            "guardNavigationCountIsOne",
+            "guardNoteExists",
+            "guardTabExists",
+            "guardHelperExists",
+            "guardSavingExists",
+            "immediatePreviewFrameValid",
+            "safeBandIsValid",
+            "targetFitsSafeBand",
+            "shiftIntervalIsFeasible",
+            "receiverCapacityIsRecognizable",
+            "dragDistanceIsRecognizable",
+            "upwardShiftRequested",
+            "downwardShiftRequested",
+            "directionlessShift",
+            "upwardDirectRecognizable",
+            "downwardDirectRecognizable",
+            "downwardStagedRecognizable",
+            "selectionBranch",
+            "receiverContainsStart",
+            "receiverContainsEnd",
+            "startIntersectsNote",
+            "startIntersectsHelper",
+            "startIntersectsPreview",
+            "endIntersectsNote",
+            "endIntersectsHelper",
+            "endIntersectsPreview",
+            "gestureWasPerformed",
+            "noteSignedProgress",
+            "helperSignedProgress",
+            "previewSignedProgress",
+            "previewShiftEqualsHelperShift",
+            "savingAXTextCoMovementWouldPass",
+            "originalAggregateWouldPass",
+        ] {
+            XCTAssertTrue(
+                workSavingDiagnosticSource.contains(diagnosticBooleanLock),
+                diagnosticBooleanLock
+            )
+        }
+        XCTAssertEqual(
+            workSavingDiagnosticSource.components(
+                separatedBy: "S10_4_AX_TEXT_WORK_SAVING_DIAGNOSTIC"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workSavingDiagnosticSource.components(
+                separatedBy: "printJSONLine("
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workSavingDiagnosticSource.components(
+                separatedBy: "XCTAttachment("
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            workSavingDiagnosticSource.components(
+                separatedBy: ".lifetime = .keepAlways"
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            workSavingDiagnosticSource.components(
+                separatedBy: "                add("
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            workSavingDiagnosticSource.components(
+                separatedBy: "XCUIScreen.main.screenshot()"
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            workSavingDiagnosticSource.components(
+                separatedBy: "app.debugDescription"
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            workSavingDiagnosticSource.components(
+                separatedBy: "dragStart.press("
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workSavingDiagnosticSource.components(
+                separatedBy:
+                    "forDuration: 0.2,\n" +
+                        "                    thenDragTo: dragEnd,\n" +
+                        "                    withVelocity: .slow,\n" +
+                        "                    thenHoldForDuration: 0.2"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workSavingDiagnosticSource.components(
+                separatedBy: "throw AutomationConfigurationError.invalid("
+            ).count - 1,
+            1
+        )
+        for prohibitedWorkSavingDiagnosticForm in [
+            "return true",
+            "return false",
+            "continue",
+            "break",
+            "for _ in",
+            "while ",
+            "repeat ",
+            "Thread.sleep",
+            ".tap()",
+            ".swipe",
+            "app.coordinate(",
+            "liveScrollFrame.maxX",
+            "epsilon",
+            "tolerance",
+            "performAccessibilityAudit",
+            "eligibleExceptions",
+            "ContrastAuditExceptionSignature",
+            "captureBaseline(",
+            "S10_4_CANDIDATE",
+            "S10_4_AX ",
+            "S10_4_CONTRAST",
+            "S10_4_COMMON_TASK",
+            "S10_4_SHARD_RECEIPT",
+            "S10_4_RETENTION",
+            "S10_4_AX_TEXT_RECORD_WORK_SAVING_POSITIONING_DIAGNOSTIC",
+        ] {
+            XCTAssertFalse(
+                workSavingDiagnosticSource.contains(
+                    prohibitedWorkSavingDiagnosticForm
+                ),
+                prohibitedWorkSavingDiagnosticForm
+            )
+        }
 
         let workSavingNoteAndTabBindings =
             "        let workNoteHeadings = app.staticTexts.matching(\n" +
