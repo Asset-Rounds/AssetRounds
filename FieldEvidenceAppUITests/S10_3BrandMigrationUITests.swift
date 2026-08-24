@@ -5194,6 +5194,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let dueStatus = element("s5.1.issue.status", in: app)
         XCTAssertTrue(dueStatus.waitForExistence(timeout: 10))
         assertLocalizedLabel(dueStatus, equals: "Attention: Recheck due")
+        if automationShard?.shardID == "s10.4.current.ax-text" {
+            guard positionIssueRecheckDueDescriptionForAXText(in: app) else {
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 AX-text issue recheck-due positioning failed"
+                )
+            }
+        }
         captureBaseline("state.issue.recheck-due", in: app)
         navigateBack(in: app)
 
@@ -6887,14 +6894,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             line: line
         )
         do {
-            if shard.shardID == "s10.4.current.ax-text",
-               stateID == "state.issue.recheck-due" {
-                try diagnoseAXTextIssueRecheckDueContrast(
-                    in: app,
-                    shard: shard,
-                    stateID: stateID
-                )
-            }
             let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
                 $0.shardID == shard.shardID && $0.stateID == stateID
             }
@@ -7036,31 +7035,23 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func diagnoseAXTextIssueRecheckDueContrast(
-        in app: XCUIApplication,
-        shard: AutomationShard,
-        stateID: String
-    ) throws {
-        let diagnosticStartedAt = ProcessInfo.processInfo.systemUptime
+    private func positionIssueRecheckDueDescriptionForAXText(
+        in app: XCUIApplication
+    ) -> Bool {
+        let descriptionValuePredicate = NSPredicate(
+            format: "label == %@",
+            "Replaced failed power supply"
+        )
         let issueScreens = app.descendants(matching: .any).matching(
             identifier: "s5.1.issue.screen"
         )
-        let issueScrollViews = app.scrollViews.matching(
-            identifier: "s5.1.issue.screen"
+        let issueScrollViews = app.scrollViews.containing(
+            descriptionValuePredicate
         )
         let issueNavigationBars = app.navigationBars.matching(
             identifier: "Recheck due"
         )
         let tabBars = app.tabBars
-        let issueStatuses = app.descendants(matching: .any).matching(
-            identifier: "s5.1.issue.status"
-        )
-        let issueHeaders = app.descendants(matching: .any).matching(
-            identifier: "s5.1.issue.header"
-        )
-        let startRecheckButtons = app.buttons.matching(
-            identifier: "s5.2.issue.start-recheck"
-        )
         let workRecords = app.descendants(matching: .any).matching(
             identifier: "s5.1.issue.work-record"
         )
@@ -7071,179 +7062,431 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             identifier: "s5.1.issue.work-description"
         )
         let descriptionValueTexts = app.staticTexts.matching(
-            NSPredicate(
-                format: "label == %@",
-                "Replaced failed power supply"
-            )
+            descriptionValuePredicate
         )
         let workPhotos = app.images.matching(
             identifier: "s5.1.issue.work-photo"
         )
-        let diagnosticQueries: [(String, XCUIElementQuery)] = [
-            ("issueScreens", issueScreens),
-            ("issueScrollViews", issueScrollViews),
-            ("issueNavigationBars", issueNavigationBars),
-            ("tabBars", tabBars),
-            ("issueStatuses", issueStatuses),
-            ("issueHeaders", issueHeaders),
-            ("startRecheckButtons", startRecheckButtons),
-            ("workRecords", workRecords),
-            ("workDates", workDates),
-            ("workDescriptions", workDescriptions),
-            ("descriptionValueTexts", descriptionValueTexts),
-            ("workPhotos", workPhotos),
-        ]
-        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
-            element in
-            let valueObject: Any
-            if let value = element.value as? String {
-                valueObject = value
-            } else {
-                valueObject = NSNull()
-            }
-            return [
-                "exists": element.exists,
-                "isHittable": element.isHittable,
-                "isEnabled": element.isEnabled,
-                "identifier": element.identifier,
-                "label": element.label,
-                "value": valueObject,
-                "elementTypeRawValue": element.elementType.rawValue,
-                "elementTypeDescription": String(describing: element.elementType),
-                "frame": self.auditFrameObject(element.frame),
-            ]
+        let issueScreen = issueScreens.firstMatch
+        let issueScrollView = issueScrollViews.firstMatch
+        let issueNavigationBar = issueNavigationBars.firstMatch
+        let tabBar = tabBars.firstMatch
+        let workRecord = workRecords.firstMatch
+        let workDate = workDates.firstMatch
+        let workDescription = workDescriptions.firstMatch
+        let descriptionValueText = descriptionValueTexts.firstMatch
+        let workPhoto = workPhotos.firstMatch
+        let isValidFrame: (CGRect) -> Bool = { frame in
+            !frame.isNull
+                && !frame.isEmpty
+                && !frame.isInfinite
+                && frame.origin.x.isFinite
+                && frame.origin.y.isFinite
+                && frame.size.width.isFinite
+                && frame.size.height.isFinite
         }
-        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
-            query in
-            let count = query.count
-            var elements: [[String: Any]] = []
-            for index in 0..<count {
-                elements.append(
-                    diagnosticElementObject(query.element(boundBy: index))
+        let hasExactRoute: () -> Bool = {
+            let screenFrame = issueScreen.frame
+            let scrollFrame = issueScrollView.frame
+            let recordFrame = workRecord.frame
+            let dateFrame = workDate.frame
+            let descriptionFrame = workDescription.frame
+            let valueFrame = descriptionValueText.frame
+            let photoFrame = workPhoto.frame
+            return app.state == .runningForeground
+                && issueScreens.count == 1
+                && issueScrollViews.count == 1
+                && issueNavigationBars.count == 1
+                && tabBars.count == 1
+                && workRecords.count == 1
+                && workDates.count == 1
+                && workDescriptions.count == 1
+                && descriptionValueTexts.count == 1
+                && workPhotos.count == 1
+                && issueScreen.exists
+                && issueScreen.elementType == .scrollView
+                && issueScreen.identifier == "s5.1.issue.screen"
+                && (issueScreen.value as? String) == ""
+                && issueScrollView.exists
+                && issueScrollView.elementType == .scrollView
+                && issueScrollView.identifier == "s5.1.issue.screen"
+                && (issueScrollView.value as? String) == ""
+                && issueNavigationBar.exists
+                && issueNavigationBar.elementType == .navigationBar
+                && issueNavigationBar.identifier == "Recheck due"
+                && (issueNavigationBar.value as? String) == ""
+                && tabBar.exists
+                && tabBar.elementType == .tabBar
+                && tabBar.identifier.isEmpty
+                && tabBar.label == "Tab Bar"
+                && (tabBar.value as? String) == ""
+                && workRecord.exists
+                && workRecord.elementType == .other
+                && workRecord.identifier == "s5.1.issue.work-record"
+                && (workRecord.value as? String) == ""
+                && workDate.exists
+                && workDate.elementType == .staticText
+                && workDate.identifier == "s5.1.issue.work-date"
+                && !workDate.label.isEmpty
+                && (workDate.value as? String) == ""
+                && workDescription.exists
+                && workDescription.elementType == .staticText
+                && workDescription.identifier == "s5.1.issue.work-description"
+                && workDescription.label
+                    == "Short description, Replaced failed power supply"
+                && (workDescription.value as? String) == ""
+                && descriptionValueText.exists
+                && descriptionValueText.elementType == .staticText
+                && descriptionValueText.identifier.isEmpty
+                && descriptionValueText.label == "Replaced failed power supply"
+                && (descriptionValueText.value as? String) == ""
+                && workPhoto.exists
+                && workPhoto.elementType == .image
+                && workPhoto.identifier == "s5.1.issue.work-photo"
+                && workPhoto.label
+                    == "Add one optional photo showing the work performed."
+                && (workPhoto.value as? String) == ""
+                && isValidFrame(app.frame)
+                && isValidFrame(screenFrame)
+                && isValidFrame(scrollFrame)
+                && isValidFrame(issueNavigationBar.frame)
+                && isValidFrame(tabBar.frame)
+                && isValidFrame(recordFrame)
+                && isValidFrame(dateFrame)
+                && isValidFrame(descriptionFrame)
+                && isValidFrame(valueFrame)
+                && isValidFrame(photoFrame)
+                && screenFrame == scrollFrame
+                && recordFrame.contains(dateFrame)
+                && recordFrame.contains(descriptionFrame)
+                && recordFrame.contains(photoFrame)
+                && descriptionFrame.contains(valueFrame)
+                && dateFrame.maxY < descriptionFrame.minY
+                && descriptionFrame.maxY < photoFrame.minY
+        }
+        guard hasExactRoute() else {
+            XCTFail("AX-text issue recheck-due positioning bindings are ambiguous.")
+            return false
+        }
+
+        let verticalInset: CGFloat = 16
+        let receiverInset: CGFloat = 24
+        let minimumGestureDistance: CGFloat = 44
+        var previousDateMinYAfterDrag: CGFloat?
+        var previousDescriptionMinYAfterDrag: CGFloat?
+        var previousValueMinYAfterDrag: CGFloat?
+        var previousPhotoMinYAfterDrag: CGFloat?
+        for _ in 0..<4 {
+            guard hasExactRoute() else {
+                XCTFail("AX-text issue recheck-due positioning route changed.")
+                return false
+            }
+            let applicationFrame = app.frame
+            let screenFrame = issueScreen.frame
+            let scrollFrame = issueScrollView.frame
+            let navigationFrame = issueNavigationBar.frame
+            let tabFrame = tabBar.frame
+            let recordFrame = workRecord.frame
+            let dateFrame = workDate.frame
+            let descriptionFrame = workDescription.frame
+            let valueFrame = descriptionValueText.frame
+            let photoFrame = workPhoto.frame
+            let liveFramesAreValid = isValidFrame(applicationFrame)
+                && isValidFrame(screenFrame)
+                && isValidFrame(scrollFrame)
+                && isValidFrame(navigationFrame)
+                && isValidFrame(tabFrame)
+                && isValidFrame(recordFrame)
+                && isValidFrame(dateFrame)
+                && isValidFrame(descriptionFrame)
+                && isValidFrame(valueFrame)
+                && isValidFrame(photoFrame)
+            var liveScrollFrame = CGRect.null
+            if liveFramesAreValid {
+                liveScrollFrame = scrollFrame.intersection(applicationFrame)
+            }
+            guard liveFramesAreValid,
+                  isValidFrame(liveScrollFrame),
+                  screenFrame == scrollFrame else {
+                XCTFail("AX-text issue recheck-due positioning geometry is invalid.")
+                return false
+            }
+            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)
+            let liveBottom = min(
+                liveScrollFrame.maxY,
+                min(applicationFrame.maxY, tabFrame.minY)
+            )
+            let safeTop = liveTop + verticalInset
+            let safeBottom = liveBottom - verticalInset
+            let receiverTop = liveTop + receiverInset
+            let receiverBottom = liveBottom - receiverInset
+            let receiverLeft = liveScrollFrame.minX + receiverInset
+            let receiverRight = liveScrollFrame.maxX - receiverInset
+            let receiverCapacity = receiverBottom - receiverTop
+            let minimumShift = max(
+                safeTop - dateFrame.minY,
+                max(
+                    safeTop - descriptionFrame.minY,
+                    safeTop - valueFrame.minY
                 )
+            )
+            let maximumShift = min(
+                safeBottom - dateFrame.maxY,
+                min(
+                    safeBottom - descriptionFrame.maxY,
+                    safeBottom - valueFrame.maxY
+                )
+            )
+            let dateIsContained = dateFrame.minY >= safeTop
+                && dateFrame.maxY <= safeBottom
+            let descriptionIsContained = descriptionFrame.minY >= safeTop
+                && descriptionFrame.maxY <= safeBottom
+            let valueIsContained = valueFrame.minY >= safeTop
+                && valueFrame.maxY <= safeBottom
+            let targetCompositionIsSafe = dateIsContained
+                && descriptionIsContained
+                && valueIsContained
+                && workDate.isHittable
+                && workDescription.isHittable
+                && descriptionValueText.isHittable
+            guard liveTop.isFinite,
+                  liveBottom.isFinite,
+                  safeTop.isFinite,
+                  safeBottom.isFinite,
+                  receiverTop.isFinite,
+                  receiverBottom.isFinite,
+                  receiverLeft.isFinite,
+                  receiverRight.isFinite,
+                  receiverCapacity.isFinite,
+                  minimumShift.isFinite,
+                  maximumShift.isFinite,
+                  liveTop <= liveBottom,
+                  safeTop < safeBottom,
+                  receiverTop <= receiverBottom,
+                  receiverLeft <= receiverRight,
+                  receiverCapacity >= minimumGestureDistance,
+                  dateFrame.height <= safeBottom - safeTop,
+                  descriptionFrame.height <= safeBottom - safeTop,
+                  valueFrame.height <= safeBottom - safeTop,
+                  minimumShift <= maximumShift,
+                  targetCompositionIsSafe || maximumShift < 0 else {
+                XCTFail("AX-text issue recheck-due composition has no supported upward interval.")
+                return false
             }
-            return [
-                "count": count,
-                "elements": elements,
-            ]
-        }
-        var diagnosticQueryObjects: [String: Any] = [:]
-        for (name, query) in diagnosticQueries {
-            diagnosticQueryObjects[name] = diagnosticQueryObject(query)
-        }
-        let diagnosticElapsedMilliseconds = Int(
-            (ProcessInfo.processInfo.systemUptime - diagnosticStartedAt) * 1_000
-        )
-        let context: [String: Any] = [
-            "shardID": shard.shardID,
-            "requirementID": shard.requirementID,
-            "deviceProfileID": shard.deviceProfileID,
-            "stateID": stateID,
-            "elapsedMilliseconds": diagnosticElapsedMilliseconds,
-            "applicationState": String(describing: app.state),
-            "applicationStateRawValue": app.state.rawValue,
-            "isRunningForeground": app.state == .runningForeground,
-            "applicationFrame": auditFrameObject(app.frame),
-            "queries": diagnosticQueryObjects,
-        ]
-        printJSONLine(
-            prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_CONTEXT_DIAGNOSTIC",
-            object: context
-        )
+            if targetCompositionIsSafe { break }
 
-        let appScreenshotAttachment = XCTAttachment(
-            screenshot: XCUIScreen.main.screenshot()
-        )
-        appScreenshotAttachment.name =
-            "S10.4 AX-text Issue recheck-due contrast diagnostic app"
-        appScreenshotAttachment.lifetime = .keepAlways
-        add(appScreenshotAttachment)
-
-        let appTreeAttachment = XCTAttachment(string: app.debugDescription)
-        appTreeAttachment.name =
-            "S10.4 AX-text Issue recheck-due contrast diagnostic tree"
-        appTreeAttachment.lifetime = .keepAlways
-        add(appTreeAttachment)
-
-        let contextData = try JSONSerialization.data(
-            withJSONObject: context,
-            options: [.prettyPrinted, .sortedKeys]
-        )
-        let contextAttachment = XCTAttachment(
-            string: String(decoding: contextData, as: UTF8.self)
-        )
-        contextAttachment.name =
-            "S10.4 AX-text Issue recheck-due contrast diagnostic context"
-        contextAttachment.lifetime = .keepAlways
-        add(contextAttachment)
-
-        var observedIssueCount = 0
-        var diagnosticAuditedElements: [XCUIElement] = []
-        try app.performAccessibilityAudit(for: .contrast) { issue in
-            observedIssueCount += 1
-            let auditedElementObject: Any
-            let elementIdentifier: Any
-            let elementLabel: Any
-            let elementType: Any
-            let elementFrame: Any
-            if let auditedElement = issue.element {
-                diagnosticAuditedElements.append(auditedElement)
-                auditedElementObject = diagnosticElementObject(auditedElement)
-                elementIdentifier = auditedElement.identifier
-                elementLabel = auditedElement.label
-                elementType = String(describing: auditedElement.elementType)
-                elementFrame = self.auditFrameObject(auditedElement.frame)
+            let dragDistance: CGFloat
+            if maximumShift >= -receiverCapacity {
+                let recognizedMinimum = max(
+                    minimumShift,
+                    -receiverCapacity
+                )
+                let recognizedMaximum = min(
+                    maximumShift,
+                    -minimumGestureDistance
+                )
+                guard recognizedMinimum <= recognizedMaximum else {
+                    XCTFail("AX-text issue recheck-due direct interval is not recognizable.")
+                    return false
+                }
+                dragDistance = recognizedMinimum
             } else {
-                auditedElementObject = NSNull()
-                elementIdentifier = NSNull()
-                elementLabel = NSNull()
-                elementType = NSNull()
-                elementFrame = NSNull()
+                let stagedDistance = max(
+                    -receiverCapacity,
+                    maximumShift + minimumGestureDistance
+                )
+                guard stagedDistance <= -minimumGestureDistance else {
+                    XCTFail("AX-text issue recheck-due staged remainder is not recognizable.")
+                    return false
+                }
+                dragDistance = stagedDistance
             }
-            self.printJSONLine(
-                prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_ISSUE_DIAGNOSTIC",
-                object: [
-                    "shardID": shard.shardID,
-                    "deviceProfileID": shard.deviceProfileID,
-                    "stateID": stateID,
-                    "ordinal": observedIssueCount,
-                    "auditTypeRawValue": String(issue.auditType.rawValue),
-                    "compactDescription": issue.compactDescription,
-                    "detailedDescription": issue.detailedDescription,
-                    "elementIdentifier": elementIdentifier,
-                    "elementLabel": elementLabel,
-                    "elementType": elementType,
-                    "elementFrame": elementFrame,
-                    "applicationFrame": self.auditFrameObject(app.frame),
-                    "auditedElement": auditedElementObject,
-                ]
+            guard dragDistance.isFinite,
+                  dragDistance < 0,
+                  abs(dragDistance) >= minimumGestureDistance else {
+                XCTFail("AX-text issue recheck-due drag direction is invalid.")
+                return false
+            }
+
+            let receiverFrame = CGRect(
+                x: receiverLeft,
+                y: receiverTop,
+                width: receiverRight - receiverLeft,
+                height: receiverBottom - receiverTop
             )
-            return true
+            let startPoint = CGPoint(x: receiverRight, y: receiverBottom)
+            let endPoint = CGPoint(
+                x: receiverRight,
+                y: receiverBottom + dragDistance
+            )
+            guard startPoint.x.isFinite,
+                  startPoint.y.isFinite,
+                  endPoint.x.isFinite,
+                  endPoint.y.isFinite,
+                  isValidFrame(receiverFrame),
+                  startPoint.x >= receiverFrame.minX,
+                  startPoint.x <= receiverFrame.maxX,
+                  startPoint.y >= receiverFrame.minY,
+                  startPoint.y <= receiverFrame.maxY,
+                  endPoint.x >= receiverFrame.minX,
+                  endPoint.x <= receiverFrame.maxX,
+                  endPoint.y >= receiverFrame.minY,
+                  endPoint.y <= receiverFrame.maxY,
+                  liveScrollFrame.contains(startPoint),
+                  liveScrollFrame.contains(endPoint),
+                  !dateFrame.contains(startPoint),
+                  !dateFrame.contains(endPoint),
+                  !descriptionFrame.contains(startPoint),
+                  !descriptionFrame.contains(endPoint),
+                  !valueFrame.contains(startPoint),
+                  !valueFrame.contains(endPoint),
+                  !photoFrame.contains(startPoint),
+                  !photoFrame.contains(endPoint) else {
+                XCTFail("AX-text issue recheck-due drag receiver is obstructed.")
+                return false
+            }
+            let scrollOrigin = issueScrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStart = scrollOrigin.withOffset(
+                CGVector(
+                    dx: startPoint.x - scrollFrame.minX,
+                    dy: startPoint.y - scrollFrame.minY
+                )
+            )
+            let dragEnd = scrollOrigin.withOffset(
+                CGVector(
+                    dx: endPoint.x - scrollFrame.minX,
+                    dy: endPoint.y - scrollFrame.minY
+                )
+            )
+            let dateBeforeDrag = dateFrame.minY
+            let descriptionBeforeDrag = descriptionFrame.minY
+            let valueBeforeDrag = valueFrame.minY
+            let photoBeforeDrag = photoFrame.minY
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            guard hasExactRoute() else {
+                XCTFail("AX-text issue recheck-due route changed after positioning.")
+                return false
+            }
+            let dateAfterDrag = workDate.frame
+            let descriptionAfterDrag = workDescription.frame
+            let valueAfterDrag = descriptionValueText.frame
+            let photoAfterDrag = workPhoto.frame
+            let movedFramesAreValid = isValidFrame(dateAfterDrag)
+                && isValidFrame(descriptionAfterDrag)
+                && isValidFrame(valueAfterDrag)
+                && isValidFrame(photoAfterDrag)
+            var observedDateShift: CGFloat?
+            var observedDescriptionShift: CGFloat?
+            var observedValueShift: CGFloat?
+            var observedPhotoShift: CGFloat?
+            if movedFramesAreValid {
+                observedDateShift = dateAfterDrag.minY - dateBeforeDrag
+                observedDescriptionShift =
+                    descriptionAfterDrag.minY - descriptionBeforeDrag
+                observedValueShift = valueAfterDrag.minY - valueBeforeDrag
+                observedPhotoShift = photoAfterDrag.minY - photoBeforeDrag
+            }
+            guard let observedDateShift,
+                  let observedDescriptionShift,
+                  let observedValueShift,
+                  let observedPhotoShift,
+                  observedDateShift * dragDistance > 0,
+                  observedDescriptionShift * dragDistance > 0,
+                  observedValueShift * dragDistance > 0,
+                  observedPhotoShift * dragDistance > 0 else {
+                XCTFail("AX-text issue recheck-due gesture made no signed progress.")
+                return false
+            }
+            if let previousDateMinYAfterDrag,
+               let previousDescriptionMinYAfterDrag,
+               let previousValueMinYAfterDrag,
+               let previousPhotoMinYAfterDrag {
+                guard dateAfterDrag.minY < previousDateMinYAfterDrag,
+                      descriptionAfterDrag.minY
+                        < previousDescriptionMinYAfterDrag,
+                      valueAfterDrag.minY < previousValueMinYAfterDrag,
+                      photoAfterDrag.minY < previousPhotoMinYAfterDrag else {
+                    XCTFail("AX-text issue recheck-due positioning reversed direction.")
+                    return false
+                }
+            }
+            previousDateMinYAfterDrag = dateAfterDrag.minY
+            previousDescriptionMinYAfterDrag = descriptionAfterDrag.minY
+            previousValueMinYAfterDrag = valueAfterDrag.minY
+            previousPhotoMinYAfterDrag = photoAfterDrag.minY
         }
 
-        for (index, auditedElement) in diagnosticAuditedElements.enumerated() {
-            let auditedElementAttachment = XCTAttachment(
-                screenshot: auditedElement.screenshot()
-            )
-            auditedElementAttachment.name =
-                "S10.4 AX-text Issue recheck-due contrast diagnostic element "
-                + String(index + 1)
-            auditedElementAttachment.lifetime = .keepAlways
-            add(auditedElementAttachment)
+        guard hasExactRoute() else {
+            XCTFail("AX-text issue recheck-due final route is invalid.")
+            return false
         }
-        printJSONLine(
-            prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_COUNT_DIAGNOSTIC",
-            object: [
-                "shardID": shard.shardID,
-                "deviceProfileID": shard.deviceProfileID,
-                "stateID": stateID,
-                "observedIssueCount": observedIssueCount,
-                "auditedElementCount": diagnosticAuditedElements.count,
-            ]
-        )
-        throw AutomationConfigurationError.invalid(
-            "S10.4 AX-text issue recheck-due contrast diagnostic completed nonaccepting observedIssueCount=\(observedIssueCount)"
-        )
+        let finalApplicationFrame = app.frame
+        let finalScreenFrame = issueScreen.frame
+        let finalScrollFrame = issueScrollView.frame
+        let finalNavigationFrame = issueNavigationBar.frame
+        let finalTabFrame = tabBar.frame
+        let finalRecordFrame = workRecord.frame
+        let finalDateFrame = workDate.frame
+        let finalDescriptionFrame = workDescription.frame
+        let finalValueFrame = descriptionValueText.frame
+        let finalPhotoFrame = workPhoto.frame
+        let finalFramesAreValid = isValidFrame(finalApplicationFrame)
+            && isValidFrame(finalScreenFrame)
+            && isValidFrame(finalScrollFrame)
+            && isValidFrame(finalNavigationFrame)
+            && isValidFrame(finalTabFrame)
+            && isValidFrame(finalRecordFrame)
+            && isValidFrame(finalDateFrame)
+            && isValidFrame(finalDescriptionFrame)
+            && isValidFrame(finalValueFrame)
+            && isValidFrame(finalPhotoFrame)
+            && finalScreenFrame == finalScrollFrame
+        var finalCompositionIsSafe = false
+        if finalFramesAreValid {
+            let finalLiveScrollFrame = finalScrollFrame.intersection(
+                finalApplicationFrame
+            )
+            if isValidFrame(finalLiveScrollFrame) {
+                let finalSafeTop = max(
+                    finalLiveScrollFrame.minY,
+                    finalNavigationFrame.maxY
+                ) + verticalInset
+                let finalSafeBottom = min(
+                    finalLiveScrollFrame.maxY,
+                    min(finalApplicationFrame.maxY, finalTabFrame.minY)
+                ) - verticalInset
+                finalCompositionIsSafe = finalSafeTop.isFinite
+                    && finalSafeBottom.isFinite
+                    && finalSafeTop < finalSafeBottom
+                    && finalRecordFrame.contains(finalDateFrame)
+                    && finalRecordFrame.contains(finalDescriptionFrame)
+                    && finalRecordFrame.contains(finalPhotoFrame)
+                    && finalDescriptionFrame.contains(finalValueFrame)
+                    && finalDateFrame.maxY < finalDescriptionFrame.minY
+                    && finalDescriptionFrame.maxY < finalPhotoFrame.minY
+                    && finalDateFrame.minY >= finalSafeTop
+                    && finalDateFrame.maxY <= finalSafeBottom
+                    && finalDescriptionFrame.minY >= finalSafeTop
+                    && finalDescriptionFrame.maxY <= finalSafeBottom
+                    && finalValueFrame.minY >= finalSafeTop
+                    && finalValueFrame.maxY <= finalSafeBottom
+                    && workDate.isHittable
+                    && workDescription.isHittable
+                    && descriptionValueText.isHittable
+            }
+        }
+        guard finalCompositionIsSafe else {
+            XCTFail("AX-text issue recheck-due final composition is unsafe.")
+            return false
+        }
+        return true
     }
 
     private func isActive(_ signature: ContrastAuditExceptionSignature) -> Bool {

@@ -1327,8 +1327,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 414_857,
-            sha256: "FD6A9D92C62054483B32FADCE78E6EAA09CBFDAF7B71DE1649E6923C9B3FF5FC"
+            byteCount: 426_958,
+            sha256: "019C809C9BE40BC5E6432B7991B604A7E13EFF642898BA08F2C2E3661756792C"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -8017,111 +8017,143 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let captureBaselineStart =
             "    @MainActor\n" +
                 "    private func captureBaseline("
-        let issueRecheckDueDiagnosticStart =
+        let issueRecheckDuePositioningHelperStart =
             "    @MainActor\n" +
-                "    private func diagnoseAXTextIssueRecheckDueContrast(\n" +
-                "        in app: XCUIApplication,\n" +
-                "        shard: AutomationShard,\n" +
-                "        stateID: String\n" +
-                "    ) throws {"
-        let issueRecheckDueDiagnosticEnd =
-            "\n\n    private func isActive("
+                "    private func positionIssueRecheckDueDescriptionForAXText(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) -> Bool {"
+        let issueRecheckDuePositioningHelperEnd =
+            "\n    private func isActive("
         guard let captureBaselineStartRange = uiSource.range(
             of: captureBaselineStart
-        ), let issueRecheckDueDiagnosticStartRange = uiSource.range(
-            of: issueRecheckDueDiagnosticStart,
-            range: captureBaselineStartRange.upperBound..<uiSource.endIndex
-        ), let issueRecheckDueDiagnosticEndRange = uiSource.range(
-            of: issueRecheckDueDiagnosticEnd,
-            range: issueRecheckDueDiagnosticStartRange.upperBound..<uiSource.endIndex
+        ), let issueRecheckDuePositioningHelperStartRange = uiSource.range(
+            of: issueRecheckDuePositioningHelperStart,
+            range: captureBaselineStartRange.upperBound ..< uiSource.endIndex
+        ), let issueRecheckDuePositioningHelperEndRange = uiSource.range(
+            of: issueRecheckDuePositioningHelperEnd,
+            range: issueRecheckDuePositioningHelperStartRange.upperBound ..<
+                uiSource.endIndex
         ) else {
-            XCTFail("Missing the bounded captureBaseline or AX-text issue recheck-due diagnostic source")
+            XCTFail("Missing the bounded captureBaseline or AX-text issue recheck-due positioning source")
             return
         }
+        let restoredCaptureBaselineEnd = uiSource.index(
+            issueRecheckDuePositioningHelperStartRange.lowerBound,
+            offsetBy: -2
+        )
         let restoredCaptureBaselineSource = String(
             uiSource[
-                captureBaselineStartRange.lowerBound..<issueRecheckDueDiagnosticStartRange.lowerBound
+                captureBaselineStartRange.lowerBound ..<
+                    restoredCaptureBaselineEnd
             ]
         )
-        let issueRecheckDueDiagnosticSource = String(
+        let issueRecheckDuePositioningHelperSource = String(
             uiSource[
-                issueRecheckDueDiagnosticStartRange.lowerBound..<issueRecheckDueDiagnosticEndRange.lowerBound
+                issueRecheckDuePositioningHelperStartRange.lowerBound ..<
+                    issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        let captureAndIssueRecheckDueDiagnosticSource = String(
-            uiSource[
-                captureBaselineStartRange.lowerBound..<issueRecheckDueDiagnosticEndRange.lowerBound
-            ]
-        )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_205)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 7_901)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "C5D98C4DA3D5F06ED6E359141F301AEAC6F03829D244F03BC2AE8DF6C5F5D955"
+            "371C419756DF1F86C30BD576938A5089F74616379C790C79089C23A052760CB6"
         )
-        XCTAssertEqual(issueRecheckDueDiagnosticSource.utf8.count, 8_858)
+        XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 20_944)
         XCTAssertEqual(
-            Data(issueRecheckDueDiagnosticSource.utf8).sha256,
-            "E1B5D4434C4FD9E1B345EE03A58EF8A44E4F2C7EED2C706B00617E5E23B2D7AF"
+            Data(issueRecheckDuePositioningHelperSource.utf8).sha256,
+            "1823222BFD8E6717778A235BF85C81D568C6FA6C4534939FAAAA77409678E698"
         )
-        XCTAssertEqual(captureAndIssueRecheckDueDiagnosticSource.utf8.count, 17_063)
-        XCTAssertEqual(
-            Data(captureAndIssueRecheckDueDiagnosticSource.utf8).sha256,
-            "E4F8B1D8A566C2E5F487E1639A72396811C729EDB00EC349EF522FA5AF677A55"
-        )
-
-        let issueRecheckDueDiagnosticGate =
-            #"            if shard.shardID == "s10.4.current.ax-text","# + "\n" +
-                #"               stateID == "state.issue.recheck-due" {"# + "\n" +
-                "                try diagnoseAXTextIssueRecheckDueContrast(\n" +
-                "                    in: app,\n" +
-                "                    shard: shard,\n" +
-                "                    stateID: stateID\n" +
-                "                )\n" +
-                "            }"
         let normalEligibleExceptionsBinding =
             "            let eligibleExceptions = " +
                 "Self.contrastAuditExceptionSignatures.filter {"
         XCTAssertEqual(
             restoredCaptureBaselineSource.components(
-                separatedBy:
-                    "        do {\n" + issueRecheckDueDiagnosticGate + "\n"
-                        + normalEligibleExceptionsBinding
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: "diagnoseAXTextIssueRecheckDueContrast"
-            ).count - 1,
-            2
-        )
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: issueRecheckDueDiagnosticStart
+                separatedBy: "        do {\n" + normalEligibleExceptionsBinding
             ).count - 1,
             1
         )
 
+        let issueRecheckDueRouteStart =
+            #"        let issueScreen = element("s5.1.issue.screen", in: app)"#
+        let issueRecheckDueBaseline =
+            #"        captureBaseline("state.issue.recheck-due", in: app)"#
+        guard let issueRecheckDueRouteStartRange = uiSource.range(
+            of: issueRecheckDueRouteStart
+        ), let issueRecheckDueBaselineRange = uiSource.range(
+            of: issueRecheckDueBaseline,
+            range: issueRecheckDueRouteStartRange.upperBound ..< uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded AX-text issue recheck-due route")
+            return
+        }
+        let issueRecheckDueRouteSource = String(
+            uiSource[
+                issueRecheckDueRouteStartRange.lowerBound ..<
+                    issueRecheckDueBaselineRange.upperBound
+            ]
+        )
+        XCTAssertEqual(issueRecheckDueRouteSource.utf8.count, 705)
+        XCTAssertEqual(
+            Data(issueRecheckDueRouteSource.utf8).sha256,
+            "6135B3366B973F82FDCD665218D502ACDEF0EE8E1739E97F1AD15D81CF5566F1"
+        )
+        let issueRecheckDuePositioningGate =
+            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
+        let issueRecheckDuePositioningGuard =
+            "            guard positionIssueRecheckDueDescriptionForAXText(in: app) else {\n" +
+                "                throw AutomationConfigurationError.invalid(\n" +
+                "                    \"S10.4 AX-text issue recheck-due positioning failed\"\n" +
+                "                )\n" +
+                "            }"
+        let issueRecheckDuePositioningAdjacency =
+            #"        assertLocalizedLabel(dueStatus, equals: "Attention: Recheck due")"# +
+                "\n" +
+                issueRecheckDuePositioningGate + "\n" +
+                issueRecheckDuePositioningGuard + "\n" +
+                "        }\n" +
+                issueRecheckDueBaseline
+        XCTAssertEqual(
+            issueRecheckDueRouteSource.components(
+                separatedBy: issueRecheckDuePositioningAdjacency
+            ).count - 1,
+            1
+        )
+        for routeLock in [
+            "positionIssueRecheckDueDescriptionForAXText(in: app)",
+            "S10.4 AX-text issue recheck-due positioning failed",
+            issueRecheckDueBaseline,
+        ] {
+            XCTAssertEqual(
+                issueRecheckDueRouteSource.components(
+                    separatedBy: routeLock
+                ).count - 1,
+                1,
+                routeLock
+            )
+        }
+
+        let issueRecheckDueDescriptionPredicate =
+            "        let descriptionValuePredicate = NSPredicate(\n" +
+                #"            format: "label == %@","# + "\n" +
+                #"            "Replaced failed power supply""# + "\n" +
+                "        )"
+        XCTAssertEqual(
+            issueRecheckDuePositioningHelperSource.components(
+                separatedBy: issueRecheckDueDescriptionPredicate
+            ).count - 1,
+            1
+        )
         let issueRecheckDueQueryLocks = [
             "        let issueScreens = app.descendants(matching: .any).matching(\n" +
                 #"            identifier: "s5.1.issue.screen""# + "\n" +
                 "        )",
-            "        let issueScrollViews = app.scrollViews.matching(\n" +
-                #"            identifier: "s5.1.issue.screen""# + "\n" +
+            "        let issueScrollViews = app.scrollViews.containing(\n" +
+                "            descriptionValuePredicate\n" +
                 "        )",
             "        let issueNavigationBars = app.navigationBars.matching(\n" +
                 #"            identifier: "Recheck due""# + "\n" +
                 "        )",
             "        let tabBars = app.tabBars",
-            "        let issueStatuses = app.descendants(matching: .any).matching(\n" +
-                #"            identifier: "s5.1.issue.status""# + "\n" +
-                "        )",
-            "        let issueHeaders = app.descendants(matching: .any).matching(\n" +
-                #"            identifier: "s5.1.issue.header""# + "\n" +
-                "        )",
-            "        let startRecheckButtons = app.buttons.matching(\n" +
-                #"            identifier: "s5.2.issue.start-recheck""# + "\n" +
-                "        )",
             "        let workRecords = app.descendants(matching: .any).matching(\n" +
                 #"            identifier: "s5.1.issue.work-record""# + "\n" +
                 "        )",
@@ -8132,359 +8164,551 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"            identifier: "s5.1.issue.work-description""# + "\n" +
                 "        )",
             "        let descriptionValueTexts = app.staticTexts.matching(\n" +
-                "            NSPredicate(\n" +
-                #"                format: "label == %@","# + "\n" +
-                #"                "Replaced failed power supply""# + "\n" +
-                "            )\n" +
+                "            descriptionValuePredicate\n" +
                 "        )",
             "        let workPhotos = app.images.matching(\n" +
                 #"            identifier: "s5.1.issue.work-photo""# + "\n" +
                 "        )",
         ]
-        XCTAssertEqual(issueRecheckDueQueryLocks.count, 12)
+        XCTAssertEqual(issueRecheckDueQueryLocks.count, 9)
         for queryLock in issueRecheckDueQueryLocks {
             XCTAssertEqual(
-                issueRecheckDueDiagnosticSource.components(
+                issueRecheckDuePositioningHelperSource.components(
                     separatedBy: queryLock
                 ).count - 1,
                 1,
                 queryLock
             )
         }
-        let issueRecheckDueQueryTuples = [
-            #"            ("issueScreens", issueScreens),"#,
-            #"            ("issueScrollViews", issueScrollViews),"#,
-            #"            ("issueNavigationBars", issueNavigationBars),"#,
-            #"            ("tabBars", tabBars),"#,
-            #"            ("issueStatuses", issueStatuses),"#,
-            #"            ("issueHeaders", issueHeaders),"#,
-            #"            ("startRecheckButtons", startRecheckButtons),"#,
-            #"            ("workRecords", workRecords),"#,
-            #"            ("workDates", workDates),"#,
-            #"            ("workDescriptions", workDescriptions),"#,
-            #"            ("descriptionValueTexts", descriptionValueTexts),"#,
-            #"            ("workPhotos", workPhotos),"#,
+        let issueRecheckDueBindingLocks = [
+            "        let issueScreen = issueScreens.firstMatch",
+            "        let issueScrollView = issueScrollViews.firstMatch",
+            "        let issueNavigationBar = issueNavigationBars.firstMatch",
+            "        let tabBar = tabBars.firstMatch",
+            "        let workRecord = workRecords.firstMatch",
+            "        let workDate = workDates.firstMatch",
+            "        let workDescription = workDescriptions.firstMatch",
+            "        let descriptionValueText = descriptionValueTexts.firstMatch",
+            "        let workPhoto = workPhotos.firstMatch",
         ]
-        XCTAssertEqual(issueRecheckDueQueryTuples.count, 12)
-        for queryTuple in issueRecheckDueQueryTuples {
+        XCTAssertEqual(issueRecheckDueBindingLocks.count, 9)
+        for bindingLock in issueRecheckDueBindingLocks {
             XCTAssertEqual(
-                issueRecheckDueDiagnosticSource.components(
-                    separatedBy: queryTuple
+                issueRecheckDuePositioningHelperSource.components(
+                    separatedBy: bindingLock
                 ).count - 1,
                 1,
-                queryTuple
+                bindingLock
             )
         }
-        XCTAssertEqual(
-            issueRecheckDueDiagnosticSource.components(
-                separatedBy: "(String, XCUIElementQuery)"
-            ).count - 1,
-            1
-        )
-
-        let issueRecheckDueElementSerializerStart =
-            "        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {"
-        let issueRecheckDueQuerySerializerStart =
-            "        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {"
-        let issueRecheckDueQueryCollectionStart =
-            "        var diagnosticQueryObjects: [String: Any] = [:]"
-        guard let issueRecheckDueElementSerializerStartRange =
-                issueRecheckDueDiagnosticSource.range(
-                    of: issueRecheckDueElementSerializerStart
-                ),
-              let issueRecheckDueQuerySerializerStartRange =
-                issueRecheckDueDiagnosticSource.range(
-                    of: issueRecheckDueQuerySerializerStart,
-                    range: issueRecheckDueElementSerializerStartRange.upperBound..<issueRecheckDueDiagnosticSource.endIndex
-                ),
-              let issueRecheckDueQueryCollectionStartRange =
-                issueRecheckDueDiagnosticSource.range(
-                    of: issueRecheckDueQueryCollectionStart,
-                    range: issueRecheckDueQuerySerializerStartRange.upperBound..<issueRecheckDueDiagnosticSource.endIndex
-                ) else {
-            XCTFail("Missing AX-text issue recheck-due diagnostic serializers")
-            return
+        let issueRecheckDueCardinalityLocks = [
+            "                && issueScreens.count == 1",
+            "                && issueScrollViews.count == 1",
+            "                && issueNavigationBars.count == 1",
+            "                && tabBars.count == 1",
+            "                && workRecords.count == 1",
+            "                && workDates.count == 1",
+            "                && workDescriptions.count == 1",
+            "                && descriptionValueTexts.count == 1",
+            "                && workPhotos.count == 1",
+        ]
+        XCTAssertEqual(issueRecheckDueCardinalityLocks.count, 9)
+        for cardinalityLock in issueRecheckDueCardinalityLocks {
+            XCTAssertEqual(
+                issueRecheckDuePositioningHelperSource.components(
+                    separatedBy: cardinalityLock
+                ).count - 1,
+                1,
+                cardinalityLock
+            )
         }
-        let issueRecheckDueElementSerializerSource = String(
-            issueRecheckDueDiagnosticSource[
-                issueRecheckDueElementSerializerStartRange.lowerBound..<issueRecheckDueQuerySerializerStartRange.lowerBound
-            ]
-        )
-        let issueRecheckDueQuerySerializerSource = String(
-            issueRecheckDueDiagnosticSource[
-                issueRecheckDueQuerySerializerStartRange.lowerBound..<issueRecheckDueQueryCollectionStartRange.lowerBound
-            ]
-        )
-        var issueRecheckDueElementFieldStart =
-            issueRecheckDueElementSerializerSource.startIndex
-        for field in [
-            #"                "exists": element.exists,"#,
-            #"                "isHittable": element.isHittable,"#,
-            #"                "isEnabled": element.isEnabled,"#,
-            #"                "identifier": element.identifier,"#,
-            #"                "label": element.label,"#,
-            #"                "value": valueObject,"#,
-            #"                "elementTypeRawValue": element.elementType.rawValue,"#,
-            #"                "elementTypeDescription": String(describing: element.elementType),"#,
-            #"                "frame": self.auditFrameObject(element.frame),"#,
-        ] {
-            guard let fieldRange = issueRecheckDueElementSerializerSource.range(
-                of: field,
-                range: issueRecheckDueElementFieldStart..<issueRecheckDueElementSerializerSource.endIndex
-            ) else {
-                XCTFail("Missing ordered AX-text issue recheck-due node field: \(field)")
-                return
-            }
-            issueRecheckDueElementFieldStart = fieldRange.upperBound
-        }
-        let issueRecheckDueStringOrNullValue =
-            "            if let value = element.value as? String {\n" +
-                "                valueObject = value\n" +
-                "            } else {\n" +
-                "                valueObject = NSNull()\n" +
-                "            }"
-        XCTAssertEqual(
-            issueRecheckDueElementSerializerSource.components(
-                separatedBy: issueRecheckDueStringOrNullValue
-            ).count - 1,
-            1
-        )
-        for (serializerLock, count) in [
-            ("let count = query.count", 1),
-            ("for index in 0..<count", 1),
-            ("query.element(boundBy: index)", 1),
-            (#"                "count": count,"#, 1),
-            (#"                "elements": elements,"#, 1),
+        for (bindingCountLock, expectedCount) in [
+            (".firstMatch", 9),
+            ("        let hasExactRoute: () -> Bool = {", 1),
+            ("hasExactRoute()", 4),
         ] {
             XCTAssertEqual(
-                issueRecheckDueQuerySerializerSource.components(
-                    separatedBy: serializerLock
+                issueRecheckDuePositioningHelperSource.components(
+                    separatedBy: bindingCountLock
                 ).count - 1,
-                count,
-                serializerLock
+                expectedCount,
+                bindingCountLock
             )
         }
-        let issueRecheckDueQueryCollection =
-            "        var diagnosticQueryObjects: [String: Any] = [:]\n" +
-                "        for (name, query) in diagnosticQueries {\n" +
-                "            diagnosticQueryObjects[name] = diagnosticQueryObject(query)\n" +
+
+        let issueRecheckDueIdentityLocks = [
+            "                && issueScreen.exists",
+            "                && issueScreen.elementType == .scrollView",
+            #"                && issueScreen.identifier == "s5.1.issue.screen""#,
+            "                && issueScrollView.exists",
+            "                && issueScrollView.elementType == .scrollView",
+            #"                && issueScrollView.identifier == "s5.1.issue.screen""#,
+            "                && issueNavigationBar.exists",
+            "                && issueNavigationBar.elementType == .navigationBar",
+            #"                && issueNavigationBar.identifier == "Recheck due""#,
+            "                && tabBar.exists",
+            "                && tabBar.elementType == .tabBar",
+            #"                && tabBar.label == "Tab Bar""#,
+            "                && workRecord.exists",
+            "                && workRecord.elementType == .other",
+            #"                && workRecord.identifier == "s5.1.issue.work-record""#,
+            "                && workDate.exists",
+            "                && workDate.elementType == .staticText",
+            #"                && workDate.identifier == "s5.1.issue.work-date""#,
+            "                && workDescription.exists",
+            "                && workDescription.elementType == .staticText",
+            #"                && workDescription.identifier == "s5.1.issue.work-description""#,
+            #"                    == "Short description, Replaced failed power supply""#,
+            "                && descriptionValueText.exists",
+            "                && descriptionValueText.elementType == .staticText",
+            "                && descriptionValueText.identifier.isEmpty",
+            #"                && descriptionValueText.label == "Replaced failed power supply""#,
+            "                && workPhoto.exists",
+            "                && workPhoto.elementType == .image",
+            #"                && workPhoto.identifier == "s5.1.issue.work-photo""#,
+            #"                    == "Add one optional photo showing the work performed.""#,
+            "                && screenFrame == scrollFrame",
+            "                && recordFrame.contains(dateFrame)",
+            "                && recordFrame.contains(descriptionFrame)",
+            "                && recordFrame.contains(photoFrame)",
+            "                && descriptionFrame.contains(valueFrame)",
+            "                && dateFrame.maxY < descriptionFrame.minY",
+            "                && descriptionFrame.maxY < photoFrame.minY",
+        ]
+        for identityLock in issueRecheckDueIdentityLocks {
+            XCTAssertEqual(
+                issueRecheckDuePositioningHelperSource.components(
+                    separatedBy: identityLock
+                ).count - 1,
+                1,
+                identityLock
+            )
+        }
+
+        let issueRecheckDueFrameValidationLock =
+            "        let isValidFrame: (CGRect) -> Bool = { frame in\n" +
+                "            !frame.isNull\n" +
+                "                && !frame.isEmpty\n" +
+                "                && !frame.isInfinite\n" +
+                "                && frame.origin.x.isFinite\n" +
+                "                && frame.origin.y.isFinite\n" +
+                "                && frame.size.width.isFinite\n" +
+                "                && frame.size.height.isFinite\n" +
                 "        }"
         XCTAssertEqual(
-            issueRecheckDueDiagnosticSource.components(
-                separatedBy: issueRecheckDueQueryCollection
+            issueRecheckDuePositioningHelperSource.components(
+                separatedBy: issueRecheckDueFrameValidationLock
             ).count - 1,
             1
         )
-
-        let issueRecheckDueContextStart =
-            "        let context: [String: Any] = ["
-        let issueRecheckDueContextEnd =
-            "\n        printJSONLine(\n" +
-                #"            prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_CONTEXT_DIAGNOSTIC","#
-        guard let issueRecheckDueContextStartRange =
-                issueRecheckDueDiagnosticSource.range(of: issueRecheckDueContextStart),
-              let issueRecheckDueContextEndRange =
-                issueRecheckDueDiagnosticSource.range(
-                    of: issueRecheckDueContextEnd,
-                    range: issueRecheckDueContextStartRange.upperBound..<issueRecheckDueDiagnosticSource.endIndex
-                ) else {
-            XCTFail("Missing AX-text issue recheck-due diagnostic context")
-            return
-        }
-        let issueRecheckDueContextSource = String(
-            issueRecheckDueDiagnosticSource[
-                issueRecheckDueContextStartRange.lowerBound..<issueRecheckDueContextEndRange.lowerBound
-            ]
-        )
-        var issueRecheckDueContextFieldStart = issueRecheckDueContextSource.startIndex
-        for field in [
-            #"            "shardID": shard.shardID,"#,
-            #"            "requirementID": shard.requirementID,"#,
-            #"            "deviceProfileID": shard.deviceProfileID,"#,
-            #"            "stateID": stateID,"#,
-            #"            "elapsedMilliseconds": diagnosticElapsedMilliseconds,"#,
-            #"            "applicationState": String(describing: app.state),"#,
-            #"            "applicationStateRawValue": app.state.rawValue,"#,
-            #"            "isRunningForeground": app.state == .runningForeground,"#,
-            #"            "applicationFrame": auditFrameObject(app.frame),"#,
-            #"            "queries": diagnosticQueryObjects,"#,
-        ] {
-            guard let fieldRange = issueRecheckDueContextSource.range(
-                of: field,
-                range: issueRecheckDueContextFieldStart..<issueRecheckDueContextSource.endIndex
-            ) else {
-                XCTFail("Missing ordered AX-text issue recheck-due context field: \(field)")
-                return
-            }
-            issueRecheckDueContextFieldStart = fieldRange.upperBound
-        }
-
-        let issueRecheckDueAuditStart = "        var observedIssueCount = 0"
-        let issueRecheckDueAuditEnd =
-            "\n\n        for (index, auditedElement) in diagnosticAuditedElements.enumerated() {"
-        guard let issueRecheckDueAuditStartRange =
-                issueRecheckDueDiagnosticSource.range(of: issueRecheckDueAuditStart),
-              let issueRecheckDueAuditEndRange =
-                issueRecheckDueDiagnosticSource.range(
-                    of: issueRecheckDueAuditEnd,
-                    range: issueRecheckDueAuditStartRange.upperBound..<issueRecheckDueDiagnosticSource.endIndex
-                ) else {
-            XCTFail("Missing AX-text issue recheck-due diagnostic audit callback")
-            return
-        }
-        let issueRecheckDueAuditSource = String(
-            issueRecheckDueDiagnosticSource[
-                issueRecheckDueAuditStartRange.lowerBound..<issueRecheckDueAuditEndRange.lowerBound
-            ]
-        )
-        var issueRecheckDueIssueFieldStart = issueRecheckDueAuditSource.startIndex
-        for field in [
-            #"                    "auditTypeRawValue": String(issue.auditType.rawValue),"#,
-            #"                    "compactDescription": issue.compactDescription,"#,
-            #"                    "detailedDescription": issue.detailedDescription,"#,
-            #"                    "elementIdentifier": elementIdentifier,"#,
-            #"                    "elementLabel": elementLabel,"#,
-            #"                    "elementType": elementType,"#,
-            #"                    "elementFrame": elementFrame,"#,
-            #"                    "applicationFrame": self.auditFrameObject(app.frame),"#,
-        ] {
-            guard let fieldRange = issueRecheckDueAuditSource.range(
-                of: field,
-                range: issueRecheckDueIssueFieldStart..<issueRecheckDueAuditSource.endIndex
-            ) else {
-                XCTFail("Missing ordered AX-text issue recheck-due public field: \(field)")
-                return
-            }
-            issueRecheckDueIssueFieldStart = fieldRange.upperBound
-        }
-        for (auditLock, count) in [
-            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 1),
-            ("observedIssueCount += 1", 1),
-            ("if let auditedElement = issue.element", 1),
-            ("diagnosticAuditedElements.append(auditedElement)", 1),
-            ("auditedElementObject = diagnosticElementObject(auditedElement)", 1),
-            ("elementFrame = self.auditFrameObject(auditedElement.frame)", 1),
-            ("elementFrame = auditFrameObject(auditedElement.frame)", 0),
-            ("return true", 1),
-            ("return false", 0),
-            ("NSNull()", 5),
-        ] {
+        let issueRecheckDueFrameLocks: [(String, Int)] = [
+            ("            let applicationFrame = app.frame", 1),
+            ("            let screenFrame = issueScreen.frame", 2),
+            ("            let scrollFrame = issueScrollView.frame", 2),
+            ("            let navigationFrame = issueNavigationBar.frame", 1),
+            ("            let tabFrame = tabBar.frame", 1),
+            ("            let recordFrame = workRecord.frame", 2),
+            ("            let dateFrame = workDate.frame", 2),
+            ("            let descriptionFrame = workDescription.frame", 2),
+            ("            let valueFrame = descriptionValueText.frame", 2),
+            ("            let photoFrame = workPhoto.frame", 2),
+            ("            let liveFramesAreValid = isValidFrame(applicationFrame)", 1),
+            ("            var liveScrollFrame = CGRect.null", 1),
+            (
+                "            if liveFramesAreValid {\n" +
+                    "                liveScrollFrame = scrollFrame.intersection(applicationFrame)\n" +
+                    "            }",
+                1
+            ),
+            ("            guard liveFramesAreValid,", 1),
+            ("                  isValidFrame(liveScrollFrame),", 1),
+            ("                  screenFrame == scrollFrame else {", 1),
+        ]
+        for (frameLock, expectedCount) in issueRecheckDueFrameLocks {
             XCTAssertEqual(
-                issueRecheckDueAuditSource.components(
-                    separatedBy: auditLock
+                issueRecheckDuePositioningHelperSource.components(
+                    separatedBy: frameLock
                 ).count - 1,
-                count,
-                auditLock
+                expectedCount,
+                frameLock
             )
         }
-
-        for (diagnosticLock, count) in [
-            (#"prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_CONTEXT_DIAGNOSTIC""#, 1),
-            (#"prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_ISSUE_DIAGNOSTIC""#, 1),
-            (#"prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_COUNT_DIAGNOSTIC""#, 1),
-            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 1),
-            ("return true", 1),
-            ("return false", 0),
-            ("NSNull()", 6),
-            ("XCTAttachment(", 4),
-            (".lifetime = .keepAlways", 4),
-            ("add(", 4),
-            ("XCUIScreen.main.screenshot()", 1),
-            ("app.debugDescription", 1),
-            ("JSONSerialization.data(", 1),
-            ("diagnosticAuditedElements.enumerated()", 1),
-            ("auditedElement.screenshot()", 1),
-            (#"            "observedIssueCount": observedIssueCount,"#, 1),
-            (#"            "auditedElementCount": diagnosticAuditedElements.count,"#, 1),
-        ] {
-            XCTAssertEqual(
-                issueRecheckDueDiagnosticSource.components(
-                    separatedBy: diagnosticLock
-                ).count - 1,
-                count,
-                diagnosticLock
-            )
+        guard let issueRecheckDueValidityRange =
+                issueRecheckDuePositioningHelperSource.range(
+                    of: "            let liveFramesAreValid = isValidFrame(applicationFrame)"
+                ),
+              let issueRecheckDueIntersectionRange =
+                issueRecheckDuePositioningHelperSource.range(
+                    of: "                liveScrollFrame = scrollFrame.intersection(applicationFrame)",
+                    range: issueRecheckDueValidityRange.upperBound ..<
+                        issueRecheckDuePositioningHelperSource.endIndex
+                ),
+              let issueRecheckDueArithmeticRange =
+                issueRecheckDuePositioningHelperSource.range(
+                    of: "            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)",
+                    range: issueRecheckDueIntersectionRange.upperBound ..<
+                        issueRecheckDuePositioningHelperSource.endIndex
+                ) else {
+            XCTFail("Missing issue recheck-due frame-validity ordering")
+            return
         }
-        for attachmentName in [
-            #"S10.4 AX-text Issue recheck-due contrast diagnostic app"#,
-            #"S10.4 AX-text Issue recheck-due contrast diagnostic tree"#,
-            #"S10.4 AX-text Issue recheck-due contrast diagnostic context"#,
-            #"S10.4 AX-text Issue recheck-due contrast diagnostic element "#,
-        ] {
+        XCTAssertLessThan(
+            issueRecheckDueValidityRange.lowerBound,
+            issueRecheckDueIntersectionRange.lowerBound
+        )
+        XCTAssertLessThan(
+            issueRecheckDueIntersectionRange.lowerBound,
+            issueRecheckDueArithmeticRange.lowerBound
+        )
+
+        let issueRecheckDueGeometryLocks = [
+            "        let verticalInset: CGFloat = 16",
+            "        let receiverInset: CGFloat = 24",
+            "        let minimumGestureDistance: CGFloat = 44",
+            "        for _ in 0..<4 {",
+            "            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)",
+            "            let liveBottom = min(\n" +
+                "                liveScrollFrame.maxY,\n" +
+                "                min(applicationFrame.maxY, tabFrame.minY)\n" +
+                "            )",
+            "            let safeTop = liveTop + verticalInset",
+            "            let safeBottom = liveBottom - verticalInset",
+            "            let receiverTop = liveTop + receiverInset",
+            "            let receiverBottom = liveBottom - receiverInset",
+            "            let receiverLeft = liveScrollFrame.minX + receiverInset",
+            "            let receiverRight = liveScrollFrame.maxX - receiverInset",
+            "            let receiverCapacity = receiverBottom - receiverTop",
+            "            let minimumShift = max(\n" +
+                "                safeTop - dateFrame.minY,\n" +
+                "                max(\n" +
+                "                    safeTop - descriptionFrame.minY,\n" +
+                "                    safeTop - valueFrame.minY\n" +
+                "                )\n" +
+                "            )",
+            "            let maximumShift = min(\n" +
+                "                safeBottom - dateFrame.maxY,\n" +
+                "                min(\n" +
+                "                    safeBottom - descriptionFrame.maxY,\n" +
+                "                    safeBottom - valueFrame.maxY\n" +
+                "                )\n" +
+                "            )",
+            "                  minimumShift <= maximumShift,",
+            "                  targetCompositionIsSafe || maximumShift < 0 else {",
+            "            if targetCompositionIsSafe { break }",
+            "            if maximumShift >= -receiverCapacity {",
+            "                let recognizedMinimum = max(\n" +
+                "                    minimumShift,\n" +
+                "                    -receiverCapacity\n" +
+                "                )",
+            "                let recognizedMaximum = min(\n" +
+                "                    maximumShift,\n" +
+                "                    -minimumGestureDistance\n" +
+                "                )",
+            "                guard recognizedMinimum <= recognizedMaximum else {",
+            "                dragDistance = recognizedMinimum",
+            "                let stagedDistance = max(\n" +
+                "                    -receiverCapacity,\n" +
+                "                    maximumShift + minimumGestureDistance\n" +
+                "                )",
+            "                guard stagedDistance <= -minimumGestureDistance else {",
+            "                dragDistance = stagedDistance",
+            "                  dragDistance < 0,",
+            "                  abs(dragDistance) >= minimumGestureDistance else {",
+        ]
+        for geometryLock in issueRecheckDueGeometryLocks {
             XCTAssertEqual(
-                issueRecheckDueDiagnosticSource.components(
-                    separatedBy: attachmentName
+                issueRecheckDuePositioningHelperSource.components(
+                    separatedBy: geometryLock
                 ).count - 1,
                 1,
-                attachmentName
+                geometryLock
             )
         }
 
-        let issueRecheckDueDiagnosticOrder = [
-            #"prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_CONTEXT_DIAGNOSTIC""#,
-            "let appScreenshotAttachment = XCTAttachment(",
-            "let appTreeAttachment = XCTAttachment(string: app.debugDescription)",
-            "let contextData = try JSONSerialization.data(",
-            "let contextAttachment = XCTAttachment(",
-            "try app.performAccessibilityAudit(for: .contrast) { issue in",
-            #"prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_ISSUE_DIAGNOSTIC""#,
-            "for (index, auditedElement) in diagnosticAuditedElements.enumerated()",
-            #"prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_COUNT_DIAGNOSTIC""#,
-            "throw AutomationConfigurationError.invalid(",
-            "S10.4 AX-text issue recheck-due contrast diagnostic completed nonaccepting",
+        let issueRecheckDueReceiverLocks = [
+            "            let receiverFrame = CGRect(\n" +
+                "                x: receiverLeft,\n" +
+                "                y: receiverTop,\n" +
+                "                width: receiverRight - receiverLeft,\n" +
+                "                height: receiverBottom - receiverTop\n" +
+                "            )",
+            "            let startPoint = CGPoint(x: receiverRight, y: receiverBottom)",
+            "            let endPoint = CGPoint(\n" +
+                "                x: receiverRight,\n" +
+                "                y: receiverBottom + dragDistance\n" +
+                "            )",
+            "                  startPoint.x >= receiverFrame.minX,",
+            "                  startPoint.x <= receiverFrame.maxX,",
+            "                  startPoint.y >= receiverFrame.minY,",
+            "                  startPoint.y <= receiverFrame.maxY,",
+            "                  endPoint.x >= receiverFrame.minX,",
+            "                  endPoint.x <= receiverFrame.maxX,",
+            "                  endPoint.y >= receiverFrame.minY,",
+            "                  endPoint.y <= receiverFrame.maxY,",
+            "                  liveScrollFrame.contains(startPoint),",
+            "                  liveScrollFrame.contains(endPoint),",
+            "                  !dateFrame.contains(startPoint),",
+            "                  !dateFrame.contains(endPoint),",
+            "                  !descriptionFrame.contains(startPoint),",
+            "                  !descriptionFrame.contains(endPoint),",
+            "                  !valueFrame.contains(startPoint),",
+            "                  !valueFrame.contains(endPoint),",
+            "                  !photoFrame.contains(startPoint),",
+            "                  !photoFrame.contains(endPoint) else {",
+            "            let scrollOrigin = issueScrollView.coordinate(\n" +
+                "                withNormalizedOffset: CGVector(dx: 0, dy: 0)\n" +
+                "            )",
+            "                    dx: startPoint.x - scrollFrame.minX,",
+            "                    dy: startPoint.y - scrollFrame.minY",
+            "                    dx: endPoint.x - scrollFrame.minX,",
+            "                    dy: endPoint.y - scrollFrame.minY",
+            "                forDuration: 0.2,",
+            "                withVelocity: .slow,",
+            "                thenHoldForDuration: 0.2",
         ]
-        var issueRecheckDueDiagnosticOrderStart =
-            issueRecheckDueDiagnosticSource.startIndex
-        for anchor in issueRecheckDueDiagnosticOrder {
-            guard let anchorRange = issueRecheckDueDiagnosticSource.range(
-                of: anchor,
-                range: issueRecheckDueDiagnosticOrderStart..<issueRecheckDueDiagnosticSource.endIndex
-            ) else {
-                XCTFail("Missing ordered AX-text issue recheck-due diagnostic anchor: \(anchor)")
-                return
-            }
-            issueRecheckDueDiagnosticOrderStart = anchorRange.upperBound
+        for receiverLock in issueRecheckDueReceiverLocks {
+            XCTAssertEqual(
+                issueRecheckDuePositioningHelperSource.components(
+                    separatedBy: receiverLock
+                ).count - 1,
+                1,
+                receiverLock
+            )
+        }
+        for (gestureLock, count) in [
+            (".coordinate(", 1),
+            (".press(", 1),
+            ("thenDragTo:", 1),
+            ("forDuration: 0.2", 1),
+            ("withVelocity: .slow", 1),
+            ("thenHoldForDuration: 0.2", 1),
+        ] {
+            XCTAssertEqual(
+                issueRecheckDuePositioningHelperSource.components(
+                    separatedBy: gestureLock
+                ).count - 1,
+                count,
+                gestureLock
+            )
         }
 
-        for prohibitedIssueRecheckDueDiagnosticForm in [
-            "XCTFail(",
-            "XCTAssert",
-            "return false",
+        let issueRecheckDueProgressLocks = [
+            "        var previousDateMinYAfterDrag: CGFloat?",
+            "        var previousDescriptionMinYAfterDrag: CGFloat?",
+            "        var previousValueMinYAfterDrag: CGFloat?",
+            "        var previousPhotoMinYAfterDrag: CGFloat?",
+            "            let dateBeforeDrag = dateFrame.minY",
+            "            let descriptionBeforeDrag = descriptionFrame.minY",
+            "            let valueBeforeDrag = valueFrame.minY",
+            "            let photoBeforeDrag = photoFrame.minY",
+            "            let dateAfterDrag = workDate.frame",
+            "            let descriptionAfterDrag = workDescription.frame",
+            "            let valueAfterDrag = descriptionValueText.frame",
+            "            let photoAfterDrag = workPhoto.frame",
+            "            let movedFramesAreValid = isValidFrame(dateAfterDrag)",
+            "                observedDateShift = dateAfterDrag.minY - dateBeforeDrag",
+            "                observedDescriptionShift =",
+            "                observedValueShift = valueAfterDrag.minY - valueBeforeDrag",
+            "                observedPhotoShift = photoAfterDrag.minY - photoBeforeDrag",
+            "                  observedDateShift * dragDistance > 0,",
+            "                  observedDescriptionShift * dragDistance > 0,",
+            "                  observedValueShift * dragDistance > 0,",
+            "                  observedPhotoShift * dragDistance > 0 else {",
+            "                guard dateAfterDrag.minY < previousDateMinYAfterDrag,",
+            "                      descriptionAfterDrag.minY",
+            "                        < previousDescriptionMinYAfterDrag,",
+            "                      valueAfterDrag.minY < previousValueMinYAfterDrag,",
+            "                      photoAfterDrag.minY < previousPhotoMinYAfterDrag else {",
+            "            previousDateMinYAfterDrag = dateAfterDrag.minY",
+            "            previousDescriptionMinYAfterDrag = descriptionAfterDrag.minY",
+            "            previousValueMinYAfterDrag = valueAfterDrag.minY",
+            "            previousPhotoMinYAfterDrag = photoAfterDrag.minY",
+        ]
+        for progressLock in issueRecheckDueProgressLocks {
+            XCTAssertEqual(
+                issueRecheckDuePositioningHelperSource.components(
+                    separatedBy: progressLock
+                ).count - 1,
+                1,
+                progressLock
+            )
+        }
+
+        let issueRecheckDueFinalLocks = [
+            "        let finalApplicationFrame = app.frame",
+            "        let finalScreenFrame = issueScreen.frame",
+            "        let finalScrollFrame = issueScrollView.frame",
+            "        let finalNavigationFrame = issueNavigationBar.frame",
+            "        let finalTabFrame = tabBar.frame",
+            "        let finalRecordFrame = workRecord.frame",
+            "        let finalDateFrame = workDate.frame",
+            "        let finalDescriptionFrame = workDescription.frame",
+            "        let finalValueFrame = descriptionValueText.frame",
+            "        let finalPhotoFrame = workPhoto.frame",
+            "        let finalFramesAreValid = isValidFrame(finalApplicationFrame)",
+            "            && finalScreenFrame == finalScrollFrame",
+            "        var finalCompositionIsSafe = false",
+            "            let finalLiveScrollFrame = finalScrollFrame.intersection(",
+            "                    && finalRecordFrame.contains(finalDateFrame)",
+            "                    && finalRecordFrame.contains(finalDescriptionFrame)",
+            "                    && finalRecordFrame.contains(finalPhotoFrame)",
+            "                    && finalDescriptionFrame.contains(finalValueFrame)",
+            "                    && finalDateFrame.maxY < finalDescriptionFrame.minY",
+            "                    && finalDescriptionFrame.maxY < finalPhotoFrame.minY",
+            "                    && finalDateFrame.minY >= finalSafeTop",
+            "                    && finalDateFrame.maxY <= finalSafeBottom",
+            "                    && finalDescriptionFrame.minY >= finalSafeTop",
+            "                    && finalDescriptionFrame.maxY <= finalSafeBottom",
+            "                    && finalValueFrame.minY >= finalSafeTop",
+            "                    && finalValueFrame.maxY <= finalSafeBottom",
+            "                    && workDate.isHittable",
+            "                    && workDescription.isHittable",
+            "                    && descriptionValueText.isHittable",
+            "        guard finalCompositionIsSafe else {",
+            "        return true",
+        ]
+        for finalLock in issueRecheckDueFinalLocks {
+            XCTAssertEqual(
+                issueRecheckDuePositioningHelperSource.components(
+                    separatedBy: finalLock
+                ).count - 1,
+                1,
+                finalLock
+            )
+        }
+
+        let issueRecheckDueFailureMessages = [
+            "AX-text issue recheck-due positioning bindings are ambiguous.",
+            "AX-text issue recheck-due positioning route changed.",
+            "AX-text issue recheck-due positioning geometry is invalid.",
+            "AX-text issue recheck-due composition has no supported upward interval.",
+            "AX-text issue recheck-due direct interval is not recognizable.",
+            "AX-text issue recheck-due staged remainder is not recognizable.",
+            "AX-text issue recheck-due drag direction is invalid.",
+            "AX-text issue recheck-due drag receiver is obstructed.",
+            "AX-text issue recheck-due route changed after positioning.",
+            "AX-text issue recheck-due gesture made no signed progress.",
+            "AX-text issue recheck-due positioning reversed direction.",
+            "AX-text issue recheck-due final route is invalid.",
+            "AX-text issue recheck-due final composition is unsafe.",
+        ]
+        var issueRecheckDueFailureSearchStart =
+            issueRecheckDuePositioningHelperSource.startIndex
+        for failureMessage in issueRecheckDueFailureMessages {
+            XCTAssertEqual(
+                issueRecheckDuePositioningHelperSource.components(
+                    separatedBy: failureMessage
+                ).count - 1,
+                1,
+                failureMessage
+            )
+            guard let failureRange =
+                    issueRecheckDuePositioningHelperSource.range(
+                        of: failureMessage,
+                        range: issueRecheckDueFailureSearchStart ..<
+                            issueRecheckDuePositioningHelperSource.endIndex
+                    ) else {
+                XCTFail("Missing ordered issue recheck-due positioning failure")
+                return
+            }
+            issueRecheckDueFailureSearchStart = failureRange.upperBound
+        }
+        XCTAssertEqual(issueRecheckDueFailureMessages.count, 13)
+        for (failureLock, count) in [
+            ("XCTFail(", 13),
+            ("return false", 13),
+            ("return true", 1),
+        ] {
+            XCTAssertEqual(
+                issueRecheckDuePositioningHelperSource.components(
+                    separatedBy: failureLock
+                ).count - 1,
+                count,
+                failureLock
+            )
+        }
+
+        for prohibitedIssueRecheckDuePositioningForm in [
             ".tap(",
             ".swipe",
-            ".coordinate(",
-            ".press(",
-            "thenDragTo:",
             "scroll(",
-            ".typeText(",
             "waitForExistence",
-            "waitForNonExistence",
+            ".typeText(",
             "Thread.sleep",
             "sleep(",
-            ".launch(",
-            ".terminate(",
-            "relaunch",
-            "CGRect(",
-            "captureBaseline(",
-            "eligibleExceptions",
+            "performAccessibilityAudit",
+            "XCTAttachment",
+            "printJSONLine",
+            "NSNull",
+            "diagnostic",
             "ContrastAuditExceptionSignature",
             "contrastAuditExceptionSignatures",
-            "automationAXTreeDigests",
             "automationContrastExceptions",
-            "S10_MIGRATION_STATE",
+            "captureBaseline(",
+            "attachCandidate(",
             #"prefix: "S10_4_AX_STATE""#,
             #"prefix: "S10_4_CONTRAST""#,
             "S10_4_CANDIDATE",
             "S10_4_TASK",
             "S10_4_SHARD_RECEIPT",
             "S10_4_RETENTION",
-            "attachCandidate(",
+            "maximumShift > 0",
+            "minimumShift > 0",
+            "observedDirection",
+            "positionedDirection",
+            "CGRect(x:",
         ] {
             XCTAssertFalse(
-                issueRecheckDueDiagnosticSource.contains(
-                    prohibitedIssueRecheckDueDiagnosticForm
+                issueRecheckDuePositioningHelperSource.contains(
+                    prohibitedIssueRecheckDuePositioningForm
                 ),
-                prohibitedIssueRecheckDueDiagnosticForm
+                prohibitedIssueRecheckDuePositioningForm
+            )
+        }
+        for prohibitedIssueRecheckDueRouteForm in [
+            ".tap(",
+            ".swipe",
+            ".coordinate(",
+            ".press(",
+            "thenDragTo:",
+            "scroll(",
+            "performAccessibilityAudit",
+            "XCTAttachment",
+            "printJSONLine",
+            "NSNull",
+            "diagnostic",
+            "return",
+        ] {
+            XCTAssertFalse(
+                issueRecheckDueRouteSource.contains(
+                    prohibitedIssueRecheckDueRouteForm
+                ),
+                prohibitedIssueRecheckDueRouteForm
+            )
+        }
+
+        for removedIssueRecheckDueDiagnosticForm in [
+            "diagnoseAXTextIssueRecheckDueContrast",
+            "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_",
+            "S10.4 AX-text Issue recheck-due contrast diagnostic",
+            "S10.4 AX-text issue recheck-due contrast diagnostic completed nonaccepting",
+            "diagnosticElementObject",
+            "diagnosticQueryObject",
+            "diagnosticQueryObjects",
+        ] {
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: removedIssueRecheckDueDiagnosticForm
+                ).count - 1,
+                0,
+                removedIssueRecheckDueDiagnosticForm
+            )
+            XCTAssertEqual(
+                restoredCaptureBaselineSource.components(
+                    separatedBy: removedIssueRecheckDueDiagnosticForm
+                ).count - 1,
+                0,
+                removedIssueRecheckDueDiagnosticForm
             )
         }
 
