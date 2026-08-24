@@ -1327,8 +1327,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 434_369,
-            sha256: "F4DEA8AAD19B5DCC806F47F8FA97680D9E19427E9A9783FC65C836A5D059B916"
+            byteCount: 427_388,
+            sha256: "5C5344B362AF129E44D323C6E7BD725845F34D9A93E944B9F8A503A4E334313B"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -8058,10 +8058,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(restoredCaptureBaselineSource.utf8).sha256,
             "371C419756DF1F86C30BD576938A5089F74616379C790C79089C23A052760CB6"
         )
-        XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 28_355)
+        XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 21_374)
         XCTAssertEqual(
             Data(issueRecheckDuePositioningHelperSource.utf8).sha256,
-            "13C8B0B92B2982D9FBF9C00160D4DBA728996486004C1357D00D6452E0118B9A"
+            "8D0D68A554132668012552032DC608E816AE35175F17680507367505259AFA01"
         )
         let normalEligibleExceptionsBinding =
             "            let eligibleExceptions = " +
@@ -8163,6 +8163,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "        let workDescriptions = app.descendants(matching: .any).matching(\n" +
                 #"            identifier: "s5.1.issue.work-description""# + "\n" +
                 "        )",
+            "        let workDescriptionsContainingValue = workDescriptions.containing(\n" +
+                "            descriptionValuePredicate\n" +
+                "        )",
             "        let descriptionValueTexts = app.staticTexts.matching(\n" +
                 "            descriptionValuePredicate\n" +
                 "        )",
@@ -8170,7 +8173,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"            identifier: "s5.1.issue.work-photo""# + "\n" +
                 "        )",
         ]
-        XCTAssertEqual(issueRecheckDueQueryLocks.count, 9)
+        XCTAssertEqual(issueRecheckDueQueryLocks.count, 10)
         for queryLock in issueRecheckDueQueryLocks {
             XCTAssertEqual(
                 issueRecheckDuePositioningHelperSource.components(
@@ -8209,10 +8212,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                && workRecords.count == 1",
             "                && workDates.count == 1",
             "                && workDescriptions.count == 1",
+            "                && workDescriptionsContainingValue.count == 1",
             "                && descriptionValueTexts.count == 1",
             "                && workPhotos.count == 1",
         ]
-        XCTAssertEqual(issueRecheckDueCardinalityLocks.count, 9)
+        XCTAssertEqual(issueRecheckDueCardinalityLocks.count, 10)
         for cardinalityLock in issueRecheckDueCardinalityLocks {
             XCTAssertEqual(
                 issueRecheckDuePositioningHelperSource.components(
@@ -8333,7 +8337,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                && recordFrame.contains(dateFrame)",
             "                && recordFrame.contains(descriptionFrame)",
             "                && recordFrame.contains(photoFrame)",
-            "                && descriptionFrame.contains(valueFrame)",
             "                && dateFrame.maxY < descriptionFrame.minY",
             "                && descriptionFrame.maxY < photoFrame.minY",
         ] {
@@ -8363,7 +8366,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         let issueRecheckDuePreAttemptIdentityLock =
-            "        for diagnosticAttemptIndex in 0..<4 {\n" +
+            "        for _ in 0..<4 {\n" +
                 "            guard hasExactIdentity() else {\n" +
                 "                XCTFail(\"AX-text issue recheck-due positioning route changed.\")\n" +
                 "                return false\n" +
@@ -8375,36 +8378,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let issueRecheckDueLiveBooleanLocks = [
-            "            let applicationFrameIsValid = isValidFrame(applicationFrame)",
-            "            let screenFrameIsValid = isValidFrame(screenFrame)",
-            "            let scrollFrameIsValid = isValidFrame(scrollFrame)",
-            "            let navigationFrameIsValid = isValidFrame(navigationFrame)",
-            "            let tabFrameIsValid = isValidFrame(tabFrame)",
-            "            let recordFrameIsValid = isValidFrame(recordFrame)",
-            "            let dateFrameIsValid = isValidFrame(dateFrame)",
-            "            let descriptionFrameIsValid = isValidFrame(descriptionFrame)",
-            "            let valueFrameIsValid = isValidFrame(valueFrame)",
-            "            let photoFrameIsValid = isValidFrame(photoFrame)",
-            "            let liveScrollFrameIsValid = isValidFrame(liveScrollFrame)",
-            "            let screenEqualsScroll = screenFrame == scrollFrame",
-            "            let recordContainsDate = recordFrame.contains(dateFrame)",
-            "            let recordContainsDescription = recordFrame.contains(descriptionFrame)",
-            "            let recordContainsPhoto = recordFrame.contains(photoFrame)",
-            "            let descriptionContainsValue = descriptionFrame.contains(valueFrame)",
-            "            let dateBeforeDescription = dateFrame.maxY < descriptionFrame.minY",
-            "            let descriptionBeforePhoto = descriptionFrame.maxY < photoFrame.minY",
-        ]
-        XCTAssertEqual(issueRecheckDueLiveBooleanLocks.count, 18)
-        for liveBooleanLock in issueRecheckDueLiveBooleanLocks {
-            XCTAssertEqual(
-                issueRecheckDuePositioningHelperSource.components(
-                    separatedBy: liveBooleanLock
-                ).count - 1,
-                1,
-                liveBooleanLock
-            )
-        }
         let issueRecheckDueFrameLocks: [(String, Int)] = [
             ("            let applicationFrame = app.frame", 1),
             ("            let screenFrame = issueScreen.frame", 2),
@@ -8416,7 +8389,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("            let descriptionFrame = workDescription.frame", 2),
             ("            let valueFrame = descriptionValueText.frame", 2),
             ("            let photoFrame = workPhoto.frame", 2),
-            ("            let liveFramesAreValid = applicationFrameIsValid", 1),
+            ("            let liveFramesAreValid = isValidFrame(applicationFrame)", 1),
             ("            var liveScrollFrame = CGRect.null", 1),
             (
                 "            if liveFramesAreValid {\n" +
@@ -8424,8 +8397,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     "            }",
                 1
             ),
-            ("            guard applicationFrameIsValid,", 1),
-            ("                  liveScrollFrameIsValid,", 1),
+            ("            guard liveFramesAreValid,", 1),
+            ("                  isValidFrame(liveScrollFrame),", 1),
         ]
         for (frameLock, expectedCount) in issueRecheckDueFrameLocks {
             XCTAssertEqual(
@@ -8438,7 +8411,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         guard let issueRecheckDueValidityRange =
                 issueRecheckDuePositioningHelperSource.range(
-                    of: "            let applicationFrameIsValid = isValidFrame(applicationFrame)"
+                    of: "            let liveFramesAreValid = isValidFrame(applicationFrame)"
                 ),
               let issueRecheckDueIntersectionRange =
                 issueRecheckDuePositioningHelperSource.range(
@@ -8463,7 +8436,34 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             issueRecheckDueIntersectionRange.lowerBound,
             issueRecheckDueArithmeticRange.lowerBound
         )
-        let issueRecheckDueRelationNames = [
+        let issueRecheckDueAggregateGuardLock =
+            "            guard liveFramesAreValid,\n" +
+                "                  isValidFrame(liveScrollFrame),\n" +
+                "                  screenFrame == scrollFrame,\n" +
+                "                  recordFrame.contains(dateFrame),\n" +
+                "                  recordFrame.contains(descriptionFrame),\n" +
+                "                  recordFrame.contains(photoFrame),\n" +
+                "                  dateFrame.maxY < descriptionFrame.minY,\n" +
+                "                  descriptionFrame.maxY < photoFrame.minY else {\n" +
+                "                XCTFail(\"AX-text issue recheck-due positioning geometry is invalid.\")\n" +
+                "                return false\n" +
+                "            }"
+        XCTAssertEqual(
+            issueRecheckDuePositioningHelperSource.components(
+                separatedBy: issueRecheckDueAggregateGuardLock
+            ).count - 1,
+            1
+        )
+        for removedIssueRecheckDueDiagnosticOrProxyForm in [
+            "                && descriptionFrame.contains(valueFrame)",
+            "                  descriptionFrame.contains(valueFrame),",
+            "                    && finalDescriptionFrame.contains(finalValueFrame)",
+            "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_LIVE_GEOMETRY_DIAGNOSTIC",
+            "diagnostic",
+            "diagnosticAttemptIndex",
+            "relationResults",
+            "failedRelations",
+            "allRelationsPass",
             "applicationFrameIsValid",
             "screenFrameIsValid",
             "scrollFrameIsValid",
@@ -8482,174 +8482,57 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "descriptionContainsValue",
             "dateBeforeDescription",
             "descriptionBeforePhoto",
-        ]
-        XCTAssertEqual(issueRecheckDueRelationNames.count, 18)
-        var issueRecheckDueRelationSearchStart =
-            issueRecheckDuePositioningHelperSource.startIndex
-        for relationName in issueRecheckDueRelationNames {
-            let relationTuple = "(\"\(relationName)\", \(relationName))"
-            XCTAssertEqual(
-                issueRecheckDuePositioningHelperSource.components(
-                    separatedBy: relationTuple
-                ).count - 1,
-                1,
-                relationName
-            )
-            guard let relationRange =
-                    issueRecheckDuePositioningHelperSource.range(
-                        of: relationTuple,
-                        range: issueRecheckDueRelationSearchStart ..<
-                            issueRecheckDuePositioningHelperSource.endIndex
-                    ) else {
-                XCTFail("Missing ordered issue recheck-due relation: \(relationName)")
-                return
-            }
-            issueRecheckDueRelationSearchStart = relationRange.upperBound
-            XCTAssertEqual(
-                issueRecheckDuePositioningHelperSource.components(
-                    separatedBy: "\"\(relationName)\": \(relationName)"
-                ).count - 1,
-                1,
-                relationName
-            )
-        }
-        let issueRecheckDueDiagnosticStart =
-            "            let failedRelations = relationResults.compactMap { relation in"
-        let issueRecheckDueDiagnosticEnd =
-            "            guard applicationFrameIsValid,"
-        guard let issueRecheckDueDiagnosticStartRange =
-                issueRecheckDuePositioningHelperSource.range(
-                    of: issueRecheckDueDiagnosticStart,
-                    range: issueRecheckDueIntersectionRange.upperBound ..<
-                        issueRecheckDueArithmeticRange.lowerBound
-                ),
-              let issueRecheckDueDiagnosticEndRange =
-                issueRecheckDuePositioningHelperSource.range(
-                    of: issueRecheckDueDiagnosticEnd,
-                    range: issueRecheckDueDiagnosticStartRange.upperBound ..<
-                        issueRecheckDueArithmeticRange.lowerBound
-                ) else {
-            XCTFail("Missing issue recheck-due live geometry diagnostic slice")
-            return
-        }
-        let issueRecheckDueDiagnosticSource = String(
-            issueRecheckDuePositioningHelperSource[
-                issueRecheckDueDiagnosticStartRange.lowerBound ..<
-                    issueRecheckDueDiagnosticEndRange.lowerBound
-            ]
-        )
-        for diagnosticLock in [
-            "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_LIVE_GEOMETRY_DIAGNOSTIC",
-            "                        \"diagnosticAttemptIndex\": diagnosticAttemptIndex",
-            "                        \"completedGestureCount\": diagnosticAttemptIndex",
-            "                        \"identityPassed\": true",
-            "                        \"shardID\": automationShard?.shardID ?? \"\"",
-            "                        \"allRelationsPass\": allRelationsPass",
-            "                        \"failedRelations\": failedRelations",
-            "                        \"frames\": [",
-            "                        \"previousPostGestureMinY\": [",
-            "                printJSONLine(",
-            "                XCTFail(\n" +
-                "                    \"S10.4 AX-text issue recheck-due live geometry diagnostic completed nonaccepting.\"\n" +
-                "                )\n" +
-                "                return false",
-            "                    if value.isFinite { return Double(value) }",
-            "                    return NSNull()",
-            "                    guard let value else { return NSNull() }",
-            "            let failedRelations = relationResults.compactMap { relation in\n" +
-                "                relation.1 ? nil : relation.0\n" +
-                "            }",
-            "            let allRelationsPass = failedRelations.isEmpty",
-            "                            \"date\": optionalFiniteNumber(previousDateMinYAfterDrag)",
-            "                            \"description\": optionalFiniteNumber(\n" +
-                "                                previousDescriptionMinYAfterDrag\n" +
-                "                            )",
-            "                            \"value\": optionalFiniteNumber(previousValueMinYAfterDrag)",
-            "                            \"photo\": optionalFiniteNumber(previousPhotoMinYAfterDrag)",
+            "identityPassed",
+            "completedGestureCount",
+            "previousPostGestureMinY",
+            "finiteNumber",
+            "optionalFiniteNumber",
+            "frameObject",
+            "printJSONLine",
+            "NSNull",
+            "JSONSerialization",
+            "automationShard",
+            "[(String, Bool)]",
+            "compactMap { relation in",
+            #""shardID": automationShard"#,
+            #""frames": ["#,
+            "live geometry diagnostic completed nonaccepting",
         ] {
             XCTAssertEqual(
-                issueRecheckDueDiagnosticSource.components(
-                    separatedBy: diagnosticLock
+                issueRecheckDuePositioningHelperSource.components(
+                    separatedBy: removedIssueRecheckDueDiagnosticOrProxyForm
                 ).count - 1,
-                1,
-                diagnosticLock
+                0,
+                removedIssueRecheckDueDiagnosticOrProxyForm
             )
         }
-        for (frameKey, frameValue) in [
-            ("application", "applicationFrame"),
-            ("screen", "screenFrame"),
-            ("scroll", "scrollFrame"),
-            ("navigation", "navigationFrame"),
-            ("tab", "tabFrame"),
-            ("record", "recordFrame"),
-            ("date", "dateFrame"),
-            ("description", "descriptionFrame"),
-            ("value", "valueFrame"),
-            ("photo", "photoFrame"),
-            ("liveScroll", "liveScrollFrame"),
-        ] {
-            XCTAssertEqual(
-                issueRecheckDueDiagnosticSource.components(
-                    separatedBy: "\"\(frameKey)\": frameObject(\(frameValue))"
-                ).count - 1,
-                1,
-                frameKey
-            )
-        }
-        for prohibitedDiagnosticToken in [
-            ".press(",
-            ".coordinate(",
-            "waitForExistence",
-            "Thread.sleep",
-            "XCTAttachment",
-            ".screenshot()",
-            "performAccessibilityAudit",
-            "eligibleExceptions",
-            "captureBaseline(",
-            #"print("S10_MIGRATION_STATE"#,
-            #"prefix: "S10_4_AX""#,
-            #"prefix: "S10_4_CONTRAST""#,
-            "S10.4 candidate",
+        for prohibitedIssueRecheckDueToleranceOrFallbackForm in [
+            "tolerance",
+            "epsilon",
+            "round(",
+            ".rounded(",
+            ".integral",
+            ".insetBy(",
+            ".frame(width:",
+            ".frame(height:",
+            "fixedFrame",
+            "fixed-frame",
+            "fallback",
+            "CGRect(x:",
         ] {
             XCTAssertFalse(
-                issueRecheckDueDiagnosticSource.contains(prohibitedDiagnosticToken),
-                prohibitedDiagnosticToken
+                issueRecheckDuePositioningHelperSource.contains(
+                    prohibitedIssueRecheckDueToleranceOrFallbackForm
+                ),
+                prohibitedIssueRecheckDueToleranceOrFallbackForm
             )
         }
-        let issueRecheckDueAggregateGuardLock =
-            "            guard applicationFrameIsValid,\n" +
-                "                  screenFrameIsValid,\n" +
-                "                  scrollFrameIsValid,\n" +
-                "                  navigationFrameIsValid,\n" +
-                "                  tabFrameIsValid,\n" +
-                "                  recordFrameIsValid,\n" +
-                "                  dateFrameIsValid,\n" +
-                "                  descriptionFrameIsValid,\n" +
-                "                  valueFrameIsValid,\n" +
-                "                  photoFrameIsValid,\n" +
-                "                  liveScrollFrameIsValid,\n" +
-                "                  screenEqualsScroll,\n" +
-                "                  recordContainsDate,\n" +
-                "                  recordContainsDescription,\n" +
-                "                  recordContainsPhoto,\n" +
-                "                  descriptionContainsValue,\n" +
-                "                  dateBeforeDescription,\n" +
-                "                  descriptionBeforePhoto else {\n" +
-                "                XCTFail(\"AX-text issue recheck-due positioning geometry is invalid.\")\n" +
-                "                return false\n" +
-                "            }"
-        XCTAssertEqual(
-            issueRecheckDuePositioningHelperSource.components(
-                separatedBy: issueRecheckDueAggregateGuardLock
-            ).count - 1,
-            1
-        )
 
         let issueRecheckDueGeometryLocks = [
             "        let verticalInset: CGFloat = 16",
             "        let receiverInset: CGFloat = 24",
             "        let minimumGestureDistance: CGFloat = 44",
-            "        for diagnosticAttemptIndex in 0..<4 {",
+            "        for _ in 0..<4 {",
             "            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)",
             "            let liveBottom = min(\n" +
                 "                liveScrollFrame.maxY,\n" +
@@ -8853,7 +8736,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                    && finalRecordFrame.contains(finalDateFrame)",
             "                    && finalRecordFrame.contains(finalDescriptionFrame)",
             "                    && finalRecordFrame.contains(finalPhotoFrame)",
-            "                    && finalDescriptionFrame.contains(finalValueFrame)",
             "                    && finalDateFrame.maxY < finalDescriptionFrame.minY",
             "                    && finalDescriptionFrame.maxY < finalPhotoFrame.minY",
             "                    && finalDateFrame.minY >= finalSafeTop",
@@ -8881,7 +8763,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let issueRecheckDueFailureMessages = [
             "AX-text issue recheck-due positioning bindings are ambiguous.",
             "AX-text issue recheck-due positioning route changed.",
-            "S10.4 AX-text issue recheck-due live geometry diagnostic completed nonaccepting.",
             "AX-text issue recheck-due positioning geometry is invalid.",
             "AX-text issue recheck-due composition has no supported upward interval.",
             "AX-text issue recheck-due direct interval is not recognizable.",
@@ -8915,10 +8796,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             }
             issueRecheckDueFailureSearchStart = failureRange.upperBound
         }
-        XCTAssertEqual(issueRecheckDueFailureMessages.count, 14)
+        XCTAssertEqual(issueRecheckDueFailureMessages.count, 13)
         for (failureLock, count) in [
-            ("XCTFail(", 14),
-            ("return false", 14),
+            ("XCTFail(", 13),
+            ("return false", 13),
             ("return true", 1),
         ] {
             XCTAssertEqual(
