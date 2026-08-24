@@ -105,15 +105,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             dispatcherPath,
-            byteCount: 47_988,
-            sha256: "783280A0CCC7D679495B76A5076C4F049B04DF9251AE184DF348400390D00482"
+            byteCount: 48_773,
+            sha256: "C3B8D302792803A46BC48BB3F8B08E05248579E29BC31848E4653C15F23640E7"
         )
         let dispatcherSource = try text(dispatcherPath)
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 119_764,
-            sha256: "E3B011AC1E86724599FC75BC5A6AAEC674CDCEEBC53C59FA8E6AE5DDDF7BE426"
+            byteCount: 129_975,
+            sha256: "6C1F45E29AD93332927BEA69025F0094677305C25EB83EBC7E94A2D5484771DB"
         )
         let workflowSource = try text(workflowPath)
         let workerCallHeader =
@@ -123,10 +123,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        description: Runner label supplied by the Phase 10 dispatcher\n" +
                 "        required: true\n" +
                 "        type: string\n" +
-                "      run_ui_smoke:"
-        let predecessorDispatchHeader =
-            "  workflow_dispatch:\n" +
-                "    inputs:\n" +
+                "      runner_provider:\n" +
+                "        description: Closed runner provider supplied by the Phase 10 dispatcher\n" +
+                "        required: true\n" +
+                "        type: string\n" +
                 "      run_ui_smoke:"
         let dynamicRunnerLine = #"    runs-on: ${{ inputs.runner_label }}"#
         let warpBuildRunnerLine = "    runs-on: warp-macos-26-arm64-6x"
@@ -134,22 +134,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(workflowSource.components(separatedBy: dynamicRunnerLine).count - 1, 1)
         XCTAssertEqual(workflowSource.components(separatedBy: warpBuildRunnerLine).count - 1, 0)
         XCTAssertEqual(workflowSource.components(separatedBy: "    runs-on: macos-26").count - 1, 0)
-        let predecessorWorkflowSource = workflowSource
-            .replacingOccurrences(
-                of: workerCallHeader,
-                with: predecessorDispatchHeader
-            )
-            .replacingOccurrences(
-                of: dynamicRunnerLine,
-                with: warpBuildRunnerLine
-            )
-        XCTAssertNotEqual(predecessorWorkflowSource, workflowSource)
-        let predecessorWorkflowData = Data(predecessorWorkflowSource.utf8)
-        XCTAssertEqual(predecessorWorkflowData.count, 119_630)
-        XCTAssertEqual(
-            predecessorWorkflowData.sha256,
-            "363E3AC6F8FA251C0B3749DF5089CBB282C7319E176651BB1D8BDE6A4D97E4B4"
-        )
+        let predecessorWorkerByteCount = 119_764
+        let predecessorWorkerSHA256 =
+            "E3B011AC1E86724599FC75BC5A6AAEC674CDCEEBC53C59FA8E6AE5DDDF7BE426"
+        XCTAssertGreaterThan(workflowSource.utf8.count, predecessorWorkerByteCount)
+        XCTAssertNotEqual(Data(workflowSource.utf8).sha256, predecessorWorkerSHA256)
         let dispatcherShardOptions =
             "        options:\n" +
                 "          - none\n" +
@@ -266,10 +255,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         XCTAssertEqual(executionLaneSource.components(separatedBy: "        type: choice").count - 1, 1)
-        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 2)
+        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 3)
         XCTAssertEqual(
             executionLaneSource.components(
                 separatedBy: "          - github-xcode-26.6-acceptance"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            executionLaneSource.components(
+                separatedBy: "          - getmac-xcode-26.6-development-only"
             ).count - 1,
             1
         )
@@ -279,6 +274,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        XCTAssertFalse(executionLaneSource.contains("default: getmac-xcode-26.6-development-only"))
         XCTAssertFalse(executionLaneSource.contains("default: warp-xcode-26.5-development-only"))
         XCTAssertFalse(executionLaneSource.contains("type: string"))
 
@@ -292,6 +288,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let jobsMarker = "jobs:\n"
         let githubJobMarker = "  github-shard:\n"
+        let getMacJobMarker = "  getmac-shard:\n"
         let warpJobMarker = "  warpbuild-shard:\n"
         guard
             let jobsRange = dispatcherSource.range(of: jobsMarker),
@@ -299,17 +296,24 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 of: githubJobMarker,
                 range: jobsRange.upperBound..<dispatcherSource.endIndex
             ),
+            let getMacJobRange = dispatcherSource.range(
+                of: getMacJobMarker,
+                range: githubJobRange.upperBound..<dispatcherSource.endIndex
+            ),
             let warpJobRange = dispatcherSource.range(
                 of: warpJobMarker,
-                range: githubJobRange.upperBound..<dispatcherSource.endIndex
+                range: getMacJobRange.upperBound..<dispatcherSource.endIndex
             )
         else {
-            XCTFail("The dispatcher must contain the exact two lane jobs")
+            XCTFail("The dispatcher must contain the exact three provider-lane jobs")
             return
         }
         let jobsSource = String(dispatcherSource[jobsRange.upperBound...])
         let githubJobSource = String(
-            dispatcherSource[githubJobRange.lowerBound..<warpJobRange.lowerBound]
+            dispatcherSource[githubJobRange.lowerBound..<getMacJobRange.lowerBound]
+        )
+        let getMacJobSource = String(
+            dispatcherSource[getMacJobRange.lowerBound..<warpJobRange.lowerBound]
         )
         let warpJobSource = String(dispatcherSource[warpJobRange.lowerBound...])
         let jobHeaderExpression = try NSRegularExpression(
@@ -320,34 +324,68 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 in: jobsSource,
                 range: NSRange(location: 0, length: jobsSource.utf16.count)
             ),
-            2
+            3
         )
 
         let githubLaneGate =
             #"    if: ${{ inputs.execution_lane == 'github-xcode-26.6-acceptance' }}"#
+        let getMacLaneGate =
+            #"    if: ${{ inputs.execution_lane == 'getmac-xcode-26.6-development-only' }}"#
         let warpLaneGate =
             #"    if: ${{ inputs.execution_lane == 'warp-xcode-26.5-development-only' }}"#
         XCTAssertEqual(githubJobSource.components(separatedBy: githubLaneGate).count - 1, 1)
+        XCTAssertEqual(getMacJobSource.components(separatedBy: getMacLaneGate).count - 1, 1)
         XCTAssertEqual(warpJobSource.components(separatedBy: warpLaneGate).count - 1, 1)
+        XCTAssertEqual(
+            getMacJobSource.components(
+                separatedBy: #"    name: GetMac Xcode 26.6 development-only · ${{ inputs.s10_4_shard_id }}"#
+            ).count - 1,
+            1
+        )
+        XCTAssertFalse(githubJobSource.contains("getmac-xcode-26.6-development-only"))
         XCTAssertFalse(githubJobSource.contains("warp-xcode-26.5-development-only"))
+        XCTAssertFalse(getMacJobSource.contains("github-xcode-26.6-acceptance"))
+        XCTAssertFalse(getMacJobSource.contains("warp-xcode-26.5-development-only"))
         XCTAssertFalse(warpJobSource.contains("github-xcode-26.6-acceptance"))
+        XCTAssertFalse(warpJobSource.contains("getmac-xcode-26.6-development-only"))
         XCTAssertEqual(
             dispatcherSource.components(
+                separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml"
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            githubJobSource.components(
                 separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml"
             ).count - 1,
             1
         )
         XCTAssertEqual(
-            githubJobSource.components(
+            getMacJobSource.components(
                 separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml"
             ).count - 1,
             1
         )
         XCTAssertFalse(warpJobSource.contains("uses: ./.github/workflows/ios-ci-worker.yml"))
         XCTAssertEqual(githubJobSource.components(separatedBy: "      runner_label: macos-26").count - 1, 1)
+        XCTAssertEqual(githubJobSource.components(separatedBy: "      runner_provider: github").count - 1, 1)
         XCTAssertEqual(
             githubJobSource.components(
                 separatedBy: #"      run_ui_smoke: ${{ inputs.run_ui_smoke }}"#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(getMacJobSource.components(separatedBy: "      runner_label: getmac-tahoe").count - 1, 1)
+        XCTAssertEqual(getMacJobSource.components(separatedBy: "      runner_provider: getmac").count - 1, 1)
+        XCTAssertEqual(
+            getMacJobSource.components(
+                separatedBy: #"      run_ui_smoke: ${{ inputs.run_ui_smoke }}"#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            getMacJobSource.components(
+                separatedBy: #"      s10_4_shard_id: ${{ inputs.s10_4_shard_id }}"#
             ).count - 1,
             1
         )
@@ -365,7 +403,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(warpJobSource.components(separatedBy: "    timeout-minutes: 90").count - 1, 1)
         XCTAssertFalse(dispatcherSource.contains("      runner_label: warp-macos-26-arm64-6x"))
+        XCTAssertFalse(dispatcherSource.contains("getmac-macos"))
+        XCTAssertFalse(dispatcherSource.contains("getmac-latest"))
         XCTAssertFalse(dispatcherSource.contains("inputs.runner_label"))
+        XCTAssertFalse(dispatcherSource.contains("inputs.runner_provider"))
         XCTAssertFalse(dispatcherSource.contains("fromJSON("))
         XCTAssertFalse(dispatcherSource.contains("contains("))
         XCTAssertFalse(dispatcherSource.contains("          - all"))
@@ -390,6 +431,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             workerEnvironmentSource.components(
+                separatedBy: #"      CI_RUNNER_LABEL: ${{ inputs.runner_label }}"#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workerEnvironmentSource.components(
+                separatedBy: #"      CI_RUNNER_PROVIDER: ${{ inputs.runner_provider }}"#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workerEnvironmentSource.components(
                 separatedBy: "/Applications/Xcode_26.6.app/Contents/Developer"
             ).count - 1,
             1
@@ -406,22 +459,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let expectedWarpEnvironmentSource = workerEnvironmentSource
-            .replacingOccurrences(
-                of: "/Applications/Xcode_26.6.app/Contents/Developer",
-                with: "/Applications/Xcode_26.5.app/Contents/Developer"
-            )
-            .replacingOccurrences(
-                of: #"      EXPECTED_XCODE_VERSION: "Xcode 26.6""#,
-                with: #"      EXPECTED_XCODE_VERSION: "Xcode 26.5""#
-            )
-            .replacingOccurrences(
-                of: #"      EXPECTED_XCODE_BUILD: "Build version 17F113""#,
-                with: #"      EXPECTED_XCODE_BUILD: "Build version 17F42""#
-            )
-        XCTAssertNotEqual(expectedWarpEnvironmentSource, workerEnvironmentSource)
         XCTAssertEqual(
-            warpJobSource.components(separatedBy: expectedWarpEnvironmentSource).count - 1,
+            warpJobSource.components(
+                separatedBy: "      DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            warpJobSource.components(
+                separatedBy: #"      EXPECTED_XCODE_VERSION: "Xcode 26.5""#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            warpJobSource.components(
+                separatedBy: #"      EXPECTED_XCODE_BUILD: "Build version 17F42""#
+            ).count - 1,
             1
         )
         XCTAssertFalse(warpJobSource.contains("/Applications/Xcode_26.6.app/Contents/Developer"))
@@ -431,6 +484,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(workflowSource.contains(#"EXPECTED_XCODE_VERSION: "Xcode 26.5""#))
         XCTAssertFalse(workflowSource.contains(#"EXPECTED_XCODE_BUILD: "Build version 17F42""#))
 
+        let warpScopeStartMarker =
+            "      - name: Enforce WarpBuild current-profile development scope\n"
         let executionStartMarker = "      - name: Prepare evidence directory\n"
         let workerExecutionEndMarker = "      - name: Retain S10.4 shard evidence\n"
         let warpExecutionEndMarker = "      - name: Record WarpBuild development-only lane\n"
@@ -440,25 +495,50 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 of: workerExecutionEndMarker,
                 range: workerExecutionStart.upperBound..<workflowSource.endIndex
             ),
+            let warpScopeStart = warpJobSource.range(of: warpScopeStartMarker),
             let warpExecutionStart = warpJobSource.range(of: executionStartMarker),
             let warpExecutionEnd = warpJobSource.range(
                 of: warpExecutionEndMarker,
                 range: warpExecutionStart.upperBound..<warpJobSource.endIndex
             )
         else {
-            XCTFail("The GitHub worker and Warp execution slices are not exactly bounded")
+            XCTFail("The reusable worker and Warp execution slices are not exactly bounded")
             return
         }
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
+        let warpScopeSource = String(
+            warpJobSource[warpScopeStart.lowerBound..<warpExecutionStart.lowerBound]
+        )
         let warpExecutionSource = String(
             warpJobSource[warpExecutionStart.lowerBound..<warpExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource, warpExecutionSource)
-        XCTAssertEqual(workerExecutionSource.utf8.count, 36_775)
+        XCTAssertEqual(warpScopeSource.utf8.count, 324)
+        XCTAssertEqual(
+            Data(warpScopeSource.utf8).sha256,
+            "EC21360D4B86F961C6D4AAAA016F4947713BC52DF177A8281372BAE12DDC3821"
+        )
+        XCTAssertEqual(
+            warpScopeSource.components(
+                separatedBy: #"DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}"#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            warpScopeSource.components(separatedBy: "            s10.4.current.*) ;;").count - 1,
+            1
+        )
+        XCTAssertFalse(warpScopeSource.contains("s10.4.minimum."))
+        XCTAssertNotEqual(workerExecutionSource, warpExecutionSource)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 40_025)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
+            "47CF2AF4092925F00C25FC7C1E064FF95481166B8658BA67C3DED58C8F9EFAE9"
+        )
+        XCTAssertEqual(warpExecutionSource.utf8.count, 36_775)
+        XCTAssertEqual(
+            Data(warpExecutionSource.utf8).sha256,
             "7653353DC11C8C0E4382B88E88CDACA5DD87177D537E333B2AEC844703CFB68C"
         )
         XCTAssertEqual(
@@ -470,6 +550,73 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(
             warpExecutionSource.components(separatedBy: "bash Scripts/ui-smoke.sh").count - 1,
             1
+        )
+
+        let exactProviderPolicyFragments = [
+            "            github:macos-26 | getmac:getmac-tahoe) ;;",
+            "            github:macos-26)",
+            "            getmac:getmac-tahoe)",
+            #"test "$DEVELOPER_DIR" = "/Applications/Xcode_26.6.app/Contents/Developer""#,
+            #"test "$RUNNER_ARCH" = "ARM64""#,
+            #"test "$(uname -m)" = "arm64""#,
+            #"test "$(sw_vers -productVersion)" = "26.5.2""#,
+            #"resolved_developer_dir="$(env -u DEVELOPER_DIR xcode-select -p)""#,
+            #"case "$resolved_developer_dir" in /*/Contents/Developer) ;; *) exit 1 ;; esac"#,
+            #"printf 'DEVELOPER_DIR=%s\n' "$DEVELOPER_DIR" >> "$GITHUB_ENV""#,
+            #"| tee "$CI_ARTIFACT_DIR/runner-provider.txt""#,
+        ]
+        for fragment in exactProviderPolicyFragments {
+            XCTAssertEqual(workflowSource.components(separatedBy: fragment).count - 1, 1, fragment)
+        }
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: #"case "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" in"#
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: #"test -s "$CI_ARTIFACT_DIR/runner-provider.txt""#
+            ).count - 1,
+            1
+        )
+        XCTAssertFalse(workflowSource.contains("getmac-latest"))
+        XCTAssertFalse(workflowSource.contains("getmac-macos"))
+
+        let exactRuntimeOverlayFragments = [
+            #"CI_S10_4_EFFECTIVE_PROVISION_RUNTIME="$CI_S10_4_PROVISION_RUNTIME""#,
+            #"CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION="$CI_S10_4_RUNTIME_DOWNLOAD_VERSION""#,
+            #"if test "$CI_RUNNER_PROVIDER" = "getmac"; then"#,
+            "              CI_S10_4_EFFECTIVE_PROVISION_RUNTIME=true",
+            "                iphone-17-ios-26.2-current)",
+            #"test "$CI_S10_4_PROVISION_RUNTIME" = "false""#,
+            #"test -z "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION""#,
+            "                  CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION=26.2",
+            "                iphone-se-3-ios-18.0-minimum)",
+            #"test "$CI_S10_4_PROVISION_RUNTIME" = "true""#,
+            #"test "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" = "18.0""#,
+            "                  CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION=18.0",
+            #""CI_S10_4_PROVISION_RUNTIME=$CI_S10_4_PROVISION_RUNTIME" \"#,
+            #""CI_S10_4_RUNTIME_DOWNLOAD_VERSION=$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" \"#,
+            #""CI_S10_4_EFFECTIVE_PROVISION_RUNTIME=$CI_S10_4_EFFECTIVE_PROVISION_RUNTIME" \"#,
+            #""CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION=$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" \"#,
+            #"| tee "$CI_ARTIFACT_DIR/simulator-runtime-policy.txt""#,
+            #"case "$SIMULATOR_RUNTIME:$SIMULATOR_RUNTIME_BUILD:$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" in"#,
+            #""iOS 18.0:22A3351:18.0" | "iOS 26.2:23C54:26.2") ;;"#,
+            #"-buildVersion "$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" \"#,
+            #"test -s "$CI_ARTIFACT_DIR/simulator-runtime-policy.txt""#,
+        ]
+        for fragment in exactRuntimeOverlayFragments {
+            XCTAssertEqual(workflowSource.components(separatedBy: fragment).count - 1, 1, fragment)
+        }
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: #"test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = "true"; then"#
+            ).count - 1,
+            2
+        )
+        XCTAssertFalse(
+            workflowSource.contains(#"xcodebuild -downloadPlatform iOS -buildVersion 26.2"#)
         )
 
         let forbiddenWarpAcceptanceFragments = [
@@ -684,6 +831,189 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             return
         }
         XCTAssertLessThan(forcedRedMessageRange.lowerBound, forcedRedExitRange.lowerBound)
+
+        let getMacRecordMarker = "      - name: Record GetMac development-only lane\n"
+        let workerHashMarker = "      - name: Hash collected evidence\n"
+        let workerUploadMarker = "      - name: Upload build evidence\n"
+        let getMacFailMarker = "      - name: Fail closed after GetMac development-only evidence\n"
+        guard
+            let getMacRecordRange = workflowSource.range(of: getMacRecordMarker),
+            let workerHashRange = workflowSource.range(
+                of: workerHashMarker,
+                range: getMacRecordRange.upperBound..<workflowSource.endIndex
+            ),
+            let workerUploadRange = workflowSource.range(
+                of: workerUploadMarker,
+                range: workerHashRange.upperBound..<workflowSource.endIndex
+            ),
+            let getMacFailRange = workflowSource.range(
+                of: getMacFailMarker,
+                range: workerUploadRange.upperBound..<workflowSource.endIndex
+            )
+        else {
+            XCTFail("The GetMac record, hash, upload, and forced-red steps are missing or out of order")
+            return
+        }
+        let getMacRecordSource = String(
+            workflowSource[getMacRecordRange.lowerBound..<workerHashRange.lowerBound]
+        )
+        let getMacHashAndBudgetSource = String(
+            workflowSource[workerHashRange.lowerBound..<workerUploadRange.lowerBound]
+        )
+        let getMacUploadSource = String(
+            workflowSource[workerUploadRange.lowerBound..<getMacFailRange.lowerBound]
+        )
+        let getMacFailSource = String(workflowSource[getMacFailRange.lowerBound...])
+        let getMacAlwaysCondition = #"        if: ${{ always() && inputs.runner_provider == 'getmac' }}"#
+        XCTAssertEqual(
+            getMacRecordSource.components(separatedBy: getMacAlwaysCondition).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            getMacFailSource.components(separatedBy: getMacAlwaysCondition).count - 1,
+            1
+        )
+        XCTAssertFalse(getMacRecordSource.contains("continue-on-error"))
+        XCTAssertFalse(getMacFailSource.contains("continue-on-error"))
+
+        let getMacDevelopmentLaneKeys = [
+            "schemaVersion",
+            "laneID",
+            "provider",
+            "runnerLabel",
+            "runnerName",
+            "runnerArchitecture",
+            "runnerImageOS",
+            "runnerImageVersion",
+            "runnerImageArchitecture",
+            "resolvedDeveloperDirectory",
+            "repository",
+            "ref",
+            "headSHA",
+            "runID",
+            "runAttempt",
+            "shardID",
+            "expectedXcodeVersion",
+            "expectedXcodeBuild",
+            "simulatorRuntime",
+            "simulatorRuntimeBuild",
+            "priorJobStatus",
+            "rawEvidenceOnly",
+            "finalAcceptanceEligible",
+        ]
+        XCTAssertEqual(getMacDevelopmentLaneKeys.count, 23)
+        XCTAssertEqual(Set(getMacDevelopmentLaneKeys).count, 23)
+        for key in getMacDevelopmentLaneKeys {
+            XCTAssertEqual(
+                getMacRecordSource.components(separatedBy: "\(key):").count - 1,
+                1,
+                key
+            )
+            XCTAssertEqual(
+                getMacRecordSource.components(separatedBy: "\"\(key)\"").count - 1,
+                1,
+                key
+            )
+        }
+        let getMacRecordBindings = [
+            #"GETMAC_DISPATCH_SHARD_ID: ${{ inputs.s10_4_shard_id }}"#,
+            #"GETMAC_PRIOR_JOB_STATUS: ${{ job.status }}"#,
+            #"GETMAC_RUNNER_NAME: ${{ runner.name }}"#,
+            #"GETMAC_RUNNER_ARCHITECTURE: ${{ runner.arch }}"#,
+            #"runner_image_os="$(sw_vers -productName)""#,
+            #"runner_image_version="$(sw_vers -productVersion)""#,
+            #"runner_image_architecture="$(uname -m)""#,
+            #"record_shard_id="${CI_S10_4_SHARD_ID:-$GETMAC_DISPATCH_SHARD_ID}""#,
+            #"test -n "$runner_image_os""#,
+            #"test -n "$runner_image_version""#,
+            #"test -n "$runner_image_architecture""#,
+            #"test "$record_shard_id" = "$GETMAC_DISPATCH_SHARD_ID""#,
+            #"--arg runnerImageOS "$runner_image_os" \"#,
+            #"--arg runnerImageVersion "$runner_image_version" \"#,
+            #"--arg runnerImageArchitecture "$runner_image_architecture" \"#,
+            #"--arg shardID "$record_shard_id" \"#,
+            #"--arg expectedXcodeVersion "$EXPECTED_XCODE_VERSION" \"#,
+            #"--arg expectedXcodeBuild "$EXPECTED_XCODE_BUILD" \"#,
+            #"--arg simulatorRuntime "${SIMULATOR_RUNTIME:-}" \"#,
+            #"--arg simulatorRuntimeBuild "${SIMULATOR_RUNTIME_BUILD:-}" \"#,
+            #".shardID == env.GETMAC_DISPATCH_SHARD_ID"#,
+        ]
+        for binding in getMacRecordBindings {
+            XCTAssertEqual(getMacRecordSource.components(separatedBy: binding).count - 1, 1, binding)
+        }
+        let getMacRecordValues = [
+            #"--arg laneID "getmac-xcode-26.6-development-only" \"#,
+            #"--arg provider "GetMac" \"#,
+            #".laneID == "getmac-xcode-26.6-development-only""#,
+            #".provider == "GetMac""#,
+            #".runnerLabel == "getmac-tahoe""#,
+            #".runnerArchitecture == "ARM64""#,
+            #".runnerImageOS == "macOS""#,
+            #".runnerImageVersion == "26.5.2""#,
+            #".runnerImageArchitecture == "arm64""#,
+            #"type == "string" and test("^/.+/Contents/Developer$")"#,
+            #".expectedXcodeVersion == "Xcode 26.6""#,
+            #".expectedXcodeBuild == "Build version 17F113""#,
+            #"(.shardID | startswith("s10.4.current."))"#,
+            #".simulatorRuntime == "iOS 26.2""#,
+            #".simulatorRuntimeBuild == "23C54""#,
+            #"(.shardID | startswith("s10.4.minimum."))"#,
+            #".simulatorRuntime == "iOS 18.0""#,
+            #".simulatorRuntimeBuild == "22A3351""#,
+            #".priorJobStatus == env.GETMAC_PRIOR_JOB_STATUS"#,
+            #".priorJobStatus == "success""#,
+            #".priorJobStatus == "failure""#,
+            #".priorJobStatus == "cancelled""#,
+            "rawEvidenceOnly: true",
+            "finalAcceptanceEligible: false",
+            ".rawEvidenceOnly == true",
+            ".finalAcceptanceEligible == false",
+        ]
+        for fragment in getMacRecordValues {
+            XCTAssertEqual(getMacRecordSource.components(separatedBy: fragment).count - 1, 1, fragment)
+        }
+        XCTAssertEqual(
+            getMacRecordSource.components(separatedBy: "getmac-development-only-lane.json").count - 1,
+            2
+        )
+        XCTAssertEqual(
+            getMacHashAndBudgetSource.components(
+                separatedBy: #"find . -type f -print | LC_ALL=C sort | while IFS= read -r file; do"#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            getMacHashAndBudgetSource.components(separatedBy: "shasum -a 256 -c SHA256SUMS.txt").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            getMacUploadSource.components(
+                separatedBy: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            getMacUploadSource.components(
+                separatedBy: "ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            getMacUploadSource.components(
+                separatedBy: #"inputs.runner_provider == 'getmac'"#
+            ).count - 1,
+            1
+        )
+        XCTAssertFalse(getMacUploadSource.contains("include-hidden-files: false"))
+        let getMacForcedRedMessage =
+            "GetMac Xcode 26.6 development-only evidence is not yet eligible for S10.4 final acceptance."
+        XCTAssertEqual(
+            getMacFailSource.components(separatedBy: getMacForcedRedMessage).count - 1,
+            1
+        )
+        XCTAssertEqual(getMacFailSource.components(separatedBy: ">&2").count - 1, 1)
+        XCTAssertEqual(getMacFailSource.components(separatedBy: "          exit 1").count - 1, 1)
+        XCTAssertFalse(getMacFailSource.contains("exit 0"))
 
         XCTAssertEqual(
             workflowSource.components(

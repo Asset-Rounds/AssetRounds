@@ -7,6 +7,10 @@ on:
         description: Runner label supplied by the Phase 10 dispatcher
         required: true
         type: string
+      runner_provider:
+        description: Closed runner provider supplied by the Phase 10 dispatcher
+        required: true
+        type: string
       run_ui_smoke:
         description: Run the task-authorized XCUITest smoke after build and unit tests
         required: true
@@ -30,6 +34,8 @@ jobs:
     runs-on: ${{ inputs.runner_label }}
     timeout-minutes: 90
     env:
+      CI_RUNNER_LABEL: ${{ inputs.runner_label }}
+      CI_RUNNER_PROVIDER: ${{ inputs.runner_provider }}
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
       EXPECTED_XCODE_VERSION: "Xcode 26.6"
       EXPECTED_XCODE_BUILD: "Build version 17F113"
@@ -66,6 +72,10 @@ jobs:
           DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
         run: |
           set -euo pipefail
+          case "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" in
+            github:macos-26 | getmac:getmac-tahoe) ;;
+            *) exit 1 ;;
+          esac
           test -f Scripts/ci-selection.json
           test -f Scripts/run-with-timeout.sh
           test -f Scripts/build-smoke.sh
@@ -387,6 +397,24 @@ jobs:
             CI_S10_4_DIFFERENTIATE_WITHOUT_COLOR="$(jq -r '.environment.differentiateWithoutColor | tostring' <<< "$shard_json")"
             CI_S10_4_REDUCE_MOTION="$(jq -r '.environment.reduceMotion | tostring' <<< "$shard_json")"
             CI_S10_4_REDUCE_TRANSPARENCY="$(jq -r '.environment.reduceTransparency | tostring' <<< "$shard_json")"
+            CI_S10_4_EFFECTIVE_PROVISION_RUNTIME="$CI_S10_4_PROVISION_RUNTIME"
+            CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION="$CI_S10_4_RUNTIME_DOWNLOAD_VERSION"
+            if test "$CI_RUNNER_PROVIDER" = "getmac"; then
+              CI_S10_4_EFFECTIVE_PROVISION_RUNTIME=true
+              case "$CI_S10_4_DEVICE_PROFILE_ID" in
+                iphone-17-ios-26.2-current)
+                  test "$CI_S10_4_PROVISION_RUNTIME" = "false"
+                  test -z "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION"
+                  CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION=26.2
+                  ;;
+                iphone-se-3-ios-18.0-minimum)
+                  test "$CI_S10_4_PROVISION_RUNTIME" = "true"
+                  test "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" = "18.0"
+                  CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION=18.0
+                  ;;
+                *) exit 1 ;;
+              esac
+            fi
           else
             test "$DISPATCH_S10_4_SHARD_ID" = "none"
           fi
@@ -410,6 +438,8 @@ jobs:
               "SIMULATOR_NAME=$SIMULATOR_NAME" \
               "CI_S10_4_PROVISION_RUNTIME=$CI_S10_4_PROVISION_RUNTIME" \
               "CI_S10_4_RUNTIME_DOWNLOAD_VERSION=$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" \
+              "CI_S10_4_EFFECTIVE_PROVISION_RUNTIME=$CI_S10_4_EFFECTIVE_PROVISION_RUNTIME" \
+              "CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION=$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" \
               "CI_S10_4_DEVICE_PROFILE_ID=$CI_S10_4_DEVICE_PROFILE_ID" \
               "CI_S10_4_SHARD_ORDINAL=$CI_S10_4_SHARD_ORDINAL" \
               "CI_S10_4_REQUIREMENT_ID=$CI_S10_4_REQUIREMENT_ID" \
@@ -458,9 +488,32 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$CI_ARTIFACT_DIR"
+          test -n "${RUNNER_NAME:-}"
+          test -n "${RUNNER_ARCH:-}"
+          case "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" in
+            github:macos-26)
+              test "$DEVELOPER_DIR" = "/Applications/Xcode_26.6.app/Contents/Developer"
+              ;;
+            getmac:getmac-tahoe)
+              test "$RUNNER_ARCH" = "ARM64"
+              test "$(uname -m)" = "arm64"
+              test "$(sw_vers -productVersion)" = "26.5.2"
+              resolved_developer_dir="$(env -u DEVELOPER_DIR xcode-select -p)"
+              case "$resolved_developer_dir" in /*/Contents/Developer) ;; *) exit 1 ;; esac
+              test -d "$resolved_developer_dir"
+              DEVELOPER_DIR="$resolved_developer_dir"
+              export DEVELOPER_DIR
+              printf 'DEVELOPER_DIR=%s\n' "$DEVELOPER_DIR" >> "$GITHUB_ENV"
+              ;;
+            *) exit 1 ;;
+          esac
           printf 'ImageOS=%s\nImageVersion=%s\nImageArch=%s\n' \
             "${ImageOS:-unknown}" "${ImageVersion:-unknown}" "${ImageArch:-unknown}" \
             | tee "$CI_ARTIFACT_DIR/runner-image.txt"
+          printf 'provider=%s\nlabel=%s\nrunner_name=%s\nrunner_architecture=%s\nuname_architecture=%s\nmacos_product_version=%s\ndeveloper_dir=%s\n' \
+            "$CI_RUNNER_PROVIDER" "$CI_RUNNER_LABEL" "$RUNNER_NAME" "$RUNNER_ARCH" \
+            "$(uname -m)" "$(sw_vers -productVersion)" "$DEVELOPER_DIR" \
+            | tee "$CI_ARTIFACT_DIR/runner-provider.txt"
           printf 'repository=%s\nref=%s\nsha=%s\nrun_id=%s\nrun_attempt=%s\n' \
             "$GITHUB_REPOSITORY" "$GITHUB_REF" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
             | tee "$CI_ARTIFACT_DIR/github-run.txt"
@@ -490,16 +543,28 @@ jobs:
           test "$target_count" -eq 1
           test "$deployment_targets" = "$EXPECTED_MINIMUM_IOS"
 
+          if test "${CI_TASK_ID:-}" = "S10.4"; then
+            printf 'provider=%s\ndevice_profile_id=%s\nruntime=%s\nruntime_build=%s\nruntime_download_version=%s\nruntime_bootstrap_enabled=%s\n' \
+              "$CI_RUNNER_PROVIDER" "$CI_S10_4_DEVICE_PROFILE_ID" \
+              "$SIMULATOR_RUNTIME" "$SIMULATOR_RUNTIME_BUILD" \
+              "$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" \
+              "$CI_S10_4_EFFECTIVE_PROVISION_RUNTIME" \
+              | tee "$CI_ARTIFACT_DIR/simulator-runtime-policy.txt"
+          fi
+
           if test "${CI_TASK_ID:-}" = "S10.4" && \
-             test "${CI_S10_4_PROVISION_RUNTIME:-}" = "true"; then
-            test "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" = "18.0"
+             test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = "true"; then
+            case "$SIMULATOR_RUNTIME:$SIMULATOR_RUNTIME_BUILD:$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" in
+              "iOS 18.0:22A3351:18.0" | "iOS 26.2:23C54:26.2") ;;
+              *) exit 1 ;;
+            esac
             setup_elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
             runtime_provision_budget_seconds="$(( CI_SETUP_ARTIFACT_TIMEOUT_SECONDS - setup_elapsed_seconds ))"
             test "$runtime_provision_budget_seconds" -gt 0
             set +e
             bash Scripts/run-with-timeout.sh "$runtime_provision_budget_seconds" \
               xcodebuild -downloadPlatform iOS \
-                -buildVersion "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" \
+                -buildVersion "$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" \
               2>&1 | tee "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
             provision_pipeline_status=( "${PIPESTATUS[@]}" )
             set -e
@@ -583,7 +648,7 @@ jobs:
             "$CI_ARTIFACT_DIR/simulator-devices.json" | head -n 1)"
           if test -z "$simulator_udid" && \
              test "${CI_TASK_ID:-}" = "S10.4" && \
-             test "${CI_S10_4_PROVISION_RUNTIME:-}" = "true"; then
+             test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = "true"; then
             xcrun simctl list devicetypes -j > "$CI_ARTIFACT_DIR/simulator-device-types.json"
             simulator_device_type_id="$(jq -r --arg name "$SIMULATOR_NAME" \
               '.devicetypes[] | select(.name == $name) | .identifier' \
@@ -2046,6 +2111,7 @@ jobs:
 
           test -s "$CI_ARTIFACT_DIR/simulator-boot-start.log"
           test -s "$CI_ARTIFACT_DIR/simulator-boot.log"
+          test -s "$CI_ARTIFACT_DIR/runner-provider.txt"
           test -s "$CI_ARTIFACT_DIR/build-smoke.log"
           test -s "$CI_ARTIFACT_DIR/test-smoke.log"
           require_nonempty_directory "$CI_ARTIFACT_DIR/Build.xcresult"
@@ -2062,6 +2128,7 @@ jobs:
               "$CI_ARTIFACT_DIR/UISmoke.xcresult" \
               uiTestSelectors "UI test bundle" ui
             if test "${CI_TASK_ID:-}" = "S10.4"; then
+              test -s "$CI_ARTIFACT_DIR/simulator-runtime-policy.txt"
               test "${CI_S10_4_SHARD_ID:-none}" != "none"
               shard_evidence_path="$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID"
               require_nonempty_directory "$shard_evidence_path/candidates"
@@ -2148,6 +2215,142 @@ jobs:
             test ! -e "$CI_ARTIFACT_DIR/ui-final.png"
           fi
 
+      - name: Record GetMac development-only lane
+        if: ${{ always() && inputs.runner_provider == 'getmac' }}
+        shell: bash
+        env:
+          GETMAC_DISPATCH_SHARD_ID: ${{ inputs.s10_4_shard_id }}
+          GETMAC_PRIOR_JOB_STATUS: ${{ job.status }}
+          GETMAC_RUNNER_NAME: ${{ runner.name }}
+          GETMAC_RUNNER_ARCHITECTURE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          artifact_dir="${CI_ARTIFACT_DIR:-$RUNNER_TEMP/FieldEvidenceCI}"
+          mkdir -p "$artifact_dir"
+          resolved_developer_dir=""
+          if test -s "$artifact_dir/runner-provider.txt"; then
+            resolved_developer_dir="$(awk -F= '$1 == "developer_dir" {print substr($0, index($0, "=") + 1)}' \
+              "$artifact_dir/runner-provider.txt")"
+          fi
+          runner_image_os="$(sw_vers -productName)"
+          runner_image_version="$(sw_vers -productVersion)"
+          runner_image_architecture="$(uname -m)"
+          record_shard_id="${CI_S10_4_SHARD_ID:-$GETMAC_DISPATCH_SHARD_ID}"
+          test -n "$runner_image_os"
+          test -n "$runner_image_version"
+          test -n "$runner_image_architecture"
+          test "$record_shard_id" = "$GETMAC_DISPATCH_SHARD_ID"
+          jq -n \
+            --arg laneID "getmac-xcode-26.6-development-only" \
+            --arg provider "GetMac" \
+            --arg runnerLabel "$CI_RUNNER_LABEL" \
+            --arg runnerName "$GETMAC_RUNNER_NAME" \
+            --arg runnerArchitecture "$GETMAC_RUNNER_ARCHITECTURE" \
+            --arg runnerImageOS "$runner_image_os" \
+            --arg runnerImageVersion "$runner_image_version" \
+            --arg runnerImageArchitecture "$runner_image_architecture" \
+            --arg resolvedDeveloperDirectory "$resolved_developer_dir" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg ref "$GITHUB_REF" \
+            --arg headSHA "$GITHUB_SHA" \
+            --arg runID "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg shardID "$record_shard_id" \
+            --arg expectedXcodeVersion "$EXPECTED_XCODE_VERSION" \
+            --arg expectedXcodeBuild "$EXPECTED_XCODE_BUILD" \
+            --arg simulatorRuntime "${SIMULATOR_RUNTIME:-}" \
+            --arg simulatorRuntimeBuild "${SIMULATOR_RUNTIME_BUILD:-}" \
+            --arg priorJobStatus "$GETMAC_PRIOR_JOB_STATUS" '
+              {
+                schemaVersion: 1,
+                laneID: $laneID,
+                provider: $provider,
+                runnerLabel: $runnerLabel,
+                runnerName: $runnerName,
+                runnerArchitecture: $runnerArchitecture,
+                runnerImageOS: $runnerImageOS,
+                runnerImageVersion: $runnerImageVersion,
+                runnerImageArchitecture: $runnerImageArchitecture,
+                resolvedDeveloperDirectory: $resolvedDeveloperDirectory,
+                repository: $repository,
+                ref: $ref,
+                headSHA: $headSHA,
+                runID: $runID,
+                runAttempt: $runAttempt,
+                shardID: $shardID,
+                expectedXcodeVersion: $expectedXcodeVersion,
+                expectedXcodeBuild: $expectedXcodeBuild,
+                simulatorRuntime: $simulatorRuntime,
+                simulatorRuntimeBuild: $simulatorRuntimeBuild,
+                priorJobStatus: $priorJobStatus,
+                rawEvidenceOnly: true,
+                finalAcceptanceEligible: false
+              }
+            ' > "$artifact_dir/getmac-development-only-lane.json"
+          jq -e '
+            (keys == [
+              "expectedXcodeBuild",
+              "expectedXcodeVersion",
+              "finalAcceptanceEligible",
+              "headSHA",
+              "laneID",
+              "priorJobStatus",
+              "provider",
+              "rawEvidenceOnly",
+              "ref",
+              "repository",
+              "resolvedDeveloperDirectory",
+              "runAttempt",
+              "runID",
+              "runnerArchitecture",
+              "runnerImageArchitecture",
+              "runnerImageOS",
+              "runnerImageVersion",
+              "runnerLabel",
+              "runnerName",
+              "schemaVersion",
+              "shardID",
+              "simulatorRuntime",
+              "simulatorRuntimeBuild"
+            ])
+            and (.schemaVersion == 1)
+            and (.laneID == "getmac-xcode-26.6-development-only")
+            and (.provider == "GetMac")
+            and (.runnerLabel == "getmac-tahoe")
+            and (.runnerName | type == "string" and length > 0)
+            and (.runnerArchitecture == "ARM64")
+            and (.runnerImageOS == "macOS")
+            and (.runnerImageVersion == "26.5.2")
+            and (.runnerImageArchitecture == "arm64")
+            and (.resolvedDeveloperDirectory
+              | type == "string" and test("^/.+/Contents/Developer$"))
+            and (.repository == env.GITHUB_REPOSITORY)
+            and (.ref == env.GITHUB_REF)
+            and (.headSHA == env.GITHUB_SHA)
+            and (.runID == env.GITHUB_RUN_ID)
+            and (.runAttempt == env.GITHUB_RUN_ATTEMPT)
+            and (.shardID == env.GETMAC_DISPATCH_SHARD_ID)
+            and (.expectedXcodeVersion == "Xcode 26.6")
+            and (.expectedXcodeBuild == "Build version 17F113")
+            and (
+              ((.shardID | startswith("s10.4.current."))
+                and .simulatorRuntime == "iOS 26.2"
+                and .simulatorRuntimeBuild == "23C54")
+              or
+              ((.shardID | startswith("s10.4.minimum."))
+                and .simulatorRuntime == "iOS 18.0"
+                and .simulatorRuntimeBuild == "22A3351")
+            )
+            and (.priorJobStatus == env.GETMAC_PRIOR_JOB_STATUS)
+            and (
+              .priorJobStatus == "success"
+              or .priorJobStatus == "failure"
+              or .priorJobStatus == "cancelled"
+            )
+            and (.rawEvidenceOnly == true)
+            and (.finalAcceptanceEligible == false)
+          ' "$artifact_dir/getmac-development-only-lane.json" > /dev/null
+
       - name: Hash collected evidence
         if: always()
         shell: bash
@@ -2209,7 +2412,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) }}
+          name: ${{ inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id)) }}
           path: ${{ runner.temp }}/FieldEvidenceCI
           if-no-files-found: error
           retention-days: 14
+
+      - name: Fail closed after GetMac development-only evidence
+        if: ${{ always() && inputs.runner_provider == 'getmac' }}
+        shell: bash
+        run: |
+          printf '%s\n' 'GetMac Xcode 26.6 development-only evidence is not yet eligible for S10.4 final acceptance.' >&2
+          exit 1
