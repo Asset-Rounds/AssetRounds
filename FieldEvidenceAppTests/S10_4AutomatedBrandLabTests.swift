@@ -8195,28 +8195,24 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
               let issueRecheckDueQuerySerializerStartRange =
                 issueRecheckDueDiagnosticSource.range(
                     of: issueRecheckDueQuerySerializerStart,
-                    range: issueRecheckDueElementSerializerStartRange.upperBound
-                        ..<issueRecheckDueDiagnosticSource.endIndex
+                    range: issueRecheckDueElementSerializerStartRange.upperBound..<issueRecheckDueDiagnosticSource.endIndex
                 ),
               let issueRecheckDueQueryCollectionStartRange =
                 issueRecheckDueDiagnosticSource.range(
                     of: issueRecheckDueQueryCollectionStart,
-                    range: issueRecheckDueQuerySerializerStartRange.upperBound
-                        ..<issueRecheckDueDiagnosticSource.endIndex
+                    range: issueRecheckDueQuerySerializerStartRange.upperBound..<issueRecheckDueDiagnosticSource.endIndex
                 ) else {
             XCTFail("Missing AX-text issue recheck-due diagnostic serializers")
             return
         }
         let issueRecheckDueElementSerializerSource = String(
             issueRecheckDueDiagnosticSource[
-                issueRecheckDueElementSerializerStartRange.lowerBound
-                    ..<issueRecheckDueQuerySerializerStartRange.lowerBound
+                issueRecheckDueElementSerializerStartRange.lowerBound..<issueRecheckDueQuerySerializerStartRange.lowerBound
             ]
         )
         let issueRecheckDueQuerySerializerSource = String(
             issueRecheckDueDiagnosticSource[
-                issueRecheckDueQuerySerializerStartRange.lowerBound
-                    ..<issueRecheckDueQueryCollectionStartRange.lowerBound
+                issueRecheckDueQuerySerializerStartRange.lowerBound..<issueRecheckDueQueryCollectionStartRange.lowerBound
             ]
         )
         var issueRecheckDueElementFieldStart =
@@ -8234,8 +8230,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             guard let fieldRange = issueRecheckDueElementSerializerSource.range(
                 of: field,
-                range: issueRecheckDueElementFieldStart
-                    ..<issueRecheckDueElementSerializerSource.endIndex
+                range: issueRecheckDueElementFieldStart..<issueRecheckDueElementSerializerSource.endIndex
             ) else {
                 XCTFail("Missing ordered AX-text issue recheck-due node field: \(field)")
                 return
@@ -8291,16 +8286,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
               let issueRecheckDueContextEndRange =
                 issueRecheckDueDiagnosticSource.range(
                     of: issueRecheckDueContextEnd,
-                    range: issueRecheckDueContextStartRange.upperBound
-                        ..<issueRecheckDueDiagnosticSource.endIndex
+                    range: issueRecheckDueContextStartRange.upperBound..<issueRecheckDueDiagnosticSource.endIndex
                 ) else {
             XCTFail("Missing AX-text issue recheck-due diagnostic context")
             return
         }
         let issueRecheckDueContextSource = String(
             issueRecheckDueDiagnosticSource[
-                issueRecheckDueContextStartRange.lowerBound
-                    ..<issueRecheckDueContextEndRange.lowerBound
+                issueRecheckDueContextStartRange.lowerBound..<issueRecheckDueContextEndRange.lowerBound
             ]
         )
         var issueRecheckDueContextFieldStart = issueRecheckDueContextSource.startIndex
@@ -8318,8 +8311,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             guard let fieldRange = issueRecheckDueContextSource.range(
                 of: field,
-                range: issueRecheckDueContextFieldStart
-                    ..<issueRecheckDueContextSource.endIndex
+                range: issueRecheckDueContextFieldStart..<issueRecheckDueContextSource.endIndex
             ) else {
                 XCTFail("Missing ordered AX-text issue recheck-due context field: \(field)")
                 return
@@ -8335,16 +8327,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
               let issueRecheckDueAuditEndRange =
                 issueRecheckDueDiagnosticSource.range(
                     of: issueRecheckDueAuditEnd,
-                    range: issueRecheckDueAuditStartRange.upperBound
-                        ..<issueRecheckDueDiagnosticSource.endIndex
+                    range: issueRecheckDueAuditStartRange.upperBound..<issueRecheckDueDiagnosticSource.endIndex
                 ) else {
             XCTFail("Missing AX-text issue recheck-due diagnostic audit callback")
             return
         }
         let issueRecheckDueAuditSource = String(
             issueRecheckDueDiagnosticSource[
-                issueRecheckDueAuditStartRange.lowerBound
-                    ..<issueRecheckDueAuditEndRange.lowerBound
+                issueRecheckDueAuditStartRange.lowerBound..<issueRecheckDueAuditEndRange.lowerBound
             ]
         )
         var issueRecheckDueIssueFieldStart = issueRecheckDueAuditSource.startIndex
@@ -8360,8 +8350,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             guard let fieldRange = issueRecheckDueAuditSource.range(
                 of: field,
-                range: issueRecheckDueIssueFieldStart
-                    ..<issueRecheckDueAuditSource.endIndex
+                range: issueRecheckDueIssueFieldStart..<issueRecheckDueAuditSource.endIndex
             ) else {
                 XCTFail("Missing ordered AX-text issue recheck-due public field: \(field)")
                 return
@@ -8449,8 +8438,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for anchor in issueRecheckDueDiagnosticOrder {
             guard let anchorRange = issueRecheckDueDiagnosticSource.range(
                 of: anchor,
-                range: issueRecheckDueDiagnosticOrderStart
-                    ..<issueRecheckDueDiagnosticSource.endIndex
+                range: issueRecheckDueDiagnosticOrderStart..<issueRecheckDueDiagnosticSource.endIndex
             ) else {
                 XCTFail("Missing ordered AX-text issue recheck-due diagnostic anchor: \(anchor)")
                 return
