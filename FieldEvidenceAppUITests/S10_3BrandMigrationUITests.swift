@@ -4693,6 +4693,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let workTabBars = app.tabBars
         let workNoteHeading = workNoteHeadings.firstMatch
         let workTabBar = workTabBars.firstMatch
+        let workImportFixtureButtons: XCUIElementQuery? = workEditingAXTextEnabled
+            ? app.buttons.matching(identifier: "s5.1.work.import-fixture")
+            : nil
+        let workImportFixtureButton = workImportFixtureButtons?.firstMatch
         var savingInitialAXTextCompositionIsValid = !workEditingAXTextEnabled
         if workEditingAXTextEnabled {
             let savingInitialHelperFrame = workHelper.frame
@@ -4701,7 +4705,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let savingInitialSeparation =
                 savingInitialPreviewFrame.minY - savingInitialHelperFrame.maxY
             savingInitialAXTextCompositionIsValid =
-                workEditingAXTextFallbackAccepted
+                workImportFixtureButtons?.count == 1
+                    && workImportFixtureButton?.exists == true
+                    && workImportFixtureButton?.elementType == .button
+                    && workImportFixtureButton?.identifier
+                        == "s5.1.work.import-fixture"
+                    && workImportFixtureButton?.label == workHelperLabel
+                    && (workImportFixtureButton?.value as? String) == ""
+                    && workImportFixtureButton?.isEnabled == false
+                    && workEditingAXTextFallbackAccepted
                     && initialHelperToPreviewSeparation != nil
                     && workEditingComposition()
                     && workEditingFrameIsValid(savingInitialHelperFrame)
@@ -4731,6 +4743,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             return
         }
         var provenSavingGestureCount = 0
+        var savingAXTextGestureDirection: CGFloat?
         for _ in 0..<4 {
             guard app.state == .runningForeground,
                   workNoteHeadings.count == 1,
@@ -4738,12 +4751,25 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   workHelperTexts.count == 1,
                   workScrollViews.count == 1,
                   workNavigationBars.count == 1,
+                  (!workEditingAXTextEnabled
+                    || workImportFixtureButtons?.count == 1),
+                  (!workEditingAXTextEnabled
+                    || workPreviewImages.count == 1),
                   workNoteHeading.exists,
                   workTabBar.exists,
                   workHelper.exists,
                   workScrollView.exists,
                   workNavigationBar.exists,
                   workPreview.exists,
+                  (!workEditingAXTextEnabled
+                    || workImportFixtureButton?.exists == true),
+                  (!workEditingAXTextEnabled
+                    || (workImportFixtureButton?.elementType == .button
+                        && workImportFixtureButton?.identifier
+                            == "s5.1.work.import-fixture"
+                        && workImportFixtureButton?.label == workHelperLabel
+                        && (workImportFixtureButton?.value as? String) == ""
+                        && workImportFixtureButton?.isEnabled == false)),
                   progress.exists else {
                 XCTFail("Record-work saving positioning route changed.")
                 return
@@ -4751,8 +4777,61 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let scrollFrame = workScrollView.frame
             let applicationFrame = app.frame
             let navigationFrame = workNavigationBar.frame
-            let liveScrollFrame = scrollFrame.intersection(applicationFrame)
             let tabBarFrame = workTabBar.frame
+            let noteFrame = workNoteHeading.frame
+            let helperFrame = workHelper.frame
+            var buttonFrame = CGRect.null
+            var photoFrame = CGRect.null
+            if workEditingAXTextEnabled {
+                buttonFrame = workImportFixtureButton?.frame ?? .null
+                photoFrame = workPreviewImage.frame
+            }
+            let ordinaryCommonFramesAreValid =
+                !applicationFrame.isNull
+                    && !applicationFrame.isEmpty
+                    && !navigationFrame.isNull
+                    && !navigationFrame.isEmpty
+                    && !scrollFrame.isNull
+                    && !scrollFrame.isEmpty
+                    && !tabBarFrame.isNull
+                    && !tabBarFrame.isEmpty
+                    && !noteFrame.isNull
+                    && !noteFrame.isEmpty
+                    && !helperFrame.isNull
+                    && !helperFrame.isEmpty
+            let savingAXTextCommonFramesAreValid =
+                workEditingFrameIsValid(applicationFrame)
+                    && workEditingFrameIsValid(navigationFrame)
+                    && workEditingFrameIsValid(scrollFrame)
+                    && workEditingFrameIsValid(tabBarFrame)
+                    && workEditingFrameIsValid(noteFrame)
+                    && workEditingFrameIsValid(helperFrame)
+            let commonFramesAreValid = workEditingAXTextEnabled
+                ? savingAXTextCommonFramesAreValid
+                : ordinaryCommonFramesAreValid
+            let savingAXTextFramesAreValid =
+                !workEditingAXTextEnabled
+                    || (workEditingFrameIsValid(buttonFrame)
+                        && workEditingFrameIsValid(photoFrame))
+            let savingAXTextOrderingIsValid =
+                !workEditingAXTextEnabled
+                    || (noteFrame.maxY < helperFrame.minY
+                        && helperFrame.maxY < buttonFrame.minY
+                        && buttonFrame.maxY < photoFrame.minY)
+            guard commonFramesAreValid,
+                  savingAXTextFramesAreValid,
+                  savingAXTextOrderingIsValid else {
+                XCTFail("Record-work saving viewport geometry is invalid.")
+                return
+            }
+            let liveScrollFrame = scrollFrame.intersection(applicationFrame)
+            let liveScrollFrameIsValid = workEditingAXTextEnabled
+                ? workEditingFrameIsValid(liveScrollFrame)
+                : (!liveScrollFrame.isNull && !liveScrollFrame.isEmpty)
+            guard liveScrollFrameIsValid else {
+                XCTFail("Record-work saving viewport geometry is invalid.")
+                return
+            }
             let liveBottom = min(
                 liveScrollFrame.maxY,
                 min(applicationFrame.maxY, tabBarFrame.minY)
@@ -4767,54 +4846,68 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 navigationFrame.maxY
             ) + receiverInset
             let receiverBottom = liveBottom - receiverInset
-            let noteFrame = workNoteHeading.frame
-            let helperFrame = workHelper.frame
             let targetTop = min(noteFrame.minY, helperFrame.minY)
             let targetBottom = max(noteFrame.maxY, helperFrame.maxY)
-            guard !applicationFrame.isNull,
-                  !applicationFrame.isEmpty,
-                  !navigationFrame.isNull,
-                  !navigationFrame.isEmpty,
-                  !scrollFrame.isNull,
-                  !scrollFrame.isEmpty,
-                  !liveScrollFrame.isNull,
-                  !liveScrollFrame.isEmpty,
-                  !tabBarFrame.isNull,
-                  !tabBarFrame.isEmpty,
-                  !noteFrame.isNull,
-                  !noteFrame.isEmpty,
-                  !helperFrame.isNull,
-                  !helperFrame.isEmpty,
-                  safeBottom > safeTop,
-                  targetBottom - targetTop <= safeBottom - safeTop else {
+            let ordinaryTargetFits =
+                targetBottom - targetTop <= safeBottom - safeTop
+            guard safeBottom > safeTop,
+                  (workEditingAXTextEnabled || ordinaryTargetFits) else {
                 XCTFail("Record-work saving viewport geometry is invalid.")
                 return
             }
-            if noteFrame.minY >= safeTop,
-               noteFrame.maxY <= safeBottom,
-               helperFrame.minY >= safeTop,
-               helperFrame.maxY <= safeBottom,
-               workNoteHeading.isHittable,
-               workHelper.isHittable {
+            let ordinaryCompositionIsComplete =
+                noteFrame.minY >= safeTop
+                    && noteFrame.maxY <= safeBottom
+                    && helperFrame.minY >= safeTop
+                    && helperFrame.maxY <= safeBottom
+                    && workNoteHeading.isHittable
+                    && workHelper.isHittable
+            let savingAXTextCompositionIsComplete =
+                workEditingAXTextEnabled
+                    && noteFrame.maxY <= safeTop
+                    && helperFrame.maxY <= safeTop
+                    && buttonFrame.minY >= safeTop
+                    && buttonFrame.maxY <= safeBottom
+                    && workImportFixtureButton?.isHittable == true
+                    && noteFrame.maxY < helperFrame.minY
+                    && helperFrame.maxY < buttonFrame.minY
+                    && buttonFrame.maxY < photoFrame.minY
+            if (!workEditingAXTextEnabled && ordinaryCompositionIsComplete)
+                || savingAXTextCompositionIsComplete {
                 break
             }
 
             var previewMinYBeforeDrag: CGFloat?
+            var buttonMinYBeforeDrag: CGFloat?
             var savingAXTextPreviewFrameIsValid = !workEditingAXTextEnabled
             if workEditingAXTextEnabled {
-                let previewFrame = workPreviewImage.frame
-                previewMinYBeforeDrag = previewFrame.minY
+                previewMinYBeforeDrag = photoFrame.minY
+                buttonMinYBeforeDrag = buttonFrame.minY
                 savingAXTextPreviewFrameIsValid =
-                    workEditingFrameIsValid(previewFrame)
+                    workEditingFrameIsValid(photoFrame)
+                        && workEditingFrameIsValid(buttonFrame)
             }
-            let minimumShift = max(
-                safeTop - noteFrame.minY,
-                safeTop - helperFrame.minY
-            )
-            let maximumShift = min(
-                safeBottom - noteFrame.maxY,
-                safeBottom - helperFrame.maxY
-            )
+            let minimumShift: CGFloat
+            let maximumShift: CGFloat
+            if workEditingAXTextEnabled {
+                minimumShift = safeTop - buttonFrame.minY
+                maximumShift = min(
+                    safeTop - noteFrame.maxY,
+                    min(
+                        safeTop - helperFrame.maxY,
+                        safeBottom - buttonFrame.maxY
+                    )
+                )
+            } else {
+                minimumShift = max(
+                    safeTop - noteFrame.minY,
+                    safeTop - helperFrame.minY
+                )
+                maximumShift = min(
+                    safeBottom - noteFrame.maxY,
+                    safeBottom - helperFrame.maxY
+                )
+            }
             let receiverCapacity = receiverBottom - receiverTop
             guard minimumShift <= maximumShift,
                   receiverCapacity >= minimumGestureDistance,
@@ -4824,19 +4917,26 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
             let dragDistance: CGFloat
             if maximumShift < 0 {
-                let recognizedMinimum = max(
-                    minimumShift,
-                    -receiverCapacity
-                )
-                let recognizedMaximum = min(
-                    maximumShift,
-                    -minimumGestureDistance
-                )
-                guard recognizedMinimum <= recognizedMaximum else {
-                    XCTFail("Record-work saving upward shift is not recognizable.")
-                    return
+                if workEditingAXTextEnabled,
+                   maximumShift < -receiverCapacity {
+                    dragDistance = -receiverCapacity
+                } else {
+                    let recognizedMinimum = max(
+                        minimumShift,
+                        -receiverCapacity
+                    )
+                    let recognizedMaximum = min(
+                        maximumShift,
+                        -minimumGestureDistance
+                    )
+                    guard recognizedMinimum <= recognizedMaximum else {
+                        XCTFail("Record-work saving upward shift is not recognizable.")
+                        return
+                    }
+                    dragDistance = workEditingAXTextEnabled
+                        ? recognizedMinimum
+                        : recognizedMaximum
                 }
-                dragDistance = recognizedMaximum
             } else if minimumShift > 0 {
                 let recognizedMinimum = max(
                     minimumShift,
@@ -4847,7 +4947,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     receiverCapacity
                 )
                 if recognizedMinimum <= recognizedMaximum {
-                    dragDistance = recognizedMinimum
+                    dragDistance = workEditingAXTextEnabled
+                        ? recognizedMaximum
+                        : recognizedMinimum
                 } else if workEditingAXTextEnabled,
                           minimumShift > receiverCapacity {
                     dragDistance = receiverCapacity
@@ -4858,6 +4960,17 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             } else {
                 XCTFail("Record-work saving feasible shift is directionless.")
                 return
+            }
+            if workEditingAXTextEnabled {
+                let gestureDirection: CGFloat = dragDistance > 0 ? 1 : -1
+                if let savingAXTextGestureDirection {
+                    guard gestureDirection == savingAXTextGestureDirection else {
+                        XCTFail("Record-work saving AX-text gesture reversed direction.")
+                        return
+                    }
+                } else {
+                    savingAXTextGestureDirection = gestureDirection
+                }
             }
             let scrollOrigin = workScrollView.coordinate(
                 withNormalizedOffset: CGVector(dx: 0, dy: 0)
@@ -4880,30 +4993,71 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 withVelocity: .slow,
                 thenHoldForDuration: 0.2
             )
-            let observedNoteShift = workNoteHeading.frame.minY - noteMinYBeforeDrag
-            let observedHelperShift = workHelper.frame.minY - helperMinYBeforeDrag
-            var savingAXTextCoMovementIsValid = !workEditingAXTextEnabled
-            if workEditingAXTextEnabled,
-               let previewMinYBeforeDrag {
-                let observedPreviewFrame = workPreviewImage.frame
-                let observedPreviewShift =
-                    observedPreviewFrame.minY - previewMinYBeforeDrag
-                savingAXTextCoMovementIsValid =
-                    workEditingFrameIsValid(observedPreviewFrame)
-                        && observedPreviewShift * dragDistance > 0
-            }
             guard workNoteHeadings.count == 1,
                   workTabBars.count == 1,
                   workHelperTexts.count == 1,
                   workScrollViews.count == 1,
                   workNavigationBars.count == 1,
+                  (!workEditingAXTextEnabled
+                    || workImportFixtureButtons?.count == 1),
+                  (!workEditingAXTextEnabled
+                    || workPreviewImages.count == 1),
                   workNoteHeading.exists,
                   workTabBar.exists,
                   workHelper.exists,
-                  progress.exists,
-                  observedNoteShift * dragDistance > 0,
+                  (!workEditingAXTextEnabled || workPreview.exists),
+                  (!workEditingAXTextEnabled
+                    || workImportFixtureButton?.exists == true),
+                  (!workEditingAXTextEnabled
+                    || (workImportFixtureButton?.elementType == .button
+                        && workImportFixtureButton?.identifier
+                            == "s5.1.work.import-fixture"
+                        && workImportFixtureButton?.label == workHelperLabel
+                        && (workImportFixtureButton?.value as? String) == ""
+                        && workImportFixtureButton?.isEnabled == false)),
+                  progress.exists else {
+                XCTFail("Record-work saving positioning gesture was not recognized.")
+                return
+            }
+            let observedNoteFrame = workNoteHeading.frame
+            let observedHelperFrame = workHelper.frame
+            let observedNoteShift = observedNoteFrame.minY - noteMinYBeforeDrag
+            let observedHelperShift = observedHelperFrame.minY - helperMinYBeforeDrag
+            let savingAXTextPrimaryFramesAreValid =
+                !workEditingAXTextEnabled
+                    || (workEditingFrameIsValid(observedNoteFrame)
+                        && workEditingFrameIsValid(observedHelperFrame))
+            var savingAXTextCoMovementIsValid = !workEditingAXTextEnabled
+            var savingAXTextObservedOrderingIsValid = !workEditingAXTextEnabled
+            if workEditingAXTextEnabled,
+               let previewMinYBeforeDrag,
+               let buttonMinYBeforeDrag {
+                let observedPreviewFrame = workPreviewImage.frame
+                let observedButtonFrame = workImportFixtureButton?.frame ?? .null
+                let observedPreviewShift =
+                    observedPreviewFrame.minY - previewMinYBeforeDrag
+                let observedButtonShift =
+                    observedButtonFrame.minY - buttonMinYBeforeDrag
+                let observedAXTextFramesAreValid =
+                    workEditingFrameIsValid(observedNoteFrame)
+                        && workEditingFrameIsValid(observedHelperFrame)
+                        && workEditingFrameIsValid(observedPreviewFrame)
+                        && workEditingFrameIsValid(observedButtonFrame)
+                savingAXTextCoMovementIsValid =
+                    observedAXTextFramesAreValid
+                        && observedPreviewShift * dragDistance > 0
+                        && observedButtonShift * dragDistance > 0
+                savingAXTextObservedOrderingIsValid =
+                    observedAXTextFramesAreValid
+                        && observedNoteFrame.maxY < observedHelperFrame.minY
+                        && observedHelperFrame.maxY < observedButtonFrame.minY
+                        && observedButtonFrame.maxY < observedPreviewFrame.minY
+            }
+            guard observedNoteShift * dragDistance > 0,
                   observedHelperShift * dragDistance > 0,
-                  savingAXTextCoMovementIsValid else {
+                  savingAXTextPrimaryFramesAreValid,
+                  savingAXTextCoMovementIsValid,
+                  savingAXTextObservedOrderingIsValid else {
                 XCTFail("Record-work saving positioning gesture was not recognized.")
                 return
             }
@@ -4913,49 +5067,110 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         let savingFinalApplicationFrame = app.frame
         let savingFinalNavigationFrame = workNavigationBar.frame
-        let savingFinalScrollFrame = workScrollView.frame.intersection(
+        let savingFinalScrollRawFrame = workScrollView.frame
+        let savingFinalTabBarFrame = workTabBar.frame
+        let savingFinalNoteFrame = workNoteHeading.frame
+        let savingFinalHelperFrame = workHelper.frame
+        var savingFinalButtonFrame = CGRect.null
+        var savingFinalPhotoFrame = CGRect.null
+        if workEditingAXTextEnabled {
+            savingFinalButtonFrame = workImportFixtureButton?.frame ?? .null
+            savingFinalPhotoFrame = workPreviewImage.frame
+        }
+        let savingFinalOrdinaryCommonFramesAreValid =
+            !savingFinalApplicationFrame.isNull
+                && !savingFinalApplicationFrame.isEmpty
+                && !savingFinalNavigationFrame.isNull
+                && !savingFinalNavigationFrame.isEmpty
+                && !savingFinalScrollRawFrame.isNull
+                && !savingFinalScrollRawFrame.isEmpty
+                && !savingFinalTabBarFrame.isNull
+                && !savingFinalTabBarFrame.isEmpty
+                && !savingFinalNoteFrame.isNull
+                && !savingFinalNoteFrame.isEmpty
+                && !savingFinalHelperFrame.isNull
+                && !savingFinalHelperFrame.isEmpty
+        let savingFinalAXTextCommonFramesAreValid =
+            workEditingFrameIsValid(savingFinalApplicationFrame)
+                && workEditingFrameIsValid(savingFinalNavigationFrame)
+                && workEditingFrameIsValid(savingFinalScrollRawFrame)
+                && workEditingFrameIsValid(savingFinalTabBarFrame)
+                && workEditingFrameIsValid(savingFinalNoteFrame)
+                && workEditingFrameIsValid(savingFinalHelperFrame)
+        let savingFinalCommonFramesAreValid = workEditingAXTextEnabled
+            ? savingFinalAXTextCommonFramesAreValid
+            : savingFinalOrdinaryCommonFramesAreValid
+        let savingFinalAXTextFramesAreValid =
+            !workEditingAXTextEnabled
+                || (workEditingFrameIsValid(savingFinalButtonFrame)
+                    && workEditingFrameIsValid(savingFinalPhotoFrame))
+        guard savingFinalCommonFramesAreValid,
+              savingFinalAXTextFramesAreValid else {
+            XCTFail("Record-work saving composition is outside the safe viewport.")
+            return
+        }
+        let savingFinalScrollFrame = savingFinalScrollRawFrame.intersection(
             savingFinalApplicationFrame
         )
+        let savingFinalScrollFrameIsValid = workEditingAXTextEnabled
+            ? workEditingFrameIsValid(savingFinalScrollFrame)
+            : (!savingFinalScrollFrame.isNull && !savingFinalScrollFrame.isEmpty)
+        guard savingFinalScrollFrameIsValid else {
+            XCTFail("Record-work saving composition is outside the safe viewport.")
+            return
+        }
         let savingFinalSafeTop = max(
             savingFinalScrollFrame.minY,
             savingFinalNavigationFrame.maxY
         ) + verticalInset
-        let savingFinalTabBarFrame = workTabBar.frame
         let savingFinalLiveBottom = min(
             savingFinalScrollFrame.maxY,
             min(savingFinalApplicationFrame.maxY, savingFinalTabBarFrame.minY)
         )
         let savingFinalSafeBottom = savingFinalLiveBottom - verticalInset
-        let savingFinalNoteFrame = workNoteHeading.frame
-        let savingFinalHelperFrame = workHelper.frame
-        var workSavingAXTextFallbackAccepted = false
-        if workEditingAXTextEnabled {
-            let savingFinalPreviewFrame = workPreviewImage.frame
-            let savingFinalExactTabFrame = workEditingTabBar.frame
-            let savingFinalExactPreviewIsHittable = workPreviewImage.isHittable
-            let savingFinalAXTextCompositionIsValid =
-                workEditingFrameIsValid(savingFinalPreviewFrame)
-                    && workEditingFrameIsValid(savingFinalExactTabFrame)
-                    && workEditingComposition()
-            workSavingAXTextFallbackAccepted =
-                !savingFinalExactPreviewIsHittable
-                    && workEditingAXTextFallbackAccepted
-                    && provenSavingGestureCount >= 1
-                    && provenSavingGestureCount <= 4
-                    && savingFinalAXTextCompositionIsValid
-                    && savingFinalHelperFrame.maxY
-                        < savingFinalExactTabFrame.minY
-                    && savingFinalHelperFrame.maxY
-                        < savingFinalPreviewFrame.minY
-                    && savingFinalPreviewFrame.minY
-                        > savingFinalExactTabFrame.minY
-        }
+        let workSavingOrdinaryCompositionAccepted =
+            !workEditingAXTextEnabled
+                && savingFinalNoteFrame.minY >= savingFinalSafeTop
+                && savingFinalNoteFrame.maxY <= savingFinalSafeBottom
+                && savingFinalHelperFrame.minY >= savingFinalSafeTop
+                && savingFinalHelperFrame.maxY <= savingFinalSafeBottom
+                && workNoteHeading.isHittable
+                && workHelper.isHittable
+                && workPreview.isHittable
+        let workSavingAXTextAlternateCompositionAccepted =
+            workEditingAXTextEnabled
+                && workImportFixtureButtons?.count == 1
+                && workImportFixtureButton?.exists == true
+                && workImportFixtureButton?.elementType == .button
+                && workImportFixtureButton?.identifier
+                    == "s5.1.work.import-fixture"
+                && workImportFixtureButton?.label == workHelperLabel
+                && (workImportFixtureButton?.value as? String) == ""
+                && workImportFixtureButton?.isEnabled == false
+                && workImportFixtureButton?.isHittable == true
+                && workEditingAXTextFallbackAccepted
+                && savingInitialAXTextCompositionIsValid
+                && provenSavingGestureCount >= 1
+                && provenSavingGestureCount <= 4
+                && savingAXTextGestureDirection != nil
+                && workEditingComposition()
+                && savingFinalNoteFrame.maxY <= savingFinalSafeTop
+                && savingFinalHelperFrame.maxY <= savingFinalSafeTop
+                && savingFinalButtonFrame.minY >= savingFinalSafeTop
+                && savingFinalButtonFrame.maxY <= savingFinalSafeBottom
+                && savingFinalNoteFrame.maxY < savingFinalHelperFrame.minY
+                && savingFinalHelperFrame.maxY < savingFinalButtonFrame.minY
+                && savingFinalButtonFrame.maxY < savingFinalPhotoFrame.minY
         guard app.state == .runningForeground,
               workNoteHeadings.count == 1,
               workTabBars.count == 1,
               workHelperTexts.count == 1,
               workScrollViews.count == 1,
               workNavigationBars.count == 1,
+              (!workEditingAXTextEnabled
+                || workImportFixtureButtons?.count == 1),
+              (!workEditingAXTextEnabled
+                || workPreviewImages.count == 1),
               workNoteHeading.exists,
               workTabBar.exists,
               workNoteHeading.identifier.isEmpty,
@@ -4966,28 +5181,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               workNavigationBar.exists,
               workPreview.exists,
               progress.exists,
-              !savingFinalApplicationFrame.isNull,
-              !savingFinalApplicationFrame.isEmpty,
-              !savingFinalNavigationFrame.isNull,
-              !savingFinalNavigationFrame.isEmpty,
-              !savingFinalScrollFrame.isNull,
-              !savingFinalScrollFrame.isEmpty,
-              !savingFinalTabBarFrame.isNull,
-              !savingFinalTabBarFrame.isEmpty,
-              !savingFinalNoteFrame.isNull,
-              !savingFinalNoteFrame.isEmpty,
-              !savingFinalHelperFrame.isNull,
-              !savingFinalHelperFrame.isEmpty,
               savingFinalSafeBottom > savingFinalSafeTop,
-              savingFinalNoteFrame.minY >= savingFinalSafeTop,
-              savingFinalNoteFrame.maxY <= savingFinalSafeBottom,
-              savingFinalHelperFrame.minY >= savingFinalSafeTop,
-              savingFinalHelperFrame.maxY <= savingFinalSafeBottom,
-              workNoteHeading.isHittable,
-              workHelper.isHittable,
-              (workPreview.isHittable
-                || (workEditingAXTextEnabled
-                    && workSavingAXTextFallbackAccepted)) else {
+              (workSavingOrdinaryCompositionAccepted
+                || workSavingAXTextAlternateCompositionAccepted) else {
             XCTFail("Record-work saving composition is outside the safe viewport.")
             return
         }
@@ -6691,14 +6887,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             line: line
         )
         do {
-            if shard.shardID == "s10.4.current.ax-text",
-               stateID == "state.work.saving" {
-                try diagnoseAXTextWorkSavingContrast(
-                    in: app,
-                    shard: shard,
-                    stateID: stateID
-                )
-            }
             let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
                 $0.shardID == shard.shardID && $0.stateID == stateID
             }
@@ -6837,205 +7025,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 line: line
             )
         }
-    }
-
-    @MainActor
-    private func diagnoseAXTextWorkSavingContrast(
-        in app: XCUIApplication,
-        shard: AutomationShard,
-        stateID: String
-    ) throws {
-        let diagnosticStartedAt = ProcessInfo.processInfo.systemUptime
-        let workScreens = app.descendants(matching: .any).matching(
-            identifier: "s5.1.work.screen"
-        )
-        let workScrollViews = app.scrollViews.containing(
-            .image,
-            identifier: "s5.1.work.photo"
-        )
-        let workNavigationBars = app.navigationBars.matching(
-            identifier: "Record work"
-        )
-        let workPhotos = app.images.matching(
-            identifier: "s5.1.work.photo"
-        )
-        let savingStatuses = app.descendants(matching: .any).matching(
-            identifier: "s5.1.work.saving"
-        )
-        let noteHeadings = app.staticTexts.matching(
-            NSPredicate(format: "identifier == '' AND label == %@", "Note")
-        )
-        let tabBars = app.tabBars
-        let helperTexts = app.staticTexts.matching(
-            NSPredicate(
-                format: "label == %@",
-                "Add one optional photo showing the work performed."
-            )
-        )
-        let importFixtureButtons = app.buttons.matching(
-            identifier: "s5.1.work.import-fixture"
-        )
-        let diagnosticQueries: [(String, XCUIElementQuery)] = [
-            ("workScreens", workScreens),
-            ("workScrollViews", workScrollViews),
-            ("workNavigationBars", workNavigationBars),
-            ("workPhotos", workPhotos),
-            ("savingStatuses", savingStatuses),
-            ("noteHeadings", noteHeadings),
-            ("tabBars", tabBars),
-            ("helperTexts", helperTexts),
-            ("importFixtureButtons", importFixtureButtons),
-        ]
-        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
-            element in
-            let valueObject: Any
-            if let value = element.value as? String {
-                valueObject = value
-            } else {
-                valueObject = NSNull()
-            }
-            return [
-                "exists": element.exists,
-                "isHittable": element.isHittable,
-                "isEnabled": element.isEnabled,
-                "identifier": element.identifier,
-                "label": element.label,
-                "value": valueObject,
-                "elementTypeRawValue": element.elementType.rawValue,
-                "elementTypeDescription": String(describing: element.elementType),
-                "frame": self.auditFrameObject(element.frame),
-            ]
-        }
-        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
-            query in
-            let count = query.count
-            var elements: [[String: Any]] = []
-            for index in 0..<count {
-                elements.append(
-                    diagnosticElementObject(query.element(boundBy: index))
-                )
-            }
-            return [
-                "count": count,
-                "elements": elements,
-            ]
-        }
-        var diagnosticQueryObjects: [String: Any] = [:]
-        for (name, query) in diagnosticQueries {
-            diagnosticQueryObjects[name] = diagnosticQueryObject(query)
-        }
-        let diagnosticElapsedMilliseconds = Int(
-            (ProcessInfo.processInfo.systemUptime - diagnosticStartedAt) * 1_000
-        )
-        let context: [String: Any] = [
-            "shardID": shard.shardID,
-            "deviceProfileID": shard.deviceProfileID,
-            "stateID": stateID,
-            "elapsedMilliseconds": diagnosticElapsedMilliseconds,
-            "applicationState": String(describing: app.state),
-            "applicationStateRawValue": app.state.rawValue,
-            "isRunningForeground": app.state == .runningForeground,
-            "applicationFrame": auditFrameObject(app.frame),
-            "queries": diagnosticQueryObjects,
-        ]
-        printJSONLine(
-            prefix: "S10_4_AX_TEXT_WORK_SAVING_CONTRAST_CONTEXT_DIAGNOSTIC",
-            object: context
-        )
-
-        let appScreenshotAttachment = XCTAttachment(
-            screenshot: XCUIScreen.main.screenshot()
-        )
-        appScreenshotAttachment.name =
-            "S10.4 AX-text Record-work saving contrast diagnostic app"
-        appScreenshotAttachment.lifetime = .keepAlways
-        add(appScreenshotAttachment)
-
-        let appTreeAttachment = XCTAttachment(string: app.debugDescription)
-        appTreeAttachment.name =
-            "S10.4 AX-text Record-work saving contrast diagnostic tree"
-        appTreeAttachment.lifetime = .keepAlways
-        add(appTreeAttachment)
-
-        let contextData = try JSONSerialization.data(
-            withJSONObject: context,
-            options: [.prettyPrinted, .sortedKeys]
-        )
-        let contextAttachment = XCTAttachment(
-            string: String(decoding: contextData, as: UTF8.self)
-        )
-        contextAttachment.name =
-            "S10.4 AX-text Record-work saving contrast diagnostic context"
-        contextAttachment.lifetime = .keepAlways
-        add(contextAttachment)
-
-        var observedIssueCount = 0
-        var diagnosticAuditedElements: [XCUIElement] = []
-        try app.performAccessibilityAudit(for: .contrast) { issue in
-            observedIssueCount += 1
-            let auditedElementObject: Any
-            let elementIdentifier: Any
-            let elementLabel: Any
-            let elementType: Any
-            let elementFrame: Any
-            if let auditedElement = issue.element {
-                diagnosticAuditedElements.append(auditedElement)
-                auditedElementObject = diagnosticElementObject(auditedElement)
-                elementIdentifier = auditedElement.identifier
-                elementLabel = auditedElement.label
-                elementType = String(describing: auditedElement.elementType)
-                elementFrame = self.auditFrameObject(auditedElement.frame)
-            } else {
-                auditedElementObject = NSNull()
-                elementIdentifier = NSNull()
-                elementLabel = NSNull()
-                elementType = NSNull()
-                elementFrame = NSNull()
-            }
-            self.printJSONLine(
-                prefix: "S10_4_AX_TEXT_WORK_SAVING_CONTRAST_ISSUE_DIAGNOSTIC",
-                object: [
-                    "shardID": shard.shardID,
-                    "deviceProfileID": shard.deviceProfileID,
-                    "stateID": stateID,
-                    "ordinal": observedIssueCount,
-                    "auditTypeRawValue": String(issue.auditType.rawValue),
-                    "compactDescription": issue.compactDescription,
-                    "detailedDescription": issue.detailedDescription,
-                    "elementIdentifier": elementIdentifier,
-                    "elementLabel": elementLabel,
-                    "elementType": elementType,
-                    "elementFrame": elementFrame,
-                    "applicationFrame": self.auditFrameObject(app.frame),
-                    "auditedElement": auditedElementObject,
-                ]
-            )
-            return true
-        }
-
-        for (index, auditedElement) in diagnosticAuditedElements.enumerated() {
-            let auditedElementAttachment = XCTAttachment(
-                screenshot: auditedElement.screenshot()
-            )
-            auditedElementAttachment.name =
-                "S10.4 AX-text Record-work saving contrast diagnostic element "
-                + String(index + 1)
-            auditedElementAttachment.lifetime = .keepAlways
-            add(auditedElementAttachment)
-        }
-        printJSONLine(
-            prefix: "S10_4_AX_TEXT_WORK_SAVING_CONTRAST_COUNT_DIAGNOSTIC",
-            object: [
-                "shardID": shard.shardID,
-                "deviceProfileID": shard.deviceProfileID,
-                "stateID": stateID,
-                "observedIssueCount": observedIssueCount,
-                "auditedElementCount": diagnosticAuditedElements.count,
-            ]
-        )
-        throw AutomationConfigurationError.invalid(
-            "S10.4 AX-text Record-work saving contrast diagnostic completed nonaccepting observedIssueCount=\(observedIssueCount)"
-        )
     }
 
     private func isActive(_ signature: ContrastAuditExceptionSignature) -> Bool {
