@@ -3862,7 +3862,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "minimumPreflightQuickPathButtons.count == 1",
             "minimumPreflightQuickPathStaticTexts.count == 2",
             ".elementType == .other",
-            ".elementType == .button",
+            "minimumPreflightQuickPathButton.elementType\n" +
+                "                                == .button",
             ".elementType == .staticText",
             ".identifier.isEmpty",
             ".trimmingCharacters(",
