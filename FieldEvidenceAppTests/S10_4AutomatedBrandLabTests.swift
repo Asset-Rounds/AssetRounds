@@ -997,8 +997,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 341_082,
-            sha256: "8F9B717877D76CBE9BB6B85C3E3123841101F2EC6A579D6222071BCDC5CDF177"
+            byteCount: 349_517,
+            sha256: "C1ABB9F49D654E4774AAC603B93FBDB0083F96D1CE34BA8EE2CAE464C313B1E5"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -4427,10 +4427,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 multilineHelperStartRange.lowerBound..<multilinePassiveKeyboardHelperStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(multilineHelperSource.utf8.count, 2_101)
+        XCTAssertEqual(multilineHelperSource.utf8.count, 10_536)
         XCTAssertEqual(
             Data(multilineHelperSource.utf8).sha256,
-            "83CE77255805B564DF670E7D535D4878AB3D084C13D8C0EF572C5A1CEA58521E"
+            "AABFB092972A83029C2BE090E68B2BFBB2C497C7AFDC0AB36C423FD2DB32D60D"
         )
         let multilineHelperLocks = [
             "afterEditing field: XCUIElement",
@@ -4463,30 +4463,130 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for lock in multilineHelperLocks {
             XCTAssertTrue(multilineHelperSource.contains(lock), lock)
         }
+        let multilineQuickPathLocks = [
+            "if field.elementType == .textView {",
+            "let quickPathIntroductionViews = app.descendants(",
+            "matching: .other",
+            #"identifier: "UIContinuousPathIntroductionView""#,
+            #""Speed up your typing by sliding your finger across the letters to compose a word.""#,
+            "let quickPathTutorialTexts = app.staticTexts.matching(",
+            "let quickPathContinueButtons = app.buttons.matching(",
+            #"format: "label == %@""#,
+            #"let quickPathContinueLabel = "Continue""#,
+            "let quickPathIntroductionCount =",
+            "let quickPathTutorialCount =",
+            "let quickPathContinueCount =",
+            "if quickPathIntroductionCount > 0",
+            "|| quickPathTutorialCount > 0",
+            "|| quickPathContinueCount > 0 {",
+            "quickPathIntroductionCount == 1",
+            "quickPathTutorialCount == 1",
+            "quickPathContinueCount == 1",
+            "let quickPathIntroductionView =",
+            "let quickPathTutorialText =",
+            "let quickPathContinueButton =",
+            #"let quickPathReturnKey = keyboard.buttons["Return"]"#,
+            #"format: "hasKeyboardFocus == true""#,
+            "let expectedApplicationFrame = app.frame",
+            "let expectedRouteFrame = route.frame",
+            "let expectedFieldFrame = field.frame",
+            "let expectedFieldScrollViewFrame = fieldScrollView.frame",
+            "let expectedKeyboardFrame = keyboard.frame",
+            "let expectedClearedValidationExists =",
+            "let frameIsValid: (CGRect) -> Bool = { frame in",
+            "quickPathIntroductionView.elementType == .other",
+            "quickPathTutorialText.elementType == .staticText",
+            "quickPathTutorialText.identifier.isEmpty",
+            "quickPathContinueButton.elementType == .button",
+            "quickPathContinueButton.identifier.isEmpty",
+            "quickPathContinueButton.isEnabled",
+            "quickPathContinueButton.isHittable",
+            "quickPathReturnKey.elementType == .button",
+            #"quickPathReturnKey.identifier == "Return""#,
+            #"quickPathReturnKey.label.lowercased() == "return""#,
+            "!quickPathReturnKey.isHittable",
+            "fieldFocusPredicate.evaluate(with: field)",
+            "!expectedClearedValidationExists",
+            "expectedApplicationFrame.contains(",
+            "quickPathIntroductionView.frame.contains(",
+            "expectedKeyboardFrame.contains(",
+            "The multiline TextView QuickPath tutorial is incomplete or state changed before dismissal.",
+            "let expectedReturnFrame = quickPathReturnKey.frame",
+            "quickPathContinueButton.tap()",
+            "quickPathIntroductionView.waitForNonExistence(",
+            "quickPathIntroductionViews.count == 0",
+            "quickPathTutorialTexts.count == 0",
+            "quickPathContinueButtons.count == 0",
+            "quickPathReturnKey.isHittable",
+            "field.elementType == .textView",
+            "app.frame == expectedApplicationFrame",
+            "route.frame == expectedRouteFrame",
+            "field.frame == expectedFieldFrame",
+            "fieldScrollView.frame",
+            "== expectedFieldScrollViewFrame",
+            "keyboard.frame == expectedKeyboardFrame",
+            "quickPathReturnKey.frame == expectedReturnFrame",
+            "The multiline TextView QuickPath tutorial did not dismiss with state preserved.",
+        ]
+        for lock in multilineQuickPathLocks {
+            XCTAssertTrue(multilineHelperSource.contains(lock), lock)
+        }
+        guard let actionableScrollViewRange = multilineHelperSource.range(
+            of: "guard fieldScrollView.exists, fieldScrollView.isHittable else {"
+        ),
+              let quickPathBranchRange = multilineHelperSource.range(
+                of: "if field.elementType == .textView {"
+              ),
+              let quickPathTapRange = multilineHelperSource.range(
+                of: "quickPathContinueButton.tap()"
+              ),
+              let quickPathWaitRange = multilineHelperSource.range(
+                of: "quickPathIntroductionView.waitForNonExistence("
+              ),
+              let multilineSwipeRange = multilineHelperSource.range(
+                of: "fieldScrollView.swipeUp()"
+              ) else {
+            XCTFail("Missing ordered multiline QuickPath handling")
+            return
+        }
+        XCTAssertLessThan(
+            actionableScrollViewRange.lowerBound,
+            quickPathBranchRange.lowerBound
+        )
+        XCTAssertLessThan(quickPathBranchRange.lowerBound, quickPathTapRange.lowerBound)
+        XCTAssertLessThan(quickPathTapRange.lowerBound, quickPathWaitRange.lowerBound)
+        XCTAssertLessThan(quickPathWaitRange.lowerBound, multilineSwipeRange.lowerBound)
         XCTAssertEqual(
             multilineHelperSource.components(separatedBy: "fieldScrollView.swipeUp()").count - 1,
             1
         )
         XCTAssertEqual(
             multilineHelperSource.components(separatedBy: "timeout: 10").count - 1,
-            2
+            3
         )
         for (fragment, count) in [
-            ("field.exists", 2),
-            ("route.exists", 2),
-            ("app.state", 2),
-            ("expectedRouteExists", 3),
-            ("expectedApplicationState", 3),
-            (#"String(describing: field.value ?? "")"#, 2),
+            ("field.exists", 3),
+            ("route.exists", 4),
+            ("app.state", 4),
+            ("expectedRouteExists", 5),
+            ("expectedApplicationState", 5),
+            (#"String(describing: field.value ?? "")"#, 4),
             ("keyboard.waitForNonExistence(timeout: 10)", 1),
-            ("fieldScrollViews.count == 1", 1),
-            ("field.elementType", 3),
+            ("fieldScrollViews.count == 1", 3),
+            ("field.elementType", 5),
             ("field.elementType,", 1),
             (".textField", 1),
-            (".textView", 1),
-            ("XCTFail(", 5),
+            (".textView", 3),
+            ("quickPathIntroductionViews.count", 2),
+            ("quickPathTutorialTexts.count", 2),
+            ("quickPathContinueButtons.count", 2),
+            ("fieldFocusPredicate.evaluate(with: field)", 2),
+            ("quickPathContinueButton.tap()", 1),
+            (".tap()", 1),
+            ("XCTFail(", 7),
             ("\n                return\n", 1),
             ("\n            return\n", 4),
+            ("\n                    return\n", 2),
         ] {
             XCTAssertEqual(
                 multilineHelperSource.components(separatedBy: fragment).count - 1,
@@ -4499,12 +4599,36 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "app.swipeDown()",
             "returnKeyDismissesKeyboard",
             "returnKey.tap()",
-            "              field.elementType == .textField,",
-            "              field.elementType == .textView,",
+            "        guard keyboard.exists,\n" +
+                "              field.exists,\n" +
+                "              field.elementType == .textField,\n",
+            "        guard keyboard.exists,\n" +
+                "              field.exists,\n" +
+                "              field.elementType == .textView,\n",
             "            .textField,",
             "            .textView,",
             "(field.elementType == .textView || field.elementType == .textField)",
-            ".tap()",
+            #"quickPathReturnKey.tap()"#,
+            #"keyboard.buttons["Return"].tap()"#,
+            ".coordinate(",
+            ".press(",
+            "Thread.sleep",
+            "CGRect(",
+            "tolerance",
+            "epsilon",
+            "automationShard",
+            "deviceProfileID",
+            "label CONTAINS",
+            "label BEGINSWITH",
+            ".swipeDown()",
+            "app.swipeUp()",
+            "for _ in",
+            "while ",
+            "performAccessibilityAudit",
+            "printJSONLine",
+            "S10_4_CANDIDATE",
+            "S10_4_AX",
+            "S10_4_CONTRAST",
         ] {
             XCTAssertFalse(multilineHelperSource.contains(prohibited), prohibited)
         }

@@ -6910,6 +6910,177 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             XCTFail("The multiline field ScrollView is not actionable.")
             return
         }
+        if field.elementType == .textView {
+            let quickPathIntroductionViews = app.descendants(
+                matching: .other
+            ).matching(
+                identifier: "UIContinuousPathIntroductionView"
+            )
+            let quickPathTutorialLabel =
+                "Speed up your typing by sliding your finger across the letters to compose a word."
+            let quickPathTutorialTexts = app.staticTexts.matching(
+                NSPredicate(
+                    format: "label == %@",
+                    quickPathTutorialLabel
+                )
+            )
+            let quickPathContinueLabel = "Continue"
+            let quickPathContinueButtons = app.buttons.matching(
+                NSPredicate(
+                    format: "label == %@",
+                    quickPathContinueLabel
+                )
+            )
+            let quickPathIntroductionCount =
+                quickPathIntroductionViews.count
+            let quickPathTutorialCount =
+                quickPathTutorialTexts.count
+            let quickPathContinueCount =
+                quickPathContinueButtons.count
+
+            if quickPathIntroductionCount > 0
+                || quickPathTutorialCount > 0
+                || quickPathContinueCount > 0 {
+                let quickPathIntroductionView =
+                    quickPathIntroductionViews.firstMatch
+                let quickPathTutorialText =
+                    quickPathTutorialTexts.firstMatch
+                let quickPathContinueButton =
+                    quickPathContinueButtons.firstMatch
+                let quickPathReturnKey = keyboard.buttons["Return"]
+                let fieldFocusPredicate = NSPredicate(
+                    format: "hasKeyboardFocus == true"
+                )
+                let expectedApplicationFrame = app.frame
+                let expectedRouteFrame = route.frame
+                let expectedFieldFrame = field.frame
+                let expectedFieldScrollViewFrame = fieldScrollView.frame
+                let expectedKeyboardFrame = keyboard.frame
+                let expectedClearedValidationExists =
+                    clearedValidation?.exists ?? false
+                let frameIsValid: (CGRect) -> Bool = { frame in
+                    !frame.isNull
+                        && !frame.isEmpty
+                        && !frame.isInfinite
+                        && frame.origin.x.isFinite
+                        && frame.origin.y.isFinite
+                        && frame.size.width.isFinite
+                        && frame.size.height.isFinite
+                }
+
+                guard quickPathIntroductionCount == 1,
+                      quickPathTutorialCount == 1,
+                      quickPathContinueCount == 1,
+                      quickPathIntroductionView.exists,
+                      quickPathIntroductionView.elementType == .other,
+                      quickPathIntroductionView.identifier
+                        == "UIContinuousPathIntroductionView",
+                      quickPathTutorialText.exists,
+                      quickPathTutorialText.elementType == .staticText,
+                      quickPathTutorialText.identifier.isEmpty,
+                      quickPathTutorialText.label
+                        == quickPathTutorialLabel,
+                      quickPathContinueButton.exists,
+                      quickPathContinueButton.elementType == .button,
+                      quickPathContinueButton.identifier.isEmpty,
+                      quickPathContinueButton.label
+                        == quickPathContinueLabel,
+                      quickPathContinueButton.isEnabled,
+                      quickPathContinueButton.isHittable,
+                      quickPathReturnKey.exists,
+                      quickPathReturnKey.elementType == .button,
+                      quickPathReturnKey.identifier == "Return",
+                      quickPathReturnKey.label.lowercased() == "return",
+                      !quickPathReturnKey.isHittable,
+                      fieldFocusPredicate.evaluate(with: field),
+                      String(describing: field.value ?? "")
+                        == expectedValue,
+                      route.exists == expectedRouteExists,
+                      fieldScrollViews.count == 1,
+                      fieldScrollView.exists,
+                      fieldScrollView.isHittable,
+                      !expectedClearedValidationExists,
+                      app.state == expectedApplicationState,
+                      frameIsValid(expectedApplicationFrame),
+                      frameIsValid(expectedRouteFrame),
+                      frameIsValid(expectedFieldFrame),
+                      frameIsValid(expectedFieldScrollViewFrame),
+                      frameIsValid(expectedKeyboardFrame),
+                      frameIsValid(quickPathIntroductionView.frame),
+                      frameIsValid(quickPathTutorialText.frame),
+                      frameIsValid(quickPathContinueButton.frame),
+                      frameIsValid(quickPathReturnKey.frame),
+                      expectedApplicationFrame.contains(
+                          expectedRouteFrame
+                      ),
+                      expectedApplicationFrame.contains(
+                          expectedFieldFrame
+                      ),
+                      expectedApplicationFrame.contains(
+                          expectedFieldScrollViewFrame
+                      ),
+                      expectedApplicationFrame.contains(
+                          expectedKeyboardFrame
+                      ),
+                      expectedApplicationFrame.contains(
+                          quickPathIntroductionView.frame
+                      ),
+                      quickPathIntroductionView.frame.contains(
+                          quickPathTutorialText.frame
+                      ),
+                      quickPathIntroductionView.frame.contains(
+                          quickPathContinueButton.frame
+                      ),
+                      expectedKeyboardFrame.contains(
+                          quickPathReturnKey.frame
+                      ) else {
+                    XCTFail(
+                        "The multiline TextView QuickPath tutorial is incomplete or state changed before dismissal."
+                    )
+                    return
+                }
+
+                let expectedReturnFrame = quickPathReturnKey.frame
+                quickPathContinueButton.tap()
+                guard quickPathIntroductionView.waitForNonExistence(
+                    timeout: 10
+                ),
+                      quickPathIntroductionViews.count == 0,
+                      quickPathTutorialTexts.count == 0,
+                      quickPathContinueButtons.count == 0,
+                      keyboard.exists,
+                      quickPathReturnKey.exists,
+                      quickPathReturnKey.elementType == .button,
+                      quickPathReturnKey.identifier == "Return",
+                      quickPathReturnKey.label.lowercased() == "return",
+                      quickPathReturnKey.isHittable,
+                      field.exists,
+                      field.elementType == .textView,
+                      !field.identifier.isEmpty,
+                      fieldFocusPredicate.evaluate(with: field),
+                      String(describing: field.value ?? "")
+                        == expectedValue,
+                      route.exists == expectedRouteExists,
+                      fieldScrollViews.count == 1,
+                      fieldScrollView.exists,
+                      fieldScrollView.isHittable,
+                      (clearedValidation?.exists ?? false)
+                        == expectedClearedValidationExists,
+                      app.state == expectedApplicationState,
+                      app.frame == expectedApplicationFrame,
+                      route.frame == expectedRouteFrame,
+                      field.frame == expectedFieldFrame,
+                      fieldScrollView.frame
+                        == expectedFieldScrollViewFrame,
+                      keyboard.frame == expectedKeyboardFrame,
+                      quickPathReturnKey.frame == expectedReturnFrame else {
+                    XCTFail(
+                        "The multiline TextView QuickPath tutorial did not dismiss with state preserved."
+                    )
+                    return
+                }
+            }
+        }
         fieldScrollView.swipeUp()
         guard keyboard.waitForNonExistence(timeout: 10),
               field.exists,
