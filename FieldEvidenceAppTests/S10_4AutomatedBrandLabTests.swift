@@ -1327,8 +1327,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 394_809,
-            sha256: "3202C7BEDCE23655D8468B1FB1EFA103057061B98C776DEF0A46D3FF865D73D4"
+            byteCount: 403_385,
+            sha256: "3241D77CE90472ACCD8402620725052D27FE311965608EA84789B4B14C042E51"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -8488,22 +8488,464 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let restoredCaptureBaselineStart =
             "    @MainActor\n" +
                 "    private func captureBaseline("
-        let restoredCaptureBaselineEnd =
+        let axTextWorkSavingContrastHelperStart =
+            "    @MainActor\n" +
+                "    private func diagnoseAXTextWorkSavingContrast(\n" +
+                "        in app: XCUIApplication,\n" +
+                "        shard: AutomationShard,\n" +
+                "        stateID: String\n" +
+                "    ) throws {"
+        let axTextWorkSavingContrastHelperEnd =
             "\n\n    private func isActive("
         guard let restoredCaptureBaselineStartRange = uiSource.range(
             of: restoredCaptureBaselineStart
-        ), let restoredCaptureBaselineEndRange = uiSource.range(
-            of: restoredCaptureBaselineEnd,
+        ), let axTextWorkSavingContrastHelperStartRange = uiSource.range(
+            of: axTextWorkSavingContrastHelperStart,
             range: restoredCaptureBaselineStartRange.upperBound..<uiSource.endIndex
+        ), let axTextWorkSavingContrastHelperEndRange = uiSource.range(
+            of: axTextWorkSavingContrastHelperEnd,
+            range: axTextWorkSavingContrastHelperStartRange.upperBound..<uiSource.endIndex
         ) else {
-            XCTFail("Missing the restored bounded captureBaseline source")
+            XCTFail("Missing the bounded captureBaseline or AX-text work-saving diagnostic source")
             return
         }
         let restoredCaptureBaselineSource = String(
             uiSource[
-                restoredCaptureBaselineStartRange.lowerBound..<restoredCaptureBaselineEndRange.lowerBound
+                restoredCaptureBaselineStartRange.lowerBound..<axTextWorkSavingContrastHelperStartRange.lowerBound
             ]
         )
+        let axTextWorkSavingContrastHelperSource = String(
+            uiSource[
+                axTextWorkSavingContrastHelperStartRange.lowerBound..<axTextWorkSavingContrastHelperEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_194)
+        XCTAssertEqual(
+            Data(restoredCaptureBaselineSource.utf8).sha256,
+            "1E7A59ADADB1E35AC3B0AF821745A1BF0B048A4F883867D919687AF958BC6662"
+        )
+        XCTAssertEqual(axTextWorkSavingContrastHelperSource.utf8.count, 8_283)
+        XCTAssertEqual(
+            Data(axTextWorkSavingContrastHelperSource.utf8).sha256,
+            "664E81AF4CFA8C64CB2A0F77D42D6689F454E93070F0BFA71BD03B3CD7BA8AB9"
+        )
+
+        let axTextWorkSavingContrastGate =
+            #"            if shard.shardID == "s10.4.current.ax-text","# + "\n" +
+                #"               stateID == "state.work.saving" {"# + "\n" +
+                "                try diagnoseAXTextWorkSavingContrast(\n" +
+                "                    in: app,\n" +
+                "                    shard: shard,\n" +
+                "                    stateID: stateID\n" +
+                "                )\n" +
+                "            }"
+        let axTextWorkSavingEligibleExceptionsBinding =
+            "            let eligibleExceptions = " +
+                "Self.contrastAuditExceptionSignatures.filter {"
+        let axTextWorkSavingContrastGateAdjacency =
+            "        do {\n" + axTextWorkSavingContrastGate + "\n" +
+                axTextWorkSavingEligibleExceptionsBinding
+        XCTAssertEqual(
+            restoredCaptureBaselineSource.components(
+                separatedBy: axTextWorkSavingContrastGateAdjacency
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            restoredCaptureBaselineSource.components(
+                separatedBy: axTextWorkSavingContrastGate
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "diagnoseAXTextWorkSavingContrast"
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: axTextWorkSavingContrastHelperStart
+            ).count - 1,
+            1
+        )
+
+        let axTextWorkSavingContrastQueryLocks = [
+            "        let workScreens = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s5.1.work.screen""# + "\n" +
+                "        )",
+            "        let workScrollViews = app.scrollViews.containing(\n" +
+                "            .image,\n" +
+                #"            identifier: "s5.1.work.photo""# + "\n" +
+                "        )",
+            "        let workNavigationBars = app.navigationBars.matching(\n" +
+                #"            identifier: "Record work""# + "\n" +
+                "        )",
+            "        let workPhotos = app.images.matching(\n" +
+                #"            identifier: "s5.1.work.photo""# + "\n" +
+                "        )",
+            "        let savingStatuses = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s5.1.work.saving""# + "\n" +
+                "        )",
+            "        let noteHeadings = app.staticTexts.matching(\n" +
+                #"            NSPredicate(format: "identifier == '' AND label == %@", "Note")"# + "\n" +
+                "        )",
+            "        let tabBars = app.tabBars",
+            "        let helperTexts = app.staticTexts.matching(\n" +
+                "            NSPredicate(\n" +
+                #"                format: "label == %@","# + "\n" +
+                #"                "Add one optional photo showing the work performed.""# + "\n" +
+                "            )\n" +
+                "        )",
+            "        let importFixtureButtons = app.buttons.matching(\n" +
+                #"            identifier: "s5.1.work.import-fixture""# + "\n" +
+                "        )",
+        ]
+        for queryLock in axTextWorkSavingContrastQueryLocks {
+            XCTAssertEqual(
+                axTextWorkSavingContrastHelperSource.components(
+                    separatedBy: queryLock
+                ).count - 1,
+                1,
+                queryLock
+            )
+        }
+        let axTextWorkSavingContrastQueryTuples = [
+            #"            ("workScreens", workScreens),"#,
+            #"            ("workScrollViews", workScrollViews),"#,
+            #"            ("workNavigationBars", workNavigationBars),"#,
+            #"            ("workPhotos", workPhotos),"#,
+            #"            ("savingStatuses", savingStatuses),"#,
+            #"            ("noteHeadings", noteHeadings),"#,
+            #"            ("tabBars", tabBars),"#,
+            #"            ("helperTexts", helperTexts),"#,
+            #"            ("importFixtureButtons", importFixtureButtons),"#,
+        ]
+        for queryTuple in axTextWorkSavingContrastQueryTuples {
+            XCTAssertEqual(
+                axTextWorkSavingContrastHelperSource.components(
+                    separatedBy: queryTuple
+                ).count - 1,
+                1,
+                queryTuple
+            )
+        }
+        XCTAssertEqual(
+            axTextWorkSavingContrastHelperSource.components(
+                separatedBy: "(String, XCUIElementQuery)"
+            ).count - 1,
+            1
+        )
+
+        let axTextWorkSavingElementSerializerStart =
+            "        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {"
+        let axTextWorkSavingQuerySerializerStart =
+            "        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {"
+        let axTextWorkSavingQueryCollectionStart =
+            "        var diagnosticQueryObjects: [String: Any] = [:]"
+        guard let axTextWorkSavingElementSerializerStartRange =
+                axTextWorkSavingContrastHelperSource.range(
+                    of: axTextWorkSavingElementSerializerStart
+                ),
+              let axTextWorkSavingQuerySerializerStartRange =
+                axTextWorkSavingContrastHelperSource.range(
+                    of: axTextWorkSavingQuerySerializerStart,
+                    range: axTextWorkSavingElementSerializerStartRange.upperBound..<axTextWorkSavingContrastHelperSource.endIndex
+                ),
+              let axTextWorkSavingQueryCollectionStartRange =
+                axTextWorkSavingContrastHelperSource.range(
+                    of: axTextWorkSavingQueryCollectionStart,
+                    range: axTextWorkSavingQuerySerializerStartRange.upperBound..<axTextWorkSavingContrastHelperSource.endIndex
+                ) else {
+            XCTFail("Missing the AX-text work-saving diagnostic serializers")
+            return
+        }
+        let axTextWorkSavingElementSerializerSource = String(
+            axTextWorkSavingContrastHelperSource[
+                axTextWorkSavingElementSerializerStartRange.lowerBound..<axTextWorkSavingQuerySerializerStartRange.lowerBound
+            ]
+        )
+        let axTextWorkSavingQuerySerializerSource = String(
+            axTextWorkSavingContrastHelperSource[
+                axTextWorkSavingQuerySerializerStartRange.lowerBound..<axTextWorkSavingQueryCollectionStartRange.lowerBound
+            ]
+        )
+        var axTextWorkSavingElementFieldStart =
+            axTextWorkSavingElementSerializerSource.startIndex
+        for field in [
+            #"                "exists": element.exists,"#,
+            #"                "isHittable": element.isHittable,"#,
+            #"                "isEnabled": element.isEnabled,"#,
+            #"                "identifier": element.identifier,"#,
+            #"                "label": element.label,"#,
+            #"                "value": valueObject,"#,
+            #"                "elementTypeRawValue": element.elementType.rawValue,"#,
+            #"                "elementTypeDescription": String(describing: element.elementType),"#,
+            #"                "frame": self.auditFrameObject(element.frame),"#,
+        ] {
+            guard let fieldRange = axTextWorkSavingElementSerializerSource.range(
+                of: field,
+                range: axTextWorkSavingElementFieldStart..<axTextWorkSavingElementSerializerSource.endIndex
+            ) else {
+                XCTFail("Missing ordered AX-text work-saving node field: \(field)")
+                return
+            }
+            axTextWorkSavingElementFieldStart = fieldRange.upperBound
+        }
+        let axTextWorkSavingStringOrNullValue =
+            "            if let value = element.value as? String {\n" +
+                "                valueObject = value\n" +
+                "            } else {\n" +
+                "                valueObject = NSNull()\n" +
+                "            }"
+        XCTAssertEqual(
+            axTextWorkSavingElementSerializerSource.components(
+                separatedBy: axTextWorkSavingStringOrNullValue
+            ).count - 1,
+            1
+        )
+        for (serializerLock, count) in [
+            ("let count = query.count", 1),
+            ("for index in 0..<count", 1),
+            ("query.element(boundBy: index)", 1),
+            (#"                "count": count,"#, 1),
+            (#"                "elements": elements,"#, 1),
+        ] {
+            XCTAssertEqual(
+                axTextWorkSavingQuerySerializerSource.components(
+                    separatedBy: serializerLock
+                ).count - 1,
+                count,
+                serializerLock
+            )
+        }
+        let axTextWorkSavingQueryCollection =
+            "        var diagnosticQueryObjects: [String: Any] = [:]\n" +
+                "        for (name, query) in diagnosticQueries {\n" +
+                "            diagnosticQueryObjects[name] = diagnosticQueryObject(query)\n" +
+                "        }"
+        XCTAssertEqual(
+            axTextWorkSavingContrastHelperSource.components(
+                separatedBy: axTextWorkSavingQueryCollection
+            ).count - 1,
+            1
+        )
+
+        let axTextWorkSavingContextStart =
+            "        let context: [String: Any] = ["
+        let axTextWorkSavingContextEnd =
+            "\n        printJSONLine(\n" +
+                #"            prefix: "S10_4_AX_TEXT_WORK_SAVING_CONTRAST_CONTEXT_DIAGNOSTIC","#
+        guard let axTextWorkSavingContextStartRange =
+                axTextWorkSavingContrastHelperSource.range(
+                    of: axTextWorkSavingContextStart
+                ),
+              let axTextWorkSavingContextEndRange =
+                axTextWorkSavingContrastHelperSource.range(
+                    of: axTextWorkSavingContextEnd,
+                    range: axTextWorkSavingContextStartRange.upperBound..<axTextWorkSavingContrastHelperSource.endIndex
+                ) else {
+            XCTFail("Missing the AX-text work-saving diagnostic context")
+            return
+        }
+        let axTextWorkSavingContextSource = String(
+            axTextWorkSavingContrastHelperSource[
+                axTextWorkSavingContextStartRange.lowerBound..<axTextWorkSavingContextEndRange.lowerBound
+            ]
+        )
+        var axTextWorkSavingContextFieldStart =
+            axTextWorkSavingContextSource.startIndex
+        for field in [
+            #"            "shardID": shard.shardID,"#,
+            #"            "deviceProfileID": shard.deviceProfileID,"#,
+            #"            "stateID": stateID,"#,
+            #"            "elapsedMilliseconds": diagnosticElapsedMilliseconds,"#,
+            #"            "applicationState": String(describing: app.state),"#,
+            #"            "applicationStateRawValue": app.state.rawValue,"#,
+            #"            "isRunningForeground": app.state == .runningForeground,"#,
+            #"            "applicationFrame": auditFrameObject(app.frame),"#,
+            #"            "queries": diagnosticQueryObjects,"#,
+        ] {
+            guard let fieldRange = axTextWorkSavingContextSource.range(
+                of: field,
+                range: axTextWorkSavingContextFieldStart..<axTextWorkSavingContextSource.endIndex
+            ) else {
+                XCTFail("Missing ordered AX-text work-saving context field: \(field)")
+                return
+            }
+            axTextWorkSavingContextFieldStart = fieldRange.upperBound
+        }
+
+        let axTextWorkSavingAuditStart =
+            "        var observedIssueCount = 0"
+        let axTextWorkSavingAuditEnd =
+            "\n\n        for (index, auditedElement) in diagnosticAuditedElements.enumerated() {"
+        guard let axTextWorkSavingAuditStartRange =
+                axTextWorkSavingContrastHelperSource.range(
+                    of: axTextWorkSavingAuditStart
+                ),
+              let axTextWorkSavingAuditEndRange =
+                axTextWorkSavingContrastHelperSource.range(
+                    of: axTextWorkSavingAuditEnd,
+                    range: axTextWorkSavingAuditStartRange.upperBound..<axTextWorkSavingContrastHelperSource.endIndex
+                ) else {
+            XCTFail("Missing the AX-text work-saving diagnostic audit callback")
+            return
+        }
+        let axTextWorkSavingAuditSource = String(
+            axTextWorkSavingContrastHelperSource[
+                axTextWorkSavingAuditStartRange.lowerBound..<axTextWorkSavingAuditEndRange.lowerBound
+            ]
+        )
+        var axTextWorkSavingIssueFieldStart = axTextWorkSavingAuditSource.startIndex
+        for field in [
+            #"                    "auditTypeRawValue": String(issue.auditType.rawValue),"#,
+            #"                    "compactDescription": issue.compactDescription,"#,
+            #"                    "detailedDescription": issue.detailedDescription,"#,
+            #"                    "elementIdentifier": elementIdentifier,"#,
+            #"                    "elementLabel": elementLabel,"#,
+            #"                    "elementType": elementType,"#,
+            #"                    "elementFrame": elementFrame,"#,
+            #"                    "applicationFrame": self.auditFrameObject(app.frame),"#,
+            #"                    "auditedElement": auditedElementObject,"#,
+        ] {
+            guard let fieldRange = axTextWorkSavingAuditSource.range(
+                of: field,
+                range: axTextWorkSavingIssueFieldStart..<axTextWorkSavingAuditSource.endIndex
+            ) else {
+                XCTFail("Missing ordered AX-text work-saving issue field: \(field)")
+                return
+            }
+            axTextWorkSavingIssueFieldStart = fieldRange.upperBound
+        }
+        for (auditLock, count) in [
+            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 1),
+            ("observedIssueCount += 1", 1),
+            ("if let auditedElement = issue.element", 1),
+            ("diagnosticAuditedElements.append(auditedElement)", 1),
+            ("auditedElementObject = diagnosticElementObject(auditedElement)", 1),
+            ("return true", 1),
+            ("return false", 0),
+            ("NSNull()", 5),
+        ] {
+            XCTAssertEqual(
+                axTextWorkSavingAuditSource.components(
+                    separatedBy: auditLock
+                ).count - 1,
+                count,
+                auditLock
+            )
+        }
+
+        for (diagnosticLock, count) in [
+            (#"prefix: "S10_4_AX_TEXT_WORK_SAVING_CONTRAST_CONTEXT_DIAGNOSTIC""#, 1),
+            (#"prefix: "S10_4_AX_TEXT_WORK_SAVING_CONTRAST_ISSUE_DIAGNOSTIC""#, 1),
+            (#"prefix: "S10_4_AX_TEXT_WORK_SAVING_CONTRAST_COUNT_DIAGNOSTIC""#, 1),
+            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 1),
+            ("return true", 1),
+            ("return false", 0),
+            ("NSNull()", 6),
+            ("XCTAttachment(", 4),
+            (".lifetime = .keepAlways", 4),
+            ("add(", 4),
+            ("XCUIScreen.main.screenshot()", 1),
+            ("app.debugDescription", 1),
+            ("JSONSerialization.data(", 1),
+            ("diagnosticAuditedElements.enumerated()", 1),
+            ("auditedElement.screenshot()", 1),
+            (#"            "observedIssueCount": observedIssueCount,"#, 1),
+            (#"            "auditedElementCount": diagnosticAuditedElements.count,"#, 1),
+        ] {
+            XCTAssertEqual(
+                axTextWorkSavingContrastHelperSource.components(
+                    separatedBy: diagnosticLock
+                ).count - 1,
+                count,
+                diagnosticLock
+            )
+        }
+        for attachmentName in [
+            #"S10.4 AX-text Record-work saving contrast diagnostic app"#,
+            #"S10.4 AX-text Record-work saving contrast diagnostic tree"#,
+            #"S10.4 AX-text Record-work saving contrast diagnostic context"#,
+            #"S10.4 AX-text Record-work saving contrast diagnostic element "#,
+        ] {
+            XCTAssertEqual(
+                axTextWorkSavingContrastHelperSource.components(
+                    separatedBy: attachmentName
+                ).count - 1,
+                1,
+                attachmentName
+            )
+        }
+
+        let axTextWorkSavingDiagnosticOrder = [
+            #"prefix: "S10_4_AX_TEXT_WORK_SAVING_CONTRAST_CONTEXT_DIAGNOSTIC""#,
+            "let appScreenshotAttachment = XCTAttachment(",
+            "let appTreeAttachment = XCTAttachment(string: app.debugDescription)",
+            "let contextData = try JSONSerialization.data(",
+            "let contextAttachment = XCTAttachment(",
+            "try app.performAccessibilityAudit(for: .contrast) { issue in",
+            #"prefix: "S10_4_AX_TEXT_WORK_SAVING_CONTRAST_ISSUE_DIAGNOSTIC""#,
+            "for (index, auditedElement) in diagnosticAuditedElements.enumerated()",
+            #"prefix: "S10_4_AX_TEXT_WORK_SAVING_CONTRAST_COUNT_DIAGNOSTIC""#,
+            "throw AutomationConfigurationError.invalid(",
+            "S10.4 AX-text Record-work saving contrast diagnostic completed nonaccepting",
+        ]
+        var axTextWorkSavingDiagnosticOrderStart =
+            axTextWorkSavingContrastHelperSource.startIndex
+        for anchor in axTextWorkSavingDiagnosticOrder {
+            guard let anchorRange = axTextWorkSavingContrastHelperSource.range(
+                of: anchor,
+                range: axTextWorkSavingDiagnosticOrderStart..<axTextWorkSavingContrastHelperSource.endIndex
+            ) else {
+                XCTFail("Missing ordered AX-text work-saving diagnostic anchor: \(anchor)")
+                return
+            }
+            axTextWorkSavingDiagnosticOrderStart = anchorRange.upperBound
+        }
+
+        for prohibitedAXTextWorkSavingDiagnosticForm in [
+            "XCTFail(",
+            "XCTAssert",
+            "return false",
+            ".tap(",
+            ".swipe",
+            ".coordinate(",
+            ".press(",
+            "thenDragTo:",
+            "scroll(",
+            ".typeText(",
+            "waitForExistence",
+            "waitForNonExistence",
+            "Thread.sleep",
+            "sleep(",
+            ".launch(",
+            ".terminate(",
+            "relaunch",
+            "CGRect(",
+            "captureBaseline(",
+            "eligibleExceptions",
+            "ContrastAuditExceptionSignature",
+            "contrastAuditExceptionSignatures",
+            "automationAXTreeDigests",
+            "automationContrastExceptions",
+            "S10_MIGRATION_STATE",
+            #"prefix: "S10_4_AX_STATE""#,
+            #"prefix: "S10_4_CONTRAST""#,
+            "S10_4_CANDIDATE",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+            "S10_4_RETENTION",
+            "attachCandidate(",
+        ] {
+            XCTAssertFalse(
+                axTextWorkSavingContrastHelperSource.contains(
+                    prohibitedAXTextWorkSavingDiagnosticForm
+                ),
+                prohibitedAXTextWorkSavingDiagnosticForm
+            )
+        }
 
         for removedReduceMotionWorkSavingDiagnosticForm in [
             "diagnoseReduceMotionWorkSavingContrast",
@@ -8511,7 +8953,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10_4_REDUCE_MOTION_WORK_SAVING_ISSUE_DIAGNOSTIC",
             "S10_4_REDUCE_MOTION_WORK_SAVING_COUNT_DIAGNOSTIC",
             "S10.4 s10.4.current.reduce-motion Record-work saving contrast diagnostic",
-            "Record-work saving contrast diagnostic completed nonaccepting",
+            "S10.4 reduce-motion Record-work saving contrast diagnostic completed nonaccepting",
             #"if shard.shardID == "s10.4.current.reduce-motion","# + "\n" +
                 #"               stateID == "state.work.saving""#,
             "let workScreenCount = workScreens.count",
