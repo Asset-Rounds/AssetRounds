@@ -6914,16 +6914,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
               let workSavingDiagnosticEndRange =
                 workSavingRouteWithDiagnosticSource.range(
                     of: workSavingDiagnosticEnd,
-                    range: workSavingDiagnosticStartRange.upperBound
-                        ..<workSavingRouteWithDiagnosticSource.endIndex
+                    range: workSavingDiagnosticStartRange.upperBound..<
+                        workSavingRouteWithDiagnosticSource.endIndex
                 ) else {
             XCTFail("Missing the bounded AX-text work-saving diagnostic slice")
             return
         }
         let workSavingDiagnosticSource = String(
             workSavingRouteWithDiagnosticSource[
-                workSavingDiagnosticStartRange.lowerBound
-                    ..<workSavingDiagnosticEndRange.upperBound
+                workSavingDiagnosticStartRange.lowerBound..<
+                    workSavingDiagnosticEndRange.upperBound
             ]
         )
         XCTAssertEqual(workSavingDiagnosticSource.utf8.count, 39_867)
@@ -6934,14 +6934,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workSavingPositioningSource =
             String(
                 workSavingRouteWithDiagnosticSource[
-                    workSavingRouteWithDiagnosticSource.startIndex
-                        ..<workSavingDiagnosticStartRange.lowerBound
+                    workSavingRouteWithDiagnosticSource.startIndex..<
+                        workSavingDiagnosticStartRange.lowerBound
                 ]
             )
                 + String(
                     workSavingRouteWithDiagnosticSource[
-                        workSavingDiagnosticEndRange.upperBound
-                            ..<workSavingRouteWithDiagnosticSource.endIndex
+                        workSavingDiagnosticEndRange.upperBound..<
+                            workSavingRouteWithDiagnosticSource.endIndex
                     ]
                 )
         XCTAssertEqual(workSavingPositioningSource.utf8.count, 14_345)
