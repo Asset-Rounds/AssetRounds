@@ -2154,6 +2154,516 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 }
             }
         }
+        if automationShard?.deviceProfileID
+            == "iphone-17-ios-26.2-current" {
+            let currentPreflightQuickPathIntroductionViews =
+                app.descendants(matching: .other).matching(
+                    identifier: "UIContinuousPathIntroductionView"
+                )
+            let currentPreflightQuickPathIntroductionCount =
+                currentPreflightQuickPathIntroductionViews.count
+            if currentPreflightQuickPathIntroductionCount > 0 {
+                let currentPreflightQuickPathIntroductionView =
+                    currentPreflightQuickPathIntroductionViews.firstMatch
+                let currentPreflightQuickPathButtons =
+                    currentPreflightQuickPathIntroductionView.descendants(
+                        matching: .button
+                    )
+                let currentPreflightQuickPathStaticTexts =
+                    currentPreflightQuickPathIntroductionView.descendants(
+                        matching: .staticText
+                    )
+                let currentPreflightQuickPathButton =
+                    currentPreflightQuickPathButtons.firstMatch
+                let currentPreflightQuickPathFirstStaticText =
+                    currentPreflightQuickPathStaticTexts.element(boundBy: 0)
+                let currentPreflightQuickPathSecondStaticText =
+                    currentPreflightQuickPathStaticTexts.element(boundBy: 1)
+
+                let currentPreflightQuickPathPreflightScreens =
+                    app.scrollViews.matching(
+                        identifier: "s3.preflight.screen"
+                    )
+                let currentPreflightQuickPathScrollViews =
+                    app.scrollViews.containing(
+                        .textField,
+                        identifier: "s3.preflight.time-zone"
+                    )
+                let currentPreflightQuickPathZoneFields =
+                    app.textFields.matching(
+                        identifier: "s3.preflight.time-zone"
+                    )
+                let currentPreflightQuickPathSignDetailScreens =
+                    app.scrollViews.matching(
+                        identifier: "s2.sign-detail.screen"
+                    )
+                let currentPreflightQuickPathKeyboards = app.keyboards
+                let currentPreflightQuickPathPreflightScreen =
+                    currentPreflightQuickPathPreflightScreens.firstMatch
+                let currentPreflightQuickPathScrollView =
+                    currentPreflightQuickPathScrollViews.firstMatch
+                let currentPreflightQuickPathZoneField =
+                    currentPreflightQuickPathZoneFields.firstMatch
+                let currentPreflightQuickPathKeyboard =
+                    currentPreflightQuickPathKeyboards.firstMatch
+                let currentPreflightQuickPathDoneKeys =
+                    currentPreflightQuickPathKeyboard.buttons.matching(
+                        identifier: "Done"
+                    )
+                let currentPreflightQuickPathDoneKey =
+                    currentPreflightQuickPathDoneKeys.firstMatch
+
+                let currentPreflightQuickPathConfirmationSwitches =
+                    app.switches.matching(
+                        identifier: "s3.preflight.time-zone-confirmed"
+                    )
+                let currentPreflightQuickPathAfterDarkSwitches =
+                    app.switches.matching(
+                        identifier: "s3.preflight.after-dark"
+                    )
+                let currentPreflightQuickPathSafePositionSwitches =
+                    app.switches.matching(
+                        identifier: "s3.preflight.safe-position"
+                    )
+                let currentPreflightQuickPathConfirmationSwitch =
+                    currentPreflightQuickPathConfirmationSwitches.firstMatch
+                let currentPreflightQuickPathAfterDarkSwitch =
+                    currentPreflightQuickPathAfterDarkSwitches.firstMatch
+                let currentPreflightQuickPathSafePositionSwitch =
+                    currentPreflightQuickPathSafePositionSwitches.firstMatch
+
+                let currentPreflightQuickPathFrameIsValid:
+                    (CGRect) -> Bool = { frame in
+                        !frame.isNull
+                            && !frame.isEmpty
+                            && !frame.isInfinite
+                            && frame.origin.x.isFinite
+                            && frame.origin.y.isFinite
+                            && frame.size.width.isFinite
+                            && frame.size.height.isFinite
+                    }
+                let currentPreflightQuickPathZoneFocus = NSPredicate(
+                    format: "hasKeyboardFocus == true"
+                )
+
+                guard currentPreflightQuickPathIntroductionCount == 1,
+                      currentPreflightQuickPathButtons.count == 1,
+                      currentPreflightQuickPathStaticTexts.count == 2,
+                      currentPreflightQuickPathPreflightScreens.count == 1,
+                      currentPreflightQuickPathScrollViews.count == 1,
+                      currentPreflightQuickPathZoneFields.count == 1,
+                      currentPreflightQuickPathSignDetailScreens.count == 0,
+                      currentPreflightQuickPathKeyboards.count == 1,
+                      currentPreflightQuickPathDoneKeys.count == 1,
+                      currentPreflightQuickPathConfirmationSwitches.count
+                        == 1,
+                      currentPreflightQuickPathAfterDarkSwitches.count == 1,
+                      currentPreflightQuickPathSafePositionSwitches.count
+                        == 1,
+                      currentPreflightQuickPathIntroductionView.exists,
+                      currentPreflightQuickPathIntroductionView.elementType
+                        == .other,
+                      currentPreflightQuickPathIntroductionView.identifier
+                        == "UIContinuousPathIntroductionView",
+                      currentPreflightQuickPathButton.exists,
+                      currentPreflightQuickPathButton.elementType == .button,
+                      currentPreflightQuickPathButton.identifier.isEmpty,
+                      !currentPreflightQuickPathButton.label
+                        .trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty,
+                      currentPreflightQuickPathButton.isEnabled,
+                      currentPreflightQuickPathButton.isHittable,
+                      currentPreflightQuickPathFirstStaticText.exists,
+                      currentPreflightQuickPathFirstStaticText.elementType
+                        == .staticText,
+                      currentPreflightQuickPathFirstStaticText.identifier
+                        .isEmpty,
+                      !currentPreflightQuickPathFirstStaticText.label
+                        .trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty,
+                      currentPreflightQuickPathSecondStaticText.exists,
+                      currentPreflightQuickPathSecondStaticText.elementType
+                        == .staticText,
+                      currentPreflightQuickPathSecondStaticText.identifier
+                        .isEmpty,
+                      !currentPreflightQuickPathSecondStaticText.label
+                        .trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty,
+                      currentPreflightQuickPathPreflightScreen.exists,
+                      currentPreflightQuickPathPreflightScreen.elementType
+                        == .scrollView,
+                      currentPreflightQuickPathPreflightScreen.identifier
+                        == "s3.preflight.screen",
+                      currentPreflightQuickPathScrollView.exists,
+                      currentPreflightQuickPathScrollView.elementType
+                        == .scrollView,
+                      currentPreflightQuickPathScrollView.identifier
+                        == "s3.preflight.screen",
+                      currentPreflightQuickPathZoneField.exists,
+                      currentPreflightQuickPathZoneField.elementType
+                        == .textField,
+                      currentPreflightQuickPathZoneField.identifier
+                        == "s3.preflight.time-zone",
+                      !currentPreflightQuickPathZoneField.label
+                        .trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty,
+                      (currentPreflightQuickPathZoneField.value as? String)
+                        == nil
+                        || (currentPreflightQuickPathZoneField.value
+                            as? String)?.isEmpty == true,
+                      currentPreflightQuickPathZoneField.placeholderValue?
+                        .trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty == false,
+                      currentPreflightQuickPathZoneFocus.evaluate(
+                          with: currentPreflightQuickPathZoneField
+                      ),
+                      currentPreflightQuickPathKeyboard.exists,
+                      currentPreflightQuickPathKeyboard.elementType
+                        == .keyboard,
+                      currentPreflightQuickPathDoneKey.exists,
+                      currentPreflightQuickPathDoneKey.elementType == .button,
+                      currentPreflightQuickPathDoneKey.identifier == "Done",
+                      currentPreflightQuickPathDoneKey.label.lowercased()
+                        == "done",
+                      currentPreflightQuickPathDoneKey.isEnabled,
+                      !currentPreflightQuickPathDoneKey.isHittable,
+                      currentPreflightQuickPathConfirmationSwitch.exists,
+                      currentPreflightQuickPathConfirmationSwitch.elementType
+                        == .switch,
+                      currentPreflightQuickPathConfirmationSwitch.identifier
+                        == "s3.preflight.time-zone-confirmed",
+                      !currentPreflightQuickPathConfirmationSwitch.label
+                        .trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty,
+                      currentPreflightQuickPathAfterDarkSwitch.exists,
+                      currentPreflightQuickPathAfterDarkSwitch.elementType
+                        == .switch,
+                      currentPreflightQuickPathAfterDarkSwitch.identifier
+                        == "s3.preflight.after-dark",
+                      !currentPreflightQuickPathAfterDarkSwitch.label
+                        .trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty,
+                      currentPreflightQuickPathSafePositionSwitch.exists,
+                      currentPreflightQuickPathSafePositionSwitch.elementType
+                        == .switch,
+                      currentPreflightQuickPathSafePositionSwitch.identifier
+                        == "s3.preflight.safe-position",
+                      !currentPreflightQuickPathSafePositionSwitch.label
+                        .trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty,
+                      currentPreflightQuickPathFrameIsValid(app.frame),
+                      currentPreflightQuickPathFrameIsValid(
+                          currentPreflightQuickPathPreflightScreen.frame
+                      ),
+                      currentPreflightQuickPathFrameIsValid(
+                          currentPreflightQuickPathScrollView.frame
+                      ),
+                      currentPreflightQuickPathFrameIsValid(
+                          currentPreflightQuickPathZoneField.frame
+                      ),
+                      currentPreflightQuickPathFrameIsValid(
+                          currentPreflightQuickPathKeyboard.frame
+                      ),
+                      currentPreflightQuickPathFrameIsValid(
+                          currentPreflightQuickPathDoneKey.frame
+                      ),
+                      currentPreflightQuickPathFrameIsValid(
+                          currentPreflightQuickPathIntroductionView.frame
+                      ),
+                      currentPreflightQuickPathFrameIsValid(
+                          currentPreflightQuickPathButton.frame
+                      ),
+                      currentPreflightQuickPathFrameIsValid(
+                          currentPreflightQuickPathFirstStaticText.frame
+                      ),
+                      currentPreflightQuickPathFrameIsValid(
+                          currentPreflightQuickPathSecondStaticText.frame
+                      ),
+                      currentPreflightQuickPathFrameIsValid(
+                          currentPreflightQuickPathConfirmationSwitch.frame
+                      ),
+                      currentPreflightQuickPathFrameIsValid(
+                          currentPreflightQuickPathAfterDarkSwitch.frame
+                      ),
+                      currentPreflightQuickPathFrameIsValid(
+                          currentPreflightQuickPathSafePositionSwitch.frame
+                      ),
+                      (currentPreflightQuickPathFirstStaticText.label
+                        == currentPreflightQuickPathButton.label)
+                        != (currentPreflightQuickPathSecondStaticText.label
+                            == currentPreflightQuickPathButton.label),
+                      currentPreflightQuickPathFirstStaticText.frame
+                        .intersects(
+                            currentPreflightQuickPathButton.frame
+                        )
+                        == (currentPreflightQuickPathFirstStaticText.label
+                            == currentPreflightQuickPathButton.label),
+                      currentPreflightQuickPathSecondStaticText.frame
+                        .intersects(
+                            currentPreflightQuickPathButton.frame
+                        )
+                        == (currentPreflightQuickPathSecondStaticText.label
+                            == currentPreflightQuickPathButton.label),
+                      !currentPreflightQuickPathFirstStaticText.frame
+                        .intersects(
+                            currentPreflightQuickPathSecondStaticText.frame
+                        ),
+                      (
+                          currentPreflightQuickPathFirstStaticText.label
+                            == currentPreflightQuickPathButton.label
+                              ? currentPreflightQuickPathSecondStaticText
+                                  .frame.maxY
+                              : currentPreflightQuickPathFirstStaticText
+                                  .frame.maxY
+                      ) <= (
+                          currentPreflightQuickPathFirstStaticText.label
+                            == currentPreflightQuickPathButton.label
+                              ? currentPreflightQuickPathFirstStaticText
+                                  .frame.minY
+                              : currentPreflightQuickPathSecondStaticText
+                                  .frame.minY
+                      ),
+                      (
+                          currentPreflightQuickPathFirstStaticText.label
+                            == currentPreflightQuickPathButton.label
+                              ? currentPreflightQuickPathSecondStaticText
+                                  .frame.maxY
+                              : currentPreflightQuickPathFirstStaticText
+                                  .frame.maxY
+                      ) <= currentPreflightQuickPathButton.frame.minY,
+                      app.frame.contains(
+                          currentPreflightQuickPathPreflightScreen.frame
+                      ),
+                      app.frame.contains(
+                          currentPreflightQuickPathScrollView.frame
+                      ),
+                      app.frame.contains(
+                          currentPreflightQuickPathZoneField.frame
+                      ),
+                      app.frame.contains(
+                          currentPreflightQuickPathKeyboard.frame
+                      ),
+                      app.frame.contains(
+                          currentPreflightQuickPathIntroductionView.frame
+                      ),
+                      currentPreflightQuickPathPreflightScreen.frame.contains(
+                          currentPreflightQuickPathZoneField.frame
+                      ),
+                      currentPreflightQuickPathScrollView.frame.contains(
+                          currentPreflightQuickPathZoneField.frame
+                      ),
+                      currentPreflightQuickPathKeyboard.frame.contains(
+                          currentPreflightQuickPathDoneKey.frame
+                      ),
+                      currentPreflightQuickPathIntroductionView.frame.contains(
+                          currentPreflightQuickPathButton.frame
+                      ),
+                      currentPreflightQuickPathIntroductionView.frame.contains(
+                          currentPreflightQuickPathFirstStaticText.frame
+                      ),
+                      currentPreflightQuickPathIntroductionView.frame.contains(
+                          currentPreflightQuickPathSecondStaticText.frame
+                      ),
+                      currentPreflightQuickPathIntroductionView.frame.contains(
+                          currentPreflightQuickPathDoneKey.frame
+                      ),
+                      currentPreflightQuickPathIntroductionView.frame
+                        .intersects(
+                            currentPreflightQuickPathKeyboard.frame
+                        ),
+                      app.state == .runningForeground else {
+                    XCTFail(
+                        "The current-profile preflight QuickPath tutorial is incomplete or state changed before dismissal."
+                    )
+                    return
+                }
+
+                let expectedCurrentPreflightQuickPathApplicationFrame =
+                    app.frame
+                let expectedCurrentPreflightQuickPathPreflightFrame =
+                    currentPreflightQuickPathPreflightScreen.frame
+                let expectedCurrentPreflightQuickPathScrollFrame =
+                    currentPreflightQuickPathScrollView.frame
+                let expectedCurrentPreflightQuickPathZoneFrame =
+                    currentPreflightQuickPathZoneField.frame
+                let expectedCurrentPreflightQuickPathKeyboardFrame =
+                    currentPreflightQuickPathKeyboard.frame
+                let expectedCurrentPreflightQuickPathDoneFrame =
+                    currentPreflightQuickPathDoneKey.frame
+                let expectedCurrentPreflightQuickPathZoneLabel =
+                    currentPreflightQuickPathZoneField.label
+                let expectedCurrentPreflightQuickPathZoneValue =
+                    currentPreflightQuickPathZoneField.value as? String
+                let expectedCurrentPreflightQuickPathZonePlaceholder =
+                    currentPreflightQuickPathZoneField.placeholderValue
+                let expectedCurrentPreflightQuickPathZoneHasFocus =
+                    currentPreflightQuickPathZoneFocus.evaluate(
+                        with: currentPreflightQuickPathZoneField
+                    )
+                let expectedCurrentPreflightQuickPathDoneLabel =
+                    currentPreflightQuickPathDoneKey.label
+                let expectedCurrentPreflightQuickPathConfirmationLabel =
+                    currentPreflightQuickPathConfirmationSwitch.label
+                let expectedCurrentPreflightQuickPathConfirmationValue =
+                    currentPreflightQuickPathConfirmationSwitch.value
+                        as? String
+                let expectedCurrentPreflightQuickPathConfirmationEnabled =
+                    currentPreflightQuickPathConfirmationSwitch.isEnabled
+                let expectedCurrentPreflightQuickPathConfirmationHittable =
+                    currentPreflightQuickPathConfirmationSwitch.isHittable
+                let expectedCurrentPreflightQuickPathConfirmationFrame =
+                    currentPreflightQuickPathConfirmationSwitch.frame
+                let expectedCurrentPreflightQuickPathAfterDarkLabel =
+                    currentPreflightQuickPathAfterDarkSwitch.label
+                let expectedCurrentPreflightQuickPathAfterDarkValue =
+                    currentPreflightQuickPathAfterDarkSwitch.value as? String
+                let expectedCurrentPreflightQuickPathAfterDarkEnabled =
+                    currentPreflightQuickPathAfterDarkSwitch.isEnabled
+                let expectedCurrentPreflightQuickPathAfterDarkHittable =
+                    currentPreflightQuickPathAfterDarkSwitch.isHittable
+                let expectedCurrentPreflightQuickPathAfterDarkFrame =
+                    currentPreflightQuickPathAfterDarkSwitch.frame
+                let expectedCurrentPreflightQuickPathSafePositionLabel =
+                    currentPreflightQuickPathSafePositionSwitch.label
+                let expectedCurrentPreflightQuickPathSafePositionValue =
+                    currentPreflightQuickPathSafePositionSwitch.value
+                        as? String
+                let expectedCurrentPreflightQuickPathSafePositionEnabled =
+                    currentPreflightQuickPathSafePositionSwitch.isEnabled
+                let expectedCurrentPreflightQuickPathSafePositionHittable =
+                    currentPreflightQuickPathSafePositionSwitch.isHittable
+                let expectedCurrentPreflightQuickPathSafePositionFrame =
+                    currentPreflightQuickPathSafePositionSwitch.frame
+
+                currentPreflightQuickPathButton.tap()
+                guard currentPreflightQuickPathIntroductionView
+                        .waitForNonExistence(timeout: 10),
+                      currentPreflightQuickPathIntroductionViews.count == 0,
+                      currentPreflightQuickPathButtons.count == 0,
+                      currentPreflightQuickPathStaticTexts.count == 0,
+                      currentPreflightQuickPathPreflightScreens.count == 1,
+                      currentPreflightQuickPathScrollViews.count == 1,
+                      currentPreflightQuickPathZoneFields.count == 1,
+                      currentPreflightQuickPathSignDetailScreens.count == 0,
+                      currentPreflightQuickPathKeyboards.count == 1,
+                      currentPreflightQuickPathDoneKeys.count == 1,
+                      currentPreflightQuickPathConfirmationSwitches.count
+                        == 1,
+                      currentPreflightQuickPathAfterDarkSwitches.count == 1,
+                      currentPreflightQuickPathSafePositionSwitches.count
+                        == 1,
+                      currentPreflightQuickPathPreflightScreen.exists,
+                      currentPreflightQuickPathPreflightScreen.elementType
+                        == .scrollView,
+                      currentPreflightQuickPathPreflightScreen.identifier
+                        == "s3.preflight.screen",
+                      currentPreflightQuickPathScrollView.exists,
+                      currentPreflightQuickPathScrollView.elementType
+                        == .scrollView,
+                      currentPreflightQuickPathScrollView.identifier
+                        == "s3.preflight.screen",
+                      currentPreflightQuickPathZoneField.exists,
+                      currentPreflightQuickPathZoneField.elementType
+                        == .textField,
+                      currentPreflightQuickPathZoneField.identifier
+                        == "s3.preflight.time-zone",
+                      currentPreflightQuickPathZoneField.label
+                        == expectedCurrentPreflightQuickPathZoneLabel,
+                      (currentPreflightQuickPathZoneField.value as? String)
+                        == expectedCurrentPreflightQuickPathZoneValue,
+                      currentPreflightQuickPathZoneField.placeholderValue
+                        == expectedCurrentPreflightQuickPathZonePlaceholder,
+                      currentPreflightQuickPathZoneFocus.evaluate(
+                          with: currentPreflightQuickPathZoneField
+                      ) == expectedCurrentPreflightQuickPathZoneHasFocus,
+                      currentPreflightQuickPathKeyboard.exists,
+                      currentPreflightQuickPathKeyboard.elementType
+                        == .keyboard,
+                      currentPreflightQuickPathDoneKey.exists,
+                      currentPreflightQuickPathDoneKey.elementType == .button,
+                      currentPreflightQuickPathDoneKey.identifier == "Done",
+                      currentPreflightQuickPathDoneKey.label
+                        == expectedCurrentPreflightQuickPathDoneLabel,
+                      currentPreflightQuickPathDoneKey.label.lowercased()
+                        == "done",
+                      currentPreflightQuickPathDoneKey.isEnabled,
+                      currentPreflightQuickPathDoneKey.isHittable,
+                      currentPreflightQuickPathConfirmationSwitch.exists,
+                      currentPreflightQuickPathConfirmationSwitch.elementType
+                        == .switch,
+                      currentPreflightQuickPathConfirmationSwitch.identifier
+                        == "s3.preflight.time-zone-confirmed",
+                      currentPreflightQuickPathConfirmationSwitch.label
+                        == expectedCurrentPreflightQuickPathConfirmationLabel,
+                      (currentPreflightQuickPathConfirmationSwitch.value
+                        as? String)
+                        == expectedCurrentPreflightQuickPathConfirmationValue,
+                      currentPreflightQuickPathConfirmationSwitch.isEnabled
+                        == expectedCurrentPreflightQuickPathConfirmationEnabled,
+                      currentPreflightQuickPathConfirmationSwitch.isHittable
+                        == expectedCurrentPreflightQuickPathConfirmationHittable,
+                      currentPreflightQuickPathAfterDarkSwitch.exists,
+                      currentPreflightQuickPathAfterDarkSwitch.elementType
+                        == .switch,
+                      currentPreflightQuickPathAfterDarkSwitch.identifier
+                        == "s3.preflight.after-dark",
+                      currentPreflightQuickPathAfterDarkSwitch.label
+                        == expectedCurrentPreflightQuickPathAfterDarkLabel,
+                      (currentPreflightQuickPathAfterDarkSwitch.value
+                        as? String)
+                        == expectedCurrentPreflightQuickPathAfterDarkValue,
+                      currentPreflightQuickPathAfterDarkSwitch.isEnabled
+                        == expectedCurrentPreflightQuickPathAfterDarkEnabled,
+                      currentPreflightQuickPathAfterDarkSwitch.isHittable
+                        == expectedCurrentPreflightQuickPathAfterDarkHittable,
+                      currentPreflightQuickPathSafePositionSwitch.exists,
+                      currentPreflightQuickPathSafePositionSwitch.elementType
+                        == .switch,
+                      currentPreflightQuickPathSafePositionSwitch.identifier
+                        == "s3.preflight.safe-position",
+                      currentPreflightQuickPathSafePositionSwitch.label
+                        == expectedCurrentPreflightQuickPathSafePositionLabel,
+                      (currentPreflightQuickPathSafePositionSwitch.value
+                        as? String)
+                        == expectedCurrentPreflightQuickPathSafePositionValue,
+                      currentPreflightQuickPathSafePositionSwitch.isEnabled
+                        == expectedCurrentPreflightQuickPathSafePositionEnabled,
+                      currentPreflightQuickPathSafePositionSwitch.isHittable
+                        == expectedCurrentPreflightQuickPathSafePositionHittable,
+                      app.frame
+                        == expectedCurrentPreflightQuickPathApplicationFrame,
+                      currentPreflightQuickPathPreflightScreen.frame
+                        == expectedCurrentPreflightQuickPathPreflightFrame,
+                      currentPreflightQuickPathScrollView.frame
+                        == expectedCurrentPreflightQuickPathScrollFrame,
+                      currentPreflightQuickPathZoneField.frame
+                        == expectedCurrentPreflightQuickPathZoneFrame,
+                      currentPreflightQuickPathKeyboard.frame
+                        == expectedCurrentPreflightQuickPathKeyboardFrame,
+                      currentPreflightQuickPathDoneKey.frame
+                        == expectedCurrentPreflightQuickPathDoneFrame,
+                      currentPreflightQuickPathConfirmationSwitch.frame
+                        == expectedCurrentPreflightQuickPathConfirmationFrame,
+                      currentPreflightQuickPathAfterDarkSwitch.frame
+                        == expectedCurrentPreflightQuickPathAfterDarkFrame,
+                      currentPreflightQuickPathSafePositionSwitch.frame
+                        == expectedCurrentPreflightQuickPathSafePositionFrame,
+                      app.state == .runningForeground else {
+                    XCTFail(
+                        "The current-profile preflight QuickPath tutorial did not dismiss with state preserved."
+                    )
+                    return
+                }
+            }
+        }
         captureBaseline("state.check-preflight.ready", in: app)
 
         scroll(zone, in: app)

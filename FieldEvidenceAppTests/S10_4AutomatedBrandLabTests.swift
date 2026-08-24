@@ -1327,8 +1327,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 349_517,
-            sha256: "691C5D64975081A6176732D185B99A17DF7E784B1283AE9F58862FD1A3D1F5B8"
+            byteCount: 379_393,
+            sha256: "A9AD3BB61170114952BD6622FDFF4DEE69CCFE23F4F38B94E016B222510E0E0A"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1708,19 +1708,41 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let preflightMinimumGate =
             #"        if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {"#
+        let currentProfilePreflightQuickPathGate =
+            "        if automationShard?.deviceProfileID\n" +
+                #"            == "iphone-17-ios-26.2-current" {"#
         XCTAssertEqual(
             preflightQuickPathSource.components(separatedBy: preflightMinimumGate).count - 1,
             1
         )
+        XCTAssertEqual(
+            preflightQuickPathSource.components(
+                separatedBy: currentProfilePreflightQuickPathGate
+            ).count - 1,
+            1
+        )
         guard let preflightMinimumStartRange = preflightQuickPathSource.range(
             of: preflightMinimumGate
-        ) else {
-            XCTFail("Missing the minimum-profile preflight source slice")
+        ), let currentProfilePreflightQuickPathStartRange =
+            preflightQuickPathSource.range(
+                of: currentProfilePreflightQuickPathGate,
+                range:
+                    preflightMinimumStartRange.upperBound..<preflightQuickPathSource.endIndex
+            )
+        else {
+            XCTFail("Missing the isolated minimum/current preflight source slices")
             return
         }
         let preflightMinimumSource = String(
             preflightQuickPathSource[
-                preflightMinimumStartRange.lowerBound..<preflightQuickPathSource.endIndex
+                preflightMinimumStartRange.lowerBound ..<
+                    currentProfilePreflightQuickPathStartRange.lowerBound
+            ]
+        )
+        let currentProfilePreflightQuickPathSource = String(
+            preflightQuickPathSource[
+                currentProfilePreflightQuickPathStartRange.lowerBound ..<
+                    preflightQuickPathSource.endIndex
             ]
         )
         XCTAssertEqual(preflightMinimumSource.utf8.count, 39_995)
@@ -1728,6 +1750,740 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(preflightMinimumSource.utf8).sha256,
             "BC7AA64B88114A7EE7472311340B96ACE41C9C551E6B87D3442FB8C21E2974C2"
         )
+        XCTAssertEqual(currentProfilePreflightQuickPathSource.utf8.count, 29_876)
+        XCTAssertEqual(
+            Data(currentProfilePreflightQuickPathSource.utf8).sha256,
+            "0F0B1CEB5A80D8DA541B032DE0716317B48739B7D599715AE091AFF00BC30FA7"
+        )
+
+        let preflightZoneScroll = "        scroll(zone, in: app)"
+        XCTAssertEqual(
+            uiSource.components(separatedBy: preflightZoneScroll).count - 1,
+            1
+        )
+        guard let preflightZoneScrollRange = uiSource.range(
+            of: preflightZoneScroll,
+            range: preflightQuickPathCaptureRange.upperBound..<uiSource.endIndex
+        ), let preflightBeginRange = uiSource.range(
+            of: #"        let begin = element("s3.preflight.begin", in: app)"#,
+            range: preflightZoneScrollRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the unchanged post-capture Preflight input slices")
+            return
+        }
+        let preflightCaptureToZoneScrollSource = String(
+            uiSource[
+                preflightQuickPathCaptureRange.lowerBound ..<
+                    preflightZoneScrollRange.lowerBound
+            ]
+        )
+        let preflightZoneScrollToBeginSource = String(
+            uiSource[
+                preflightZoneScrollRange.lowerBound..<preflightBeginRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(preflightCaptureToZoneScrollSource.utf8.count, 65)
+        XCTAssertEqual(
+            Data(preflightCaptureToZoneScrollSource.utf8).sha256,
+            "B78B48127DD3FCFA516B8CB01366643048DB212368A68EBF0809E5CEB84D17D8"
+        )
+        XCTAssertEqual(preflightZoneScrollToBeginSource.utf8.count, 666)
+        XCTAssertEqual(
+            Data(preflightZoneScrollToBeginSource.utf8).sha256,
+            "FB7652BD31787249CBDEA44A82E50DCDE201E155A5BAEBE339942B659836D3BD"
+        )
+
+        let currentProfilePreflightQuickPathStructureLocks = [
+            "let currentPreflightQuickPathIntroductionViews =",
+            "app.descendants(matching: .other).matching(",
+            #"identifier: "UIContinuousPathIntroductionView""#,
+            "let currentPreflightQuickPathIntroductionCount =",
+            "if currentPreflightQuickPathIntroductionCount > 0 {",
+            "let currentPreflightQuickPathIntroductionView =",
+            "currentPreflightQuickPathIntroductionView.descendants(",
+            "matching: .button",
+            "matching: .staticText",
+            "let currentPreflightQuickPathButton =",
+            "let currentPreflightQuickPathFirstStaticText =",
+            "let currentPreflightQuickPathSecondStaticText =",
+            "let currentPreflightQuickPathPreflightScreens =",
+            #"identifier: "s3.preflight.screen""#,
+            "let currentPreflightQuickPathScrollViews =",
+            "app.scrollViews.containing(",
+            "let currentPreflightQuickPathZoneFields =",
+            "app.textFields.matching(",
+            #"identifier: "s3.preflight.time-zone""#,
+            "let currentPreflightQuickPathSignDetailScreens =",
+            #"identifier: "s2.sign-detail.screen""#,
+            "let currentPreflightQuickPathKeyboards = app.keyboards",
+            "currentPreflightQuickPathKeyboard.buttons.matching(",
+            #"identifier: "Done""#,
+            "let currentPreflightQuickPathConfirmationSwitches =",
+            #"identifier: "s3.preflight.time-zone-confirmed""#,
+            "let currentPreflightQuickPathAfterDarkSwitches =",
+            #"identifier: "s3.preflight.after-dark""#,
+            "let currentPreflightQuickPathSafePositionSwitches =",
+            #"identifier: "s3.preflight.safe-position""#,
+            "let currentPreflightQuickPathFrameIsValid:",
+            "(CGRect) -> Bool = { frame in",
+            "!frame.isNull",
+            "&& !frame.isEmpty",
+            "&& !frame.isInfinite",
+            "&& frame.origin.x.isFinite",
+            "&& frame.origin.y.isFinite",
+            "&& frame.size.width.isFinite",
+            "&& frame.size.height.isFinite",
+            "let currentPreflightQuickPathZoneFocus = NSPredicate(",
+            #"format: "hasKeyboardFocus == true""#,
+            "currentPreflightQuickPathButton.identifier.isEmpty",
+            "currentPreflightQuickPathFirstStaticText.identifier",
+            "currentPreflightQuickPathSecondStaticText.identifier",
+            "currentPreflightQuickPathButton.label",
+            "currentPreflightQuickPathFirstStaticText.label",
+            "currentPreflightQuickPathSecondStaticText.label",
+            "currentPreflightQuickPathZoneField.placeholderValue?",
+            "currentPreflightQuickPathDoneKey.label.lowercased()",
+            "currentPreflightQuickPathButton.tap()",
+            ".waitForNonExistence(timeout: 10)",
+        ]
+        for lock in currentProfilePreflightQuickPathStructureLocks {
+            XCTAssertTrue(
+                currentProfilePreflightQuickPathSource.contains(lock),
+                lock
+            )
+        }
+
+        let currentProfilePreflightQuickPathQueryCountLocks: [(String, Int)] = [
+            ("currentPreflightQuickPathIntroductionViews.count", 2),
+            ("currentPreflightQuickPathButtons.count", 2),
+            ("currentPreflightQuickPathStaticTexts.count", 2),
+            ("currentPreflightQuickPathPreflightScreens.count", 2),
+            ("currentPreflightQuickPathScrollViews.count", 2),
+            ("currentPreflightQuickPathZoneFields.count", 2),
+            ("currentPreflightQuickPathSignDetailScreens.count", 2),
+            ("currentPreflightQuickPathKeyboards.count", 2),
+            ("currentPreflightQuickPathDoneKeys.count", 2),
+            ("currentPreflightQuickPathConfirmationSwitches.count", 2),
+            ("currentPreflightQuickPathAfterDarkSwitches.count", 2),
+            ("currentPreflightQuickPathSafePositionSwitches.count", 2),
+        ]
+        for (lock, count) in currentProfilePreflightQuickPathQueryCountLocks {
+            XCTAssertEqual(
+                currentProfilePreflightQuickPathSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                count,
+                lock
+            )
+        }
+        let currentProfilePreflightQuickPathExactBindings = [
+            "let currentPreflightQuickPathIntroductionViews =",
+            "let currentPreflightQuickPathIntroductionCount =",
+            "let currentPreflightQuickPathIntroductionView =",
+            "let currentPreflightQuickPathButtons =",
+            "let currentPreflightQuickPathStaticTexts =",
+            "let currentPreflightQuickPathButton =",
+            "let currentPreflightQuickPathFirstStaticText =",
+            "let currentPreflightQuickPathSecondStaticText =",
+            "let currentPreflightQuickPathPreflightScreens =",
+            "let currentPreflightQuickPathScrollViews =",
+            "let currentPreflightQuickPathZoneFields =",
+            "let currentPreflightQuickPathSignDetailScreens =",
+            "let currentPreflightQuickPathKeyboards = app.keyboards",
+            "let currentPreflightQuickPathPreflightScreen =",
+            "let currentPreflightQuickPathScrollView =",
+            "let currentPreflightQuickPathZoneField =",
+            "let currentPreflightQuickPathKeyboard =",
+            "let currentPreflightQuickPathDoneKeys =",
+            "let currentPreflightQuickPathDoneKey =",
+            "let currentPreflightQuickPathConfirmationSwitches =",
+            "let currentPreflightQuickPathAfterDarkSwitches =",
+            "let currentPreflightQuickPathSafePositionSwitches =",
+            "let currentPreflightQuickPathConfirmationSwitch =",
+            "let currentPreflightQuickPathAfterDarkSwitch =",
+            "let currentPreflightQuickPathSafePositionSwitch =",
+        ]
+        for binding in currentProfilePreflightQuickPathExactBindings {
+            XCTAssertEqual(
+                currentProfilePreflightQuickPathSource.components(
+                    separatedBy: binding
+                ).count - 1,
+                1,
+                binding
+            )
+        }
+        for (lock, count) in [
+            (".firstMatch", 10),
+            ("element(boundBy:", 2),
+            ("currentPreflightQuickPathFrameIsValid", 14),
+            (".contains(", 12),
+            (".intersects(", 4),
+            ("currentPreflightQuickPathZoneFocus", 4),
+            ("expectedCurrentPreflightQuickPathZoneHasFocus", 2),
+            ("currentPreflightQuickPathButton.tap()", 1),
+            (".tap()", 1),
+            ("waitForNonExistence(", 1),
+            ("timeout: 10", 1),
+            ("XCTFail(", 2),
+            ("\n                    return\n", 2),
+        ] {
+            XCTAssertEqual(
+                currentProfilePreflightQuickPathSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                count,
+                lock
+            )
+        }
+
+        let currentProfilePreActionGuard =
+            "                guard currentPreflightQuickPathIntroductionCount == 1,"
+        let currentProfileFirstElementProperty =
+            "                      currentPreflightQuickPathIntroductionView.exists,"
+        guard let currentProfilePreActionGuardRange =
+            currentProfilePreflightQuickPathSource.range(
+                of: currentProfilePreActionGuard
+            ), let currentProfileFirstElementPropertyRange =
+            currentProfilePreflightQuickPathSource.range(
+                of: currentProfileFirstElementProperty,
+                range:
+                    currentProfilePreActionGuardRange.upperBound ..<
+                        currentProfilePreflightQuickPathSource.endIndex
+            ) else {
+            XCTFail("Missing the ordered current-profile Preflight pre-action guard")
+            return
+        }
+        let currentProfilePreActionCardinalitySource = String(
+            currentProfilePreflightQuickPathSource[
+                currentProfilePreActionGuardRange.lowerBound ..<
+                    currentProfileFirstElementPropertyRange.lowerBound
+            ]
+        )
+        for cardinality in [
+            "currentPreflightQuickPathIntroductionCount == 1",
+            "currentPreflightQuickPathButtons.count == 1",
+            "currentPreflightQuickPathStaticTexts.count == 2",
+            "currentPreflightQuickPathPreflightScreens.count == 1",
+            "currentPreflightQuickPathScrollViews.count == 1",
+            "currentPreflightQuickPathZoneFields.count == 1",
+            "currentPreflightQuickPathSignDetailScreens.count == 0",
+            "currentPreflightQuickPathKeyboards.count == 1",
+            "currentPreflightQuickPathDoneKeys.count == 1",
+            "currentPreflightQuickPathConfirmationSwitches.count\n" +
+                "                        == 1",
+            "currentPreflightQuickPathAfterDarkSwitches.count == 1",
+            "currentPreflightQuickPathSafePositionSwitches.count\n" +
+                "                        == 1",
+        ] {
+            XCTAssertEqual(
+                currentProfilePreActionCardinalitySource.components(
+                    separatedBy: cardinality
+                ).count - 1,
+                1,
+                cardinality
+            )
+        }
+        for prematureElementRead in [
+            ".exists",
+            ".elementType",
+            ".identifier",
+            ".label",
+            ".value",
+            ".placeholderValue",
+            ".frame",
+            ".isEnabled",
+            ".isHittable",
+            ".evaluate(",
+        ] {
+            XCTAssertFalse(
+                currentProfilePreActionCardinalitySource.contains(
+                    prematureElementRead
+                ),
+                prematureElementRead
+            )
+        }
+
+        let currentProfilePreflightQuickPathGeometryLocks = [
+            "app.frame.contains(\n" +
+                "                          currentPreflightQuickPathPreflightScreen.frame",
+            "app.frame.contains(\n" +
+                "                          currentPreflightQuickPathScrollView.frame",
+            "app.frame.contains(\n" +
+                "                          currentPreflightQuickPathZoneField.frame",
+            "app.frame.contains(\n" +
+                "                          currentPreflightQuickPathKeyboard.frame",
+            "app.frame.contains(\n" +
+                "                          currentPreflightQuickPathIntroductionView.frame",
+            "currentPreflightQuickPathPreflightScreen.frame.contains(\n" +
+                "                          currentPreflightQuickPathZoneField.frame",
+            "currentPreflightQuickPathScrollView.frame.contains(\n" +
+                "                          currentPreflightQuickPathZoneField.frame",
+            "currentPreflightQuickPathKeyboard.frame.contains(\n" +
+                "                          currentPreflightQuickPathDoneKey.frame",
+            "currentPreflightQuickPathIntroductionView.frame.contains(\n" +
+                "                          currentPreflightQuickPathButton.frame",
+            "currentPreflightQuickPathIntroductionView.frame.contains(\n" +
+                "                          currentPreflightQuickPathFirstStaticText.frame",
+            "currentPreflightQuickPathIntroductionView.frame.contains(\n" +
+                "                          currentPreflightQuickPathSecondStaticText.frame",
+            "currentPreflightQuickPathIntroductionView.frame.contains(\n" +
+                "                          currentPreflightQuickPathDoneKey.frame",
+            "currentPreflightQuickPathIntroductionView.frame\n" +
+                "                        .intersects(\n" +
+                "                            currentPreflightQuickPathKeyboard.frame",
+            "(currentPreflightQuickPathFirstStaticText.label\n" +
+                "                        == currentPreflightQuickPathButton.label)\n" +
+                "                        != (currentPreflightQuickPathSecondStaticText.label",
+            "currentPreflightQuickPathFirstStaticText.frame\n" +
+                "                        .intersects(\n" +
+                "                            currentPreflightQuickPathButton.frame\n" +
+                "                        )\n" +
+                "                        == (currentPreflightQuickPathFirstStaticText.label",
+            "currentPreflightQuickPathSecondStaticText.frame\n" +
+                "                        .intersects(\n" +
+                "                            currentPreflightQuickPathButton.frame\n" +
+                "                        )\n" +
+                "                        == (currentPreflightQuickPathSecondStaticText.label",
+            "!currentPreflightQuickPathFirstStaticText.frame\n" +
+                "                        .intersects(\n" +
+                "                            currentPreflightQuickPathSecondStaticText.frame",
+        ]
+        for lock in currentProfilePreflightQuickPathGeometryLocks {
+            XCTAssertEqual(
+                currentProfilePreflightQuickPathSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+
+        let currentProfileFirstFrameValidation =
+            "currentPreflightQuickPathFrameIsValid(app.frame),"
+        let currentProfileLastFrameValidation =
+            "currentPreflightQuickPathFrameIsValid(\n" +
+                "                          currentPreflightQuickPathSafePositionSwitch.frame\n" +
+                "                      ),"
+        let currentProfileFirstDynamicRoleProof =
+            "(currentPreflightQuickPathFirstStaticText.label\n" +
+                "                        == currentPreflightQuickPathButton.label)\n" +
+                "                        != (currentPreflightQuickPathSecondStaticText.label"
+        guard let currentProfileFirstFrameValidationRange =
+            currentProfilePreflightQuickPathSource.range(
+                of: currentProfileFirstFrameValidation
+            ), let currentProfileLastFrameValidationRange =
+            currentProfilePreflightQuickPathSource.range(
+                of: currentProfileLastFrameValidation,
+                range:
+                    currentProfileFirstFrameValidationRange.upperBound ..<
+                        currentProfilePreflightQuickPathSource.endIndex
+            ), let currentProfileFirstDynamicRoleProofRange =
+            currentProfilePreflightQuickPathSource.range(
+                of: currentProfileFirstDynamicRoleProof,
+                range:
+                    currentProfileLastFrameValidationRange.upperBound ..<
+                        currentProfilePreflightQuickPathSource.endIndex
+            ) else {
+            XCTFail("Missing current-profile frame-before-geometry ordering")
+            return
+        }
+        XCTAssertLessThan(
+            currentProfileFirstElementPropertyRange.lowerBound,
+            currentProfileFirstFrameValidationRange.lowerBound
+        )
+        XCTAssertLessThan(
+            currentProfileFirstFrameValidationRange.lowerBound,
+            currentProfileLastFrameValidationRange.lowerBound
+        )
+        XCTAssertLessThan(
+            currentProfileLastFrameValidationRange.lowerBound,
+            currentProfileFirstDynamicRoleProofRange.lowerBound
+        )
+
+        let currentProfileTutorialTopRole =
+            "currentPreflightQuickPathFirstStaticText.label\n" +
+                "                            == currentPreflightQuickPathButton.label\n" +
+                "                              ? currentPreflightQuickPathSecondStaticText\n" +
+                "                                  .frame.maxY\n" +
+                "                              : currentPreflightQuickPathFirstStaticText\n" +
+                "                                  .frame.maxY"
+        XCTAssertEqual(
+            currentProfilePreflightQuickPathSource.components(
+                separatedBy: currentProfileTutorialTopRole
+            ).count - 1,
+            2
+        )
+        let currentProfileActionTopRole =
+            "currentPreflightQuickPathFirstStaticText.label\n" +
+                "                            == currentPreflightQuickPathButton.label\n" +
+                "                              ? currentPreflightQuickPathFirstStaticText\n" +
+                "                                  .frame.minY\n" +
+                "                              : currentPreflightQuickPathSecondStaticText\n" +
+                "                                  .frame.minY"
+        XCTAssertEqual(
+            currentProfilePreflightQuickPathSource.components(
+                separatedBy: currentProfileActionTopRole
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            currentProfilePreflightQuickPathSource.components(
+                separatedBy:
+                    ") <= currentPreflightQuickPathButton.frame.minY,"
+            ).count - 1,
+            1
+        )
+
+        let currentProfileExpectedSnapshotNames = [
+            "expectedCurrentPreflightQuickPathApplicationFrame",
+            "expectedCurrentPreflightQuickPathPreflightFrame",
+            "expectedCurrentPreflightQuickPathScrollFrame",
+            "expectedCurrentPreflightQuickPathZoneFrame",
+            "expectedCurrentPreflightQuickPathKeyboardFrame",
+            "expectedCurrentPreflightQuickPathDoneFrame",
+            "expectedCurrentPreflightQuickPathZoneLabel",
+            "expectedCurrentPreflightQuickPathZoneValue",
+            "expectedCurrentPreflightQuickPathZonePlaceholder",
+            "expectedCurrentPreflightQuickPathZoneHasFocus",
+            "expectedCurrentPreflightQuickPathDoneLabel",
+            "expectedCurrentPreflightQuickPathConfirmationLabel",
+            "expectedCurrentPreflightQuickPathConfirmationValue",
+            "expectedCurrentPreflightQuickPathConfirmationEnabled",
+            "expectedCurrentPreflightQuickPathConfirmationHittable",
+            "expectedCurrentPreflightQuickPathConfirmationFrame",
+            "expectedCurrentPreflightQuickPathAfterDarkLabel",
+            "expectedCurrentPreflightQuickPathAfterDarkValue",
+            "expectedCurrentPreflightQuickPathAfterDarkEnabled",
+            "expectedCurrentPreflightQuickPathAfterDarkHittable",
+            "expectedCurrentPreflightQuickPathAfterDarkFrame",
+            "expectedCurrentPreflightQuickPathSafePositionLabel",
+            "expectedCurrentPreflightQuickPathSafePositionValue",
+            "expectedCurrentPreflightQuickPathSafePositionEnabled",
+            "expectedCurrentPreflightQuickPathSafePositionHittable",
+            "expectedCurrentPreflightQuickPathSafePositionFrame",
+        ]
+        for snapshotName in currentProfileExpectedSnapshotNames {
+            XCTAssertEqual(
+                currentProfilePreflightQuickPathSource.components(
+                    separatedBy: snapshotName
+                ).count - 1,
+                2,
+                snapshotName
+            )
+        }
+
+        let currentProfilePreActionFailure =
+            "                    XCTFail(\n" +
+                "                        \"The current-profile preflight QuickPath tutorial is incomplete or state changed before dismissal.\"\n" +
+                "                    )\n" +
+                "                    return\n" +
+                "                }"
+        let currentProfileRestorationFailure =
+            "                    XCTFail(\n" +
+                "                        \"The current-profile preflight QuickPath tutorial did not dismiss with state preserved.\"\n" +
+                "                    )\n" +
+                "                    return\n" +
+                "                }"
+        let currentProfileFirstSnapshot =
+            "                let expectedCurrentPreflightQuickPathApplicationFrame ="
+        let currentProfileQuickPathAction =
+            "                currentPreflightQuickPathButton.tap()"
+        let currentProfileQuickPathWait =
+            "currentPreflightQuickPathIntroductionView\n" +
+                "                        .waitForNonExistence(timeout: 10)"
+        guard let currentProfilePreActionFailureRange =
+            currentProfilePreflightQuickPathSource.range(
+                of: currentProfilePreActionFailure
+            ), let currentProfileFirstSnapshotRange =
+            currentProfilePreflightQuickPathSource.range(
+                of: currentProfileFirstSnapshot
+            ), let currentProfileQuickPathActionRange =
+            currentProfilePreflightQuickPathSource.range(
+                of: currentProfileQuickPathAction
+            ), let currentProfileQuickPathWaitRange =
+            currentProfilePreflightQuickPathSource.range(
+                of: currentProfileQuickPathWait
+            ), let currentProfileRestorationFailureRange =
+            currentProfilePreflightQuickPathSource.range(
+                of: currentProfileRestorationFailure
+            ) else {
+            XCTFail("Missing the ordered current-profile Preflight action/restoration")
+            return
+        }
+        XCTAssertLessThan(
+            currentProfilePreActionFailureRange.lowerBound,
+            currentProfileFirstSnapshotRange.lowerBound
+        )
+        XCTAssertLessThan(
+            currentProfileFirstSnapshotRange.lowerBound,
+            currentProfileQuickPathActionRange.lowerBound
+        )
+        XCTAssertLessThan(
+            currentProfileQuickPathActionRange.lowerBound,
+            currentProfileQuickPathWaitRange.lowerBound
+        )
+        XCTAssertLessThan(
+            currentProfileQuickPathWaitRange.lowerBound,
+            currentProfileRestorationFailureRange.lowerBound
+        )
+        let currentProfilePreActionSemanticSource = String(
+            currentProfilePreflightQuickPathSource[
+                currentProfilePreActionGuardRange.lowerBound ..<
+                    currentProfilePreActionFailureRange.upperBound
+            ]
+        )
+        for preActionLock in [
+            "currentPreflightQuickPathIntroductionView.elementType",
+            #"== "UIContinuousPathIntroductionView""#,
+            "currentPreflightQuickPathButton.elementType == .button",
+            "currentPreflightQuickPathButton.identifier.isEmpty",
+            "currentPreflightQuickPathButton.isEnabled",
+            "currentPreflightQuickPathButton.isHittable",
+            "currentPreflightQuickPathFirstStaticText.elementType",
+            "currentPreflightQuickPathFirstStaticText.identifier",
+            "currentPreflightQuickPathSecondStaticText.elementType",
+            "currentPreflightQuickPathSecondStaticText.identifier",
+            "currentPreflightQuickPathPreflightScreen.elementType",
+            #"== "s3.preflight.screen""#,
+            "currentPreflightQuickPathScrollView.elementType",
+            "currentPreflightQuickPathZoneField.elementType",
+            #"== "s3.preflight.time-zone""#,
+            "currentPreflightQuickPathZoneField.placeholderValue?",
+            "currentPreflightQuickPathZoneFocus.evaluate(",
+            "currentPreflightQuickPathKeyboard.elementType",
+            "currentPreflightQuickPathDoneKey.elementType == .button",
+            #"currentPreflightQuickPathDoneKey.identifier == "Done""#,
+            "currentPreflightQuickPathDoneKey.label.lowercased()",
+            "currentPreflightQuickPathDoneKey.isEnabled",
+            "!currentPreflightQuickPathDoneKey.isHittable",
+            "currentPreflightQuickPathConfirmationSwitch.elementType",
+            #"== "s3.preflight.time-zone-confirmed""#,
+            "currentPreflightQuickPathAfterDarkSwitch.elementType",
+            #"== "s3.preflight.after-dark""#,
+            "currentPreflightQuickPathSafePositionSwitch.elementType",
+            #"== "s3.preflight.safe-position""#,
+            "app.state == .runningForeground else {",
+        ] {
+            XCTAssertTrue(
+                currentProfilePreActionSemanticSource.contains(preActionLock),
+                preActionLock
+            )
+        }
+
+        let currentProfileRestorationSource = String(
+            currentProfilePreflightQuickPathSource[
+                currentProfileQuickPathActionRange.lowerBound ..<
+                    currentProfileRestorationFailureRange.upperBound
+            ]
+        )
+        let currentProfilePostWaitCardinalityStart =
+            "currentPreflightQuickPathIntroductionViews.count == 0"
+        let currentProfileFirstRestoredProperty =
+            "currentPreflightQuickPathPreflightScreen.exists"
+        guard let currentProfilePostWaitCardinalityStartRange =
+            currentProfilePreflightQuickPathSource.range(
+                of: currentProfilePostWaitCardinalityStart,
+                range:
+                    currentProfileQuickPathWaitRange.upperBound ..<
+                        currentProfileRestorationFailureRange.lowerBound
+            ), let currentProfileFirstRestoredPropertyRange =
+            currentProfilePreflightQuickPathSource.range(
+                of: currentProfileFirstRestoredProperty,
+                range:
+                    currentProfilePostWaitCardinalityStartRange.upperBound ..<
+                        currentProfileRestorationFailureRange.lowerBound
+            ) else {
+            XCTFail("Missing the ordered current-profile post-wait cardinalities")
+            return
+        }
+        let currentProfilePostWaitCardinalitySource = String(
+            currentProfilePreflightQuickPathSource[
+                currentProfilePostWaitCardinalityStartRange.lowerBound ..<
+                    currentProfileFirstRestoredPropertyRange.lowerBound
+            ]
+        )
+        let currentProfilePostWaitCardinalities = [
+            "currentPreflightQuickPathIntroductionViews.count == 0",
+            "currentPreflightQuickPathButtons.count == 0",
+            "currentPreflightQuickPathStaticTexts.count == 0",
+            "currentPreflightQuickPathPreflightScreens.count == 1",
+            "currentPreflightQuickPathScrollViews.count == 1",
+            "currentPreflightQuickPathZoneFields.count == 1",
+            "currentPreflightQuickPathSignDetailScreens.count == 0",
+            "currentPreflightQuickPathKeyboards.count == 1",
+            "currentPreflightQuickPathDoneKeys.count == 1",
+            "currentPreflightQuickPathConfirmationSwitches.count\n" +
+                "                        == 1",
+            "currentPreflightQuickPathAfterDarkSwitches.count == 1",
+            "currentPreflightQuickPathSafePositionSwitches.count\n" +
+                "                        == 1",
+        ]
+        XCTAssertEqual(currentProfilePostWaitCardinalities.count, 12)
+        for restoredCardinality in currentProfilePostWaitCardinalities {
+            XCTAssertEqual(
+                currentProfilePostWaitCardinalitySource.components(
+                    separatedBy: restoredCardinality
+                ).count - 1,
+                1,
+                restoredCardinality
+            )
+        }
+        for prematureRestoredPropertyRead in [
+            ".exists",
+            ".elementType",
+            ".identifier",
+            ".label",
+            ".value",
+            ".placeholderValue",
+            ".frame",
+            ".isEnabled",
+            ".isHittable",
+            ".evaluate(",
+        ] {
+            XCTAssertFalse(
+                currentProfilePostWaitCardinalitySource.contains(
+                    prematureRestoredPropertyRead
+                ),
+                prematureRestoredPropertyRead
+            )
+        }
+        for restoredProperty in [
+            "currentPreflightQuickPathPreflightScreen.exists",
+            "currentPreflightQuickPathPreflightScreen.elementType",
+            "currentPreflightQuickPathScrollView.exists",
+            "currentPreflightQuickPathScrollView.elementType",
+            "currentPreflightQuickPathZoneField.exists",
+            "currentPreflightQuickPathZoneField.elementType",
+            "currentPreflightQuickPathZoneFocus.evaluate(",
+            "currentPreflightQuickPathKeyboard.exists",
+            "currentPreflightQuickPathKeyboard.elementType",
+            "currentPreflightQuickPathDoneKey.exists",
+            "currentPreflightQuickPathDoneKey.elementType == .button",
+            #"currentPreflightQuickPathDoneKey.identifier == "Done""#,
+            "currentPreflightQuickPathDoneKey.label.lowercased()",
+            "currentPreflightQuickPathDoneKey.isEnabled",
+            "currentPreflightQuickPathDoneKey.isHittable",
+            "currentPreflightQuickPathConfirmationSwitch.exists",
+            "currentPreflightQuickPathConfirmationSwitch.elementType",
+            "currentPreflightQuickPathAfterDarkSwitch.exists",
+            "currentPreflightQuickPathAfterDarkSwitch.elementType",
+            "currentPreflightQuickPathSafePositionSwitch.exists",
+            "currentPreflightQuickPathSafePositionSwitch.elementType",
+            "app.state == .runningForeground else {",
+        ] {
+            XCTAssertTrue(
+                currentProfileRestorationSource.contains(restoredProperty),
+                restoredProperty
+            )
+        }
+        for snapshotName in currentProfileExpectedSnapshotNames {
+            XCTAssertTrue(
+                currentProfileRestorationSource.contains(snapshotName),
+                snapshotName
+            )
+        }
+        let currentProfileBeforePreActionGuard = String(
+            currentProfilePreflightQuickPathSource[
+                currentProfilePreflightQuickPathSource.startIndex ..<
+                    currentProfilePreActionGuardRange.lowerBound
+            ]
+        )
+        XCTAssertFalse(
+            currentProfileBeforePreActionGuard.contains(
+                "expectedCurrentPreflightQuickPath"
+            )
+        )
+
+        let currentProfileRestorationBeforeCapture =
+            currentProfileRestorationFailure +
+                "\n            }\n        }\n" +
+                preflightQuickPathCapture
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: currentProfileRestorationBeforeCapture
+            ).count - 1,
+            1
+        )
+
+        for fixedSwitchState in [
+            "currentPreflightQuickPathConfirmationSwitch.isEnabled == true",
+            "currentPreflightQuickPathConfirmationSwitch.isEnabled == false",
+            "currentPreflightQuickPathConfirmationSwitch.isHittable == true",
+            "currentPreflightQuickPathConfirmationSwitch.isHittable == false",
+            "currentPreflightQuickPathAfterDarkSwitch.isEnabled == true",
+            "currentPreflightQuickPathAfterDarkSwitch.isEnabled == false",
+            "currentPreflightQuickPathAfterDarkSwitch.isHittable == true",
+            "currentPreflightQuickPathAfterDarkSwitch.isHittable == false",
+            "currentPreflightQuickPathSafePositionSwitch.isEnabled == true",
+            "currentPreflightQuickPathSafePositionSwitch.isEnabled == false",
+            "currentPreflightQuickPathSafePositionSwitch.isHittable == true",
+            "currentPreflightQuickPathSafePositionSwitch.isHittable == false",
+            "                      currentPreflightQuickPathConfirmationSwitch.isEnabled,",
+            "                      !currentPreflightQuickPathConfirmationSwitch.isEnabled,",
+            "                      currentPreflightQuickPathConfirmationSwitch.isHittable,",
+            "                      !currentPreflightQuickPathConfirmationSwitch.isHittable,",
+            "                      currentPreflightQuickPathAfterDarkSwitch.isEnabled,",
+            "                      !currentPreflightQuickPathAfterDarkSwitch.isEnabled,",
+            "                      currentPreflightQuickPathAfterDarkSwitch.isHittable,",
+            "                      !currentPreflightQuickPathAfterDarkSwitch.isHittable,",
+            "                      currentPreflightQuickPathSafePositionSwitch.isEnabled,",
+            "                      !currentPreflightQuickPathSafePositionSwitch.isEnabled,",
+            "                      currentPreflightQuickPathSafePositionSwitch.isHittable,",
+            "                      !currentPreflightQuickPathSafePositionSwitch.isHittable,",
+            #"== "0""#,
+            #"== "1""#,
+        ] {
+            XCTAssertFalse(
+                currentProfilePreflightQuickPathSource.contains(fixedSwitchState),
+                fixedSwitchState
+            )
+        }
+        for prohibitedCurrentProfileQuickPathForm in [
+            "Speed up your typing",
+            "Continue",
+            "app.staticTexts",
+            "app.buttons",
+            #"format: "label == %@""#,
+            #"format: "label CONTAINS""#,
+            #"format: "label BEGINSWITH""#,
+            "private func",
+            "return false",
+            "return true",
+            "iphone-se-3-ios-18.0-minimum",
+            "automationShard?.shardID",
+            "automationShard?.locale",
+            "CGRect(",
+            ".coordinate(",
+            ".press(",
+            ".swipe",
+            "scroll(",
+            "typeText(",
+            "dismissKeyboard(",
+            "currentPreflightQuickPathDoneKey.tap()",
+            "setToggle(",
+            "waitForExistence(",
+            "Thread.sleep",
+            "Task.sleep",
+            "sleep(",
+            "for _ in",
+            "while ",
+            "captureBaseline(",
+            "performAccessibilityAudit",
+            "printJSONLine",
+            "S10_4_CANDIDATE",
+            "S10_4_AX",
+            "S10_4_CONTRAST",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+            "ContrastAuditExceptionSignature",
+        ] {
+            XCTAssertFalse(
+                currentProfilePreflightQuickPathSource.contains(
+                    prohibitedCurrentProfileQuickPathForm
+                ),
+                prohibitedCurrentProfileQuickPathForm
+            )
+        }
         for (preflightNavigationBinding, count) in [
             ("let preflightNavigationBars = app.navigationBars", 1),
             ("let preflightNavigationBar = preflightNavigationBars.firstMatch", 1),
@@ -2554,12 +3310,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"            let returnKey = app.keyboards.buttons["Return"]"# + "\n" +
                 #"            if !returnKey.waitForExistence(timeout: 1) || !returnKey.isHittable {"#
         XCTAssertEqual(
-            preflightQuickPathSource.components(
+            preflightMinimumSource.components(
                 separatedBy: preflightReturnAbsenceDiscriminator
             ).count - 1,
             1
         )
-        XCTAssertFalse(preflightQuickPathSource.contains("returnKey.exists"))
+        XCTAssertFalse(preflightMinimumSource.contains("returnKey.exists"))
 
         let preflightRelationalClassifier = [
             "                let applicationFrame = app.frame",
@@ -2577,28 +3333,28 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ]
         for lock in preflightRelationalClassifier {
             XCTAssertEqual(
-                preflightQuickPathSource.components(separatedBy: lock).count - 1,
+                preflightMinimumSource.components(separatedBy: lock).count - 1,
                 1,
                 lock
             )
         }
-        guard let preflightOffAppStartRange = preflightQuickPathSource.range(
+        guard let preflightOffAppStartRange = preflightMinimumSource.range(
             of: "                if keyboardIsOffApp {"
-        ), let preflightVisibleStartRange = preflightQuickPathSource.range(
+        ), let preflightVisibleStartRange = preflightMinimumSource.range(
             of: "\n                } else {",
-            range: preflightOffAppStartRange.upperBound..<preflightQuickPathSource.endIndex
+            range: preflightOffAppStartRange.upperBound..<preflightMinimumSource.endIndex
         ) else {
             XCTFail("Missing the preflight keyboard class branches")
             return
         }
         let preflightOffAppSource = String(
-            preflightQuickPathSource[
+            preflightMinimumSource[
                 preflightOffAppStartRange.lowerBound..<preflightVisibleStartRange.lowerBound
             ]
         )
         let preflightVisibleSource = String(
-            preflightQuickPathSource[
-                preflightVisibleStartRange.lowerBound..<preflightQuickPathSource.endIndex
+            preflightMinimumSource[
+                preflightVisibleStartRange.lowerBound..<preflightMinimumSource.endIndex
             ]
         )
         let minimumDoubleLengthPositioningGate =
@@ -2973,7 +3729,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ]
         for lock in preflightPreActionSnapshots {
             XCTAssertEqual(
-                preflightQuickPathSource.components(separatedBy: lock).count - 1,
+                preflightMinimumSource.components(separatedBy: lock).count - 1,
                 1,
                 lock
             )
@@ -2999,7 +3755,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                      !preActionDetailRouteExists,\n" +
                 "                      app.state == .runningForeground else {"
         XCTAssertEqual(
-            preflightQuickPathSource.components(separatedBy: preflightPrecondition).count - 1,
+            preflightMinimumSource.components(separatedBy: preflightPrecondition).count - 1,
             1
         )
         let preflightFrozenKeyboardFrame =
@@ -3022,7 +3778,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let preflightObservedKeyboardFrame =
             "                let observedKeyboardFrame = keyboard.frame"
         XCTAssertEqual(
-            preflightQuickPathSource.components(
+            preflightMinimumSource.components(
                 separatedBy: preflightObservedKeyboardFrame
             ).count - 1,
             1
@@ -3308,7 +4064,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "-91",
         ] {
             XCTAssertFalse(
-                preflightQuickPathSource.contains(prohibitedVisiblePreflightForm),
+                preflightMinimumSource.contains(prohibitedVisiblePreflightForm),
                 prohibitedVisiblePreflightForm
             )
         }
@@ -3346,21 +4102,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             preflightRestorationFailure,
         ] {
             XCTAssertEqual(
-                preflightQuickPathSource.components(separatedBy: lock).count - 1,
+                preflightMinimumSource.components(separatedBy: lock).count - 1,
                 1,
                 lock
             )
         }
         XCTAssertEqual(
-            preflightQuickPathSource.components(separatedBy: "XCTFail(").count - 1,
+            preflightMinimumSource.components(separatedBy: "XCTFail(").count - 1,
             26
         )
         XCTAssertEqual(
-            preflightQuickPathSource.components(separatedBy: "                    return\n").count - 1,
+            preflightMinimumSource.components(separatedBy: "                    return\n").count - 1,
             26
         )
         XCTAssertFalse(
-            preflightQuickPathSource.contains(
+            preflightMinimumSource.contains(
                 "guard returnKey.waitForExistence(timeout: 10)"
             )
         )
@@ -3369,17 +4125,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                        return\n" +
                 "                    }"
         XCTAssertEqual(
-            preflightQuickPathSource.components(
+            preflightMinimumSource.components(
                 separatedBy: preflightFinalFailure
             ).count - 1,
             1
         )
-        let preflightQuickPathCapturePrecededByFinalGuard =
+        let currentProfileQuickPathPrecededByMinimumFinalGuard =
             preflightFinalFailure + "\n                }\n            }\n        }\n" +
-                preflightQuickPathCapture
+                currentProfilePreflightQuickPathGate
         XCTAssertEqual(
             uiSource.components(
-                separatedBy: preflightQuickPathCapturePrecededByFinalGuard
+                separatedBy: currentProfileQuickPathPrecededByMinimumFinalGuard
             ).count - 1,
             1
         )
