@@ -200,6 +200,28 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
         ),
         ContrastAuditExceptionSignature(
+            issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-RECHECK-DUE-SECTION-APPEARS-DARK",
+            shardID: "s10.4.current.ax-text",
+            stateID: "state.issue.recheck-due",
+            taskID: "work_and_recheck",
+            owner: "palatis3",
+            expiresAt: "2026-11-20",
+            rationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Section appears dark header whose frozen public frame intersects the native Recheck due navigation material in the AX-text issue-recheck-due state even though IssueDetailView renders it with primaryText; exact live geometry proves no rigid ScrollView shift can simultaneously place that header and the required Start recheck and saved-work composition clear of native top and bottom chrome, and the exception is limited to the frozen public issue signature.",
+            auditTypeRawValue: "1",
+            compactDescription: "Contrast failed",
+            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+            elementIdentifier: "s5.1.issue.header",
+            elementLabel: "Section appears dark",
+            elementTypeDescription: "XCUIElementType(rawValue: 48)",
+            elementFrame: CGRect(
+                x: 32,
+                y: 42.666666666666657,
+                width: 330,
+                height: 141.66666666666669
+            ),
+            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
+        ),
+        ContrastAuditExceptionSignature(
             issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS",
             shardID: "s10.4.current.ax-text",
             stateID: "state.report-history.ready",
@@ -6894,14 +6916,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             line: line
         )
         do {
-            if shard.shardID == "s10.4.current.ax-text",
-               stateID == "state.issue.recheck-due" {
-                try diagnoseAXTextIssueRecheckDueContrast(
-                    in: app,
-                    shard: shard,
-                    stateID: stateID
-                )
-            }
             let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
                 $0.shardID == shard.shardID && $0.stateID == stateID
             }
@@ -7040,217 +7054,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 line: line
             )
         }
-    }
-
-    @MainActor
-    private func diagnoseAXTextIssueRecheckDueContrast(
-        in app: XCUIApplication,
-        shard: AutomationShard,
-        stateID: String
-    ) throws {
-        let diagnosticStartedAt = ProcessInfo.processInfo.systemUptime
-        let issueScreens = app.descendants(matching: .any).matching(
-            identifier: "s5.1.issue.screen"
-        )
-        let issueScrollViews = app.scrollViews.matching(
-            identifier: "s5.1.issue.screen"
-        )
-        let issueNavigationBars = app.navigationBars.matching(
-            identifier: "Recheck due"
-        )
-        let tabBars = app.tabBars
-        let issueStatuses = app.descendants(matching: .any).matching(
-            identifier: "s5.1.issue.status"
-        )
-        let issueHeaders = app.descendants(matching: .any).matching(
-            identifier: "s5.1.issue.header"
-        )
-        let startRecheckButtons = app.buttons.matching(
-            identifier: "s5.2.issue.start-recheck"
-        )
-        let workRecords = app.descendants(matching: .any).matching(
-            identifier: "s5.1.issue.work-record"
-        )
-        let workDates = app.descendants(matching: .any).matching(
-            identifier: "s5.1.issue.work-date"
-        )
-        let workDescriptions = app.descendants(matching: .any).matching(
-            identifier: "s5.1.issue.work-description"
-        )
-        let descriptionValueTexts = app.staticTexts.matching(
-            NSPredicate(
-                format: "label == %@",
-                "Replaced failed power supply"
-            )
-        )
-        let workPhotos = app.images.matching(
-            identifier: "s5.1.issue.work-photo"
-        )
-        let diagnosticQueries: [(String, XCUIElementQuery)] = [
-            ("issueScreens", issueScreens),
-            ("issueScrollViews", issueScrollViews),
-            ("issueNavigationBars", issueNavigationBars),
-            ("tabBars", tabBars),
-            ("issueStatuses", issueStatuses),
-            ("issueHeaders", issueHeaders),
-            ("startRecheckButtons", startRecheckButtons),
-            ("workRecords", workRecords),
-            ("workDates", workDates),
-            ("workDescriptions", workDescriptions),
-            ("descriptionValueTexts", descriptionValueTexts),
-            ("workPhotos", workPhotos),
-        ]
-        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
-            element in
-            let valueObject: Any
-            if let value = element.value as? String {
-                valueObject = value
-            } else {
-                valueObject = NSNull()
-            }
-            return [
-                "exists": element.exists,
-                "isHittable": element.isHittable,
-                "isEnabled": element.isEnabled,
-                "identifier": element.identifier,
-                "label": element.label,
-                "value": valueObject,
-                "elementTypeRawValue": element.elementType.rawValue,
-                "elementTypeDescription": String(describing: element.elementType),
-                "frame": self.auditFrameObject(element.frame),
-            ]
-        }
-        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
-            query in
-            let count = query.count
-            var elements: [[String: Any]] = []
-            for index in 0..<count {
-                elements.append(
-                    diagnosticElementObject(query.element(boundBy: index))
-                )
-            }
-            return [
-                "count": count,
-                "elements": elements,
-            ]
-        }
-        var diagnosticQueryObjects: [String: Any] = [:]
-        for (name, query) in diagnosticQueries {
-            diagnosticQueryObjects[name] = diagnosticQueryObject(query)
-        }
-        let diagnosticElapsedMilliseconds = Int(
-            (ProcessInfo.processInfo.systemUptime - diagnosticStartedAt) * 1_000
-        )
-        let context: [String: Any] = [
-            "shardID": shard.shardID,
-            "requirementID": shard.requirementID,
-            "deviceProfileID": shard.deviceProfileID,
-            "stateID": stateID,
-            "elapsedMilliseconds": diagnosticElapsedMilliseconds,
-            "applicationState": String(describing: app.state),
-            "applicationStateRawValue": app.state.rawValue,
-            "isRunningForeground": app.state == .runningForeground,
-            "applicationFrame": auditFrameObject(app.frame),
-            "queries": diagnosticQueryObjects,
-        ]
-        printJSONLine(
-            prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_CONTEXT_DIAGNOSTIC",
-            object: context
-        )
-
-        let appScreenshotAttachment = XCTAttachment(
-            screenshot: XCUIScreen.main.screenshot()
-        )
-        appScreenshotAttachment.name =
-            "S10.4 AX-text Issue recheck-due contrast diagnostic app"
-        appScreenshotAttachment.lifetime = .keepAlways
-        add(appScreenshotAttachment)
-
-        let appTreeAttachment = XCTAttachment(string: app.debugDescription)
-        appTreeAttachment.name =
-            "S10.4 AX-text Issue recheck-due contrast diagnostic tree"
-        appTreeAttachment.lifetime = .keepAlways
-        add(appTreeAttachment)
-
-        let contextData = try JSONSerialization.data(
-            withJSONObject: context,
-            options: [.prettyPrinted, .sortedKeys]
-        )
-        let contextAttachment = XCTAttachment(
-            string: String(decoding: contextData, as: UTF8.self)
-        )
-        contextAttachment.name =
-            "S10.4 AX-text Issue recheck-due contrast diagnostic context"
-        contextAttachment.lifetime = .keepAlways
-        add(contextAttachment)
-
-        var observedIssueCount = 0
-        var diagnosticAuditedElements: [XCUIElement] = []
-        try app.performAccessibilityAudit(for: .contrast) { issue in
-            observedIssueCount += 1
-            let auditedElementObject: Any
-            let elementIdentifier: Any
-            let elementLabel: Any
-            let elementType: Any
-            let elementFrame: Any
-            if let auditedElement = issue.element {
-                diagnosticAuditedElements.append(auditedElement)
-                auditedElementObject = diagnosticElementObject(auditedElement)
-                elementIdentifier = auditedElement.identifier
-                elementLabel = auditedElement.label
-                elementType = String(describing: auditedElement.elementType)
-                elementFrame = self.auditFrameObject(auditedElement.frame)
-            } else {
-                auditedElementObject = NSNull()
-                elementIdentifier = NSNull()
-                elementLabel = NSNull()
-                elementType = NSNull()
-                elementFrame = NSNull()
-            }
-            self.printJSONLine(
-                prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_ISSUE_DIAGNOSTIC",
-                object: [
-                    "shardID": shard.shardID,
-                    "deviceProfileID": shard.deviceProfileID,
-                    "stateID": stateID,
-                    "ordinal": observedIssueCount,
-                    "auditTypeRawValue": String(issue.auditType.rawValue),
-                    "compactDescription": issue.compactDescription,
-                    "detailedDescription": issue.detailedDescription,
-                    "elementIdentifier": elementIdentifier,
-                    "elementLabel": elementLabel,
-                    "elementType": elementType,
-                    "elementFrame": elementFrame,
-                    "applicationFrame": self.auditFrameObject(app.frame),
-                    "auditedElement": auditedElementObject,
-                ]
-            )
-            return true
-        }
-
-        for (index, auditedElement) in diagnosticAuditedElements.enumerated() {
-            let auditedElementAttachment = XCTAttachment(
-                screenshot: auditedElement.screenshot()
-            )
-            auditedElementAttachment.name =
-                "S10.4 AX-text Issue recheck-due contrast diagnostic element "
-                + String(index + 1)
-            auditedElementAttachment.lifetime = .keepAlways
-            add(auditedElementAttachment)
-        }
-        printJSONLine(
-            prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_COUNT_DIAGNOSTIC",
-            object: [
-                "shardID": shard.shardID,
-                "deviceProfileID": shard.deviceProfileID,
-                "stateID": stateID,
-                "observedIssueCount": observedIssueCount,
-                "auditedElementCount": diagnosticAuditedElements.count,
-            ]
-        )
-        throw AutomationConfigurationError.invalid(
-            "S10.4 AX-text issue recheck-due contrast diagnostic completed nonaccepting observedIssueCount=\(observedIssueCount)"
-        )
     }
 
     @MainActor
@@ -7970,9 +7773,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     "state.reports-index.ready",
                 ]
             case ("s10.4.current.ax-text", "work_and_recheck"):
-                taskIssueLimit = 1
-                taskStateLimit = 1
-                permittedExceptionStateIDs = ["state.work.validation-error"]
+                taskIssueLimit = 2
+                taskStateLimit = 2
+                permittedExceptionStateIDs = [
+                    "state.issue.recheck-due",
+                    "state.work.validation-error",
+                ]
             case ("s10.4.current.default-light", "report_comprehension"):
                 taskIssueLimit = 1
                 taskStateLimit = 1

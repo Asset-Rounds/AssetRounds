@@ -112,8 +112,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 129_975,
-            sha256: "6C1F45E29AD93332927BEA69025F0094677305C25EB83EBC7E94A2D5484771DB"
+            byteCount: 132_120,
+            sha256: "861A3705A343BF1BA580BBFEB3D00CC7E20EB7E2CDC8F5AA28B93BBA05AA9E83"
         )
         let workflowSource = try text(workflowPath)
         let workerCallHeader =
@@ -1327,8 +1327,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 439_025,
-            sha256: "99B242E6E7D1399BDB6B179EF0F1476E9394567C8D7FEDEC4E02998DB7DC4835"
+            byteCount: 431_467,
+            sha256: "6EA5C64EB3BC009855D1F6014D1D5C4A492C07039FC506CAA1706EF27A11999F"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -8033,13 +8033,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let captureBaselineStart =
             "    @MainActor\n" +
                 "    private func captureBaseline("
-        let issueRecheckDueDiagnosticStart =
-            "    @MainActor\n" +
-                "    private func diagnoseAXTextIssueRecheckDueContrast(\n" +
-                "        in app: XCUIApplication,\n" +
-                "        shard: AutomationShard,\n" +
-                "        stateID: String\n" +
-                "    ) throws {"
         let issueRecheckDuePositioningHelperStart =
             "    @MainActor\n" +
                 "    private func positionIssueRecheckDueDescriptionForAXText(\n" +
@@ -8049,36 +8042,25 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "\n    private func isActive("
         guard let captureBaselineStartRange = uiSource.range(
             of: captureBaselineStart
-        ), let issueRecheckDueDiagnosticStartRange = uiSource.range(
-            of: issueRecheckDueDiagnosticStart,
-            range: captureBaselineStartRange.upperBound ..< uiSource.endIndex
         ), let issueRecheckDuePositioningHelperStartRange = uiSource.range(
             of: issueRecheckDuePositioningHelperStart,
-            range: issueRecheckDueDiagnosticStartRange.upperBound ..< uiSource.endIndex
+            range: captureBaselineStartRange.upperBound ..< uiSource.endIndex
         ), let issueRecheckDuePositioningHelperEndRange = uiSource.range(
             of: issueRecheckDuePositioningHelperEnd,
-            range: issueRecheckDuePositioningHelperStartRange.upperBound ..< uiSource.endIndex
+            range: issueRecheckDuePositioningHelperStartRange.upperBound ..<
+                uiSource.endIndex
         ) else {
-            XCTFail("Missing the bounded captureBaseline, AX-text issue recheck-due diagnostic, or positioning source")
+            XCTFail("Missing the bounded captureBaseline or AX-text issue recheck-due positioning source")
             return
         }
-        let issueRecheckDueDiagnosticEnd = uiSource.index(
+        let restoredCaptureBaselineEnd = uiSource.index(
             issueRecheckDuePositioningHelperStartRange.lowerBound,
             offsetBy: -2
         )
         let restoredCaptureBaselineSource = String(
             uiSource[
-                captureBaselineStartRange.lowerBound ..< issueRecheckDueDiagnosticStartRange.lowerBound
-            ]
-        )
-        let issueRecheckDueDiagnosticSource = String(
-            uiSource[
-                issueRecheckDueDiagnosticStartRange.lowerBound ..< issueRecheckDueDiagnosticEnd
-            ]
-        )
-        let captureAndIssueRecheckDueDiagnosticSource = String(
-            uiSource[
-                captureBaselineStartRange.lowerBound ..< issueRecheckDueDiagnosticEnd
+                captureBaselineStartRange.lowerBound ..<
+                    restoredCaptureBaselineEnd
             ]
         )
         let issueRecheckDuePositioningHelperSource = String(
@@ -8087,55 +8069,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_205)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 7_901)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "C5D98C4DA3D5F06ED6E359141F301AEAC6F03829D244F03BC2AE8DF6C5F5D955"
-        )
-        XCTAssertEqual(issueRecheckDueDiagnosticSource.utf8.count, 8_858)
-        XCTAssertEqual(
-            Data(issueRecheckDueDiagnosticSource.utf8).sha256,
-            "E1B5D4434C4FD9E1B345EE03A58EF8A44E4F2C7EED2C706B00617E5E23B2D7AF"
-        )
-        XCTAssertEqual(captureAndIssueRecheckDueDiagnosticSource.utf8.count, 17_063)
-        XCTAssertEqual(
-            Data(captureAndIssueRecheckDueDiagnosticSource.utf8).sha256,
-            "E4F8B1D8A566C2E5F487E1639A72396811C729EDB00EC349EF522FA5AF677A55"
+            "371C419756DF1F86C30BD576938A5089F74616379C790C79089C23A052760CB6"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
             Data(issueRecheckDuePositioningHelperSource.utf8).sha256,
             "A9D52569212661CD4419ECBF4804DDFDA04187EA2F4BF133387807AF6150AC53"
         )
-        let issueRecheckDueDiagnosticGate =
-            #"            if shard.shardID == "s10.4.current.ax-text","# + "\n" +
-                #"               stateID == "state.issue.recheck-due" {"# + "\n" +
-                "                try diagnoseAXTextIssueRecheckDueContrast(\n" +
-                "                    in: app,\n" +
-                "                    shard: shard,\n" +
-                "                    stateID: stateID\n" +
-                "                )\n" +
-                "            }"
         let normalEligibleExceptionsBinding =
             "            let eligibleExceptions = " +
                 "Self.contrastAuditExceptionSignatures.filter {"
         XCTAssertEqual(
             restoredCaptureBaselineSource.components(
-                separatedBy:
-                    "        do {\n" + issueRecheckDueDiagnosticGate + "\n" +
-                        normalEligibleExceptionsBinding
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: "diagnoseAXTextIssueRecheckDueContrast"
-            ).count - 1,
-            2
-        )
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: issueRecheckDueDiagnosticStart
+                separatedBy: "        do {\n" + normalEligibleExceptionsBinding
             ).count - 1,
             1
         )
@@ -8997,389 +8946,28 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
 
-        let issueRecheckDueDiagnosticQueryLocks = [
-            "        let issueScreens = app.descendants(matching: .any).matching(\n" +
-                #"            identifier: "s5.1.issue.screen""# + "\n" +
-                "        )",
-            "        let issueScrollViews = app.scrollViews.matching(\n" +
-                #"            identifier: "s5.1.issue.screen""# + "\n" +
-                "        )",
-            "        let issueNavigationBars = app.navigationBars.matching(\n" +
-                #"            identifier: "Recheck due""# + "\n" +
-                "        )",
-            "        let tabBars = app.tabBars",
-            "        let issueStatuses = app.descendants(matching: .any).matching(\n" +
-                #"            identifier: "s5.1.issue.status""# + "\n" +
-                "        )",
-            "        let issueHeaders = app.descendants(matching: .any).matching(\n" +
-                #"            identifier: "s5.1.issue.header""# + "\n" +
-                "        )",
-            "        let startRecheckButtons = app.buttons.matching(\n" +
-                #"            identifier: "s5.2.issue.start-recheck""# + "\n" +
-                "        )",
-            "        let workRecords = app.descendants(matching: .any).matching(\n" +
-                #"            identifier: "s5.1.issue.work-record""# + "\n" +
-                "        )",
-            "        let workDates = app.descendants(matching: .any).matching(\n" +
-                #"            identifier: "s5.1.issue.work-date""# + "\n" +
-                "        )",
-            "        let workDescriptions = app.descendants(matching: .any).matching(\n" +
-                #"            identifier: "s5.1.issue.work-description""# + "\n" +
-                "        )",
-            "        let descriptionValueTexts = app.staticTexts.matching(\n" +
-                "            NSPredicate(\n" +
-                #"                format: "label == %@","# + "\n" +
-                #"                "Replaced failed power supply""# + "\n" +
-                "            )\n" +
-                "        )",
-            "        let workPhotos = app.images.matching(\n" +
-                #"            identifier: "s5.1.issue.work-photo""# + "\n" +
-                "        )",
-        ]
-        XCTAssertEqual(issueRecheckDueDiagnosticQueryLocks.count, 12)
-        for queryLock in issueRecheckDueDiagnosticQueryLocks {
-            XCTAssertEqual(
-                issueRecheckDueDiagnosticSource.components(
-                    separatedBy: queryLock
-                ).count - 1,
-                1,
-                queryLock
-            )
-        }
-        let issueRecheckDueQueryTuples = [
-            #"            ("issueScreens", issueScreens),"#,
-            #"            ("issueScrollViews", issueScrollViews),"#,
-            #"            ("issueNavigationBars", issueNavigationBars),"#,
-            #"            ("tabBars", tabBars),"#,
-            #"            ("issueStatuses", issueStatuses),"#,
-            #"            ("issueHeaders", issueHeaders),"#,
-            #"            ("startRecheckButtons", startRecheckButtons),"#,
-            #"            ("workRecords", workRecords),"#,
-            #"            ("workDates", workDates),"#,
-            #"            ("workDescriptions", workDescriptions),"#,
-            #"            ("descriptionValueTexts", descriptionValueTexts),"#,
-            #"            ("workPhotos", workPhotos),"#,
-        ]
-        XCTAssertEqual(issueRecheckDueQueryTuples.count, 12)
-        for queryTuple in issueRecheckDueQueryTuples {
-            XCTAssertEqual(
-                issueRecheckDueDiagnosticSource.components(
-                    separatedBy: queryTuple
-                ).count - 1,
-                1,
-                queryTuple
-            )
-        }
-        XCTAssertEqual(
-            issueRecheckDueDiagnosticSource.components(
-                separatedBy: "(String, XCUIElementQuery)"
-            ).count - 1,
-            1
-        )
-
-        let issueRecheckDueElementSerializerStart =
-            "        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {"
-        let issueRecheckDueQuerySerializerStart =
-            "        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {"
-        let issueRecheckDueQueryCollectionStart =
-            "        var diagnosticQueryObjects: [String: Any] = [:]"
-        guard let issueRecheckDueElementSerializerStartRange =
-                issueRecheckDueDiagnosticSource.range(
-                    of: issueRecheckDueElementSerializerStart
-                ),
-              let issueRecheckDueQuerySerializerStartRange =
-                issueRecheckDueDiagnosticSource.range(
-                    of: issueRecheckDueQuerySerializerStart,
-                    range: issueRecheckDueElementSerializerStartRange.upperBound ..< issueRecheckDueDiagnosticSource.endIndex
-                ),
-              let issueRecheckDueQueryCollectionStartRange =
-                issueRecheckDueDiagnosticSource.range(
-                    of: issueRecheckDueQueryCollectionStart,
-                    range: issueRecheckDueQuerySerializerStartRange.upperBound ..< issueRecheckDueDiagnosticSource.endIndex
-                ) else {
-            XCTFail("Missing AX-text issue recheck-due diagnostic serializers")
-            return
-        }
-        let issueRecheckDueElementSerializerSource = String(
-            issueRecheckDueDiagnosticSource[
-                issueRecheckDueElementSerializerStartRange.lowerBound ..< issueRecheckDueQuerySerializerStartRange.lowerBound
-            ]
-        )
-        let issueRecheckDueQuerySerializerSource = String(
-            issueRecheckDueDiagnosticSource[
-                issueRecheckDueQuerySerializerStartRange.lowerBound ..< issueRecheckDueQueryCollectionStartRange.lowerBound
-            ]
-        )
-        var issueRecheckDueElementFieldStart =
-            issueRecheckDueElementSerializerSource.startIndex
-        for field in [
-            #"                "exists": element.exists,"#,
-            #"                "isHittable": element.isHittable,"#,
-            #"                "isEnabled": element.isEnabled,"#,
-            #"                "identifier": element.identifier,"#,
-            #"                "label": element.label,"#,
-            #"                "value": valueObject,"#,
-            #"                "elementTypeRawValue": element.elementType.rawValue,"#,
-            #"                "elementTypeDescription": String(describing: element.elementType),"#,
-            #"                "frame": self.auditFrameObject(element.frame),"#,
-        ] {
-            guard let fieldRange = issueRecheckDueElementSerializerSource.range(
-                of: field,
-                range: issueRecheckDueElementFieldStart ..< issueRecheckDueElementSerializerSource.endIndex
-            ) else {
-                XCTFail("Missing ordered AX-text issue recheck-due node field: \(field)")
-                return
-            }
-            issueRecheckDueElementFieldStart = fieldRange.upperBound
-        }
-        let issueRecheckDueStringOrNullValue =
-            "            if let value = element.value as? String {\n" +
-                "                valueObject = value\n" +
-                "            } else {\n" +
-                "                valueObject = NSNull()\n" +
-                "            }"
-        XCTAssertEqual(
-            issueRecheckDueElementSerializerSource.components(
-                separatedBy: issueRecheckDueStringOrNullValue
-            ).count - 1,
-            1
-        )
-        for (serializerLock, count) in [
-            ("let count = query.count", 1),
-            ("for index in 0..<count", 1),
-            ("query.element(boundBy: index)", 1),
-            (#"                "count": count,"#, 1),
-            (#"                "elements": elements,"#, 1),
-        ] {
-            XCTAssertEqual(
-                issueRecheckDueQuerySerializerSource.components(
-                    separatedBy: serializerLock
-                ).count - 1,
-                count,
-                serializerLock
-            )
-        }
-        let issueRecheckDueQueryCollection =
-            "        var diagnosticQueryObjects: [String: Any] = [:]\n" +
-                "        for (name, query) in diagnosticQueries {\n" +
-                "            diagnosticQueryObjects[name] = diagnosticQueryObject(query)\n" +
-                "        }"
-        XCTAssertEqual(
-            issueRecheckDueDiagnosticSource.components(
-                separatedBy: issueRecheckDueQueryCollection
-            ).count - 1,
-            1
-        )
-
-        let issueRecheckDueContextStart =
-            "        let context: [String: Any] = ["
-        let issueRecheckDueContextEnd =
-            "\n        printJSONLine(\n" +
-                #"            prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_CONTEXT_DIAGNOSTIC","#
-        guard let issueRecheckDueContextStartRange =
-                issueRecheckDueDiagnosticSource.range(of: issueRecheckDueContextStart),
-              let issueRecheckDueContextEndRange =
-                issueRecheckDueDiagnosticSource.range(
-                    of: issueRecheckDueContextEnd,
-                    range: issueRecheckDueContextStartRange.upperBound ..< issueRecheckDueDiagnosticSource.endIndex
-                ) else {
-            XCTFail("Missing AX-text issue recheck-due diagnostic context")
-            return
-        }
-        let issueRecheckDueContextSource = String(
-            issueRecheckDueDiagnosticSource[
-                issueRecheckDueContextStartRange.lowerBound ..< issueRecheckDueContextEndRange.lowerBound
-            ]
-        )
-        var issueRecheckDueContextFieldStart = issueRecheckDueContextSource.startIndex
-        for field in [
-            #"            "shardID": shard.shardID,"#,
-            #"            "requirementID": shard.requirementID,"#,
-            #"            "deviceProfileID": shard.deviceProfileID,"#,
-            #"            "stateID": stateID,"#,
-            #"            "elapsedMilliseconds": diagnosticElapsedMilliseconds,"#,
-            #"            "applicationState": String(describing: app.state),"#,
-            #"            "applicationStateRawValue": app.state.rawValue,"#,
-            #"            "isRunningForeground": app.state == .runningForeground,"#,
-            #"            "applicationFrame": auditFrameObject(app.frame),"#,
-            #"            "queries": diagnosticQueryObjects,"#,
-        ] {
-            guard let fieldRange = issueRecheckDueContextSource.range(
-                of: field,
-                range: issueRecheckDueContextFieldStart ..< issueRecheckDueContextSource.endIndex
-            ) else {
-                XCTFail("Missing ordered AX-text issue recheck-due context field: \(field)")
-                return
-            }
-            issueRecheckDueContextFieldStart = fieldRange.upperBound
-        }
-
-        let issueRecheckDueAuditStart = "        var observedIssueCount = 0"
-        let issueRecheckDueAuditEnd =
-            "\n\n        for (index, auditedElement) in diagnosticAuditedElements.enumerated() {"
-        guard let issueRecheckDueAuditStartRange =
-                issueRecheckDueDiagnosticSource.range(of: issueRecheckDueAuditStart),
-              let issueRecheckDueAuditEndRange =
-                issueRecheckDueDiagnosticSource.range(
-                    of: issueRecheckDueAuditEnd,
-                    range: issueRecheckDueAuditStartRange.upperBound ..< issueRecheckDueDiagnosticSource.endIndex
-                ) else {
-            XCTFail("Missing AX-text issue recheck-due diagnostic audit callback")
-            return
-        }
-        let issueRecheckDueAuditSource = String(
-            issueRecheckDueDiagnosticSource[
-                issueRecheckDueAuditStartRange.lowerBound ..< issueRecheckDueAuditEndRange.lowerBound
-            ]
-        )
-        var issueRecheckDueIssueFieldStart = issueRecheckDueAuditSource.startIndex
-        for field in [
-            #"                    "auditTypeRawValue": String(issue.auditType.rawValue),"#,
-            #"                    "compactDescription": issue.compactDescription,"#,
-            #"                    "detailedDescription": issue.detailedDescription,"#,
-            #"                    "elementIdentifier": elementIdentifier,"#,
-            #"                    "elementLabel": elementLabel,"#,
-            #"                    "elementType": elementType,"#,
-            #"                    "elementFrame": elementFrame,"#,
-            #"                    "applicationFrame": self.auditFrameObject(app.frame),"#,
-        ] {
-            guard let fieldRange = issueRecheckDueAuditSource.range(
-                of: field,
-                range: issueRecheckDueIssueFieldStart ..< issueRecheckDueAuditSource.endIndex
-            ) else {
-                XCTFail("Missing ordered AX-text issue recheck-due public field: \(field)")
-                return
-            }
-            issueRecheckDueIssueFieldStart = fieldRange.upperBound
-        }
-        for (auditLock, count) in [
-            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 1),
-            ("observedIssueCount += 1", 1),
-            ("if let auditedElement = issue.element", 1),
-            ("diagnosticAuditedElements.append(auditedElement)", 1),
-            ("auditedElementObject = diagnosticElementObject(auditedElement)", 1),
-            ("elementFrame = self.auditFrameObject(auditedElement.frame)", 1),
-            ("elementFrame = auditFrameObject(auditedElement.frame)", 0),
-            ("return true", 1),
-            ("return false", 0),
-            ("NSNull()", 5),
-        ] {
-            XCTAssertEqual(
-                issueRecheckDueAuditSource.components(
-                    separatedBy: auditLock
-                ).count - 1,
-                count,
-                auditLock
-            )
-        }
-
-        for (diagnosticLock, count) in [
-            (#"prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_CONTEXT_DIAGNOSTIC""#, 1),
-            (#"prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_ISSUE_DIAGNOSTIC""#, 1),
-            (#"prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_COUNT_DIAGNOSTIC""#, 1),
-            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 1),
-            ("return true", 1),
-            ("return false", 0),
-            ("NSNull()", 6),
-            ("XCTAttachment(", 4),
-            (".lifetime = .keepAlways", 4),
-            ("add(", 4),
-            ("XCUIScreen.main.screenshot()", 1),
-            ("app.debugDescription", 1),
-            ("JSONSerialization.data(", 1),
-            ("diagnosticAuditedElements.enumerated()", 1),
-            ("auditedElement.screenshot()", 1),
-            (#"            "observedIssueCount": observedIssueCount,"#, 1),
-            (#"            "auditedElementCount": diagnosticAuditedElements.count,"#, 1),
-        ] {
-            XCTAssertEqual(
-                issueRecheckDueDiagnosticSource.components(
-                    separatedBy: diagnosticLock
-                ).count - 1,
-                count,
-                diagnosticLock
-            )
-        }
-        for attachmentName in [
-            #"S10.4 AX-text Issue recheck-due contrast diagnostic app"#,
-            #"S10.4 AX-text Issue recheck-due contrast diagnostic tree"#,
-            #"S10.4 AX-text Issue recheck-due contrast diagnostic context"#,
-            #"S10.4 AX-text Issue recheck-due contrast diagnostic element "#,
-        ] {
-            XCTAssertEqual(
-                issueRecheckDueDiagnosticSource.components(
-                    separatedBy: attachmentName
-                ).count - 1,
-                1,
-                attachmentName
-            )
-        }
-
-        let issueRecheckDueDiagnosticOrder = [
-            #"prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_CONTEXT_DIAGNOSTIC""#,
-            "let appScreenshotAttachment = XCTAttachment(",
-            "let appTreeAttachment = XCTAttachment(string: app.debugDescription)",
-            "let contextData = try JSONSerialization.data(",
-            "let contextAttachment = XCTAttachment(",
-            "try app.performAccessibilityAudit(for: .contrast) { issue in",
-            #"prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_ISSUE_DIAGNOSTIC""#,
-            "for (index, auditedElement) in diagnosticAuditedElements.enumerated()",
-            #"prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_COUNT_DIAGNOSTIC""#,
-            "throw AutomationConfigurationError.invalid(",
+        for removedIssueRecheckDueDiagnosticForm in [
+            "diagnoseAXTextIssueRecheckDueContrast",
+            "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_",
+            "S10.4 AX-text Issue recheck-due contrast diagnostic",
             "S10.4 AX-text issue recheck-due contrast diagnostic completed nonaccepting",
-        ]
-        var issueRecheckDueDiagnosticOrderStart =
-            issueRecheckDueDiagnosticSource.startIndex
-        for anchor in issueRecheckDueDiagnosticOrder {
-            guard let anchorRange = issueRecheckDueDiagnosticSource.range(
-                of: anchor,
-                range: issueRecheckDueDiagnosticOrderStart ..< issueRecheckDueDiagnosticSource.endIndex
-            ) else {
-                XCTFail("Missing ordered AX-text issue recheck-due diagnostic anchor: \(anchor)")
-                return
-            }
-            issueRecheckDueDiagnosticOrderStart = anchorRange.upperBound
-        }
-
-        for prohibitedIssueRecheckDueDiagnosticForm in [
-            "XCTFail(",
-            "XCTAssert",
-            "return false",
-            ".tap(",
-            ".swipe",
-            ".coordinate(",
-            ".press(",
-            "thenDragTo:",
-            "scroll(",
-            ".typeText(",
-            "waitForExistence",
-            "waitForNonExistence",
-            "Thread.sleep",
-            "sleep(",
-            ".launch(",
-            ".terminate(",
-            "relaunch",
-            "CGRect(",
-            "captureBaseline(",
-            "eligibleExceptions",
-            "ContrastAuditExceptionSignature",
-            "contrastAuditExceptionSignatures",
-            "automationAXTreeDigests",
-            "automationContrastExceptions",
-            "S10_MIGRATION_STATE",
-            #"prefix: "S10_4_AX_STATE""#,
-            #"prefix: "S10_4_CONTRAST""#,
-            "S10_4_CANDIDATE",
-            "S10_4_TASK",
-            "S10_4_SHARD_RECEIPT",
-            "S10_4_RETENTION",
-            "attachCandidate(",
+            "diagnosticElementObject",
+            "diagnosticQueryObject",
+            "diagnosticQueryObjects",
         ] {
-            XCTAssertFalse(
-                issueRecheckDueDiagnosticSource.contains(
-                    prohibitedIssueRecheckDueDiagnosticForm
-                ),
-                prohibitedIssueRecheckDueDiagnosticForm
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: removedIssueRecheckDueDiagnosticForm
+                ).count - 1,
+                0,
+                removedIssueRecheckDueDiagnosticForm
+            )
+            XCTAssertEqual(
+                restoredCaptureBaselineSource.components(
+                    separatedBy: removedIssueRecheckDueDiagnosticForm
+                ).count - 1,
+                0,
+                removedIssueRecheckDueDiagnosticForm
             )
         }
 
@@ -9455,16 +9043,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"stateID: "state.work.saving""#
             )
         )
-        XCTAssertFalse(
-            contrastAuthoritySource.contains(
-                #"stateID: "state.issue.recheck-due""#
-            )
+        XCTAssertEqual(
+            contrastAuthoritySource.components(
+                separatedBy: #"stateID: "state.issue.recheck-due""#
+            ).count - 1,
+            1
         )
         XCTAssertEqual(
             contrastAuthoritySource.components(
                 separatedBy: "ContrastAuditExceptionSignature("
             ).count - 1,
-            15
+            16
         )
         for prohibitedReduceMotionSavingTaskExpansion in [
             #"case ("s10.4.current.reduce-motion", "work_and_recheck")"#,
@@ -13542,6 +13131,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT",
+            "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-RECHECK-DUE-SECTION-APPEARS-DARK",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-FEEDBACK-PRIVACY",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER",
             "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER",
@@ -13559,6 +13149,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the lower North Campus label whose frozen public node frame intersects native bottom chrome after bounded positioning makes the header safe and hittable and moves the Visit composite below the application; an exact remaining positive ScrollView drag is unrecognized with zero measured header, lower-label, and Visit movement, while ReportsRootView already renders the label with primaryText; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the Reports-index North Campus label whose frozen public frame intersects native bottom tab chrome even though ReportsRootView already renders it with primaryText; the audit-owned crop confirms the issue is limited to that chrome-overlapped composition, and the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the Reports-index Visit label whose frozen public frame begins inside native bottom tab chrome, extends below the 402x874 application frame, and is not hittable even though ReportsRootView already renders it with primaryText; the audit-owned crop confirms the issue is limited to that chrome-clipped composition, and the exception is limited to the frozen public issue signature.",
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Section appears dark header whose frozen public frame intersects the native Recheck due navigation material in the AX-text issue-recheck-due state even though IssueDetailView renders it with primaryText; exact live geometry proves no rigid ScrollView shift can simultaneously place that header and the required Start recheck and saved-work composition clear of native top and bottom chrome, and the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Feedback privacy copy while the frozen public node frame is top-clipped outside the 402x874 application frame and its remaining slice is bound to native status/navigation chrome; the live Feedback composition simultaneously preserves the frozen App-metadata and Save-diagnostics clearances, and the audit-owned crop confirms that unobscured primaryText renders white on the dark elevated surface; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in default light even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Correct report header in default dark even though the audit-owned crop visibly renders the complete header unobscured and wholly above the keyboard; the exception is limited to the frozen public issue signature.",
@@ -13573,7 +13164,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             exceptionIDs.filter { !$0.hasSuffix("REPORT-CORRECTION-HEADER") }.count,
-            9
+            10
         )
         for lock in exceptionIDs {
             XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1, lock)
@@ -13594,6 +13185,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("state.sample-report.ready", 1),
             ("state.feedback.review-ready", 1),
             ("state.work.validation-error", 1),
+            ("state.issue.recheck-due", 1),
             ("state.report-history.ready", 1),
             ("state.reports-index.ready", 2),
             ("state.report-correction.validation-error", 6),
@@ -13608,37 +13200,37 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(separatedBy: "ContrastAuditExceptionSignature(").count - 1,
-            15
+            16
         )
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: #"issueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            15
+            16
         )
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            30
+            32
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"owner: "palatis3""#).count - 1,
-            15
+            16
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionOwner: "palatis3""#)
                 .count - 1,
-            15
+            16
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"expiresAt: "2026-11-20""#).count - 1,
-            15
+            16
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionExpiresAt: "2026-11-20""#)
                 .count - 1,
-            15
+            16
         )
 
         let signatureLocks = [
@@ -15352,6 +14944,279 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
 
+        let issueRecheckDueExceptionID =
+            "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-RECHECK-DUE-SECTION-APPEARS-DARK"
+        let issueRecheckDueExceptionRationale =
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Section appears dark header whose frozen public frame intersects the native Recheck due navigation material in the AX-text issue-recheck-due state even though IssueDetailView renders it with primaryText; exact live geometry proves no rigid ScrollView shift can simultaneously place that header and the required Start recheck and saved-work composition clear of native top and bottom chrome, and the exception is limited to the frozen public issue signature."
+        let issueRecheckDueUIAuthority =
+            "        ContrastAuditExceptionSignature(\n" +
+                "            issueID: \"\(issueRecheckDueExceptionID)\",\n" +
+                #"            shardID: "s10.4.current.ax-text","# + "\n" +
+                #"            stateID: "state.issue.recheck-due","# + "\n" +
+                #"            taskID: "work_and_recheck","# + "\n" +
+                #"            owner: "palatis3","# + "\n" +
+                #"            expiresAt: "2026-11-20","# + "\n" +
+                "            rationale: \"\(issueRecheckDueExceptionRationale)\",\n" +
+                #"            auditTypeRawValue: "1","# + "\n" +
+                #"            compactDescription: "Contrast failed","# + "\n" +
+                #"            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode","# + "\n" +
+                #"            elementIdentifier: "s5.1.issue.header","# + "\n" +
+                #"            elementLabel: "Section appears dark","# + "\n" +
+                #"            elementTypeDescription: "XCUIElementType(rawValue: 48)","# + "\n" +
+                "            elementFrame: CGRect(\n" +
+                "                x: 32,\n" +
+                "                y: 42.666666666666657,\n" +
+                "                width: 330,\n" +
+                "                height: 141.66666666666669\n" +
+                "            ),\n" +
+                "            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)\n" +
+                "        ),"
+        let issueRecheckDueWorkflowAuthority =
+            "              {\n" +
+                #"                shardID: "s10.4.current.ax-text","# + "\n" +
+                #"                stateID: "state.issue.recheck-due","# + "\n" +
+                #"                taskID: "work_and_recheck","# + "\n" +
+                "                exceptionIssueID: \"\(issueRecheckDueExceptionID)\",\n" +
+                #"                exceptionOwner: "palatis3","# + "\n" +
+                #"                exceptionExpiresAt: "2026-11-20","# + "\n" +
+                "                exceptionRationale: \"\(issueRecheckDueExceptionRationale)\",\n" +
+                "                ignoredAuditIssues: [\n" +
+                "                  {\n" +
+                #"                    auditTypeRawValue: "1","# + "\n" +
+                #"                    compactDescription: "Contrast failed","# + "\n" +
+                #"                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode","# + "\n" +
+                #"                    elementIdentifier: "s5.1.issue.header","# + "\n" +
+                #"                    elementLabel: "Section appears dark","# + "\n" +
+                #"                    elementType: "XCUIElementType(rawValue: 48)","# + "\n" +
+                "                    elementFrame: {\n" +
+                "                      x: 32,\n" +
+                "                      y: 42.666666666666657,\n" +
+                "                      width: 330,\n" +
+                "                      height: 141.66666666666669\n" +
+                "                    },\n" +
+                "                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}\n" +
+                "                  }\n" +
+                "                ]\n" +
+                "              },"
+        let issueRecheckDueWorkflowTuple =
+            "              {\n" +
+                #"                shardID: "s10.4.current.ax-text","# + "\n" +
+                #"                stateID: "state.issue.recheck-due","# + "\n" +
+                #"                taskID: "work_and_recheck","# + "\n" +
+                "                exceptionIssueID: \"\(issueRecheckDueExceptionID)\"\n" +
+                "              },"
+        let issueRecheckDueWorkflowTupleOrder =
+            "              {\n" +
+                #"                shardID: "s10.4.current.ax-text","# + "\n" +
+                #"                stateID: "state.check-preflight.ready","# + "\n" +
+                #"                taskID: "one_handed_start","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN""# + "\n" +
+                "              },\n" +
+                "              {\n" +
+                #"                shardID: "s10.4.current.ax-text","# + "\n" +
+                #"                stateID: "state.check-preflight.ready","# + "\n" +
+                #"                taskID: "one_handed_start","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION""# + "\n" +
+                "              },\n" +
+                issueRecheckDueWorkflowTuple + "\n" +
+                "              {\n" +
+                #"                shardID: "s10.4.current.ax-text","# + "\n" +
+                #"                stateID: "state.new-sign.editing","# + "\n" +
+                #"                taskID: "one_handed_start","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME""# + "\n" +
+                "              },"
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: issueRecheckDueWorkflowTupleOrder
+            ).count - 1,
+            1
+        )
+        for (source, authority, label) in [
+            (uiSource, issueRecheckDueUIAuthority, "issue-recheck UI authority"),
+            (
+                workflowSource,
+                issueRecheckDueWorkflowAuthority,
+                "issue-recheck workflow authority"
+            ),
+            (
+                workflowSource,
+                issueRecheckDueWorkflowTuple,
+                "issue-recheck workflow tuple"
+            ),
+        ] {
+            XCTAssertEqual(
+                source.components(separatedBy: authority).count - 1,
+                1,
+                label
+            )
+            XCTAssertEqual(
+                source.replacingOccurrences(of: authority, with: "")
+                    .components(separatedBy: authority).count - 1,
+                0,
+                label
+            )
+            XCTAssertEqual(
+                source.replacingOccurrences(
+                    of: authority,
+                    with: authority + authority
+                ).components(separatedBy: authority).count - 1,
+                2,
+                label
+            )
+        }
+        let issueRecheckDueUIFieldMutations = [
+            (
+                "duplicate issue ID",
+                issueRecheckDueExceptionID,
+                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION"
+            ),
+            ("wrong shard", "s10.4.current.ax-text", "s10.4.current.default-light"),
+            ("wrong state", "state.issue.recheck-due", "state.issue.resolved"),
+            ("wrong task", "work_and_recheck", "one_handed_start"),
+            ("wrong owner", #"owner: "palatis3""#, #"owner: "unknown""#),
+            ("expired", #"expiresAt: "2026-11-20""#, #"expiresAt: "2026-08-21""#),
+            (
+                "broad rationale",
+                issueRecheckDueExceptionRationale,
+                "Native navigation overlap."
+            ),
+            ("wrong audit type", #"auditTypeRawValue: "1""#, #"auditTypeRawValue: "2""#),
+            (
+                "wrong compact",
+                #"compactDescription: "Contrast failed""#,
+                #"compactDescription: "Contrast passed""#
+            ),
+            (
+                "wrong detailed",
+                "Contrast failed for SwiftUI.AccessibilityNode",
+                "Contrast failed for another node"
+            ),
+            (
+                "wrong identifier",
+                #"elementIdentifier: "s5.1.issue.header""#,
+                #"elementIdentifier: "s5.1.issue.status""#
+            ),
+            (
+                "wrong label",
+                #"elementLabel: "Section appears dark""#,
+                #"elementLabel: "Recheck due""#
+            ),
+            (
+                "wrong type",
+                #"elementTypeDescription: "XCUIElementType(rawValue: 48)""#,
+                #"elementTypeDescription: "XCUIElementType(rawValue: 49)""#
+            ),
+            ("wrong x", "                x: 32,", "                x: 33,"),
+            (
+                "wrong y",
+                "                y: 42.666666666666657,",
+                "                y: 42.666666666666658,"
+            ),
+            ("wrong width", "                width: 330,", "                width: 331,"),
+            (
+                "wrong height",
+                "                height: 141.66666666666669",
+                "                height: 141.6666666666667"
+            ),
+            (
+                "wrong application frame",
+                "applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)",
+                "applicationFrame: CGRect(x: 0, y: 0, width: 401, height: 874)"
+            ),
+        ]
+        let issueRecheckDueWorkflowFieldMutations = [
+            (
+                "duplicate issue ID",
+                issueRecheckDueExceptionID,
+                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION"
+            ),
+            ("wrong shard", "s10.4.current.ax-text", "s10.4.current.default-light"),
+            ("wrong state", "state.issue.recheck-due", "state.issue.resolved"),
+            ("wrong task", "work_and_recheck", "one_handed_start"),
+            (
+                "wrong owner",
+                #"exceptionOwner: "palatis3""#,
+                #"exceptionOwner: "unknown""#
+            ),
+            (
+                "expired",
+                #"exceptionExpiresAt: "2026-11-20""#,
+                #"exceptionExpiresAt: "2026-08-21""#
+            ),
+            (
+                "broad rationale",
+                issueRecheckDueExceptionRationale,
+                "Native navigation overlap."
+            ),
+            ("wrong audit type", #"auditTypeRawValue: "1""#, #"auditTypeRawValue: "2""#),
+            (
+                "wrong compact",
+                #"compactDescription: "Contrast failed""#,
+                #"compactDescription: "Contrast passed""#
+            ),
+            (
+                "wrong detailed",
+                "Contrast failed for SwiftUI.AccessibilityNode",
+                "Contrast failed for another node"
+            ),
+            (
+                "wrong identifier",
+                #"elementIdentifier: "s5.1.issue.header""#,
+                #"elementIdentifier: "s5.1.issue.status""#
+            ),
+            (
+                "wrong label",
+                #"elementLabel: "Section appears dark""#,
+                #"elementLabel: "Recheck due""#
+            ),
+            (
+                "wrong type",
+                #"elementType: "XCUIElementType(rawValue: 48)""#,
+                #"elementType: "XCUIElementType(rawValue: 49)""#
+            ),
+            ("wrong x", "                      x: 32,", "                      x: 33,"),
+            (
+                "wrong y",
+                "                      y: 42.666666666666657,",
+                "                      y: 42.666666666666658,"
+            ),
+            ("wrong width", "                      width: 330,", "                      width: 331,"),
+            (
+                "wrong height",
+                "                      height: 141.66666666666669",
+                "                      height: 141.6666666666667"
+            ),
+            (
+                "wrong application frame",
+                "applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
+                "applicationFrame: {x: 0, y: 0, width: 401, height: 874}"
+            ),
+        ]
+        for (label, from, to) in issueRecheckDueUIFieldMutations {
+            let mutation = issueRecheckDueUIAuthority.replacingOccurrences(
+                of: from,
+                with: to
+            )
+            XCTAssertNotEqual(mutation, issueRecheckDueUIAuthority, label)
+            XCTAssertEqual(
+                uiSource.components(separatedBy: mutation).count - 1,
+                0,
+                label
+            )
+        }
+        for (label, from, to) in issueRecheckDueWorkflowFieldMutations {
+            let mutation = issueRecheckDueWorkflowAuthority.replacingOccurrences(
+                of: from,
+                with: to
+            )
+            XCTAssertNotEqual(mutation, issueRecheckDueWorkflowAuthority, label)
+            XCTAssertEqual(
+                workflowSource.components(separatedBy: mutation).count - 1,
+                0,
+                label
+            )
+        }
+
         let failClosedHandlerLocks = [
             "private var automationContrastExceptions: [String: [ContrastAuditExceptionSignature]] = [:]",
             "let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {",
@@ -15447,6 +15312,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        XCTAssertFalse(
+            exactAXTwoIssueStateLimit.contains(
+                #"stateID == "state.issue.recheck-due""#
+            )
+        )
         for (label, mutation) in [
             (
                 "broadened AX state issue limit",
@@ -15526,7 +15396,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                    "state.reports-index.ready","# + "\n" +
                 #"                ]"#,
             #"case ("s10.4.current.ax-text", "work_and_recheck")"#,
-            #"permittedExceptionStateIDs = ["state.work.validation-error"]"#,
+            #"permittedExceptionStateIDs = ["# + "\n" +
+                #"                    "state.issue.recheck-due","# + "\n" +
+                #"                    "state.work.validation-error","# + "\n" +
+                #"                ]"#,
             #"case ("s10.4.current.increased-contrast", "report_comprehension")"#,
             #"case ("s10.4.current.differentiate-without-color", "report_comprehension")"#,
             #"taskIssueLimit = 1"#,
@@ -15682,42 +15555,66 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let axWorkAndRecheckTaskExceptionBound =
             #"            case ("s10.4.current.ax-text", "work_and_recheck"):"# +
                 "\n" +
-                "                taskIssueLimit = 1\n" +
-                "                taskStateLimit = 1\n" +
-                #"                permittedExceptionStateIDs = ["state.work.validation-error"]"#
+                "                taskIssueLimit = 2\n" +
+                "                taskStateLimit = 2\n" +
+                "                permittedExceptionStateIDs = [\n" +
+                #"                    "state.issue.recheck-due","# + "\n" +
+                #"                    "state.work.validation-error","# + "\n" +
+                "                ]"
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: axWorkAndRecheckTaskExceptionBound
             ).count - 1,
             1
         )
+        let staleAXWorkAndRecheckTaskExceptionBound =
+            #"            case ("s10.4.current.ax-text", "work_and_recheck"):"# +
+                "\n" +
+                "                taskIssueLimit = 1\n" +
+                "                taskStateLimit = 1\n" +
+                #"                permittedExceptionStateIDs = ["state.work.validation-error"]"#
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: staleAXWorkAndRecheckTaskExceptionBound
+            ).count - 1,
+            0
+        )
         for (label, mutation) in [
             (
-                "AX work task issue expansion",
+                "AX work task issue contraction",
                 axWorkAndRecheckTaskExceptionBound.replacingOccurrences(
-                    of: "taskIssueLimit = 1",
-                    with: "taskIssueLimit = 2"
+                    of: "taskIssueLimit = 2",
+                    with: "taskIssueLimit = 1"
                 )
             ),
             (
-                "AX work task state expansion",
+                "AX work task state contraction",
                 axWorkAndRecheckTaskExceptionBound.replacingOccurrences(
-                    of: "taskStateLimit = 1",
-                    with: "taskStateLimit = 2"
+                    of: "taskStateLimit = 2",
+                    with: "taskStateLimit = 1"
                 )
             ),
             (
                 "AX work task extra state",
                 axWorkAndRecheckTaskExceptionBound.replacingOccurrences(
-                    of: #"["state.work.validation-error"]"#,
-                    with: #"["state.work.editing", "state.work.validation-error"]"#
+                    of: #"                    "state.issue.recheck-due","#,
+                    with:
+                        #"                    "state.issue.recheck-due","# + "\n" +
+                        #"                    "state.work.editing","#
                 )
             ),
             (
-                "AX work task missing state",
+                "AX work task missing issue-recheck state",
                 axWorkAndRecheckTaskExceptionBound.replacingOccurrences(
-                    of: #"["state.work.validation-error"]"#,
-                    with: "[]"
+                    of: #"                    "state.issue.recheck-due","# + "\n",
+                    with: ""
+                )
+            ),
+            (
+                "AX work task missing validation state",
+                axWorkAndRecheckTaskExceptionBound.replacingOccurrences(
+                    of: #"                    "state.work.validation-error","# + "\n",
+                    with: ""
                 )
             ),
         ] {
@@ -15791,10 +15688,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "contrast_exception_authority_path=",
             #"if .result == "PASS" then"#,
             #"elif .result == "EXCEPTION" then"#,
-            #"length == 15"#,
-            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 13"#,
-            #"and ([.[].exceptionIssueID] | unique | length) == 15"#,
-            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 10"#,
+            #"length == 16"#,
+            #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 14"#,
+            #"and ([.[].exceptionIssueID] | unique | length) == 16"#,
+            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 11"#,
             #"| select(.exceptionIssueID | IN("#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER","#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER","#,
@@ -15805,7 +15702,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 1"#,
             #"| select((.exceptionIssueID | IN("#,
             #")) | not)"#,
-            #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 9"#,
+            #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 10"#,
             #"and (.exceptionOwner == "palatis3")"#,
             #"and (.exceptionExpiresAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"))"#,
             #"and ($today <= .exceptionExpiresAt)"#,
@@ -15840,7 +15737,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"and $taskID == "one_handed_start" then 3"#,
             #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
                 #"                     and $taskID == "report_comprehension" then 3"#,
-            #"and $taskID == "work_and_recheck" then 1"#,
+            #"and $taskID == "work_and_recheck" then 2"#,
             #"and $taskID == "report_comprehension" then 2"#,
             #"and $taskID == "history_recovery" then 1"#,
             #"and $taskID == "report_comprehension" then 1"#,
@@ -15877,8 +15774,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"($matchedAuthorities | length) > 1"#,
             #"($matchedExceptionStateIDs | length) > 1"#,
             #"elif $shard == "s10.4.current.ax-text" then"#,
-            #"($matchedAuthorities | length) > 7"#,
-            #"($matchedExceptionStateIDs | length) > 5"#,
+            #"($matchedAuthorities | length) > 8"#,
+            #"($matchedExceptionStateIDs | length) > 6"#,
             #"stateIssueLimit($shardID; $stateID)"#,
             #"and $stateID == "state.check-preflight.ready" then 2"#,
             #"and $stateID == "state.new-sign.editing" then 1"#,
@@ -15886,6 +15783,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                     and $stateID == "state.report-history.ready" then 1"#,
             #"and $stateID == "state.reports-index.ready" then 2"#,
             #"and $stateID == "state.work.validation-error" then 1"#,
+            #"and $stateID == "state.issue.recheck-due" then 1"#,
             #"and ($stateID == "state.feedback.review-ready""#,
             #"or $stateID == "state.report-correction.validation-error""#,
             #"or $stateID == "state.sample-report.ready") then 1"#,
@@ -15942,10 +15840,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         let workflowAuthorityCardinality =
-            "            length == 15\n" +
-                "            and ([.[] | [.shardID, .stateID] | join(\"|\")] | unique | length) == 13\n" +
-                "            and ([.[].exceptionIssueID] | unique | length) == 15\n" +
-                "            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 10"
+            "            length == 16\n" +
+                "            and ([.[] | [.shardID, .stateID] | join(\"|\")] | unique | length) == 14\n" +
+                "            and ([.[].exceptionIssueID] | unique | length) == 16\n" +
+                "            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 11"
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: workflowAuthorityCardinality
@@ -15956,29 +15854,29 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (
                 "authority count contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "length == 15",
-                    with: "length == 14"
+                    of: "length == 16",
+                    with: "length == 15"
                 )
             ),
             (
                 "authority pair contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "unique | length) == 13",
-                    with: "unique | length) == 12"
+                    of: "unique | length) == 14",
+                    with: "unique | length) == 13"
                 )
             ),
             (
                 "authority issue contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "exceptionIssueID] | unique | length) == 15",
-                    with: "exceptionIssueID] | unique | length) == 14"
+                    of: "exceptionIssueID] | unique | length) == 16",
+                    with: "exceptionIssueID] | unique | length) == 15"
                 )
             ),
             (
                 "authority signature contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "tojson)] | unique | length) == 10",
-                    with: "tojson)] | unique | length) == 9"
+                    of: "tojson)] | unique | length) == 11",
+                    with: "tojson)] | unique | length) == 10"
                 )
             ),
         ] {
@@ -16295,8 +16193,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let axWorkflowAggregateBound =
             #"elif $shard == "s10.4.current.ax-text""# + "\n" +
-                #"                     and (($matchedAuthorities | length) > 7"# + "\n" +
-                #"                       or ($matchedExceptionStateIDs | length) > 5) then"#
+                #"                     and (($matchedAuthorities | length) > 8"# + "\n" +
+                #"                       or ($matchedExceptionStateIDs | length) > 6) then"#
         XCTAssertEqual(
             workflowSource.components(separatedBy: axWorkflowAggregateBound).count - 1,
             1
@@ -16315,7 +16213,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
                 #"                     and $taskID == "report_comprehension" then 3"# + "\n" +
                 #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
-                #"                     and $taskID == "work_and_recheck" then 1"#
+                #"                     and $taskID == "work_and_recheck" then 2"#
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: axWorkflowTaskIssueFunctionBound
@@ -16329,7 +16227,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
                 #"                     and $taskID == "report_comprehension" then 2"# + "\n" +
                 #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
-                #"                     and $taskID == "work_and_recheck" then 1"#
+                #"                     and $taskID == "work_and_recheck" then 2"#
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: axWorkflowTaskStateFunctionBound
@@ -16361,6 +16259,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let axWorkflowIssueRecheckDueStateIssueBound =
+            #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
+                #"                     and $stateID == "state.issue.recheck-due" then 1"#
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: axWorkflowIssueRecheckDueStateIssueBound
+            ).count - 1,
+            1
+        )
         let axWorkflowGroupedStateIssueBound =
             #"                     if $shard == "s10.4.current.ax-text""# + "\n" +
                 #"                        and (.[0].stateID == "state.check-preflight.ready""# + "\n" +
@@ -16373,8 +16280,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let axWorkflowDownstreamBound =
             #"                      elif $shard == "s10.4.current.ax-text" then"# + "\n" +
-                #"                        ($matchedAuthorities | length) <= 7"# + "\n" +
-                #"                        and ($matchedExceptionStateIDs | length) <= 5"#
+                #"                        ($matchedAuthorities | length) <= 8"# + "\n" +
+                #"                        and ($matchedExceptionStateIDs | length) <= 6"#
         XCTAssertEqual(
             workflowSource.components(separatedBy: axWorkflowDownstreamBound).count - 1,
             1
@@ -16397,19 +16304,27 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 )
             ),
             (
-                "AX work task issue limit expansion",
+                "AX work task issue limit contraction",
                 axWorkflowTaskIssueFunctionBound,
                 axWorkflowTaskIssueFunctionBound.replacingOccurrences(
-                    of: #"and $taskID == "work_and_recheck" then 1"#,
-                    with: #"and $taskID == "work_and_recheck" then 2"#
+                    of: #"and $taskID == "work_and_recheck" then 2"#,
+                    with: #"and $taskID == "work_and_recheck" then 1"#
                 )
             ),
             (
-                "AX work task state limit expansion",
+                "AX work task state limit contraction",
                 axWorkflowTaskStateFunctionBound,
                 axWorkflowTaskStateFunctionBound.replacingOccurrences(
-                    of: #"and $taskID == "work_and_recheck" then 1"#,
-                    with: #"and $taskID == "work_and_recheck" then 2"#
+                    of: #"and $taskID == "work_and_recheck" then 2"#,
+                    with: #"and $taskID == "work_and_recheck" then 1"#
+                )
+            ),
+            (
+                "AX issue-recheck state issue limit expansion",
+                axWorkflowIssueRecheckDueStateIssueBound,
+                axWorkflowIssueRecheckDueStateIssueBound.replacingOccurrences(
+                    of: "then 1",
+                    with: "then 2"
                 )
             ),
             (
@@ -16458,15 +16373,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "AX aggregate limit expansion",
                 axWorkflowAggregateBound,
                 axWorkflowAggregateBound
-                    .replacingOccurrences(of: "> 7", with: "> 8")
-                    .replacingOccurrences(of: "> 5", with: "> 6")
+                    .replacingOccurrences(of: "> 8", with: "> 9")
+                    .replacingOccurrences(of: "> 6", with: "> 7")
             ),
             (
                 "AX downstream limit expansion",
                 axWorkflowDownstreamBound,
                 axWorkflowDownstreamBound
-                    .replacingOccurrences(of: "<= 7", with: "<= 8")
-                    .replacingOccurrences(of: "<= 5", with: "<= 6")
+                    .replacingOccurrences(of: "<= 8", with: "<= 9")
+                    .replacingOccurrences(of: "<= 6", with: "<= 7")
             ),
         ]
         for (label, canonicalBound, mutatedBound) in axWorkflowLimitMutations {
@@ -16482,6 +16397,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         for staleLock in [
+            "            length == 15\n" +
+                "            and ([.[] | [.shardID, .stateID] | join(\"|\")] | unique | length) == 13\n" +
+                "            and ([.[].exceptionIssueID] | unique | length) == 15\n" +
+                "            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 10",
             #"length == 7"#,
             #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 6"#,
             #"and ([.[].exceptionIssueID] | unique | length) == 7"#,
@@ -16490,8 +16409,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 5"#,
             #"($matchedAuthorities | length) > 2"#,
             #"($matchedAuthorities | length) > 6"#,
+            #"($matchedAuthorities | length) > 7"#,
+            #"($matchedExceptionStateIDs | length) > 5"#,
             #"($matchedExceptionStateIDs | length) > 4"#,
             #"($matchedAuthorities | length) <= 6"#,
+            #"($matchedAuthorities | length) <= 7"#,
+            #"($matchedExceptionStateIDs | length) <= 5"#,
+            #"and $taskID == "work_and_recheck" then 1"#,
+            #"and $stateID == "state.issue.recheck-due" then 2"#,
             #"($matchedExceptionStateIDs | length) <= 4"#,
             "            length == 8\n" +
                 "            and ([.[] | [.shardID, .stateID] | join(\"|\")] | unique | length) == 7\n" +
@@ -16543,7 +16468,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workflowSource.components(
                 separatedBy: #"taskID: "work_and_recheck""#
             ).count - 1,
-            2
+            4
         )
         XCTAssertFalse(workflowSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
         XCTAssertFalse(
