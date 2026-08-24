@@ -8585,8 +8585,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "            let startRecheckIsContained =\n" +
                 "                startRecheckFrame.minY >= safeTop\n" +
                 "                && startRecheckFrame.maxY <= safeBottom",
-            "            let targetCompositionIsSafe = startRecheckIsContained",
-            "                && startRecheckButton.isHittable",
+            "            let targetCompositionIsSafe = startRecheckIsContained\n" +
+                "                && dateIsContained\n" +
+                "                && descriptionIsContained\n" +
+                "                && valueIsContained\n" +
+                "                && startRecheckButton.isHittable",
             "                  startRecheckFrame.height <= safeBottom - safeTop,",
             "                  minimumShift <= maximumShift,",
             "                  targetCompositionIsSafe || maximumShift < 0 else {",
@@ -8620,6 +8623,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 geometryLock
             )
         }
+        XCTAssertEqual(
+            issueRecheckDuePositioningHelperSource.components(
+                separatedBy: "                && startRecheckButton.isHittable"
+            ).count - 1,
+            2
+        )
         XCTAssertEqual(
             issueRecheckDuePositioningHelperSource.components(
                 separatedBy: "                dragDistance = recognizedMinimum"
