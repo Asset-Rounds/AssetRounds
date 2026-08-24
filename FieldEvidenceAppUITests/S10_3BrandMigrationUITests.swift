@@ -7426,37 +7426,28 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             ).matching(
                 identifier: "UIContinuousPathIntroductionView"
             )
-            let quickPathTutorialLabel =
-                "Speed up your typing by sliding your finger across the letters to compose a word."
-            let quickPathTutorialTexts = app.staticTexts.matching(
-                NSPredicate(
-                    format: "label == %@",
-                    quickPathTutorialLabel
-                )
-            )
-            let quickPathContinueLabel = "Continue"
-            let quickPathContinueButtons = app.buttons.matching(
-                NSPredicate(
-                    format: "label == %@",
-                    quickPathContinueLabel
-                )
-            )
             let quickPathIntroductionCount =
                 quickPathIntroductionViews.count
-            let quickPathTutorialCount =
-                quickPathTutorialTexts.count
-            let quickPathContinueCount =
-                quickPathContinueButtons.count
 
-            if quickPathIntroductionCount > 0
-                || quickPathTutorialCount > 0
-                || quickPathContinueCount > 0 {
+            if quickPathIntroductionCount > 0 {
                 let quickPathIntroductionView =
                     quickPathIntroductionViews.firstMatch
-                let quickPathTutorialText =
-                    quickPathTutorialTexts.firstMatch
+                let quickPathButtons =
+                    quickPathIntroductionView.descendants(
+                        matching: .button
+                    )
+                let quickPathStaticTexts =
+                    quickPathIntroductionView.descendants(
+                        matching: .staticText
+                    )
+                let quickPathButtonCount = quickPathButtons.count
+                let quickPathStaticTextCount = quickPathStaticTexts.count
                 let quickPathContinueButton =
-                    quickPathContinueButtons.firstMatch
+                    quickPathButtons.firstMatch
+                let quickPathFirstStaticText =
+                    quickPathStaticTexts.element(boundBy: 0)
+                let quickPathSecondStaticText =
+                    quickPathStaticTexts.element(boundBy: 1)
                 let quickPathReturnKey = keyboard.buttons["Return"]
                 let fieldFocusPredicate = NSPredicate(
                     format: "hasKeyboardFocus == true"
@@ -7477,26 +7468,33 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         && frame.size.width.isFinite
                         && frame.size.height.isFinite
                 }
-
                 guard quickPathIntroductionCount == 1,
-                      quickPathTutorialCount == 1,
-                      quickPathContinueCount == 1,
+                      quickPathButtonCount == 1,
+                      quickPathStaticTextCount == 2,
                       quickPathIntroductionView.exists,
                       quickPathIntroductionView.elementType == .other,
                       quickPathIntroductionView.identifier
                         == "UIContinuousPathIntroductionView",
-                      quickPathTutorialText.exists,
-                      quickPathTutorialText.elementType == .staticText,
-                      quickPathTutorialText.identifier.isEmpty,
-                      quickPathTutorialText.label
-                        == quickPathTutorialLabel,
                       quickPathContinueButton.exists,
                       quickPathContinueButton.elementType == .button,
                       quickPathContinueButton.identifier.isEmpty,
-                      quickPathContinueButton.label
-                        == quickPathContinueLabel,
+                      !quickPathContinueButton.label.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                      ).isEmpty,
                       quickPathContinueButton.isEnabled,
                       quickPathContinueButton.isHittable,
+                      quickPathFirstStaticText.exists,
+                      quickPathFirstStaticText.elementType == .staticText,
+                      quickPathFirstStaticText.identifier.isEmpty,
+                      !quickPathFirstStaticText.label.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                      ).isEmpty,
+                      quickPathSecondStaticText.exists,
+                      quickPathSecondStaticText.elementType == .staticText,
+                      quickPathSecondStaticText.identifier.isEmpty,
+                      !quickPathSecondStaticText.label.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                      ).isEmpty,
                       quickPathReturnKey.exists,
                       quickPathReturnKey.elementType == .button,
                       quickPathReturnKey.identifier == "Return",
@@ -7517,8 +7515,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                       frameIsValid(expectedFieldScrollViewFrame),
                       frameIsValid(expectedKeyboardFrame),
                       frameIsValid(quickPathIntroductionView.frame),
-                      frameIsValid(quickPathTutorialText.frame),
                       frameIsValid(quickPathContinueButton.frame),
+                      frameIsValid(quickPathFirstStaticText.frame),
+                      frameIsValid(quickPathSecondStaticText.frame),
                       frameIsValid(quickPathReturnKey.frame),
                       expectedApplicationFrame.contains(
                           expectedRouteFrame
@@ -7536,14 +7535,42 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                           quickPathIntroductionView.frame
                       ),
                       quickPathIntroductionView.frame.contains(
-                          quickPathTutorialText.frame
+                          quickPathContinueButton.frame
                       ),
                       quickPathIntroductionView.frame.contains(
-                          quickPathContinueButton.frame
+                          quickPathFirstStaticText.frame
+                      ),
+                      quickPathIntroductionView.frame.contains(
+                          quickPathSecondStaticText.frame
                       ),
                       expectedKeyboardFrame.contains(
                           quickPathReturnKey.frame
-                      ) else {
+                      ),
+                      {
+                          let buttonLabel = quickPathContinueButton.label
+                          let firstLabel = quickPathFirstStaticText.label
+                          let secondLabel = quickPathSecondStaticText.label
+                          let firstIsActionTitle = firstLabel == buttonLabel
+                          let secondIsActionTitle = secondLabel == buttonLabel
+                          guard firstIsActionTitle != secondIsActionTitle else {
+                              return false
+                          }
+                          let actionTitle = firstIsActionTitle
+                              ? quickPathFirstStaticText
+                              : quickPathSecondStaticText
+                          let tutorialText = firstIsActionTitle
+                              ? quickPathSecondStaticText
+                              : quickPathFirstStaticText
+                          let actionTitleFrame = actionTitle.frame
+                          let tutorialFrame = tutorialText.frame
+                          let buttonFrame = quickPathContinueButton.frame
+                          return actionTitleFrame.intersects(buttonFrame)
+                              && tutorialText.label != buttonLabel
+                              && tutorialFrame.maxY <= actionTitleFrame.minY
+                              && tutorialFrame.maxY <= buttonFrame.minY
+                              && !tutorialFrame.intersects(actionTitleFrame)
+                              && !tutorialFrame.intersects(buttonFrame)
+                      }() else {
                     XCTFail(
                         "The multiline TextView QuickPath tutorial is incomplete or state changed before dismissal."
                     )
@@ -7556,8 +7583,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     timeout: 10
                 ),
                       quickPathIntroductionViews.count == 0,
-                      quickPathTutorialTexts.count == 0,
-                      quickPathContinueButtons.count == 0,
+                      quickPathButtons.count == 0,
+                      quickPathStaticTexts.count == 0,
                       keyboard.exists,
                       quickPathReturnKey.exists,
                       quickPathReturnKey.elementType == .button,

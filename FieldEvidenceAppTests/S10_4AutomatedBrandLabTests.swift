@@ -1327,8 +1327,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 379_393,
-            sha256: "A9AD3BB61170114952BD6622FDFF4DEE69CCFE23F4F38B94E016B222510E0E0A"
+            byteCount: 381_369,
+            sha256: "82F433C7D95F0693A926A0E3A7B6BAE314C69FCBB005D12D24CA9618F77A3F80"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -5599,10 +5599,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 multilineHelperStartRange.lowerBound..<multilinePassiveKeyboardHelperStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(multilineHelperSource.utf8.count, 10_536)
+        XCTAssertEqual(multilineHelperSource.utf8.count, 12_512)
         XCTAssertEqual(
             Data(multilineHelperSource.utf8).sha256,
-            "AABFB092972A83029C2BE090E68B2BFBB2C497C7AFDC0AB36C423FD2DB32D60D"
+            "4054F7E02F879E7A3647BB799720180F13C2F935F9BB7E19B3399E596004BC88"
         )
         let multilineHelperLocks = [
             "afterEditing field: XCUIElement",
@@ -5640,23 +5640,24 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let quickPathIntroductionViews = app.descendants(",
             "matching: .other",
             #"identifier: "UIContinuousPathIntroductionView""#,
-            #""Speed up your typing by sliding your finger across the letters to compose a word.""#,
-            "let quickPathTutorialTexts = app.staticTexts.matching(",
-            "let quickPathContinueButtons = app.buttons.matching(",
-            #"format: "label == %@""#,
-            #"let quickPathContinueLabel = "Continue""#,
             "let quickPathIntroductionCount =",
-            "let quickPathTutorialCount =",
-            "let quickPathContinueCount =",
-            "if quickPathIntroductionCount > 0",
-            "|| quickPathTutorialCount > 0",
-            "|| quickPathContinueCount > 0 {",
-            "quickPathIntroductionCount == 1",
-            "quickPathTutorialCount == 1",
-            "quickPathContinueCount == 1",
+            "if quickPathIntroductionCount > 0 {",
             "let quickPathIntroductionView =",
-            "let quickPathTutorialText =",
-            "let quickPathContinueButton =",
+            "let quickPathButtons =",
+            "quickPathIntroductionView.descendants(",
+            "matching: .button",
+            "let quickPathStaticTexts =",
+            "matching: .staticText",
+            "let quickPathButtonCount = quickPathButtons.count",
+            "let quickPathStaticTextCount = quickPathStaticTexts.count",
+            "quickPathButtons.firstMatch",
+            "let quickPathFirstStaticText =",
+            "quickPathStaticTexts.element(boundBy: 0)",
+            "let quickPathSecondStaticText =",
+            "quickPathStaticTexts.element(boundBy: 1)",
+            "quickPathIntroductionCount == 1",
+            "quickPathButtonCount == 1",
+            "quickPathStaticTextCount == 2",
             #"let quickPathReturnKey = keyboard.buttons["Return"]"#,
             #"format: "hasKeyboardFocus == true""#,
             "let expectedApplicationFrame = app.frame",
@@ -5667,28 +5668,55 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let expectedClearedValidationExists =",
             "let frameIsValid: (CGRect) -> Bool = { frame in",
             "quickPathIntroductionView.elementType == .other",
-            "quickPathTutorialText.elementType == .staticText",
-            "quickPathTutorialText.identifier.isEmpty",
             "quickPathContinueButton.elementType == .button",
             "quickPathContinueButton.identifier.isEmpty",
+            "quickPathContinueButton.label.trimmingCharacters(",
             "quickPathContinueButton.isEnabled",
             "quickPathContinueButton.isHittable",
+            "quickPathFirstStaticText.elementType == .staticText",
+            "quickPathFirstStaticText.identifier.isEmpty",
+            "quickPathFirstStaticText.label.trimmingCharacters(",
+            "quickPathSecondStaticText.elementType == .staticText",
+            "quickPathSecondStaticText.identifier.isEmpty",
+            "quickPathSecondStaticText.label.trimmingCharacters(",
             "quickPathReturnKey.elementType == .button",
             #"quickPathReturnKey.identifier == "Return""#,
             #"quickPathReturnKey.label.lowercased() == "return""#,
             "!quickPathReturnKey.isHittable",
             "fieldFocusPredicate.evaluate(with: field)",
             "!expectedClearedValidationExists",
+            "frameIsValid(quickPathIntroductionView.frame)",
+            "frameIsValid(quickPathContinueButton.frame)",
+            "frameIsValid(quickPathFirstStaticText.frame)",
+            "frameIsValid(quickPathSecondStaticText.frame)",
+            "frameIsValid(quickPathReturnKey.frame)",
             "expectedApplicationFrame.contains(",
             "quickPathIntroductionView.frame.contains(",
             "expectedKeyboardFrame.contains(",
+            "let buttonLabel = quickPathContinueButton.label",
+            "let firstLabel = quickPathFirstStaticText.label",
+            "let secondLabel = quickPathSecondStaticText.label",
+            "let firstIsActionTitle = firstLabel == buttonLabel",
+            "let secondIsActionTitle = secondLabel == buttonLabel",
+            "firstIsActionTitle != secondIsActionTitle",
+            "let actionTitle = firstIsActionTitle",
+            "let tutorialText = firstIsActionTitle",
+            "let actionTitleFrame = actionTitle.frame",
+            "let tutorialFrame = tutorialText.frame",
+            "let buttonFrame = quickPathContinueButton.frame",
+            "actionTitleFrame.intersects(buttonFrame)",
+            "tutorialText.label != buttonLabel",
+            "tutorialFrame.maxY <= actionTitleFrame.minY",
+            "tutorialFrame.maxY <= buttonFrame.minY",
+            "!tutorialFrame.intersects(actionTitleFrame)",
+            "!tutorialFrame.intersects(buttonFrame)",
             "The multiline TextView QuickPath tutorial is incomplete or state changed before dismissal.",
             "let expectedReturnFrame = quickPathReturnKey.frame",
             "quickPathContinueButton.tap()",
             "quickPathIntroductionView.waitForNonExistence(",
             "quickPathIntroductionViews.count == 0",
-            "quickPathTutorialTexts.count == 0",
-            "quickPathContinueButtons.count == 0",
+            "quickPathButtons.count == 0",
+            "quickPathStaticTexts.count == 0",
             "quickPathReturnKey.isHittable",
             "field.elementType == .textView",
             "app.frame == expectedApplicationFrame",
@@ -5703,6 +5731,45 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for lock in multilineQuickPathLocks {
             XCTAssertTrue(multilineHelperSource.contains(lock), lock)
         }
+        guard let quickPathCardinalityBranchRange = multilineHelperSource.range(
+            of: "if quickPathIntroductionCount > 0 {"
+        ),
+              let quickPathExactCardinalityRange = multilineHelperSource.range(
+                of: "guard quickPathIntroductionCount == 1,\n" +
+                    "                      quickPathButtonCount == 1,\n" +
+                    "                      quickPathStaticTextCount == 2,"
+              ),
+              let quickPathFirstPropertyRange = multilineHelperSource.range(
+                of: "quickPathIntroductionView.exists"
+              ),
+              let quickPathFinalFrameValidityRange = multilineHelperSource.range(
+                of: "frameIsValid(quickPathReturnKey.frame)"
+              ),
+              let quickPathFirstGeometryRange = multilineHelperSource.range(
+                of: "expectedApplicationFrame.contains("
+              ),
+              let quickPathRoleSelectionRange = multilineHelperSource.range(
+                of: "let buttonLabel = quickPathContinueButton.label"
+              ) else {
+            XCTFail("Missing cardinality-before-property or frame-before-role ordering")
+            return
+        }
+        XCTAssertLessThan(
+            quickPathCardinalityBranchRange.lowerBound,
+            quickPathExactCardinalityRange.lowerBound
+        )
+        XCTAssertLessThan(
+            quickPathExactCardinalityRange.lowerBound,
+            quickPathFirstPropertyRange.lowerBound
+        )
+        XCTAssertLessThan(
+            quickPathFinalFrameValidityRange.lowerBound,
+            quickPathFirstGeometryRange.lowerBound
+        )
+        XCTAssertLessThan(
+            quickPathFirstGeometryRange.lowerBound,
+            quickPathRoleSelectionRange.lowerBound
+        )
         guard let actionableScrollViewRange = multilineHelperSource.range(
             of: "guard fieldScrollView.exists, fieldScrollView.isHittable else {"
         ),
@@ -5750,8 +5817,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (".textField", 1),
             (".textView", 3),
             ("quickPathIntroductionViews.count", 2),
-            ("quickPathTutorialTexts.count", 2),
-            ("quickPathContinueButtons.count", 2),
+            ("quickPathButtons.count", 2),
+            ("quickPathStaticTexts.count", 2),
+            ("quickPathIntroductionView.descendants(", 2),
+            ("element(boundBy:", 2),
             ("fieldFocusPredicate.evaluate(with: field)", 2),
             ("quickPathContinueButton.tap()", 1),
             (".tap()", 1),
@@ -5790,6 +5859,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "epsilon",
             "automationShard",
             "deviceProfileID",
+            "locale",
+            #""Speed up your typing by sliding your finger across the letters to compose a word.""#,
+            #"let quickPathContinueLabel = "Continue""#,
+            "quickPathTutorialLabel",
+            "quickPathContinueLabel",
+            "quickPathTutorialTexts",
+            "quickPathContinueButtons",
+            "app.staticTexts.matching(",
+            "app.buttons.matching(",
+            "format: \"label == %@\"",
+            "folding(",
+            "diacriticInsensitive",
+            "precomposedStringWithCanonicalMapping",
+            "decomposedStringWithCanonicalMapping",
             "label CONTAINS",
             "label BEGINSWITH",
             ".swipeDown()",
