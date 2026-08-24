@@ -7179,7 +7179,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         var previousDescriptionMinYAfterDrag: CGFloat?
         var previousValueMinYAfterDrag: CGFloat?
         var previousPhotoMinYAfterDrag: CGFloat?
-        for _ in 0..<4 {
+        for diagnosticAttemptIndex in 0..<4 {
             guard hasExactIdentity() else {
                 XCTFail("AX-text issue recheck-due positioning route changed.")
                 return false
@@ -7194,29 +7194,152 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let descriptionFrame = workDescription.frame
             let valueFrame = descriptionValueText.frame
             let photoFrame = workPhoto.frame
-            let liveFramesAreValid = isValidFrame(applicationFrame)
-                && isValidFrame(screenFrame)
-                && isValidFrame(scrollFrame)
-                && isValidFrame(navigationFrame)
-                && isValidFrame(tabFrame)
-                && isValidFrame(recordFrame)
-                && isValidFrame(dateFrame)
-                && isValidFrame(descriptionFrame)
-                && isValidFrame(valueFrame)
-                && isValidFrame(photoFrame)
+            let applicationFrameIsValid = isValidFrame(applicationFrame)
+            let screenFrameIsValid = isValidFrame(screenFrame)
+            let scrollFrameIsValid = isValidFrame(scrollFrame)
+            let navigationFrameIsValid = isValidFrame(navigationFrame)
+            let tabFrameIsValid = isValidFrame(tabFrame)
+            let recordFrameIsValid = isValidFrame(recordFrame)
+            let dateFrameIsValid = isValidFrame(dateFrame)
+            let descriptionFrameIsValid = isValidFrame(descriptionFrame)
+            let valueFrameIsValid = isValidFrame(valueFrame)
+            let photoFrameIsValid = isValidFrame(photoFrame)
+            let liveFramesAreValid = applicationFrameIsValid
+                && screenFrameIsValid
+                && scrollFrameIsValid
+                && navigationFrameIsValid
+                && tabFrameIsValid
+                && recordFrameIsValid
+                && dateFrameIsValid
+                && descriptionFrameIsValid
+                && valueFrameIsValid
+                && photoFrameIsValid
             var liveScrollFrame = CGRect.null
             if liveFramesAreValid {
                 liveScrollFrame = scrollFrame.intersection(applicationFrame)
             }
-            guard liveFramesAreValid,
-                  isValidFrame(liveScrollFrame),
-                  screenFrame == scrollFrame,
-                  recordFrame.contains(dateFrame),
-                  recordFrame.contains(descriptionFrame),
-                  recordFrame.contains(photoFrame),
-                  descriptionFrame.contains(valueFrame),
-                  dateFrame.maxY < descriptionFrame.minY,
-                  descriptionFrame.maxY < photoFrame.minY else {
+            let liveScrollFrameIsValid = isValidFrame(liveScrollFrame)
+            let screenEqualsScroll = screenFrame == scrollFrame
+            let recordContainsDate = recordFrame.contains(dateFrame)
+            let recordContainsDescription = recordFrame.contains(descriptionFrame)
+            let recordContainsPhoto = recordFrame.contains(photoFrame)
+            let descriptionContainsValue = descriptionFrame.contains(valueFrame)
+            let dateBeforeDescription = dateFrame.maxY < descriptionFrame.minY
+            let descriptionBeforePhoto = descriptionFrame.maxY < photoFrame.minY
+            let relationResults: [(String, Bool)] = [
+                ("applicationFrameIsValid", applicationFrameIsValid),
+                ("screenFrameIsValid", screenFrameIsValid),
+                ("scrollFrameIsValid", scrollFrameIsValid),
+                ("navigationFrameIsValid", navigationFrameIsValid),
+                ("tabFrameIsValid", tabFrameIsValid),
+                ("recordFrameIsValid", recordFrameIsValid),
+                ("dateFrameIsValid", dateFrameIsValid),
+                ("descriptionFrameIsValid", descriptionFrameIsValid),
+                ("valueFrameIsValid", valueFrameIsValid),
+                ("photoFrameIsValid", photoFrameIsValid),
+                ("liveScrollFrameIsValid", liveScrollFrameIsValid),
+                ("screenEqualsScroll", screenEqualsScroll),
+                ("recordContainsDate", recordContainsDate),
+                ("recordContainsDescription", recordContainsDescription),
+                ("recordContainsPhoto", recordContainsPhoto),
+                ("descriptionContainsValue", descriptionContainsValue),
+                ("dateBeforeDescription", dateBeforeDescription),
+                ("descriptionBeforePhoto", descriptionBeforePhoto),
+            ]
+            let failedRelations = relationResults.compactMap { relation in
+                relation.1 ? nil : relation.0
+            }
+            let allRelationsPass = failedRelations.isEmpty
+            if diagnosticAttemptIndex == 1 || !allRelationsPass {
+                let finiteNumber: (CGFloat) -> Any = { value in
+                    if value.isFinite { return Double(value) }
+                    return NSNull()
+                }
+                let optionalFiniteNumber: (CGFloat?) -> Any = { value in
+                    guard let value else { return NSNull() }
+                    return finiteNumber(value)
+                }
+                let frameObject: (CGRect) -> [String: Any] = { frame in
+                    [
+                        "x": finiteNumber(frame.origin.x),
+                        "y": finiteNumber(frame.origin.y),
+                        "width": finiteNumber(frame.size.width),
+                        "height": finiteNumber(frame.size.height),
+                    ]
+                }
+                printJSONLine(
+                    prefix: "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_LIVE_GEOMETRY_DIAGNOSTIC",
+                    object: [
+                        "shardID": automationShard?.shardID ?? "",
+                        "diagnosticAttemptIndex": diagnosticAttemptIndex,
+                        "completedGestureCount": diagnosticAttemptIndex,
+                        "identityPassed": true,
+                        "applicationFrameIsValid": applicationFrameIsValid,
+                        "screenFrameIsValid": screenFrameIsValid,
+                        "scrollFrameIsValid": scrollFrameIsValid,
+                        "navigationFrameIsValid": navigationFrameIsValid,
+                        "tabFrameIsValid": tabFrameIsValid,
+                        "recordFrameIsValid": recordFrameIsValid,
+                        "dateFrameIsValid": dateFrameIsValid,
+                        "descriptionFrameIsValid": descriptionFrameIsValid,
+                        "valueFrameIsValid": valueFrameIsValid,
+                        "photoFrameIsValid": photoFrameIsValid,
+                        "liveScrollFrameIsValid": liveScrollFrameIsValid,
+                        "screenEqualsScroll": screenEqualsScroll,
+                        "recordContainsDate": recordContainsDate,
+                        "recordContainsDescription": recordContainsDescription,
+                        "recordContainsPhoto": recordContainsPhoto,
+                        "descriptionContainsValue": descriptionContainsValue,
+                        "dateBeforeDescription": dateBeforeDescription,
+                        "descriptionBeforePhoto": descriptionBeforePhoto,
+                        "allRelationsPass": allRelationsPass,
+                        "failedRelations": failedRelations,
+                        "frames": [
+                            "application": frameObject(applicationFrame),
+                            "screen": frameObject(screenFrame),
+                            "scroll": frameObject(scrollFrame),
+                            "navigation": frameObject(navigationFrame),
+                            "tab": frameObject(tabFrame),
+                            "record": frameObject(recordFrame),
+                            "date": frameObject(dateFrame),
+                            "description": frameObject(descriptionFrame),
+                            "value": frameObject(valueFrame),
+                            "photo": frameObject(photoFrame),
+                            "liveScroll": frameObject(liveScrollFrame),
+                        ],
+                        "previousPostGestureMinY": [
+                            "date": optionalFiniteNumber(previousDateMinYAfterDrag),
+                            "description": optionalFiniteNumber(
+                                previousDescriptionMinYAfterDrag
+                            ),
+                            "value": optionalFiniteNumber(previousValueMinYAfterDrag),
+                            "photo": optionalFiniteNumber(previousPhotoMinYAfterDrag),
+                        ],
+                    ]
+                )
+                XCTFail(
+                    "S10.4 AX-text issue recheck-due live geometry diagnostic completed nonaccepting."
+                )
+                return false
+            }
+            guard applicationFrameIsValid,
+                  screenFrameIsValid,
+                  scrollFrameIsValid,
+                  navigationFrameIsValid,
+                  tabFrameIsValid,
+                  recordFrameIsValid,
+                  dateFrameIsValid,
+                  descriptionFrameIsValid,
+                  valueFrameIsValid,
+                  photoFrameIsValid,
+                  liveScrollFrameIsValid,
+                  screenEqualsScroll,
+                  recordContainsDate,
+                  recordContainsDescription,
+                  recordContainsPhoto,
+                  descriptionContainsValue,
+                  dateBeforeDescription,
+                  descriptionBeforePhoto else {
                 XCTFail("AX-text issue recheck-due positioning geometry is invalid.")
                 return false
             }
