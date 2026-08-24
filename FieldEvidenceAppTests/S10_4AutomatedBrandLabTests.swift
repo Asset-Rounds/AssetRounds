@@ -1327,8 +1327,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 427_388,
-            sha256: "5C5344B362AF129E44D323C6E7BD725845F34D9A93E944B9F8A503A4E334313B"
+            byteCount: 429_863,
+            sha256: "B4A6D038A196557BF095B9A39F6A01868D32CB36E8332A8EB31F2588EAB2611C"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -8058,10 +8058,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(restoredCaptureBaselineSource.utf8).sha256,
             "371C419756DF1F86C30BD576938A5089F74616379C790C79089C23A052760CB6"
         )
-        XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 21_374)
+        XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
             Data(issueRecheckDuePositioningHelperSource.utf8).sha256,
-            "8D0D68A554132668012552032DC608E816AE35175F17680507367505259AFA01"
+            "A9D52569212661CD4419ECBF4804DDFDA04187EA2F4BF133387807AF6150AC53"
         )
         let normalEligibleExceptionsBinding =
             "            let eligibleExceptions = " +
@@ -8154,6 +8154,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"            identifier: "Recheck due""# + "\n" +
                 "        )",
             "        let tabBars = app.tabBars",
+            "        let startRecheckButtons = app.buttons.matching(\n" +
+                #"            identifier: "s5.2.issue.start-recheck""# + "\n" +
+                "        )",
             "        let workRecords = app.descendants(matching: .any).matching(\n" +
                 #"            identifier: "s5.1.issue.work-record""# + "\n" +
                 "        )",
@@ -8173,7 +8176,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"            identifier: "s5.1.issue.work-photo""# + "\n" +
                 "        )",
         ]
-        XCTAssertEqual(issueRecheckDueQueryLocks.count, 10)
+        XCTAssertEqual(issueRecheckDueQueryLocks.count, 11)
         for queryLock in issueRecheckDueQueryLocks {
             XCTAssertEqual(
                 issueRecheckDuePositioningHelperSource.components(
@@ -8188,13 +8191,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "        let issueScrollView = issueScrollViews.firstMatch",
             "        let issueNavigationBar = issueNavigationBars.firstMatch",
             "        let tabBar = tabBars.firstMatch",
+            "        let startRecheckButton = startRecheckButtons.firstMatch",
             "        let workRecord = workRecords.firstMatch",
             "        let workDate = workDates.firstMatch",
             "        let workDescription = workDescriptions.firstMatch",
             "        let descriptionValueText = descriptionValueTexts.firstMatch",
             "        let workPhoto = workPhotos.firstMatch",
         ]
-        XCTAssertEqual(issueRecheckDueBindingLocks.count, 9)
+        XCTAssertEqual(issueRecheckDueBindingLocks.count, 10)
         for bindingLock in issueRecheckDueBindingLocks {
             XCTAssertEqual(
                 issueRecheckDuePositioningHelperSource.components(
@@ -8209,6 +8213,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                && issueScrollViews.count == 1",
             "                && issueNavigationBars.count == 1",
             "                && tabBars.count == 1",
+            "                && startRecheckButtons.count == 1",
             "                && workRecords.count == 1",
             "                && workDates.count == 1",
             "                && workDescriptions.count == 1",
@@ -8216,7 +8221,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                && descriptionValueTexts.count == 1",
             "                && workPhotos.count == 1",
         ]
-        XCTAssertEqual(issueRecheckDueCardinalityLocks.count, 10)
+        XCTAssertEqual(issueRecheckDueCardinalityLocks.count, 11)
         for cardinalityLock in issueRecheckDueCardinalityLocks {
             XCTAssertEqual(
                 issueRecheckDuePositioningHelperSource.components(
@@ -8227,7 +8232,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         for (bindingCountLock, expectedCount) in [
-            (".firstMatch", 9),
+            (".firstMatch", 10),
             ("        let hasExactIdentity: () -> Bool = {", 1),
             ("        let hasExactRoute: () -> Bool = {", 1),
             ("hasExactIdentity()", 4),
@@ -8255,6 +8260,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                && tabBar.exists",
             "                && tabBar.elementType == .tabBar",
             #"                && tabBar.label == "Tab Bar""#,
+            "                && startRecheckButton.exists",
+            "                && startRecheckButton.elementType == .button",
+            #"                && startRecheckButton.identifier == "s5.2.issue.start-recheck""#,
+            #"                && startRecheckButton.label == "Start recheck""#,
+            #"                && (startRecheckButton.value as? String) == """#,
             "                && workRecord.exists",
             "                && workRecord.elementType == .other",
             #"                && workRecord.identifier == "s5.1.issue.work-record""#,
@@ -8333,6 +8343,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for routeCompositionLock in [
             "            return hasExactIdentity()\n" +
                 "                && isValidFrame(app.frame)",
+            "                && isValidFrame(startRecheckFrame)",
             "                && screenFrame == scrollFrame",
             "                && recordFrame.contains(dateFrame)",
             "                && recordFrame.contains(descriptionFrame)",
@@ -8384,11 +8395,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("            let scrollFrame = issueScrollView.frame", 2),
             ("            let navigationFrame = issueNavigationBar.frame", 1),
             ("            let tabFrame = tabBar.frame", 1),
+            ("            let startRecheckFrame = startRecheckButton.frame", 2),
             ("            let recordFrame = workRecord.frame", 2),
             ("            let dateFrame = workDate.frame", 2),
             ("            let descriptionFrame = workDescription.frame", 2),
             ("            let valueFrame = descriptionValueText.frame", 2),
             ("            let photoFrame = workPhoto.frame", 2),
+            ("                && isValidFrame(startRecheckFrame)", 2),
             ("            let liveFramesAreValid = isValidFrame(applicationFrame)", 1),
             ("            var liveScrollFrame = CGRect.null", 1),
             (
@@ -8458,6 +8471,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                && descriptionFrame.contains(valueFrame)",
             "                  descriptionFrame.contains(valueFrame),",
             "                    && finalDescriptionFrame.contains(finalValueFrame)",
+            "recordFrame.contains(startRecheckFrame)",
+            "finalRecordFrame.contains(finalStartRecheckFrame)",
+            "photoFrame.maxY < startRecheckFrame.minY",
+            "finalPhotoFrame.maxY < finalStartRecheckFrame.minY",
             "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_LIVE_GEOMETRY_DIAGNOSTIC",
             "diagnostic",
             "diagnosticAttemptIndex",
@@ -8546,19 +8563,31 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "            let receiverRight = liveScrollFrame.maxX - receiverInset",
             "            let receiverCapacity = receiverBottom - receiverTop",
             "            let minimumShift = max(\n" +
-                "                safeTop - dateFrame.minY,\n" +
+                "                safeTop - startRecheckFrame.minY,\n" +
                 "                max(\n" +
-                "                    safeTop - descriptionFrame.minY,\n" +
-                "                    safeTop - valueFrame.minY\n" +
+                "                    safeTop - dateFrame.minY,\n" +
+                "                    max(\n" +
+                "                        safeTop - descriptionFrame.minY,\n" +
+                "                        safeTop - valueFrame.minY\n" +
+                "                    )\n" +
                 "                )\n" +
                 "            )",
             "            let maximumShift = min(\n" +
-                "                safeBottom - dateFrame.maxY,\n" +
+                "                safeBottom - startRecheckFrame.maxY,\n" +
                 "                min(\n" +
-                "                    safeBottom - descriptionFrame.maxY,\n" +
-                "                    safeBottom - valueFrame.maxY\n" +
+                "                    safeBottom - dateFrame.maxY,\n" +
+                "                    min(\n" +
+                "                        safeBottom - descriptionFrame.maxY,\n" +
+                "                        safeBottom - valueFrame.maxY\n" +
+                "                    )\n" +
                 "                )\n" +
                 "            )",
+            "            let startRecheckIsContained =\n" +
+                "                startRecheckFrame.minY >= safeTop\n" +
+                "                && startRecheckFrame.maxY <= safeBottom",
+            "            let targetCompositionIsSafe = startRecheckIsContained",
+            "                && startRecheckButton.isHittable",
+            "                  startRecheckFrame.height <= safeBottom - safeTop,",
             "                  minimumShift <= maximumShift,",
             "                  targetCompositionIsSafe || maximumShift < 0 else {",
             "            if targetCompositionIsSafe { break }",
@@ -8572,7 +8601,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    -minimumGestureDistance\n" +
                 "                )",
             "                guard recognizedMinimum <= recognizedMaximum else {",
-            "                dragDistance = recognizedMinimum",
+            "                dragDistance = recognizedMaximum",
             "                let stagedDistance = max(\n" +
                 "                    -receiverCapacity,\n" +
                 "                    maximumShift + minimumGestureDistance\n" +
@@ -8591,6 +8620,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 geometryLock
             )
         }
+        XCTAssertEqual(
+            issueRecheckDuePositioningHelperSource.components(
+                separatedBy: "                dragDistance = recognizedMinimum"
+            ).count - 1,
+            0
+        )
 
         let issueRecheckDueReceiverLocks = [
             "            let receiverFrame = CGRect(\n" +
@@ -8614,6 +8649,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                  endPoint.y <= receiverFrame.maxY,",
             "                  liveScrollFrame.contains(startPoint),",
             "                  liveScrollFrame.contains(endPoint),",
+            "                  !startRecheckFrame.contains(startPoint),",
+            "                  !startRecheckFrame.contains(endPoint),",
             "                  !dateFrame.contains(startPoint),",
             "                  !dateFrame.contains(endPoint),",
             "                  !descriptionFrame.contains(startPoint),",
@@ -8660,32 +8697,44 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
 
         let issueRecheckDueProgressLocks = [
+            "        var previousStartRecheckMinYAfterDrag: CGFloat?",
             "        var previousDateMinYAfterDrag: CGFloat?",
             "        var previousDescriptionMinYAfterDrag: CGFloat?",
             "        var previousValueMinYAfterDrag: CGFloat?",
             "        var previousPhotoMinYAfterDrag: CGFloat?",
+            "            let startRecheckBeforeDrag = startRecheckFrame.minY",
             "            let dateBeforeDrag = dateFrame.minY",
             "            let descriptionBeforeDrag = descriptionFrame.minY",
             "            let valueBeforeDrag = valueFrame.minY",
             "            let photoBeforeDrag = photoFrame.minY",
+            "            let startRecheckAfterDrag = startRecheckButton.frame",
             "            let dateAfterDrag = workDate.frame",
             "            let descriptionAfterDrag = workDescription.frame",
             "            let valueAfterDrag = descriptionValueText.frame",
             "            let photoAfterDrag = workPhoto.frame",
-            "            let movedFramesAreValid = isValidFrame(dateAfterDrag)",
+            "            let movedFramesAreValid = isValidFrame(startRecheckAfterDrag)",
+            "            var observedStartRecheckShift: CGFloat?",
+            "                observedStartRecheckShift =\n" +
+                "                    startRecheckAfterDrag.minY - startRecheckBeforeDrag",
             "                observedDateShift = dateAfterDrag.minY - dateBeforeDrag",
             "                observedDescriptionShift =",
             "                observedValueShift = valueAfterDrag.minY - valueBeforeDrag",
             "                observedPhotoShift = photoAfterDrag.minY - photoBeforeDrag",
+            "            guard let observedStartRecheckShift,",
+            "                  observedStartRecheckShift * dragDistance > 0,",
             "                  observedDateShift * dragDistance > 0,",
             "                  observedDescriptionShift * dragDistance > 0,",
             "                  observedValueShift * dragDistance > 0,",
             "                  observedPhotoShift * dragDistance > 0 else {",
-            "                guard dateAfterDrag.minY < previousDateMinYAfterDrag,",
+            "            if let previousStartRecheckMinYAfterDrag,",
+            "                guard startRecheckAfterDrag.minY\n" +
+                "                        < previousStartRecheckMinYAfterDrag,",
+            "                      dateAfterDrag.minY < previousDateMinYAfterDrag,",
             "                      descriptionAfterDrag.minY",
             "                        < previousDescriptionMinYAfterDrag,",
             "                      valueAfterDrag.minY < previousValueMinYAfterDrag,",
             "                      photoAfterDrag.minY < previousPhotoMinYAfterDrag else {",
+            "            previousStartRecheckMinYAfterDrag = startRecheckAfterDrag.minY",
             "            previousDateMinYAfterDrag = dateAfterDrag.minY",
             "            previousDescriptionMinYAfterDrag = descriptionAfterDrag.minY",
             "            previousValueMinYAfterDrag = valueAfterDrag.minY",
@@ -8705,7 +8754,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                XCTFail(\"AX-text issue recheck-due route changed after positioning.\")\n" +
                 "                return false\n" +
                 "            }\n" +
-                "            let dateAfterDrag = workDate.frame"
+                "            let startRecheckAfterDrag = startRecheckButton.frame"
         XCTAssertEqual(
             issueRecheckDuePositioningHelperSource.components(
                 separatedBy: issueRecheckDuePostGestureIdentityLock
@@ -8724,12 +8773,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "        let finalScrollFrame = issueScrollView.frame",
             "        let finalNavigationFrame = issueNavigationBar.frame",
             "        let finalTabFrame = tabBar.frame",
+            "        let finalStartRecheckFrame = startRecheckButton.frame",
             "        let finalRecordFrame = workRecord.frame",
             "        let finalDateFrame = workDate.frame",
             "        let finalDescriptionFrame = workDescription.frame",
             "        let finalValueFrame = descriptionValueText.frame",
             "        let finalPhotoFrame = workPhoto.frame",
             "        let finalFramesAreValid = isValidFrame(finalApplicationFrame)",
+            "            && isValidFrame(finalStartRecheckFrame)",
             "            && finalScreenFrame == finalScrollFrame",
             "        var finalCompositionIsSafe = false",
             "            let finalLiveScrollFrame = finalScrollFrame.intersection(",
@@ -8738,12 +8789,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                    && finalRecordFrame.contains(finalPhotoFrame)",
             "                    && finalDateFrame.maxY < finalDescriptionFrame.minY",
             "                    && finalDescriptionFrame.maxY < finalPhotoFrame.minY",
+            "                    && finalStartRecheckFrame.minY >= finalSafeTop",
+            "                    && finalStartRecheckFrame.maxY <= finalSafeBottom",
             "                    && finalDateFrame.minY >= finalSafeTop",
             "                    && finalDateFrame.maxY <= finalSafeBottom",
             "                    && finalDescriptionFrame.minY >= finalSafeTop",
             "                    && finalDescriptionFrame.maxY <= finalSafeBottom",
             "                    && finalValueFrame.minY >= finalSafeTop",
             "                    && finalValueFrame.maxY <= finalSafeBottom",
+            "                    && startRecheckButton.isHittable",
             "                    && workDate.isHittable",
             "                    && workDescription.isHittable",
             "                    && descriptionValueText.isHittable",

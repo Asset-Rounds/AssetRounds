@@ -7052,6 +7052,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             identifier: "Recheck due"
         )
         let tabBars = app.tabBars
+        let startRecheckButtons = app.buttons.matching(
+            identifier: "s5.2.issue.start-recheck"
+        )
         let workRecords = app.descendants(matching: .any).matching(
             identifier: "s5.1.issue.work-record"
         )
@@ -7074,6 +7077,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let issueScrollView = issueScrollViews.firstMatch
         let issueNavigationBar = issueNavigationBars.firstMatch
         let tabBar = tabBars.firstMatch
+        let startRecheckButton = startRecheckButtons.firstMatch
         let workRecord = workRecords.firstMatch
         let workDate = workDates.firstMatch
         let workDescription = workDescriptions.firstMatch
@@ -7094,6 +7098,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && issueScrollViews.count == 1
                 && issueNavigationBars.count == 1
                 && tabBars.count == 1
+                && startRecheckButtons.count == 1
                 && workRecords.count == 1
                 && workDates.count == 1
                 && workDescriptions.count == 1
@@ -7117,6 +7122,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && tabBar.identifier.isEmpty
                 && tabBar.label == "Tab Bar"
                 && (tabBar.value as? String) == ""
+                && startRecheckButton.exists
+                && startRecheckButton.elementType == .button
+                && startRecheckButton.identifier == "s5.2.issue.start-recheck"
+                && startRecheckButton.label == "Start recheck"
+                && (startRecheckButton.value as? String) == ""
                 && workRecord.exists
                 && workRecord.elementType == .other
                 && workRecord.identifier == "s5.1.issue.work-record"
@@ -7147,6 +7157,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let hasExactRoute: () -> Bool = {
             let screenFrame = issueScreen.frame
             let scrollFrame = issueScrollView.frame
+            let startRecheckFrame = startRecheckButton.frame
             let recordFrame = workRecord.frame
             let dateFrame = workDate.frame
             let descriptionFrame = workDescription.frame
@@ -7158,6 +7169,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && isValidFrame(scrollFrame)
                 && isValidFrame(issueNavigationBar.frame)
                 && isValidFrame(tabBar.frame)
+                && isValidFrame(startRecheckFrame)
                 && isValidFrame(recordFrame)
                 && isValidFrame(dateFrame)
                 && isValidFrame(descriptionFrame)
@@ -7178,6 +7190,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let verticalInset: CGFloat = 16
         let receiverInset: CGFloat = 24
         let minimumGestureDistance: CGFloat = 44
+        var previousStartRecheckMinYAfterDrag: CGFloat?
         var previousDateMinYAfterDrag: CGFloat?
         var previousDescriptionMinYAfterDrag: CGFloat?
         var previousValueMinYAfterDrag: CGFloat?
@@ -7192,6 +7205,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let scrollFrame = issueScrollView.frame
             let navigationFrame = issueNavigationBar.frame
             let tabFrame = tabBar.frame
+            let startRecheckFrame = startRecheckButton.frame
             let recordFrame = workRecord.frame
             let dateFrame = workDate.frame
             let descriptionFrame = workDescription.frame
@@ -7202,6 +7216,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && isValidFrame(scrollFrame)
                 && isValidFrame(navigationFrame)
                 && isValidFrame(tabFrame)
+                && isValidFrame(startRecheckFrame)
                 && isValidFrame(recordFrame)
                 && isValidFrame(dateFrame)
                 && isValidFrame(descriptionFrame)
@@ -7235,28 +7250,39 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let receiverRight = liveScrollFrame.maxX - receiverInset
             let receiverCapacity = receiverBottom - receiverTop
             let minimumShift = max(
-                safeTop - dateFrame.minY,
+                safeTop - startRecheckFrame.minY,
                 max(
-                    safeTop - descriptionFrame.minY,
-                    safeTop - valueFrame.minY
+                    safeTop - dateFrame.minY,
+                    max(
+                        safeTop - descriptionFrame.minY,
+                        safeTop - valueFrame.minY
+                    )
                 )
             )
             let maximumShift = min(
-                safeBottom - dateFrame.maxY,
+                safeBottom - startRecheckFrame.maxY,
                 min(
-                    safeBottom - descriptionFrame.maxY,
-                    safeBottom - valueFrame.maxY
+                    safeBottom - dateFrame.maxY,
+                    min(
+                        safeBottom - descriptionFrame.maxY,
+                        safeBottom - valueFrame.maxY
+                    )
                 )
             )
+            let startRecheckIsContained =
+                startRecheckFrame.minY >= safeTop
+                && startRecheckFrame.maxY <= safeBottom
             let dateIsContained = dateFrame.minY >= safeTop
                 && dateFrame.maxY <= safeBottom
             let descriptionIsContained = descriptionFrame.minY >= safeTop
                 && descriptionFrame.maxY <= safeBottom
             let valueIsContained = valueFrame.minY >= safeTop
                 && valueFrame.maxY <= safeBottom
-            let targetCompositionIsSafe = dateIsContained
+            let targetCompositionIsSafe = startRecheckIsContained
+                && dateIsContained
                 && descriptionIsContained
                 && valueIsContained
+                && startRecheckButton.isHittable
                 && workDate.isHittable
                 && workDescription.isHittable
                 && descriptionValueText.isHittable
@@ -7276,6 +7302,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   receiverTop <= receiverBottom,
                   receiverLeft <= receiverRight,
                   receiverCapacity >= minimumGestureDistance,
+                  startRecheckFrame.height <= safeBottom - safeTop,
                   dateFrame.height <= safeBottom - safeTop,
                   descriptionFrame.height <= safeBottom - safeTop,
                   valueFrame.height <= safeBottom - safeTop,
@@ -7300,7 +7327,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     XCTFail("AX-text issue recheck-due direct interval is not recognizable.")
                     return false
                 }
-                dragDistance = recognizedMinimum
+                dragDistance = recognizedMaximum
             } else {
                 let stagedDistance = max(
                     -receiverCapacity,
@@ -7345,6 +7372,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   endPoint.y <= receiverFrame.maxY,
                   liveScrollFrame.contains(startPoint),
                   liveScrollFrame.contains(endPoint),
+                  !startRecheckFrame.contains(startPoint),
+                  !startRecheckFrame.contains(endPoint),
                   !dateFrame.contains(startPoint),
                   !dateFrame.contains(endPoint),
                   !descriptionFrame.contains(startPoint),
@@ -7371,6 +7400,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     dy: endPoint.y - scrollFrame.minY
                 )
             )
+            let startRecheckBeforeDrag = startRecheckFrame.minY
             let dateBeforeDrag = dateFrame.minY
             let descriptionBeforeDrag = descriptionFrame.minY
             let valueBeforeDrag = valueFrame.minY
@@ -7385,29 +7415,36 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTFail("AX-text issue recheck-due route changed after positioning.")
                 return false
             }
+            let startRecheckAfterDrag = startRecheckButton.frame
             let dateAfterDrag = workDate.frame
             let descriptionAfterDrag = workDescription.frame
             let valueAfterDrag = descriptionValueText.frame
             let photoAfterDrag = workPhoto.frame
-            let movedFramesAreValid = isValidFrame(dateAfterDrag)
+            let movedFramesAreValid = isValidFrame(startRecheckAfterDrag)
+                && isValidFrame(dateAfterDrag)
                 && isValidFrame(descriptionAfterDrag)
                 && isValidFrame(valueAfterDrag)
                 && isValidFrame(photoAfterDrag)
+            var observedStartRecheckShift: CGFloat?
             var observedDateShift: CGFloat?
             var observedDescriptionShift: CGFloat?
             var observedValueShift: CGFloat?
             var observedPhotoShift: CGFloat?
             if movedFramesAreValid {
+                observedStartRecheckShift =
+                    startRecheckAfterDrag.minY - startRecheckBeforeDrag
                 observedDateShift = dateAfterDrag.minY - dateBeforeDrag
                 observedDescriptionShift =
                     descriptionAfterDrag.minY - descriptionBeforeDrag
                 observedValueShift = valueAfterDrag.minY - valueBeforeDrag
                 observedPhotoShift = photoAfterDrag.minY - photoBeforeDrag
             }
-            guard let observedDateShift,
+            guard let observedStartRecheckShift,
+                  let observedDateShift,
                   let observedDescriptionShift,
                   let observedValueShift,
                   let observedPhotoShift,
+                  observedStartRecheckShift * dragDistance > 0,
                   observedDateShift * dragDistance > 0,
                   observedDescriptionShift * dragDistance > 0,
                   observedValueShift * dragDistance > 0,
@@ -7415,11 +7452,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTFail("AX-text issue recheck-due gesture made no signed progress.")
                 return false
             }
-            if let previousDateMinYAfterDrag,
+            if let previousStartRecheckMinYAfterDrag,
+               let previousDateMinYAfterDrag,
                let previousDescriptionMinYAfterDrag,
                let previousValueMinYAfterDrag,
                let previousPhotoMinYAfterDrag {
-                guard dateAfterDrag.minY < previousDateMinYAfterDrag,
+                guard startRecheckAfterDrag.minY
+                        < previousStartRecheckMinYAfterDrag,
+                      dateAfterDrag.minY < previousDateMinYAfterDrag,
                       descriptionAfterDrag.minY
                         < previousDescriptionMinYAfterDrag,
                       valueAfterDrag.minY < previousValueMinYAfterDrag,
@@ -7428,6 +7468,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     return false
                 }
             }
+            previousStartRecheckMinYAfterDrag = startRecheckAfterDrag.minY
             previousDateMinYAfterDrag = dateAfterDrag.minY
             previousDescriptionMinYAfterDrag = descriptionAfterDrag.minY
             previousValueMinYAfterDrag = valueAfterDrag.minY
@@ -7443,6 +7484,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let finalScrollFrame = issueScrollView.frame
         let finalNavigationFrame = issueNavigationBar.frame
         let finalTabFrame = tabBar.frame
+        let finalStartRecheckFrame = startRecheckButton.frame
         let finalRecordFrame = workRecord.frame
         let finalDateFrame = workDate.frame
         let finalDescriptionFrame = workDescription.frame
@@ -7453,6 +7495,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             && isValidFrame(finalScrollFrame)
             && isValidFrame(finalNavigationFrame)
             && isValidFrame(finalTabFrame)
+            && isValidFrame(finalStartRecheckFrame)
             && isValidFrame(finalRecordFrame)
             && isValidFrame(finalDateFrame)
             && isValidFrame(finalDescriptionFrame)
@@ -7481,12 +7524,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     && finalRecordFrame.contains(finalPhotoFrame)
                     && finalDateFrame.maxY < finalDescriptionFrame.minY
                     && finalDescriptionFrame.maxY < finalPhotoFrame.minY
+                    && finalStartRecheckFrame.minY >= finalSafeTop
+                    && finalStartRecheckFrame.maxY <= finalSafeBottom
                     && finalDateFrame.minY >= finalSafeTop
                     && finalDateFrame.maxY <= finalSafeBottom
                     && finalDescriptionFrame.minY >= finalSafeTop
                     && finalDescriptionFrame.maxY <= finalSafeBottom
                     && finalValueFrame.minY >= finalSafeTop
                     && finalValueFrame.maxY <= finalSafeBottom
+                    && startRecheckButton.isHittable
                     && workDate.isHittable
                     && workDescription.isHittable
                     && descriptionValueText.isHittable
