@@ -105,8 +105,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             dispatcherPath,
-            byteCount: 2_097,
-            sha256: "487AF3F25AA654B6E9DD8934759D6F970781B322ACD2EA16C6F423699A3AA934"
+            byteCount: 47_988,
+            sha256: "783280A0CCC7D679495B76A5076C4F049B04DF9251AE184DF348400390D00482"
         )
         let dispatcherSource = try text(dispatcherPath)
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
@@ -167,10 +167,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "          - s10.4.minimum.tall\n" +
                 "          - s10.4.minimum.accented\n" +
                 "          - s10.4.minimum.bounded"
-        let githubDispatcherShardList =
-            #"["s10.4.current.default-light","s10.4.current.default-dark","s10.4.current.differentiate-without-color","s10.4.current.reduce-transparency","s10.4.minimum.minimum-os","s10.4.minimum.rtl-string","s10.4.minimum.accented"]"#
-        let warpDispatcherShardList =
-            #"["s10.4.current.increased-contrast","s10.4.current.ax-text","s10.4.current.reduce-motion","s10.4.minimum.double-length","s10.4.minimum.rtl","s10.4.minimum.tall","s10.4.minimum.bounded"]"#
         let dispatcherRunUIInput =
             "      run_ui_smoke:\n" +
                 "        description: Run the task-authorized XCUITest smoke after build and unit tests\n" +
@@ -184,25 +180,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        default: none\n" +
                 "        type: choice\n" +
                 dispatcherShardOptions
-        let githubDispatcherShardIDs = [
-            "s10.4.current.default-light",
-            "s10.4.current.default-dark",
-            "s10.4.current.differentiate-without-color",
-            "s10.4.current.reduce-transparency",
-            "s10.4.minimum.minimum-os",
-            "s10.4.minimum.rtl-string",
-            "s10.4.minimum.accented",
-        ]
-        let warpDispatcherShardIDs = [
-            "s10.4.current.increased-contrast",
-            "s10.4.current.ax-text",
-            "s10.4.current.reduce-motion",
-            "s10.4.minimum.double-length",
-            "s10.4.minimum.rtl",
-            "s10.4.minimum.tall",
-            "s10.4.minimum.bounded",
-        ]
-        let exactDispatcherShardIDs = Set([
+        let exactDispatcherShardIDs = [
             "s10.4.current.default-light",
             "s10.4.current.default-dark",
             "s10.4.current.increased-contrast",
@@ -217,56 +195,496 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "s10.4.minimum.tall",
             "s10.4.minimum.accented",
             "s10.4.minimum.bounded",
-        ])
+        ]
+        XCTAssertEqual(Set(exactDispatcherShardIDs).count, 14)
         XCTAssertEqual(dispatcherSource.components(separatedBy: "  workflow_dispatch:").count - 1, 1)
         XCTAssertEqual(dispatcherSource.components(separatedBy: dispatcherRunUIInput).count - 1, 1)
         XCTAssertEqual(dispatcherSource.components(separatedBy: dispatcherShardInput).count - 1, 1)
         XCTAssertEqual(dispatcherSource.components(separatedBy: dispatcherShardOptions).count - 1, 1)
-        XCTAssertEqual(dispatcherSource.components(separatedBy: githubDispatcherShardList).count - 1, 1)
-        XCTAssertEqual(dispatcherSource.components(separatedBy: warpDispatcherShardList).count - 1, 1)
-        XCTAssertEqual(githubDispatcherShardIDs.count, 7)
-        XCTAssertEqual(warpDispatcherShardIDs.count, 7)
-        XCTAssertTrue(Set(githubDispatcherShardIDs).isDisjoint(with: Set(warpDispatcherShardIDs)))
+        let dispatcherShardOptionLines = dispatcherShardOptions
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map(String.init)
+        XCTAssertEqual(dispatcherShardOptionLines.count, 16)
         XCTAssertEqual(
-            Set(githubDispatcherShardIDs + warpDispatcherShardIDs),
-            exactDispatcherShardIDs
+            dispatcherShardOptionLines.filter { $0 == "          - none" }.count,
+            1
         )
-        XCTAssertEqual(dispatcherSource.components(separatedBy: "  github-shard:").count - 1, 1)
-        XCTAssertEqual(dispatcherSource.components(separatedBy: "  warpbuild-shard:").count - 1, 1)
-        XCTAssertEqual(
-            dispatcherSource.components(separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml").count - 1,
-            2
+        for shardID in exactDispatcherShardIDs {
+            XCTAssertEqual(
+                dispatcherShardOptionLines.filter { $0 == "          - \(shardID)" }.count,
+                1,
+                shardID
+            )
+        }
+
+        let dispatcherRunName =
+            #"run-name: iOS CI · lane=${{ inputs.execution_lane }} · shard=${{ inputs.s10_4_shard_id }} · head=${{ github.sha }}"#
+        XCTAssertTrue(
+            dispatcherSource.hasPrefix(
+                "name: iOS CI\n\(dispatcherRunName)\n\non:\n"
+            )
         )
-        XCTAssertEqual(dispatcherSource.components(separatedBy: "      runner_label: macos-26").count - 1, 1)
+        XCTAssertEqual(dispatcherSource.components(separatedBy: "run-name:").count - 1, 1)
+        XCTAssertEqual(dispatcherSource.components(separatedBy: dispatcherRunName).count - 1, 1)
+        for forbidden in ["${{ github.ref }}", "${{ github.head_ref }}", "${{ github.run_id }}"] {
+            XCTAssertFalse(dispatcherRunName.contains(forbidden), forbidden)
+        }
         XCTAssertEqual(
-            dispatcherSource.components(separatedBy: "      runner_label: warp-macos-26-arm64-6x").count - 1,
+            dispatcherRunName.components(separatedBy: "${{ inputs.execution_lane }}").count - 1,
             1
         )
         XCTAssertEqual(
-            dispatcherSource.components(
-                separatedBy: #"      run_ui_smoke: ${{ inputs.run_ui_smoke }}"#
-            ).count - 1,
-            2
+            dispatcherRunName.components(separatedBy: "${{ inputs.s10_4_shard_id }}").count - 1,
+            1
         )
         XCTAssertEqual(
-            dispatcherSource.components(
-                separatedBy: #"      s10_4_shard_id: ${{ inputs.s10_4_shard_id }}"#
+            dispatcherRunName.components(separatedBy: "${{ github.sha }}").count - 1,
+            1
+        )
+
+        let executionLaneMarker = "      execution_lane:\n"
+        let runUIInputMarker = "      run_ui_smoke:\n"
+        XCTAssertEqual(dispatcherSource.components(separatedBy: executionLaneMarker).count - 1, 1)
+        guard
+            let executionLaneRange = dispatcherSource.range(of: executionLaneMarker),
+            let runUIInputRange = dispatcherSource.range(
+                of: runUIInputMarker,
+                range: executionLaneRange.upperBound..<dispatcherSource.endIndex
+            )
+        else {
+            XCTFail("The dispatcher execution-lane input is not ordered before run_ui_smoke")
+            return
+        }
+        let executionLaneSource = String(
+            dispatcherSource[executionLaneRange.lowerBound..<runUIInputRange.lowerBound]
+        )
+        XCTAssertEqual(executionLaneSource.components(separatedBy: "        required: true").count - 1, 1)
+        XCTAssertEqual(
+            executionLaneSource.components(
+                separatedBy: "        default: github-xcode-26.6-acceptance"
             ).count - 1,
+            1
+        )
+        XCTAssertEqual(executionLaneSource.components(separatedBy: "        type: choice").count - 1, 1)
+        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 2)
+        XCTAssertEqual(
+            executionLaneSource.components(
+                separatedBy: "          - github-xcode-26.6-acceptance"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            executionLaneSource.components(
+                separatedBy: "          - warp-xcode-26.5-development-only"
+            ).count - 1,
+            1
+        )
+        XCTAssertFalse(executionLaneSource.contains("default: warp-xcode-26.5-development-only"))
+        XCTAssertFalse(executionLaneSource.contains("type: string"))
+
+        let dispatcherConcurrency =
+            "concurrency:\n" +
+                #"  group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}"# +
+                "\n  cancel-in-progress: false"
+        XCTAssertEqual(dispatcherSource.components(separatedBy: dispatcherConcurrency).count - 1, 1)
+        XCTAssertEqual(dispatcherSource.components(separatedBy: "concurrency:").count - 1, 1)
+        XCTAssertFalse(dispatcherConcurrency.contains("execution_lane"))
+
+        let jobsMarker = "jobs:\n"
+        let githubJobMarker = "  github-shard:\n"
+        let warpJobMarker = "  warpbuild-shard:\n"
+        guard
+            let jobsRange = dispatcherSource.range(of: jobsMarker),
+            let githubJobRange = dispatcherSource.range(
+                of: githubJobMarker,
+                range: jobsRange.upperBound..<dispatcherSource.endIndex
+            ),
+            let warpJobRange = dispatcherSource.range(
+                of: warpJobMarker,
+                range: githubJobRange.upperBound..<dispatcherSource.endIndex
+            )
+        else {
+            XCTFail("The dispatcher must contain the exact two lane jobs")
+            return
+        }
+        let jobsSource = String(dispatcherSource[jobsRange.upperBound...])
+        let githubJobSource = String(
+            dispatcherSource[githubJobRange.lowerBound..<warpJobRange.lowerBound]
+        )
+        let warpJobSource = String(dispatcherSource[warpJobRange.lowerBound...])
+        let jobHeaderExpression = try NSRegularExpression(
+            pattern: #"(?m)^  [A-Za-z0-9_-]+:\n"#
+        )
+        XCTAssertEqual(
+            jobHeaderExpression.numberOfMatches(
+                in: jobsSource,
+                range: NSRange(location: 0, length: jobsSource.utf16.count)
+            ),
             2
         )
-        XCTAssertTrue(
-            dispatcherSource.contains(
-                #"inputs.s10_4_shard_id == 'none' || contains(fromJSON('"# +
-                    githubDispatcherShardList
-            )
+
+        let githubLaneGate =
+            #"    if: ${{ inputs.execution_lane == 'github-xcode-26.6-acceptance' }}"#
+        let warpLaneGate =
+            #"    if: ${{ inputs.execution_lane == 'warp-xcode-26.5-development-only' }}"#
+        XCTAssertEqual(githubJobSource.components(separatedBy: githubLaneGate).count - 1, 1)
+        XCTAssertEqual(warpJobSource.components(separatedBy: warpLaneGate).count - 1, 1)
+        XCTAssertFalse(githubJobSource.contains("warp-xcode-26.5-development-only"))
+        XCTAssertFalse(warpJobSource.contains("github-xcode-26.6-acceptance"))
+        XCTAssertEqual(
+            dispatcherSource.components(
+                separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml"
+            ).count - 1,
+            1
         )
+        XCTAssertEqual(
+            githubJobSource.components(
+                separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml"
+            ).count - 1,
+            1
+        )
+        XCTAssertFalse(warpJobSource.contains("uses: ./.github/workflows/ios-ci-worker.yml"))
+        XCTAssertEqual(githubJobSource.components(separatedBy: "      runner_label: macos-26").count - 1, 1)
+        XCTAssertEqual(
+            githubJobSource.components(
+                separatedBy: #"      run_ui_smoke: ${{ inputs.run_ui_smoke }}"#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            githubJobSource.components(
+                separatedBy: #"      s10_4_shard_id: ${{ inputs.s10_4_shard_id }}"#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            warpJobSource.components(
+                separatedBy: "    runs-on: warp-macos-26-arm64-6x"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(warpJobSource.components(separatedBy: "    timeout-minutes: 90").count - 1, 1)
+        XCTAssertFalse(dispatcherSource.contains("      runner_label: warp-macos-26-arm64-6x"))
+        XCTAssertFalse(dispatcherSource.contains("inputs.runner_label"))
+        XCTAssertFalse(dispatcherSource.contains("fromJSON("))
+        XCTAssertFalse(dispatcherSource.contains("contains("))
         XCTAssertFalse(dispatcherSource.contains("          - all"))
         XCTAssertFalse(dispatcherSource.contains("strategy:"))
         XCTAssertFalse(dispatcherSource.contains("matrix:"))
         XCTAssertFalse(dispatcherSource.contains("max-parallel:"))
-        XCTAssertFalse(dispatcherSource.contains("concurrency:"))
-        XCTAssertFalse(dispatcherSource.contains("inputs.runner_label"))
-        XCTAssertFalse(dispatcherSource.contains("runs-on:"))
+
+        let workerEnvironmentMarker = "    env:\n"
+        let workerStepsMarker = "    steps:\n"
+        guard
+            let workerEnvironmentRange = workflowSource.range(of: workerEnvironmentMarker),
+            let workerStepsRange = workflowSource.range(
+                of: workerStepsMarker,
+                range: workerEnvironmentRange.upperBound..<workflowSource.endIndex
+            )
+        else {
+            XCTFail("The reusable worker job environment is not uniquely bounded")
+            return
+        }
+        let workerEnvironmentSource = String(
+            workflowSource[workerEnvironmentRange.lowerBound..<workerStepsRange.lowerBound]
+        )
+        XCTAssertEqual(
+            workerEnvironmentSource.components(
+                separatedBy: "/Applications/Xcode_26.6.app/Contents/Developer"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workerEnvironmentSource.components(
+                separatedBy: #"      EXPECTED_XCODE_VERSION: "Xcode 26.6""#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workerEnvironmentSource.components(
+                separatedBy: #"      EXPECTED_XCODE_BUILD: "Build version 17F113""#
+            ).count - 1,
+            1
+        )
+        let expectedWarpEnvironmentSource = workerEnvironmentSource
+            .replacingOccurrences(
+                of: "/Applications/Xcode_26.6.app/Contents/Developer",
+                with: "/Applications/Xcode_26.5.app/Contents/Developer"
+            )
+            .replacingOccurrences(
+                of: #"      EXPECTED_XCODE_VERSION: "Xcode 26.6""#,
+                with: #"      EXPECTED_XCODE_VERSION: "Xcode 26.5""#
+            )
+            .replacingOccurrences(
+                of: #"      EXPECTED_XCODE_BUILD: "Build version 17F113""#,
+                with: #"      EXPECTED_XCODE_BUILD: "Build version 17F42""#
+            )
+        XCTAssertNotEqual(expectedWarpEnvironmentSource, workerEnvironmentSource)
+        XCTAssertEqual(
+            warpJobSource.components(separatedBy: expectedWarpEnvironmentSource).count - 1,
+            1
+        )
+        XCTAssertFalse(warpJobSource.contains("/Applications/Xcode_26.6.app/Contents/Developer"))
+        XCTAssertFalse(warpJobSource.contains(#"EXPECTED_XCODE_VERSION: "Xcode 26.6""#))
+        XCTAssertFalse(warpJobSource.contains(#"EXPECTED_XCODE_BUILD: "Build version 17F113""#))
+        XCTAssertFalse(workflowSource.contains("/Applications/Xcode_26.5.app/Contents/Developer"))
+        XCTAssertFalse(workflowSource.contains(#"EXPECTED_XCODE_VERSION: "Xcode 26.5""#))
+        XCTAssertFalse(workflowSource.contains(#"EXPECTED_XCODE_BUILD: "Build version 17F42""#))
+
+        let executionStartMarker = "      - name: Prepare evidence directory\n"
+        let workerExecutionEndMarker = "      - name: Retain S10.4 shard evidence\n"
+        let warpExecutionEndMarker = "      - name: Record WarpBuild development-only lane\n"
+        guard
+            let workerExecutionStart = workflowSource.range(of: executionStartMarker),
+            let workerExecutionEnd = workflowSource.range(
+                of: workerExecutionEndMarker,
+                range: workerExecutionStart.upperBound..<workflowSource.endIndex
+            ),
+            let warpExecutionStart = warpJobSource.range(of: executionStartMarker),
+            let warpExecutionEnd = warpJobSource.range(
+                of: warpExecutionEndMarker,
+                range: warpExecutionStart.upperBound..<warpJobSource.endIndex
+            )
+        else {
+            XCTFail("The GitHub worker and Warp execution slices are not exactly bounded")
+            return
+        }
+        let workerExecutionSource = String(
+            workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
+        )
+        let warpExecutionSource = String(
+            warpJobSource[warpExecutionStart.lowerBound..<warpExecutionEnd.lowerBound]
+        )
+        XCTAssertEqual(workerExecutionSource, warpExecutionSource)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 36_775)
+        XCTAssertEqual(
+            Data(workerExecutionSource.utf8).sha256,
+            "7653353DC11C8C0E4382B88E88CDACA5DD87177D537E333B2AEC844703CFB68C"
+        )
+        XCTAssertEqual(
+            warpExecutionSource.components(
+                separatedBy: #"test "$DISPATCH_S10_4_SHARD_ID" != "none""#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            warpExecutionSource.components(separatedBy: "bash Scripts/ui-smoke.sh").count - 1,
+            1
+        )
+
+        let forbiddenWarpAcceptanceFragments = [
+            "Retain S10.4 shard evidence",
+            "Begin evidence-finalization budget",
+            "Validate required build and test evidence",
+            "Hash collected evidence",
+            "Recheck evidence-finalization budget",
+            "Verify selected total budget before upload",
+            "Upload build evidence",
+            "shard-receipt.json",
+            "final-matrix",
+        ]
+        for fragment in forbiddenWarpAcceptanceFragments {
+            XCTAssertFalse(warpJobSource.contains(fragment), fragment)
+        }
+
+        let recordMarker = "      - name: Record WarpBuild development-only lane\n"
+        let hashMarker = "      - name: Hash WarpBuild development-only raw evidence\n"
+        let uploadMarker = "      - name: Upload WarpBuild development-only raw evidence\n"
+        let failMarker = "      - name: Fail closed after WarpBuild development-only evidence\n"
+        guard
+            let recordRange = warpJobSource.range(of: recordMarker),
+            let hashRange = warpJobSource.range(
+                of: hashMarker,
+                range: recordRange.upperBound..<warpJobSource.endIndex
+            ),
+            let uploadRange = warpJobSource.range(
+                of: uploadMarker,
+                range: hashRange.upperBound..<warpJobSource.endIndex
+            ),
+            let failRange = warpJobSource.range(
+                of: failMarker,
+                range: uploadRange.upperBound..<warpJobSource.endIndex
+            )
+        else {
+            XCTFail("The four WarpBuild terminal steps are missing or out of order")
+            return
+        }
+        let warpTailSource = String(warpJobSource[recordRange.lowerBound...])
+        let recordStepSource = String(
+            warpJobSource[recordRange.lowerBound..<hashRange.lowerBound]
+        )
+        let hashStepSource = String(
+            warpJobSource[hashRange.lowerBound..<uploadRange.lowerBound]
+        )
+        let uploadStepSource = String(
+            warpJobSource[uploadRange.lowerBound..<failRange.lowerBound]
+        )
+        let failStepSource = String(warpJobSource[failRange.lowerBound...])
+        let tailIdentities: [(String, Int, String)] = [
+            (recordStepSource, 4_502, "FCF665376837CD82D19B5A3070F6B5CE1060A3F69FD66544C03F792F0246C1D8"),
+            (hashStepSource, 3_308, "2536189FF7D9E3B0B70C9A7CFC0566C2468DE786D73031CB197E5E31EC95DB84"),
+            (uploadStepSource, 471, "A126239E068B2667EDAC7818EFB3BCE2C13358A2428031BAC63A40E0B0C800D8"),
+            (failStepSource, 299, "202F52098711873A5914ABE7694DA7E8183A77579A0EB39F898D2B4BAF8FA4FF"),
+        ]
+        for (source, byteCount, sha256) in tailIdentities {
+            XCTAssertEqual(source.utf8.count, byteCount)
+            XCTAssertEqual(Data(source.utf8).sha256, sha256)
+        }
+
+        let alwaysCondition = #"        if: ${{ always() }}"#
+        XCTAssertEqual(warpTailSource.components(separatedBy: alwaysCondition).count - 1, 4)
+        for source in [recordStepSource, hashStepSource, uploadStepSource, failStepSource] {
+            XCTAssertEqual(source.components(separatedBy: alwaysCondition).count - 1, 1)
+        }
+        XCTAssertFalse(warpTailSource.contains("continue-on-error"))
+        XCTAssertFalse(warpTailSource.contains("exit 0"))
+
+        let developmentLaneKeys = [
+            "schemaVersion",
+            "laneID",
+            "provider",
+            "runnerLabel",
+            "runnerName",
+            "runnerArchitecture",
+            "repository",
+            "ref",
+            "headSHA",
+            "runID",
+            "runAttempt",
+            "shardID",
+            "expectedXcodeVersion",
+            "expectedXcodeBuild",
+            "priorJobStatus",
+            "rawEvidenceOnly",
+            "acceptanceRetentionPerformed",
+            "finalAcceptanceEligible",
+        ]
+        XCTAssertEqual(developmentLaneKeys.count, 18)
+        XCTAssertEqual(Set(developmentLaneKeys).count, 18)
+        for key in developmentLaneKeys {
+            XCTAssertEqual(recordStepSource.components(separatedBy: "\(key):").count - 1, 1, key)
+            XCTAssertEqual(recordStepSource.components(separatedBy: "\"\(key)\"").count - 1, 1, key)
+        }
+        let recordLiveValueBindings = [
+            #"DEVELOPMENT_EXECUTION_LANE: ${{ inputs.execution_lane }}"#,
+            #"DEVELOPMENT_SHARD_ID: ${{ inputs.s10_4_shard_id }}"#,
+            #"DEVELOPMENT_RUNNER_NAME: ${{ runner.name }}"#,
+            #"DEVELOPMENT_RUNNER_ARCHITECTURE: ${{ runner.arch }}"#,
+            #"DEVELOPMENT_PRIOR_JOB_STATUS: ${{ job.status }}"#,
+            #".laneID == $laneID"#,
+            #".runnerName == $runnerName"#,
+            #".runnerArchitecture == $runnerArchitecture"#,
+            #".repository == $repository"#,
+            #".ref == $ref"#,
+            #".headSHA == $headSHA"#,
+            #".runID == $runID"#,
+            #".runAttempt == $runAttempt"#,
+            #".shardID == $shardID"#,
+            #".priorJobStatus == $priorJobStatus"#,
+        ]
+        for binding in recordLiveValueBindings {
+            XCTAssertEqual(recordStepSource.components(separatedBy: binding).count - 1, 1, binding)
+        }
+        let recordExactValueFragments = [
+            "schemaVersion: 1",
+            #"provider: "WarpBuild""#,
+            #"runnerLabel: "warp-macos-26-arm64-6x""#,
+            #"expectedXcodeVersion: "Xcode 26.5""#,
+            #"expectedXcodeBuild: "Build version 17F42""#,
+            "rawEvidenceOnly: true",
+            "acceptanceRetentionPerformed: false",
+            "finalAcceptanceEligible: false",
+            #".laneID == "warp-xcode-26.5-development-only""#,
+            #".provider == "WarpBuild""#,
+            #".runnerLabel == "warp-macos-26-arm64-6x""#,
+            #".expectedXcodeVersion == "Xcode 26.5""#,
+            #".expectedXcodeBuild == "Build version 17F42""#,
+            #".runID | type == "string""#,
+            #".runAttempt | type == "string""#,
+            #".priorJobStatus | type == "string""#,
+            ".rawEvidenceOnly == true",
+            ".acceptanceRetentionPerformed == false",
+            ".finalAcceptanceEligible == false",
+        ]
+        for fragment in recordExactValueFragments {
+            XCTAssertEqual(recordStepSource.components(separatedBy: fragment).count - 1, 1, fragment)
+        }
+        XCTAssertEqual(
+            recordStepSource.components(
+                separatedBy: #"artifact_dir="${CI_ARTIFACT_DIR:-$RUNNER_TEMP/FieldEvidenceCI}""#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            recordStepSource.components(
+                separatedBy: "CI_DEVELOPMENT_ONLY_FINALIZATION_START_EPOCH"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(recordStepSource.components(separatedBy: "development-only-lane.json").count - 1, 2)
+        XCTAssertEqual(recordStepSource.components(separatedBy: "          jq -n \\").count - 1, 1)
+        XCTAssertEqual(recordStepSource.components(separatedBy: "          jq -e \\").count - 1, 1)
+        XCTAssertEqual(recordStepSource.components(separatedBy: "              (keys == [").count - 1, 1)
+
+        let exactHashFragments = [
+            #"artifact_dir="${CI_ARTIFACT_DIR:-$RUNNER_TEMP/FieldEvidenceCI}""#,
+            #"finalization_start_epoch="${CI_DEVELOPMENT_ONLY_FINALIZATION_START_EPOCH:-$(date +%s)}""#,
+            #"setup_artifact_budget_seconds="${CI_SETUP_ARTIFACT_TIMEOUT_SECONDS:-300}""#,
+            #"total_budget_seconds="${CI_TOTAL_BUDGET_SECONDS:-4500}""#,
+            "development-only-budget.txt",
+            #"test "$setup_finalization_elapsed_seconds" -le "$setup_artifact_budget_seconds""#,
+            #"test "$total_elapsed_seconds" -le "$total_budget_seconds""#,
+            #"find . -type f -print | LC_ALL=C sort | while IFS= read -r file; do"#,
+            #"shasum -a 256 "$file""#,
+            #"test "$(grep -cF '  ./SHA256SUMS.txt' SHA256SUMS.txt || true)" -eq 0"#,
+            #"find . -type f ! -name 'SHA256SUMS.txt' -print"#,
+            #"test "$checksum_row_count" -eq "$payload_file_count""#,
+            "shasum -a 256 -c SHA256SUMS.txt",
+            #"test "$post_hash_setup_finalization_elapsed_seconds" -le "$setup_artifact_budget_seconds""#,
+            #"test "$post_hash_total_elapsed_seconds" -le "$total_budget_seconds""#,
+        ]
+        for fragment in exactHashFragments {
+            XCTAssertEqual(hashStepSource.components(separatedBy: fragment).count - 1, 1, fragment)
+        }
+        XCTAssertFalse(hashStepSource.contains(#"! -name './SHA256SUMS.txt'"#))
+
+        XCTAssertEqual(
+            uploadStepSource.components(
+                separatedBy: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uploadStepSource.components(
+                separatedBy: #"name: ios-ci-development-only-xcode-26.5-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.s10_4_shard_id }}"#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uploadStepSource.components(
+                separatedBy: #"path: ${{ runner.temp }}/FieldEvidenceCI"#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(uploadStepSource.components(separatedBy: "if-no-files-found: error").count - 1, 1)
+        XCTAssertEqual(uploadStepSource.components(separatedBy: "include-hidden-files: true").count - 1, 1)
+        XCTAssertEqual(uploadStepSource.components(separatedBy: "retention-days: 14").count - 1, 1)
+        XCTAssertEqual(warpTailSource.components(separatedBy: "actions/upload-artifact@").count - 1, 1)
+
+        let forcedRedMessage =
+            "WarpBuild Xcode 26.5 development-only evidence is never eligible for S10.4 final acceptance."
+        XCTAssertEqual(failStepSource.components(separatedBy: forcedRedMessage).count - 1, 1)
+        XCTAssertEqual(failStepSource.components(separatedBy: ">&2").count - 1, 1)
+        XCTAssertEqual(failStepSource.components(separatedBy: "          exit 1").count - 1, 1)
+        guard
+            let forcedRedMessageRange = failStepSource.range(of: forcedRedMessage),
+            let forcedRedExitRange = failStepSource.range(of: "          exit 1")
+        else {
+            XCTFail("The WarpBuild terminal must emit its exact reason and exit nonzero")
+            return
+        }
+        XCTAssertLessThan(forcedRedMessageRange.lowerBound, forcedRedExitRange.lowerBound)
+
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: #"  group: ios-ci-${{ github.ref }}-${{ inputs.s10_4_shard_id }}"#

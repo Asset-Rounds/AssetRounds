@@ -1,8 +1,17 @@
 name: iOS CI
+run-name: iOS CI · lane=${{ inputs.execution_lane }} · shard=${{ inputs.s10_4_shard_id }} · head=${{ github.sha }}
 
 on:
   workflow_dispatch:
     inputs:
+      execution_lane:
+        description: Select GitHub Xcode 26.6 acceptance or WarpBuild Xcode 26.5 development-only execution
+        required: true
+        default: github-xcode-26.6-acceptance
+        type: choice
+        options:
+          - github-xcode-26.6-acceptance
+          - warp-xcode-26.5-development-only
       run_ui_smoke:
         description: Run the task-authorized XCUITest smoke after build and unit tests
         required: true
@@ -33,10 +42,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}
+  cancel-in-progress: false
+
 jobs:
   github-shard:
-    name: GitHub macOS · ${{ inputs.s10_4_shard_id }}
-    if: ${{ inputs.s10_4_shard_id == 'none' || contains(fromJSON('["s10.4.current.default-light","s10.4.current.default-dark","s10.4.current.differentiate-without-color","s10.4.current.reduce-transparency","s10.4.minimum.minimum-os","s10.4.minimum.rtl-string","s10.4.minimum.accented"]'), inputs.s10_4_shard_id) }}
+    name: GitHub Xcode 26.6 acceptance · ${{ inputs.s10_4_shard_id }}
+    if: ${{ inputs.execution_lane == 'github-xcode-26.6-acceptance' }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: macos-26
@@ -44,10 +57,878 @@ jobs:
       s10_4_shard_id: ${{ inputs.s10_4_shard_id }}
 
   warpbuild-shard:
-    name: WarpBuild macOS · ${{ inputs.s10_4_shard_id }}
-    if: ${{ contains(fromJSON('["s10.4.current.increased-contrast","s10.4.current.ax-text","s10.4.current.reduce-motion","s10.4.minimum.double-length","s10.4.minimum.rtl","s10.4.minimum.tall","s10.4.minimum.bounded"]'), inputs.s10_4_shard_id) }}
-    uses: ./.github/workflows/ios-ci-worker.yml
-    with:
-      runner_label: warp-macos-26-arm64-6x
-      run_ui_smoke: ${{ inputs.run_ui_smoke }}
-      s10_4_shard_id: ${{ inputs.s10_4_shard_id }}
+    name: WarpBuild Xcode 26.5 development-only · ${{ inputs.s10_4_shard_id }}
+    if: ${{ inputs.execution_lane == 'warp-xcode-26.5-development-only' }}
+    runs-on: warp-macos-26-arm64-6x
+    timeout-minutes: 90
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
+      EXPECTED_XCODE_VERSION: "Xcode 26.5"
+      EXPECTED_XCODE_BUILD: "Build version 17F42"
+      EXPECTED_MINIMUM_IOS: "18.0"
+      PROJECT_PATH: FieldEvidenceApp.xcodeproj
+      SCHEME: FieldEvidenceApp
+      CONFIGURATION: Debug
+      SIMULATOR_RUNTIME: iOS 26.2
+      SIMULATOR_NAME: iPhone 17
+      CI_SIMULATOR_BOOT_TIMEOUT_SECONDS: "900"
+      CODE_SIGNING_ALLOWED: "NO"
+      NSUnbufferedIO: "YES"
+
+    steps:
+      - name: Prepare evidence directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          CI_BUDGET_START_EPOCH="$(date +%s)"
+          CI_ARTIFACT_DIR="$RUNNER_TEMP/FieldEvidenceCI"
+          mkdir -p "$CI_ARTIFACT_DIR"
+          printf 'CI_BUDGET_START_EPOCH=%s\nCI_ARTIFACT_DIR=%s\n' \
+            "$CI_BUDGET_START_EPOCH" "$CI_ARTIFACT_DIR" >> "$GITHUB_ENV"
+
+      - name: Check out the exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate task selection and timeout tier
+        shell: bash
+        env:
+          DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}
+          DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
+        run: |
+          set -euo pipefail
+          test -f Scripts/ci-selection.json
+          test -f Scripts/run-with-timeout.sh
+          test -f Scripts/build-smoke.sh
+          test -f Scripts/test-smoke.sh
+          test -f Scripts/ui-smoke.sh
+
+          jq -e '
+            def exact_keys:
+              ([
+                "schemaVersion",
+                "taskID",
+                "tier",
+                "runUISmoke",
+                "setupArtifactTimeoutSeconds",
+                "buildTimeoutSeconds",
+                "testTimeoutSeconds",
+                "uiTimeoutSeconds",
+                "totalBudgetSeconds",
+                "unitTestSelectors",
+                "uiTestSelectors"
+              ] | sort) == (keys | sort);
+            def nonempty_string:
+              type == "string" and test("\\S");
+            def selectors($prefix; $minimum):
+              . as $values
+              | ($values | type == "array")
+                and (($values | length) >= $minimum)
+                and (all($values[];
+                  type == "string"
+                  and startswith($prefix)
+                  and (length > ($prefix | length))))
+                and (($values | unique | length) == ($values | length));
+            def tier_values_match:
+              if .tier == "N8" then
+                [
+                  .setupArtifactTimeoutSeconds,
+                  .buildTimeoutSeconds,
+                  .testTimeoutSeconds,
+                  .uiTimeoutSeconds,
+                  .totalBudgetSeconds
+                ] == [300, 600, 900, 0, 2400]
+              elif .tier == "P12" then
+                [
+                  .setupArtifactTimeoutSeconds,
+                  .buildTimeoutSeconds,
+                  .testTimeoutSeconds,
+                  .uiTimeoutSeconds,
+                  .totalBudgetSeconds
+                ] == [300, 600, 900, 900, 3300]
+              elif .tier == "F25" then
+                [
+                  .setupArtifactTimeoutSeconds,
+                  .buildTimeoutSeconds,
+                  .testTimeoutSeconds,
+                  .uiTimeoutSeconds,
+                  .totalBudgetSeconds
+                ] == [300, 900, 1200, 1800, 4500]
+              else false
+              end;
+            exact_keys
+            and (.schemaVersion == 1)
+            and (.taskID | nonempty_string)
+            and (.tier | type == "string" and IN("N8", "P12", "F25"))
+            and (.runUISmoke | type == "boolean")
+            and tier_values_match
+            and (.unitTestSelectors | selectors("FieldEvidenceAppTests/"; 1))
+            and (
+              if .tier == "N8" then
+                (.runUISmoke == false)
+                and (.uiTestSelectors | type == "array" and length == 0)
+              else
+                (.runUISmoke == true)
+                and (.uiTestSelectors | selectors("FieldEvidenceAppUITests/"; 1) and length == 1)
+              end
+            )
+          ' Scripts/ci-selection.json > /dev/null
+
+          selection_run_ui="$(jq -r '.runUISmoke | tostring' Scripts/ci-selection.json)"
+          test "$DISPATCH_RUN_UI_SMOKE" = "$selection_run_ui"
+
+          CI_TASK_ID="$(jq -r '.taskID' Scripts/ci-selection.json)"
+          CI_TIER="$(jq -r '.tier' Scripts/ci-selection.json)"
+          CI_RUN_UI_SMOKE="$selection_run_ui"
+          CI_SETUP_ARTIFACT_TIMEOUT_SECONDS="$(jq -r '.setupArtifactTimeoutSeconds' Scripts/ci-selection.json)"
+          CI_BUILD_TIMEOUT_SECONDS="$(jq -r '.buildTimeoutSeconds' Scripts/ci-selection.json)"
+          CI_TEST_TIMEOUT_SECONDS="$(jq -r '.testTimeoutSeconds' Scripts/ci-selection.json)"
+          CI_UI_TIMEOUT_SECONDS="$(jq -r '.uiTimeoutSeconds' Scripts/ci-selection.json)"
+          CI_TOTAL_BUDGET_SECONDS="$(jq -r '.totalBudgetSeconds' Scripts/ci-selection.json)"
+
+          CI_S10_4_SHARD_ID="none"
+          CI_ARTIFACT_SUFFIX=""
+          if test "$CI_TASK_ID" = "S10.4"; then
+            test "$DISPATCH_S10_4_SHARD_ID" != "none"
+            test -f Scripts/s10-4-shards.json
+            jq -e '
+              def exact_keys($expected):
+                ($expected | sort) == (keys | sort);
+              def nonempty_string:
+                type == "string" and test("\\S");
+              def exact_environment_keys:
+                exact_keys([
+                  "appearance",
+                  "contrast",
+                  "contentSizeCategory",
+                  "locale",
+                  "layoutDirection",
+                  "differentiateWithoutColor",
+                  "reduceMotion",
+                  "reduceTransparency"
+                ]);
+              [
+                "voiceover",
+                "voice_control",
+                "larger_text",
+                "dark_interface",
+                "differentiate_without_color",
+                "sufficient_contrast",
+                "reduced_motion"
+              ] as $features
+              | [
+                  "default_light",
+                  "default_dark",
+                  "increased_contrast",
+                  "ax_text",
+                  "differentiate_without_color",
+                  "reduce_motion",
+                  "reduce_transparency",
+                  "minimum_os",
+                  "double_length",
+                  "rtl",
+                  "rtl_string",
+                  "tall",
+                  "accented",
+                  "bounded"
+                ] as $requirements
+              | [
+                  "s10.4.current.default-light",
+                  "s10.4.current.default-dark",
+                  "s10.4.current.increased-contrast",
+                  "s10.4.current.ax-text",
+                  "s10.4.current.differentiate-without-color",
+                  "s10.4.current.reduce-motion",
+                  "s10.4.current.reduce-transparency",
+                  "s10.4.minimum.minimum-os",
+                  "s10.4.minimum.double-length",
+                  "s10.4.minimum.rtl",
+                  "s10.4.minimum.rtl-string",
+                  "s10.4.minimum.tall",
+                  "s10.4.minimum.accented",
+                  "s10.4.minimum.bounded"
+                ] as $shardIDs
+              | exact_keys([
+                  "schemaVersion",
+                  "taskID",
+                  "expectedStateCount",
+                  "expectedVisualCellCount",
+                  "expectedAccessibilityRowCount",
+                  "commonTaskCount",
+                  "deviceProfiles",
+                  "shards"
+                ])
+                and (.schemaVersion == 1)
+                and (.taskID == "S10.4")
+                and (.expectedStateCount == 67)
+                and (.expectedVisualCellCount == 938)
+                and (.expectedAccessibilityRowCount == 84)
+                and (.commonTaskCount == 6)
+                and (.deviceProfiles == [
+                  {
+                    deviceProfileID: "iphone-17-ios-26.2-current",
+                    simulatorRuntime: "iOS 26.2",
+                    simulatorRuntimeBuild: "23C54",
+                    simulatorName: "iPhone 17",
+                    provisionRuntime: false,
+                    runtimeDownloadVersion: ""
+                  },
+                  {
+                    deviceProfileID: "iphone-se-3-ios-18.0-minimum",
+                    simulatorRuntime: "iOS 18.0",
+                    simulatorRuntimeBuild: "22A3351",
+                    simulatorName: "iPhone SE (3rd generation)",
+                    provisionRuntime: true,
+                    runtimeDownloadVersion: "18.0"
+                  }
+                ])
+                and (.shards | type == "array" and length == 14)
+                and ([.shards[].shardID] == $shardIDs)
+                and ([.shards[].requirementID] == $requirements)
+                and ([.shards[].ordinal] == [range(1; 15)])
+                and ([.shards[].shardID] | unique | length == 14)
+                and all(.shards[];
+                  exact_keys([
+                    "ordinal",
+                    "shardID",
+                    "requirementID",
+                    "deviceProfileID",
+                    "accessibilityFeatures",
+                    "environment"
+                  ])
+                  and (.ordinal | type == "number" and floor == .)
+                  and (.shardID | type == "string" and test("^s10\\.4\\.(current|minimum)\\.[a-z0-9-]+$"))
+                  and (.requirementID | nonempty_string)
+                  and (.deviceProfileID | IN(
+                    "iphone-17-ios-26.2-current",
+                    "iphone-se-3-ios-18.0-minimum"
+                  ))
+                  and (.accessibilityFeatures | type == "array" and length == 1)
+                  and ((.accessibilityFeatures | unique | length) == (.accessibilityFeatures | length))
+                  and all(.accessibilityFeatures[]; IN($features[]))
+                  and (.environment | exact_environment_keys)
+                  and (.environment.appearance | IN("light", "dark"))
+                  and (.environment.contrast | IN("standard", "increased"))
+                  and (.environment.contentSizeCategory | IN(
+                    "UICTContentSizeCategoryL",
+                    "UICTContentSizeCategoryAccessibilityXXXL"
+                  ))
+                  and (.environment.locale | IN(
+                    "en-US-release",
+                    "en-US-double-length",
+                    "ar-RTL",
+                    "ar-RTL-string",
+                    "en-US-tall",
+                    "en-US-accented",
+                    "en-US-bounded"
+                  ))
+                  and (.environment.layoutDirection | IN("left_to_right", "right_to_left"))
+                  and (.environment.differentiateWithoutColor | type == "boolean")
+                  and (.environment.reduceMotion | type == "boolean")
+                  and (.environment.reduceTransparency | type == "boolean")
+                )
+                and ([
+                  .shards[]
+                  | {
+                      shardID,
+                      deviceProfileID,
+                      accessibilityFeature: .accessibilityFeatures[0]
+                    }
+                ] == [
+                  {shardID: "s10.4.current.default-light", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "voiceover"},
+                  {shardID: "s10.4.current.default-dark", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "dark_interface"},
+                  {shardID: "s10.4.current.increased-contrast", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "sufficient_contrast"},
+                  {shardID: "s10.4.current.ax-text", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "larger_text"},
+                  {shardID: "s10.4.current.differentiate-without-color", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "differentiate_without_color"},
+                  {shardID: "s10.4.current.reduce-motion", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "reduced_motion"},
+                  {shardID: "s10.4.current.reduce-transparency", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "voice_control"},
+                  {shardID: "s10.4.minimum.minimum-os", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "voiceover"},
+                  {shardID: "s10.4.minimum.double-length", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "larger_text"},
+                  {shardID: "s10.4.minimum.rtl", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "dark_interface"},
+                  {shardID: "s10.4.minimum.rtl-string", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "voice_control"},
+                  {shardID: "s10.4.minimum.tall", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "reduced_motion"},
+                  {shardID: "s10.4.minimum.accented", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "sufficient_contrast"},
+                  {shardID: "s10.4.minimum.bounded", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "differentiate_without_color"}
+                ])
+                and ([
+                  .shards[]
+                  | select(.deviceProfileID == "iphone-17-ios-26.2-current")
+                  | .accessibilityFeatures[]
+                ] | sort) == ($features | sort)
+                and ([
+                  .shards[]
+                  | select(.deviceProfileID == "iphone-se-3-ios-18.0-minimum")
+                  | .accessibilityFeatures[]
+                ] | sort) == ($features | sort)
+                and (([.shards[].accessibilityFeatures | length] | add) * .commonTaskCount
+                  == .expectedAccessibilityRowCount)
+                and (.expectedStateCount * (.shards | length) == .expectedVisualCellCount)
+                and (.shards[] | select(.requirementID == "default_dark")
+                  | .environment.appearance == "dark")
+                and (.shards[] | select(.requirementID == "increased_contrast")
+                  | .environment.contrast == "increased")
+                and (.shards[] | select(.requirementID == "ax_text")
+                  | .environment.contentSizeCategory == "UICTContentSizeCategoryAccessibilityXXXL")
+                and (.shards[] | select(.requirementID == "double_length")
+                  | .environment.contentSizeCategory == "UICTContentSizeCategoryAccessibilityXXXL")
+                and (.shards[] | select(.requirementID == "rtl")
+                  | .environment.appearance == "dark")
+                and (.shards[] | select(.requirementID == "tall")
+                  | .environment.reduceMotion == true)
+                and (.shards[] | select(.requirementID == "accented")
+                  | .environment.contrast == "increased")
+                and (.shards[] | select(.requirementID == "bounded")
+                  | .environment.differentiateWithoutColor == true)
+                and (.shards[] | select(.requirementID == "differentiate_without_color")
+                  | .environment.differentiateWithoutColor == true)
+                and (.shards[] | select(.requirementID == "reduce_motion")
+                  | .environment.reduceMotion == true)
+                and (.shards[] | select(.requirementID == "reduce_transparency")
+                  | .environment.reduceTransparency == true)
+            ' Scripts/s10-4-shards.json > /dev/null
+
+            shard_count="$(jq -r --arg shard "$DISPATCH_S10_4_SHARD_ID" \
+              '[.shards[] | select(.shardID == $shard)] | length' Scripts/s10-4-shards.json)"
+            test "$shard_count" -eq 1
+            shard_json="$(jq -cer --arg shard "$DISPATCH_S10_4_SHARD_ID" \
+              '.shards[] | select(.shardID == $shard)' Scripts/s10-4-shards.json)"
+            device_profile_id="$(jq -r '.deviceProfileID' <<< "$shard_json")"
+            profile_json="$(jq -cer --arg profile "$device_profile_id" \
+              '.deviceProfiles[] | select(.deviceProfileID == $profile)' Scripts/s10-4-shards.json)"
+
+            CI_S10_4_SHARD_ID="$DISPATCH_S10_4_SHARD_ID"
+            CI_ARTIFACT_SUFFIX="-$CI_S10_4_SHARD_ID"
+            SIMULATOR_RUNTIME="$(jq -r '.simulatorRuntime' <<< "$profile_json")"
+            SIMULATOR_RUNTIME_BUILD="$(jq -r '.simulatorRuntimeBuild' <<< "$profile_json")"
+            SIMULATOR_NAME="$(jq -r '.simulatorName' <<< "$profile_json")"
+            CI_S10_4_PROVISION_RUNTIME="$(jq -r '.provisionRuntime | tostring' <<< "$profile_json")"
+            CI_S10_4_RUNTIME_DOWNLOAD_VERSION="$(jq -r '.runtimeDownloadVersion' <<< "$profile_json")"
+            CI_S10_4_DEVICE_PROFILE_ID="$device_profile_id"
+            CI_S10_4_SHARD_ORDINAL="$(jq -r '.ordinal' <<< "$shard_json")"
+            CI_S10_4_REQUIREMENT_ID="$(jq -r '.requirementID' <<< "$shard_json")"
+            CI_S10_4_ACCESSIBILITY_FEATURE="$(jq -er \
+              '.accessibilityFeatures | if length == 1 then .[0] else error("expected one feature") end' \
+              <<< "$shard_json")"
+            CI_S10_4_ACCESSIBILITY_FEATURES="$(jq -r '.accessibilityFeatures | join(",")' <<< "$shard_json")"
+            CI_S10_4_APPEARANCE="$(jq -r '.environment.appearance' <<< "$shard_json")"
+            CI_S10_4_CONTRAST="$(jq -r '.environment.contrast' <<< "$shard_json")"
+            CI_S10_4_CONTENT_SIZE_CATEGORY="$(jq -r '.environment.contentSizeCategory' <<< "$shard_json")"
+            CI_S10_4_LOCALE="$(jq -r '.environment.locale' <<< "$shard_json")"
+            CI_S10_4_LAYOUT_DIRECTION="$(jq -r '.environment.layoutDirection' <<< "$shard_json")"
+            CI_S10_4_DIFFERENTIATE_WITHOUT_COLOR="$(jq -r '.environment.differentiateWithoutColor | tostring' <<< "$shard_json")"
+            CI_S10_4_REDUCE_MOTION="$(jq -r '.environment.reduceMotion | tostring' <<< "$shard_json")"
+            CI_S10_4_REDUCE_TRANSPARENCY="$(jq -r '.environment.reduceTransparency | tostring' <<< "$shard_json")"
+          else
+            test "$DISPATCH_S10_4_SHARD_ID" = "none"
+          fi
+
+          printf '%s\n' \
+            "CI_TASK_ID=$CI_TASK_ID" \
+            "CI_TIER=$CI_TIER" \
+            "CI_RUN_UI_SMOKE=$CI_RUN_UI_SMOKE" \
+            "CI_SETUP_ARTIFACT_TIMEOUT_SECONDS=$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS" \
+            "CI_BUILD_TIMEOUT_SECONDS=$CI_BUILD_TIMEOUT_SECONDS" \
+            "CI_TEST_TIMEOUT_SECONDS=$CI_TEST_TIMEOUT_SECONDS" \
+            "CI_UI_TIMEOUT_SECONDS=$CI_UI_TIMEOUT_SECONDS" \
+            "CI_TOTAL_BUDGET_SECONDS=$CI_TOTAL_BUDGET_SECONDS" \
+            "CI_S10_4_SHARD_ID=$CI_S10_4_SHARD_ID" \
+            "CI_ARTIFACT_SUFFIX=$CI_ARTIFACT_SUFFIX" \
+            >> "$GITHUB_ENV"
+          if test "$CI_TASK_ID" = "S10.4"; then
+            printf '%s\n' \
+              "SIMULATOR_RUNTIME=$SIMULATOR_RUNTIME" \
+              "SIMULATOR_RUNTIME_BUILD=$SIMULATOR_RUNTIME_BUILD" \
+              "SIMULATOR_NAME=$SIMULATOR_NAME" \
+              "CI_S10_4_PROVISION_RUNTIME=$CI_S10_4_PROVISION_RUNTIME" \
+              "CI_S10_4_RUNTIME_DOWNLOAD_VERSION=$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" \
+              "CI_S10_4_DEVICE_PROFILE_ID=$CI_S10_4_DEVICE_PROFILE_ID" \
+              "CI_S10_4_SHARD_ORDINAL=$CI_S10_4_SHARD_ORDINAL" \
+              "CI_S10_4_REQUIREMENT_ID=$CI_S10_4_REQUIREMENT_ID" \
+              "CI_S10_4_ACCESSIBILITY_FEATURE=$CI_S10_4_ACCESSIBILITY_FEATURE" \
+              "CI_S10_4_ACCESSIBILITY_FEATURES=$CI_S10_4_ACCESSIBILITY_FEATURES" \
+              "CI_S10_4_APPEARANCE=$CI_S10_4_APPEARANCE" \
+              "CI_S10_4_CONTRAST=$CI_S10_4_CONTRAST" \
+              "CI_S10_4_CONTENT_SIZE_CATEGORY=$CI_S10_4_CONTENT_SIZE_CATEGORY" \
+              "CI_S10_4_LOCALE=$CI_S10_4_LOCALE" \
+              "CI_S10_4_LAYOUT_DIRECTION=$CI_S10_4_LAYOUT_DIRECTION" \
+              "CI_S10_4_DIFFERENTIATE_WITHOUT_COLOR=$CI_S10_4_DIFFERENTIATE_WITHOUT_COLOR" \
+              "CI_S10_4_REDUCE_MOTION=$CI_S10_4_REDUCE_MOTION" \
+              "CI_S10_4_REDUCE_TRANSPARENCY=$CI_S10_4_REDUCE_TRANSPARENCY" \
+              "TEST_RUNNER_CI_TASK_ID=$CI_TASK_ID" \
+              "TEST_RUNNER_SIMULATOR_RUNTIME=$SIMULATOR_RUNTIME" \
+              "TEST_RUNNER_SIMULATOR_RUNTIME_BUILD=$SIMULATOR_RUNTIME_BUILD" \
+              "TEST_RUNNER_SIMULATOR_NAME=$SIMULATOR_NAME" \
+              "TEST_RUNNER_CI_S10_4_SHARD_ID=$CI_S10_4_SHARD_ID" \
+              "TEST_RUNNER_CI_S10_4_PROVISION_RUNTIME=$CI_S10_4_PROVISION_RUNTIME" \
+              "TEST_RUNNER_CI_S10_4_RUNTIME_DOWNLOAD_VERSION=$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" \
+              "TEST_RUNNER_CI_S10_4_DEVICE_PROFILE_ID=$CI_S10_4_DEVICE_PROFILE_ID" \
+              "TEST_RUNNER_CI_S10_4_SHARD_ORDINAL=$CI_S10_4_SHARD_ORDINAL" \
+              "TEST_RUNNER_CI_S10_4_REQUIREMENT_ID=$CI_S10_4_REQUIREMENT_ID" \
+              "TEST_RUNNER_CI_S10_4_ACCESSIBILITY_FEATURE=$CI_S10_4_ACCESSIBILITY_FEATURE" \
+              "TEST_RUNNER_CI_S10_4_ACCESSIBILITY_FEATURES=$CI_S10_4_ACCESSIBILITY_FEATURES" \
+              "TEST_RUNNER_CI_S10_4_APPEARANCE=$CI_S10_4_APPEARANCE" \
+              "TEST_RUNNER_CI_S10_4_CONTRAST=$CI_S10_4_CONTRAST" \
+              "TEST_RUNNER_CI_S10_4_CONTENT_SIZE_CATEGORY=$CI_S10_4_CONTENT_SIZE_CATEGORY" \
+              "TEST_RUNNER_CI_S10_4_LOCALE=$CI_S10_4_LOCALE" \
+              "TEST_RUNNER_CI_S10_4_LAYOUT_DIRECTION=$CI_S10_4_LAYOUT_DIRECTION" \
+              "TEST_RUNNER_CI_S10_4_DIFFERENTIATE_WITHOUT_COLOR=$CI_S10_4_DIFFERENTIATE_WITHOUT_COLOR" \
+              "TEST_RUNNER_CI_S10_4_REDUCE_MOTION=$CI_S10_4_REDUCE_MOTION" \
+              "TEST_RUNNER_CI_S10_4_REDUCE_TRANSPARENCY=$CI_S10_4_REDUCE_TRANSPARENCY" \
+              >> "$GITHUB_ENV"
+          fi
+          cp Scripts/ci-selection.json "$CI_ARTIFACT_DIR/ci-selection.json"
+          if test "$CI_TASK_ID" = "S10.4"; then
+            cp Scripts/s10-4-shards.json "$CI_ARTIFACT_DIR/s10-4-shards.json"
+          fi
+          printf 'task_id=%s\ntier=%s\ndispatch_run_ui_smoke=%s\ns10_4_shard_id=%s\n' \
+            "$CI_TASK_ID" "$CI_TIER" "$DISPATCH_RUN_UI_SMOKE" "$CI_S10_4_SHARD_ID" \
+            | tee "$CI_ARTIFACT_DIR/ci-selection-validation.txt"
+
+      - name: Verify pinned toolchain, shared scheme, and simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CI_ARTIFACT_DIR"
+          printf 'ImageOS=%s\nImageVersion=%s\nImageArch=%s\n' \
+            "${ImageOS:-unknown}" "${ImageVersion:-unknown}" "${ImageArch:-unknown}" \
+            | tee "$CI_ARTIFACT_DIR/runner-image.txt"
+          printf 'repository=%s\nref=%s\nsha=%s\nrun_id=%s\nrun_attempt=%s\n' \
+            "$GITHUB_REPOSITORY" "$GITHUB_REF" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
+            | tee "$CI_ARTIFACT_DIR/github-run.txt"
+          test -d "$DEVELOPER_DIR"
+          test -f "$PROJECT_PATH/project.pbxproj"
+          test -f "$PROJECT_PATH/xcshareddata/xcschemes/$SCHEME.xcscheme"
+          test -f Scripts/ci-selection.json
+          test -f Scripts/run-with-timeout.sh
+          test -f Scripts/build-smoke.sh
+          test -f Scripts/test-smoke.sh
+          test -f Scripts/ui-smoke.sh
+          test "$EXPECTED_MINIMUM_IOS" != "UNSET"
+          xcodebuild -version | tee "$CI_ARTIFACT_DIR/xcode-version.txt"
+          grep -Fxq "$EXPECTED_XCODE_VERSION" "$CI_ARTIFACT_DIR/xcode-version.txt"
+          grep -Fxq "$EXPECTED_XCODE_BUILD" "$CI_ARTIFACT_DIR/xcode-version.txt"
+          xcodebuild -list -json -project "$PROJECT_PATH" \
+            | tee "$CI_ARTIFACT_DIR/xcode-list.json"
+          jq -e --arg scheme "$SCHEME" \
+            '.project.schemes | index($scheme) != null' \
+            "$CI_ARTIFACT_DIR/xcode-list.json" > /dev/null
+          xcodebuild -showBuildSettings -project "$PROJECT_PATH" -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" | tee "$CI_ARTIFACT_DIR/build-settings.txt"
+          deployment_targets="$(awk -F'= ' \
+            '/^[[:space:]]*IPHONEOS_DEPLOYMENT_TARGET = / {print $2}' \
+            "$CI_ARTIFACT_DIR/build-settings.txt" | LC_ALL=C sort -u)"
+          target_count="$(printf '%s\n' "$deployment_targets" | sed '/^$/d' | wc -l | tr -d ' ')"
+          test "$target_count" -eq 1
+          test "$deployment_targets" = "$EXPECTED_MINIMUM_IOS"
+
+          if test "${CI_TASK_ID:-}" = "S10.4" && \
+             test "${CI_S10_4_PROVISION_RUNTIME:-}" = "true"; then
+            test "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" = "18.0"
+            setup_elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
+            runtime_provision_budget_seconds="$(( CI_SETUP_ARTIFACT_TIMEOUT_SECONDS - setup_elapsed_seconds ))"
+            test "$runtime_provision_budget_seconds" -gt 0
+            set +e
+            bash Scripts/run-with-timeout.sh "$runtime_provision_budget_seconds" \
+              xcodebuild -downloadPlatform iOS \
+                -buildVersion "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" \
+              2>&1 | tee "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+            provision_pipeline_status=( "${PIPESTATUS[@]}" )
+            set -e
+            if test "${#provision_pipeline_status[@]}" -ne 2; then
+              exit 1
+            fi
+            printf '\nprovision_exit=%s\nprovision_tee_exit=%s\n' \
+              "${provision_pipeline_status[0]}" "${provision_pipeline_status[1]}" \
+              | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+            if test "${provision_pipeline_status[1]}" -ne 0; then
+              exit "${provision_pipeline_status[1]}"
+            fi
+            xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
+            exact_runtime_available=false
+            if jq -e --arg name "$SIMULATOR_RUNTIME" \
+              --arg build "${SIMULATOR_RUNTIME_BUILD:-}" \
+              'any(.runtimes[]; .name == $name and .isAvailable == true and ($build == "" or .buildversion == $build))' \
+              "$CI_ARTIFACT_DIR/simulator-runtimes.json" > /dev/null; then
+              exact_runtime_available=true
+            fi
+            if test "$exact_runtime_available" != true && \
+               test -n "${SIMULATOR_RUNTIME_BUILD:-}"; then
+              setup_elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
+              runtime_recovery_budget_seconds="$(( CI_SETUP_ARTIFACT_TIMEOUT_SECONDS - setup_elapsed_seconds ))"
+              test "$runtime_recovery_budget_seconds" -gt 0
+              set +e
+              bash Scripts/run-with-timeout.sh "$runtime_recovery_budget_seconds" \
+                xcodebuild -downloadPlatform iOS \
+                  -buildVersion "$SIMULATOR_RUNTIME_BUILD" \
+                  -architectureVariant universal \
+                2>&1 | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+              recovery_pipeline_status=( "${PIPESTATUS[@]}" )
+              set -e
+              if test "${#recovery_pipeline_status[@]}" -ne 2; then
+                exit 1
+              fi
+              printf 'recovery_provision_exit=%s\nrecovery_provision_tee_exit=%s\n' \
+                "${recovery_pipeline_status[0]}" "${recovery_pipeline_status[1]}" \
+                | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+              if test "${recovery_pipeline_status[1]}" -ne 0; then
+                exit "${recovery_pipeline_status[1]}"
+              fi
+              xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
+              if jq -e --arg name "$SIMULATOR_RUNTIME" \
+                --arg build "${SIMULATOR_RUNTIME_BUILD:-}" \
+                'any(.runtimes[]; .name == $name and .isAvailable == true and ($build == "" or .buildversion == $build))' \
+                "$CI_ARTIFACT_DIR/simulator-runtimes.json" > /dev/null; then
+                exact_runtime_available=true
+              fi
+            fi
+            if test "$exact_runtime_available" != true; then
+              if test "${provision_pipeline_status[0]}" -ne 0; then
+                exit "${provision_pipeline_status[0]}"
+              fi
+              exit 70
+            fi
+            if test "${provision_pipeline_status[0]}" -ne 0; then
+              printf 'provision_nonzero_but_exact_runtime_available=true\n' \
+                | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+            else
+              printf 'provision_zero_but_exact_runtime_verified=true\n' \
+                | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+            fi
+          fi
+
+          xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
+          xcrun simctl list devices available -j > "$CI_ARTIFACT_DIR/simulator-devices.json"
+          runtime_id="$(jq -r --arg name "$SIMULATOR_RUNTIME" \
+            --arg build "${SIMULATOR_RUNTIME_BUILD:-}" \
+            '.runtimes[]
+              | select(
+                  .name == $name
+                  and .isAvailable == true
+                  and ($build == "" or .buildversion == $build)
+                )
+              | .identifier' \
+            "$CI_ARTIFACT_DIR/simulator-runtimes.json" | head -n 1)"
+          test -n "$runtime_id"
+          simulator_udid="$(jq -r --arg runtime "$runtime_id" --arg name "$SIMULATOR_NAME" \
+            '.devices[$runtime][] | select(.name == $name and .isAvailable == true) | .udid' \
+            "$CI_ARTIFACT_DIR/simulator-devices.json" | head -n 1)"
+          if test -z "$simulator_udid" && \
+             test "${CI_TASK_ID:-}" = "S10.4" && \
+             test "${CI_S10_4_PROVISION_RUNTIME:-}" = "true"; then
+            xcrun simctl list devicetypes -j > "$CI_ARTIFACT_DIR/simulator-device-types.json"
+            simulator_device_type_id="$(jq -r --arg name "$SIMULATOR_NAME" \
+              '.devicetypes[] | select(.name == $name) | .identifier' \
+              "$CI_ARTIFACT_DIR/simulator-device-types.json" | head -n 1)"
+            test -n "$simulator_device_type_id"
+            simulator_udid="$(xcrun simctl create \
+              "$SIMULATOR_NAME" "$simulator_device_type_id" "$runtime_id")"
+            test -n "$simulator_udid"
+            xcrun simctl list devices available -j > "$CI_ARTIFACT_DIR/simulator-devices.json"
+          fi
+          test -n "$simulator_udid"
+          simulator_state="$(jq -er --arg runtime "$runtime_id" --arg udid "$simulator_udid" '
+            [.devices[$runtime][] | select(.udid == $udid) | .state]
+            | if length == 1 then .[0]
+              else error("expected exactly one selected Simulator state")
+              end
+          ' "$CI_ARTIFACT_DIR/simulator-devices.json")"
+          case "$simulator_state" in
+            Shutdown | Booted) ;;
+            *) exit 1 ;;
+          esac
+          selected_runtime_build="$(jq -er --arg runtime "$runtime_id" \
+            '.runtimes[] | select(.identifier == $runtime) | .buildversion' \
+            "$CI_ARTIFACT_DIR/simulator-runtimes.json")"
+          if test "${CI_TASK_ID:-}" = "S10.4"; then
+            test "$selected_runtime_build" = "$SIMULATOR_RUNTIME_BUILD"
+          fi
+          printf 'runtime=%s\nruntime_build=%s\nname=%s\nudid=%s\ninitial_state=%s\n' \
+            "$SIMULATOR_RUNTIME" "$selected_runtime_build" "$SIMULATOR_NAME" \
+            "$simulator_udid" "$simulator_state" \
+            | tee "$CI_ARTIFACT_DIR/simulator-selection.txt"
+          printf 'CI_DESTINATION=platform=iOS Simulator,id=%s\nCI_SIMULATOR_UDID=%s\nCI_SIMULATOR_INITIAL_STATE=%s\n' \
+            "$simulator_udid" "$simulator_udid" "$simulator_state" >> "$GITHUB_ENV"
+          if test "${CI_TASK_ID:-}" = "S10.4"; then
+            printf 'TEST_RUNNER_CI_SIMULATOR_UDID=%s\n' "$simulator_udid" >> "$GITHUB_ENV"
+          fi
+
+      - name: Verify setup budget before build
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CI_BUDGET_START_EPOCH:-}"
+          test -n "${CI_SETUP_ARTIFACT_TIMEOUT_SECONDS:-}"
+          setup_elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
+          printf 'setup_elapsed_seconds=%s\nsetup_budget_seconds=%s\n' \
+            "$setup_elapsed_seconds" "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS" \
+            | tee "$CI_ARTIFACT_DIR/setup-budget.txt"
+          printf 'CI_SETUP_ELAPSED_SECONDS=%s\n' \
+            "$setup_elapsed_seconds" >> "$GITHUB_ENV"
+          test "$setup_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
+
+      # INFRA_RECOVERY_BEGIN: simulator-readiness-scheduling
+      - name: Boot selected Simulator
+        id: simulator_boot
+        background: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" = "900"
+          test -n "${CI_SIMULATOR_UDID:-}"
+          case "${CI_SIMULATOR_INITIAL_STATE:-}" in
+            Shutdown) simulator_boot_action="boot" ;;
+            Booted) simulator_boot_action="already-booted" ;;
+            *) exit 1 ;;
+          esac
+          simulator_boot_start_epoch="$(date +%s)"
+          case "${CI_BUDGET_START_EPOCH:?}" in *[!0-9]* | "") exit 1 ;; esac
+          case "$simulator_boot_start_epoch" in *[!0-9]* | "") exit 1 ;; esac
+          test "$simulator_boot_start_epoch" -ge "$CI_BUDGET_START_EPOCH"
+          printf 'start_epoch=%s\nudid=%s\ninitial_state=%s\naction=%s\nbudget_seconds=%s\ncommand=xcrun simctl bootstatus %s -b\n' \
+            "$simulator_boot_start_epoch" "$CI_SIMULATOR_UDID" \
+            "$CI_SIMULATOR_INITIAL_STATE" "$simulator_boot_action" \
+            "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" "$CI_SIMULATOR_UDID" \
+            | tee "$CI_ARTIFACT_DIR/simulator-boot-start.log"
+          printf 'CI_SIMULATOR_BOOT_START_EPOCH=%s\n' \
+            "$simulator_boot_start_epoch" >> "$GITHUB_ENV"
+          set +e
+          bash Scripts/run-with-timeout.sh "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
+            xcrun simctl bootstatus "$CI_SIMULATOR_UDID" -b \
+            2>&1 | tee "$CI_ARTIFACT_DIR/simulator-boot.log"
+          simulator_boot_pipeline_status=( "${PIPESTATUS[@]}" )
+          if test "${#simulator_boot_pipeline_status[@]}" -ne 2; then
+            exit 1
+          fi
+          simulator_boot_end_epoch="$(date +%s)"
+          printf '\nend_epoch=%s\nbootstatus_exit=%s\ntee_exit=%s\n' \
+            "$simulator_boot_end_epoch" "${simulator_boot_pipeline_status[0]}" \
+            "${simulator_boot_pipeline_status[1]}" \
+            | tee -a "$CI_ARTIFACT_DIR/simulator-boot.log"
+          simulator_boot_status_log_pipeline_status=( "${PIPESTATUS[@]}" )
+          if test "${simulator_boot_pipeline_status[0]}" -ne 0; then
+            exit "${simulator_boot_pipeline_status[0]}"
+          fi
+          if test "${simulator_boot_pipeline_status[1]}" -ne 0; then
+            exit "${simulator_boot_pipeline_status[1]}"
+          fi
+          if test "${simulator_boot_status_log_pipeline_status[0]}" -ne 0; then
+            exit "${simulator_boot_status_log_pipeline_status[0]}"
+          fi
+          if test "${simulator_boot_status_log_pipeline_status[1]}" -ne 0; then
+            exit "${simulator_boot_status_log_pipeline_status[1]}"
+          fi
+          set -e
+          case "$simulator_boot_end_epoch" in *[!0-9]* | "") exit 1 ;; esac
+          test "$simulator_boot_end_epoch" -ge "$simulator_boot_start_epoch"
+          simulator_boot_ready_elapsed_seconds="$(( simulator_boot_end_epoch - simulator_boot_start_epoch ))"
+          printf 'ready_epoch=%s\nready_udid=%s\nready_elapsed_seconds=%s\nbudget_seconds=%s\n' \
+            "$simulator_boot_end_epoch" "$CI_SIMULATOR_UDID" \
+            "$simulator_boot_ready_elapsed_seconds" \
+            "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
+            | tee -a "$CI_ARTIFACT_DIR/simulator-boot.log"
+          test "$simulator_boot_ready_elapsed_seconds" -ge 0
+          test "$simulator_boot_ready_elapsed_seconds" -le "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS"
+          printf '%s\n' \
+            "CI_SIMULATOR_READY_UDID=$CI_SIMULATOR_UDID" \
+            "CI_SIMULATOR_READY_EPOCH=$simulator_boot_end_epoch" \
+            "CI_SIMULATOR_READY_ELAPSED_SECONDS=$simulator_boot_ready_elapsed_seconds" \
+            >> "$GITHUB_ENV"
+
+      - name: Build unsigned simulator app
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Scripts/run-with-timeout.sh "$CI_BUILD_TIMEOUT_SECONDS" \
+            bash Scripts/build-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/build-smoke.log"
+
+      - name: Await selected Simulator boot
+        wait: simulator_boot
+      # INFRA_RECOVERY_END: simulator-readiness-scheduling
+
+      - name: Run targeted tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Scripts/run-with-timeout.sh "$CI_TEST_TIMEOUT_SECONDS" \
+            bash Scripts/test-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/test-smoke.log"
+
+      - name: Run task-authorized UI smoke
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_ui_smoke == true }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Scripts/run-with-timeout.sh "$CI_UI_TIMEOUT_SECONDS" \
+            bash Scripts/ui-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/ui-smoke.log"
+
+      - name: Record WarpBuild development-only lane
+        if: ${{ always() }}
+        shell: bash
+        env:
+          DEVELOPMENT_EXECUTION_LANE: ${{ inputs.execution_lane }}
+          DEVELOPMENT_SHARD_ID: ${{ inputs.s10_4_shard_id }}
+          DEVELOPMENT_RUNNER_NAME: ${{ runner.name }}
+          DEVELOPMENT_RUNNER_ARCHITECTURE: ${{ runner.arch }}
+          DEVELOPMENT_PRIOR_JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          artifact_dir="${CI_ARTIFACT_DIR:-$RUNNER_TEMP/FieldEvidenceCI}"
+          finalization_start_epoch="$(date +%s)"
+          mkdir -p "$artifact_dir"
+          printf 'CI_ARTIFACT_DIR=%s\nCI_DEVELOPMENT_ONLY_FINALIZATION_START_EPOCH=%s\n' \
+            "$artifact_dir" "$finalization_start_epoch" >> "$GITHUB_ENV"
+          jq -n \
+            --arg laneID "$DEVELOPMENT_EXECUTION_LANE" \
+            --arg runnerName "$DEVELOPMENT_RUNNER_NAME" \
+            --arg runnerArchitecture "$DEVELOPMENT_RUNNER_ARCHITECTURE" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg ref "$GITHUB_REF" \
+            --arg headSHA "$GITHUB_SHA" \
+            --arg runID "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg shardID "$DEVELOPMENT_SHARD_ID" \
+            --arg priorJobStatus "$DEVELOPMENT_PRIOR_JOB_STATUS" \
+            '{
+              schemaVersion: 1,
+              laneID: $laneID,
+              provider: "WarpBuild",
+              runnerLabel: "warp-macos-26-arm64-6x",
+              runnerName: $runnerName,
+              runnerArchitecture: $runnerArchitecture,
+              repository: $repository,
+              ref: $ref,
+              headSHA: $headSHA,
+              runID: $runID,
+              runAttempt: $runAttempt,
+              shardID: $shardID,
+              expectedXcodeVersion: "Xcode 26.5",
+              expectedXcodeBuild: "Build version 17F42",
+              priorJobStatus: $priorJobStatus,
+              rawEvidenceOnly: true,
+              acceptanceRetentionPerformed: false,
+              finalAcceptanceEligible: false
+            }' > "$artifact_dir/development-only-lane.json"
+          jq -e \
+            --arg laneID "$DEVELOPMENT_EXECUTION_LANE" \
+            --arg runnerName "$DEVELOPMENT_RUNNER_NAME" \
+            --arg runnerArchitecture "$DEVELOPMENT_RUNNER_ARCHITECTURE" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg ref "$GITHUB_REF" \
+            --arg headSHA "$GITHUB_SHA" \
+            --arg runID "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg shardID "$DEVELOPMENT_SHARD_ID" \
+            --arg priorJobStatus "$DEVELOPMENT_PRIOR_JOB_STATUS" \
+            '
+              (keys == [
+                "acceptanceRetentionPerformed",
+                "expectedXcodeBuild",
+                "expectedXcodeVersion",
+                "finalAcceptanceEligible",
+                "headSHA",
+                "laneID",
+                "priorJobStatus",
+                "provider",
+                "rawEvidenceOnly",
+                "ref",
+                "repository",
+                "runAttempt",
+                "runID",
+                "runnerArchitecture",
+                "runnerLabel",
+                "runnerName",
+                "schemaVersion",
+                "shardID"
+              ])
+              and (.schemaVersion == 1)
+              and (.laneID == "warp-xcode-26.5-development-only")
+              and (.laneID == $laneID)
+              and (.provider == "WarpBuild")
+              and (.runnerLabel == "warp-macos-26-arm64-6x")
+              and (.runnerName == $runnerName)
+              and (.runnerArchitecture == $runnerArchitecture)
+              and (.repository == $repository)
+              and (.ref == $ref)
+              and (.headSHA == $headSHA)
+              and (.runID == $runID)
+              and (.runAttempt == $runAttempt)
+              and (.shardID == $shardID)
+              and (.expectedXcodeVersion == "Xcode 26.5")
+              and (.expectedXcodeBuild == "Build version 17F42")
+              and (.priorJobStatus == $priorJobStatus)
+              and (.runID | type == "string")
+              and (.runAttempt | type == "string")
+              and (.priorJobStatus | type == "string")
+              and (.rawEvidenceOnly == true)
+              and (.acceptanceRetentionPerformed == false)
+              and (.finalAcceptanceEligible == false)
+            ' "$artifact_dir/development-only-lane.json" > /dev/null
+
+      - name: Hash WarpBuild development-only raw evidence
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact_dir="${CI_ARTIFACT_DIR:-$RUNNER_TEMP/FieldEvidenceCI}"
+          mkdir -p "$artifact_dir"
+          finalization_start_epoch="${CI_DEVELOPMENT_ONLY_FINALIZATION_START_EPOCH:-$(date +%s)}"
+          budget_start_epoch="${CI_BUDGET_START_EPOCH:-$finalization_start_epoch}"
+          setup_artifact_budget_seconds="${CI_SETUP_ARTIFACT_TIMEOUT_SECONDS:-300}"
+          total_budget_seconds="${CI_TOTAL_BUDGET_SECONDS:-4500}"
+          setup_elapsed_seconds="${CI_SETUP_ELAPSED_SECONDS:-$(( finalization_start_epoch - budget_start_epoch ))}"
+          case "$finalization_start_epoch:$budget_start_epoch:$setup_artifact_budget_seconds:$total_budget_seconds:$setup_elapsed_seconds" in
+            *[!0-9:]*) exit 1 ;;
+          esac
+          test "$finalization_start_epoch" -ge "$budget_start_epoch"
+          pre_hash_epoch="$(date +%s)"
+          finalization_elapsed_seconds="$(( pre_hash_epoch - finalization_start_epoch ))"
+          setup_finalization_elapsed_seconds="$(( setup_elapsed_seconds + finalization_elapsed_seconds ))"
+          total_elapsed_seconds="$(( pre_hash_epoch - budget_start_epoch ))"
+          printf 'setup_elapsed_seconds=%s\nfinalization_elapsed_seconds=%s\nsetup_finalization_elapsed_seconds=%s\nsetup_finalization_budget_seconds=%s\ntotal_elapsed_seconds=%s\ntotal_budget_seconds=%s\n' \
+            "$setup_elapsed_seconds" "$finalization_elapsed_seconds" \
+            "$setup_finalization_elapsed_seconds" "$setup_artifact_budget_seconds" \
+            "$total_elapsed_seconds" "$total_budget_seconds" \
+            > "$artifact_dir/development-only-budget.txt"
+          test "$setup_finalization_elapsed_seconds" -le "$setup_artifact_budget_seconds"
+          test "$total_elapsed_seconds" -le "$total_budget_seconds"
+          checksum_file="$RUNNER_TEMP/FieldEvidenceCIDevelopmentOnly-checksums.txt"
+          rm -f "$artifact_dir/SHA256SUMS.txt" "$checksum_file"
+          (
+            cd "$artifact_dir"
+            find . -type f -print | LC_ALL=C sort | while IFS= read -r file; do
+              shasum -a 256 "$file"
+            done
+          ) > "$checksum_file"
+          mv "$checksum_file" "$artifact_dir/SHA256SUMS.txt"
+          (
+            cd "$artifact_dir"
+            test "$(grep -cF '  ./SHA256SUMS.txt' SHA256SUMS.txt || true)" -eq 0
+            payload_file_count="$(find . -type f ! -name 'SHA256SUMS.txt' -print | wc -l | tr -d '[:space:]')"
+            checksum_row_count="$(wc -l < SHA256SUMS.txt | tr -d '[:space:]')"
+            test "$checksum_row_count" -eq "$payload_file_count"
+            shasum -a 256 -c SHA256SUMS.txt
+          )
+          post_hash_epoch="$(date +%s)"
+          post_hash_finalization_elapsed_seconds="$(( post_hash_epoch - finalization_start_epoch ))"
+          post_hash_setup_finalization_elapsed_seconds="$(( setup_elapsed_seconds + post_hash_finalization_elapsed_seconds ))"
+          post_hash_total_elapsed_seconds="$(( post_hash_epoch - budget_start_epoch ))"
+          test "$post_hash_setup_finalization_elapsed_seconds" -le "$setup_artifact_budget_seconds"
+          test "$post_hash_total_elapsed_seconds" -le "$total_budget_seconds"
+
+      - name: Upload WarpBuild development-only raw evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-ci-development-only-xcode-26.5-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.s10_4_shard_id }}
+          path: ${{ runner.temp }}/FieldEvidenceCI
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+      - name: Fail closed after WarpBuild development-only evidence
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' 'WarpBuild Xcode 26.5 development-only evidence is never eligible for S10.4 final acceptance.' >&2
+          exit 1
