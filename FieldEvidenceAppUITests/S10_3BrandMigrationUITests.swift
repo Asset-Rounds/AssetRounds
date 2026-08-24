@@ -6984,7 +6984,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 elementIdentifier = auditedElement.identifier
                 elementLabel = auditedElement.label
                 elementType = String(describing: auditedElement.elementType)
-                elementFrame = auditFrameObject(auditedElement.frame)
+                elementFrame = self.auditFrameObject(auditedElement.frame)
             } else {
                 auditedElementObject = NSNull()
                 elementIdentifier = NSNull()

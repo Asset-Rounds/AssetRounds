@@ -1327,8 +1327,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 403_385,
-            sha256: "3241D77CE90472ACCD8402620725052D27FE311965608EA84789B4B14C042E51"
+            byteCount: 403_390,
+            sha256: "C1BAA0B98DD580E14A92FDAE2F9F19D47A9E0A0D55DC9D54DD09F69CE1B29BF1"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -8524,10 +8524,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(restoredCaptureBaselineSource.utf8).sha256,
             "1E7A59ADADB1E35AC3B0AF821745A1BF0B048A4F883867D919687AF958BC6662"
         )
-        XCTAssertEqual(axTextWorkSavingContrastHelperSource.utf8.count, 8_283)
+        XCTAssertEqual(axTextWorkSavingContrastHelperSource.utf8.count, 8_288)
         XCTAssertEqual(
             Data(axTextWorkSavingContrastHelperSource.utf8).sha256,
-            "664E81AF4CFA8C64CB2A0F77D42D6689F454E93070F0BFA71BD03B3CD7BA8AB9"
+            "968D39946D19FC1FF4B0BEEB8834FF2CA2E3867770794E84B9A94C3D0B83C314"
         )
 
         let axTextWorkSavingContrastGate =
@@ -8824,6 +8824,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("if let auditedElement = issue.element", 1),
             ("diagnosticAuditedElements.append(auditedElement)", 1),
             ("auditedElementObject = diagnosticElementObject(auditedElement)", 1),
+            ("elementFrame = self.auditFrameObject(auditedElement.frame)", 1),
+            ("elementFrame = auditFrameObject(auditedElement.frame)", 0),
             ("return true", 1),
             ("return false", 0),
             ("NSNull()", 5),
