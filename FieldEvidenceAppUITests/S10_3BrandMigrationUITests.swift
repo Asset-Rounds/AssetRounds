@@ -5190,7 +5190,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         captureBaseline("state.work.saving", in: app)
 
         let issueScreen = element("s5.1.issue.screen", in: app)
-        XCTAssertTrue(issueScreen.waitForExistence(timeout: 40))
+        XCTAssertTrue(issueScreen.waitForExistence(timeout: 85))
         let dueStatus = element("s5.1.issue.status", in: app)
         XCTAssertTrue(dueStatus.waitForExistence(timeout: 10))
         assertLocalizedLabel(dueStatus, equals: "Attention: Recheck due")

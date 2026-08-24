@@ -1328,7 +1328,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             sourceParts[0],
             byteCount: 429_863,
-            sha256: "B4A6D038A196557BF095B9A39F6A01868D32CB36E8332A8EB31F2588EAB2611C"
+            sha256: "152D1A5BC811D11E0D0D3F0ECABF8B491727FA68744CB1252E5D2CDCB21C2734"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -6885,6 +6885,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(workSavingPositioningSource.utf8).sha256,
             "464743BADE9ADBE966BCE93AA8846D4F611E510EBE1F3EF0C2A340C20D6AFE13"
         )
+        let workSavingPrimaryNavigationWait =
+            #"        let issueScreen = element("s5.1.issue.screen", in: app)"# + "\n" +
+                "        XCTAssertTrue(issueScreen.waitForExistence(timeout: 85))\n" +
+                #"        let dueStatus = element("s5.1.issue.status", in: app)"#
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: workSavingPrimaryNavigationWait
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "issueScreen.waitForExistence(timeout: 85)"
+            ).count - 1,
+            1
+        )
 
         let workSavingAXTextImportFixtureIdentity =
             "        let workImportFixtureButtons: XCUIElementQuery? = workEditingAXTextEnabled\n" +
@@ -10807,20 +10823,30 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "FieldEvidenceApp/Features/Issues/RecordWorkView.swift"
         try assertFile(
             recordWorkSourcePath,
-            byteCount: 14_867,
-            sha256: "3C1E4A3D10EE3F1F28DE1AF03570535115D4D507C5908CB243A0668D29C5460C"
+            byteCount: 14_935,
+            sha256: "AE8A857D879ACC66D3B422259A09D6811C4FBBEE36884EFAD584795E804AE275"
         )
         let recordWorkSource = try text(recordWorkSourcePath)
+        let recordWorkSavingPresentationSelection =
+            "        let minimumSavingPresentationNanoseconds: UInt64 =\n" +
+                "            usesImportedFixtureForUITest\n" +
+                "                ? (photos.isEmpty ? 45_000_000_000 : 75_000_000_000)\n" +
+                "                : 5_000_000_000"
         XCTAssertEqual(
             recordWorkSource.components(
-                separatedBy:
-                    "usesImportedFixtureForUITest ? 45_000_000_000 : 5_000_000_000"
+                separatedBy: recordWorkSavingPresentationSelection
             ).count - 1,
             1
         )
         XCTAssertEqual(
             recordWorkSource.components(
                 separatedBy: "45_000_000_000"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            recordWorkSource.components(
+                separatedBy: "75_000_000_000"
             ).count - 1,
             1
         )
@@ -10841,6 +10867,42 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 separatedBy: ": 5_000_000_000"
             ).count - 1,
             1
+        )
+        let recordWorkSavingCoordinatorOrder =
+            "        Task {\n" +
+                "            let minimumSavingPresentation = Task<Void, Never> {\n" +
+                "                try? await Task.sleep(\n" +
+                "                    nanoseconds: minimumSavingPresentationNanoseconds\n" +
+                "                )\n" +
+                "            }\n" +
+                "            do {\n" +
+                "                let issue = try await coordinator.saveWork("
+        XCTAssertEqual(
+            recordWorkSource.components(
+                separatedBy: recordWorkSavingCoordinatorOrder
+            ).count - 1,
+            1
+        )
+        let recordWorkSavingCompletionOrder =
+            "                )\n" +
+                "                await minimumSavingPresentation.value\n" +
+                "                isSaving = false\n" +
+                "                onComplete(issue)\n" +
+                "            } catch {\n" +
+                "                await minimumSavingPresentation.value\n" +
+                "                isSaving = false\n" +
+                "                showsFailure = true"
+        XCTAssertEqual(
+            recordWorkSource.components(
+                separatedBy: recordWorkSavingCompletionOrder
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            recordWorkSource.components(
+                separatedBy: "await minimumSavingPresentation.value"
+            ).count - 1,
+            2
         )
         let recordWorkDynamicKeyboardMode =
             "            .padding(DesignTokens.Spacing.space16)\n" +
@@ -11940,8 +12002,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
-                14_867,
-                "3C1E4A3D10EE3F1F28DE1AF03570535115D4D507C5908CB243A0668D29C5460C",
+                14_935,
+                "AE8A857D879ACC66D3B422259A09D6811C4FBBEE36884EFAD584795E804AE275",
                 [
                     #"AssetRoundsPrimaryAction("Record work", action: save)"#,
                     "AssetRoundsSecondaryAction(\n" +
