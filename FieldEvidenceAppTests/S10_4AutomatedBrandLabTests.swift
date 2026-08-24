@@ -8111,7 +8111,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(issueRecheckDueRouteSource.utf8.count, 705)
         XCTAssertEqual(
             Data(issueRecheckDueRouteSource.utf8).sha256,
-            "6135B3366B973F82FDCD665218D502ACDEF0EE8E1739E97F1AD15D81CF5566F1"
+            "D88EB267A8597F2465581047BDB44D2ECCEF9615F1B355346FE6AB19BF9A3EF7"
         )
         let issueRecheckDuePositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
