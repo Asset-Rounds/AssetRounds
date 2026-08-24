@@ -6889,7 +6889,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let expectedApplicationState = app.state
         guard keyboard.exists,
               field.exists,
-              field.elementType == .textField,
+              (field.elementType == .textField || field.elementType == .textView),
               !field.identifier.isEmpty,
               expectedRouteExists,
               expectedApplicationState == .runningForeground else {
@@ -6898,7 +6898,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         let expectedValue = String(describing: field.value ?? "")
         let fieldScrollViews = app.scrollViews.containing(
-            .textField,
+            field.elementType,
             identifier: field.identifier
         )
         guard fieldScrollViews.count == 1 else {

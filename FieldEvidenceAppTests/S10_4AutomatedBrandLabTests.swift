@@ -997,8 +997,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 341_039,
-            sha256: "1B8C6E4481C463CB5CEBB666732199021075CA9813173F01FC4A4171DFDCE3AF"
+            byteCount: 341_082,
+            sha256: "8F9B717877D76CBE9BB6B85C3E3123841101F2EC6A579D6222071BCDC5CDF177"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -4407,7 +4407,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let multilinePassiveKeyboardHelperStart =
             "    @MainActor\n" +
-                "    private func keyboardIsAbsentOrInertOffApp("
+                "    private func keyboardSnapshotTreeIsFullyInertOffApp("
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: multilinePassiveKeyboardHelperStart
@@ -4427,6 +4427,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 multilineHelperStartRange.lowerBound..<multilinePassiveKeyboardHelperStartRange.lowerBound
             ]
         )
+        XCTAssertEqual(multilineHelperSource.utf8.count, 2_101)
+        XCTAssertEqual(
+            Data(multilineHelperSource.utf8).sha256,
+            "83CE77255805B564DF670E7D535D4878AB3D084C13D8C0EF572C5A1CEA58521E"
+        )
         let multilineHelperLocks = [
             "afterEditing field: XCUIElement",
             "on route: XCUIElement",
@@ -4437,13 +4442,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let keyboard = app.keyboards.firstMatch",
             "let expectedRouteExists = route.exists",
             "let expectedApplicationState = app.state",
-            "field.elementType == .textField",
+            "(field.elementType == .textField || field.elementType == .textView)",
             "!field.identifier.isEmpty",
             "expectedRouteExists",
             "expectedApplicationState == .runningForeground",
             #"let expectedValue = String(describing: field.value ?? "")"#,
             "let fieldScrollViews = app.scrollViews.containing(",
-            ".textField,",
+            "field.elementType,",
             "identifier: field.identifier",
             "guard fieldScrollViews.count == 1 else {",
             "let fieldScrollView = fieldScrollViews.firstMatch",
@@ -4475,6 +4480,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (#"String(describing: field.value ?? "")"#, 2),
             ("keyboard.waitForNonExistence(timeout: 10)", 1),
             ("fieldScrollViews.count == 1", 1),
+            ("field.elementType", 3),
+            ("field.elementType,", 1),
+            (".textField", 1),
+            (".textView", 1),
+            ("XCTFail(", 5),
+            ("\n                return\n", 1),
+            ("\n            return\n", 4),
         ] {
             XCTAssertEqual(
                 multilineHelperSource.components(separatedBy: fragment).count - 1,
@@ -4487,6 +4499,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "app.swipeDown()",
             "returnKeyDismissesKeyboard",
             "returnKey.tap()",
+            "              field.elementType == .textField,",
+            "              field.elementType == .textView,",
+            "            .textField,",
+            "            .textView,",
+            "(field.elementType == .textView || field.elementType == .textField)",
             ".tap()",
         ] {
             XCTAssertFalse(multilineHelperSource.contains(prohibited), prohibited)
