@@ -1328,10 +1328,96 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             sourceParts[0],
             byteCount: 349_517,
-            sha256: "C1ABB9F49D654E4774AAC603B93FBDB0083F96D1CE34BA8EE2CAE464C313B1E5"
+            sha256: "691C5D64975081A6176732D185B99A17DF7E784B1283AE9F58862FD1A3D1F5B8"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
+        let recordWorkWithoutBaselineStart =
+            "    @MainActor\n" +
+                "    private func recordWorkWithoutBaseline(in app: XCUIApplication) {"
+        XCTAssertEqual(
+            uiSource.components(separatedBy: recordWorkWithoutBaselineStart).count - 1,
+            1
+        )
+        guard let recordWorkWithoutBaselineStartRange = uiSource.range(
+            of: recordWorkWithoutBaselineStart
+        ), let recordWorkWithoutBaselineEndRange = uiSource.range(
+            of: "\n    @MainActor\n",
+            range: recordWorkWithoutBaselineStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded Record-work helper source")
+            return
+        }
+        let recordWorkWithoutBaselineSource = String(
+            uiSource[
+                recordWorkWithoutBaselineStartRange.lowerBound ..<
+                    recordWorkWithoutBaselineEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(recordWorkWithoutBaselineSource.utf8.count, 1_089)
+        XCTAssertEqual(
+            Data(recordWorkWithoutBaselineSource.utf8).sha256,
+            "44CA61EAC4973A2D5957CB81A1A3AEFDFE621EA5392E52C0EB474B204BDC84C0"
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "recordWorkWithoutBaseline(in: app)"
+            ).count - 1,
+            2
+        )
+        let recordWorkNavigationWait =
+            "        save.tap()\n" +
+                #"        XCTAssertTrue(element("s5.1.issue.screen", in: app)"# + "\n" +
+                "            .waitForExistence(timeout: 55))\n" +
+                "        navigateBack(in: app)"
+        XCTAssertEqual(
+            recordWorkWithoutBaselineSource.components(
+                separatedBy: recordWorkNavigationWait
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            recordWorkWithoutBaselineSource.components(
+                separatedBy: "waitForExistence(timeout: 55)"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            recordWorkWithoutBaselineSource.components(
+                separatedBy: "waitForExistence(timeout: 20)"
+            ).count - 1,
+            2
+        )
+        for staleRecordWorkTimeout in [
+            "waitForExistence(timeout: 35)",
+            "waitForExistence(timeout: 45)",
+            "waitForExistence(timeout: 50)",
+            "waitForExistence(timeout: 60)",
+        ] {
+            XCTAssertEqual(
+                recordWorkWithoutBaselineSource.components(
+                    separatedBy: staleRecordWorkTimeout
+                ).count - 1,
+                0,
+                staleRecordWorkTimeout
+            )
+        }
+        for prohibitedRecordWorkWaitMutation in [
+            "Thread.sleep",
+            "Task.sleep",
+            "performAccessibilityAudit",
+            "captureBaseline(",
+            "printJSONLine(",
+            "while ",
+            "for _ in",
+        ] {
+            XCTAssertFalse(
+                recordWorkWithoutBaselineSource.contains(
+                    prohibitedRecordWorkWaitMutation
+                ),
+                prohibitedRecordWorkWaitMutation
+            )
+        }
         let pseudolanguageClassifierStart = try XCTUnwrap(
             uiSource.range(of: "    private var usesPseudolanguage: Bool {")
         )

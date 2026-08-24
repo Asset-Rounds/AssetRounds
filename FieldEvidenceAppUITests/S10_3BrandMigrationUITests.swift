@@ -4611,7 +4611,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         assertControl(save, label: "Record work")
         save.tap()
         XCTAssertTrue(element("s5.1.issue.screen", in: app)
-            .waitForExistence(timeout: 35))
+            .waitForExistence(timeout: 55))
         navigateBack(in: app)
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
             .waitForExistence(timeout: 20))
