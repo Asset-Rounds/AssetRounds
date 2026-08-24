@@ -15915,7 +15915,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             0
         )
-        let workflowHeaderSharedOneAndNonHeaderNine =
+        let workflowHeaderSharedOneAndNonHeaderTen =
             "            and ([.[]\n" +
                 "              | select(.exceptionIssueID | IN(\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER\",\n" +
@@ -15935,10 +15935,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER\",\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER\"\n" +
                 "                )) | not)\n" +
-                "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 9"
+                "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 10"
         XCTAssertEqual(
             workflowSource.components(
-                separatedBy: workflowHeaderSharedOneAndNonHeaderNine
+                separatedBy: workflowHeaderSharedOneAndNonHeaderTen
             ).count - 1,
             1
         )
