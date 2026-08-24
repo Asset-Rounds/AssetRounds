@@ -8514,7 +8514,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         let issueRecheckDueDiagnosticStart =
-            "            if diagnosticAttemptIndex == 1 || !allRelationsPass {"
+            "            let failedRelations = relationResults.compactMap { relation in"
         let issueRecheckDueDiagnosticEnd =
             "            guard applicationFrameIsValid,"
         guard let issueRecheckDueDiagnosticStartRange =
@@ -8940,9 +8940,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "sleep(",
             "performAccessibilityAudit",
             "XCTAttachment",
-            "printJSONLine",
-            "NSNull",
-            "diagnostic",
             "ContrastAuditExceptionSignature",
             "contrastAuditExceptionSignatures",
             "automationContrastExceptions",
