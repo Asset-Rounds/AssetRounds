@@ -1327,8 +1327,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 381_369,
-            sha256: "82F433C7D95F0693A926A0E3A7B6BAE314C69FCBB005D12D24CA9618F77A3F80"
+            byteCount: 395_329,
+            sha256: "83CBFAA968A3C74BE69E1429946108F28D243B9431FA91D5BC80552E7CB6F9C8"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -1745,10 +1745,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     preflightQuickPathSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightMinimumSource.utf8.count, 39_995)
+        XCTAssertEqual(preflightMinimumSource.utf8.count, 53_955)
         XCTAssertEqual(
             Data(preflightMinimumSource.utf8).sha256,
-            "BC7AA64B88114A7EE7472311340B96ACE41C9C551E6B87D3442FB8C21E2974C2"
+            "DCFFA6B9674317E774FBF4EDD1661426FD397297FC6226B578CB9FDD93B034D2"
         )
         XCTAssertEqual(currentProfilePreflightQuickPathSource.utf8.count, 29_876)
         XCTAssertEqual(
@@ -3357,6 +3357,49 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 preflightVisibleStartRange.lowerBound..<preflightMinimumSource.endIndex
             ]
         )
+        XCTAssertEqual(preflightVisibleSource.utf8.count, 31_479)
+        XCTAssertEqual(
+            Data(preflightVisibleSource.utf8).sha256,
+            "27917894D5B077D615D52C4A1186C0C9941B03F31860625986839A9886C5CCFF"
+        )
+        let minimumPreflightQuickPathWrapperStart =
+            "                    let minimumPreflightQuickPathIntroductionViews ="
+        let minimumPreflightQuickPathCommonTailStart =
+            "                    let restoredKeyboard = app.keyboards.firstMatch"
+        guard let minimumPreflightQuickPathWrapperStartRange =
+            preflightVisibleSource.range(
+                of: minimumPreflightQuickPathWrapperStart
+            ), let minimumPreflightQuickPathCommonTailStartRange =
+            preflightVisibleSource.range(
+                of: minimumPreflightQuickPathCommonTailStart,
+                range:
+                    minimumPreflightQuickPathWrapperStartRange.upperBound..<preflightVisibleSource.endIndex
+            )
+        else {
+            XCTFail("Missing the minimum Preflight QuickPath wrapper/common-tail slices")
+            return
+        }
+        let minimumPreflightQuickPathWrapperSource = String(
+            preflightVisibleSource[
+                minimumPreflightQuickPathWrapperStartRange.lowerBound ..<
+                    minimumPreflightQuickPathCommonTailStartRange.lowerBound
+            ]
+        )
+        let minimumPreflightQuickPathCommonTailSource = String(
+            preflightVisibleSource[
+                minimumPreflightQuickPathCommonTailStartRange.lowerBound..<preflightVisibleSource.endIndex
+            ]
+        )
+        XCTAssertEqual(minimumPreflightQuickPathWrapperSource.utf8.count, 14_199)
+        XCTAssertEqual(
+            Data(minimumPreflightQuickPathWrapperSource.utf8).sha256,
+            "B99E943C870A4FA3B6E042AC727F480ED4E84FF8B4527A7214A9E58778A91292"
+        )
+        XCTAssertEqual(minimumPreflightQuickPathCommonTailSource.utf8.count, 16_378)
+        XCTAssertEqual(
+            Data(minimumPreflightQuickPathCommonTailSource.utf8).sha256,
+            "468D540185455C67D65AF09EB0B7207E1AE524CAE03A708A92216DC724AD9B1D"
+        )
         let minimumDoubleLengthPositioningGate =
             "                    if automationShard?.shardID\n" +
                 #"                        == "s10.4.minimum.double-length" {"#
@@ -3800,6 +3843,287 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let minimumPreflightQuickPathStructureLocks = [
+            "let minimumPreflightQuickPathIntroductionViews =",
+            "app.descendants(matching: .other).matching(",
+            #"identifier: "UIContinuousPathIntroductionView""#,
+            "let minimumPreflightQuickPathIntroductionCount =",
+            "if minimumPreflightQuickPathIntroductionCount > 0 {",
+            "minimumPreflightQuickPathIntroductionView.descendants(",
+            "matching: .button",
+            "matching: .staticText",
+            "let minimumPreflightQuickPathButton =",
+            "let minimumPreflightQuickPathFirstStaticText =",
+            "let minimumPreflightQuickPathSecondStaticText =",
+            "boundBy: 0",
+            "boundBy: 1",
+            "let minimumPreflightQuickPathFrameIsValid:",
+            "minimumPreflightQuickPathIntroductionCount == 1",
+            "minimumPreflightQuickPathButtons.count == 1",
+            "minimumPreflightQuickPathStaticTexts.count == 2",
+            ".elementType == .other",
+            ".elementType == .button",
+            ".elementType == .staticText",
+            ".identifier.isEmpty",
+            ".trimmingCharacters(",
+            "in: .whitespacesAndNewlines",
+            "minimumPreflightQuickPathButton.isEnabled",
+            "minimumPreflightQuickPathButton.isHittable",
+            "&& !frame.isInfinite",
+            "&& frame.origin.x.isFinite",
+            "&& frame.origin.y.isFinite",
+            "&& frame.size.width.isFinite",
+            "&& frame.size.height.isFinite",
+            "applicationFrame.contains(",
+            ".intersects(observedKeyboardFrame)",
+            "!= (minimumPreflightQuickPathSecondStaticText.label",
+            "? minimumPreflightQuickPathSecondStaticText",
+            "? minimumPreflightQuickPathFirstStaticText",
+            "* 0.8425925925925926",
+            ".waitForNonExistence(timeout: 10)",
+            "minimumPreflightQuickPathIntroductionViews.count",
+            "minimumPreflightQuickPathButtons.count == 0",
+            "minimumPreflightQuickPathStaticTexts.count == 0",
+        ]
+        for lock in minimumPreflightQuickPathStructureLocks {
+            XCTAssertTrue(
+                minimumPreflightQuickPathWrapperSource.contains(lock),
+                lock
+            )
+        }
+        for (lock, count) in [
+            ("minimumPreflightQuickPathIntroductionCount == 1", 1),
+            ("minimumPreflightQuickPathButtons.count == 1", 1),
+            ("minimumPreflightQuickPathStaticTexts.count == 2", 1),
+            ("minimumPreflightQuickPathButtons.count == 0", 1),
+            ("minimumPreflightQuickPathStaticTexts.count == 0", 1),
+            ("keyboard.coordinate(", 1),
+            (".waitForNonExistence(timeout: 10)", 1),
+            ("XCTFail(", 2),
+        ] {
+            XCTAssertEqual(
+                minimumPreflightQuickPathWrapperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                count,
+                lock
+            )
+        }
+        let minimumPreflightQuickPathCardinality =
+            "                        guard minimumPreflightQuickPathIntroductionCount == 1,\n" +
+                "                              minimumPreflightQuickPathButtons.count == 1,\n" +
+                "                              minimumPreflightQuickPathStaticTexts.count == 2,"
+        let minimumPreflightQuickPathFirstProperty =
+            "                              minimumPreflightQuickPathIntroductionView.exists,"
+        let minimumPreflightQuickPathLastFrameValidator =
+            "                              minimumPreflightQuickPathFrameIsValid(\n" +
+                "                                  minimumPreflightQuickPathSecondStaticText.frame\n" +
+                "                              ),"
+        let minimumPreflightQuickPathFirstGeometry =
+            "                              applicationFrame.contains("
+        let minimumPreflightQuickPathAction =
+            "                        keyboard.coordinate("
+        let minimumPreflightQuickPathWait =
+            "                        guard minimumPreflightQuickPathIntroductionView\n" +
+                "                                .waitForNonExistence(timeout: 10),"
+        guard let minimumPreflightQuickPathCardinalityRange =
+            minimumPreflightQuickPathWrapperSource.range(
+                of: minimumPreflightQuickPathCardinality
+            ), let minimumPreflightQuickPathFirstPropertyRange =
+            minimumPreflightQuickPathWrapperSource.range(
+                of: minimumPreflightQuickPathFirstProperty
+            ), let minimumPreflightQuickPathLastFrameValidatorRange =
+            minimumPreflightQuickPathWrapperSource.range(
+                of: minimumPreflightQuickPathLastFrameValidator
+            ), let minimumPreflightQuickPathFirstGeometryRange =
+            minimumPreflightQuickPathWrapperSource.range(
+                of: minimumPreflightQuickPathFirstGeometry
+            ), let minimumPreflightQuickPathActionRange =
+            minimumPreflightQuickPathWrapperSource.range(
+                of: minimumPreflightQuickPathAction
+            ), let minimumPreflightQuickPathWaitRange =
+            minimumPreflightQuickPathWrapperSource.range(
+                of: minimumPreflightQuickPathWait
+            )
+        else {
+            XCTFail("Missing the ordered minimum Preflight QuickPath contract")
+            return
+        }
+        XCTAssertLessThan(
+            minimumPreflightQuickPathCardinalityRange.lowerBound,
+            minimumPreflightQuickPathFirstPropertyRange.lowerBound
+        )
+        XCTAssertLessThan(
+            minimumPreflightQuickPathFirstPropertyRange.lowerBound,
+            minimumPreflightQuickPathLastFrameValidatorRange.lowerBound
+        )
+        XCTAssertLessThan(
+            minimumPreflightQuickPathLastFrameValidatorRange.lowerBound,
+            minimumPreflightQuickPathFirstGeometryRange.lowerBound
+        )
+        XCTAssertLessThan(
+            minimumPreflightQuickPathFirstGeometryRange.lowerBound,
+            minimumPreflightQuickPathActionRange.lowerBound
+        )
+        XCTAssertLessThan(
+            minimumPreflightQuickPathActionRange.lowerBound,
+            minimumPreflightQuickPathWaitRange.lowerBound
+        )
+        let minimumPreflightQuickPathButtonPointContainment =
+            "                              minimumPreflightQuickPathButton.frame.contains(\n" +
+                "                                  CGPoint(\n" +
+                "                                      x: observedKeyboardFrame.midX,\n" +
+                "                                      y: observedKeyboardFrame.minY\n" +
+                "                                        + observedKeyboardFrame.height\n" +
+                "                                            * 0.8425925925925926\n" +
+                "                                  )\n" +
+                "                              ),"
+        XCTAssertEqual(
+            minimumPreflightQuickPathWrapperSource.components(
+                separatedBy: minimumPreflightQuickPathButtonPointContainment
+            ).count - 1,
+            1
+        )
+        let minimumPreflightQuickPathPositiveGate =
+            "                    if minimumPreflightQuickPathIntroductionCount > 0 {"
+        guard let minimumPreflightQuickPathPositiveGateRange =
+            minimumPreflightQuickPathWrapperSource.range(
+                of: minimumPreflightQuickPathPositiveGate
+            )
+        else {
+            XCTFail("Missing the minimum Preflight QuickPath positive gate")
+            return
+        }
+        let minimumPreflightQuickPathZeroPrefix = String(
+            minimumPreflightQuickPathWrapperSource[
+                minimumPreflightQuickPathWrapperSource.startIndex ..<
+                    minimumPreflightQuickPathPositiveGateRange.lowerBound
+            ]
+        )
+        for prohibitedZeroPathAction in [
+            ".tap()",
+            ".waitForNonExistence(",
+            ".coordinate(",
+            ".press(",
+            ".swipe",
+        ] {
+            XCTAssertFalse(
+                minimumPreflightQuickPathZeroPrefix.contains(
+                    prohibitedZeroPathAction
+                ),
+                prohibitedZeroPathAction
+            )
+        }
+        let minimumPreflightQuickPathToCommonTailAdjacency =
+            "                    }\n" +
+                minimumPreflightQuickPathCommonTailStart
+        XCTAssertEqual(
+            preflightVisibleSource.components(
+                separatedBy: minimumPreflightQuickPathToCommonTailAdjacency
+            ).count - 1,
+            1
+        )
+        XCTAssertTrue(
+            minimumPreflightQuickPathWrapperSource.hasSuffix(
+                "                    }\n"
+            )
+        )
+        XCTAssertLessThan(
+            minimumPreflightQuickPathPositiveGateRange.lowerBound,
+            minimumPreflightQuickPathActionRange.lowerBound
+        )
+        for (action, count) in [
+            (".coordinate(", 1),
+            (".tap()", 1),
+            (".waitForNonExistence(timeout: 10)", 1),
+            (".press(", 0),
+            (".swipe", 0),
+            ("typeText(", 0),
+            ("scroll(", 0),
+            ("dismissKeyboard(", 0),
+            ("minimumPreflightQuickPathButton.tap()", 0),
+            ("buttons[\"Done\"].tap()", 0),
+            ("buttons[\"Return\"].tap()", 0),
+        ] {
+            XCTAssertEqual(
+                minimumPreflightQuickPathWrapperSource.components(
+                    separatedBy: action
+                ).count - 1,
+                count,
+                action
+            )
+        }
+        let minimumPreflightQuickPathStructureFailure =
+            #"                            XCTFail("The minimum-profile preflight QuickPath tutorial is incomplete or state changed before dismissal.")"# +
+                "\n                            return"
+        let minimumPreflightQuickPathDismissalFailure =
+            #"                            XCTFail("The minimum-profile preflight QuickPath tutorial did not dismiss with state preserved.")"# +
+                "\n                            return"
+        for failure in [
+            minimumPreflightQuickPathStructureFailure,
+            minimumPreflightQuickPathDismissalFailure,
+        ] {
+            XCTAssertEqual(
+                minimumPreflightQuickPathWrapperSource.components(
+                    separatedBy: failure
+                ).count - 1,
+                1,
+                failure
+            )
+        }
+        for prohibitedMinimumPreflightQuickPathForm in [
+            #"label == "Continue""#,
+            #"label == "Continuer""#,
+            "NSPredicate(",
+            "label == %@",
+            "CONTAINS",
+            "BEGINSWITH",
+            "localized",
+            "folding(",
+            "precomposedStringWithCanonicalMapping",
+            "minimumPreflightQuickPathButton.tap()",
+            "app.keyboards.buttons[\"Done\"].tap()",
+            "app.keyboards.buttons[\"Return\"].tap()",
+            "app.coordinate(",
+            "Thread.sleep",
+            "Task.sleep",
+            "tolerance",
+            "epsilon",
+            "automationShard",
+            "deviceProfileID",
+            "shardID",
+            "private func",
+            "func minimumPreflightQuickPath",
+            "CGRect(",
+            "performAccessibilityAudit",
+            "automationContrastExceptions",
+            "matchingExceptions",
+            "printJSONLine",
+            "captureBaseline(",
+            "attachCandidate(",
+            "S10_4_AX_STATE",
+            "S10_4_CONTRAST",
+            "S10_4_CANDIDATE",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+        ] {
+            XCTAssertFalse(
+                minimumPreflightQuickPathWrapperSource.contains(
+                    prohibitedMinimumPreflightQuickPathForm
+                ),
+                prohibitedMinimumPreflightQuickPathForm
+            )
+        }
+        XCTAssertFalse(
+            minimumPreflightQuickPathCommonTailSource.contains(
+                "minimumPreflightQuickPathIntroduction"
+            )
+        )
+        XCTAssertFalse(
+            minimumPreflightQuickPathCommonTailSource.contains(
+                "keyboard.coordinate("
+            )
+        )
         for retainedVisiblePreflightLock in [
             preflightFrozenKeyboardFrame,
             preflightNormalizedCoordinate,
@@ -4109,11 +4433,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             preflightMinimumSource.components(separatedBy: "XCTFail(").count - 1,
-            26
+            28
         )
         XCTAssertEqual(
             preflightMinimumSource.components(separatedBy: "                    return\n").count - 1,
-            26
+            28
         )
         XCTAssertFalse(
             preflightMinimumSource.contains(

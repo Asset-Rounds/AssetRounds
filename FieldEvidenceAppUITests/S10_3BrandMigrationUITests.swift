@@ -1836,12 +1836,235 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         XCTFail("The iOS 18 preflight keyboard or assistant does not match the visible QuickPath evidence.")
                         return
                     }
-                    keyboard.coordinate(
-                        withNormalizedOffset: CGVector(
-                            dx: 0.5,
-                            dy: 0.8425925925925926
+                    let minimumPreflightQuickPathIntroductionViews =
+                        app.descendants(matching: .other).matching(
+                            identifier: "UIContinuousPathIntroductionView"
                         )
-                    ).tap()
+                    let minimumPreflightQuickPathIntroductionCount =
+                        minimumPreflightQuickPathIntroductionViews.count
+                    if minimumPreflightQuickPathIntroductionCount > 0 {
+                        let minimumPreflightQuickPathIntroductionView =
+                            minimumPreflightQuickPathIntroductionViews.firstMatch
+                        let minimumPreflightQuickPathButtons =
+                            minimumPreflightQuickPathIntroductionView.descendants(
+                                matching: .button
+                            )
+                        let minimumPreflightQuickPathStaticTexts =
+                            minimumPreflightQuickPathIntroductionView.descendants(
+                                matching: .staticText
+                            )
+                        let minimumPreflightQuickPathButton =
+                            minimumPreflightQuickPathButtons.firstMatch
+                        let minimumPreflightQuickPathFirstStaticText =
+                            minimumPreflightQuickPathStaticTexts.element(
+                                boundBy: 0
+                            )
+                        let minimumPreflightQuickPathSecondStaticText =
+                            minimumPreflightQuickPathStaticTexts.element(
+                                boundBy: 1
+                            )
+                        let minimumPreflightQuickPathFrameIsValid:
+                            (CGRect) -> Bool = { frame in
+                                !frame.isNull
+                                    && !frame.isEmpty
+                                    && !frame.isInfinite
+                                    && frame.origin.x.isFinite
+                                    && frame.origin.y.isFinite
+                                    && frame.size.width.isFinite
+                                    && frame.size.height.isFinite
+                            }
+                        guard minimumPreflightQuickPathIntroductionCount == 1,
+                              minimumPreflightQuickPathButtons.count == 1,
+                              minimumPreflightQuickPathStaticTexts.count == 2,
+                              minimumPreflightQuickPathIntroductionView.exists,
+                              minimumPreflightQuickPathIntroductionView
+                                .elementType == .other,
+                              minimumPreflightQuickPathIntroductionView
+                                .identifier
+                                == "UIContinuousPathIntroductionView",
+                              minimumPreflightQuickPathButton.exists,
+                              minimumPreflightQuickPathButton.elementType
+                                == .button,
+                              minimumPreflightQuickPathButton.identifier.isEmpty,
+                              !minimumPreflightQuickPathButton.label
+                                .trimmingCharacters(
+                                    in: .whitespacesAndNewlines
+                                ).isEmpty,
+                              minimumPreflightQuickPathButton.isEnabled,
+                              minimumPreflightQuickPathButton.isHittable,
+                              minimumPreflightQuickPathFirstStaticText.exists,
+                              minimumPreflightQuickPathFirstStaticText
+                                .elementType == .staticText,
+                              minimumPreflightQuickPathFirstStaticText
+                                .identifier.isEmpty,
+                              !minimumPreflightQuickPathFirstStaticText.label
+                                .trimmingCharacters(
+                                    in: .whitespacesAndNewlines
+                                ).isEmpty,
+                              minimumPreflightQuickPathSecondStaticText.exists,
+                              minimumPreflightQuickPathSecondStaticText
+                                .elementType == .staticText,
+                              minimumPreflightQuickPathSecondStaticText
+                                .identifier.isEmpty,
+                              !minimumPreflightQuickPathSecondStaticText.label
+                                .trimmingCharacters(
+                                    in: .whitespacesAndNewlines
+                                ).isEmpty,
+                              minimumPreflightQuickPathFrameIsValid(
+                                  applicationFrame
+                              ),
+                              minimumPreflightQuickPathFrameIsValid(
+                                  observedKeyboardFrame
+                              ),
+                              minimumPreflightQuickPathFrameIsValid(
+                                  observedAssistantFrame
+                              ),
+                              minimumPreflightQuickPathFrameIsValid(
+                                  minimumPreflightQuickPathIntroductionView.frame
+                              ),
+                              minimumPreflightQuickPathFrameIsValid(
+                                  minimumPreflightQuickPathButton.frame
+                              ),
+                              minimumPreflightQuickPathFrameIsValid(
+                                  minimumPreflightQuickPathFirstStaticText.frame
+                              ),
+                              minimumPreflightQuickPathFrameIsValid(
+                                  minimumPreflightQuickPathSecondStaticText.frame
+                              ),
+                              applicationFrame.contains(
+                                  observedKeyboardFrame
+                              ),
+                              applicationFrame.contains(
+                                  observedAssistantFrame
+                              ),
+                              applicationFrame.contains(
+                                  minimumPreflightQuickPathIntroductionView.frame
+                              ),
+                              minimumPreflightQuickPathIntroductionView.frame
+                                .contains(minimumPreflightQuickPathButton.frame),
+                              minimumPreflightQuickPathIntroductionView.frame
+                                .contains(
+                                    minimumPreflightQuickPathFirstStaticText.frame
+                                ),
+                              minimumPreflightQuickPathIntroductionView.frame
+                                .contains(
+                                    minimumPreflightQuickPathSecondStaticText.frame
+                                ),
+                              minimumPreflightQuickPathIntroductionView.frame
+                                .intersects(observedKeyboardFrame),
+                              (minimumPreflightQuickPathFirstStaticText.label
+                                == minimumPreflightQuickPathButton.label
+                                && minimumPreflightQuickPathFirstStaticText.frame
+                                    .intersects(
+                                        minimumPreflightQuickPathButton.frame
+                                    ))
+                                != (minimumPreflightQuickPathSecondStaticText.label
+                                    == minimumPreflightQuickPathButton.label
+                                    && minimumPreflightQuickPathSecondStaticText
+                                        .frame.intersects(
+                                            minimumPreflightQuickPathButton.frame
+                                        )),
+                              (minimumPreflightQuickPathFirstStaticText.label
+                                == minimumPreflightQuickPathButton.label
+                                    ? minimumPreflightQuickPathSecondStaticText
+                                        .label
+                                    : minimumPreflightQuickPathFirstStaticText
+                                        .label)
+                                != minimumPreflightQuickPathButton.label,
+                              (minimumPreflightQuickPathFirstStaticText.label
+                                == minimumPreflightQuickPathButton.label
+                                    ? minimumPreflightQuickPathSecondStaticText
+                                        .frame
+                                    : minimumPreflightQuickPathFirstStaticText
+                                        .frame).maxY
+                                <= min(
+                                    (minimumPreflightQuickPathFirstStaticText.label
+                                        == minimumPreflightQuickPathButton.label
+                                            ? minimumPreflightQuickPathFirstStaticText
+                                                .frame
+                                            : minimumPreflightQuickPathSecondStaticText
+                                                .frame).minY,
+                                    minimumPreflightQuickPathButton.frame.minY
+                                ),
+                              !(minimumPreflightQuickPathFirstStaticText.label
+                                == minimumPreflightQuickPathButton.label
+                                    ? minimumPreflightQuickPathSecondStaticText
+                                        .frame
+                                    : minimumPreflightQuickPathFirstStaticText
+                                        .frame).intersects(
+                                    minimumPreflightQuickPathButton.frame
+                                ),
+                              !(minimumPreflightQuickPathFirstStaticText.label
+                                == minimumPreflightQuickPathButton.label
+                                    ? minimumPreflightQuickPathSecondStaticText
+                                        .frame
+                                    : minimumPreflightQuickPathFirstStaticText
+                                        .frame).intersects(
+                                    minimumPreflightQuickPathFirstStaticText.label
+                                        == minimumPreflightQuickPathButton.label
+                                            ? minimumPreflightQuickPathFirstStaticText
+                                                .frame
+                                            : minimumPreflightQuickPathSecondStaticText
+                                                .frame
+                                ),
+                              observedKeyboardFrame.contains(
+                                  CGPoint(
+                                      x: observedKeyboardFrame.midX,
+                                      y: observedKeyboardFrame.minY
+                                        + observedKeyboardFrame.height
+                                            * 0.8425925925925926
+                                  )
+                              ),
+                              minimumPreflightQuickPathIntroductionView.frame
+                                .contains(
+                                    CGPoint(
+                                        x: observedKeyboardFrame.midX,
+                                        y: observedKeyboardFrame.minY
+                                            + observedKeyboardFrame.height
+                                                * 0.8425925925925926
+                                    )
+                                ),
+                              minimumPreflightQuickPathButton.frame.contains(
+                                  CGPoint(
+                                      x: observedKeyboardFrame.midX,
+                                      y: observedKeyboardFrame.minY
+                                        + observedKeyboardFrame.height
+                                            * 0.8425925925925926
+                                  )
+                              ),
+                              !(minimumPreflightQuickPathFirstStaticText.label
+                                == minimumPreflightQuickPathButton.label
+                                    ? minimumPreflightQuickPathSecondStaticText
+                                        .frame
+                                    : minimumPreflightQuickPathFirstStaticText
+                                        .frame).contains(
+                                    CGPoint(
+                                        x: observedKeyboardFrame.midX,
+                                        y: observedKeyboardFrame.minY
+                                            + observedKeyboardFrame.height
+                                                * 0.8425925925925926
+                                    )
+                                ) else {
+                            XCTFail("The minimum-profile preflight QuickPath tutorial is incomplete or state changed before dismissal.")
+                            return
+                        }
+                        keyboard.coordinate(
+                            withNormalizedOffset: CGVector(
+                                dx: 0.5,
+                                dy: 0.8425925925925926
+                            )
+                        ).tap()
+                        guard minimumPreflightQuickPathIntroductionView
+                                .waitForNonExistence(timeout: 10),
+                              minimumPreflightQuickPathIntroductionViews.count
+                                == 0,
+                              minimumPreflightQuickPathButtons.count == 0,
+                              minimumPreflightQuickPathStaticTexts.count == 0
+                        else {
+                            XCTFail("The minimum-profile preflight QuickPath tutorial did not dismiss with state preserved.")
+                            return
+                        }
+                    }
                     let restoredKeyboard = app.keyboards.firstMatch
                     let restoredDoneKey = app.keyboards.buttons["Done"]
                     let expectedDoneFrame = CGRect(
