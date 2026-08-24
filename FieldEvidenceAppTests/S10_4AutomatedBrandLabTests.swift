@@ -3234,7 +3234,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for removedSignDetailDiagnosticForm in [
             "S10_4_SIGN_DETAIL_OPEN_ISSUE_CONTRAST_DIAGNOSTIC",
             "S10.4 sign-detail open-issue contrast diagnostic",
-            "let diagnosticQueries: [(String, XCUIElementQuery)]",
             "let diagnosticIssueObjects:",
             "let diagnosticAuditedElements:",
             "diagnosticAuditedElementObjects",
@@ -3280,7 +3279,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4 work-validation contrast diagnostic element",
             "S10.4 AX-text Record-work validation contrast diagnostic",
             "let shortDescriptionPredicate = NSPredicate(",
-            "let workScreens = app.descendants(matching: .any).matching(",
             "let descriptionFields = app.descendants(matching: .any).matching(",
             "let validationLabels = app.descendants(matching: .any).matching(",
             "let shortDescriptionStaticTexts = app.staticTexts.matching(",
@@ -16277,8 +16275,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "diagnoseMinimumOSCameraDeniedContrast",
             "S10_4_MINIMUM_CAMERA_DENIED_",
             "let shard = automationShard!",
-            "let diagnosticQueries: [(String, XCUIElementQuery)]",
-            "diagnosticElementObject",
             "diagnosticQueryObject",
             "diagnosticQueryObjects",
             "firstAuditedElementScreenshot",
@@ -16290,7 +16286,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4 minimum-OS camera-denied contrast diagnostic",
             "Capture-route element was absent during the minimum-OS camera-denied contrast diagnostic.",
             "No audited element screenshot was available during the minimum-OS camera-denied contrast diagnostic.",
-            "NSNull",
             "S10.4 minimum-OS camera-denied contrast diagnostic completed nonaccepting",
             removedDiagnosticGate,
         ]
