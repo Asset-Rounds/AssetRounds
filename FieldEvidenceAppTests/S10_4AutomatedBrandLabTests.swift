@@ -1327,8 +1327,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 427_050,
-            sha256: "DD6F696710C0E22750BC0934F7F68CDF11AA0BFF485D88D76134A7CFC87D4F64"
+            byteCount: 427_388,
+            sha256: "AE5280E82C8EBA1B0ACD423BB2C717CB1815833B039A5C52727160498480E1B9"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -8058,10 +8058,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(restoredCaptureBaselineSource.utf8).sha256,
             "371C419756DF1F86C30BD576938A5089F74616379C790C79089C23A052760CB6"
         )
-        XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 21_036)
+        XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 21_374)
         XCTAssertEqual(
             Data(issueRecheckDuePositioningHelperSource.utf8).sha256,
-            "4A67ADF9E5F58A5FE9706B8F750F81B832390C1F92F54021488E4609507164EA"
+            "9111C1D2146D11D0A4D35482881035FEB67C45D9C855D71FF2C51F94FA084F72"
         )
         let normalEligibleExceptionsBinding =
             "            let eligibleExceptions = " +
@@ -8226,8 +8226,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (".firstMatch", 9),
             ("        let hasExactIdentity: () -> Bool = {", 1),
             ("        let hasExactRoute: () -> Bool = {", 1),
-            ("hasExactIdentity()", 3),
-            ("hasExactRoute()", 2),
+            ("hasExactIdentity()", 4),
+            ("hasExactRoute()", 1),
         ] {
             XCTAssertEqual(
                 issueRecheckDuePositioningHelperSource.components(
@@ -8362,6 +8362,35 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let issueRecheckDuePreAttemptIdentityLock =
+            "        for _ in 0..<4 {\n" +
+                "            guard hasExactIdentity() else {\n" +
+                "                XCTFail(\"AX-text issue recheck-due positioning route changed.\")\n" +
+                "                return false\n" +
+                "            }\n" +
+                "            let applicationFrame = app.frame"
+        XCTAssertEqual(
+            issueRecheckDuePositioningHelperSource.components(
+                separatedBy: issueRecheckDuePreAttemptIdentityLock
+            ).count - 1,
+            1
+        )
+        let issueRecheckDueLiveCompositionLock =
+            "            guard liveFramesAreValid,\n" +
+                "                  isValidFrame(liveScrollFrame),\n" +
+                "                  screenFrame == scrollFrame,\n" +
+                "                  recordFrame.contains(dateFrame),\n" +
+                "                  recordFrame.contains(descriptionFrame),\n" +
+                "                  recordFrame.contains(photoFrame),\n" +
+                "                  descriptionFrame.contains(valueFrame),\n" +
+                "                  dateFrame.maxY < descriptionFrame.minY,\n" +
+                "                  descriptionFrame.maxY < photoFrame.minY else {"
+        XCTAssertEqual(
+            issueRecheckDuePositioningHelperSource.components(
+                separatedBy: issueRecheckDueLiveCompositionLock
+            ).count - 1,
+            1
+        )
         let issueRecheckDueFrameLocks: [(String, Int)] = [
             ("            let applicationFrame = app.frame", 1),
             ("            let screenFrame = issueScreen.frame", 2),
@@ -8383,7 +8412,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             ("            guard liveFramesAreValid,", 1),
             ("                  isValidFrame(liveScrollFrame),", 1),
-            ("                  screenFrame == scrollFrame else {", 1),
         ]
         for (frameLock, expectedCount) in issueRecheckDueFrameLocks {
             XCTAssertEqual(

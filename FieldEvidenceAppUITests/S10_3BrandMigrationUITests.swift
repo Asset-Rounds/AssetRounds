@@ -7180,7 +7180,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         var previousValueMinYAfterDrag: CGFloat?
         var previousPhotoMinYAfterDrag: CGFloat?
         for _ in 0..<4 {
-            guard hasExactRoute() else {
+            guard hasExactIdentity() else {
                 XCTFail("AX-text issue recheck-due positioning route changed.")
                 return false
             }
@@ -7210,7 +7210,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
             guard liveFramesAreValid,
                   isValidFrame(liveScrollFrame),
-                  screenFrame == scrollFrame else {
+                  screenFrame == scrollFrame,
+                  recordFrame.contains(dateFrame),
+                  recordFrame.contains(descriptionFrame),
+                  recordFrame.contains(photoFrame),
+                  descriptionFrame.contains(valueFrame),
+                  dateFrame.maxY < descriptionFrame.minY,
+                  descriptionFrame.maxY < photoFrame.minY else {
                 XCTFail("AX-text issue recheck-due positioning geometry is invalid.")
                 return false
             }
