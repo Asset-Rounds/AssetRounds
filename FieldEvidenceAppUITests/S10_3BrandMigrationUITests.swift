@@ -7085,15 +7085,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && frame.size.width.isFinite
                 && frame.size.height.isFinite
         }
-        let hasExactRoute: () -> Bool = {
-            let screenFrame = issueScreen.frame
-            let scrollFrame = issueScrollView.frame
-            let recordFrame = workRecord.frame
-            let dateFrame = workDate.frame
-            let descriptionFrame = workDescription.frame
-            let valueFrame = descriptionValueText.frame
-            let photoFrame = workPhoto.frame
-            return app.state == .runningForeground
+        let hasExactIdentity: () -> Bool = {
+            app.state == .runningForeground
                 && issueScreens.count == 1
                 && issueScrollViews.count == 1
                 && issueNavigationBars.count == 1
@@ -7146,6 +7139,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && workPhoto.label
                     == "Add one optional photo showing the work performed."
                 && (workPhoto.value as? String) == ""
+        }
+        let hasExactRoute: () -> Bool = {
+            let screenFrame = issueScreen.frame
+            let scrollFrame = issueScrollView.frame
+            let recordFrame = workRecord.frame
+            let dateFrame = workDate.frame
+            let descriptionFrame = workDescription.frame
+            let valueFrame = descriptionValueText.frame
+            let photoFrame = workPhoto.frame
+            return hasExactIdentity()
                 && isValidFrame(app.frame)
                 && isValidFrame(screenFrame)
                 && isValidFrame(scrollFrame)
@@ -7370,7 +7373,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 withVelocity: .slow,
                 thenHoldForDuration: 0.2
             )
-            guard hasExactRoute() else {
+            guard hasExactIdentity() else {
                 XCTFail("AX-text issue recheck-due route changed after positioning.")
                 return false
             }
@@ -7423,7 +7426,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             previousPhotoMinYAfterDrag = photoAfterDrag.minY
         }
 
-        guard hasExactRoute() else {
+        guard hasExactIdentity() else {
             XCTFail("AX-text issue recheck-due final route is invalid.")
             return false
         }

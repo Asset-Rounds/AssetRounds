@@ -1327,8 +1327,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 426_958,
-            sha256: "019C809C9BE40BC5E6432B7991B604A7E13EFF642898BA08F2C2E3661756792C"
+            byteCount: 427_050,
+            sha256: "DD6F696710C0E22750BC0934F7F68CDF11AA0BFF485D88D76134A7CFC87D4F64"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -8058,10 +8058,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(restoredCaptureBaselineSource.utf8).sha256,
             "371C419756DF1F86C30BD576938A5089F74616379C790C79089C23A052760CB6"
         )
-        XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 20_944)
+        XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 21_036)
         XCTAssertEqual(
             Data(issueRecheckDuePositioningHelperSource.utf8).sha256,
-            "1823222BFD8E6717778A235BF85C81D568C6FA6C4534939FAAAA77409678E698"
+            "4A67ADF9E5F58A5FE9706B8F750F81B832390C1F92F54021488E4609507164EA"
         )
         let normalEligibleExceptionsBinding =
             "            let eligibleExceptions = " +
@@ -8224,8 +8224,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         for (bindingCountLock, expectedCount) in [
             (".firstMatch", 9),
+            ("        let hasExactIdentity: () -> Bool = {", 1),
             ("        let hasExactRoute: () -> Bool = {", 1),
-            ("hasExactRoute()", 4),
+            ("hasExactIdentity()", 3),
+            ("hasExactRoute()", 2),
         ] {
             XCTAssertEqual(
                 issueRecheckDuePositioningHelperSource.components(
@@ -8267,13 +8269,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                && workPhoto.elementType == .image",
             #"                && workPhoto.identifier == "s5.1.issue.work-photo""#,
             #"                    == "Add one optional photo showing the work performed.""#,
-            "                && screenFrame == scrollFrame",
-            "                && recordFrame.contains(dateFrame)",
-            "                && recordFrame.contains(descriptionFrame)",
-            "                && recordFrame.contains(photoFrame)",
-            "                && descriptionFrame.contains(valueFrame)",
-            "                && dateFrame.maxY < descriptionFrame.minY",
-            "                && descriptionFrame.maxY < photoFrame.minY",
         ]
         for identityLock in issueRecheckDueIdentityLocks {
             XCTAssertEqual(
@@ -8282,6 +8277,72 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 ).count - 1,
                 1,
                 identityLock
+            )
+        }
+        let issueRecheckDueIdentityClosureStart =
+            "        let hasExactIdentity: () -> Bool = {"
+        let issueRecheckDueRouteClosureStart =
+            "        let hasExactRoute: () -> Bool = {"
+        guard let issueRecheckDueIdentityClosureStartRange =
+                issueRecheckDuePositioningHelperSource.range(
+                    of: issueRecheckDueIdentityClosureStart
+                ),
+              let issueRecheckDueRouteClosureStartRange =
+                issueRecheckDuePositioningHelperSource.range(
+                    of: issueRecheckDueRouteClosureStart,
+                    range: issueRecheckDueIdentityClosureStartRange.upperBound ..<
+                        issueRecheckDuePositioningHelperSource.endIndex
+                ),
+              let issueRecheckDueInitialRouteGuardRange =
+                issueRecheckDuePositioningHelperSource.range(
+                    of: "        guard hasExactRoute() else {",
+                    range: issueRecheckDueRouteClosureStartRange.upperBound ..<
+                        issueRecheckDuePositioningHelperSource.endIndex
+                ) else {
+            XCTFail("Missing split issue recheck-due identity and route closures")
+            return
+        }
+        let issueRecheckDueIdentityClosureSource = String(
+            issueRecheckDuePositioningHelperSource[
+                issueRecheckDueIdentityClosureStartRange.lowerBound ..<
+                    issueRecheckDueRouteClosureStartRange.lowerBound
+            ]
+        )
+        let issueRecheckDueRouteClosureSource = String(
+            issueRecheckDuePositioningHelperSource[
+                issueRecheckDueRouteClosureStartRange.lowerBound ..<
+                    issueRecheckDueInitialRouteGuardRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(
+            issueRecheckDueIdentityClosureSource.components(
+                separatedBy: ".frame"
+            ).count - 1,
+            0
+        )
+        XCTAssertEqual(
+            issueRecheckDueIdentityClosureSource.components(
+                separatedBy: ".contains("
+            ).count - 1,
+            0
+        )
+        for routeCompositionLock in [
+            "            return hasExactIdentity()\n" +
+                "                && isValidFrame(app.frame)",
+            "                && screenFrame == scrollFrame",
+            "                && recordFrame.contains(dateFrame)",
+            "                && recordFrame.contains(descriptionFrame)",
+            "                && recordFrame.contains(photoFrame)",
+            "                && descriptionFrame.contains(valueFrame)",
+            "                && dateFrame.maxY < descriptionFrame.minY",
+            "                && descriptionFrame.maxY < photoFrame.minY",
+        ] {
+            XCTAssertEqual(
+                issueRecheckDueRouteClosureSource.components(
+                    separatedBy: routeCompositionLock
+                ).count - 1,
+                1,
+                routeCompositionLock
             )
         }
 
@@ -8533,8 +8594,25 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 progressLock
             )
         }
+        let issueRecheckDuePostGestureIdentityLock =
+            "            guard hasExactIdentity() else {\n" +
+                "                XCTFail(\"AX-text issue recheck-due route changed after positioning.\")\n" +
+                "                return false\n" +
+                "            }\n" +
+                "            let dateAfterDrag = workDate.frame"
+        XCTAssertEqual(
+            issueRecheckDuePositioningHelperSource.components(
+                separatedBy: issueRecheckDuePostGestureIdentityLock
+            ).count - 1,
+            1
+        )
 
         let issueRecheckDueFinalLocks = [
+            "        guard hasExactIdentity() else {\n" +
+                "            XCTFail(\"AX-text issue recheck-due final route is invalid.\")\n" +
+                "            return false\n" +
+                "        }\n" +
+                "        let finalApplicationFrame = app.frame",
             "        let finalApplicationFrame = app.frame",
             "        let finalScreenFrame = issueScreen.frame",
             "        let finalScrollFrame = issueScrollView.frame",
