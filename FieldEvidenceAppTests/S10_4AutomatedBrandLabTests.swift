@@ -7615,15 +7615,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(uiSource.contains("key.exists && key.isHittable ?"))
 
         let workEditingPositioningStart =
-            #"        let workHelperLabel = "Add one optional photo showing the work performed.""#
+            "        let preparesWorkEditingEvidence = shouldPrepareNormalEvidence("
         let workEditingPositioningEnd =
-            #"        captureBaseline("state.work.editing", in: app)"#
+            "        scroll(saveWork, in: app)"
         XCTAssertEqual(
             uiSource.components(separatedBy: workEditingPositioningStart).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            uiSource.components(separatedBy: workEditingPositioningEnd).count - 1,
             1
         )
         guard let workEditingPositioningStartRange = uiSource.range(
@@ -7637,8 +7633,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let workEditingPositioningSource = String(
             uiSource[
-                workEditingPositioningStartRange.lowerBound..<workEditingPositioningEndRange.upperBound
+                workEditingPositioningStartRange.lowerBound..<workEditingPositioningEndRange.lowerBound
             ]
+        )
+        XCTAssertEqual(workEditingPositioningSource.utf8.count, 17_951)
+        XCTAssertEqual(
+            Data(workEditingPositioningSource.utf8).sha256,
+            "A78F2B7A384412F7DEB46100F8EC161DF4C27FAC573FE8523C9AB8D0FEF371EF"
+        )
+        let workEditingRouteBeforeEvidence =
+            #"        let workPreview = element("s5.1.work.photo", in: app)"# + "\n" +
+                "        scroll(workPreview, in: app)\n" +
+                "        XCTAssertTrue(workPreview.isHittable)\n" +
+                workEditingPositioningStart
+        XCTAssertEqual(
+            uiSource.components(separatedBy: workEditingRouteBeforeEvidence).count - 1,
+            1
         )
         for workEditingDiagnosticResidue in [
             "workEditingDiagnostic",
@@ -7665,15 +7675,34 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
 
         let workEditingAXTextGate =
-            "        var workEditingAXTextEnabled =\n" +
-                #"            automationShard?.shardID == "s10.4.current.ax-text""# + "\n" +
-                "                && shouldPrepareNormalEvidence(\n" +
-                #"                    for: "state.work.editing","# + "\n" +
-                "                    in: app\n" +
-                "                )"
+            "        let preparesWorkEditingEvidence = shouldPrepareNormalEvidence(\n" +
+                #"            for: "state.work.editing","# + "\n" +
+                "            in: app\n" +
+                "        )\n" +
+                "        let workHelperLabel = \"Add one optional photo showing the work performed.\""
         XCTAssertEqual(
             workEditingPositioningSource.components(
                 separatedBy: workEditingAXTextGate
+            ).count - 1,
+            1
+        )
+        let workEditingEvidenceBoundary =
+            "        var workEditingAXTextFallbackAccepted = false\n" +
+                "        if preparesWorkEditingEvidence {\n" +
+                "        guard workHelperTexts.count == 1,"
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingEvidenceBoundary
+            ).count - 1,
+            1
+        )
+        let workEditingAXTextSelection =
+            "        var workEditingAXTextEnabled =\n" +
+                #"            automationShard?.shardID == "s10.4.current.ax-text""# + "\n" +
+                "                && preparesWorkEditingEvidence"
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingAXTextSelection
             ).count - 1,
             1
         )
@@ -8088,7 +8117,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         let workEditingAXTextFallback =
-            "        let workEditingAXTextFallbackAccepted =\n" +
+            "        workEditingAXTextFallbackAccepted =\n" +
                 "            workEditingAXTextEnabled\n" +
                 "                && !finalExactPreviewIsHittable\n" +
                 "                && !finalWorkPreviewIsHittable\n" +
@@ -8150,6 +8179,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "              workPreviewHittabilityAccepted else {\n" +
                 #"            XCTFail("Record-work editing composition is outside the safe viewport.")"# + "\n" +
                 "            return\n" +
+                "        }\n" +
                 "        }\n" +
                 #"        captureBaseline("state.work.editing", in: app)"#
         XCTAssertEqual(
@@ -8222,8 +8252,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
 
         let workEditingCaptureThenSave =
-            workEditingPositioningEnd + "\n\n" +
-                "        scroll(saveWork, in: app)"
+            #"        captureBaseline("state.work.editing", in: app)"# + "\n\n" +
+                workEditingPositioningEnd
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: workEditingCaptureThenSave
@@ -8252,10 +8282,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
 
         let workSavingPositioningStart =
-            "        XCTAssertTrue(progress.waitForExistence(timeout: 10))\n" +
-                #"        assertLocalizedLabel(progress, equals: "Record work")"#
+            "        let preparesWorkSavingEvidence = shouldPrepareNormalEvidence("
         let workSavingPositioningEnd =
-            #"        captureBaseline("state.work.saving", in: app)"#
+            #"        let issueScreen = element("s5.1.issue.screen", in: app)"#
         XCTAssertEqual(
             uiSource.components(separatedBy: workSavingPositioningStart).count - 1,
             1
@@ -8275,8 +8304,41 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let workSavingPositioningSource = String(
             uiSource[
-                workSavingPositioningStartRange.lowerBound..<workSavingPositioningEndRange.upperBound
+                workSavingPositioningStartRange.lowerBound..<workSavingPositioningEndRange.lowerBound
             ]
+        )
+        XCTAssertEqual(workSavingPositioningSource.utf8.count, 24_922)
+        XCTAssertEqual(
+            Data(workSavingPositioningSource.utf8).sha256,
+            "8D720337F71F69119CAD4C66326550D0D4FA426234D7763D81AFE5FB585A1936"
+        )
+        let workSavingRouteBeforeEvidence =
+            "        scroll(saveWork, in: app)\n" +
+                #"        assertControl(saveWork, label: "Record work")"# + "\n" +
+                "        saveWork.tap()\n" +
+                #"        let progress = element("s5.1.work.saving", in: app)"# + "\n" +
+                "        XCTAssertTrue(progress.waitForExistence(timeout: 10))\n" +
+                #"        assertLocalizedLabel(progress, equals: "Record work")"# + "\n" +
+                workSavingPositioningStart
+        XCTAssertEqual(
+            uiSource.components(separatedBy: workSavingRouteBeforeEvidence).count - 1,
+            1
+        )
+        let workSavingEvidenceBoundary =
+            "        let preparesWorkSavingEvidence = shouldPrepareNormalEvidence(\n" +
+                #"            for: "state.work.saving","# + "\n" +
+                "            in: app\n" +
+                "        )\n" +
+                "        workEditingAXTextEnabled =\n" +
+                #"            automationShard?.shardID == "s10.4.current.ax-text""# + "\n" +
+                "                && preparesWorkSavingEvidence\n" +
+                "        if preparesWorkSavingEvidence {\n" +
+                "        let workNoteHeadings = app.staticTexts.matching("
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingEvidenceBoundary
+            ).count - 1,
+            1
         )
         let workSavingPrimaryNavigationWait =
             #"        let issueScreen = element("s5.1.issue.screen", in: app)"# + "\n" +
@@ -8478,6 +8540,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let workSavingFinalFailureAndCapture =
+            "              (workSavingOrdinaryCompositionAccepted\n" +
+                "                || workSavingAXTextAlternateCompositionAccepted) else {\n" +
+                #"            XCTFail("Record-work saving composition is outside the safe viewport.")"# + "\n" +
+                "            return\n" +
+                "        }\n" +
+                "        }\n" +
+                #"        captureBaseline("state.work.saving", in: app)"#
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingFinalFailureAndCapture
+            ).count - 1,
+            1
+        )
         for finalAXTextLock in [
             "&& provenSavingGestureCount >= 1",
             "&& provenSavingGestureCount <= 4",
@@ -8541,7 +8617,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("dragStart.press(", 1),
             ("press(", 1),
             ("coordinate(", 1),
-            ("waitForExistence", 1),
+            ("waitForExistence", 0),
             ("captureBaseline(", 1),
             ("performAccessibilityAudit(", 0),
             ("ContrastAuditExceptionSignature", 0),
@@ -18994,10 +19070,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "           shouldPrepareNormalEvidence(\n               for: \"state.capture.wide-ready\",",
              "            let captureScrollViews", 190,
              "03F7CD28CDC055AEC10026669C77B122F2DA80C98A0F30D9677228FA4C5488CD"),
-            ("        var workEditingAXTextEnabled =", "        let workPreviewImages", 244,
-             "63FB4241C7C1F8EA5B403F3F3B10C2B552A9BBF186DF73091BBB4F73E6BCD59C"),
-            ("        workEditingAXTextEnabled =", "        let workNoteHeadings", 239,
-             "6F27872C3C452E9121A230B689CCA82C4E23D850EE6710DA1B5ABD5F84C178E3"),
             ("        let preparesPaywallAvailableEvidence =", "        let productName", 196,
              "82366CC1C409D6E177EC11709EE7C6E1E22352EC4D0EA166E3194FC695B19CF2"),
             ("                if shouldPrepareNormalEvidence(\n" +

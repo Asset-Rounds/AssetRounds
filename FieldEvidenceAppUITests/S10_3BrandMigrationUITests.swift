@@ -4496,6 +4496,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let workPreview = element("s5.1.work.photo", in: app)
         scroll(workPreview, in: app)
         XCTAssertTrue(workPreview.isHittable)
+        let preparesWorkEditingEvidence = shouldPrepareNormalEvidence(
+            for: "state.work.editing",
+            in: app
+        )
         let workHelperLabel = "Add one optional photo showing the work performed."
         let workHelperTexts = app.staticTexts.matching(
             NSPredicate(format: "label == %@", workHelperLabel)
@@ -4507,30 +4511,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let workNavigationBars = app.navigationBars.matching(
             identifier: "Record work"
         )
-        guard workHelperTexts.count == 1,
-              workScrollViews.count == 1,
-              workNavigationBars.count == 1 else {
-            XCTFail("Record-work editing positioning bindings are ambiguous.")
-            return
-        }
         let workHelper = workHelperTexts.firstMatch
         let workScrollView = workScrollViews.firstMatch
         let workNavigationBar = workNavigationBars.firstMatch
-        guard workHelper.exists,
-              workScrollView.exists,
-              workNavigationBar.exists else {
-            XCTFail("Record-work editing positioning bindings are missing.")
-            return
-        }
         let verticalInset: CGFloat = 16
         let receiverInset: CGFloat = 24
         let minimumGestureDistance: CGFloat = 44
         var workEditingAXTextEnabled =
             automationShard?.shardID == "s10.4.current.ax-text"
-                && shouldPrepareNormalEvidence(
-                    for: "state.work.editing",
-                    in: app
-                )
+                && preparesWorkEditingEvidence
         let workPreviewImages = app.images.matching(
             NSPredicate(format: "identifier == %@", "s5.1.work.photo")
         )
@@ -4585,6 +4574,20 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && workEditingFrameIsValid(workEditingTabBar.frame)
         }
         var initialHelperToPreviewSeparation: CGFloat?
+        var workEditingAXTextFallbackAccepted = false
+        if preparesWorkEditingEvidence {
+        guard workHelperTexts.count == 1,
+              workScrollViews.count == 1,
+              workNavigationBars.count == 1 else {
+            XCTFail("Record-work editing positioning bindings are ambiguous.")
+            return
+        }
+        guard workHelper.exists,
+              workScrollView.exists,
+              workNavigationBar.exists else {
+            XCTFail("Record-work editing positioning bindings are missing.")
+            return
+        }
         var workEditingInitialSeparation = false
         var workEditingInitialProof = !workEditingAXTextEnabled
         if workEditingAXTextEnabled {
@@ -4828,7 +4831,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     && workEditingComposition())
         let finalExactPreviewIsHittable = workPreviewImage.isHittable
         let finalWorkPreviewIsHittable = workPreview.isHittable
-        let workEditingAXTextFallbackAccepted =
+        workEditingAXTextFallbackAccepted =
             workEditingAXTextEnabled
                 && !finalExactPreviewIsHittable
                 && !finalWorkPreviewIsHittable
@@ -4876,6 +4879,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             XCTFail("Record-work editing composition is outside the safe viewport.")
             return
         }
+        }
         captureBaseline("state.work.editing", in: app)
 
         scroll(saveWork, in: app)
@@ -4884,12 +4888,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let progress = element("s5.1.work.saving", in: app)
         XCTAssertTrue(progress.waitForExistence(timeout: 10))
         assertLocalizedLabel(progress, equals: "Record work")
+        let preparesWorkSavingEvidence = shouldPrepareNormalEvidence(
+            for: "state.work.saving",
+            in: app
+        )
         workEditingAXTextEnabled =
             automationShard?.shardID == "s10.4.current.ax-text"
-                && shouldPrepareNormalEvidence(
-                    for: "state.work.saving",
-                    in: app
-                )
+                && preparesWorkSavingEvidence
+        if preparesWorkSavingEvidence {
         let workNoteHeadings = app.staticTexts.matching(
             NSPredicate(format: "label == %@", "Note")
         )
@@ -5389,6 +5395,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 || workSavingAXTextAlternateCompositionAccepted) else {
             XCTFail("Record-work saving composition is outside the safe viewport.")
             return
+        }
         }
         captureBaseline("state.work.saving", in: app)
 
