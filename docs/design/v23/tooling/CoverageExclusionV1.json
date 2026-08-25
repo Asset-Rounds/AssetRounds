@@ -1,0 +1,149 @@
+{
+  "schema": "CoverageExclusionV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C13",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "d3517e6633b4e51eaff9b9ffe791b2398365c49a",
+    "baseTree": "93db49fcda5a1e706417158a1f437f3b89c886e3",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "b7c08055f362ea55660de381083a8f21eb5011299d1512653dd95b88d3f0a762",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "950671d70a0b3a87170f125258daf7dad76194990f60227358d6c46668cbde7f",
+    "bootstrapPathFenceDigest": "da9de4fd75416c8a3b8a2bb5224894794ac4bf2e3e80b9b1011ea9585c7d559d",
+    "provisionalPrerequisiteDigest": "035e7b80772e813cb04ade498ea0182c860fc1a7e5a32a4c41025cd47ce0ce23",
+    "deterministicEvidenceIDs": [
+      "V23-P00-C13-G01",
+      "V23-P00-C13-A01",
+      "V23-P00-C13-H01",
+      "V23-P00-C13-I01",
+      "V23-P00-C13-R01"
+    ],
+    "policyRefs": [
+      "V23-POL-ARCH-001",
+      "V23-POL-IPHONE-001",
+      "V23-POL-TEST-001"
+    ],
+    "contractRefs": [
+      "CodeCoverageReceiptV1",
+      "CoverageTierReleaseV1",
+      "CoverageExclusionV1",
+      "CoverageComparisonBaseV1",
+      "DirectPrerequisiteEvidenceSetV1",
+      "CardAcceptanceInclusionProofV1",
+      "CardAcceptanceInclusionProofRecoveryReceiptV1",
+      "CandidateAcceptanceCompatibilityReceiptV1"
+    ],
+    "journeyRefs": "NONE",
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "invalidationConsumers": [
+      "V23-P04-C29"
+    ],
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "impactFacetDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "planningProjectionDigest": "676b8eb03523474ba844ecbcaac5d63a10505b00769debb8dbec2c9aba70c33d",
+    "impactRow": {
+      "id": "V23-P00-C13",
+      "aggregateAcceptanceMemberships": [
+        "AutonomousRequiredAcceptedSetV1"
+      ],
+      "invalidationConsumers": [
+        "V23-P04-C29"
+      ],
+      "optionalCapabilityProviders": [],
+      "conformanceSubjects": []
+    },
+    "impactRowDigest": "7699e730ad507c8109e5f371186887459f0b3807ce871cb333e31b4dddaeeba9",
+    "sourceDisposition": "PINNED_DOSSIER_STATIC_PROVISIONAL",
+    "fixtureDisposition": "UNRESOLVED_UNTIL_ACCEPTING_XCRESULT",
+    "currentnessDisposition": "UNRESOLVED_ACCEPTANCE_DISABLED",
+    "directPrerequisite": {
+      "cardID": "V23-P00-C12",
+      "implementationHead": "7b72263ea2c64a8f9bace8e87872d1a293400969",
+      "implementationTree": "d3fbaa46c1a35c5a52909731dfbfa30fed3b1086",
+      "contextDigest": "e549afb029c183733eab5514345ad49cfda954fa9dc2842574faa9511fa69d81",
+      "fenceDigest": "c23d8f566b104f8ebc4cf2192d5c06e447621f72871fb43811e59972a53d9b6d",
+      "verificationDigest": "c6c3c607b1a667a1cbb227fac4128c67f5f66da4af1a3feb0cd243af991e4a96",
+      "checkpointDigest": "a7d0c64d08442db60ed5dad4a19398601b58ea7e8c2ebd4797402cd8f0737764",
+      "swiftLanguageModeClosureReceiptDigest": "d229005282b59b5002137b09d9415555190405eec7a51e066bc6744007f11229",
+      "swiftLanguageModeClosureReceiptFileSHA256": "b367c8c87bbe897d1f8f03a730bb13ece46fd2950df3899bb56c52d5e4fef344",
+      "toolingManifestDigest": "01e5960fafb04523557257e6286257cd7103c7481039ed3006345b9c18fc6c15",
+      "toolingManifestFileSHA256": "6258b2ed0bf3c543ca2f1092003af2abb5668e6149e447c09a0c35b586af40e8",
+      "nativeCompileRan": false,
+      "nativeTestsRan": false,
+      "languageModeClosureSatisfied": false,
+      "acceptanceCredit": false,
+      "releaseCredit": false,
+      "directPrerequisiteEvidenceSetReceiptDigest": "035e7b80772e813cb04ade498ea0182c860fc1a7e5a32a4c41025cd47ce0ce23",
+      "officialAcceptanceEvidence": {
+        "CardAcceptanceInclusionProofV1Digest": null,
+        "CardAcceptanceInclusionProofRecoveryReceiptV1Digest": null,
+        "CandidateAcceptanceCompatibilityReceiptV1Digest": null,
+        "acceptanceCurrentness": "UNRESOLVED_ACCEPTANCE_DISABLED",
+        "compatibility": "UNRESOLVED_ACCEPTANCE_DISABLED",
+        "zeroOrphanAcceptanceProofComplete": false
+      }
+    },
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "bd811b3103350985c989312e57a618886067f2c752cb61406da7a84317c09351",
+    "ledgerCASSequence": 47,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "lifecycle": {
+    "persistence": "IMMUTABLE_BUILD_BOUND_TOOLING_OR_EVIDENCE_ARTIFACT",
+    "supersession": "APPEND_SUCCESSOR_NEVER_REWRITE_ACCEPTED_ARTIFACT",
+    "successorTriggers": [
+      "SOURCE_CHANGE",
+      "COMPARISON_BASE_CHANGE",
+      "TOOLCHAIN_CHANGE",
+      "FIXTURE_CHANGE",
+      "EVIDENCE_CHANGE"
+    ],
+    "customerData": "NONE",
+    "interruption": "FAIL_CLOSED_NO_PARTIAL_ACCEPTANCE",
+    "recovery": "BYTE_EXACT_REGENERATION_OR_NEW_SUCCESSOR_RECEIPT"
+  },
+  "allowedKinds": [
+    "GENERATED_CODE",
+    "PREVIEW",
+    "PLATFORM_GLUE"
+  ],
+  "exclusions": [],
+  "reviewerReceipts": [],
+  "requiredFields": [
+    "EXACT_PATH_OR_BOUNDED_GLOB",
+    "GENERATOR_OR_PLATFORM_REASON",
+    "REVIEWER_RECEIPT_DIGEST"
+  ],
+  "protectedPathTokens": [
+    "domain",
+    "writer",
+    "migration",
+    "import",
+    "restore",
+    "erase"
+  ],
+  "broadAbsoluteBackslashOrTraversalPatternAllowed": false,
+  "unknownExclusionDisposition": "FAIL_CLOSED",
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "artifactDigest": "f3274e10232b789c2e34115126faaaf8e5029febcdbf7a7fd5b03cc0a6bdd114"
+}

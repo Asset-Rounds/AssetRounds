@@ -1,0 +1,193 @@
+{
+  "schema": "V23P00C13ToolingManifestV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C13",
+  "baseHead": "d3517e6633b4e51eaff9b9ffe791b2398365c49a",
+  "baseTree": "93db49fcda5a1e706417158a1f437f3b89c886e3",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "d3517e6633b4e51eaff9b9ffe791b2398365c49a",
+    "baseTree": "93db49fcda5a1e706417158a1f437f3b89c886e3",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "b7c08055f362ea55660de381083a8f21eb5011299d1512653dd95b88d3f0a762",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "950671d70a0b3a87170f125258daf7dad76194990f60227358d6c46668cbde7f",
+    "bootstrapPathFenceDigest": "da9de4fd75416c8a3b8a2bb5224894794ac4bf2e3e80b9b1011ea9585c7d559d",
+    "provisionalPrerequisiteDigest": "035e7b80772e813cb04ade498ea0182c860fc1a7e5a32a4c41025cd47ce0ce23",
+    "deterministicEvidenceIDs": [
+      "V23-P00-C13-G01",
+      "V23-P00-C13-A01",
+      "V23-P00-C13-H01",
+      "V23-P00-C13-I01",
+      "V23-P00-C13-R01"
+    ],
+    "policyRefs": [
+      "V23-POL-ARCH-001",
+      "V23-POL-IPHONE-001",
+      "V23-POL-TEST-001"
+    ],
+    "contractRefs": [
+      "CodeCoverageReceiptV1",
+      "CoverageTierReleaseV1",
+      "CoverageExclusionV1",
+      "CoverageComparisonBaseV1",
+      "DirectPrerequisiteEvidenceSetV1",
+      "CardAcceptanceInclusionProofV1",
+      "CardAcceptanceInclusionProofRecoveryReceiptV1",
+      "CandidateAcceptanceCompatibilityReceiptV1"
+    ],
+    "journeyRefs": "NONE",
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "invalidationConsumers": [
+      "V23-P04-C29"
+    ],
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "impactFacetDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "planningProjectionDigest": "676b8eb03523474ba844ecbcaac5d63a10505b00769debb8dbec2c9aba70c33d",
+    "impactRow": {
+      "id": "V23-P00-C13",
+      "aggregateAcceptanceMemberships": [
+        "AutonomousRequiredAcceptedSetV1"
+      ],
+      "invalidationConsumers": [
+        "V23-P04-C29"
+      ],
+      "optionalCapabilityProviders": [],
+      "conformanceSubjects": []
+    },
+    "impactRowDigest": "7699e730ad507c8109e5f371186887459f0b3807ce871cb333e31b4dddaeeba9",
+    "sourceDisposition": "PINNED_DOSSIER_STATIC_PROVISIONAL",
+    "fixtureDisposition": "UNRESOLVED_UNTIL_ACCEPTING_XCRESULT",
+    "currentnessDisposition": "UNRESOLVED_ACCEPTANCE_DISABLED",
+    "directPrerequisite": {
+      "cardID": "V23-P00-C12",
+      "implementationHead": "7b72263ea2c64a8f9bace8e87872d1a293400969",
+      "implementationTree": "d3fbaa46c1a35c5a52909731dfbfa30fed3b1086",
+      "contextDigest": "e549afb029c183733eab5514345ad49cfda954fa9dc2842574faa9511fa69d81",
+      "fenceDigest": "c23d8f566b104f8ebc4cf2192d5c06e447621f72871fb43811e59972a53d9b6d",
+      "verificationDigest": "c6c3c607b1a667a1cbb227fac4128c67f5f66da4af1a3feb0cd243af991e4a96",
+      "checkpointDigest": "a7d0c64d08442db60ed5dad4a19398601b58ea7e8c2ebd4797402cd8f0737764",
+      "swiftLanguageModeClosureReceiptDigest": "d229005282b59b5002137b09d9415555190405eec7a51e066bc6744007f11229",
+      "swiftLanguageModeClosureReceiptFileSHA256": "b367c8c87bbe897d1f8f03a730bb13ece46fd2950df3899bb56c52d5e4fef344",
+      "toolingManifestDigest": "01e5960fafb04523557257e6286257cd7103c7481039ed3006345b9c18fc6c15",
+      "toolingManifestFileSHA256": "6258b2ed0bf3c543ca2f1092003af2abb5668e6149e447c09a0c35b586af40e8",
+      "nativeCompileRan": false,
+      "nativeTestsRan": false,
+      "languageModeClosureSatisfied": false,
+      "acceptanceCredit": false,
+      "releaseCredit": false,
+      "directPrerequisiteEvidenceSetReceiptDigest": "035e7b80772e813cb04ade498ea0182c860fc1a7e5a32a4c41025cd47ce0ce23",
+      "officialAcceptanceEvidence": {
+        "CardAcceptanceInclusionProofV1Digest": null,
+        "CardAcceptanceInclusionProofRecoveryReceiptV1Digest": null,
+        "CandidateAcceptanceCompatibilityReceiptV1Digest": null,
+        "acceptanceCurrentness": "UNRESOLVED_ACCEPTANCE_DISABLED",
+        "compatibility": "UNRESOLVED_ACCEPTANCE_DISABLED",
+        "zeroOrphanAcceptanceProofComplete": false
+      }
+    },
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "bd811b3103350985c989312e57a618886067f2c752cb61406da7a84317c09351",
+    "ledgerCASSequence": 47,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "pathFence": [
+    "Scripts/v23/c13_contracts.py",
+    "Scripts/v23/generate_c13_contracts.py",
+    "Scripts/v23/verify_c13_contracts.py",
+    "Scripts/v23/code-coverage-receipt.schema.json",
+    "Scripts/v23/coverage-tier-release.schema.json",
+    "Scripts/v23/coverage-exclusion.schema.json",
+    "Scripts/v23/coverage-comparison-base.schema.json",
+    "docs/design/v23/tooling/CodeCoverageReceiptV1.json",
+    "docs/design/v23/tooling/CoverageTierReleaseV1.json",
+    "docs/design/v23/tooling/CoverageExclusionV1.json",
+    "docs/design/v23/tooling/CoverageComparisonBaseV1.json",
+    "docs/design/v23/tooling/V23-P00-C13-tooling-manifest.json"
+  ],
+  "artifacts": [
+    {
+      "path": "Scripts/v23/c13_contracts.py",
+      "sha256": "e1e3fb1961c16b6a2c2228d42c50b24bcbf5e0c15d9ed708748eec40307c5c7f",
+      "bytes": 41680
+    },
+    {
+      "path": "Scripts/v23/generate_c13_contracts.py",
+      "sha256": "2127f054d55f3804e4c51885e348edddaac07138eda6dac7fd927a99be9c1cf6",
+      "bytes": 1300
+    },
+    {
+      "path": "Scripts/v23/verify_c13_contracts.py",
+      "sha256": "4e56171679d46e04cdbaf4521bba780e5069e948d87ac435fe9dd634e39f816f",
+      "bytes": 36567
+    },
+    {
+      "path": "Scripts/v23/code-coverage-receipt.schema.json",
+      "sha256": "111312d7233c065a2dc28cad408a0d2b6481f26266f1afd4ecbc2eecfb98dea8",
+      "bytes": 27998
+    },
+    {
+      "path": "Scripts/v23/coverage-tier-release.schema.json",
+      "sha256": "58c86c7ad7815d506a9f65e3753eddcc77ce89c81aee7d027c29b15055e36cfc",
+      "bytes": 19494
+    },
+    {
+      "path": "Scripts/v23/coverage-exclusion.schema.json",
+      "sha256": "62d262c9e885410f495bec24279b2e732610a20db8eb004cdbb9475bd94f1447",
+      "bytes": 19580
+    },
+    {
+      "path": "Scripts/v23/coverage-comparison-base.schema.json",
+      "sha256": "3527e19c752fc4beb929d65b4bd2de55298ddf6689cbf17dac18bfee9635a306",
+      "bytes": 17829
+    },
+    {
+      "path": "docs/design/v23/tooling/CodeCoverageReceiptV1.json",
+      "sha256": "a4800f8e439291a3f6ee799ae689f722d46eedd4d7bc627c157185aa771b515c",
+      "bytes": 8261
+    },
+    {
+      "path": "docs/design/v23/tooling/CoverageTierReleaseV1.json",
+      "sha256": "da0f9d7eb7f71348d32e7587d6e24a426ae3b0f700375ffe53c9866a64e215d7",
+      "bytes": 6992
+    },
+    {
+      "path": "docs/design/v23/tooling/CoverageExclusionV1.json",
+      "sha256": "96cfc2b349517c3ff7d13a44050e5636d8a5a306473ceac9b4bff7d0b7182ad0",
+      "bytes": 6477
+    },
+    {
+      "path": "docs/design/v23/tooling/CoverageComparisonBaseV1.json",
+      "sha256": "fc5009799c07552365c9ac7466a98eb8277faac4b78ab52e0a77c2a7d234d9cf",
+      "bytes": 6433
+    }
+  ],
+  "artifactCount": 11,
+  "nativeCompileRan": false,
+  "hostedDispatchRan": false,
+  "adoptionEnabled": false,
+  "acceptanceEnabled": false,
+  "phase10PollingDuringParallelExecution": false,
+  "acceptanceCredit": false,
+  "releaseReady": false,
+  "releaseCredit": false,
+  "artifactDigest": "e85e77ff99eff7920e9c5410ae8e5527fb9b580f972acc0893cfb5a32bccb9bd"
+}
