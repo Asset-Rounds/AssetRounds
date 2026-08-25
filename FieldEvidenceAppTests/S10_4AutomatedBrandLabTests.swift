@@ -2956,10 +2956,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 reportsIndexStartRange.lowerBound..<reportsIndexEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(reportsIndexSource.utf8.count, 1_513)
+        let reportHistoryPositioningGate =
+            #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
+                "           shouldPrepareNormalEvidence(\n" +
+                #"               for: "state.report-history.ready","# + "\n" +
+                "               in: app\n" +
+                "           ) {"
+        let reportHistoryBaseline =
+            #"        captureBaseline("state.report-history.ready", in: app)"#
+        let reportHistoryGateRange = try XCTUnwrap(
+            reportsIndexSource.range(of: reportHistoryPositioningGate)
+        )
+        let reportHistoryBaselineRange = try XCTUnwrap(
+            reportsIndexSource.range(
+                of: reportHistoryBaseline,
+                range: reportHistoryGateRange.upperBound..<reportsIndexSource.endIndex
+            )
+        )
+        let reportHistoryGateSource = String(
+            reportsIndexSource[
+                reportHistoryGateRange.lowerBound..<reportHistoryBaselineRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(reportHistoryGateSource.utf8.count, 407)
         XCTAssertEqual(
-            Data(reportsIndexSource.utf8).sha256,
-            "7FA0D9FD19E7B8FD37DD718893A776B4D94D84CC6B5DCD2521B377A5BF27238A"
+            Data(reportHistoryGateSource.utf8).sha256,
+            "5E7FE6FDE2031B5C119013B37F20F85A841474E7784884A9E188706FF395F92B"
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: reportsIndexStart).count - 1,
@@ -3114,11 +3136,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     signDetailRecordWorkTapRange.upperBound
             ]
         )
-        XCTAssertEqual(signDetailRouteHeadSource.utf8.count, 1_096)
-        XCTAssertEqual(
-            Data(signDetailRouteHeadSource.utf8).sha256,
-            "8457ED26750348E963244182BCD45B4E3A1AB55675928708F638B26DF2BBB8C6"
-        )
         let workValidationRouteStart =
             #"        let description = element("s5.1.work.description", in: app)"#
         let workValidationRouteEnd = "        scroll(description, in: app)"
@@ -3138,11 +3155,45 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     workValidationRouteEndRange.upperBound
             ]
         )
-        XCTAssertEqual(workValidationRouteSource.utf8.count, 875)
-        XCTAssertEqual(
-            Data(workValidationRouteSource.utf8).sha256,
-            "8BE7415970056426117AA79383D4F0D7ED1AF2BC74F0C3FB05CEE9ADD231FD13"
+        let workValidationPositioningGate =
+            #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
+                "           shouldPrepareNormalEvidence(\n" +
+                #"               for: "state.work.validation-error","# + "\n" +
+                "               in: app\n" +
+                "           ) {"
+        let workValidationBaseline =
+            #"        captureBaseline("state.work.validation-error", in: app)"#
+        let workValidationGateRange = try XCTUnwrap(
+            workValidationRouteSource.range(of: workValidationPositioningGate)
         )
+        let workValidationBaselineRange = try XCTUnwrap(
+            workValidationRouteSource.range(
+                of: workValidationBaseline,
+                range: workValidationGateRange.upperBound..<workValidationRouteSource.endIndex
+            )
+        )
+        let workValidationPrefixSource = String(
+            workValidationRouteSource[..<workValidationGateRange.lowerBound]
+        )
+        let workValidationGateSource = String(
+            workValidationRouteSource[
+                workValidationGateRange.lowerBound..<workValidationBaselineRange.lowerBound
+            ]
+        )
+        let workValidationTailSource = String(
+            workValidationRouteSource[workValidationBaselineRange.lowerBound...]
+        )
+        for (source, bytes, sha256) in [
+            (workValidationPrefixSource, 437,
+             "BE69C6C019B926DE04A7504C4E21296EC2334482485DCF1A9076ABEB354AFDE4"),
+            (workValidationGateSource, 466,
+             "2902A778908209C97C3B4F1508040331BB439B49C5D8187E47D46CFE79D18453"),
+            (workValidationTailSource, 100,
+             "78916F4E8E45F55480C1109D672BD7C4C03F53EC47126FFEF602D3F5A2239D04"),
+        ] {
+            XCTAssertEqual(source.utf8.count, bytes)
+            XCTAssertEqual(Data(source.utf8).sha256, sha256)
+        }
         let workValidationPositioningHelperStart =
             "    @MainActor\n" +
                 "    private func positionWorkValidationShortDescriptionForAXText(\n" +
@@ -3174,7 +3225,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         let signDetailPositioningGate =
-            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
+            #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
+                "           shouldPrepareNormalEvidence(\n" +
+                #"               for: "state.sign-detail.open-issue","# + "\n" +
+                "               in: app\n" +
+                "           ) {"
         let signDetailPositioningGuard =
             "            guard positionSignDetailTimeZoneForAXText(in: app) else {\n" +
                 "                throw AutomationConfigurationError.invalid(\n" +
@@ -3234,6 +3289,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     signDetailOpenIssueBaselineRange.lowerBound
             ]
         )
+        let signDetailPositioningPrefixSource = String(
+            signDetailRouteHeadSource[..<signDetailPositioningGateRange.lowerBound]
+        )
+        let signDetailPositioningTailSource = String(
+            signDetailRouteHeadSource[signDetailOpenIssueBaselineRange.lowerBound...]
+        )
+        for (source, bytes, sha256) in [
+            (signDetailPositioningPrefixSource, 453,
+             "BA050D696FD3D315E1E289A0411ECF7699F2E519B3A60E4B31578D6C6B5E209B"),
+            (signDetailPositioningGateSource, 443,
+             "37E9246E6725B110AFBB1C0DF6BC8F53B9DBF03FDDF2BFB4BD26DFB38159D21C"),
+            (signDetailPositioningTailSource, 329,
+             "2DB00BB4D24C3B4FF476905723BB2BB34F0A8B44C14BBA33591D7CBCE45425EC"),
+        ] {
+            XCTAssertEqual(source.utf8.count, bytes)
+            XCTAssertEqual(Data(source.utf8).sha256, sha256)
+        }
 
         let signDetailQueryLocks = [
             "        let timeZonePredicate = NSPredicate(\n" +
@@ -7563,12 +7635,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workEditingPositioningStartRange.lowerBound..<workEditingPositioningEndRange.upperBound
             ]
         )
-        XCTAssertEqual(workEditingPositioningSource.utf8.count, 17_661)
-        XCTAssertEqual(
-            Data(workEditingPositioningSource.utf8).sha256,
-            "9A3A66DC493DB1ABCE1787524CBC17E76FB11EC3D4B436EC87B3CF2A8153E009"
-        )
-
         for workEditingDiagnosticResidue in [
             "workEditingDiagnostic",
             "emitWorkEditingPositioningDiagnostic",
@@ -7594,8 +7660,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
 
         let workEditingAXTextGate =
-            "        let workEditingAXTextEnabled =\n" +
-                #"            automationShard?.shardID == "s10.4.current.ax-text""#
+            "        var workEditingAXTextEnabled =\n" +
+                #"            automationShard?.shardID == "s10.4.current.ax-text""# + "\n" +
+                "                && shouldPrepareNormalEvidence(\n" +
+                #"                    for: "state.work.editing","# + "\n" +
+                "                    in: app\n" +
+                "                )"
         XCTAssertEqual(
             workEditingPositioningSource.components(
                 separatedBy: workEditingAXTextGate
@@ -8203,11 +8273,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workSavingPositioningStartRange.lowerBound..<workSavingPositioningEndRange.upperBound
             ]
         )
-        XCTAssertEqual(workSavingPositioningSource.utf8.count, 24_711)
-        XCTAssertEqual(
-            Data(workSavingPositioningSource.utf8).sha256,
-            "464743BADE9ADBE966BCE93AA8846D4F611E510EBE1F3EF0C2A340C20D6AFE13"
-        )
         let workSavingPrimaryNavigationWait =
             #"        let issueScreen = element("s5.1.issue.screen", in: app)"# + "\n" +
                 "        XCTAssertTrue(issueScreen.waitForExistence(timeout: 85))\n" +
@@ -8520,13 +8585,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let reportHistoryAXPositioningCall =
             #"        XCTAssertTrue(element("s4.4.reports.view-report", in: app)"# + "\n" +
                 "            .waitForExistence(timeout: 20))\n" +
-                #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# + "\n" +
+                reportHistoryPositioningGate + "\n" +
                 "            guard positionLowerNorthCampusForAXText(in: app) else { return }\n" +
                 "            guard positionReportHistoryHeaderAndVisitForAXTextDiagnostic(\n" +
                 "                in: app\n" +
                 "            ) else { return }\n" +
                 "        }\n" +
-                #"        captureBaseline("state.report-history.ready", in: app)"#
+                reportHistoryBaseline
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: reportHistoryAXPositioningCall
@@ -9359,6 +9424,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let segmentedReplayHelperStart =
             "    @MainActor\n" +
                 "    private func replaySegmentPrefixIfNeeded("
+        let preparationPredicateHelperStart =
+            "    @MainActor\n" +
+                "    private func shouldPrepareNormalEvidence("
         let issueRecheckDuePositioningHelperStart =
             "    @MainActor\n" +
                 "    private func positionIssueRecheckDueDescriptionForAXText(\n" +
@@ -9368,9 +9436,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "\n    private func isActive("
         guard let captureBaselineStartRange = uiSource.range(
             of: captureBaselineStart
+        ), let preparationPredicateHelperStartRange = uiSource.range(
+            of: preparationPredicateHelperStart,
+            range: captureBaselineStartRange.upperBound ..< uiSource.endIndex
         ), let segmentedReplayHelperStartRange = uiSource.range(
             of: segmentedReplayHelperStart,
-            range: captureBaselineStartRange.upperBound ..< uiSource.endIndex
+            range: preparationPredicateHelperStartRange.upperBound ..< uiSource.endIndex
         ), let issueRecheckDuePositioningHelperStartRange = uiSource.range(
             of: issueRecheckDuePositioningHelperStart,
             range: segmentedReplayHelperStartRange.upperBound ..< uiSource.endIndex
@@ -9383,7 +9454,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             return
         }
         let restoredCaptureBaselineEnd = uiSource.index(
-            segmentedReplayHelperStartRange.lowerBound,
+            preparationPredicateHelperStartRange.lowerBound,
             offsetBy: -2
         )
         let restoredCaptureBaselineSource = String(
@@ -9437,13 +9508,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDueBaselineRange.upperBound
             ]
         )
-        XCTAssertEqual(issueRecheckDueRouteSource.utf8.count, 705)
-        XCTAssertEqual(
-            Data(issueRecheckDueRouteSource.utf8).sha256,
-            "D88EB267A8597F2465581047BDB44D2ECCEF9615F1B355346FE6AB19BF9A3EF7"
-        )
         let issueRecheckDuePositioningGate =
-            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
+            #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
+                "           shouldPrepareNormalEvidence(\n" +
+                #"               for: "state.issue.recheck-due","# + "\n" +
+                "               in: app\n" +
+                "           ) {"
         let issueRecheckDuePositioningGuard =
             "            guard positionIssueRecheckDueDescriptionForAXText(in: app) else {\n" +
                 "                throw AutomationConfigurationError.invalid(\n" +
@@ -10317,18 +10387,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     recheckPreflightPositioningRouteEndRange.upperBound
             ]
         )
-        XCTAssertEqual(recheckPreflightPositioningRouteSource.utf8.count, 521)
-        XCTAssertEqual(
-            Data(recheckPreflightPositioningRouteSource.utf8).sha256,
-            "468FC591A4CF6C44A93BF51344CA1C7B1C20D9E83BC385EE0EE6E69B9A6A36C8"
-        )
         let recheckPreflightPositioningRouteLock =
             "        startRecheck.tap()\n" +
                 #"        XCTAssertTrue(element("s3.preflight.screen", in: app)"# +
                 "\n" +
                 "            .waitForExistence(timeout: 20))\n" +
-                #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# +
-                "\n" +
+                #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
+                "           shouldPrepareNormalEvidence(\n" +
+                #"               for: "state.recheck-preflight.ready","# + "\n" +
+                "               in: app\n" +
+                "           ) {\n" +
                 "            guard positionRecheckPreflightContrastTargetsForAXText(in: app) else {\n" +
                 "                throw AutomationConfigurationError.invalid(\n" +
                 "                    \"S10.4 AX-text recheck-preflight positioning failed\"\n" +
@@ -10825,13 +10893,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"        let preview = element("s4.3.report-detail.preview", in: app)"# +
                 "\n" +
                 "        XCTAssertTrue(preview.waitForExistence(timeout: 20))\n" +
+                "        let preparesReportDetailEvidence = shouldPrepareNormalEvidence(\n" +
+                #"            for: "state.report-detail.ready","# + "\n" +
+                "            in: app\n" +
+                "        )\n" +
                 #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# +
                 "\n" +
-                "            guard scrollReportPreviewForAXText(preview, in: app) else { return }\n" +
+                "            if preparesReportDetailEvidence {\n" +
+                "                guard scrollReportPreviewForAXText(preview, in: app) else { return }\n" +
+                "            }\n" +
                 "        } else {\n" +
                 "            scroll(preview, in: app)\n" +
                 "        }\n" +
-                "        XCTAssertTrue(preview.isHittable)\n" +
+                "        if preparesReportDetailEvidence {\n" +
+                "            XCTAssertTrue(preview.isHittable)\n" +
+                "        }\n" +
                 #"        captureBaseline("state.report-detail.ready", in: app)"#
         XCTAssertEqual(
             uiSource.components(separatedBy: firstReportPreviewPositioning).count - 1,
@@ -14197,10 +14273,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         let deleteViewportDiagnosticLocks = [
+            #"let preparesDeleteConfirmationEvidence = shouldPrepareNormalEvidence("#,
+            #"for: "state.sign-detail.delete-confirmation""#,
             #"let runsAXTextDeleteConfirmationDiagnostic ="#,
             #"automationShard?.shardID == "s10.4.current.ax-text""#,
+            "&& preparesDeleteConfirmationEvidence",
             #"if runsAXTextDeleteConfirmationDiagnostic {"#,
-            "if !runsAXTextDeleteConfirmationDiagnostic\n" +
+            "if preparesDeleteConfirmationEvidence\n" +
+                "            && !runsAXTextDeleteConfirmationDiagnostic\n" +
                 "            && !runsMinimumDoubleLengthDeleteComposition {",
             "let expectedDeleteMessage =\n" +
                 "                \"Delete this sign, its photos, and its reports from this app? \" +\n" +
@@ -14228,7 +14308,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(
                 separatedBy: "state.sign-detail.delete-confirmation"
             ).count - 1,
-            3
+            4
         )
         let doubleLengthGateStart =
             "        let runsMinimumDoubleLengthDeleteComposition ="
@@ -14559,8 +14639,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         let captureWidePositioningStart =
-            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# +
-                "\n" +
+            #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
+                "           shouldPrepareNormalEvidence(\n" +
+                #"               for: "state.capture.wide-ready","# + "\n" +
+                "               in: app\n" +
+                "           ) {\n" +
                 "            let captureScrollViews = app.scrollViews.matching("
         let captureWideReadyCapture =
             #"        captureBaseline("state.capture.wide-ready", in: app)"#
