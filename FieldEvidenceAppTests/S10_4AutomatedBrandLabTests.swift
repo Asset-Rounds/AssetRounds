@@ -18881,9 +18881,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         for (match, stateID) in zip(preparationGateMatches, preparationGateStateIDs) {
             let gateRange = try XCTUnwrap(Range(match.range, in: uiSource), stateID)
+            let captureToken = stateID == "state.sign-detail.delete-confirmation"
+                ? "captureBaseline(deleteConfirmationStateID, in: app)"
+                : "captureBaseline(\"\(stateID)\", in: app)"
             let captureRange = try XCTUnwrap(
                 uiSource.range(
-                    of: "captureBaseline(\"\(stateID)\", in: app)",
+                    of: captureToken,
                     range: gateRange.upperBound..<uiSource.endIndex
                 ),
                 stateID
