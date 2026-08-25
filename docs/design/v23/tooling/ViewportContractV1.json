@@ -1,0 +1,57 @@
+{
+  "schema": "ViewportContractV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C09",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "506887f637679d2416657c99638069605e4ca918",
+    "baseTree": "50fe6f3696e7fd7675b4be1ae2f231cdb7c71a87",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "bc821da9b06681f3682e87a11900be0a6bb0e816c40262a11c040f26c9bf9cb9",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "46c382016f5600610d421abdcf4f5a3e486bc0d8c01e791c1b31d6d33513041c",
+    "bootstrapPathFenceDigest": "7138b44784ebe79a77e3bb243e6048f50d05b4ffd37cf74664bcdb800c54b36e",
+    "provisionalPrerequisiteDigest": "d44bd9940a710ba151ce21d5e9d5b746d9443dc6bf87d7f305f6ce50aae3b2a2",
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "2e042673a4eb518e480cc12a03f1f09b61b3b752ae955bf2bbcb05341132398c",
+    "ledgerCASSequence": 23,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "preconditionOrder": [
+    "SEMANTIC_ANCHOR",
+    "VIEWPORT",
+    "SAFE_AREA",
+    "VISIBILITY",
+    "REACHABILITY"
+  ],
+  "requiredFacts": [
+    "EXPECTED_SEMANTIC_IDENTIFIER",
+    "IPHONE_VIEWPORT_BOUNDS",
+    "SAFE_AREA_CONTAINMENT",
+    "NONEMPTY_VISIBLE_FRAME",
+    "ACTION_REACHABLE_WITH_BOUNDED_SCROLL",
+    "MINIMUM_44_POINT_CONTROL_WHERE_APPLICABLE"
+  ],
+  "strictAcceptanceFollowsPreconditions": true,
+  "diagnosticGeometryNonAccepting": true,
+  "nativeExecutionStatus": "NOT_RUN_HOSTED_DISPATCH_DISABLED",
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "artifactDigest": "682dffd15d9a81b05a3f913a9cb9887a5a9206fd9d5dfbbb583a45b1830fa17d"
+}

@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assetrounds.invalid/v23/UITestScenarioDigestV1.schema.json",
+  "title": "UITestScenarioDigestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "scenarioArtifactDigest",
+    "canonicalization",
+    "digestAlgorithm",
+    "maximumEncodedBytes",
+    "observedEncodedBytes",
+    "arbitraryPathAllowed",
+    "unknownFieldDisposition",
+    "corruptDigestDisposition",
+    "acceptanceCredit",
+    "releaseCredit",
+    "artifactDigest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "UITestScenarioDigestV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "cardID": {
+      "const": "V23-P00-C09"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attemptID",
+        "executionMode",
+        "baseHead",
+        "baseTree",
+        "candidateBinding",
+        "packageDigest",
+        "dossierDigest",
+        "canonicalRegisterDigest",
+        "directGraphDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "ownerOverrideReceiptDigest",
+        "frozenS10ReservationDigest",
+        "bootstrapContextDigest",
+        "bootstrapPathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "writerAuthority",
+        "ledgerDigest",
+        "ledgerCASSequence",
+        "phase10PollingDuringParallelExecution",
+        "acceptanceEnabled",
+        "hostedDispatchEnabled",
+        "adoptionEnabled",
+        "requiresAcceptedS10_6Reconciliation",
+        "releaseCredit"
+      ],
+      "properties": {
+        "attemptID": {
+          "const": 1
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "baseHead": {
+          "const": "506887f637679d2416657c99638069605e4ca918"
+        },
+        "baseTree": {
+          "const": "50fe6f3696e7fd7675b4be1ae2f231cdb7c71a87"
+        },
+        "candidateBinding": {
+          "const": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED"
+        },
+        "packageDigest": {
+          "const": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570"
+        },
+        "dossierDigest": {
+          "const": "bc821da9b06681f3682e87a11900be0a6bb0e816c40262a11c040f26c9bf9cb9"
+        },
+        "canonicalRegisterDigest": {
+          "const": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd"
+        },
+        "directGraphDigest": {
+          "const": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae"
+        },
+        "selectorManifestDigest": {
+          "const": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+        },
+        "relationManifestDigest": {
+          "const": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4"
+        },
+        "dependencyDispositionDigest": {
+          "const": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c"
+        },
+        "ownerOverrideReceiptDigest": {
+          "const": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452"
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "bootstrapContextDigest": {
+          "const": "46c382016f5600610d421abdcf4f5a3e486bc0d8c01e791c1b31d6d33513041c"
+        },
+        "bootstrapPathFenceDigest": {
+          "const": "7138b44784ebe79a77e3bb243e6048f50d05b4ffd37cf74664bcdb800c54b36e"
+        },
+        "provisionalPrerequisiteDigest": {
+          "const": "d44bd9940a710ba151ce21d5e9d5b746d9443dc6bf87d7f305f6ce50aae3b2a2"
+        },
+        "writerAuthority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ownerID",
+            "writerGeneration"
+          ],
+          "properties": {
+            "ownerID": {
+              "const": "A00_BOOTSTRAP_CONTROLLER"
+            },
+            "writerGeneration": {
+              "const": 0
+            }
+          }
+        },
+        "ledgerDigest": {
+          "const": "2e042673a4eb518e480cc12a03f1f09b61b3b752ae955bf2bbcb05341132398c"
+        },
+        "ledgerCASSequence": {
+          "const": 23
+        },
+        "phase10PollingDuringParallelExecution": {
+          "const": false
+        },
+        "acceptanceEnabled": {
+          "const": false
+        },
+        "hostedDispatchEnabled": {
+          "const": false
+        },
+        "adoptionEnabled": {
+          "const": false
+        },
+        "requiresAcceptedS10_6Reconciliation": {
+          "const": true
+        },
+        "releaseCredit": {
+          "const": false
+        }
+      }
+    },
+    "scenarioArtifactDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "canonicalization": {
+      "const": "UTF8_SORTED_KEYS_NO_INSIGNIFICANT_WHITESPACE_V1"
+    },
+    "digestAlgorithm": {
+      "const": "SHA256"
+    },
+    "maximumEncodedBytes": {
+      "const": 65536
+    },
+    "observedEncodedBytes": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "arbitraryPathAllowed": {
+      "const": false
+    },
+    "unknownFieldDisposition": {
+      "const": "REJECT"
+    },
+    "corruptDigestDisposition": {
+      "const": "REJECT"
+    },
+    "acceptanceCredit": {
+      "const": false
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "artifactDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}
