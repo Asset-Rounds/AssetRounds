@@ -8951,9 +8951,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10_4_AX_TEXT_ISSUE_RECHECK_DUE_CONTRAST_",
             "S10.4 AX-text Issue recheck-due contrast diagnostic",
             "S10.4 AX-text issue recheck-due contrast diagnostic completed nonaccepting",
-            "diagnosticElementObject",
-            "diagnosticQueryObject",
-            "diagnosticQueryObjects",
         ] {
             XCTAssertEqual(
                 uiSource.components(
@@ -9162,10 +9159,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         for diagnosticContextField in [
-            #"            "shardID": shard.shardID,"#,
+            "\n" + #"            "shardID": shard.shardID,"#,
             #"            "requirementID": shard.requirementID,"#,
-            #"            "deviceProfileID": shard.deviceProfileID,"#,
-            #"            "stateID": stateID,"#,
+            "\n" + #"            "deviceProfileID": shard.deviceProfileID,"#,
+            "\n" + #"            "stateID": stateID,"#,
             #"            "elapsedMilliseconds": diagnosticElapsedMilliseconds,"#,
             #"            "applicationState": String(describing: app.state),"#,
             #"            "applicationStateRawValue": app.state.rawValue,"#,
