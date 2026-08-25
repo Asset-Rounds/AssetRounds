@@ -3774,10 +3774,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 removedSignDetailDiagnosticForm
             )
         }
-        let workValidationBaseline =
-            #"        captureBaseline("state.work.validation-error", in: app)"#
-        let workValidationPositioningGate =
-            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
+        let workValidationBaseline = k121WorkValidationBaseline
+        let workValidationPositioningGate = k121WorkValidationPositioningGate
         let workValidationPositioningGuard =
             "            guard positionWorkValidationShortDescriptionForAXText(in: app) else {\n" +
                 "                throw AutomationConfigurationError.invalid(\n" +
@@ -6137,9 +6135,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 h135SourceStartRange.lowerBound..<h135CaptureRange.lowerBound
             ]
         )
-        XCTAssertEqual(h135Source.utf8.count, 5_796)
+        let h135ReplayPreparationClose = "        }\n"
+        XCTAssertTrue(h135Source.hasSuffix(h135ReplayPreparationClose))
+        let h135InvariantSource = String(
+            h135Source.dropLast(h135ReplayPreparationClose.utf8.count)
+        )
+        XCTAssertEqual(h135InvariantSource.utf8.count, 5_796)
         XCTAssertEqual(
-            Data(h135Source.utf8).sha256,
+            Data(h135InvariantSource.utf8).sha256,
             "3350DA2976EE30EDD944F2C80295C4751256AA1DFDF5EAD005898EBDB5EF610B"
         )
         let quickPathSemanticSnapshots = [
@@ -6433,7 +6436,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             5
         )
         let quickPathCapturePrecededByRestoration =
-            quickPathRestorationFailure + "\n                }\n            }\n        }\n" + quickPathCapture
+            quickPathRestorationFailure +
+                "\n                }\n            }\n        }\n" +
+                h135ReplayPreparationClose + quickPathCapture
         XCTAssertEqual(
             uiSource.components(separatedBy: quickPathCapturePrecededByRestoration).count - 1,
             1
@@ -14313,7 +14318,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let doubleLengthGateStart =
             "        let runsMinimumDoubleLengthDeleteComposition ="
         let doubleLengthGateEnd =
-            "        let runsAXTextDeleteConfirmationDiagnostic ="
+            "        let preparesDeleteConfirmationEvidence ="
         XCTAssertEqual(
             uiSource.components(separatedBy: doubleLengthGateStart).count - 1,
             1
