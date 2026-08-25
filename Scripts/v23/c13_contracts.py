@@ -427,6 +427,8 @@ def validate_pass_closure(receipt: dict[str, Any], tier: dict[str, Any], exclusi
     if not receipt.get("acceptingXcresultPath") or not re.fullmatch(r"[0-9a-f]{64}", receipt.get("acceptingXcresultDigest") or "") or \
             not receipt.get("toolchainIdentity") or not re.fullmatch(r"[0-9a-f]{64}", receipt.get("fixtureDigest") or ""):
         raise ContractError("future PASS xcresult/toolchain/fixture incomplete")
+    if receipt["xcresultReusePolicy"] != "SAME_ACCEPTING_XCRESULT_BUNDLES_ONLY":
+        raise ContractError("future PASS xcresult reuse policy differs")
     if receipt["xccovStatus"] != "PASS" or not re.fullmatch(r"[0-9a-f]{64}", receipt.get("xccovExecutableLineSetDigest") or ""):
         raise ContractError("future PASS xccov evidence incomplete")
     normalized_diff = diff_text.replace("\r\n", "\n").replace("\r", "\n")
@@ -443,7 +445,17 @@ def validate_pass_closure(receipt: dict[str, Any], tier: dict[str, Any], exclusi
     expected_identity_digest = sha256_bytes(pretty_bytes(receipt["xccovExecutableLineIdentities"]))
     if receipt["xccovExecutableLineSetDigest"] != expected_identity_digest:
         raise ContractError("xccov executable identity digest differs")
-    if tier["tiers"] != TIER_FLOORS or tier["performanceCoverageInstrumentation"] != "REJECTED":
+    expected_changed_line_law = {
+        "command": DIFF_COMMAND, "pathForm": "NORMALIZED_REPOSITORY_RELATIVE_POSIX",
+        "addedAndModifiedCandidateExecutableLinesCount": True,
+        "deletedOnlyLinesCount": False, "renameIdentity": "TARGET_PATH",
+        "xccovExecutableIntersectionRequired": True,
+    }
+    if (tier["tiers"] != TIER_FLOORS or tier["changedLineLaw"] != expected_changed_line_law or
+            tier["uiAndPlatformGlue"] != {
+                "coveragePercentGate": "FORBIDDEN_VANITY_PERCENT",
+                "requiredEvidence": "SEMANTIC_AND_INTEGRATION_EVIDENCE",
+            } or tier["performanceCoverageInstrumentation"] != "REJECTED"):
         raise ContractError("future PASS tier authority differs")
     for index, floor in enumerate(TIER_FLOORS):
         row = receipt["coverageByTier"][index]
@@ -452,11 +464,21 @@ def validate_pass_closure(receipt: dict[str, Any], tier: dict[str, Any], exclusi
     ui = receipt["coverageByTier"][2]
     if ui["tier"] != "UI_PLATFORM_GLUE" or ui["result"] != "PASS" or not ui["semanticIntegrationEvidence"]:
         raise ContractError("future PASS UI semantic evidence absent")
+    if (exclusion["allowedKinds"] != EXCLUSION_KINDS or
+            exclusion["requiredFields"] != ["EXACT_PATH_OR_BOUNDED_GLOB", "GENERATOR_OR_PLATFORM_REASON",
+                                             "REVIEWER_RECEIPT_DIGEST"] or
+            exclusion["protectedPathTokens"] != PROTECTED_EXCLUSION_TOKENS or
+            exclusion["broadAbsoluteBackslashOrTraversalPatternAllowed"] or
+            exclusion["unknownExclusionDisposition"] != "FAIL_CLOSED"):
+        raise ContractError("future PASS exclusion policy differs")
     validate_exclusion_set(exclusion["exclusions"], exclusion["reviewerReceipts"])
     accepted = comparison["releaseClosureAcceptedS10_6Base"]
-    if not comparison["comparisonReady"] or accepted["status"] != "PASS" or \
+    if (comparison["cardPreCardIntegrationBase"] != {
+            "head": BASE_HEAD, "tree": BASE_TREE, "purpose": "CHANGED_CODE_NON_REGRESSION"} or
+            not comparison["basesAreDistinctAuthorities"] or comparison["fabricatedBaselineAllowed"] or
+            not comparison["comparisonReady"] or accepted["status"] != "PASS" or \
             not re.fullmatch(r"[0-9a-f]{40}", accepted.get("head") or "") or \
-            not re.fullmatch(r"[0-9a-f]{40}", accepted.get("tree") or ""):
+            not re.fullmatch(r"[0-9a-f]{40}", accepted.get("tree") or "")):
         raise ContractError("accepted S10.6 comparison base unresolved")
     current = receipt["currentness"]
     if current != {"candidateBindingCurrent": True, "xcresultCurrent": True,

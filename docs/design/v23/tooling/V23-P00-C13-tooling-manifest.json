@@ -126,8 +126,8 @@
   "artifacts": [
     {
       "path": "Scripts/v23/c13_contracts.py",
-      "sha256": "e1e3fb1961c16b6a2c2228d42c50b24bcbf5e0c15d9ed708748eec40307c5c7f",
-      "bytes": 41680
+      "sha256": "2770ee82e808e6ea2b878e933ebd22b6355587b36c62875ebcb364171a6031d1",
+      "bytes": 43195
     },
     {
       "path": "Scripts/v23/generate_c13_contracts.py",
@@ -136,8 +136,8 @@
     },
     {
       "path": "Scripts/v23/verify_c13_contracts.py",
-      "sha256": "4e56171679d46e04cdbaf4521bba780e5069e948d87ac435fe9dd634e39f816f",
-      "bytes": 36567
+      "sha256": "7475e0bd64b6c2802271415fc1b0edf55ea2b086c097e9b371d81d7e4a9858ea",
+      "bytes": 37933
     },
     {
       "path": "Scripts/v23/code-coverage-receipt.schema.json",
@@ -189,5 +189,5 @@
   "acceptanceCredit": false,
   "releaseReady": false,
   "releaseCredit": false,
-  "artifactDigest": "e85e77ff99eff7920e9c5410ae8e5527fb9b580f972acc0893cfb5a32bccb9bd"
+  "artifactDigest": "1e2d9d0cf099adefd89b41ae18d24a87ec1595b306a7421a4ffbf02595290c4c"
 }

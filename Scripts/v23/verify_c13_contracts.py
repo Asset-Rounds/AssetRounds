@@ -100,7 +100,11 @@ def validate_repository_state(root: Path) -> None:
         raise ContractError("remote phase/v23-expansion is absent")
     remote_head = remote.split()[0]
     status_paths = set()
-    for line in run("status", "--porcelain=v1", "--untracked-files=all").splitlines():
+    status_output = subprocess.run(
+        ["git", "-C", str(root), "status", "--porcelain=v1", "--untracked-files=all"],
+        check=True, capture_output=True, text=True, encoding="utf-8",
+    ).stdout
+    for line in status_output.splitlines():
         if line: status_paths.add(line[3:].replace("\\", "/"))
     expected_paths = set(FENCED_PATHS)
     if head == BASE_HEAD:
@@ -109,17 +113,20 @@ def validate_repository_state(root: Path) -> None:
                 f"pre-commit candidate is not the exact remote-base 12-path fence: {sorted(status_paths)}"
             )
         return
-    parent = run("rev-parse", "HEAD^")
+    ancestor = subprocess.run(
+        ["git", "-C", str(root), "merge-base", "--is-ancestor", BASE_HEAD, head],
+        capture_output=True,
+    )
     committed_paths = {
         path.replace("\\", "/")
         for path in run("diff", "--name-only", f"{BASE_HEAD}..{head}").splitlines()
         if path
     }
-    if (parent != BASE_HEAD or remote_head != head or status_paths or
-            committed_paths != expected_paths):
+    if (ancestor.returncode != 0 or remote_head != head or
+            not status_paths <= expected_paths or committed_paths != expected_paths):
         raise ContractError(
-            "post-commit candidate is not one clean pushed exact-fence commit: "
-            f"parent={parent} remote={remote_head} status={sorted(status_paths)} "
+            "post-commit candidate/fix is not a pushed exact-fence lineage: "
+            f"ancestor={ancestor.returncode} remote={remote_head} status={sorted(status_paths)} "
             f"paths={sorted(committed_paths)}"
         )
 
@@ -492,18 +499,40 @@ def main() -> int:
         for component in path[:-1]: target = target[component]
         target[path[-1]] = replacement
         reject(lambda value=hostile: validate_pass_closure(*value, future_diff)); hostile_count += 1
+
+    def reseal_future(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        for index in (1, 2, 3):
+            items[index] = seal({key: value for key, value in items[index].items()
+                                 if key != "artifactDigest"})
+        items[0]["tierReleaseDigest"] = items[1]["artifactDigest"]
+        items[0]["exclusionDigest"] = items[2]["artifactDigest"]
+        items[0]["comparisonBaseDigest"] = items[3]["artifactDigest"]
+        items[0] = seal({key: value for key, value in items[0].items()
+                         if key != "artifactDigest"})
+        return items
+
     coordinated_drift = copy.deepcopy(future)
     for artifact in coordinated_drift:
         artifact["authority"]["directPrerequisite"]["cardID"] = "V23-P00-C08"
-    for index in (1, 2, 3):
-        coordinated_drift[index] = seal({key: value for key, value in coordinated_drift[index].items()
-                                         if key != "artifactDigest"})
-    coordinated_drift[0]["tierReleaseDigest"] = coordinated_drift[1]["artifactDigest"]
-    coordinated_drift[0]["exclusionDigest"] = coordinated_drift[2]["artifactDigest"]
-    coordinated_drift[0]["comparisonBaseDigest"] = coordinated_drift[3]["artifactDigest"]
-    coordinated_drift[0] = seal({key: value for key, value in coordinated_drift[0].items()
-                                 if key != "artifactDigest"})
+    coordinated_drift = reseal_future(coordinated_drift)
     reject(lambda: validate_pass_closure(*coordinated_drift, future_diff)); hostile_count += 1
+    resealed_policy_mutations = [
+        (0, ("xcresultReusePolicy",), "ANY"),
+        (1, ("changedLineLaw", "command"), "git diff --unified=3"),
+        (1, ("uiAndPlatformGlue", "coveragePercentGate"), "PERCENT_REQUIRED"),
+        (2, ("allowedKinds",), EXCLUSION_KINDS + ["OTHER"]),
+        (2, ("protectedPathTokens",), []),
+        (2, ("broadAbsoluteBackslashOrTraversalPatternAllowed",), True),
+        (2, ("unknownExclusionDisposition",), "ALLOW"),
+        (3, ("basesAreDistinctAuthorities",), False),
+        (3, ("fabricatedBaselineAllowed",), True),
+    ]
+    for artifact_index, path, replacement in resealed_policy_mutations:
+        hostile = copy.deepcopy(future); target = hostile[artifact_index]
+        for component in path[:-1]: target = target[component]
+        target[path[-1]] = replacement
+        hostile = reseal_future(hostile)
+        reject(lambda value=hostile: validate_pass_closure(*value, future_diff)); hostile_count += 1
     for hostile_diff in ("", future_diff + "\n"):
         reject(lambda value=hostile_diff: validate_pass_closure(*future, value)); hostile_count += 1
     for field, replacement in (("changedDiffDigest", "0"*64),
@@ -514,7 +543,8 @@ def main() -> int:
         reject(lambda value=hostile: validate_pass_closure(*value, future_diff)); hostile_count += 1
     nan_schema = copy.deepcopy(future[0]); nan_schema["coverageByTier"][0]["executableLinePercent"] = float("nan")
     reject(lambda: validate_schema(nan_schema, schemas[0])); hostile_count += 1
-    checks += len(mutation_specs) + len(strict_diff_hostiles) + len(pass_mutations) + 26
+    checks += (len(mutation_specs) + len(strict_diff_hostiles) + len(pass_mutations) +
+               len(resealed_policy_mutations) + 26)
 
     regenerated = list(build_artifacts(root).values())
     if [pretty_bytes(value) for value in regenerated] != [pretty_bytes(value) for value in artifacts]:
