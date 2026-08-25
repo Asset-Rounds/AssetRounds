@@ -76,6 +76,7 @@ final class EraseAllService {
     private let userDefaults: UserDefaults
     private let bundleIdentifier: String
     private let makeUUID: () -> UUID
+    private let sleeper: any ApplicationSleeper
     private let failureInjection: EraseAllFailureInjection?
 
     init(
@@ -87,6 +88,7 @@ final class EraseAllService {
         bundleIdentifier: String = Bundle.main.bundleIdentifier
             ?? "com.palatis3.fieldrecord",
         makeUUID: @escaping () -> UUID = UUID.init,
+        sleeper: any ApplicationSleeper = SystemApplicationSleeper(),
         failureInjection: EraseAllFailureInjection? = nil
     ) {
         let support = applicationSupportURL.standardizedFileURL
@@ -107,6 +109,7 @@ final class EraseAllService {
         self.userDefaults = userDefaults
         self.bundleIdentifier = bundleIdentifier
         self.makeUUID = makeUUID
+        self.sleeper = sleeper
         self.failureInjection = failureInjection
     }
 
@@ -217,7 +220,7 @@ final class EraseAllService {
                   coordinator.modelContext === session.modelContext else {
                 throw EraseAllServiceError.recoveryRequired
             }
-            guard await waitForDrain(drainProof) else {
+            guard try await waitForDrain(drainProof) else {
                 return EraseAllOutcome(
                     session: session,
                     cleanupDeferred: true
@@ -833,13 +836,13 @@ private extension EraseAllService {
         canonical(lhs) < canonical(rhs)
     }
 
-    func waitForDrain(_ proof: EraseGenerationDrainProof) async -> Bool {
+    func waitForDrain(_ proof: EraseGenerationDrainProof) async throws -> Bool {
         for _ in 0..<200 {
             if proof.isDrained { return true }
             await Task.yield()
             do {
-                try await Task.sleep(nanoseconds: 10_000_000)
-            } catch {
+                try await sleeper.sleep(for: .milliseconds(10))
+            } catch is CancellationError {
                 return proof.isDrained
             }
         }

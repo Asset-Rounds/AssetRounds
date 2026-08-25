@@ -1,0 +1,177 @@
+{
+  "schema": "V23P00C11ToolingManifestV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C11",
+  "baseHead": "fad0ca2711ec891a13ca51f68c54bc934e1ca8d8",
+  "baseTree": "a49abf914a26c99e4efe284a7d2c3ba04f7933f6",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "fad0ca2711ec891a13ca51f68c54bc934e1ca8d8",
+    "baseTree": "a49abf914a26c99e4efe284a7d2c3ba04f7933f6",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "e3c9b8153149009205e9d01b6355808723b24e281a162488cfa7774f8d8bae63",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "97c5d75eaaf3419ed74148c287050a47bee417cc2074bc3821d10caf2a9cf220",
+    "bootstrapPathFenceDigest": "560b3bd0401d0da46bcedc9f7184c8041e198db8cbe8af3011731fc0ad6cc8b1",
+    "hydratedSpecDigest": "5ff0da398f4ddecad4ca7a815b772bc830e7267e53629a5dee69d705d2f5fffb",
+    "hydratedPathFenceDigest": "99386013a49cc8ac6b8c1fa94f474898cce3d1812679fd1ed118c10585b1a8ed",
+    "provisionalPrerequisiteDigest": "635f08847548049ea43b6aa82caecfb0d962569171787b8598eabb47392012d7",
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "83ec06eee415745899c939ea1b4629e2da75ceb1b73ebe3bd2ade187d85e9171",
+    "ledgerCASSequence": 31,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "pathFence": [
+    "FieldEvidenceApp/Application/Ports/DeterministicAsyncPorts.swift",
+    "FieldEvidenceApp/Infrastructure/System/SystemAsyncAdapters.swift",
+    "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "FieldEvidenceAppTests/V23_P00_C11MailComposerConcurrencyTests.swift",
+    "FieldEvidenceAppTests/V23_P00_C11DeterministicAsyncTests.swift",
+    "Scripts/v23/c11_contracts.py",
+    "Scripts/v23/generate_c11_contracts.py",
+    "Scripts/v23/verify_c11_contracts.py",
+    "Scripts/v23/concurrency-isolation-inventory.schema.json",
+    "Scripts/v23/unsafe-boundary-disposition.schema.json",
+    "Scripts/v23/deterministic-async-port.schema.json",
+    "Scripts/v23/concurrency-closure-receipt.schema.json",
+    "Scripts/v23/concurrency-migration-plan.schema.json",
+    "Scripts/v23/platform-adapter-concurrency-receipt.schema.json",
+    "docs/design/v23/tooling/ConcurrencyIsolationInventoryV1.json",
+    "docs/design/v23/tooling/UnsafeBoundaryDispositionV1.json",
+    "docs/design/v23/tooling/DeterministicAsyncPortV1.json",
+    "docs/design/v23/tooling/ConcurrencyClosureReceiptV1.json",
+    "docs/design/v23/tooling/ConcurrencyMigrationPlanV1.json",
+    "docs/design/v23/tooling/PlatformAdapterConcurrencyReceiptV1.json",
+    "docs/design/v23/tooling/V23-P00-C11-tooling-manifest.json"
+  ],
+  "artifacts": [
+    {
+      "path": "FieldEvidenceApp/Application/Ports/DeterministicAsyncPorts.swift",
+      "sha256": "ddcb0f015026a0e657579c0903b7ebc3d87d493d2fbddda1260d0a8742474964",
+      "bytes": 400
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/System/SystemAsyncAdapters.swift",
+      "sha256": "c84d85b53c1b23e1a6b8074156bce4682a3d061f1dc3a8425db3909556446d6e",
+      "bytes": 193
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+      "sha256": "0cdb28be1ff4dae0763f28163566e9350c12adf4cabe8f870b6b90071619650a",
+      "bytes": 10404
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "sha256": "1c55c1830ada7bfd5192bb368703de344aeb212ea54beb5bf175ac4eb701f2f5",
+      "bytes": 52577
+    },
+    {
+      "path": "FieldEvidenceAppTests/V23_P00_C11MailComposerConcurrencyTests.swift",
+      "sha256": "741d5fd361578fe832ce3041c8fc46e4449e7f6622a34f3544ff2542f90b3dd6",
+      "bytes": 2407
+    },
+    {
+      "path": "FieldEvidenceAppTests/V23_P00_C11DeterministicAsyncTests.swift",
+      "sha256": "896813221507fd31e7789cc14587c828a188659707bd3ff7665733abc4cb417c",
+      "bytes": 1958
+    },
+    {
+      "path": "Scripts/v23/c11_contracts.py",
+      "sha256": "1ac80998d16fece46f71388e2c3c13d8c5d962fe79641910fe426b8743c1ebfd",
+      "bytes": 27798
+    },
+    {
+      "path": "Scripts/v23/generate_c11_contracts.py",
+      "sha256": "b2e416048c5e417fd127f660ad9008e03da2bcba5522e241e8b9edd90a132af0",
+      "bytes": 1334
+    },
+    {
+      "path": "Scripts/v23/verify_c11_contracts.py",
+      "sha256": "d837109174b795b47c46ed7ee85f1968283eb562c4131a0d4d298abac6c00024",
+      "bytes": 7075
+    },
+    {
+      "path": "Scripts/v23/concurrency-isolation-inventory.schema.json",
+      "sha256": "ed7f3a8182cef398add6bbfdf401accdbda2b0f18004595c0481560cf8882ddc",
+      "bytes": 3542
+    },
+    {
+      "path": "Scripts/v23/unsafe-boundary-disposition.schema.json",
+      "sha256": "f61384113377b2cb47aa251b35b8125bba7a54905405754f859325aa8ac9ff2f",
+      "bytes": 3937
+    },
+    {
+      "path": "Scripts/v23/deterministic-async-port.schema.json",
+      "sha256": "32d6d5efde772c02e31a02b8b05e1736187ccfde1973a8891fdb494240e4c1ae",
+      "bytes": 3469
+    },
+    {
+      "path": "Scripts/v23/concurrency-closure-receipt.schema.json",
+      "sha256": "0100407d66d90ea3df649820b43c9e7465d1099f10fc91079515ce8b3ee5c2c3",
+      "bytes": 4539
+    },
+    {
+      "path": "Scripts/v23/concurrency-migration-plan.schema.json",
+      "sha256": "1e5c2e310a0e4f9034322b972a37d6fdbfaae46f29fc70d3af8d56bd7385c90c",
+      "bytes": 3406
+    },
+    {
+      "path": "Scripts/v23/platform-adapter-concurrency-receipt.schema.json",
+      "sha256": "fab22b59f4f115faac4ebe2393bde13e35b26cf2c78388c878c2fe8d11fbbe25",
+      "bytes": 3501
+    },
+    {
+      "path": "docs/design/v23/tooling/ConcurrencyIsolationInventoryV1.json",
+      "sha256": "711501d63a71297fed71779a0baecb761e8d35c1c6755da431097b978d0c01c3",
+      "bytes": 275384
+    },
+    {
+      "path": "docs/design/v23/tooling/UnsafeBoundaryDispositionV1.json",
+      "sha256": "dc7e6f29745f08a29531c0d42d55776edb7f91b144f20fa088f08a014dcde80e",
+      "bytes": 12382
+    },
+    {
+      "path": "docs/design/v23/tooling/DeterministicAsyncPortV1.json",
+      "sha256": "62a022c2f4f45337a474a92282d4e6685e876cca73c19f4e46215157091cda2d",
+      "bytes": 4364
+    },
+    {
+      "path": "docs/design/v23/tooling/ConcurrencyClosureReceiptV1.json",
+      "sha256": "5011adb2120e6da9a707b9585a6f84a5d7af1f60624a34f3b6ca9d47ebccf001",
+      "bytes": 3585
+    },
+    {
+      "path": "docs/design/v23/tooling/ConcurrencyMigrationPlanV1.json",
+      "sha256": "fa62be1d49e18d57c8dab2e2fcaa0f6e22c23900cf2dc8e1f36271fc18095b4b",
+      "bytes": 3849
+    },
+    {
+      "path": "docs/design/v23/tooling/PlatformAdapterConcurrencyReceiptV1.json",
+      "sha256": "c0c1f56387baa4cd0ea33d12abe9cc871a98901d5dfb61ac91a858f647e4af75",
+      "bytes": 3632
+    }
+  ],
+  "artifactCount": 21,
+  "nativeCompileRan": false,
+  "phase10PollingDuringParallelExecution": false,
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "artifactDigest": "272d510fbf52c2b21d3a7e6ed11977bf5049ce9434e8196f3c185365b5b172d7"
+}

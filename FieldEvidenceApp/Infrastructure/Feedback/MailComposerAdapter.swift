@@ -154,8 +154,7 @@ struct MailComposerSheet: UIViewControllerRepresentable {
 }
 
 @MainActor
-final class MailComposerCoordinator: NSObject,
-    MFMailComposeViewControllerDelegate {
+final class MailComposerCoordinator: NSObject {
     private let finished: @MainActor (FeedbackMailResultV1) -> Void
     private var didFinish = false
 
@@ -163,33 +162,45 @@ final class MailComposerCoordinator: NSObject,
         self.finished = finished
     }
 
-    func mailComposeController(
-        _ controller: MFMailComposeViewController,
-        didFinishWith result: MFMailComposeResult,
-        error: (any Error)?
-    ) {
-        if error != nil {
-            complete(.failed)
-            return
-        }
-        switch result {
-        case .cancelled:
-            complete(.cancelled)
-        case .failed:
-            complete(.failed)
-        case .saved:
-            complete(.saved)
-        case .sent:
-            complete(.sent)
-        @unknown default:
-            complete(.failed)
-        }
-    }
-
     func complete(_ result: FeedbackMailResultV1) {
         guard !didFinish else { return }
         didFinish = true
         finished(result)
+    }
+
+    nonisolated static func outcome(
+        for result: MFMailComposeResult,
+        hasError: Bool
+    ) -> FeedbackMailResultV1 {
+        if hasError { return .failed }
+        switch result {
+        case .cancelled:
+            return .cancelled
+        case .failed:
+            return .failed
+        case .saved:
+            return .saved
+        case .sent:
+            return .sent
+        @unknown default:
+            return .failed
+        }
+    }
+}
+
+extension MailComposerCoordinator: MFMailComposeViewControllerDelegate {
+    nonisolated func mailComposeController(
+        _ controller: MFMailComposeViewController,
+        didFinishWith result: MFMailComposeResult,
+        error: (any Error)?
+    ) {
+        let outcome = Self.outcome(for: result, hasError: error != nil)
+        // MessageUI invokes this delegate on the main thread. Keep the handoff
+        // synchronous so the first terminal callback deterministically wins;
+        // no controller or Error value crosses the actor boundary.
+        MainActor.assumeIsolated {
+            complete(outcome)
+        }
     }
 }
 
