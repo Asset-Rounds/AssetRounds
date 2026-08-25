@@ -12324,7 +12324,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        var usedSettingsRetry = false"
         let availablePurchaseFunctionEnd =
             "\n\n    @MainActor\n" +
-                "    private func assertMonthlyPaywallAtXXXL("
+                "    private func positionAXTextPurchaseCompleteViewport("
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: availablePurchaseFunctionStart
@@ -12405,7 +12405,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             availablePurchaseFunctionSource.components(
                 separatedBy: "return usedSettingsRetry"
             ).count - 1,
-            11
+            13
         )
         XCTAssertFalse(availablePurchaseFunctionSource.contains("\n            return\n"))
         XCTAssertFalse(availablePurchaseFunctionSource.contains("\n                    return\n"))
