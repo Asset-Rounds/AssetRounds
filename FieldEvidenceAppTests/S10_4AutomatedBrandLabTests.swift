@@ -1327,6 +1327,313 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
+        let frontierReplayDeclaration =
+            "    private static let axTextFrontierReplayStateIDs = ["
+        let frontierWindowDeclaration =
+            "    private static let axTextFrontierWindowStateIDs = ["
+        let contrastAuthorityDeclaration =
+            "    private static let contrastAuditExceptionSignatures = ["
+        guard let frontierReplayStartRange = uiSource.range(
+            of: frontierReplayDeclaration
+        ), let frontierWindowStartRange = uiSource.range(
+            of: frontierWindowDeclaration,
+            range: frontierReplayStartRange.upperBound..<uiSource.endIndex
+        ), let contrastAuthorityStartRange = uiSource.range(
+            of: contrastAuthorityDeclaration,
+            range: frontierWindowStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded AX-text frontier state declarations")
+            return
+        }
+        let frontierReplayDeclarationSource = String(
+            uiSource[
+                frontierReplayStartRange.lowerBound ..<
+                    frontierWindowStartRange.lowerBound
+            ]
+        )
+        let frontierWindowDeclarationSource = String(
+            uiSource[
+                frontierWindowStartRange.lowerBound ..<
+                    contrastAuthorityStartRange.lowerBound
+            ]
+        )
+        let expectedFrontierReplayStateIDs = [
+            "state.pack.unavailable",
+            "state.welcome.empty",
+            "state.reports-index.empty",
+            "state.sample-report.ready",
+            "state.new-sign.editing",
+            "state.new-sign.validation-error",
+            "state.sign-detail.ready",
+            "state.sign-detail.delete-confirmation",
+            "state.check-preflight.ready",
+            "state.capture.wide-ready",
+            "state.capture.camera-denied",
+            "state.capture.low-storage-error",
+            "state.capture.wide-preview",
+            "state.capture.close-ready",
+            "state.capture.close-preview",
+            "state.check-outcome.visible-issue",
+            "state.check-review.visible-issue",
+            "state.receipt.report-saved",
+            "state.report-detail.ready",
+            "state.report-history.ready",
+            "state.reports-index.ready",
+            "state.sign-detail.open-issue",
+            "state.work.validation-error",
+            "state.work.editing",
+            "state.work.saving",
+        ]
+        let expectedFrontierWindowStateIDs = [
+            "state.issue.recheck-due",
+            "state.recheck-preflight.ready",
+            "state.recheck-capture.wide-ready",
+        ]
+        XCTAssertEqual(expectedFrontierReplayStateIDs.count, 25)
+        XCTAssertEqual(expectedFrontierWindowStateIDs.count, 3)
+        XCTAssertEqual(Set(expectedFrontierReplayStateIDs).count, 25)
+        XCTAssertEqual(Set(expectedFrontierWindowStateIDs).count, 3)
+        XCTAssertTrue(
+            Set(expectedFrontierReplayStateIDs)
+                .isDisjoint(with: Set(expectedFrontierWindowStateIDs))
+        )
+        let expectedFrontierReplayDeclarationSource =
+            frontierReplayDeclaration + "\n" +
+            expectedFrontierReplayStateIDs.map { "        \"\($0)\"," }
+                .joined(separator: "\n") +
+            "\n    ]\n\n"
+        let expectedFrontierWindowDeclarationSource =
+            frontierWindowDeclaration + "\n" +
+            expectedFrontierWindowStateIDs.map { "        \"\($0)\"," }
+                .joined(separator: "\n") +
+            "\n    ]\n\n"
+        XCTAssertEqual(
+            frontierReplayDeclarationSource,
+            expectedFrontierReplayDeclarationSource
+        )
+        XCTAssertEqual(
+            frontierWindowDeclarationSource,
+            expectedFrontierWindowDeclarationSource
+        )
+        for stateID in expectedFrontierReplayStateIDs {
+            XCTAssertEqual(
+                frontierReplayDeclarationSource.components(
+                    separatedBy: "\"\(stateID)\""
+                ).count - 1,
+                1,
+                stateID
+            )
+        }
+        var frontierReplaySearchStart = frontierReplayDeclarationSource.startIndex
+        for stateID in expectedFrontierReplayStateIDs {
+            guard let stateRange = frontierReplayDeclarationSource.range(
+                of: "\"\(stateID)\"",
+                range: frontierReplaySearchStart..<frontierReplayDeclarationSource.endIndex
+            ) else {
+                XCTFail("AX-text frontier replay order drifted at \(stateID)")
+                return
+            }
+            frontierReplaySearchStart = stateRange.upperBound
+        }
+        for stateID in expectedFrontierWindowStateIDs {
+            XCTAssertEqual(
+                frontierWindowDeclarationSource.components(
+                    separatedBy: "\"\(stateID)\""
+                ).count - 1,
+                1,
+                stateID
+            )
+        }
+        var frontierWindowSearchStart = frontierWindowDeclarationSource.startIndex
+        for stateID in expectedFrontierWindowStateIDs {
+            guard let stateRange = frontierWindowDeclarationSource.range(
+                of: "\"\(stateID)\"",
+                range: frontierWindowSearchStart..<frontierWindowDeclarationSource.endIndex
+            ) else {
+                XCTFail("AX-text frontier window order drifted at \(stateID)")
+                return
+            }
+            frontierWindowSearchStart = stateRange.upperBound
+        }
+        XCTAssertEqual(
+            uiSource.components(separatedBy: frontierReplayDeclaration).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: frontierWindowDeclaration).count - 1,
+            1
+        )
+
+        let frontierCaptureBaselineStart =
+            "    @MainActor\n" +
+                "    private func captureBaseline(\n" +
+                "        _ stateID: String,"
+        let frontierHelperStart =
+            "    @MainActor\n" +
+                "    private func replayAXTextFrontierStateIfNeeded(\n" +
+                "        _ stateID: String,"
+        let frontierHelperEnd =
+            "    @MainActor\n" +
+                "    private func positionIssueRecheckDueDescriptionForAXText("
+        guard let frontierCaptureBaselineStartRange = uiSource.range(
+                of: frontierCaptureBaselineStart
+              ),
+              let frontierHelperStartRange = uiSource.range(
+                of: frontierHelperStart,
+                range: frontierCaptureBaselineStartRange.upperBound..<uiSource.endIndex
+              ), let frontierHelperEndRange = uiSource.range(
+                of: frontierHelperEnd,
+                range: frontierHelperStartRange.upperBound..<uiSource.endIndex
+              ) else {
+            XCTFail("Missing the bounded AX-text frontier helper source")
+            return
+        }
+        let frontierCaptureBaselineEnd = uiSource.index(
+            frontierHelperStartRange.lowerBound,
+            offsetBy: -2
+        )
+        let frontierHelperSourceEnd = uiSource.index(
+            frontierHelperEndRange.lowerBound,
+            offsetBy: -2
+        )
+        let captureBaselineSource = String(
+            uiSource[
+                frontierCaptureBaselineStartRange.lowerBound ..<
+                    frontierCaptureBaselineEnd
+            ]
+        )
+        let frontierHelperSource = String(
+            uiSource[
+                frontierHelperStartRange.lowerBound ..<
+                    frontierHelperSourceEnd
+            ]
+        )
+        let frontierCall =
+            "        if replayAXTextFrontierStateIfNeeded(\n" +
+                "            stateID,\n" +
+                "            in: app,\n" +
+                "            file: file,\n" +
+                "            line: line\n" +
+                "        ) {\n" +
+                "            return\n" +
+                "        }"
+        let migratedAppend = "        migratedStateIDs.append(stateID)"
+        let foregroundProof =
+            "        XCTAssertTrue(app.state == .runningForeground, file: file, line: line)"
+        let normalMarker = "        print(\"S10_MIGRATION_STATE state=\\(stateID)\")"
+        XCTAssertEqual(captureBaselineSource.components(separatedBy: frontierCall).count - 1, 1)
+        XCTAssertEqual(
+            captureBaselineSource.components(
+                separatedBy: frontierCall + "\n" + normalMarker
+            ).count - 1,
+            1
+        )
+        guard let foregroundProofRange = captureBaselineSource.range(of: foregroundProof),
+              let migratedAppendRange = captureBaselineSource.range(
+                of: migratedAppend,
+                range: foregroundProofRange.upperBound..<captureBaselineSource.endIndex
+              ),
+              let frontierCallRange = captureBaselineSource.range(
+                of: frontierCall,
+                range: migratedAppendRange.upperBound..<captureBaselineSource.endIndex
+              ), let normalMarkerRange = captureBaselineSource.range(
+                of: normalMarker,
+                range: frontierCallRange.upperBound..<captureBaselineSource.endIndex
+              ) else {
+            XCTFail("AX-text frontier gate is not immediately before normal evidence")
+            return
+        }
+        XCTAssertLessThan(foregroundProofRange.lowerBound, migratedAppendRange.lowerBound)
+        XCTAssertLessThan(migratedAppendRange.lowerBound, frontierCallRange.lowerBound)
+        XCTAssertLessThan(frontierCallRange.lowerBound, normalMarkerRange.lowerBound)
+        XCTAssertEqual(frontierHelperSource.utf8.count, 1_958)
+        XCTAssertEqual(
+            Data(frontierHelperSource.utf8).sha256,
+            "2A820AC270926F85037E6A5C75D2983D2747DEAF058BD135FCFB2605470EB32B"
+        )
+        let exactNonAXFrontierGuard =
+            "        guard let shard = automationShard,\n" +
+                "              shard.shardID == \"s10.4.current.ax-text\" else {\n" +
+                "            return false\n" +
+                "        }"
+        XCTAssertEqual(
+            frontierHelperSource.components(
+                separatedBy: exactNonAXFrontierGuard
+            ).count - 1,
+            1
+        )
+        let requiredFrontierHelperFragments = [
+            #"shard.shardID == "s10.4.current.ax-text""#,
+            "let orderedStateIDs = Self.axTextFrontierReplayStateIDs",
+            "+ Self.axTextFrontierWindowStateIDs",
+            "guard axTextFrontierStateCursor < orderedStateIDs.count else",
+            "let expectedStateID = orderedStateIDs[axTextFrontierStateCursor]",
+            "guard stateID == expectedStateID else",
+            "guard app.state == .runningForeground else",
+            "axTextFrontierStateCursor += 1",
+            "guard axTextFrontierStateCursor <= Self.axTextFrontierReplayStateIDs.count else",
+            "dismissHostedAppleIntelligenceNotificationIfPresent(",
+            #"printJSONLine(prefix: "S10_4_FRONTIER_REPLAY""#,
+            #""ordinal": axTextFrontierStateCursor"#,
+            #""shardID": shard.shardID"#,
+            #""stateID": stateID"#,
+        ]
+        for fragment in requiredFrontierHelperFragments {
+            XCTAssertEqual(
+                frontierHelperSource.components(separatedBy: fragment).count - 1,
+                1,
+                fragment
+            )
+        }
+        let orderedFrontierHelperFragments = [
+            exactNonAXFrontierGuard,
+            "let orderedStateIDs = Self.axTextFrontierReplayStateIDs",
+            "guard axTextFrontierStateCursor < orderedStateIDs.count else",
+            "let expectedStateID = orderedStateIDs[axTextFrontierStateCursor]",
+            "guard stateID == expectedStateID else",
+            "guard app.state == .runningForeground else",
+            "axTextFrontierStateCursor += 1",
+            "guard axTextFrontierStateCursor <= Self.axTextFrontierReplayStateIDs.count else",
+            "dismissHostedAppleIntelligenceNotificationIfPresent(",
+            #"printJSONLine(prefix: "S10_4_FRONTIER_REPLAY""#,
+            "return true",
+        ]
+        var orderedFrontierHelperSearchStart = frontierHelperSource.startIndex
+        for fragment in orderedFrontierHelperFragments {
+            guard let fragmentRange = frontierHelperSource.range(
+                of: fragment,
+                range: orderedFrontierHelperSearchStart..<frontierHelperSource.endIndex
+            ) else {
+                XCTFail("AX-text frontier helper sequence drifted at \(fragment)")
+                return
+            }
+            orderedFrontierHelperSearchStart = fragmentRange.upperBound
+        }
+        XCTAssertEqual(
+            uiSource.components(separatedBy: "axTextFrontierStateCursor = 0").count - 1,
+            2
+        )
+        XCTAssertEqual(
+            frontierHelperSource.components(separatedBy: "return false").count - 1,
+            2
+        )
+        XCTAssertEqual(
+            frontierHelperSource.components(separatedBy: "return true").count - 1,
+            4
+        )
+        let forbiddenFrontierHelperFragments = [
+            "S10_MIGRATION_STATE",
+            "performAccessibilityAudit",
+            "S10_4_AX_STATE",
+            "S10_4_CONTRAST",
+            "S10.4 candidate",
+            "emitAutomatedLabAccessibilityRowsIfNeeded",
+            "assertMigrationStateCoverage",
+            "XCTAttachment(",
+        ]
+        for fragment in forbiddenFrontierHelperFragments {
+            XCTAssertFalse(frontierHelperSource.contains(fragment), fragment)
+        }
         let recordWorkWithoutBaselineStart =
             "    @MainActor\n" +
                 "    private func recordWorkWithoutBaseline(in app: XCUIApplication) {"
@@ -9372,7 +9679,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             return
         }
         let restoredCaptureBaselineEnd = uiSource.index(
-            issueRecheckDuePositioningHelperStartRange.lowerBound,
+            frontierHelperStartRange.lowerBound,
             offsetBy: -2
         )
         let restoredCaptureBaselineSource = String(
@@ -9387,10 +9694,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 7_901)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_077)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "371C419756DF1F86C30BD576938A5089F74616379C790C79089C23A052760CB6"
+            "6A99839E964086A5C2443F6B406C1E76F01FB71131A60B2BD434D5FD45186A82"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(

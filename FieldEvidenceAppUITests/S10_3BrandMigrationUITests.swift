@@ -88,6 +88,40 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         AutomationShard(ordinal: 14, shardID: "s10.4.minimum.bounded", requirementID: "bounded", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "differentiate_without_color", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-bounded", layoutDirection: "left_to_right", differentiateWithoutColor: true, reduceMotion: false, reduceTransparency: false),
     ]
 
+    private static let axTextFrontierReplayStateIDs = [
+        "state.pack.unavailable",
+        "state.welcome.empty",
+        "state.reports-index.empty",
+        "state.sample-report.ready",
+        "state.new-sign.editing",
+        "state.new-sign.validation-error",
+        "state.sign-detail.ready",
+        "state.sign-detail.delete-confirmation",
+        "state.check-preflight.ready",
+        "state.capture.wide-ready",
+        "state.capture.camera-denied",
+        "state.capture.low-storage-error",
+        "state.capture.wide-preview",
+        "state.capture.close-ready",
+        "state.capture.close-preview",
+        "state.check-outcome.visible-issue",
+        "state.check-review.visible-issue",
+        "state.receipt.report-saved",
+        "state.report-detail.ready",
+        "state.report-history.ready",
+        "state.reports-index.ready",
+        "state.sign-detail.open-issue",
+        "state.work.validation-error",
+        "state.work.editing",
+        "state.work.saving",
+    ]
+
+    private static let axTextFrontierWindowStateIDs = [
+        "state.issue.recheck-due",
+        "state.recheck-preflight.ready",
+        "state.recheck-capture.wide-ready",
+    ]
+
     private static let contrastAuditExceptionSignatures = [
         ContrastAuditExceptionSignature(
             issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",
@@ -522,6 +556,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     private var automationAXTreeDigests: [String: String] = [:]
     private var automationContrastExceptions: [String: [ContrastAuditExceptionSignature]] = [:]
     private var pseudoLabelSentinelValidated = false
+    private var axTextFrontierStateCursor = 0
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -566,6 +601,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         automationAXTreeDigests.removeAll()
         automationContrastExceptions.removeAll()
         pseudoLabelSentinelValidated = false
+        axTextFrontierStateCursor = 0
     }
 
     @MainActor
@@ -7674,6 +7710,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         )
         XCTAssertTrue(app.state == .runningForeground, file: file, line: line)
         migratedStateIDs.append(stateID)
+        if replayAXTextFrontierStateIfNeeded(
+            stateID,
+            in: app,
+            file: file,
+            line: line
+        ) {
+            return
+        }
         print("S10_MIGRATION_STATE state=\(stateID)")
 
         guard let shard = automationShard else { return }
@@ -7821,6 +7865,67 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 line: line
             )
         }
+    }
+
+    @MainActor
+    private func replayAXTextFrontierStateIfNeeded(
+        _ stateID: String,
+        in app: XCUIApplication,
+        file: StaticString,
+        line: UInt
+    ) -> Bool {
+        guard let shard = automationShard,
+              shard.shardID == "s10.4.current.ax-text" else {
+            return false
+        }
+
+        let orderedStateIDs = Self.axTextFrontierReplayStateIDs
+            + Self.axTextFrontierWindowStateIDs
+        guard axTextFrontierStateCursor < orderedStateIDs.count else {
+            XCTFail(
+                "S10.4 AX-text frontier advanced beyond its frozen 28-state window",
+                file: file,
+                line: line
+            )
+            return true
+        }
+
+        let expectedStateID = orderedStateIDs[axTextFrontierStateCursor]
+        guard stateID == expectedStateID else {
+            XCTFail(
+                "S10.4 AX-text frontier order drifted at ordinal "
+                    + "\(axTextFrontierStateCursor + 1): expected "
+                    + "\(expectedStateID), observed \(stateID)",
+                file: file,
+                line: line
+            )
+            return true
+        }
+        guard app.state == .runningForeground else {
+            XCTFail(
+                "S10.4 AX-text frontier state is not running foreground: \(stateID)",
+                file: file,
+                line: line
+            )
+            return true
+        }
+
+        axTextFrontierStateCursor += 1
+        guard axTextFrontierStateCursor <= Self.axTextFrontierReplayStateIDs.count else {
+            return false
+        }
+
+        dismissHostedAppleIntelligenceNotificationIfPresent(
+            in: app,
+            file: file,
+            line: line
+        )
+        printJSONLine(prefix: "S10_4_FRONTIER_REPLAY", object: [
+            "ordinal": axTextFrontierStateCursor,
+            "shardID": shard.shardID,
+            "stateID": stateID,
+        ])
+        return true
     }
 
     @MainActor
