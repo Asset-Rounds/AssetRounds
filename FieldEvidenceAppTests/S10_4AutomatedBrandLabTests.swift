@@ -1327,8 +1327,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 460_457,
-            sha256: "29DF3E27D4C476489C844335FFA1E72083E740E4C7C73CE2958F1BA2B54654ED"
+            byteCount: 471_225,
+            sha256: "A463AF1696359361E6AA3CF0B0B773A5E0F2034D4D59E4D934BFA81B51CE7B5A"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2740,10 +2740,39 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     reportComparisonRouteStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 20_525)
+        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 31_293)
         XCTAssertEqual(
             Data(workValidationPositioningHelperSource.utf8).sha256,
-            "736ADB5919E5CE14A63511A9B238AEF6F34C9DB77F03EE339EF7ED3A64016511"
+            "CBE290996554242DC5EB92F3B379BC5053318C14187F7ECA1398EE2388BE5D41"
+        )
+        let workValidationDiagnosticStart =
+            "            if diagnosticAttemptIndex == 0 {"
+        let workValidationDiagnosticEnd =
+            "            guard diagnosticAttemptIndex != 0,\n" +
+                "                  hasExactRoute() else {"
+        guard let workValidationDiagnosticStartRange =
+            workValidationPositioningHelperSource.range(
+                of: workValidationDiagnosticStart
+            ),
+              let workValidationDiagnosticEndRange =
+                workValidationPositioningHelperSource.range(
+                    of: workValidationDiagnosticEnd,
+                    range: workValidationDiagnosticStartRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ) else {
+            XCTFail("Missing bounded work-validation route diagnostic")
+            return
+        }
+        let workValidationDiagnosticSource = String(
+            workValidationPositioningHelperSource[
+                workValidationDiagnosticStartRange.lowerBound ..<
+                    workValidationDiagnosticEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(workValidationDiagnosticSource.utf8.count, 6_205)
+        XCTAssertEqual(
+            Data(workValidationDiagnosticSource.utf8).sha256,
+            "B7EE5A46D12E8D7FE84D67250075AAEFCEA05A148CEAB026DD7C0ABED87B9CC0"
         )
 
         let signDetailPositioningGate =
@@ -3395,62 +3424,264 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 lock
             )
         }
-        let workValidationSemanticLocks = [
-            "                && workScreen.exists",
-            "                && workScreen.elementType == .scrollView",
-            #"                && workScreen.identifier == "s5.1.work.screen""#,
-            "                && workScreen.label.isEmpty",
-            #"                && (workScreen.value as? String) == """#,
-            "                && workScreen.isHittable",
-            "                && descriptionField.exists",
-            "                && descriptionField.elementType == .textField",
-            #"                && descriptionField.identifier == "s5.1.work.description""#,
-            #"                && descriptionField.label == "Short description""#,
-            #"                && (descriptionField.value as? String) == "Short description""#,
-            "                && focusedDescriptionField.exists",
-            "                && focusedDescriptionField.elementType == .textField",
-            #"                && focusedDescriptionField.identifier == "s5.1.work.description""#,
-            #"                && focusedDescriptionField.label == "Short description""#,
-            #"                && (focusedDescriptionField.value as? String) == "Short description""#,
-            "                && focusedDescriptionField.isHittable",
-            "                && validationLabel.exists",
-            "                && validationLabel.elementType == .staticText",
-            #"                && validationLabel.identifier == "s5.1.work.validation""#,
-            #"                && validationLabel.label == "Short description""#,
-            #"                && (validationLabel.value as? String) == """#,
-            "                && shortDescriptionFieldLabel.exists",
-            "                && shortDescriptionFieldLabel.elementType == .staticText",
-            "                && shortDescriptionFieldLabel.identifier.isEmpty",
-            #"                && shortDescriptionFieldLabel.label == "Short description""#,
-            #"                && (shortDescriptionFieldLabel.value as? String) == """#,
-            "                && descriptionScrollView.exists",
-            "                && descriptionScrollView.elementType == .scrollView",
-            #"                && descriptionScrollView.identifier == "s5.1.work.screen""#,
-            "                && descriptionScrollView.label.isEmpty",
-            #"                && (descriptionScrollView.value as? String) == """#,
-            "                && descriptionScrollView.isHittable",
-            "                && navigationBar.exists",
-            "                && navigationBar.elementType == .navigationBar",
-            #"                && navigationBar.identifier == "Record work""#,
-            "                && navigationBar.label.isEmpty",
-            #"                && (navigationBar.value as? String) == """#,
-            "                && navigationBar.isHittable",
-            "                && tabBar.exists",
-            "                && tabBar.elementType == .tabBar",
-            "                && tabBar.identifier.isEmpty",
-            #"                && tabBar.label == "Tab Bar""#,
-            #"                && (tabBar.value as? String) == """#,
-            "                && tabBar.isHittable",
-            "                && keyboard.exists",
-            "                && keyboard.elementType == .keyboard",
-            "                && keyboard.identifier.isEmpty",
-            "                && keyboard.label.isEmpty",
-            #"                && (keyboard.value as? String) == """#,
-            "                && keyboard.isHittable",
+        let workValidationRouteRelationNames = [
+            "applicationForeground",
+            "workScreensCountOne",
+            "descriptionFieldsCountOne",
+            "focusedDescriptionFieldsCountOne",
+            "validationLabelsCountOne",
+            "shortDescriptionStaticTextsCountTwo",
+            "shortDescriptionFieldLabelsCountOne",
+            "descriptionScrollViewsCountOne",
+            "navigationBarsCountOne",
+            "tabBarsCountOne",
+            "keyboardsCountOne",
+            "workScreenExists",
+            "workScreenTypeScrollView",
+            "workScreenIdentifier",
+            "workScreenLabelEmpty",
+            "workScreenValueEmpty",
+            "workScreenHittable",
+            "descriptionFieldExists",
+            "descriptionFieldTypeTextField",
+            "descriptionFieldIdentifier",
+            "descriptionFieldLabel",
+            "descriptionFieldValue",
+            "descriptionFieldHittable",
+            "focusedDescriptionFieldExists",
+            "focusedDescriptionFieldTypeTextField",
+            "focusedDescriptionFieldIdentifier",
+            "focusedDescriptionFieldLabel",
+            "focusedDescriptionFieldValue",
+            "focusedDescriptionFieldHittable",
+            "validationLabelExists",
+            "validationLabelTypeStaticText",
+            "validationLabelIdentifier",
+            "validationLabelLabel",
+            "validationLabelValueEmpty",
+            "validationLabelHittable",
+            "shortDescriptionFieldLabelExists",
+            "shortDescriptionFieldLabelTypeStaticText",
+            "shortDescriptionFieldLabelIdentifierEmpty",
+            "shortDescriptionFieldLabelLabel",
+            "shortDescriptionFieldLabelValueEmpty",
+            "descriptionScrollViewExists",
+            "descriptionScrollViewTypeScrollView",
+            "descriptionScrollViewIdentifier",
+            "descriptionScrollViewLabelEmpty",
+            "descriptionScrollViewValueEmpty",
+            "descriptionScrollViewHittable",
+            "navigationBarExists",
+            "navigationBarTypeNavigationBar",
+            "navigationBarIdentifier",
+            "navigationBarLabelEmpty",
+            "navigationBarValueEmpty",
+            "navigationBarHittable",
+            "tabBarExists",
+            "tabBarTypeTabBar",
+            "tabBarIdentifierEmpty",
+            "tabBarLabel",
+            "tabBarValueEmpty",
+            "tabBarHittable",
+            "keyboardExists",
+            "keyboardTypeKeyboard",
+            "keyboardIdentifierEmpty",
+            "keyboardLabelEmpty",
+            "keyboardValueEmpty",
+            "keyboardHittable",
         ]
-        for lock in workValidationSemanticLocks {
+        XCTAssertEqual(workValidationRouteRelationNames.count, 64)
+        let workValidationRouteRelationPredicates = [
+            "app.state == .runningForeground",
+            "workScreens.count == 1",
+            "descriptionFields.count == 1",
+            "focusedDescriptionFields.count == 1",
+            "validationLabels.count == 1",
+            "shortDescriptionStaticTexts.count == 2",
+            "shortDescriptionFieldLabels.count == 1",
+            "descriptionScrollViews.count == 1",
+            "navigationBars.count == 1",
+            "tabBars.count == 1",
+            "keyboards.count == 1",
+            "workScreen.exists",
+            "workScreen.elementType == .scrollView",
+            #"workScreen.identifier == "s5.1.work.screen""#,
+            "workScreen.label.isEmpty",
+            #"(workScreen.value as? String) == """#,
+            "workScreen.isHittable",
+            "descriptionField.exists",
+            "descriptionField.elementType == .textField",
+            #"descriptionField.identifier == "s5.1.work.description""#,
+            #"descriptionField.label == "Short description""#,
+            #"(descriptionField.value as? String) == "Short description""#,
+            "descriptionField.isHittable",
+            "focusedDescriptionField.exists",
+            "focusedDescriptionField.elementType == .textField",
+            #"focusedDescriptionField.identifier == "s5.1.work.description""#,
+            #"focusedDescriptionField.label == "Short description""#,
+            #"(focusedDescriptionField.value as? String) == "Short description""#,
+            "focusedDescriptionField.isHittable",
+            "validationLabel.exists",
+            "validationLabel.elementType == .staticText",
+            #"validationLabel.identifier == "s5.1.work.validation""#,
+            #"validationLabel.label == "Short description""#,
+            #"(validationLabel.value as? String) == """#,
+            "validationLabel.isHittable",
+            "shortDescriptionFieldLabel.exists",
+            "shortDescriptionFieldLabel.elementType == .staticText",
+            "shortDescriptionFieldLabel.identifier.isEmpty",
+            #"shortDescriptionFieldLabel.label == "Short description""#,
+            #"(shortDescriptionFieldLabel.value as? String) == """#,
+            "descriptionScrollView.exists",
+            "descriptionScrollView.elementType == .scrollView",
+            #"descriptionScrollView.identifier == "s5.1.work.screen""#,
+            "descriptionScrollView.label.isEmpty",
+            #"(descriptionScrollView.value as? String) == """#,
+            "descriptionScrollView.isHittable",
+            "navigationBar.exists",
+            "navigationBar.elementType == .navigationBar",
+            #"navigationBar.identifier == "Record work""#,
+            "navigationBar.label.isEmpty",
+            #"(navigationBar.value as? String) == """#,
+            "navigationBar.isHittable",
+            "tabBar.exists",
+            "tabBar.elementType == .tabBar",
+            "tabBar.identifier.isEmpty",
+            #"tabBar.label == "Tab Bar""#,
+            #"(tabBar.value as? String) == """#,
+            "tabBar.isHittable",
+            "keyboard.exists",
+            "keyboard.elementType == .keyboard",
+            "keyboard.identifier.isEmpty",
+            "keyboard.label.isEmpty",
+            #"(keyboard.value as? String) == """#,
+            "keyboard.isHittable",
+        ]
+        XCTAssertEqual(workValidationRouteRelationPredicates.count, 64)
+        var workValidationRelationSearchStart =
+            workValidationPositioningHelperSource.startIndex
+        for (relationName, predicate) in zip(
+            workValidationRouteRelationNames,
+            workValidationRouteRelationPredicates
+        ) {
+            let quotedRelationName = "\"" + relationName + "\""
             XCTAssertEqual(
                 workValidationPositioningHelperSource.components(
+                    separatedBy: quotedRelationName
+                ).count - 1,
+                1,
+                relationName
+            )
+            guard let relationRange = workValidationPositioningHelperSource.range(
+                of: quotedRelationName,
+                range: workValidationRelationSearchStart ..<
+                    workValidationPositioningHelperSource.endIndex
+            ) else {
+                XCTFail("Missing ordered work-validation route relation")
+                return
+            }
+            guard let predicateRange = workValidationPositioningHelperSource.range(
+                of: predicate,
+                range: relationRange.upperBound ..<
+                    workValidationPositioningHelperSource.endIndex
+            ) else {
+                XCTFail("Missing predicate for ordered work-validation route relation")
+                return
+            }
+            workValidationRelationSearchStart = predicateRange.upperBound
+        }
+        XCTAssertEqual(
+            workValidationPositioningHelperSource.components(
+                separatedBy: "        let exactRouteRelations: () -> [(String, Bool)] = {"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workValidationPositioningHelperSource.components(
+                separatedBy:
+                    "        let hasExactRoute: () -> Bool = {\n" +
+                    "            exactRouteRelations().allSatisfy { relation in relation.1 }\n" +
+                    "        }"
+            ).count - 1,
+            1
+        )
+        let workValidationDiagnosticQueryCountLocks = [
+            #"                    "workScreens": workScreens.count,"#,
+            #"                    "descriptionFields": descriptionFields.count,"#,
+            #"                    "focusedDescriptionFields": focusedDescriptionFields.count,"#,
+            #"                    "validationLabels": validationLabels.count,"#,
+            #"                    "shortDescriptionStaticTexts": shortDescriptionStaticTexts.count,"#,
+            #"                    "shortDescriptionFieldLabels": shortDescriptionFieldLabels.count,"#,
+            #"                    "descriptionScrollViews": descriptionScrollViews.count,"#,
+            #"                    "navigationBars": navigationBars.count,"#,
+            #"                    "tabBars": tabBars.count,"#,
+            #"                    "keyboards": keyboards.count,"#,
+        ]
+        for lock in workValidationDiagnosticQueryCountLocks {
+            XCTAssertEqual(
+                workValidationDiagnosticSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        let workValidationDiagnosticNodeLocks = [
+            #"                    "workScreen": workValidationRouteDiagnosticElementObject("#,
+            #"                    "descriptionField": workValidationRouteDiagnosticElementObject("#,
+            #"                    "focusedDescriptionField":"#,
+            #"                    "validationLabel": workValidationRouteDiagnosticElementObject("#,
+            #"                    "shortDescriptionFieldLabel":"#,
+            #"                    "descriptionScrollView":"#,
+            #"                    "navigationBar": workValidationRouteDiagnosticElementObject("#,
+            #"                    "tabBar": workValidationRouteDiagnosticElementObject(tabBar),"#,
+            #"                    "keyboard": workValidationRouteDiagnosticElementObject(keyboard),"#,
+        ]
+        for lock in workValidationDiagnosticNodeLocks {
+            XCTAssertEqual(
+                workValidationDiagnosticSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        let workValidationDiagnosticSerializerLocks = [
+            "                let diagnosticRelations = exactRouteRelations()",
+            "                let diagnosticRelationObjects: [[String: Any]] =",
+            "                    diagnosticRelations.map {",
+            #"                        "name": relation.0,"#,
+            #"                        "passed": relation.1,"#,
+            "                let workValidationRouteDiagnosticElementObject:",
+            "                    (XCUIElement) -> [String: Any] = { element in",
+            "                    if let value = element.value as? String {",
+            "                        valueObject = NSNull()",
+            #"                        "exists": element.exists,"#,
+            #"                        "isHittable": element.isHittable,"#,
+            #"                        "isEnabled": element.isEnabled,"#,
+            #"                        "identifier": element.identifier,"#,
+            #"                        "label": element.label,"#,
+            #"                        "value": valueObject,"#,
+            #"                        "elementTypeRawValue": element.elementType.rawValue,"#,
+            #"                        "elementTypeDescription": String("#,
+            #"                        "frame": self.auditFrameObject(element.frame),"#,
+            #"                    "shardID": automationShard?.shardID ?? "","#,
+            #"                    "deviceProfileID": automationShard?.deviceProfileID ?? "","#,
+            #"                    "stateID": "state.work.validation-error","#,
+            #"                    "applicationState": String(describing: app.state),"#,
+            #"                    "applicationStateRawValue": app.state.rawValue,"#,
+            #"                    "isRunningForeground": app.state == .runningForeground,"#,
+            #"                    "applicationFrame": auditFrameObject(app.frame),"#,
+            #"                    "queryCounts": diagnosticQueryCounts,"#,
+            #"                    "relations": diagnosticRelationObjects,"#,
+            #"                    "failedRelations": diagnosticRelations.compactMap {"#,
+            #"                    "nodes": diagnosticNodeObjects,"#,
+            #"                    prefix: "S10_4_AX_TEXT_WORK_VALIDATION_ROUTE_DIAGNOSTIC","#,
+            "                    object: diagnosticContextObject",
+        ]
+        for lock in workValidationDiagnosticSerializerLocks {
+            XCTAssertEqual(
+                workValidationDiagnosticSource.components(
                     separatedBy: lock
                 ).count - 1,
                 1,
@@ -3458,18 +3689,117 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         for (lock, count) in [
-            ("                && descriptionField.isHittable", 2),
-            ("                && validationLabel.isHittable", 2),
-            ("                && shortDescriptionFieldLabel.isHittable", 1),
+            ("printJSONLine(", 1),
+            ("XCTAttachment(", 3),
+            (".lifetime = .keepAlways", 3),
+            ("add(diagnostic", 3),
+            ("JSONSerialization.data(", 1),
+            ("options: [.prettyPrinted, .sortedKeys]", 1),
         ] {
             XCTAssertEqual(
-                workValidationPositioningHelperSource.components(
+                workValidationDiagnosticSource.components(
                     separatedBy: lock
                 ).count - 1,
                 count,
                 lock
             )
         }
+        let workValidationDiagnosticOrder = [
+            "                let diagnosticRelations = exactRouteRelations()",
+            "                let diagnosticRelationObjects: [[String: Any]] =",
+            "                    diagnosticRelations.map {",
+            "                let workValidationRouteDiagnosticElementObject:",
+            "                let diagnosticQueryCounts: [String: Int] = [",
+            "                let diagnosticNodeObjects: [String: Any] = [",
+            "                let diagnosticContextObject: [String: Any] = [",
+            "                printJSONLine(",
+            "                let diagnosticAppAttachment = XCTAttachment(",
+            "                add(diagnosticAppAttachment)",
+            "                let diagnosticTreeAttachment = XCTAttachment(",
+            "                add(diagnosticTreeAttachment)",
+            "                let diagnosticContextData = try? JSONSerialization.data(",
+            "                let diagnosticContextAttachment = XCTAttachment(",
+            "                add(diagnosticContextAttachment)",
+        ]
+        var workValidationDiagnosticOrderStart =
+            workValidationDiagnosticSource.startIndex
+        for lock in workValidationDiagnosticOrder {
+            guard let lockRange = workValidationDiagnosticSource.range(
+                of: lock,
+                range: workValidationDiagnosticOrderStart ..<
+                    workValidationDiagnosticSource.endIndex
+            ) else {
+                XCTFail("Missing ordered work-validation route diagnostic source")
+                return
+            }
+            workValidationDiagnosticOrderStart = lockRange.upperBound
+        }
+        for prohibitedDiagnosticForm in [
+            ".tap(",
+            ".swipe",
+            ".coordinate(",
+            ".press(",
+            "thenDragTo:",
+            "scroll(",
+            "waitForExistence",
+            "waitForNonExistence",
+            ".typeText(",
+            "Thread.sleep",
+            "sleep(",
+            "performAccessibilityAudit",
+            "eligibleExceptions",
+            "ContrastAuditExceptionSignature",
+            "captureBaseline(",
+            "attachCandidate(",
+            #"prefix: "S10_4_AX_STATE""#,
+            #"prefix: "S10_4_CONTRAST""#,
+            "S10_4_CANDIDATE",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+            "liveScrollFrame",
+            "minimumShift",
+            "maximumShift",
+        ] {
+            XCTAssertFalse(
+                workValidationDiagnosticSource.contains(prohibitedDiagnosticForm),
+                prohibitedDiagnosticForm
+            )
+        }
+        guard let diagnosticAttemptRange =
+            workValidationPositioningHelperSource.range(
+                of: workValidationDiagnosticStart
+            ),
+              let diagnosticGuardRange =
+                workValidationPositioningHelperSource.range(
+                    of: workValidationDiagnosticEnd,
+                    range: diagnosticAttemptRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ),
+              let diagnosticFailureRange =
+                workValidationPositioningHelperSource.range(
+                    of: "                XCTFail(\"AX-text work-validation positioning route or focus changed.\")",
+                    range: diagnosticGuardRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ),
+              let diagnosticReturnFalseRange =
+                workValidationPositioningHelperSource.range(
+                    of: "                return false",
+                    range: diagnosticFailureRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ),
+              let postDiagnosticGeometryRange =
+                workValidationPositioningHelperSource.range(
+                    of: "            let applicationFrame = app.frame",
+                    range: diagnosticReturnFalseRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ) else {
+            XCTFail("Missing diagnostic-to-existing-failure ordering")
+            return
+        }
+        XCTAssertLessThan(diagnosticAttemptRange.lowerBound, diagnosticGuardRange.lowerBound)
+        XCTAssertLessThan(diagnosticGuardRange.lowerBound, diagnosticFailureRange.lowerBound)
+        XCTAssertLessThan(diagnosticFailureRange.lowerBound, diagnosticReturnFalseRange.lowerBound)
+        XCTAssertLessThan(diagnosticReturnFalseRange.lowerBound, postDiagnosticGeometryRange.lowerBound)
 
         let workValidationFrameLocks = [
             "        let isValidFrame: (CGRect) -> Bool = { frame in\n" +
@@ -3575,7 +3905,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "        let verticalInset: CGFloat = 16",
             "        let receiverInset: CGFloat = 24",
             "        let minimumGestureDistance: CGFloat = 44",
-            "        for _ in 0..<4 {",
+            "        for diagnosticAttemptIndex in 0..<4 {",
             "            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)",
             "                    min(keyboardFrame.minY, tabFrame.minY)",
             "            let safeTop = liveTop + verticalInset",
@@ -3790,9 +4120,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "automationContrastExceptions",
             "AutomationConfigurationError",
             "captureBaseline(",
-            "printJSONLine",
-            "XCTAttachment",
-            "NSNull",
             "attachCandidate(",
             #"prefix: "S10_4_AX_STATE""#,
             #"prefix: "S10_4_CONTRAST""#,

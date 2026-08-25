@@ -5843,71 +5843,172 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && frame.size.width.isFinite
                 && frame.size.height.isFinite
         }
+        let exactRouteRelations: () -> [(String, Bool)] = {
+            [
+                    ("applicationForeground", app.state == .runningForeground),
+                    ("workScreensCountOne", workScreens.count == 1),
+                    ("descriptionFieldsCountOne", descriptionFields.count == 1),
+                    (
+                        "focusedDescriptionFieldsCountOne",
+                        focusedDescriptionFields.count == 1
+                    ),
+                    ("validationLabelsCountOne", validationLabels.count == 1),
+                    (
+                        "shortDescriptionStaticTextsCountTwo",
+                        shortDescriptionStaticTexts.count == 2
+                    ),
+                    (
+                        "shortDescriptionFieldLabelsCountOne",
+                        shortDescriptionFieldLabels.count == 1
+                    ),
+                    (
+                        "descriptionScrollViewsCountOne",
+                        descriptionScrollViews.count == 1
+                    ),
+                    ("navigationBarsCountOne", navigationBars.count == 1),
+                    ("tabBarsCountOne", tabBars.count == 1),
+                    ("keyboardsCountOne", keyboards.count == 1),
+                    ("workScreenExists", workScreen.exists),
+                    ("workScreenTypeScrollView", workScreen.elementType == .scrollView),
+                    (
+                        "workScreenIdentifier",
+                        workScreen.identifier == "s5.1.work.screen"
+                    ),
+                    ("workScreenLabelEmpty", workScreen.label.isEmpty),
+                    (
+                        "workScreenValueEmpty",
+                        (workScreen.value as? String) == ""
+                    ),
+                    ("workScreenHittable", workScreen.isHittable),
+                    ("descriptionFieldExists", descriptionField.exists),
+                    (
+                        "descriptionFieldTypeTextField",
+                        descriptionField.elementType == .textField
+                    ),
+                    (
+                        "descriptionFieldIdentifier",
+                        descriptionField.identifier == "s5.1.work.description"
+                    ),
+                    (
+                        "descriptionFieldLabel",
+                        descriptionField.label == "Short description"
+                    ),
+                    (
+                        "descriptionFieldValue",
+                        (descriptionField.value as? String) == "Short description"
+                    ),
+                    ("descriptionFieldHittable", descriptionField.isHittable),
+                    ("focusedDescriptionFieldExists", focusedDescriptionField.exists),
+                    (
+                        "focusedDescriptionFieldTypeTextField",
+                        focusedDescriptionField.elementType == .textField
+                    ),
+                    (
+                        "focusedDescriptionFieldIdentifier",
+                        focusedDescriptionField.identifier == "s5.1.work.description"
+                    ),
+                    (
+                        "focusedDescriptionFieldLabel",
+                        focusedDescriptionField.label == "Short description"
+                    ),
+                    (
+                        "focusedDescriptionFieldValue",
+                        (focusedDescriptionField.value as? String) == "Short description"
+                    ),
+                    (
+                        "focusedDescriptionFieldHittable",
+                        focusedDescriptionField.isHittable
+                    ),
+                    ("validationLabelExists", validationLabel.exists),
+                    (
+                        "validationLabelTypeStaticText",
+                        validationLabel.elementType == .staticText
+                    ),
+                    (
+                        "validationLabelIdentifier",
+                        validationLabel.identifier == "s5.1.work.validation"
+                    ),
+                    (
+                        "validationLabelLabel",
+                        validationLabel.label == "Short description"
+                    ),
+                    (
+                        "validationLabelValueEmpty",
+                        (validationLabel.value as? String) == ""
+                    ),
+                    ("validationLabelHittable", validationLabel.isHittable),
+                    (
+                        "shortDescriptionFieldLabelExists",
+                        shortDescriptionFieldLabel.exists
+                    ),
+                    (
+                        "shortDescriptionFieldLabelTypeStaticText",
+                        shortDescriptionFieldLabel.elementType == .staticText
+                    ),
+                    (
+                        "shortDescriptionFieldLabelIdentifierEmpty",
+                        shortDescriptionFieldLabel.identifier.isEmpty
+                    ),
+                    (
+                        "shortDescriptionFieldLabelLabel",
+                        shortDescriptionFieldLabel.label == "Short description"
+                    ),
+                    (
+                        "shortDescriptionFieldLabelValueEmpty",
+                        (shortDescriptionFieldLabel.value as? String) == ""
+                    ),
+                    ("descriptionScrollViewExists", descriptionScrollView.exists),
+                    (
+                        "descriptionScrollViewTypeScrollView",
+                        descriptionScrollView.elementType == .scrollView
+                    ),
+                    (
+                        "descriptionScrollViewIdentifier",
+                        descriptionScrollView.identifier == "s5.1.work.screen"
+                    ),
+                    (
+                        "descriptionScrollViewLabelEmpty",
+                        descriptionScrollView.label.isEmpty
+                    ),
+                    (
+                        "descriptionScrollViewValueEmpty",
+                        (descriptionScrollView.value as? String) == ""
+                    ),
+                    (
+                        "descriptionScrollViewHittable",
+                        descriptionScrollView.isHittable
+                    ),
+                    ("navigationBarExists", navigationBar.exists),
+                    (
+                        "navigationBarTypeNavigationBar",
+                        navigationBar.elementType == .navigationBar
+                    ),
+                    (
+                        "navigationBarIdentifier",
+                        navigationBar.identifier == "Record work"
+                    ),
+                    ("navigationBarLabelEmpty", navigationBar.label.isEmpty),
+                    (
+                        "navigationBarValueEmpty",
+                        (navigationBar.value as? String) == ""
+                    ),
+                    ("navigationBarHittable", navigationBar.isHittable),
+                    ("tabBarExists", tabBar.exists),
+                    ("tabBarTypeTabBar", tabBar.elementType == .tabBar),
+                    ("tabBarIdentifierEmpty", tabBar.identifier.isEmpty),
+                    ("tabBarLabel", tabBar.label == "Tab Bar"),
+                    ("tabBarValueEmpty", (tabBar.value as? String) == ""),
+                    ("tabBarHittable", tabBar.isHittable),
+                    ("keyboardExists", keyboard.exists),
+                    ("keyboardTypeKeyboard", keyboard.elementType == .keyboard),
+                    ("keyboardIdentifierEmpty", keyboard.identifier.isEmpty),
+                    ("keyboardLabelEmpty", keyboard.label.isEmpty),
+                    ("keyboardValueEmpty", (keyboard.value as? String) == ""),
+                    ("keyboardHittable", keyboard.isHittable),
+            ]
+        }
         let hasExactRoute: () -> Bool = {
-            app.state == .runningForeground
-                && workScreens.count == 1
-                && descriptionFields.count == 1
-                && focusedDescriptionFields.count == 1
-                && validationLabels.count == 1
-                && shortDescriptionStaticTexts.count == 2
-                && shortDescriptionFieldLabels.count == 1
-                && descriptionScrollViews.count == 1
-                && navigationBars.count == 1
-                && tabBars.count == 1
-                && keyboards.count == 1
-                && workScreen.exists
-                && workScreen.elementType == .scrollView
-                && workScreen.identifier == "s5.1.work.screen"
-                && workScreen.label.isEmpty
-                && (workScreen.value as? String) == ""
-                && workScreen.isHittable
-                && descriptionField.exists
-                && descriptionField.elementType == .textField
-                && descriptionField.identifier == "s5.1.work.description"
-                && descriptionField.label == "Short description"
-                && (descriptionField.value as? String) == "Short description"
-                && descriptionField.isHittable
-                && focusedDescriptionField.exists
-                && focusedDescriptionField.elementType == .textField
-                && focusedDescriptionField.identifier == "s5.1.work.description"
-                && focusedDescriptionField.label == "Short description"
-                && (focusedDescriptionField.value as? String) == "Short description"
-                && focusedDescriptionField.isHittable
-                && validationLabel.exists
-                && validationLabel.elementType == .staticText
-                && validationLabel.identifier == "s5.1.work.validation"
-                && validationLabel.label == "Short description"
-                && (validationLabel.value as? String) == ""
-                && validationLabel.isHittable
-                && shortDescriptionFieldLabel.exists
-                && shortDescriptionFieldLabel.elementType == .staticText
-                && shortDescriptionFieldLabel.identifier.isEmpty
-                && shortDescriptionFieldLabel.label == "Short description"
-                && (shortDescriptionFieldLabel.value as? String) == ""
-                && descriptionScrollView.exists
-                && descriptionScrollView.elementType == .scrollView
-                && descriptionScrollView.identifier == "s5.1.work.screen"
-                && descriptionScrollView.label.isEmpty
-                && (descriptionScrollView.value as? String) == ""
-                && descriptionScrollView.isHittable
-                && navigationBar.exists
-                && navigationBar.elementType == .navigationBar
-                && navigationBar.identifier == "Record work"
-                && navigationBar.label.isEmpty
-                && (navigationBar.value as? String) == ""
-                && navigationBar.isHittable
-                && tabBar.exists
-                && tabBar.elementType == .tabBar
-                && tabBar.identifier.isEmpty
-                && tabBar.label == "Tab Bar"
-                && (tabBar.value as? String) == ""
-                && tabBar.isHittable
-                && keyboard.exists
-                && keyboard.elementType == .keyboard
-                && keyboard.identifier.isEmpty
-                && keyboard.label.isEmpty
-                && (keyboard.value as? String) == ""
-                && keyboard.isHittable
+            exactRouteRelations().allSatisfy { relation in relation.1 }
         }
         let frozenApplicationFrame = app.frame
         let frozenKeyboardFrame = keyboard.frame
@@ -5917,8 +6018,130 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         var previousFieldLabelMinYAfterDrag: CGFloat?
         var previousDescriptionMinYAfterDrag: CGFloat?
         var previousValidationMinYAfterDrag: CGFloat?
-        for _ in 0..<4 {
-            guard hasExactRoute() else {
+        for diagnosticAttemptIndex in 0..<4 {
+            if diagnosticAttemptIndex == 0 {
+                let diagnosticRelations = exactRouteRelations()
+                let diagnosticRelationObjects: [[String: Any]] =
+                    diagnosticRelations.map {
+                    relation in
+                    [
+                        "name": relation.0,
+                        "passed": relation.1,
+                    ]
+                    }
+                let workValidationRouteDiagnosticElementObject:
+                    (XCUIElement) -> [String: Any] = { element in
+                    let valueObject: Any
+                    if let value = element.value as? String {
+                        valueObject = value
+                    } else {
+                        valueObject = NSNull()
+                    }
+                    return [
+                        "exists": element.exists,
+                        "isHittable": element.isHittable,
+                        "isEnabled": element.isEnabled,
+                        "identifier": element.identifier,
+                        "label": element.label,
+                        "value": valueObject,
+                        "elementTypeRawValue": element.elementType.rawValue,
+                        "elementTypeDescription": String(
+                            describing: element.elementType
+                        ),
+                        "frame": self.auditFrameObject(element.frame),
+                    ]
+                }
+                let diagnosticQueryCounts: [String: Int] = [
+                    "workScreens": workScreens.count,
+                    "descriptionFields": descriptionFields.count,
+                    "focusedDescriptionFields": focusedDescriptionFields.count,
+                    "validationLabels": validationLabels.count,
+                    "shortDescriptionStaticTexts": shortDescriptionStaticTexts.count,
+                    "shortDescriptionFieldLabels": shortDescriptionFieldLabels.count,
+                    "descriptionScrollViews": descriptionScrollViews.count,
+                    "navigationBars": navigationBars.count,
+                    "tabBars": tabBars.count,
+                    "keyboards": keyboards.count,
+                ]
+                let diagnosticNodeObjects: [String: Any] = [
+                    "workScreen": workValidationRouteDiagnosticElementObject(
+                        workScreen
+                    ),
+                    "descriptionField": workValidationRouteDiagnosticElementObject(
+                        descriptionField
+                    ),
+                    "focusedDescriptionField":
+                        workValidationRouteDiagnosticElementObject(
+                            focusedDescriptionField
+                        ),
+                    "validationLabel": workValidationRouteDiagnosticElementObject(
+                        validationLabel
+                    ),
+                    "shortDescriptionFieldLabel":
+                        workValidationRouteDiagnosticElementObject(
+                            shortDescriptionFieldLabel
+                        ),
+                    "descriptionScrollView":
+                        workValidationRouteDiagnosticElementObject(
+                            descriptionScrollView
+                        ),
+                    "navigationBar": workValidationRouteDiagnosticElementObject(
+                        navigationBar
+                    ),
+                    "tabBar": workValidationRouteDiagnosticElementObject(tabBar),
+                    "keyboard": workValidationRouteDiagnosticElementObject(keyboard),
+                ]
+                let diagnosticContextObject: [String: Any] = [
+                    "shardID": automationShard?.shardID ?? "",
+                    "deviceProfileID": automationShard?.deviceProfileID ?? "",
+                    "stateID": "state.work.validation-error",
+                    "applicationState": String(describing: app.state),
+                    "applicationStateRawValue": app.state.rawValue,
+                    "isRunningForeground": app.state == .runningForeground,
+                    "applicationFrame": auditFrameObject(app.frame),
+                    "queryCounts": diagnosticQueryCounts,
+                    "relations": diagnosticRelationObjects,
+                    "failedRelations": diagnosticRelations.compactMap {
+                        relation in
+                        relation.1 ? nil : relation.0
+                    },
+                    "nodes": diagnosticNodeObjects,
+                ]
+                printJSONLine(
+                    prefix: "S10_4_AX_TEXT_WORK_VALIDATION_ROUTE_DIAGNOSTIC",
+                    object: diagnosticContextObject
+                )
+                let diagnosticAppAttachment = XCTAttachment(
+                    screenshot: XCUIScreen.main.screenshot()
+                )
+                diagnosticAppAttachment.name =
+                    "S10.4 AX-text work-validation route diagnostic app"
+                diagnosticAppAttachment.lifetime = .keepAlways
+                add(diagnosticAppAttachment)
+                let diagnosticTreeAttachment = XCTAttachment(
+                    string: app.debugDescription
+                )
+                diagnosticTreeAttachment.name =
+                    "S10.4 AX-text work-validation route diagnostic tree"
+                diagnosticTreeAttachment.lifetime = .keepAlways
+                add(diagnosticTreeAttachment)
+                let diagnosticContextData = try? JSONSerialization.data(
+                    withJSONObject: diagnosticContextObject,
+                    options: [.prettyPrinted, .sortedKeys]
+                )
+                let diagnosticContextString = diagnosticContextData.flatMap {
+                    String(data: $0, encoding: .utf8)
+                } ?? "{}"
+                let diagnosticContextAttachment = XCTAttachment(
+                    string: diagnosticContextString
+                )
+                diagnosticContextAttachment.name =
+                    "S10.4 AX-text work-validation route diagnostic context"
+                diagnosticContextAttachment.lifetime = .keepAlways
+                add(diagnosticContextAttachment)
+            }
+            guard diagnosticAttemptIndex != 0,
+                  hasExactRoute() else {
                 XCTFail("AX-text work-validation positioning route or focus changed.")
                 return false
             }
