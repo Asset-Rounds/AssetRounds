@@ -1,0 +1,41 @@
+{
+  "schema": "RepositoryHostedCapacityPolicyV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C04",
+  "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+  "pools": [
+    {
+      "pool": "STANDARD_GITHUB",
+      "configuredCeiling": 5,
+      "provedHardLimit": null,
+      "enforcementMechanism": "UNPROVED",
+      "effectiveHostedCapacity": 0,
+      "externalOccupancyRequired": true,
+      "providerConfigured": true,
+      "dispatchStatus": "BLOCKED_UNTIL_HARD_CAP_AND_OCCUPANCY_PROOF"
+    },
+    {
+      "pool": "GETMAC",
+      "configuredCeiling": 3,
+      "provedHardLimit": null,
+      "enforcementMechanism": "UNPROVED",
+      "effectiveHostedCapacity": 0,
+      "externalOccupancyRequired": true,
+      "providerConfigured": false,
+      "usageClass": "DEVELOPMENT_ONLY_DIAGNOSTIC",
+      "officialAcceptanceAllowed": false,
+      "dispatchStatus": "BLOCKED_UNTIL_PROVIDER_CONFIGURATION_HARD_CAP_AND_OCCUPANCY_PROOF"
+    }
+  ],
+  "combinedPhysicalCeiling": 8,
+  "capacityFormula": "min(PROVED_HARD_LIMIT, CONFIGURED_CEILING)-ACTIVE_LEASES-KNOWN_EXTERNAL_OCCUPANCY",
+  "everyJobChargedToExactlyOnePool": true,
+  "externalJobsAreObservationOnly": true,
+  "controllerGuardRenewalRolloverProductAndReleaseConsumeCapacity": true,
+  "unknownOccupancyDisposition": "BLOCK",
+  "expiredEvidenceDisposition": "BLOCK",
+  "officialExecutionPolicy": "FAIL_FAST",
+  "diagnosticExecutionPolicy": "EXHAUSTIVE_NON_ACCEPTING",
+  "acceptanceEnabled": false,
+  "releaseCredit": false
+}

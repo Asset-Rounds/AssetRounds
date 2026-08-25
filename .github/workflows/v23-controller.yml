@@ -1,0 +1,40 @@
+name: V23 Controller (provisional)
+
+on:
+  workflow_dispatch:
+    inputs:
+      activate_dispatch:
+        description: Reserved for post-C04 transport activation
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v23-controller-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  reject-premature-dispatch:
+    name: Reject dispatch before enrolled C04 transport
+    if: ${{ inputs.activate_dispatch }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Reject activation
+        shell: bash
+        run: |
+          echo "Hosted dispatch is not active in the provisional C04 checkpoint." >&2
+          exit 1
+
+  invoke-provisional-worker:
+    name: Invoke non-accepting controller worker
+    if: ${{ !inputs.activate_dispatch }}
+    uses: ./.github/workflows/v23-worker.yml
+    with:
+      expected_ref: refs/heads/phase/v23-expansion
+      expected_sha: ${{ github.sha }}
+    permissions:
+      contents: read

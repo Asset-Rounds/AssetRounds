@@ -1,0 +1,101 @@
+{
+  "schema": "V23P00C04ToolingManifestV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C04",
+  "attemptID": 2,
+  "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+  "branch": "phase/v23-expansion",
+  "baseHead": "6b1f6277adbc5611215a4be3e94ce3fdb29182db",
+  "baseTree": "3ad2bf71b70f59d4b13a21bfa29a75009f958ef3",
+  "authority": {
+    "overrideID": "V23-OWNER-PARALLEL-IMPLEMENTATION-004",
+    "overrideSemanticDigest": "3c1d8779cbc00ed22d26a088bac9f4169e92f630ac3d1f9d5e3fcf43e47bb8cd",
+    "overrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "contextDigest": "9d83ab3457d9294840c0693c910ee1bc891cf9180a9de48ebd792f1a3bbb2ddf",
+    "pathFenceDigest": "2b3be123e51ea77619fc0c80de605d8ca2f9cedc7937cd1e0a4cf217fb1c680e",
+    "provisionalPrerequisiteDigest": "3a86ceb793db5ac72454d2cdf4cac9131198ba708ac7723a726d71bfbe2d98ef",
+    "predecessorCheckpointDigest": "1ab7989c4855470af80dad9409e60963e5d051cca8b0a315872589c3bdd34bfa",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "registerDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae"
+  },
+  "phase10Isolation": {
+    "pollingDuringParallelExecution": false,
+    "frozenReservedPathCount": 86,
+    "frozenReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "overlapCount": 0,
+    "phase10MutationPerformed": false,
+    "deferredReconciliationTrigger": "OWNER_REPORTS_ACCEPTED_S10_6_COMPLETE"
+  },
+  "artifacts": [
+    {
+      "path": ".github/workflows/v23-controller.yml",
+      "sha256": "9191e22ef1485af2dc3dd6a1f0201fe16fe2e6f884bed89fc701f1b4eb4b817b"
+    },
+    {
+      "path": ".github/workflows/v23-worker.yml",
+      "sha256": "ee00dd9c894cfdc353b53e52813498c81a7a6d5486920931eec2cbe1caca2f51"
+    },
+    {
+      "path": "Scripts/v23/controller.py",
+      "sha256": "f5634cf788afe80911db6dbedff53464b23556eff5eef4037a7f625343738b35"
+    },
+    {
+      "path": "Scripts/v23/controller_contracts.py",
+      "sha256": "64f2a2d6975ae17cdab96ca1ddaa78feb5eeb8990325ee632c01f1cd79ccb977"
+    },
+    {
+      "path": "Scripts/v23/controller-selection.schema.json",
+      "sha256": "b9cb3a5b594ec66040440faee10e26d213a8cb7afad0fb7d74a9d94d42e68b9a"
+    },
+    {
+      "path": "Scripts/v23/verify_controller.py",
+      "sha256": "9bc1c2b6daf97579245d040544ed7909e920876fe94d53e885729daf4c83edf5"
+    },
+    {
+      "path": "docs/design/v23/tooling/ControllerWorkflowEnrollmentV1.json",
+      "sha256": "783db29a403f2130c647cce3d6c514a4134ee1535cdaa0279da6c12464aa591c"
+    },
+    {
+      "path": "docs/design/v23/tooling/RepositoryHostedCapacityPolicyV1.json",
+      "sha256": "6f4a12aac49dbb812808a4721962fb7ca5a223ce9975a642505060c74ad188c8"
+    }
+  ],
+  "workflowSafety": {
+    "controllerTrigger": "workflow_dispatch",
+    "workerTrigger": "workflow_call",
+    "controllerCallsReusableWorker": true,
+    "sparseCheckoutOnly": true,
+    "checkoutActionSHA": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "uploadArtifactActionSHA": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+    "permissions": "contents:read",
+    "protectedEnvironment": "assetrounds-v23-coordination",
+    "phaseBranchEnvironmentEnrollment": "PENDING",
+    "externalDispatchImplemented": false,
+    "secretsReferenced": false,
+    "phase10WorkflowReferenced": false,
+    "releaseOrTestFlightPathReferenced": false
+  },
+  "controllerContract": {
+    "dependencyFreePython": true,
+    "standardGitHubCeiling": 5,
+    "getMacCeiling": 3,
+    "combinedPhysicalCeiling": 8,
+    "getMacOfficialAcceptanceAllowed": false,
+    "unknownOccupancyRetainsDebit": true,
+    "allProofPlanesRequiredBeforeDispatch": true,
+    "officialExecutionFailFast": true,
+    "diagnosticsExhaustiveNonAccepting": true,
+    "providerCommandsInLocalController": 0,
+    "providerResponsesInLocalController": 0,
+    "providerEffectsInLocalController": 0,
+    "hostileInterruptionCaseCount": 31
+  },
+  "checkpointDisposition": "LOCAL_STATIC_TOOLING_EVIDENCE_ONLY",
+  "hostedDispatchEnabled": false,
+  "acceptanceEnabled": false,
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "selfDigestRule": "MANIFEST_SHA256_IS_RECORDED_IN_EXTERNAL_POST_COMMIT_VERIFICATION_RECEIPT"
+}
