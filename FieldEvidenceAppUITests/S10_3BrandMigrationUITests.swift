@@ -622,7 +622,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         recordMetric("cold_launch_to_welcome", since: coldLaunchStartedAt)
 
         assertLightFirstSignValidationAndCreation(in: app)
-        try completeVisibleIssueCheck(in: app)
+        completeVisibleIssueCheck(in: app)
         assertFirstReceiptAndReport(in: app)
         assertReportsIndex(in: app)
 
@@ -1431,7 +1431,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func completeVisibleIssueCheck(in app: XCUIApplication) throws {
+    private func completeVisibleIssueCheck(in app: XCUIApplication) {
         let start = element("s2.sign-detail.start-check", in: app)
         scroll(start, in: app)
         assertControl(start, label: "Start Check")
@@ -2930,9 +2930,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         setToggle("s3.preflight.time-zone-confirmed", in: app)
         if automationShard?.shardID == "s10.4.current.ax-text" {
             guard positionPreflightAfterDarkForAXText(in: app) else {
-                throw AutomationConfigurationError.invalid(
+                XCTFail(
                     "S10.4 AX-text Preflight after-dark positioning failed"
                 )
+                return
             }
         }
         setToggle("s3.preflight.after-dark", in: app)

@@ -1633,6 +1633,29 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(uiSource.contains("automatedEvidenceIDs"))
         XCTAssertTrue(uiSource.contains("22A3351"))
 
+        let preflightAXTextAfterDarkGate =
+            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# +
+                "\n" +
+                "            guard positionPreflightAfterDarkForAXText(in: app) else {\n" +
+                "                XCTFail(\n" +
+                #"                    "S10.4 AX-text Preflight after-dark positioning failed""# +
+                "\n" +
+                "                )\n" +
+                "                return\n" +
+                "            }\n" +
+                "        }\n"
+        XCTAssertEqual(preflightAXTextAfterDarkGate.utf8.count, 301)
+        XCTAssertEqual(
+            Data(preflightAXTextAfterDarkGate.utf8).sha256,
+            "F4DCB6ED8B4195ACA4CE7F9E7D985942F3B8297FCD150391E65B051F6A4E4975"
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "continueAfterFailure = false"
+            ).count - 1,
+            1
+        )
+
         let freshPreflightKeyboardDismissal =
             #"let doneKey = app.keyboards.buttons["Done"]"# + "\n" +
                 "        if doneKey.exists && doneKey.isHittable {\n" +
@@ -1649,15 +1672,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        )\n" +
                 #"        setToggle("s3.preflight.time-zone-confirmed", in: app)"# +
                 "\n" +
-                #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# +
-                "\n" +
-                "            guard positionPreflightAfterDarkForAXText(in: app) else {\n" +
-                "                throw AutomationConfigurationError.invalid(\n" +
-                #"                    "S10.4 AX-text Preflight after-dark positioning failed""# +
-                "\n" +
-                "                )\n" +
-                "            }\n" +
-                "        }\n" +
+                preflightAXTextAfterDarkGate +
                 #"        setToggle("s3.preflight.after-dark", in: app)"# + "\n" +
                 "        app.swipeUp()\n" +
                 #"        setToggle("s3.preflight.safe-position", in: app)"#
@@ -1667,10 +1682,46 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        XCTAssertEqual(freshPreflightKeyboardDismissal.utf8.count, 878)
+        XCTAssertEqual(freshPreflightKeyboardDismissal.utf8.count, 866)
         XCTAssertEqual(
             Data(freshPreflightKeyboardDismissal.utf8).sha256,
-            "97F9B1BB0CA461BD3FC45578679089500DC23B9F1A346CF28ACB564C6BF0A404"
+            "FF2FC53FF71E73F483237C776A6C0805527FCA1DBA82E535FF2701A520C3BAD0"
+        )
+        XCTAssertEqual(
+            freshPreflightKeyboardDismissal.components(
+                separatedBy: preflightAXTextAfterDarkGate
+            ).count - 1,
+            1
+        )
+        guard let freshPreflightAXTextGateRange =
+            freshPreflightKeyboardDismissal.range(
+                of: preflightAXTextAfterDarkGate
+            )
+        else {
+            XCTFail("Missing the fresh Preflight AX-only gate")
+            return
+        }
+        let freshPreflightCommonPrefix = String(
+            freshPreflightKeyboardDismissal[
+                freshPreflightKeyboardDismissal.startIndex ..<
+                    freshPreflightAXTextGateRange.lowerBound
+            ]
+        )
+        let freshPreflightCommonSuffix = String(
+            freshPreflightKeyboardDismissal[
+                freshPreflightAXTextGateRange.upperBound ..<
+                    freshPreflightKeyboardDismissal.endIndex
+            ]
+        )
+        XCTAssertEqual(freshPreflightCommonPrefix.utf8.count, 433)
+        XCTAssertEqual(
+            Data(freshPreflightCommonPrefix.utf8).sha256,
+            "D24661E5EECA6A0D3530124830AB6A208DDBE316D070C78D9FBC9ACCA23F54AE"
+        )
+        XCTAssertEqual(freshPreflightCommonSuffix.utf8.count, 132)
+        XCTAssertEqual(
+            Data(freshPreflightCommonSuffix.utf8).sha256,
+            "29BF67EDA28503EFCF11B60C2E4E91529FE1747A58ACC907747AAE0EC6C1690C"
         )
         XCTAssertFalse(
             uiSource.contains(
@@ -2122,10 +2173,46 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(preflightCaptureToZoneScrollSource.utf8).sha256,
             "B78B48127DD3FCFA516B8CB01366643048DB212368A68EBF0809E5CEB84D17D8"
         )
-        XCTAssertEqual(preflightZoneScrollToBeginSource.utf8.count, 979)
+        XCTAssertEqual(preflightZoneScrollToBeginSource.utf8.count, 967)
         XCTAssertEqual(
             Data(preflightZoneScrollToBeginSource.utf8).sha256,
-            "3031325E29E3003DDF7BC3F97499F8A3B60360092B4A29702EA9741935875A50"
+            "9EEB1122D6012ACF62769B7F92DF66DB34398037D1A280F9CD83B5F73670AC2E"
+        )
+        XCTAssertEqual(
+            preflightZoneScrollToBeginSource.components(
+                separatedBy: preflightAXTextAfterDarkGate
+            ).count - 1,
+            1
+        )
+        guard let preflightZoneAXTextGateRange =
+            preflightZoneScrollToBeginSource.range(
+                of: preflightAXTextAfterDarkGate
+            )
+        else {
+            XCTFail("Missing the bounded Preflight AX-only gate")
+            return
+        }
+        let preflightZoneCommonPrefix = String(
+            preflightZoneScrollToBeginSource[
+                preflightZoneScrollToBeginSource.startIndex ..<
+                    preflightZoneAXTextGateRange.lowerBound
+            ]
+        )
+        let preflightZoneCommonSuffix = String(
+            preflightZoneScrollToBeginSource[
+                preflightZoneAXTextGateRange.upperBound ..<
+                    preflightZoneScrollToBeginSource.endIndex
+            ]
+        )
+        XCTAssertEqual(preflightZoneCommonPrefix.utf8.count, 532)
+        XCTAssertEqual(
+            Data(preflightZoneCommonPrefix.utf8).sha256,
+            "0FB1F11F3E261BF33E2CD1BEEB666FB25E96390179BB96AEBE83CF6AD4798E1F"
+        )
+        XCTAssertEqual(preflightZoneCommonSuffix.utf8.count, 134)
+        XCTAssertEqual(
+            Data(preflightZoneCommonSuffix.utf8).sha256,
+            "1D4C3D7FAC6F78A169F724BCECD6A12130BD1C8984D02097485165AA9390F920"
         )
 
         let currentProfilePreflightQuickPathStructureLocks = [
@@ -18256,11 +18343,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(captureSource.contains(mutation), label)
         }
 
-        let throwingVisibleIssueCallChainLocks = [
-            "        try completeVisibleIssueCheck(in: app)",
-            "    private func completeVisibleIssueCheck(in app: XCUIApplication) throws {",
+        let restoredVisibleIssueCallChainLocks = [
+            "        completeVisibleIssueCheck(in: app)",
+            "    private func completeVisibleIssueCheck(in app: XCUIApplication) {",
         ]
-        for lock in throwingVisibleIssueCallChainLocks {
+        for lock in restoredVisibleIssueCallChainLocks {
             XCTAssertEqual(
                 uiSource.components(separatedBy: lock).count - 1,
                 1,
@@ -18279,10 +18366,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         for throwingForm in [
+            "        try completeVisibleIssueCheck(in: app)",
             "        try? completeVisibleIssueCheck(in: app)",
             "        try! completeVisibleIssueCheck(in: app)",
-            "        completeVisibleIssueCheck(in: app)",
-            "    private func completeVisibleIssueCheck(in app: XCUIApplication) {",
+            "    private func completeVisibleIssueCheck(in app: XCUIApplication) throws {",
             "        try recoverCameraDenialAndResume(in: app)",
             "        try? recoverCameraDenialAndResume(in: app)",
             "        try! recoverCameraDenialAndResume(in: app)",
@@ -18297,7 +18384,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let exactTopRouteCallChain =
             "        assertLightFirstSignValidationAndCreation(in: app)\n" +
-                "        try completeVisibleIssueCheck(in: app)\n" +
+                "        completeVisibleIssueCheck(in: app)\n" +
                 "        assertFirstReceiptAndReport(in: app)"
         let exactCaptureRouteCallChain =
             "        captureBaseline(\"state.capture.wide-ready\", in: app)\n" +
