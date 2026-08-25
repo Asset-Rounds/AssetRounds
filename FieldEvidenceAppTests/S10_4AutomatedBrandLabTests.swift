@@ -1327,8 +1327,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 439_594,
-            sha256: "CDF03B910F6E9A329C2B39D59C66D2B80A79B90BE2E45AC46367B37E9FBE3F55"
+            byteCount: 460_457,
+            sha256: "29DF3E27D4C476489C844335FFA1E72083E740E4C7C73CE2958F1BA2B54654ED"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -2711,10 +2711,39 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     workValidationRouteEndRange.upperBound
             ]
         )
-        XCTAssertEqual(workValidationRouteSource.utf8.count, 537)
+        XCTAssertEqual(workValidationRouteSource.utf8.count, 875)
         XCTAssertEqual(
             Data(workValidationRouteSource.utf8).sha256,
-            "D892E9C8E7D15C9DA08AFE1DAF1D28885BCE79AFEC70D11130D4664BDC96C696"
+            "8BE7415970056426117AA79383D4F0D7ED1AF2BC74F0C3FB05CEE9ADD231FD13"
+        )
+        let workValidationPositioningHelperStart =
+            "    @MainActor\n" +
+                "    private func positionWorkValidationShortDescriptionForAXText(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) -> Bool {"
+        let reportComparisonRouteStart =
+            "    @MainActor\n" +
+                "    private func captureReportComparisonAndCorrectionStates("
+        guard let workValidationPositioningHelperStartRange = uiSource.range(
+            of: workValidationPositioningHelperStart,
+            range: workValidationRouteEndRange.upperBound..<uiSource.endIndex
+        ), let reportComparisonRouteStartRange = uiSource.range(
+            of: reportComparisonRouteStart,
+            range: workValidationPositioningHelperStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded AX-text work-validation positioning helper")
+            return
+        }
+        let workValidationPositioningHelperSource = String(
+            uiSource[
+                workValidationPositioningHelperStartRange.lowerBound ..<
+                    reportComparisonRouteStartRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 20_525)
+        XCTAssertEqual(
+            Data(workValidationPositioningHelperSource.utf8).sha256,
+            "736ADB5919E5CE14A63511A9B238AEF6F34C9DB77F03EE339EF7ED3A64016511"
         )
 
         let signDetailPositioningGate =
@@ -3248,17 +3277,35 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let workValidationBaseline =
             #"        captureBaseline("state.work.validation-error", in: app)"#
-        let restoredWorkValidationAdjacency =
+        let workValidationPositioningGate =
+            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
+        let workValidationPositioningGuard =
+            "            guard positionWorkValidationShortDescriptionForAXText(in: app) else {\n" +
+                "                throw AutomationConfigurationError.invalid(\n" +
+                "                    \"S10.4 AX-text work-validation Short description positioning failed\"\n" +
+                "                )\n" +
+                "            }"
+        let workValidationPositioningAdjacency =
+            workValidationPositioningGate + "\n" +
+                workValidationPositioningGuard + "\n" +
+                "        }\n" +
+                workValidationBaseline
+        XCTAssertEqual(
+            workValidationRouteSource.components(
+                separatedBy: workValidationPositioningAdjacency
+            ).count - 1,
+            1
+        )
+        let workValidationWaitBeforePositioning =
             #"        let validation = element("s5.1.work.validation", in: app)"# +
                 "\n" +
                 "        XCTAssertTrue(validation.waitForExistence(timeout: 10))\n" +
                 #"        assertLocalizedLabel(validation, equals: "Short description")"# +
                 "\n" +
-                workValidationBaseline + "\n" +
-                workValidationRouteEnd
+                workValidationPositioningGate
         XCTAssertEqual(
             workValidationRouteSource.components(
-                separatedBy: restoredWorkValidationAdjacency
+                separatedBy: workValidationWaitBeforePositioning
             ).count - 1,
             1
         )
@@ -3268,7 +3315,502 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let removedWorkValidationDiagnosticForms = [
+
+        let workValidationQueryLocks = [
+            "        let shortDescriptionPredicate = NSPredicate(\n" +
+                #"            format: "label == %@","# + "\n" +
+                #"            "Short description""# + "\n" +
+                "        )",
+            "        let emptyShortDescriptionPredicate = NSPredicate(\n" +
+                #"            format: "identifier == '' AND label == %@","# + "\n" +
+                #"            "Short description""# + "\n" +
+                "        )",
+            #"            format: "hasKeyboardFocus == true""#,
+            #"            identifier: "s5.1.work.screen""#,
+            #"            identifier: "s5.1.work.description""#,
+            "        let focusedDescriptionFields = descriptionFields.matching(\n" +
+                "            focusedPredicate\n" +
+                "        )",
+            #"            identifier: "s5.1.work.validation""#,
+            "        let shortDescriptionStaticTexts = app.staticTexts.matching(\n" +
+                "            shortDescriptionPredicate\n" +
+                "        )",
+            "        let shortDescriptionFieldLabels = app.staticTexts.matching(\n" +
+                "            emptyShortDescriptionPredicate\n" +
+                "        )",
+            "        let descriptionScrollViews = app.scrollViews.containing(\n" +
+                "            .textField,\n" +
+                #"            identifier: "s5.1.work.description""# + "\n" +
+                "        )",
+            #"            identifier: "Record work""#,
+            "        let tabBars = app.tabBars",
+            "        let keyboards = app.keyboards",
+        ]
+        for lock in workValidationQueryLocks {
+            XCTAssertEqual(
+                workValidationPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                lock == #"            identifier: "s5.1.work.description""# ? 2 : 1,
+                lock
+            )
+        }
+        for lock in [
+            "        let workScreen = workScreens.firstMatch",
+            "        let descriptionField = descriptionFields.firstMatch",
+            "        let focusedDescriptionField = focusedDescriptionFields.firstMatch",
+            "        let validationLabel = validationLabels.firstMatch",
+            "        let shortDescriptionFieldLabel = shortDescriptionFieldLabels.firstMatch",
+            "        let descriptionScrollView = descriptionScrollViews.firstMatch",
+            "        let navigationBar = navigationBars.firstMatch",
+            "        let tabBar = tabBars.firstMatch",
+            "        let keyboard = keyboards.firstMatch",
+        ] {
+            XCTAssertEqual(
+                workValidationPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        let workValidationCardinalityLocks = [
+            "workScreens.count == 1",
+            "descriptionFields.count == 1",
+            "focusedDescriptionFields.count == 1",
+            "validationLabels.count == 1",
+            "shortDescriptionStaticTexts.count == 2",
+            "shortDescriptionFieldLabels.count == 1",
+            "descriptionScrollViews.count == 1",
+            "navigationBars.count == 1",
+            "tabBars.count == 1",
+            "keyboards.count == 1",
+        ]
+        for lock in workValidationCardinalityLocks {
+            XCTAssertEqual(
+                workValidationPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                2,
+                lock
+            )
+        }
+        let workValidationSemanticLocks = [
+            "                && workScreen.exists",
+            "                && workScreen.elementType == .scrollView",
+            #"                && workScreen.identifier == "s5.1.work.screen""#,
+            "                && workScreen.label.isEmpty",
+            #"                && (workScreen.value as? String) == """#,
+            "                && workScreen.isHittable",
+            "                && descriptionField.exists",
+            "                && descriptionField.elementType == .textField",
+            #"                && descriptionField.identifier == "s5.1.work.description""#,
+            #"                && descriptionField.label == "Short description""#,
+            #"                && (descriptionField.value as? String) == "Short description""#,
+            "                && focusedDescriptionField.exists",
+            "                && focusedDescriptionField.elementType == .textField",
+            #"                && focusedDescriptionField.identifier == "s5.1.work.description""#,
+            #"                && focusedDescriptionField.label == "Short description""#,
+            #"                && (focusedDescriptionField.value as? String) == "Short description""#,
+            "                && focusedDescriptionField.isHittable",
+            "                && validationLabel.exists",
+            "                && validationLabel.elementType == .staticText",
+            #"                && validationLabel.identifier == "s5.1.work.validation""#,
+            #"                && validationLabel.label == "Short description""#,
+            #"                && (validationLabel.value as? String) == """#,
+            "                && shortDescriptionFieldLabel.exists",
+            "                && shortDescriptionFieldLabel.elementType == .staticText",
+            "                && shortDescriptionFieldLabel.identifier.isEmpty",
+            #"                && shortDescriptionFieldLabel.label == "Short description""#,
+            #"                && (shortDescriptionFieldLabel.value as? String) == """#,
+            "                && descriptionScrollView.exists",
+            "                && descriptionScrollView.elementType == .scrollView",
+            #"                && descriptionScrollView.identifier == "s5.1.work.screen""#,
+            "                && descriptionScrollView.label.isEmpty",
+            #"                && (descriptionScrollView.value as? String) == """#,
+            "                && descriptionScrollView.isHittable",
+            "                && navigationBar.exists",
+            "                && navigationBar.elementType == .navigationBar",
+            #"                && navigationBar.identifier == "Record work""#,
+            "                && navigationBar.label.isEmpty",
+            #"                && (navigationBar.value as? String) == """#,
+            "                && navigationBar.isHittable",
+            "                && tabBar.exists",
+            "                && tabBar.elementType == .tabBar",
+            "                && tabBar.identifier.isEmpty",
+            #"                && tabBar.label == "Tab Bar""#,
+            #"                && (tabBar.value as? String) == """#,
+            "                && tabBar.isHittable",
+            "                && keyboard.exists",
+            "                && keyboard.elementType == .keyboard",
+            "                && keyboard.identifier.isEmpty",
+            "                && keyboard.label.isEmpty",
+            #"                && (keyboard.value as? String) == """#,
+            "                && keyboard.isHittable",
+        ]
+        for lock in workValidationSemanticLocks {
+            XCTAssertEqual(
+                workValidationPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        for (lock, count) in [
+            ("                && descriptionField.isHittable", 2),
+            ("                && validationLabel.isHittable", 2),
+            ("                && shortDescriptionFieldLabel.isHittable", 1),
+        ] {
+            XCTAssertEqual(
+                workValidationPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                count,
+                lock
+            )
+        }
+
+        let workValidationFrameLocks = [
+            "        let isValidFrame: (CGRect) -> Bool = { frame in\n" +
+                "            !frame.isNull\n" +
+                "                && !frame.isEmpty\n" +
+                "                && !frame.isInfinite\n" +
+                "                && frame.origin.x.isFinite\n" +
+                "                && frame.origin.y.isFinite\n" +
+                "                && frame.size.width.isFinite\n" +
+                "                && frame.size.height.isFinite\n" +
+                "        }",
+            "        let frozenApplicationFrame = app.frame",
+            "        let frozenKeyboardFrame = keyboard.frame",
+            "            let applicationFrame = app.frame",
+            "            let screenFrame = workScreen.frame",
+            "            let scrollFrame = descriptionScrollView.frame",
+            "            let navigationFrame = navigationBar.frame",
+            "            let tabFrame = tabBar.frame",
+            "            let keyboardFrame = keyboard.frame",
+            "            let fieldLabelFrame = shortDescriptionFieldLabel.frame",
+            "            let descriptionFrame = descriptionField.frame",
+            "            let validationFrame = validationLabel.frame",
+            "            var liveScrollFrame = CGRect.null",
+            "                liveScrollFrame = scrollFrame.intersection(applicationFrame)",
+            "                  applicationFrame == frozenApplicationFrame,",
+            "                  keyboardFrame == frozenKeyboardFrame else {",
+            "        let finalFramesAreValid = isValidFrame(finalApplicationFrame)",
+            "            && finalApplicationFrame == frozenApplicationFrame",
+            "            && finalKeyboardFrame == frozenKeyboardFrame",
+        ]
+        for lock in workValidationFrameLocks {
+            XCTAssertEqual(
+                workValidationPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        guard let workValidationValidityRange =
+            workValidationPositioningHelperSource.range(
+                of: "            let liveFramesAreValid = isValidFrame(applicationFrame)"
+            ),
+              let workValidationIntersectionRange =
+                workValidationPositioningHelperSource.range(
+                    of: "                liveScrollFrame = scrollFrame.intersection(applicationFrame)",
+                    range: workValidationValidityRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ),
+              let workValidationGuardRange =
+                workValidationPositioningHelperSource.range(
+                    of: "            guard liveFramesAreValid,",
+                    range: workValidationIntersectionRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ),
+              let workValidationArithmeticRange =
+                workValidationPositioningHelperSource.range(
+                    of: "            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)",
+                    range: workValidationGuardRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ),
+              let workValidationFinalValidityRange =
+                workValidationPositioningHelperSource.range(
+                    of: "        let finalFramesAreValid = isValidFrame(finalApplicationFrame)"
+                ),
+              let workValidationFinalIntersectionRange =
+                workValidationPositioningHelperSource.range(
+                    of: "            let finalLiveScrollFrame = finalScrollFrame.intersection(",
+                    range: workValidationFinalValidityRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ),
+              let workValidationFinalArithmeticRange =
+                workValidationPositioningHelperSource.range(
+                    of: "                let finalSafeTop = max(",
+                    range: workValidationFinalIntersectionRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ) else {
+            XCTFail("Missing work-validation validity-before-arithmetic order")
+            return
+        }
+        XCTAssertLessThan(
+            workValidationValidityRange.lowerBound,
+            workValidationIntersectionRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workValidationIntersectionRange.lowerBound,
+            workValidationGuardRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workValidationGuardRange.lowerBound,
+            workValidationArithmeticRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workValidationFinalValidityRange.lowerBound,
+            workValidationFinalIntersectionRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workValidationFinalIntersectionRange.lowerBound,
+            workValidationFinalArithmeticRange.lowerBound
+        )
+
+        let workValidationGeometryLocks = [
+            "        let verticalInset: CGFloat = 16",
+            "        let receiverInset: CGFloat = 24",
+            "        let minimumGestureDistance: CGFloat = 44",
+            "        for _ in 0..<4 {",
+            "            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)",
+            "                    min(keyboardFrame.minY, tabFrame.minY)",
+            "            let safeTop = liveTop + verticalInset",
+            "            let safeBottom = liveBottom - verticalInset",
+            "            let receiverTop = liveTop + receiverInset",
+            "            let receiverBottom = liveBottom - receiverInset",
+            "            let receiverLeft = liveScrollFrame.minX + receiverInset",
+            "            let receiverRight = liveScrollFrame.maxX - receiverInset",
+            "            let receiverCapacity = receiverBottom - receiverTop",
+            "            let minimumShift = max(",
+            "            let maximumShift = min(",
+            "                  minimumShift <= maximumShift,",
+            "                  allTargetsAreContained || minimumShift > 0 else {",
+            "            if allTargetsAreContained { break }",
+            "            if minimumShift <= receiverCapacity {",
+            "                let recognizedMinimum = max(\n" +
+                "                    minimumShift,\n" +
+                "                    minimumGestureDistance\n" +
+                "                )",
+            "                let recognizedMaximum = min(\n" +
+                "                    maximumShift,\n" +
+                "                    receiverCapacity\n" +
+                "                )",
+            "                guard recognizedMinimum <= recognizedMaximum else {",
+            "                dragDistance = recognizedMaximum",
+            "                let stagedDistance = min(\n" +
+                "                    receiverCapacity,\n" +
+                "                    minimumShift - minimumGestureDistance\n" +
+                "                )",
+            "                guard stagedDistance >= minimumGestureDistance else {",
+            "                dragDistance = stagedDistance",
+            "            guard dragDistance > 0,",
+            "                  dragDistance >= minimumGestureDistance else {",
+        ]
+        for lock in workValidationGeometryLocks {
+            XCTAssertEqual(
+                workValidationPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        let workValidationReceiverLocks = [
+            "            let receiverFrame = CGRect(",
+            "            let startPoint = CGPoint(\n" +
+                "                x: receiverRight,\n" +
+                "                y: receiverTop\n" +
+                "            )",
+            "            let endPoint = CGPoint(\n" +
+                "                x: startPoint.x,\n" +
+                "                y: startPoint.y + dragDistance\n" +
+                "            )",
+            "                  liveScrollFrame.contains(startPoint),",
+            "                  liveScrollFrame.contains(endPoint),",
+            "                  !fieldLabelFrame.contains(startPoint),",
+            "                  !fieldLabelFrame.contains(endPoint),",
+            "                  !descriptionFrame.contains(startPoint),",
+            "                  !descriptionFrame.contains(endPoint),",
+            "                  !validationFrame.contains(startPoint),",
+            "                  !validationFrame.contains(endPoint) else {",
+            "            let scrollOrigin = descriptionScrollView.coordinate(",
+            "                    dx: startPoint.x - scrollFrame.minX,",
+            "                    dy: startPoint.y - scrollFrame.minY",
+            "                    dx: endPoint.x - scrollFrame.minX,",
+            "                    dy: endPoint.y - scrollFrame.minY",
+            "                forDuration: 0.2,",
+            "                withVelocity: .slow,",
+            "                thenHoldForDuration: 0.2",
+        ]
+        for lock in workValidationReceiverLocks {
+            XCTAssertEqual(
+                workValidationPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        for (lock, count) in [
+            (".coordinate(", 1),
+            (".press(", 1),
+            ("thenDragTo:", 1),
+            ("forDuration: 0.2", 1),
+            ("withVelocity: .slow", 1),
+            ("thenHoldForDuration: 0.2", 1),
+        ] {
+            XCTAssertEqual(
+                workValidationPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                count,
+                lock
+            )
+        }
+
+        let workValidationProgressLocks = [
+            "            let fieldLabelBeforeDrag = fieldLabelFrame.minY",
+            "            let descriptionBeforeDrag = descriptionFrame.minY",
+            "            let validationBeforeDrag = validationFrame.minY",
+            "            let fieldLabelAfterDrag = shortDescriptionFieldLabel.frame",
+            "            let descriptionAfterDrag = descriptionField.frame",
+            "            let validationAfterDrag = validationLabel.frame",
+            "                  observedFieldLabelShift > 0,",
+            "                  observedDescriptionShift > 0,",
+            "                  observedValidationShift > 0,",
+            "                  observedFieldLabelShift * dragDistance > 0,",
+            "                  observedDescriptionShift * dragDistance > 0,",
+            "                  observedValidationShift * dragDistance > 0 else {",
+            "                guard fieldLabelAfterDrag.minY > previousFieldLabelMinYAfterDrag,",
+            "                      descriptionAfterDrag.minY > previousDescriptionMinYAfterDrag,",
+            "                      validationAfterDrag.minY > previousValidationMinYAfterDrag else {",
+            "            previousFieldLabelMinYAfterDrag = fieldLabelAfterDrag.minY",
+            "            previousDescriptionMinYAfterDrag = descriptionAfterDrag.minY",
+            "            previousValidationMinYAfterDrag = validationAfterDrag.minY",
+            "                    && finalFieldLabelFrame.minY >= finalSafeTop",
+            "                    && finalFieldLabelFrame.maxY <= finalSafeBottom",
+            "                    && finalDescriptionFrame.minY >= finalSafeTop",
+            "                    && finalDescriptionFrame.maxY <= finalSafeBottom",
+            "                    && finalValidationFrame.minY >= finalSafeTop",
+            "                    && finalValidationFrame.maxY <= finalSafeBottom",
+            "                    && shortDescriptionFieldLabel.isHittable",
+            "                    && descriptionField.isHittable",
+            "                    && validationLabel.isHittable",
+        ]
+        for lock in workValidationProgressLocks {
+            XCTAssertEqual(
+                workValidationPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        for lock in [
+            "                  app.frame == frozenApplicationFrame,",
+            "                  keyboard.frame == frozenKeyboardFrame else {",
+        ] {
+            XCTAssertEqual(
+                workValidationPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                2,
+                lock
+            )
+        }
+
+        let workValidationFailureMessages = [
+            "AX-text work-validation positioning bindings are ambiguous.",
+            "AX-text work-validation positioning route or focus changed.",
+            "AX-text work-validation positioning geometry is invalid.",
+            "AX-text work-validation composition has no supported downward interval.",
+            "AX-text work-validation direct interval is not recognizable.",
+            "AX-text work-validation staged remainder is not recognizable.",
+            "AX-text work-validation drag direction is invalid.",
+            "AX-text work-validation drag receiver is obstructed.",
+            "AX-text work-validation route, focus, or keyboard changed after positioning.",
+            "AX-text work-validation gesture made no signed triple-node progress.",
+            "AX-text work-validation positioning reversed direction.",
+            "AX-text work-validation final route, focus, or keyboard is invalid.",
+            "AX-text work-validation final composition is unsafe.",
+        ]
+        var workValidationFailureSearchStart =
+            workValidationPositioningHelperSource.startIndex
+        for message in workValidationFailureMessages {
+            XCTAssertEqual(
+                workValidationPositioningHelperSource.components(
+                    separatedBy: message
+                ).count - 1,
+                1,
+                message
+            )
+            guard let messageRange = workValidationPositioningHelperSource.range(
+                of: message,
+                range: workValidationFailureSearchStart ..<
+                    workValidationPositioningHelperSource.endIndex
+            ) else {
+                XCTFail("Missing ordered work-validation positioning failure message")
+                return
+            }
+            workValidationFailureSearchStart = messageRange.upperBound
+        }
+        for (lock, count) in [
+            ("XCTFail(", 13),
+            ("return false", 13),
+            ("return true", 1),
+            ("let hasExactRoute: () -> Bool", 1),
+            ("hasExactRoute()", 3),
+            (".firstMatch", 9),
+        ] {
+            XCTAssertEqual(
+                workValidationPositioningHelperSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                count,
+                lock
+            )
+        }
+        for prohibitedWorkValidationPositioningForm in [
+            ".tap(",
+            ".swipe",
+            "scroll(",
+            "waitForExistence",
+            "waitForNonExistence",
+            ".typeText(",
+            "Thread.sleep",
+            "sleep(",
+            "performAccessibilityAudit",
+            "eligibleExceptions",
+            "ContrastAuditExceptionSignature",
+            "contrastAuditExceptionSignatures",
+            "automationContrastExceptions",
+            "AutomationConfigurationError",
+            "captureBaseline(",
+            "printJSONLine",
+            "XCTAttachment",
+            "NSNull",
+            "attachCandidate(",
+            #"prefix: "S10_4_AX_STATE""#,
+            #"prefix: "S10_4_CONTRAST""#,
+            "S10_4_CANDIDATE",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+            "tolerance",
+            "epsilon",
+            "CGRect(x:",
+        ] {
+            XCTAssertFalse(
+                workValidationPositioningHelperSource.contains(
+                    prohibitedWorkValidationPositioningForm
+                ),
+                prohibitedWorkValidationPositioningForm
+            )
+        }
+        for removedWorkValidationDiagnosticForm in [
             "diagnoseAXTextWorkValidationContrast",
             "S10_4_WORK_VALIDATION_ROUTE_DIAGNOSTIC",
             "S10_4_WORK_VALIDATION_CONTRAST_DIAGNOSTIC",
@@ -3278,32 +3820,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4 work-validation contrast diagnostic work-route",
             "S10.4 work-validation contrast diagnostic element",
             "S10.4 AX-text Record-work validation contrast diagnostic",
-            "let shortDescriptionPredicate = NSPredicate(",
-            "let descriptionFields = app.descendants(matching: .any).matching(",
-            "let validationLabels = app.descendants(matching: .any).matching(",
-            "let shortDescriptionStaticTexts = app.staticTexts.matching(",
-            "let descriptionScrollViews = app.scrollViews.containing(",
-        ]
-        for removed in removedWorkValidationDiagnosticForms {
-            XCTAssertEqual(uiSource.components(separatedBy: removed).count - 1, 0, removed)
+        ] {
             XCTAssertEqual(
-                workflowSource.components(separatedBy: removed).count - 1,
+                uiSource.components(
+                    separatedBy: removedWorkValidationDiagnosticForm
+                ).count - 1,
                 0,
-                removed
+                removedWorkValidationDiagnosticForm
+            )
+            XCTAssertEqual(
+                workflowSource.components(
+                    separatedBy: removedWorkValidationDiagnosticForm
+                ).count - 1,
+                0,
+                removedWorkValidationDiagnosticForm
             )
         }
-        let removedWorkValidationDiagnosticGate =
-            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# +
-                "\n" +
-                "            try diagnoseAXTextWorkValidationContrast(in: app)\n" +
-                "        }\n" +
-                workValidationBaseline
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: removedWorkValidationDiagnosticGate
-            ).count - 1,
-            0
-        )
         let preflightReturnAbsenceDiscriminator =
             #"            let returnKey = app.keyboards.buttons["Return"]"# + "\n" +
                 #"            if !returnKey.waitForExistence(timeout: 1) || !returnKey.isHittable {"#
