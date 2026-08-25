@@ -7025,6 +7025,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             return usedSettingsRetry
         }
 
+        if automationShard?.shardID == "s10.4.current.ax-text" {
+            guard positionAXTextPurchaseCompleteViewport(in: app) else {
+                XCTFail("S10.4 AX-text purchase-complete positioning failed")
+                return usedSettingsRetry
+            }
+            captureBaseline("state.paywall.purchase-complete", in: app)
+            return usedSettingsRetry
+        }
+
         var measuredUndertravel: CGFloat = 0
         for _ in 0..<4 {
             let viewportTop = store.frame.minY
@@ -7120,6 +7129,270 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         captureBaseline("state.paywall.purchase-complete", in: app)
         return usedSettingsRetry
+    }
+
+    @MainActor
+    private func positionAXTextPurchaseCompleteViewport(
+        in app: XCUIApplication
+    ) -> Bool {
+        let purchasePredicate = NSPredicate(
+            format: "label CONTAINS[c] 'Subscribe' OR " +
+                "label CONTAINS[c] 'Trial' OR label CONTAINS[c] '$59.99'"
+        )
+        let screens = app.descendants(matching: .any).matching(
+            identifier: "s7.2.paywall.screen"
+        )
+        let stores = app.descendants(matching: .any).matching(
+            identifier: "s7.2.paywall.store"
+        )
+        let closeButtons = app.buttons.matching(
+            identifier: "s7.2.paywall.close"
+        )
+        let purchaseStates = app.descendants(matching: .any).matching(
+            identifier: "s7.2.paywall.purchase-state"
+        )
+        let termsButtons = app.buttons.matching(
+            identifier: "s7.2.paywall.terms"
+        )
+        let privacyButtons = app.buttons.matching(
+            identifier: "s7.2.paywall.privacy"
+        )
+        let supportButtons = app.buttons.matching(
+            identifier: "s7.2.paywall.support"
+        )
+        let purchaseButtons = app.buttons.matching(purchasePredicate)
+        let screen = screens.firstMatch
+        let store = stores.firstMatch
+        let close = closeButtons.firstMatch
+        let purchaseState = purchaseStates.firstMatch
+        let terms = termsButtons.firstMatch
+        let privacy = privacyButtons.firstMatch
+        let support = supportButtons.firstMatch
+        let purchase = purchaseButtons.firstMatch
+        let routeQueries = [
+            screens,
+            stores,
+            closeButtons,
+            purchaseStates,
+            termsButtons,
+            privacyButtons,
+            supportButtons,
+            purchaseButtons,
+        ]
+        let routeElements = [
+            screen,
+            store,
+            close,
+            purchaseState,
+            terms,
+            privacy,
+            support,
+            purchase,
+        ]
+        let isValidFrame: (CGRect) -> Bool = { frame in
+            !frame.isNull
+                && !frame.isEmpty
+                && !frame.isInfinite
+                && frame.origin.x.isFinite
+                && frame.origin.y.isFinite
+                && frame.size.width.isFinite
+                && frame.size.height.isFinite
+        }
+        let fail: (String) -> Bool = { message in
+            XCTFail(message)
+            return false
+        }
+        let hasStableRoute: () -> Bool = {
+            app.state == .runningForeground
+                && routeQueries.allSatisfy { $0.count == 1 }
+                && routeElements.allSatisfy(\.exists)
+                && screen.elementType == .other
+                && screen.identifier == "s7.2.paywall.screen"
+                && store.elementType == .other
+                && store.identifier == "s7.2.paywall.store"
+                && store.isEnabled
+                && close.elementType == .button
+                && close.identifier == "s7.2.paywall.close"
+                && purchaseState.elementType == .other
+                && purchaseState.identifier == "s7.2.paywall.purchase-state"
+                && terms.elementType == .button
+                && terms.identifier == "s7.2.paywall.terms"
+                && privacy.elementType == .button
+                && privacy.identifier == "s7.2.paywall.privacy"
+                && support.elementType == .button
+                && support.identifier == "s7.2.paywall.support"
+                && purchase.elementType == .button
+                && purchase.identifier.isEmpty
+        }
+        guard hasStableRoute() else {
+            return fail("AX-text purchase-complete route is ambiguous.")
+        }
+
+        let receiverInset: CGFloat = 24
+        let minimumGestureDistance: CGFloat = 44
+        var measuredUndertravel: CGFloat = 0
+        for _ in 0..<4 {
+            guard hasStableRoute() else {
+                return fail("AX-text purchase-complete route changed.")
+            }
+            let storeFrame = store.frame
+            let closeFrame = close.frame
+            let purchaseStateFrame = purchaseState.frame
+            let supportFrame = support.frame
+            let purchaseFrame = purchase.frame
+            guard isValidFrame(storeFrame),
+                  isValidFrame(closeFrame),
+                  isValidFrame(purchaseStateFrame),
+                  isValidFrame(supportFrame),
+                  isValidFrame(purchaseFrame) else {
+                return fail("AX-text purchase-complete geometry is invalid.")
+            }
+
+            let viewportTop = storeFrame.minY
+            let viewportBottom = storeFrame.maxY
+            let minimumShift = max(
+                viewportTop - purchaseStateFrame.minY,
+                viewportBottom - purchaseFrame.minY
+            )
+            let maximumShift = min(
+                viewportTop - closeFrame.maxY,
+                viewportBottom - supportFrame.maxY
+            )
+            guard viewportTop.isFinite,
+                  viewportBottom.isFinite,
+                  minimumShift.isFinite,
+                  maximumShift.isFinite,
+                  viewportTop <= viewportBottom,
+                  minimumShift <= maximumShift else {
+                return fail("AX-text purchase-complete interval is infeasible.")
+            }
+            if minimumShift <= 0, maximumShift >= 0 { break }
+
+            let receiverCapacity = storeFrame.height - 2 * receiverInset
+            guard receiverCapacity.isFinite,
+                  receiverCapacity >= minimumGestureDistance else {
+                return fail("AX-text Store cannot recognize a positioning gesture.")
+            }
+            let targetDistance = maximumShift < 0
+                ? minimumShift
+                : maximumShift
+            let requestedMagnitude = max(
+                abs(targetDistance) + measuredUndertravel,
+                minimumGestureDistance
+            )
+            let clampedMagnitude = min(requestedMagnitude, receiverCapacity)
+            let dragDistance = targetDistance > 0
+                ? clampedMagnitude
+                : -clampedMagnitude
+
+            let storeOrigin = store.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStartOffsetY = dragDistance > 0
+                ? receiverInset
+                : storeFrame.height - receiverInset
+            let dragStart = storeOrigin.withOffset(
+                CGVector(
+                    dx: storeFrame.width / 2,
+                    dy: dragStartOffsetY
+                )
+            )
+            let dragEnd = storeOrigin.withOffset(
+                CGVector(
+                    dx: storeFrame.width / 2,
+                    dy: dragStartOffsetY + dragDistance
+                )
+            )
+            let purchaseStateBeforeDrag = purchaseStateFrame.minY
+            let supportBeforeDrag = supportFrame.minY
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            guard hasStableRoute() else {
+                return fail("AX-text purchase-complete route changed after positioning.")
+            }
+            let purchaseStateFrameAfterDrag = purchaseState.frame
+            let supportFrameAfterDrag = support.frame
+            guard isValidFrame(purchaseStateFrameAfterDrag),
+                  isValidFrame(supportFrameAfterDrag) else {
+                return fail("AX-text purchase-complete post-drag geometry is invalid.")
+            }
+            let purchaseStateShift = purchaseStateFrameAfterDrag.minY
+                - purchaseStateBeforeDrag
+            let supportShift = supportFrameAfterDrag.minY - supportBeforeDrag
+            guard purchaseStateShift * dragDistance > 0,
+                  supportShift * dragDistance > 0 else {
+                return fail("AX-text positioning gesture made no signed progress.")
+            }
+            measuredUndertravel = max(
+                0,
+                abs(dragDistance) - abs(purchaseStateShift)
+            )
+        }
+
+        let finalStoreFrame = store.frame
+        let finalCloseFrame = close.frame
+        let finalPurchaseStateFrame = purchaseState.frame
+        let finalTermsFrame = terms.frame
+        let finalPrivacyFrame = privacy.frame
+        let finalSupportFrame = support.frame
+        let finalPurchaseFrame = purchase.frame
+        let finalFramesAreValid = isValidFrame(finalStoreFrame)
+            && isValidFrame(finalCloseFrame)
+            && isValidFrame(finalPurchaseStateFrame)
+            && isValidFrame(finalTermsFrame)
+            && isValidFrame(finalPrivacyFrame)
+            && isValidFrame(finalSupportFrame)
+            && isValidFrame(finalPurchaseFrame)
+        let finalBindingsAreExact = hasStableRoute()
+            && (store.value as? String) == "Ready"
+            && close.label == "Close"
+            && (close.value as? String) == ""
+            && close.isEnabled
+            && purchaseState.label
+                == "Complete: Purchase verified. Subscription access is ready."
+            && (purchaseState.value as? String) == ""
+            && purchaseState.isEnabled
+            && purchaseState.isHittable
+            && terms.label == "Terms"
+            && (terms.value as? String) == ""
+            && terms.isEnabled
+            && terms.isHittable
+            && privacy.label == "Privacy"
+            && (privacy.value as? String) == ""
+            && privacy.isEnabled
+            && privacy.isHittable
+            && support.label == "Support"
+            && (support.value as? String) == ""
+            && support.isEnabled
+            && support.isHittable
+            && purchase.label == "Subscribe"
+            && (purchase.value as? String) == ""
+            && purchase.isEnabled
+        let legalControlsMeetMinimumSize = finalTermsFrame.width >= 44
+            && finalTermsFrame.height >= 44
+            && finalPrivacyFrame.width >= 44
+            && finalPrivacyFrame.height >= 44
+            && finalSupportFrame.width >= 44
+            && finalSupportFrame.height >= 44
+        guard finalBindingsAreExact,
+              finalFramesAreValid,
+              finalCloseFrame.maxY <= finalStoreFrame.minY,
+              finalStoreFrame.contains(finalPurchaseStateFrame),
+              finalStoreFrame.contains(finalTermsFrame),
+              finalStoreFrame.contains(finalPrivacyFrame),
+              finalStoreFrame.contains(finalSupportFrame),
+              finalPurchaseStateFrame.maxY <= finalTermsFrame.minY,
+              finalTermsFrame.maxY <= finalPrivacyFrame.minY,
+              finalPrivacyFrame.maxY <= finalSupportFrame.minY,
+              finalPurchaseFrame.minY >= finalStoreFrame.maxY,
+              legalControlsMeetMinimumSize else {
+            return fail("AX-text purchase-complete final composition is unsafe.")
+        }
+        return true
     }
 
     @MainActor

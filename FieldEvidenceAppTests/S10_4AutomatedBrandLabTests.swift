@@ -13094,6 +13094,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"        let close = element("s7.2.paywall.close", in: app)"#
         let postPurchaseCapture =
             #"        captureBaseline("state.paywall.purchase-complete", in: app)"#
+        let postPurchaseAXGateStart =
+            #"        if automationShard?.shardID == "s10.4.current.ax-text" {"#
+        let postPurchaseNonAXSuffixStart =
+            "        var measuredUndertravel: CGFloat = 0"
+        let postPurchaseAXHelperBoundary =
+            "\n    @MainActor\n" +
+                "    private func positionAXTextPurchaseCompleteViewport("
         guard let nonOverlapRange = uiSource.range(of: postPurchaseNonOverlapOrderGuard) else {
             XCTFail("Missing the pre-position purchase-complete order guard")
             return
@@ -13105,16 +13112,59 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTFail("Missing the purchase-complete viewport positioning start")
             return
         }
-        let sourceAfterViewportStart = uiSource[viewportStartRange.lowerBound...]
-        guard let captureRange = sourceAfterViewportStart.range(of: postPurchaseCapture) else {
-            XCTFail("Missing the purchase-complete capture after viewport positioning")
+        guard let axGateStartRange = uiSource.range(
+            of: postPurchaseAXGateStart,
+            range: viewportStartRange.upperBound..<uiSource.endIndex
+        ), let nonAXSuffixStartRange = uiSource.range(
+            of: postPurchaseNonAXSuffixStart,
+            range: axGateStartRange.upperBound..<uiSource.endIndex
+        ), let axHelperBoundaryRange = uiSource.range(
+            of: postPurchaseAXHelperBoundary,
+            range: nonAXSuffixStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("The AX gate, non-AX suffix, and AX helper are not exactly bounded")
             return
         }
-        let postPurchaseViewportSource = String(
-            uiSource[viewportStartRange.lowerBound..<captureRange.lowerBound]
+        let postPurchaseViewportPreludeSource = String(
+            uiSource[viewportStartRange.lowerBound..<axGateStartRange.lowerBound]
         )
+        let postPurchaseAXGateSource = String(
+            uiSource[axGateStartRange.lowerBound..<nonAXSuffixStartRange.lowerBound]
+        )
+        let postPurchaseNonAXSuffixSource = String(
+            uiSource[
+                nonAXSuffixStartRange.lowerBound..<axHelperBoundaryRange.lowerBound
+            ]
+        )
+        let postPurchaseViewportSource = postPurchaseViewportPreludeSource
+            + postPurchaseNonAXSuffixSource
         XCTAssertEqual(
             uiSource.components(separatedBy: postPurchaseCapture).count - 1,
+            2
+        )
+        XCTAssertEqual(postPurchaseAXGateSource.utf8.count, 391)
+        XCTAssertEqual(
+            Data(postPurchaseAXGateSource.utf8).sha256,
+            "CA0476D0657F6B0B6C2B47E78AE92914E3709201B6F1D032740B9CBA7AD0DF7B"
+        )
+        XCTAssertEqual(postPurchaseNonAXSuffixSource.utf8.count, 4_110)
+        XCTAssertEqual(
+            Data(postPurchaseNonAXSuffixSource.utf8).sha256,
+            "00F00A7ED572CA9677EEAF2B23FB7A19159712669D890C64C4FA2408BC48674C"
+        )
+        let axHelperCall = try XCTUnwrap(
+            postPurchaseAXGateSource.range(of: "positionAXTextPurchaseCompleteViewport(in: app)")
+        )
+        let axCapture = try XCTUnwrap(postPurchaseAXGateSource.range(of: postPurchaseCapture))
+        let axReturn = try XCTUnwrap(
+            postPurchaseAXGateSource.range(of: "return usedSettingsRetry", range: axCapture.upperBound..<postPurchaseAXGateSource.endIndex)
+        )
+        XCTAssertLessThan(axHelperCall.lowerBound, axCapture.lowerBound)
+        XCTAssertLessThan(axCapture.lowerBound, axReturn.lowerBound)
+        XCTAssertTrue(postPurchaseAXGateSource.hasPrefix(postPurchaseAXGateStart))
+        XCTAssertFalse(postPurchaseAXGateSource.contains("automationSegment"))
+        XCTAssertEqual(
+            postPurchaseViewportSource.components(separatedBy: postPurchaseCapture).count - 1,
             1
         )
 
@@ -13233,6 +13283,95 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(separatedBy: postPurchaseFinalGuardAndCapture).count - 1,
             1
         )
+
+        let postPurchaseAXHelperStart =
+            "    @MainActor\n" +
+                "    private func positionAXTextPurchaseCompleteViewport("
+        let postPurchaseAXHelperSource = try boundedSource(
+            uiSource,
+            from: postPurchaseAXHelperStart,
+            before: "    @MainActor\n    private func assertMonthlyPaywallAtXXXL"
+        )
+        XCTAssertEqual(postPurchaseAXHelperSource.utf8.count, 10_970)
+        XCTAssertEqual(
+            Data(postPurchaseAXHelperSource.utf8).sha256,
+            "FE777956BBAD3EB876AF8E1C09092D182A948095DE6F79946F4A4BABEE0FFAB0"
+        )
+        let postPurchaseAXStableRouteSource = try boundedSource(
+            postPurchaseAXHelperSource,
+            from: "        let hasStableRoute: () -> Bool = {",
+            before: "\n        guard hasStableRoute() else {"
+        )
+        for stableRouteLock in [
+            "app.state == .runningForeground",
+            "routeQueries.allSatisfy { $0.count == 1 }",
+            #"routeElements.allSatisfy(\.exists)"#,
+        ] {
+            XCTAssertTrue(postPurchaseAXStableRouteSource.contains(stableRouteLock))
+        }
+        for volatilePrePositionField in [".label", ".value", ".isHittable"] {
+            XCTAssertFalse(postPurchaseAXStableRouteSource.contains(volatilePrePositionField))
+        }
+
+        let postPurchaseAXPositioningSource = try boundedSource(
+            postPurchaseAXHelperSource,
+            from: "        let receiverInset: CGFloat = 24",
+            before: "\n\n        let finalStoreFrame = store.frame"
+        )
+        for structuralLock in [
+            "for _ in 0..<4", "let minimumShift = max(",
+            "viewportTop - purchaseStateFrame.minY", "viewportBottom - purchaseFrame.minY",
+            "let maximumShift = min(", "viewportTop - closeFrame.maxY",
+            "viewportBottom - supportFrame.maxY",
+            "let receiverCapacity = storeFrame.height - 2 * receiverInset",
+            "receiverCapacity >= minimumGestureDistance", "let targetDistance = maximumShift < 0",
+            "let dragDistance = targetDistance > 0", "let storeOrigin = store.coordinate(",
+            "let dragStartOffsetY = dragDistance > 0",
+            "dy: dragStartOffsetY + dragDistance",
+            "purchaseStateShift * dragDistance > 0", "supportShift * dragDistance > 0",
+            "abs(dragDistance) - abs(purchaseStateShift)",
+        ] {
+            XCTAssertTrue(
+                postPurchaseAXPositioningSource.contains(structuralLock),
+                structuralLock
+            )
+        }
+        for finalLock in [
+            "let finalFramesAreValid = isValidFrame(finalStoreFrame)", "let finalBindingsAreExact = hasStableRoute()",
+            "(store.value as? String) == \"Ready\"", "close.label == \"Close\"",
+            "(close.value as? String) == \"\"", "close.isEnabled",
+            "purchaseState.label\n" +
+                "                == \"Complete: Purchase verified. Subscription access is ready.\"",
+            "(purchaseState.value as? String) == \"\"", "purchaseState.isEnabled", "purchaseState.isHittable",
+            "purchase.label == \"Subscribe\"", "(purchase.value as? String) == \"\"",
+            "purchase.isEnabled", "finalCloseFrame.maxY <= finalStoreFrame.minY",
+            "finalStoreFrame.contains(finalPurchaseStateFrame)", "finalPurchaseStateFrame.maxY <= finalTermsFrame.minY",
+            "finalTermsFrame.maxY <= finalPrivacyFrame.minY", "finalPrivacyFrame.maxY <= finalSupportFrame.minY",
+            "finalPurchaseFrame.minY >= finalStoreFrame.maxY",
+        ] {
+            XCTAssertTrue(postPurchaseAXHelperSource.contains(finalLock), finalLock)
+        }
+        for (control, label, frame) in [
+            ("terms", "Terms", "finalTermsFrame"),
+            ("privacy", "Privacy", "finalPrivacyFrame"),
+            ("support", "Support", "finalSupportFrame"),
+        ] {
+            let exactness = postPurchaseAXHelperSource
+            XCTAssertTrue(exactness.contains("\(control).label == \"\(label)\""))
+            XCTAssertTrue(exactness.contains("(\(control).value as? String) == \"\""))
+            XCTAssertTrue(exactness.contains("\(control).isEnabled"))
+            XCTAssertTrue(exactness.contains("\(control).isHittable"))
+            XCTAssertTrue(exactness.contains("\(frame).width >= 44"))
+            XCTAssertTrue(exactness.contains("\(frame).height >= 44"))
+            XCTAssertTrue(exactness.contains("finalStoreFrame.contains(\(frame))"))
+        }
+        XCTAssertFalse(postPurchaseAXHelperSource.contains("close.isHittable"))
+        let lowercasedAXHelperSource = postPurchaseAXHelperSource.lowercased()
+        for prohibitedHelperSideEffect in [
+            "capturebaseline(", "audit", "emit", "attachment", "json",
+        ] {
+            XCTAssertFalse(lowercasedAXHelperSource.contains(prohibitedHelperSideEffect))
+        }
 
         let deleteCompositionLocks = [
             #"let deleteMessage = element("s6.1.delete.message", in: app)"#,
@@ -18471,8 +18610,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let uiSource = try text(uiPath)
         try assertFile(
             uiPath,
-            byteCount: 506_811,
-            sha256: "9991A3D95F4856F5E3F0D0426BC49DE9F7A72698A4E314DD8A53A8F39EC0B67F"
+            byteCount: 518_172,
+            sha256: "B3CFD849481EF177A0A519F65E78192BF85C519F831C008AEE2F1843BE25CE46"
         )
         XCTAssertFalse(uiSource.contains("\r"))
         let segmentEnum = try boundedSource(
