@@ -13138,6 +13138,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            )\n" +
                 "            return\n" +
                 "        }\n" +
+                "        if shouldDiagnoseAXTextReportCorrectionValidationFrontier(in: app) {\n" +
+                "            try diagnoseAXTextReportCorrectionValidationFrontier(in: app)\n" +
+                "        }\n" +
                 #"        captureBaseline("state.report-correction.validation-error", in: app)"# +
                 "\n\n" +
                 #"        note.typeText("Verified connector label")"#,
@@ -18882,7 +18885,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let uiStateList = try boundedSource(
             uiSource,
             from: "    private static let segmentedRouteStateIDs = [",
-            before: "\n\n    private static let contrastAuditExceptionSignatures = ["
+            before: "\n\n    private static let axTextReportCorrectionFrontierReplayCount = 53"
         )
         var stateSearchStart = uiStateList.startIndex
         for stateID in orderedStateIDs {
@@ -18902,6 +18905,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             67
         )
 
+        let k128FrontierInventorySource = try boundedSource(
+            uiSource,
+            from: "    private static let axTextReportCorrectionFrontierReplayCount = 53",
+            before: "    private static let contrastAuditExceptionSignatures = ["
+        )
+        XCTAssertEqual(k128FrontierInventorySource.utf8.count, 288)
+        XCTAssertEqual(
+            Data(k128FrontierInventorySource.utf8).sha256,
+            "FFE04923E5BBF3C73B9A16B283D3832C6BACC8233BF20CC578E8EBC2300007D6"
+        )
+
         let configureSegmentSource = try boundedSource(
             uiSource,
             from: "    func configureAutomatedBrandLabShardFromEnvironment() throws {",
@@ -18918,6 +18932,198 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(configureSegmentSource.contains(exact), exact)
         }
+
+        let k128State54GateSource = try boundedSource(
+            uiSource,
+            from: "        if shouldDiagnoseAXTextReportCorrectionValidationFrontier(in: app) {",
+            before: #"        note.typeText("Verified connector label")"#
+        )
+        XCTAssertEqual(k128State54GateSource.utf8.count, 239)
+        XCTAssertEqual(
+            Data(k128State54GateSource.utf8).sha256,
+            "D96349A22E6F33FE90B7EE7B1EA5ECEB7D352B41F07A336E16D52B306A943970"
+        )
+
+        let k128DiagnosticPredicateSource = try boundedSource(
+            uiSource,
+            from:
+                "    @MainActor\n" +
+                "    private func shouldDiagnoseAXTextReportCorrectionValidationFrontier(",
+            before:
+                "\n\n    @MainActor\n" +
+                "    private func diagnoseAXTextReportCorrectionValidationFrontier("
+        )
+        XCTAssertEqual(k128DiagnosticPredicateSource.utf8.count, 1_242)
+        XCTAssertEqual(
+            Data(k128DiagnosticPredicateSource.utf8).sha256,
+            "B93D2BF67E481EA1002D71741381D7F236F46AF2F396785D03638EE45A3A5489"
+        )
+        for exact in [
+            "automationSegment == .none",
+            "automationShard?.shardID == \"s10.4.current.ax-text\"",
+            "replayCount == 53",
+            "finalOrdinal == 56",
+            "replayCount..<finalOrdinal",
+            "segmentedRouteStateCursor == replayCount",
+            "migratedStateIDs.isEmpty",
+            "app.state == .runningForeground",
+        ] {
+            XCTAssertTrue(k128DiagnosticPredicateSource.contains(exact), exact)
+        }
+        XCTAssertEqual(
+            k128DiagnosticPredicateSource.components(separatedBy: "return true").count - 1,
+            2
+        )
+        XCTAssertEqual(
+            k128DiagnosticPredicateSource.components(separatedBy: "return false").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            k128DiagnosticPredicateSource.components(separatedBy: "XCTFail(").count - 1,
+            1
+        )
+        XCTAssertFalse(k128DiagnosticPredicateSource.contains("segmentedRouteStateCursor +="))
+        XCTAssertFalse(k128DiagnosticPredicateSource.contains("migratedStateIDs.append"))
+
+        let k128DiagnosticSource = try boundedSource(
+            uiSource,
+            from:
+                "    @MainActor\n" +
+                "    private func diagnoseAXTextReportCorrectionValidationFrontier(",
+            before: "\n\n    @MainActor\n    private func captureBaseline("
+        )
+        XCTAssertEqual(k128DiagnosticSource.utf8.count, 9_042)
+        XCTAssertEqual(
+            Data(k128DiagnosticSource.utf8).sha256,
+            "6D1B947B947B5D905ED269EF0A8971478343CA14EBA54DE2DDD00870CEFAF3E6"
+        )
+        for (contextKey, queryName) in [
+            ("count", "countElements"), ("header", "headerElements"),
+            ("note", "noteElements"), ("screen", "screenElements"),
+            ("scroll", "correctionScrollViews"),
+            ("navigationBar", "navigationBars"), ("tabBar", "tabBars"),
+            ("keyboard", "keyboards"), ("inputView", "inputViews"),
+            ("validation", "validationElements"), ("save", "saveElements"),
+        ] {
+            XCTAssertTrue(
+                k128DiagnosticSource.contains(
+                    "\"\(contextKey)\": diagnosticQueryObject(\(queryName))"
+                ),
+                contextKey
+            )
+        }
+        XCTAssertEqual(
+            k128DiagnosticSource.components(
+                separatedBy: "diagnosticQueryObject("
+            ).count - 1,
+            11
+        )
+        let k128OneReadQueryCardinality =
+            "        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {\n" +
+                "            query in\n" +
+                "            let actualCount = query.count\n" +
+                "            return [\n" +
+                "                \"count\": actualCount,\n" +
+                "                \"elements\": (0..<actualCount).map {\n" +
+                "                    diagnosticElementObject(query.element(boundBy: $0))\n" +
+                "                },\n" +
+                "            ]\n" +
+                "        }"
+        XCTAssertEqual(
+            k128DiagnosticSource.components(
+                separatedBy: k128OneReadQueryCardinality
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            k128DiagnosticSource.components(separatedBy: "query.count").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            k128DiagnosticSource.components(separatedBy: "actualCount").count - 1,
+            3
+        )
+        for exact in [
+            "valueObject = NSNull()",
+            "\"identifier\": element.identifier",
+            "\"label\": element.label",
+            "\"value\": valueObject",
+            "\"elementTypeRawValue\": element.elementType.rawValue",
+            "\"elementTypeDescription\": String(",
+            "\"frame\": self.auditFrameObject(element.frame)",
+            "\"exists\": element.exists",
+            "\"isEnabled\": element.isEnabled",
+            "\"isHittable\": element.isHittable",
+            "\"applicationStateRawValue\": app.state.rawValue",
+            "\"applicationForeground\": app.state == .runningForeground",
+            "\"applicationFrame\": auditFrameObject(app.frame)",
+        ] {
+            XCTAssertTrue(k128DiagnosticSource.contains(exact), exact)
+        }
+        for issueField in [
+            "issueOrdinal", "auditTypeRawValue", "compactDescription",
+            "detailedDescription", "elementIdentifier", "elementLabel",
+            "elementValue", "elementTypeRawValue", "elementTypeDescription",
+            "elementFrame", "applicationFrame",
+        ] {
+            XCTAssertTrue(k128DiagnosticSource.contains("\"\(issueField)\""), issueField)
+        }
+        for (token, count) in [
+            ("performAccessibilityAudit(for: .contrast)", 1),
+            ("return false", 1),
+            ("XCTAttachment(", 4),
+            (".lifetime = .keepAlways", 4),
+            ("add(appAttachment)", 1),
+            ("add(treeAttachment)", 1),
+            ("add(contextAttachment)", 1),
+            ("self.add(elementAttachment)", 1),
+            ("if observedIssueCount == 1", 1),
+        ] {
+            XCTAssertEqual(
+                k128DiagnosticSource.components(separatedBy: token).count - 1,
+                count,
+                token
+            )
+        }
+        for attachmentLock in [
+            "XCTAttachment(screenshot: app.screenshot())",
+            "XCTAttachment(string: app.debugDescription)",
+            "XCTAttachment(string: contextString)",
+            "XCTAttachment(\n                            screenshot: auditedElement.screenshot()",
+            "S10.4 AX-text Report-correction-validation frontier app",
+            "S10.4 AX-text Report-correction-validation frontier tree",
+            "S10.4 AX-text Report-correction-validation frontier context",
+            "S10.4 AX-text Report-correction-validation frontier issue element",
+            "\"issueCount\": observedIssueCount",
+            "\"auditError\": auditErrorDescription",
+        ] {
+            XCTAssertTrue(k128DiagnosticSource.contains(attachmentLock), attachmentLock)
+        }
+        var k128DiagnosticTail = k128DiagnosticSource[k128DiagnosticSource.startIndex...]
+        for token in [
+            "let appAttachment =", "let treeAttachment =",
+            "let contextAttachment =", "performAccessibilityAudit(for: .contrast)",
+            "S10_4_AX_TEXT_REPORT_CORRECTION_VALIDATION_FRONTIER_AUDIT_COUNT",
+            "S10.4 AX-text Report-correction-validation frontier diagnostic completed nonaccepting",
+        ] {
+            let range = try XCTUnwrap(k128DiagnosticTail.range(of: token), token)
+            k128DiagnosticTail = k128DiagnosticTail[range.upperBound...]
+        }
+        for prohibited in [
+            "captureBaseline(", "S10_MIGRATION_STATE", "S10_4_AX_STATE",
+            "S10_4_CONTRAST", "migratedStateIDs.append", "note.typeText(",
+            "save.tap()", "emitAutomationTaskEvidence", "emitAutomationShardReceipt",
+        ] {
+            XCTAssertFalse(k128DiagnosticSource.contains(prohibited), prohibited)
+        }
+        XCTAssertTrue(
+            k128DiagnosticSource.hasSuffix(
+                "        throw AutomationConfigurationError.invalid(\n" +
+                    "            \"S10.4 AX-text Report-correction-validation frontier diagnostic completed nonaccepting\"\n" +
+                    "        )\n" +
+                    "    }"
+            )
+        )
 
         let captureSource = try boundedSource(
             uiSource,
@@ -18959,19 +19165,26 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    @MainActor\n    private func shouldPrepareNormalEvidence(",
             before: "\n\n    @MainActor\n    private func replaySegmentPrefixIfNeeded("
         )
-        XCTAssertEqual(preparationPredicateSource.utf8.count, 1_646)
+        XCTAssertEqual(preparationPredicateSource.utf8.count, 3_246)
         XCTAssertEqual(
             Data(preparationPredicateSource.utf8).sha256,
-            "E5C14136950646A12636AD5F5CAB03EB8A44FB4D0FDC8C4958D8DA456E0538CC"
+            "229511D0358A569C2DFC7A52D9F7A1A66E6CD41F82384CC2D0160EBEE6DAA0E2"
         )
         for exact in [
-            "guard automationSegment != .none else { return true }",
+            "if automationSegment == .none",
+            "guard automationShard?.shardID == \"s10.4.current.ax-text\" else {\n" +
+                "                return true",
             "automationShard?.shardID == \"s10.4.current.ax-text\"",
             "Self.segmentedRouteStateIDs.count == 67",
             "Set(Self.segmentedRouteStateIDs).count == 67",
+            "replayCount == 53",
+            "frontierFinalOrdinal == 56",
+            "replayCount..<frontierFinalOrdinal",
+            "segmentedRouteStateCursor < frontierFinalOrdinal",
             "segmentedRouteStateCursor < Self.segmentedRouteStateIDs.count",
             "Self.segmentedRouteStateIDs[segmentedRouteStateCursor] == stateID",
             "app.state == .runningForeground",
+            "return segmentedRouteStateCursor >= replayCount",
             "return segmentedRouteStateCursor >= automationSegment.replayCount",
         ] {
             XCTAssertTrue(preparationPredicateSource.contains(exact), exact)
@@ -18990,11 +19203,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             preparationPredicateSource.components(separatedBy: "return false").count - 1,
-            4
+            6
         )
         XCTAssertEqual(
             preparationPredicateSource.components(separatedBy: "XCTFail(").count - 1,
-            4
+            6
         )
 
         let preparationGateExpression = try NSRegularExpression(
@@ -19142,17 +19355,46 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func replaySegmentPrefixIfNeeded(\n",
             before: "\n\n    @MainActor\n    private func finishAutomatedSegmentIfNeeded("
         )
-        XCTAssertEqual(replaySource.utf8.count, 2_715)
+        XCTAssertEqual(replaySource.utf8.count, 5_834)
         XCTAssertEqual(
             Data(replaySource.utf8).sha256,
-            "7FEC2E34333BD2AF2170700F3887F62D79ACCF9C4FD64FC1E7B30527A12A9C0E"
+            "87177DB26076C290FAF24B4CF4CD6BE0F94FD06DA3D638BF8A3632D042DD4D8A"
         )
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: "segmentedRouteStateCursor += 1"
             ).count - 1,
-            1
+            2
         )
+        let k128StandardReplaySource = try boundedSource(
+            replaySource,
+            from: "        if automationSegment == .none {",
+            before: "        guard let shard = automationShard,\n" +
+                "              shard.shardID == \"s10.4.current.ax-text\" else {\n" +
+                "            XCTFail("
+        )
+        for exact in [
+            "shard.shardID == \"s10.4.current.ax-text\"",
+            "replayCount == 53",
+            "frontierFinalOrdinal == 56",
+            "replayCount..<frontierFinalOrdinal",
+            "segmentedRouteStateCursor < frontierFinalOrdinal",
+            "stateID == expectedStateID",
+            "app.state == .runningForeground",
+            "segmentedRouteStateCursor += 1",
+            "segmentedRouteStateCursor <= replayCount",
+            "S10_4_AX_TEXT_REPORT_CORRECTION_VALIDATION_FRONTIER_REPLAY",
+            "\"targetOrdinal\": 54",
+        ] {
+            XCTAssertTrue(k128StandardReplaySource.contains(exact), exact)
+        }
+        for prohibited in [
+            "migratedStateIDs.append", "performAccessibilityAudit",
+            "XCUIScreen.main.screenshot", "captureBaseline(", "S10_4_AX_STATE",
+            "S10_4_CONTRAST",
+        ] {
+            XCTAssertFalse(k128StandardReplaySource.contains(prohibited), prohibited)
+        }
         let segmentedReplayStart = try XCTUnwrap(
             replaySource.range(
                 of: "        guard let shard = automationShard,\n" +
