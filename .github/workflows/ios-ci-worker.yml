@@ -1040,8 +1040,9 @@ jobs:
             "$shard_evidence_path/replay-rows.json"
 
           candidate_prefix="S10.4 candidate $CI_S10_4_SHARD_ID "
-          jq -e --arg prefix "$candidate_prefix" --argjson expected "$expected_state_count" '
-            [
+          jq -e --arg prefix "$candidate_prefix" --argjson expected "$expected_state_count" \
+            --slurpfile owned "$expected_owned_path" '
+            ([
               .[]
               | select(
                   type == "object"
@@ -1062,12 +1063,23 @@ jobs:
                     | sub("_0_[0-9A-Fa-f-]{36}\\."; ".")),
                   exportedFileName: .exportedFileName
                 }
-            ]
-            | if length == $expected then . else error("segment candidate count") end
-            | if ([.[].stateID] | unique | length) == $expected then .
-              else error("duplicate segment candidate state") end
-            | if ([.[].exportedFileName] | unique | length) == $expected then .
-              else error("duplicate segment candidate file") end
+            ]) as $candidates
+            | ($owned[0]) as $ownedStateIDs
+            | if ($candidates | length) != $expected then
+                error("segment candidate count")
+              elif ($candidates | map(.stateID) | unique | length) != $expected then
+                error("duplicate segment candidate state")
+              elif ($candidates | map(.exportedFileName) | unique | length) != $expected then
+                error("duplicate segment candidate file")
+              elif (($candidates | map(.stateID) | sort) != ($ownedStateIDs | sort)) then
+                error("segment candidate state set")
+              else
+                [
+                  $ownedStateIDs[] as $stateID
+                  | $candidates[]
+                  | select(.stateID == $stateID)
+                ]
+              end
           ' "$attachment_manifest_path" > "$shard_evidence_path/candidate-exports.json"
           jq -c '[.[].stateID]' "$shard_evidence_path/candidate-exports.json" \
             > "$RUNNER_TEMP/s10-4-segment-candidate-state-ids.json"

@@ -276,6 +276,7 @@ for source_dir in "${source_dirs[@]}"; do
   test ! -e "$source_dir/accessibility/$shard_id"
   test "$(jq 'length' "$shard_source/state-ax.json")" -eq "$state_count"
   test "$(jq 'length' "$shard_source/contrast.json")" -eq "$state_count"
+  test "$(jq 'length' "$shard_source/candidate-exports.json")" -eq "$state_count"
   test "$(jq 'length' "$shard_source/candidate-files.json")" -eq "$state_count"
   test "$(jq 'length' "$shard_source/replay-rows.json")" -eq "$replay_count"
   jq -e --arg shard "$shard_id" --arg segment "$segment_id" --argjson expected "$segment_json" '
@@ -285,7 +286,22 @@ for source_dir in "${source_dirs[@]}"; do
   ' "$shard_source/replay-rows.json" > /dev/null
   jq -e --argjson expected "$segment_json" '[.[].stateID] == $expected.ownedStateIDs' "$shard_source/state-ax.json" > /dev/null
   jq -e --argjson expected "$segment_json" '[.[].stateID] == $expected.ownedStateIDs' "$shard_source/contrast.json" > /dev/null
-  jq -e --argjson expected "$segment_json" '[.[].stateID] == $expected.ownedStateIDs' "$shard_source/candidate-files.json" > /dev/null
+  jq -e --argjson expected "$segment_json" '
+    [.[].stateID] == $expected.ownedStateIDs
+    and all(.[];
+      (.exportedFileName | type == "string")
+      and (.exportedFileName | test("^[A-Za-z0-9._-]+$")))
+  ' "$shard_source/candidate-exports.json" > /dev/null
+  jq -e --argjson expected "$segment_json" '
+    . as $candidateRows
+    | ([$candidateRows[].stateID] == $expected.ownedStateIDs)
+      and all(range(0; ($candidateRows | length));
+        . as $index
+        | $candidateRows[$index].artifactPath
+            == ("candidates/" + $expected.ownedStateIDs[$index] + ".png")
+          and ($candidateRows[$index].sha256 | test("^[0-9A-F]{64}$"))
+          and ($candidateRows[$index].bytes | type == "number" and . > 0))
+  ' "$shard_source/candidate-files.json" > /dev/null
   test "$(find "$shard_source/candidates" -type f -name 'state.*.png' | wc -l | tr -d ' ')" -eq "$state_count"
   mapfile -t observed_markers < <(sed -n 's/^S10_MIGRATION_STATE state=//p' "$source_dir/ui-smoke.log")
   test "${#observed_markers[@]}" -eq "$state_count"

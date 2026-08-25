@@ -113,8 +113,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 175_698,
-            sha256: "C8221655FCE704AB020E3A74B5B8C3CA4DAFF1CB9EE5B28150D158254B75AF1C"
+            byteCount: 176_195,
+            sha256: "C3FBBAA5F15F0DF6BDA15689439121A369D2747C53FD2CF5AA24A01226B2F181"
         )
         let workflowSource = try text(workflowPath)
         let workerCallHeader =
@@ -19003,6 +19003,49 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(retainSegmentSource.contains(exact), exact)
         }
+        let candidateCanonicalizationSource = try boundedSource(
+            retainSegmentSource,
+            from: "          candidate_prefix=\"S10.4 candidate $CI_S10_4_SHARD_ID \"",
+            before: "\n\n          : > \"$RUNNER_TEMP/s10-4-segment-candidate-files.tsv\""
+        )
+        for exact in [
+            "--slurpfile owned \"$expected_owned_path\"",
+            "($owned[0]) as $ownedStateIDs",
+            "($candidates | length) != $expected",
+            "($candidates | map(.stateID) | unique | length) != $expected",
+            "($candidates | map(.exportedFileName) | unique | length) != $expected",
+            "($candidates | map(.stateID) | sort) != ($ownedStateIDs | sort)",
+            "error(\"segment candidate state set\")",
+            "$ownedStateIDs[] as $stateID",
+            "$candidates[]",
+            "select(.stateID == $stateID)",
+            "> \"$shard_evidence_path/candidate-exports.json\"",
+            "cmp -s \"$expected_owned_path\"",
+            "\"$RUNNER_TEMP/s10-4-segment-candidate-state-ids.json\"",
+        ] {
+            XCTAssertTrue(candidateCanonicalizationSource.contains(exact), exact)
+        }
+        XCTAssertFalse(candidateCanonicalizationSource.contains("reverse"))
+        XCTAssertFalse(candidateCanonicalizationSource.contains("sort_by(.stateID"))
+        let exactCandidateSet = try XCTUnwrap(
+            candidateCanonicalizationSource.range(
+                of: "($candidates | map(.stateID) | sort) != ($ownedStateIDs | sort)"
+            )
+        )
+        let planOrderProjection = try XCTUnwrap(
+            candidateCanonicalizationSource.range(
+                of: "$ownedStateIDs[] as $stateID",
+                range: exactCandidateSet.upperBound..<candidateCanonicalizationSource.endIndex
+            )
+        )
+        let canonicalCandidateWrite = try XCTUnwrap(
+            candidateCanonicalizationSource.range(
+                of: "> \"$shard_evidence_path/candidate-exports.json\"",
+                range: planOrderProjection.upperBound..<candidateCanonicalizationSource.endIndex
+            )
+        )
+        XCTAssertLessThan(exactCandidateSet.lowerBound, planOrderProjection.lowerBound)
+        XCTAssertLessThan(planOrderProjection.lowerBound, canonicalCandidateWrite.lowerBound)
         let workerTerminalPredicateSource = try boundedSource(
             retainSegmentSource,
             from: "          segment_terminal_name=\"S10.4 segment terminal $CI_S10_4_SEGMENT_ID $CI_S10_4_SHARD_ID\"",
@@ -19106,8 +19149,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let assemblerSource = try text(assemblerPath)
         try assertFile(
             assemblerPath,
-            byteCount: 28_219,
-            sha256: "41320AACF2492D0DCFF7570110D85502504217BE50721681B0DAF73E319518A9"
+            byteCount: 28_953,
+            sha256: "F9F31B0F1820225704CD4A26FC94297BE21EFCEEC2C7EEA593AD2C3336C23B87"
         )
         XCTAssertFalse(assemblerSource.contains("\r"))
         XCTAssertTrue(
@@ -19195,8 +19238,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ".accessibilityRowCount == 0",
             "test ! -e \"$shard_source/shard-receipt.json\"",
             "test ! -e \"$source_dir/accessibility/$shard_id\"",
+            "test \"$(jq 'length' \"$shard_source/candidate-exports.json\")\" -eq \"$state_count\"",
             "[.[].stateID] == $expected.replayStateIDs",
             "[.[].stateID] == $expected.ownedStateIDs",
+            "(.exportedFileName | type == \"string\")",
+            "(.exportedFileName | test(\"^[A-Za-z0-9._-]+$\"))",
+            ". as $candidateRows",
+            "all(range(0; ($candidateRows | length));",
+            "$candidateRows[$index].artifactPath",
+            "== (\"candidates/\" + $expected.ownedStateIDs[$index] + \".png\")",
+            "($candidateRows[$index].sha256 | test(\"^[0-9A-F]{64}$\"))",
+            "($candidateRows[$index].bytes | type == \"number\" and . > 0)",
+            "\"$shard_source/candidate-exports.json\"",
             "S10_MIGRATION_STATE state=",
             "S10_4_SEGMENT_REPLAY",
             "^S10_4_AX ",
