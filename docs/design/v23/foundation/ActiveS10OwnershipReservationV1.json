@@ -2,7 +2,7 @@
   "schema": "ActiveS10OwnershipReservationV1",
   "schemaVersion": 1,
   "ownerBranch": "phase/s10-brand-refresh",
-  "ownerHead": "728f76fa51186dd99f4359a529272c667fd1218f",
+  "ownerHead": "a8dcd01259317b0120a49041bc1bdb6e22fd423c",
   "reservedPaths": [
     ".github/workflows/ios-ci-worker.yml",
     ".github/workflows/ios-ci.yml",
@@ -109,6 +109,6 @@
     "ORIGIN_MAIN_CHANGE",
     "V23_PATH_FENCE_CHANGE"
   ],
-  "createdAt": "2026-08-25T13:43:48.438Z",
-  "contentDigest": "c72ff93db9e007ab303b562c2dae49174f28942058ced06bc488c438570ffb58"
+  "createdAt": "2026-08-25T14:31:40.736Z",
+  "contentDigest": "3736e3eddb65155960780b77daed0df854bb72ce450106885c08ad78666c1f71"
 }
