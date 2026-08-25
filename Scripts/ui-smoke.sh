@@ -8,6 +8,7 @@ screenshot_path="$CI_ARTIFACT_DIR/ui-final.png"
 attachment_export_path="${RUNNER_TEMP:?}/FieldEvidenceUISmokeAttachments"
 attachment_manifest_path="$attachment_export_path/manifest.json"
 failure_attachment_export_path="$CI_ARTIFACT_DIR/ui-failure-attachments"
+failure_diagnostic_path="$CI_ARTIFACT_DIR/ui-failure-diagnostics"
 expected_destination="platform=iOS Simulator,id=${CI_SIMULATOR_UDID:?}"
 app_bundle_id="com.palatis3.fieldrecord"
 
@@ -70,6 +71,174 @@ if [ "$xcodebuild_status" -ne 0 ]; then
       printf 'failed to export non-accepting UI failure attachments\n' >&2
     fi
   fi
+
+  set +e
+  if [ -e "$failure_diagnostic_path" ] || \
+     [ -L "$failure_diagnostic_path" ]; then
+    printf 'refusing existing UI failure diagnostic path: %s\n' \
+      "$failure_diagnostic_path" >&2
+    exit "$xcodebuild_status"
+  fi
+  if ! mkdir -p "$failure_diagnostic_path"; then
+    printf 'failed to create UI failure diagnostic path: %s\n' \
+      "$failure_diagnostic_path" >&2
+    exit "$xcodebuild_status"
+  fi
+  diagnostic_status_path="$failure_diagnostic_path/status.txt"
+  diagnostic_context_path="$failure_diagnostic_path/context.txt"
+  {
+    printf 'diagnostic_started_utc=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    printf 'xcodebuild_status=%s\n' "$xcodebuild_status"
+    printf 'github_run_id=%s\n' "${GITHUB_RUN_ID:-}"
+    printf 'github_run_attempt=%s\n' "${GITHUB_RUN_ATTEMPT:-}"
+    printf 'github_sha=%s\n' "${GITHUB_SHA:-}"
+    printf 'github_ref=%s\n' "${GITHUB_REF:-}"
+    printf 'runner_name=%s\n' "${RUNNER_NAME:-}"
+    printf 'runner_os=%s\n' "${RUNNER_OS:-}"
+    printf 'runner_arch=%s\n' "${RUNNER_ARCH:-}"
+    printf 'simulator_udid=%s\n' "$CI_SIMULATOR_UDID"
+    printf 'destination=%s\n' "$CI_DESTINATION"
+    printf 'selected_ui_selector=%s\n' "$selected_ui_selector"
+  } > "$diagnostic_context_path"
+  : > "$diagnostic_status_path"
+
+  run_diagnostic() {
+    diagnostic_name="$1"
+    shift
+    "$@"
+    diagnostic_status="$?"
+    printf '%s=%s\n' "$diagnostic_name" "$diagnostic_status" \
+      >> "$diagnostic_status_path"
+    return 0
+  }
+
+  if [ -d "$result_bundle_path" ] && \
+     [ -n "$(find "$result_bundle_path" -mindepth 1 -print -quit)" ]; then
+    run_diagnostic xcresult_test_results \
+      Scripts/run-with-timeout.sh 30 \
+      xcrun xcresulttool get test-results tests \
+        --path "$result_bundle_path" \
+        --compact \
+      > "$failure_diagnostic_path/xcresult-test-results.json" \
+      2> "$failure_diagnostic_path/xcresult-test-results.stderr.txt"
+  else
+    printf 'xcresult_test_results=66\n' >> "$diagnostic_status_path"
+  fi
+
+  LC_ALL=C /bin/ps -axo pid,ppid,etime,state,command \
+    | /usr/bin/grep -E \
+      'testmanagerd|xctest|xcodebuild|CoreSimulatorService|simctl' \
+    | /usr/bin/grep -v '[g]rep' \
+    > "$failure_diagnostic_path/processes.txt" 2>&1
+  printf 'process_snapshot=%s\n' "$?" >> "$diagnostic_status_path"
+
+  host_unified_log_raw="${RUNNER_TEMP:?}/FieldEvidenceHostUnified.log"
+  rm -f "$host_unified_log_raw"
+  run_diagnostic host_unified_log \
+    Scripts/run-with-timeout.sh 45 \
+    /usr/bin/log show \
+      --last 30m \
+      --style compact \
+      --predicate \
+        '(process == "testmanagerd") OR (process == "xctest") OR (process == "xcodebuild") OR (process == "CoreSimulatorService")' \
+    > "$host_unified_log_raw" 2>&1
+  host_unified_log_original_bytes=0
+  host_unified_log_retained_bytes=0
+  if [ -f "$host_unified_log_raw" ]; then
+    host_unified_log_original_bytes="$(
+      LC_ALL=C wc -c < "$host_unified_log_raw" | tr -d '[:space:]'
+    )"
+    /usr/bin/head -c 2097152 "$host_unified_log_raw" \
+      > "$failure_diagnostic_path/host-unified.log"
+    printf 'host_unified_log_bound=%s\n' "$?" >> "$diagnostic_status_path"
+    host_unified_log_retained_bytes="$(
+      LC_ALL=C wc -c < "$failure_diagnostic_path/host-unified.log" \
+        | tr -d '[:space:]'
+    )"
+  fi
+  printf 'host_unified_log_original_bytes=%s\n' \
+    "$host_unified_log_original_bytes" >> "$diagnostic_status_path"
+  printf 'host_unified_log_retained_bytes=%s\n' \
+    "$host_unified_log_retained_bytes" >> "$diagnostic_status_path"
+  rm -f "$host_unified_log_raw"
+
+  run_diagnostic host_launchd_system_testmanagerd \
+    Scripts/run-with-timeout.sh 10 \
+    /bin/launchctl print system/com.apple.testmanagerd \
+    > "$failure_diagnostic_path/launchd-system-testmanagerd.txt" 2>&1
+  run_diagnostic host_launchd_gui_testmanagerd \
+    Scripts/run-with-timeout.sh 10 \
+    /bin/launchctl print "gui/$(id -u)/com.apple.testmanagerd" \
+    > "$failure_diagnostic_path/launchd-gui-testmanagerd.txt" 2>&1
+  run_diagnostic simulator_launchd_testmanagerd \
+    Scripts/run-with-timeout.sh 15 \
+    xcrun simctl spawn "$CI_SIMULATOR_UDID" \
+      launchctl print system/com.apple.testmanagerd \
+    > "$failure_diagnostic_path/simulator-testmanagerd.txt" 2>&1
+  run_diagnostic simulator_devices \
+    Scripts/run-with-timeout.sh 15 \
+    xcrun simctl list devices available -j \
+    > "$failure_diagnostic_path/simulator-devices.json" 2>&1
+
+  diagnostic_reports_path="$failure_diagnostic_path/diagnostic-reports"
+  mkdir -p "$diagnostic_reports_path"
+  diagnostic_reports_index="$failure_diagnostic_path/diagnostic-reports-index.txt"
+  : > "$diagnostic_reports_index"
+  diagnostic_report_count=0
+  for diagnostic_report_root in \
+    "$HOME/Library/Logs/DiagnosticReports" \
+    "/Library/Logs/DiagnosticReports"; do
+    if [ ! -d "$diagnostic_report_root" ]; then
+      continue
+    fi
+    while IFS= read -r diagnostic_report; do
+      diagnostic_report_count=$((diagnostic_report_count + 1))
+      diagnostic_report_name="$(basename "$diagnostic_report")"
+      diagnostic_report_destination="$diagnostic_reports_path/$(
+        printf '%03d' "$diagnostic_report_count"
+      )-$diagnostic_report_name"
+      diagnostic_report_original_bytes="$(
+        LC_ALL=C wc -c < "$diagnostic_report" | tr -d '[:space:]'
+      )"
+      /usr/bin/head -c 1048576 "$diagnostic_report" \
+        > "$diagnostic_report_destination"
+      diagnostic_report_status="$?"
+      diagnostic_report_retained_bytes=0
+      if [ -f "$diagnostic_report_destination" ]; then
+        diagnostic_report_retained_bytes="$(
+          LC_ALL=C wc -c < "$diagnostic_report_destination" \
+            | tr -d '[:space:]'
+        )"
+      fi
+      printf '%03d\tstatus=%s\toriginal_bytes=%s\tretained_bytes=%s\tname=%s\n' \
+        "$diagnostic_report_count" \
+        "$diagnostic_report_status" \
+        "$diagnostic_report_original_bytes" \
+        "$diagnostic_report_retained_bytes" \
+        "$diagnostic_report_name" \
+        >> "$diagnostic_reports_index"
+      if [ "$diagnostic_report_count" -ge 20 ]; then
+        break
+      fi
+    done < <(
+      find "$diagnostic_report_root" \
+        -type f \
+        -mmin -60 \
+        \( \
+          -iname '*testmanagerd*' -o \
+          -iname '*xctest*' -o \
+          -iname '*CoreSimulator*' \
+        \) \
+        -print 2>/dev/null \
+        | LC_ALL=C sort
+    )
+    if [ "$diagnostic_report_count" -ge 20 ]; then
+      break
+    fi
+  done
+  printf 'diagnostic_report_count=%s\n' "$diagnostic_report_count" \
+    >> "$diagnostic_status_path"
+
   exit "$xcodebuild_status"
 fi
 
