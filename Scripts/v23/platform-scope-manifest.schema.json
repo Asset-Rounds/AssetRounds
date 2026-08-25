@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assetrounds.invalid/v23/V23PlatformScopeManifestV1.schema.json",
+  "title": "V23PlatformScopeManifestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "prerequisiteBindings",
+    "releaseDeviceFamily",
+    "targetedDeviceFamily",
+    "requiredArchiveUIDeviceFamily",
+    "nativeIPadSupport",
+    "selectedOrientations",
+    "upsideDownSupported",
+    "targetConfigurationMatrix",
+    "infoPlist",
+    "infoPlistStrings",
+    "platformFacts",
+    "sourceInventory",
+    "inheritedContractClosure",
+    "contractFamilies",
+    "deferredEvidence",
+    "releaseTestSupportBlocker",
+    "evidenceDisposition",
+    "nativeCompileRan",
+    "acceptanceEnabled",
+    "releaseReady",
+    "phase10PollingDuringParallelExecution",
+    "provisionalDisposition",
+    "acceptanceCredit",
+    "releaseCredit",
+    "artifactDigest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "V23PlatformScopeManifestV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "cardID": {
+      "const": "V23-P00-C06"
+    },
+    "authority": {
+      "const": {
+        "attemptID": 1,
+        "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+        "baseHead": "7b72263ea2c64a8f9bace8e87872d1a293400969",
+        "baseTree": "d3fbaa46c1a35c5a52909731dfbfa30fed3b1086",
+        "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+        "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+        "dossierDigest": "cffd38d2cb51968dc4e04002c1adda95d87893458404e0ed6a1873c5d0800554",
+        "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+        "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+        "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+        "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+        "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+        "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+        "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+        "bootstrapContextDigest": "afbb364ed404d4fbd57ee66c5707c8f670a002b8d81cdc425cc6a0cfb3c53d60",
+        "bootstrapPathFenceDigest": "ca49bcc135ddc270e18c42b808a804a6b1de71bb8a08647b32bccd3b1a9a6eca",
+        "hydratedSpecDigest": "94d972d447cccba8e06862ba672e0e79fa2228c71382157360534afc49229497",
+        "hydratedPathFenceDigest": "83f17a0763528e8ecf2959be04d73015d8ec4d20300c49613d9cbb4e945960bb",
+        "provisionalPrerequisiteDigest": "7ae46c43ce2211c539ee701edfeaadfe56e10d89d759046e2d20f0d9c07972ee",
+        "inheritedV21BlockDigest": "1198e87ffa91fbc0c46781b4b3adc384ce97a92079b93d4db71045e75782625b",
+        "writerAuthority": {
+          "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+          "writerGeneration": 0
+        },
+        "ledgerDigest": "5a3b288b6a83e354a96db269d0c830e8bf654d10e1fff4a8a5fe2f5d70a8db61",
+        "ledgerCASSequence": 39,
+        "phase10PollingDuringParallelExecution": false,
+        "acceptanceEnabled": false,
+        "hostedDispatchEnabled": false,
+        "adoptionEnabled": false,
+        "requiresAcceptedS10_6Reconciliation": true,
+        "releaseCredit": false
+      }
+    },
+    "prerequisiteBindings": {
+      "type": "object"
+    },
+    "releaseDeviceFamily": {
+      "const": "IPHONE_ONLY"
+    },
+    "targetedDeviceFamily": {
+      "const": "1"
+    },
+    "requiredArchiveUIDeviceFamily": {
+      "const": [
+        1
+      ]
+    },
+    "nativeIPadSupport": {
+      "const": false
+    },
+    "selectedOrientations": {
+      "const": [
+        "PORTRAIT",
+        "LANDSCAPE_LEFT",
+        "LANDSCAPE_RIGHT"
+      ]
+    },
+    "upsideDownSupported": {
+      "const": false
+    },
+    "targetConfigurationMatrix": {
+      "type": "array"
+    },
+    "infoPlist": {
+      "type": "object"
+    },
+    "infoPlistStrings": {
+      "type": "object"
+    },
+    "platformFacts": {
+      "type": "object"
+    },
+    "sourceInventory": {
+      "type": "object"
+    },
+    "inheritedContractClosure": {
+      "type": "array"
+    },
+    "contractFamilies": {
+      "type": "array"
+    },
+    "deferredEvidence": {
+      "type": "array"
+    },
+    "releaseTestSupportBlocker": {
+      "type": "object"
+    },
+    "evidenceDisposition": {
+      "type": "object"
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "provisionalDisposition": {
+      "type": "string"
+    },
+    "acceptanceCredit": {
+      "const": false
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "artifactDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

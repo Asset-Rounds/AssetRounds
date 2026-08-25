@@ -1,0 +1,18 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSCameraUsageDescription" : {
+      "comment" : "Explains why AssetRounds requests camera access.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use the camera to add sign photos to reports stored on this iPhone."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
