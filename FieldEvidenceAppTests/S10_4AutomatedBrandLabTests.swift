@@ -2122,10 +2122,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(preflightCaptureToZoneScrollSource.utf8).sha256,
             "B78B48127DD3FCFA516B8CB01366643048DB212368A68EBF0809E5CEB84D17D8"
         )
-        XCTAssertEqual(preflightZoneScrollToBeginSource.utf8.count, 666)
+        XCTAssertEqual(preflightZoneScrollToBeginSource.utf8.count, 979)
         XCTAssertEqual(
             Data(preflightZoneScrollToBeginSource.utf8).sha256,
-            "FB7652BD31787249CBDEA44A82E50DCDE201E155A5BAEBE339942B659836D3BD"
+            "3031325E29E3003DDF7BC3F97499F8A3B60360092B4A29702EA9741935875A50"
         )
 
         let currentProfilePreflightQuickPathStructureLocks = [
