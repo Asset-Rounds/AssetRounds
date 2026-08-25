@@ -1,0 +1,502 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assetrounds.invalid/v23/OwnerPhysicalJourneyReleaseV1.schema.json",
+  "title": "OwnerPhysicalJourneyReleaseV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "lifecycle",
+    "commonJourneyRequirements",
+    "featureJourneyIDs",
+    "physicalSystemFamilies",
+    "enrollmentStatus",
+    "acceptanceCredit",
+    "releaseCredit",
+    "artifactDigest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "OwnerPhysicalJourneyReleaseV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "cardID": {
+      "const": "V23-P00-C08"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attemptID",
+        "executionMode",
+        "baseHead",
+        "baseTree",
+        "candidateBinding",
+        "packageDigest",
+        "dossierDigest",
+        "inheritedV21BlockDigest",
+        "registerRowDigest",
+        "planningAuthorityImpactDigest",
+        "planningAuthorityFacetDigest",
+        "canonicalRegisterDigest",
+        "directGraphDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "ownerOverrideReceiptDigest",
+        "frozenS10ReservationDigest",
+        "bootstrapContextDigest",
+        "bootstrapPathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "directPrerequisite",
+        "writerAuthority",
+        "ledgerDigest",
+        "ledgerCASSequence",
+        "phase10PollingDuringParallelExecution",
+        "acceptanceEnabled",
+        "hostedDispatchEnabled",
+        "adoptionEnabled",
+        "requiresAcceptedS10_6Reconciliation",
+        "releaseCredit"
+      ],
+      "properties": {
+        "attemptID": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "executionMode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseHead": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "baseTree": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "candidateBinding": {
+          "type": "string",
+          "minLength": 1
+        },
+        "packageDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "dossierDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "inheritedV21BlockDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "registerRowDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "planningAuthorityImpactDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "planningAuthorityFacetDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "canonicalRegisterDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "directGraphDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "selectorManifestDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "relationManifestDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "dependencyDispositionDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ownerOverrideReceiptDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "frozenS10ReservationDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bootstrapContextDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bootstrapPathFenceDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "provisionalPrerequisiteDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "directPrerequisite": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cardID",
+            "contextDigest",
+            "fenceDigest",
+            "verificationDigest",
+            "checkpointDigest",
+            "platformArtifactDigest",
+            "toolingManifestDigest",
+            "predecessorCandidateHead",
+            "predecessorCandidateTree",
+            "releaseTestSupportAbsent"
+          ],
+          "properties": {
+            "cardID": {
+              "const": "V23-P00-C06"
+            },
+            "contextDigest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "fenceDigest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "verificationDigest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "checkpointDigest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "platformArtifactDigest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "toolingManifestDigest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "predecessorCandidateHead": {
+              "type": "string",
+              "minLength": 1
+            },
+            "predecessorCandidateTree": {
+              "type": "string",
+              "minLength": 1
+            },
+            "releaseTestSupportAbsent": {
+              "type": "boolean"
+            }
+          }
+        },
+        "writerAuthority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ownerID",
+            "writerGeneration"
+          ],
+          "properties": {
+            "ownerID": {
+              "type": "string",
+              "minLength": 1
+            },
+            "writerGeneration": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "ledgerDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ledgerCASSequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "phase10PollingDuringParallelExecution": {
+          "type": "boolean"
+        },
+        "acceptanceEnabled": {
+          "type": "boolean"
+        },
+        "hostedDispatchEnabled": {
+          "type": "boolean"
+        },
+        "adoptionEnabled": {
+          "type": "boolean"
+        },
+        "requiresAcceptedS10_6Reconciliation": {
+          "type": "boolean"
+        },
+        "releaseCredit": {
+          "type": "boolean"
+        }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "persistence",
+        "supersession",
+        "customerData",
+        "interruption",
+        "recovery"
+      ],
+      "properties": {
+        "persistence": {
+          "type": "string",
+          "minLength": 1
+        },
+        "supersession": {
+          "type": "string",
+          "minLength": 1
+        },
+        "customerData": {
+          "type": "string",
+          "minLength": 1
+        },
+        "interruption": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recovery": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "commonJourneyRequirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "uncoached",
+        "ownerExternalEffect"
+      ],
+      "properties": {
+        "uncoached": {
+          "type": "array",
+          "minItems": 12,
+          "maxItems": 12,
+          "prefixItems": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ],
+          "items": false
+        },
+        "ownerExternalEffect": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ],
+          "items": false
+        }
+      }
+    },
+    "featureJourneyIDs": {
+      "type": "array",
+      "minItems": 17,
+      "maxItems": 17,
+      "prefixItems": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
+      ],
+      "items": false
+    },
+    "physicalSystemFamilies": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "prefixItems": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
+      ],
+      "items": false
+    },
+    "enrollmentStatus": {
+      "type": "string",
+      "enum": [
+        "ACCEPTED",
+        "BLOCKED",
+        "FAIL",
+        "FORBIDDEN",
+        "INCONCLUSIVE_BLOCKED",
+        "NOT_APPLICABLE_WITH_RATIONALE",
+        "NOT_RUN",
+        "NOT_RUN_OWNER_GATE",
+        "NOT_RUN_REQUIRED_PENDING_OWNER",
+        "PASS",
+        "REQUIRED",
+        "SATISFIED",
+        "STOPPED_SAFETY"
+      ]
+    },
+    "acceptanceCredit": {
+      "type": "boolean"
+    },
+    "releaseCredit": {
+      "type": "boolean"
+    },
+    "artifactDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}
