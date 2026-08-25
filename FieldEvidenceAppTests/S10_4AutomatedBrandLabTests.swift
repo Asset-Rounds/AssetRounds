@@ -76,6 +76,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
     ]
 
     func testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract() throws {
+        try assertSegmentedAXAcceptanceHarnessIsFixedIndependentAndFailClosed()
         let manifestPath = "\(overlayRoot)/manifest.json"
         let visualSchemaPath = "\(overlayRoot)/s10-visual-regression.schema.json"
         let accessibilitySchemaPath =
@@ -105,15 +106,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             dispatcherPath,
-            byteCount: 48_773,
-            sha256: "C3B8D302792803A46BC48BB3F8B08E05248579E29BC31848E4653C15F23640E7"
+            byteCount: 54_154,
+            sha256: "32F28BEA03F369D623E9A107A386641C81089B0E4223C70B10BECFB99E8433F1"
         )
         let dispatcherSource = try text(dispatcherPath)
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 132_120,
-            sha256: "861A3705A343BF1BA580BBFEB3D00CC7E20EB7E2CDC8F5AA28B93BBA05AA9E83"
+            byteCount: 175_566,
+            sha256: "554410EFB1E386681F430543ECF6B8A0E781AEC589D24A4828997B5F594915AF"
         )
         let workflowSource = try text(workflowPath)
         let workerCallHeader =
@@ -255,7 +256,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         XCTAssertEqual(executionLaneSource.components(separatedBy: "        type: choice").count - 1, 1)
-        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 3)
+        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 4)
         XCTAssertEqual(
             executionLaneSource.components(
                 separatedBy: "          - github-xcode-26.6-acceptance"
@@ -265,6 +266,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(
             executionLaneSource.components(
                 separatedBy: "          - getmac-xcode-26.6-development-only"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            executionLaneSource.components(
+                separatedBy: "          - github-xcode-26.6-segmented-acceptance"
             ).count - 1,
             1
         )
@@ -289,6 +296,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let jobsMarker = "jobs:\n"
         let githubJobMarker = "  github-shard:\n"
         let getMacJobMarker = "  getmac-shard:\n"
+        let rejectSegmentedJobMarker = "  reject-invalid-segmented-selection:\n"
         let warpJobMarker = "  warpbuild-shard:\n"
         guard
             let jobsRange = dispatcherSource.range(of: jobsMarker),
@@ -300,12 +308,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 of: getMacJobMarker,
                 range: githubJobRange.upperBound..<dispatcherSource.endIndex
             ),
+            let rejectSegmentedJobRange = dispatcherSource.range(
+                of: rejectSegmentedJobMarker,
+                range: getMacJobRange.upperBound..<dispatcherSource.endIndex
+            ),
             let warpJobRange = dispatcherSource.range(
                 of: warpJobMarker,
-                range: getMacJobRange.upperBound..<dispatcherSource.endIndex
+                range: rejectSegmentedJobRange.upperBound..<dispatcherSource.endIndex
             )
         else {
-            XCTFail("The dispatcher must contain the exact three provider-lane jobs")
+            XCTFail("The dispatcher must contain the provider and fixed segmented jobs")
             return
         }
         let jobsSource = String(dispatcherSource[jobsRange.upperBound...])
@@ -313,7 +325,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             dispatcherSource[githubJobRange.lowerBound..<getMacJobRange.lowerBound]
         )
         let getMacJobSource = String(
-            dispatcherSource[getMacJobRange.lowerBound..<warpJobRange.lowerBound]
+            dispatcherSource[
+                getMacJobRange.lowerBound..<rejectSegmentedJobRange.lowerBound
+            ]
         )
         let warpJobSource = String(dispatcherSource[warpJobRange.lowerBound...])
         let jobHeaderExpression = try NSRegularExpression(
@@ -324,7 +338,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 in: jobsSource,
                 range: NSRange(location: 0, length: jobsSource.utf16.count)
             ),
-            3
+            6
         )
 
         let githubLaneGate =
@@ -352,7 +366,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             dispatcherSource.components(
                 separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml"
             ).count - 1,
-            2
+            3
         )
         XCTAssertEqual(
             githubJobSource.components(
@@ -1017,7 +1031,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         XCTAssertEqual(
             workflowSource.components(
-                separatedBy: #"  group: ios-ci-${{ github.ref }}-${{ inputs.s10_4_shard_id }}"#
+                separatedBy: #"  group: ${{ inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id) }}"#
             ).count - 1,
             1
         )
@@ -9351,6 +9365,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let captureBaselineStart =
             "    @MainActor\n" +
                 "    private func captureBaseline("
+        let segmentedReplayHelperStart =
+            "    @MainActor\n" +
+                "    private func replaySegmentPrefixIfNeeded("
         let issueRecheckDuePositioningHelperStart =
             "    @MainActor\n" +
                 "    private func positionIssueRecheckDueDescriptionForAXText(\n" +
@@ -9360,9 +9377,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "\n    private func isActive("
         guard let captureBaselineStartRange = uiSource.range(
             of: captureBaselineStart
+        ), let segmentedReplayHelperStartRange = uiSource.range(
+            of: segmentedReplayHelperStart,
+            range: captureBaselineStartRange.upperBound ..< uiSource.endIndex
         ), let issueRecheckDuePositioningHelperStartRange = uiSource.range(
             of: issueRecheckDuePositioningHelperStart,
-            range: captureBaselineStartRange.upperBound ..< uiSource.endIndex
+            range: segmentedReplayHelperStartRange.upperBound ..< uiSource.endIndex
         ), let issueRecheckDuePositioningHelperEndRange = uiSource.range(
             of: issueRecheckDuePositioningHelperEnd,
             range: issueRecheckDuePositioningHelperStartRange.upperBound ..<
@@ -9372,7 +9392,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             return
         }
         let restoredCaptureBaselineEnd = uiSource.index(
-            issueRecheckDuePositioningHelperStartRange.lowerBound,
+            segmentedReplayHelperStartRange.lowerBound,
             offsetBy: -2
         )
         let restoredCaptureBaselineSource = String(
@@ -9387,10 +9407,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 7_901)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_071)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "371C419756DF1F86C30BD576938A5089F74616379C790C79089C23A052760CB6"
+            "A769FFC8EA01F8ED562B1D599CF92A1A759782E295F5F2731CCE7D837F2A6252"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
@@ -13988,7 +14008,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(
                 separatedBy: "state.sign-detail.delete-confirmation"
             ).count - 1,
-            2
+            3
         )
         let doubleLengthGateStart =
             "        let runsMinimumDoubleLengthDeleteComposition ="
@@ -18221,6 +18241,948 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
     }
 
+    private func assertSegmentedAXAcceptanceHarnessIsFixedIndependentAndFailClosed() throws {
+        let currentTaskPath = "docs/execution/CURRENT_TASK.md"
+        let dispatcherPath = ".github/workflows/ios-ci.yml"
+        let workerPath = ".github/workflows/ios-ci-worker.yml"
+        let planPath = "Scripts/s10-4-segment-plan.json"
+        let assemblerPath = "Scripts/s10-4-segment-assembler.sh"
+        let uiPath = "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift"
+        let unitPath = "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift"
+        let exactK111Paths = [
+            currentTaskPath,
+            dispatcherPath,
+            workerPath,
+            planPath,
+            assemblerPath,
+            uiPath,
+            unitPath,
+        ]
+        XCTAssertEqual(exactK111Paths.count, 7)
+        XCTAssertEqual(Set(exactK111Paths).count, 7)
+        for path in exactK111Paths {
+            XCTAssertTrue(fileExists(path), path)
+        }
+        let standingOrProductPaths = [
+            "Scripts/ci-selection.json",
+            "Scripts/s10-4-shards.json",
+            "Scripts/ui-smoke.sh",
+            "Scripts/build-smoke.sh",
+            "Scripts/test-smoke.sh",
+            "FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme",
+            "FieldEvidenceApp",
+            "FieldEvidenceAppTests/Fixtures",
+            "FieldEvidenceApp/Assets.xcassets",
+            "docs/design/s10/baselines",
+        ]
+        XCTAssertTrue(Set(exactK111Paths).isDisjoint(with: Set(standingOrProductPaths)))
+
+        let currentTaskSource = try text(currentTaskPath)
+        let h314Start = try XCTUnwrap(
+            currentTaskSource.range(
+                of: "- Owner-authorized S10.4 segmented AX acceptance authority H314"
+            )
+        )
+        let h314End = try XCTUnwrap(
+            currentTaskSource.range(
+                of: "\n## Frozen authority and package",
+                range: h314Start.lowerBound..<currentTaskSource.endIndex
+            )
+        )
+        let h314Source = String(
+            currentTaskSource[h314Start.lowerBound..<h314End.lowerBound]
+        )
+        XCTAssertTrue(
+            h314Source.contains(
+                "K111 as its exact direct child changing exactly these seven paths and no others"
+            )
+        )
+        XCTAssertTrue(h314Source.contains("this record"))
+        for path in exactK111Paths.dropFirst().dropLast(2) {
+            XCTAssertTrue(h314Source.contains("`\(path)`"), path)
+        }
+        XCTAssertTrue(h314Source.contains("`\(uiPath)`"), uiPath)
+        XCTAssertTrue(h314Source.contains("`\(unitPath)`"), unitPath)
+        for path in standingOrProductPaths.prefix(5) {
+            XCTAssertTrue(h314Source.contains("`\(path)`"), path)
+        }
+
+        let plan = try json(planPath)
+        let planSource = try text(planPath)
+        try assertFile(
+            planPath,
+            byteCount: 13_853,
+            sha256: "09E506D4FA42C19213D4960707745EFE98C09AE16CDE8722BD237FD3E6A5C965"
+        )
+        XCTAssertFalse(planSource.contains("\r"))
+        XCTAssertEqual(try int(plan, "schemaVersion"), 1)
+        XCTAssertEqual(try string(plan, "taskID"), "S10.4")
+        XCTAssertEqual(try string(plan, "shardID"), "s10.4.current.ax-text")
+        XCTAssertEqual(try string(plan, "requirementID"), "ax_text")
+        XCTAssertEqual(
+            try string(plan, "deviceProfileID"),
+            "iphone-17-ios-26.2-current"
+        )
+        XCTAssertEqual(
+            try string(plan, "executionLane"),
+            "github-xcode-26.6-segmented-acceptance"
+        )
+        XCTAssertEqual(try string(plan, "runnerProvider"), "github")
+        XCTAssertEqual(try string(plan, "runnerLabel"), "macos-26")
+        XCTAssertEqual(try string(plan, "xcodeVersion"), "Xcode 26.6")
+        XCTAssertEqual(try string(plan, "xcodeBuild"), "17F113")
+        XCTAssertEqual(try string(plan, "sdkName"), "iphonesimulator26.5")
+        XCTAssertEqual(try string(plan, "sdkBuild"), "23F81a")
+        XCTAssertEqual(try string(plan, "simulatorName"), "iPhone 17")
+        XCTAssertEqual(try string(plan, "simulatorRuntime"), "iOS 26.2")
+        XCTAssertEqual(try string(plan, "simulatorRuntimeBuild"), "23C54")
+        XCTAssertEqual(
+            try string(plan, "buildMode"),
+            "independent-build-for-testing"
+        )
+        XCTAssertFalse(try XCTUnwrap(plan["crossSessionBuildReuse"] as? Bool))
+        XCTAssertFalse(
+            try XCTUnwrap(plan["crossSessionTestWithoutBuilding"] as? Bool)
+        )
+        let exactKernelPins = [
+            "selectorSHA256":
+                "571AC854A230A95F90368EC50CA625AD13B170AFC06DFF503D1C9F99796EF7D5",
+            "shardContractSHA256":
+                "C023ADE99CAB0F9ED2984C90BCC0E03B0D05A05643DF7185201CC00772E3C8E4",
+            "inventorySHA256":
+                "6C820E8A1160297F561EABF1873BE82403589B408E4A8FA3318269293242F507",
+            "commonTaskSchemaSHA256":
+                "B7EDB1DD18BAB6DEE1884DA52C15F63AD5AD06045F58444C61442957558999F0",
+        ]
+        for (key, expected) in exactKernelPins {
+            XCTAssertEqual(try string(plan, key), expected, key)
+        }
+        XCTAssertEqual(
+            try string(plan, "commonTaskSchemaPath"),
+            "docs/design/s10/s10-accessibility-common-tasks.json"
+        )
+        XCTAssertEqual(
+            try string(plan, "stateInventoryPath"),
+            "docs/design/s10/s10-screen-state-inventory.json"
+        )
+
+        let orderedStateIDs = try strings(plan, "orderedStateIDs")
+        XCTAssertEqual(orderedStateIDs.count, 67)
+        XCTAssertEqual(Set(orderedStateIDs).count, 67)
+        XCTAssertEqual(
+            Data(orderedStateIDs.joined(separator: "\n").utf8).sha256,
+            "8D5D88D21FB60190B3DF5456FE14902602E420CB1810D0EEBA6E0D6ADA37547C"
+        )
+        XCTAssertEqual(
+            stringSetSHA256(orderedStateIDs),
+            "5F704F0ED4510CFFC24E162EFFE1D85A536686473E6B23FED2965D864AEC87A3"
+        )
+        XCTAssertEqual(
+            try string(plan, "orderedStateSHA256"),
+            "8D5D88D21FB60190B3DF5456FE14902602E420CB1810D0EEBA6E0D6ADA37547C"
+        )
+        XCTAssertEqual(
+            try string(plan, "stateSetSHA256"),
+            "5F704F0ED4510CFFC24E162EFFE1D85A536686473E6B23FED2965D864AEC87A3"
+        )
+
+        let segments = try rows(plan, "segments")
+        XCTAssertEqual(segments.count, 3)
+        let expectedSegmentIDs = ["segment-1", "segment-2", "segment-3"]
+        let expectedStarts = [1, 23, 51]
+        let expectedEnds = [22, 50, 67]
+        let expectedOwnedCounts = [22, 28, 17]
+        let expectedReplayCounts = [0, 22, 50]
+        let expectedOwnedDigests = [
+            "8BB0F12120AD78E23B90091E70E8B8C98418A111B2328CE2411981D1AB40F1C3",
+            "AE2041547A2B421AE0C2424FE8BB25B2FE2901C4385F0009E65E406CAE25392B",
+            "F8E0BBF45D626938CE13FCE3FEC9232AE83F22B4E3BD2635854382CEF3686F83",
+        ]
+        let expectedReplayDigests = [
+            "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+            "8BB0F12120AD78E23B90091E70E8B8C98418A111B2328CE2411981D1AB40F1C3",
+            "80397ABF11A3622661E301900B7A23D0398FBF292CEEE29E1E9FA1E7A8EDA0A4",
+        ]
+        var combinedOwnedStateIDs: [String] = []
+        var priorOwnedStateIDs = Set<String>()
+        for (index, segment) in segments.enumerated() {
+            let ownedStateIDs = try strings(segment, "ownedStateIDs")
+            let replayStateIDs = try strings(segment, "replayStateIDs")
+            XCTAssertEqual(try string(segment, "segmentID"), expectedSegmentIDs[index])
+            XCTAssertEqual(try int(segment, "ordinal"), index + 1)
+            XCTAssertEqual(try int(segment, "startOrdinal"), expectedStarts[index])
+            XCTAssertEqual(try int(segment, "endOrdinal"), expectedEnds[index])
+            XCTAssertEqual(try int(segment, "stateCount"), expectedOwnedCounts[index])
+            XCTAssertEqual(try int(segment, "replayCount"), expectedReplayCounts[index])
+            XCTAssertEqual(ownedStateIDs.count, expectedOwnedCounts[index])
+            XCTAssertEqual(replayStateIDs.count, expectedReplayCounts[index])
+            XCTAssertEqual(
+                ownedStateIDs,
+                Array(orderedStateIDs[(expectedStarts[index] - 1)..<expectedEnds[index]])
+            )
+            XCTAssertEqual(
+                replayStateIDs,
+                Array(orderedStateIDs.prefix(expectedReplayCounts[index]))
+            )
+            XCTAssertTrue(Set(ownedStateIDs).isDisjoint(with: priorOwnedStateIDs))
+            XCTAssertEqual(Set(replayStateIDs), priorOwnedStateIDs)
+            XCTAssertEqual(
+                Data(ownedStateIDs.joined(separator: "\n").utf8).sha256,
+                expectedOwnedDigests[index]
+            )
+            XCTAssertEqual(
+                Data(replayStateIDs.joined(separator: "\n").utf8).sha256,
+                expectedReplayDigests[index]
+            )
+            XCTAssertEqual(
+                try string(segment, "ownedStateSHA256"),
+                expectedOwnedDigests[index]
+            )
+            XCTAssertEqual(
+                try string(segment, "replayStateSHA256"),
+                expectedReplayDigests[index]
+            )
+            combinedOwnedStateIDs.append(contentsOf: ownedStateIDs)
+            priorOwnedStateIDs.formUnion(ownedStateIDs)
+        }
+        XCTAssertEqual(combinedOwnedStateIDs, orderedStateIDs)
+        XCTAssertEqual(Set(combinedOwnedStateIDs), Set(orderedStateIDs))
+
+        let evidenceKernelKeys = [
+            "productHead", "selectorSHA256", "shardContractSHA256",
+            "inventorySHA256", "commonTaskSchemaSHA256", "orderedStateSHA256",
+            "stateSetSHA256", "captureBaselineSHA256", "state27CallerSHA256",
+            "preflightHelperSHA256", "issueRecheckHelperSHA256",
+            "exceptionAuthorities",
+        ]
+        var evidenceKernel: [String: Any] = [:]
+        for key in evidenceKernelKeys {
+            evidenceKernel[key] = try XCTUnwrap(plan[key], key)
+        }
+        let evidenceKernelData = try JSONSerialization.data(
+            withJSONObject: evidenceKernel,
+            options: [.sortedKeys, .withoutEscapingSlashes]
+        )
+        XCTAssertEqual(
+            evidenceKernelData.sha256,
+            "4BD11D7355BBBD6B4ED756B2A53D4C0D56DD0ADBBB73093CAAC67C48FEA7F7CE"
+        )
+        XCTAssertEqual(
+            try string(plan, "evidenceKernelSHA256"),
+            evidenceKernelData.sha256
+        )
+
+        let uiSource = try text(uiPath)
+        try assertFile(
+            uiPath,
+            byteCount: 506_811,
+            sha256: "9991A3D95F4856F5E3F0D0426BC49DE9F7A72698A4E314DD8A53A8F39EC0B67F"
+        )
+        XCTAssertFalse(uiSource.contains("\r"))
+        let segmentEnum = try boundedSource(
+            uiSource,
+            from: "    private enum AutomationSegment: String {",
+            before: "\n\n    private static let segmentedRouteStateIDs = ["
+        )
+        for exact in [
+            "case none",
+            "case segment1 = \"segment-1\"",
+            "case segment2 = \"segment-2\"",
+            "case segment3 = \"segment-3\"",
+            "case .none, .segment1: return 0",
+            "case .segment2: return 22",
+            "case .segment3: return 50",
+            "case .none: return 67",
+            "case .segment1: return 22",
+            "case .segment2: return 28",
+            "case .segment3: return 17",
+            "replayCount + ownedCount",
+        ] {
+            XCTAssertTrue(segmentEnum.contains(exact), exact)
+        }
+        let uiStateList = try boundedSource(
+            uiSource,
+            from: "    private static let segmentedRouteStateIDs = [",
+            before: "\n\n    private static let contrastAuditExceptionSignatures = ["
+        )
+        var stateSearchStart = uiStateList.startIndex
+        for stateID in orderedStateIDs {
+            let range = try XCTUnwrap(
+                uiStateList.range(
+                    of: "\"\(stateID)\"",
+                    range: stateSearchStart..<uiStateList.endIndex
+                ),
+                stateID
+            )
+            stateSearchStart = range.upperBound
+        }
+        XCTAssertEqual(
+            orderedStateIDs.reduce(0) {
+                $0 + uiStateList.components(separatedBy: "\"\($1)\"").count - 1
+            },
+            67
+        )
+
+        let configureSegmentSource = try boundedSource(
+            uiSource,
+            from: "    func configureAutomatedBrandLabShardFromEnvironment() throws {",
+            before: "\n\n    @MainActor\n    private func applyDeviceAppearance"
+        )
+        for exact in [
+            "environment[\"CI_S10_4_SEGMENT_ID\"]",
+            "AutomationSegment(rawValue: segmentValue)",
+            "segment == .none || shard.shardID == \"s10.4.current.ax-text\"",
+            "expectedEnvironment[\"CI_S10_4_SEGMENT_ID\"] = segment.rawValue",
+            "automationSegment = segment",
+            "segmentedRouteStateCursor = 0",
+            "automatedSegmentFinished = false",
+        ] {
+            XCTAssertTrue(configureSegmentSource.contains(exact), exact)
+        }
+
+        let captureSource = try boundedSource(
+            uiSource,
+            from: "    private func captureBaseline(\n",
+            before: "\n\n    @MainActor\n    private func replaySegmentPrefixIfNeeded("
+        )
+        let replayCall = try XCTUnwrap(
+            captureSource.range(of: "if replaySegmentPrefixIfNeeded(")
+        )
+        let normalAppend = try XCTUnwrap(
+            captureSource.range(of: "migratedStateIDs.append(stateID)")
+        )
+        XCTAssertLessThan(replayCall.lowerBound, normalAppend.lowerBound)
+        XCTAssertTrue(captureSource.contains("return\n        }"))
+        XCTAssertTrue(captureSource.contains("print(\"S10_MIGRATION_STATE state=\\(stateID)\")"))
+        XCTAssertTrue(captureSource.contains("performAccessibilityAudit(for: .contrast)"))
+        XCTAssertTrue(captureSource.contains("printJSONLine(prefix: \"S10_4_AX_STATE\""))
+        XCTAssertTrue(captureSource.contains("printJSONLine(prefix: \"S10_4_CONTRAST\""))
+        XCTAssertTrue(captureSource.contains("XCUIScreen.main.screenshot().pngRepresentation"))
+
+        let replaySource = try boundedSource(
+            uiSource,
+            from: "    private func replaySegmentPrefixIfNeeded(\n",
+            before: "\n\n    @MainActor\n    private func finishAutomatedSegmentIfNeeded("
+        )
+        for exact in [
+            "guard automationSegment != .none else { return false }",
+            "shard.shardID == \"s10.4.current.ax-text\"",
+            "Self.segmentedRouteStateIDs.count == 67",
+            "Set(Self.segmentedRouteStateIDs).count == 67",
+            "stateID == expectedStateID",
+            "app.state == .runningForeground",
+            "segmentedRouteStateCursor += 1",
+            "segmentedRouteStateCursor <= automationSegment.finalOrdinal",
+            "segmentedRouteStateCursor <= automationSegment.replayCount",
+            "printJSONLine(prefix: \"S10_4_SEGMENT_REPLAY\"",
+        ] {
+            XCTAssertTrue(replaySource.contains(exact), exact)
+        }
+        for prohibited in [
+            "S10_MIGRATION_STATE",
+            "S10_4_AX_STATE",
+            "S10_4_CONTRAST",
+            "performAccessibilityAudit",
+            "XCUIScreen.main.screenshot",
+            "migratedStateIDs.append",
+            "captureBaseline(",
+            "test-without-building",
+            "snapshot",
+        ] {
+            XCTAssertFalse(replaySource.contains(prohibited), prohibited)
+        }
+
+        let finalizerSource = try boundedSource(
+            uiSource,
+            from: "    private func finishAutomatedSegmentIfNeeded(\n",
+            before: "\n\n    @MainActor\n    private func positionIssueRecheckDueDescriptionForAXText("
+        )
+        for exact in [
+            "guard automationSegment != .none,",
+            "ordinal == automationSegment.finalOrdinal",
+            "automatedSegmentFinished = true",
+            "automationShard?.shardID == \"s10.4.current.ax-text\"",
+            "segmentedRouteStateCursor == ordinal",
+            "app.state == .runningForeground",
+            "automationSegment.replayCount..<automationSegment.finalOrdinal",
+            "expectedOwnedStateIDs.count == automationSegment.ownedCount",
+            "Set(expectedOwnedStateIDs).count == automationSegment.ownedCount",
+            "migratedStateIDs == expectedOwnedStateIDs",
+            "Set(automationAXTreeDigests.keys) == Set(expectedOwnedStateIDs)",
+            "Set(automationContrastExceptions.keys).isSubset(of: Set(expectedOwnedStateIDs))",
+            "let terminal = XCTAttachment(screenshot: XCUIScreen.main.screenshot())",
+            "terminal.name = \"S10.4 segment terminal \\(automationSegment.rawValue) s10.4.current.ax-text\"",
+            "terminal.lifetime = .keepAlways",
+            "add(terminal)",
+        ] {
+            XCTAssertTrue(finalizerSource.contains(exact), exact)
+        }
+        let ownedEvidenceGuard = try XCTUnwrap(
+            finalizerSource.range(
+                of: "migratedStateIDs == expectedOwnedStateIDs"
+            )
+        )
+        let segmentTerminalCapture = try XCTUnwrap(
+            finalizerSource.range(
+                of: "let terminal = XCTAttachment(screenshot: XCUIScreen.main.screenshot())",
+                range: ownedEvidenceGuard.upperBound..<finalizerSource.endIndex
+            )
+        )
+        XCTAssertLessThan(
+            ownedEvidenceGuard.lowerBound,
+            segmentTerminalCapture.lowerBound
+        )
+        let segmentTerminalAdd = try XCTUnwrap(
+            finalizerSource.range(
+                of: "add(terminal)",
+                range: segmentTerminalCapture.upperBound..<finalizerSource.endIndex
+            )
+        )
+        let finalizerSuccess = try XCTUnwrap(
+            finalizerSource.range(
+                of: "return true",
+                range: segmentTerminalAdd.upperBound..<finalizerSource.endIndex
+            )
+        )
+        XCTAssertLessThan(segmentTerminalCapture.lowerBound, segmentTerminalAdd.lowerBound)
+        XCTAssertLessThan(segmentTerminalAdd.lowerBound, finalizerSuccess.lowerBound)
+        XCTAssertEqual(
+            finalizerSource.components(
+                separatedBy: "XCTAttachment(screenshot: XCUIScreen.main.screenshot())"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(finalizerSource.components(separatedBy: "add(terminal)").count - 1, 1)
+        for prohibited in [
+            "emitAutomatedLabAccessibilityRowsIfNeeded",
+            "emitShardReceiptIfNeeded",
+            "S10_4_TASK",
+            "shard-receipt",
+            "performAccessibilityAudit",
+            "migratedStateIDs.append",
+        ] {
+            XCTAssertFalse(finalizerSource.contains(prohibited), prohibited)
+        }
+        for boundary in [22, 50, 67] {
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: "if finishAutomatedSegmentIfNeeded(after: \(boundary), in: app) { return }"
+                ).count - 1,
+                1,
+                "segment boundary \(boundary)"
+            )
+        }
+        XCTAssertEqual(
+            uiSource.components(separatedBy: "if automatedSegmentFinished { return }").count - 1,
+            2
+        )
+        let terminalBoundary = try XCTUnwrap(
+            uiSource.range(
+                of: "if finishAutomatedSegmentIfNeeded(after: 67, in: app) { return }"
+            )
+        )
+        let fullCoverage = try XCTUnwrap(
+            uiSource.range(
+                of: "assertMigrationStateCoverage()",
+                range: terminalBoundary.upperBound..<uiSource.endIndex
+            )
+        )
+        let fullTasks = try XCTUnwrap(
+            uiSource.range(
+                of: "emitAutomatedLabAccessibilityRowsIfNeeded()",
+                range: fullCoverage.upperBound..<uiSource.endIndex
+            )
+        )
+        XCTAssertLessThan(terminalBoundary.lowerBound, fullCoverage.lowerBound)
+        XCTAssertLessThan(fullCoverage.lowerBound, fullTasks.lowerBound)
+
+        let dispatcherSource = try text(dispatcherPath)
+        let workerSource = try text(workerPath)
+        XCTAssertFalse(dispatcherSource.contains("\r"))
+        XCTAssertFalse(workerSource.contains("\r"))
+        let matrixSource = try boundedSource(
+            dispatcherSource,
+            from: "  github-segmented-shard:",
+            before: "\n\n  assemble-segmented-shard:"
+        )
+        for exact in [
+            "inputs.execution_lane == 'github-xcode-26.6-segmented-acceptance'",
+            "inputs.run_ui_smoke == true",
+            "inputs.s10_4_shard_id == 's10.4.current.ax-text'",
+            "fail-fast: false",
+            "max-parallel: 3",
+            "segment_id:\n          - segment-1\n          - segment-2\n          - segment-3",
+            "runner_label: macos-26",
+            "runner_provider: github",
+            "run_ui_smoke: true",
+            "s10_4_shard_id: s10.4.current.ax-text",
+            "s10_4_segment_id: ${{ matrix.segment_id }}",
+        ] {
+            XCTAssertTrue(matrixSource.contains(exact), exact)
+        }
+        XCTAssertFalse(matrixSource.contains("getmac"))
+        XCTAssertFalse(matrixSource.contains("warp"))
+        XCTAssertEqual(
+            dispatcherSource.components(separatedBy: "      s10_4_segment_id: none").count - 1,
+            2
+        )
+        let rejectSource = try boundedSource(
+            dispatcherSource,
+            from: "  reject-invalid-segmented-selection:",
+            before: "\n\n  github-segmented-shard:"
+        )
+        XCTAssertTrue(rejectSource.contains("inputs.run_ui_smoke != true"))
+        XCTAssertTrue(
+            rejectSource.contains("inputs.s10_4_shard_id != 's10.4.current.ax-text'")
+        )
+        XCTAssertTrue(rejectSource.contains("runs-on: ubuntu-24.04"))
+        XCTAssertTrue(rejectSource.contains("run: exit 1"))
+        let aggregationSource = try boundedSource(
+            dispatcherSource,
+            from: "  assemble-segmented-shard:",
+            before: "\n\n  warpbuild-shard:"
+        )
+        for exact in [
+            "needs: github-segmented-shard",
+            "always()",
+            "runs-on: ubuntu-24.04",
+            "continue-on-error: true",
+            "S10_4_SEGMENT_MATRIX_RESULT",
+            "Scripts/s10-4-segment-assembler.sh",
+            "test \"$SEGMENT_MATRIX_RESULT\" = \"success\"",
+            "test \"$assembler_status\" -eq 0",
+            "test \"$(find \"$RUNNER_TEMP/S10_4_SEGMENT_SOURCES\" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')\" -eq 3",
+            "test ! -e \"$RUNNER_TEMP/FieldEvidenceCI/s10-4/s10.4.current.ax-text/shard-receipt.json\"",
+            "segment-aggregation.json",
+            "SHA256SUMS.txt",
+        ] {
+            XCTAssertTrue(aggregationSource.contains(exact), exact)
+        }
+        let warpStart = try XCTUnwrap(
+            dispatcherSource.range(of: "  warpbuild-shard:")
+        )
+        let warpSource = String(dispatcherSource[warpStart.lowerBound...])
+        for exact in [
+            "inputs.execution_lane == 'warp-xcode-26.5-development-only'",
+            "CI_S10_4_SEGMENT_ID=\"none\"",
+            "CI_S10_4_SEGMENT_ID=$CI_S10_4_SEGMENT_ID",
+            "TEST_RUNNER_CI_S10_4_SEGMENT_ID=$CI_S10_4_SEGMENT_ID",
+        ] {
+            XCTAssertTrue(warpSource.contains(exact), exact)
+        }
+        XCTAssertFalse(warpSource.contains("segment-1"))
+        XCTAssertFalse(warpSource.contains("segment-2"))
+        XCTAssertFalse(warpSource.contains("segment-3"))
+
+        let workerInputSource = try boundedSource(
+            workerSource,
+            from: "      s10_4_segment_id:",
+            before: "\n\npermissions:"
+        )
+        XCTAssertTrue(workerInputSource.contains("required: true"))
+        XCTAssertTrue(workerInputSource.contains("default: none"))
+        XCTAssertTrue(workerInputSource.contains("type: string"))
+        XCTAssertTrue(
+            workerSource.contains(
+                "inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id)"
+            )
+        )
+        let workerSegmentSelection = try boundedSource(
+            workerSource,
+            from: "            CI_S10_4_SHARD_ID=\"$DISPATCH_S10_4_SHARD_ID\"",
+            before: "            SIMULATOR_RUNTIME=\"$(jq -r '.simulatorRuntime' <<< \"$profile_json\")\""
+        )
+        for exact in [
+            "none)\n                CI_ARTIFACT_SUFFIX=\"-$CI_S10_4_SHARD_ID\"",
+            "segment-1 | segment-2 | segment-3)",
+            "test \"$CI_RUNNER_PROVIDER\" = \"github\"",
+            "test \"$CI_RUN_UI_SMOKE\" = \"true\"",
+            "test \"$CI_S10_4_SHARD_ID\" = \"s10.4.current.ax-text\"",
+            "CI_ARTIFACT_SUFFIX=\"-$CI_S10_4_SHARD_ID-$CI_S10_4_SEGMENT_ID\"",
+            "*) exit 1 ;;",
+        ] {
+            XCTAssertTrue(workerSegmentSelection.contains(exact), exact)
+        }
+        XCTAssertTrue(
+            workerSource.contains(
+                "test \"$DISPATCH_S10_4_SEGMENT_ID\" = \"none\""
+            )
+        )
+        XCTAssertTrue(workerSource.contains("CI_S10_4_SEGMENT_ID=$CI_S10_4_SEGMENT_ID"))
+        XCTAssertTrue(
+            workerSource.contains(
+                "TEST_RUNNER_CI_S10_4_SEGMENT_ID=$CI_S10_4_SEGMENT_ID"
+            )
+        )
+
+        let retainSegmentSource = try boundedSource(
+            workerSource,
+            from: "      - name: Retain S10.4 segment evidence",
+            before: "\n\n      - name: Retain S10.4 shard evidence"
+        )
+        for exact in [
+            "cmp -s \"$expected_owned_path\" \"$observed_marker_path\"",
+            "cmp -s \"$expected_replay_path\"",
+            "S10_4_SEGMENT_REPLAY",
+            "^S10_4_.*DIAGNOSTIC",
+            "Lost connection to testmanagerd|XCTHTestOperationCoordinatorErrorDomain",
+            ".suggestedHumanReadableName == \"UI Snapshot\"",
+            ".suggestedHumanReadableName == \"Synthesized Event\"",
+            ".suggestedHumanReadableName == \"Screen Recording\"",
+            ".isAssociatedWithFailure == true",
+            "segment_terminal_name=\"S10.4 segment terminal $CI_S10_4_SEGMENT_ID $CI_S10_4_SHARD_ID\"",
+            "expected exactly one segment terminal screenshot",
+            ".exportedFileName | test(\"^[A-Za-z0-9._-]+$\")",
+            "test -f \"$terminal_export_path\"",
+            "test ! -L \"$terminal_export_path\"",
+            "89504e470d0a1a0a",
+            "\"$RUNNER_TEMP/s10-4-segment-candidate-state-ids.json\"",
+            "cmp -s \"$expected_owned_path\" \"$RUNNER_TEMP/s10-4-segment-ax-state-ids.json\"",
+            ".capture == \"XCUIApplication.debugDescription\"",
+            "cmp -s \"$expected_owned_path\"",
+            "\"$RUNNER_TEMP/s10-4-segment-contrast-state-ids.json\"",
+            "test \"$unit_executed_test_count\" -eq 5",
+            "test \"$ui_executed_test_count\" -eq 1",
+            "sdk_name=\"iphonesimulator$sdk_version\"",
+            "test \"$sdk_name\" = \"iphonesimulator26.5\"",
+            "test \"$sdk_build\" = \"23F81a\"",
+            "$row.result == \"PASS\"",
+            "$row.exceptionIssueID == \"\"",
+            "$row.exceptionOwner == \"\"",
+            "$row.exceptionExpiresAt == \"\"",
+            "$row.exceptionRationale == \"\"",
+            "$row.ignoredAuditIssues == []",
+            "$row.result == \"EXCEPTION\"",
+            "$row.exceptionOwner == \"palatis3\"",
+            "$row.exceptionExpiresAt == \"2026-11-20\"",
+            "receiptKind: \"s10.4-segment-pending\"",
+            "complete: false",
+            "finalAcceptanceEligible: false",
+            "buildMode: \"independent-build-for-testing\"",
+            "crossSessionBuildReuse: false",
+            "crossSessionTestWithoutBuilding: false",
+            "diagnosticCount: $diagnosticCount",
+            "segmentTerminalAttachmentCount: 1",
+            "accessibilityRowCount: 0",
+            "test ! -e \"$shard_evidence_path/shard-receipt.json\"",
+        ] {
+            XCTAssertTrue(retainSegmentSource.contains(exact), exact)
+        }
+        for field in [
+            "productHead", "ref", "runID", "runAttempt", "jobID", "artifactName",
+            "segmentID", "ordinal", "startOrdinal", "endOrdinal", "stateCount",
+            "replayCount", "ownedStateIDs", "replayStateIDs", "ownedStateSHA256",
+            "replayStateSHA256", "segmentPlanSHA256", "selectorSHA256",
+            "shardContractSHA256", "inventorySHA256", "commonTaskSchemaSHA256",
+            "evidenceKernelSHA256", "runnerProvider", "runnerLabel", "runnerName",
+            "xcodeVersion", "xcodeBuild", "sdkName", "sdkBuild",
+            "simulatorRuntime", "simulatorRuntimeBuild", "simulatorName",
+            "simulatorUDID", "buildIdentitySHA256", "unitIdentitySHA256",
+            "uiIdentitySHA256", "sessionIdentitySHA256", "unitTestSelectors",
+            "uiTestSelectors", "unitExecutedTestCount", "uiExecutedTestCount",
+            "attachmentCount", "segmentTerminalAttachmentCount", "markerCount",
+            "replayRowCount", "candidateCount",
+            "stateAXRowCount", "contrastRowCount",
+        ] {
+            XCTAssertTrue(retainSegmentSource.contains("\(field):"), field)
+        }
+        let ordinaryRetentionSource = try boundedSource(
+            workerSource,
+            from: "      - name: Retain S10.4 shard evidence",
+            before: "\n\n      - name: Begin evidence-finalization budget"
+        )
+        XCTAssertTrue(
+            ordinaryRetentionSource.contains("inputs.s10_4_segment_id == 'none'")
+        )
+        XCTAssertTrue(ordinaryRetentionSource.contains("shard-receipt.json"))
+        XCTAssertTrue(ordinaryRetentionSource.contains("accessibility.json"))
+        XCTAssertTrue(ordinaryRetentionSource.contains("contrast.json"))
+
+        let finalReceiptSource = try boundedSource(
+            workerSource,
+            from: "      - name: Finalize successful S10.4 segment receipt",
+            before: "\n\n      - name: Record GetMac development-only lane"
+        )
+        XCTAssertTrue(
+            finalReceiptSource.contains("if: ${{ success() && inputs.s10_4_segment_id != 'none' }}")
+        )
+        XCTAssertTrue(finalReceiptSource.contains(".receiptKind = \"s10.4-segment\""))
+        XCTAssertTrue(finalReceiptSource.contains(".complete = true"))
+        XCTAssertTrue(finalReceiptSource.contains(".finalAcceptanceEligible == false"))
+        XCTAssertTrue(
+            finalReceiptSource.contains(".segmentTerminalAttachmentCount == 1")
+        )
+        XCTAssertTrue(
+            workerSource.contains(
+                "test \"$expected_attachment_count\" -eq \"$((expected_state_count + 1))\""
+            )
+        )
+        XCTAssertTrue(
+            workerSource.contains("and .segmentTerminalAttachmentCount == 1")
+        )
+        let partialCleanupSource = try boundedSource(
+            workerSource,
+            from: "      - name: Remove nonaccepting partial S10.4 segment receipt",
+            before: "\n\n      - name: Upload build evidence"
+        )
+        XCTAssertTrue(partialCleanupSource.contains("failure() || cancelled()"))
+        XCTAssertTrue(partialCleanupSource.contains("segment-receipt.json"))
+        XCTAssertTrue(partialCleanupSource.contains("segment-receipt.pending.json"))
+        XCTAssertTrue(partialCleanupSource.contains("SHA256SUMS.txt"))
+        XCTAssertTrue(
+            workerSource.contains(
+                "name: ${{ inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id)"
+            )
+        )
+
+        for prohibited in [
+            "segment-4",
+            "retry-segment",
+            "subdivide-segment",
+            "snapshot restore",
+            "simctl snapshot",
+            "app-container",
+            "Build/Products",
+            ".xctestrun",
+            "test-without-building",
+            "runner_provider: getmac\n      run_ui_smoke: true\n      s10_4_shard_id: s10.4.current.ax-text\n      s10_4_segment_id:",
+            "runner_provider: warp",
+        ] {
+            XCTAssertFalse(matrixSource.contains(prohibited), prohibited)
+        }
+
+        let assemblerSource = try text(assemblerPath)
+        try assertFile(
+            assemblerPath,
+            byteCount: 28_107,
+            sha256: "5CD30DDF0E24C37FBDB7A51B1CB79A196EB1574ABA340A016DD685DB96F58063"
+        )
+        XCTAssertFalse(assemblerSource.contains("\r"))
+        XCTAssertTrue(
+            assemblerSource.hasPrefix("#" + "!/usr/bin/env bash\nset -euo pipefail\n")
+        )
+        for exact in [
+            "test \"${S10_4_SEGMENT_MATRIX_RESULT:-}\" = \"success\"",
+            "test -z \"$(find \"$output_root\" -mindepth 1 -print -quit)\"",
+            "trap cleanup_on_error ERR INT TERM",
+            "\"$output_root/s10-4/$shard_id/shard-receipt.json\"",
+            "\"$output_root/s10-4/$shard_id/segment-aggregation.json\"",
+            "\"$output_root/SHA256SUMS.txt\"",
+            "plan_sha256=\"$(sha256_file \"$plan_path\")\"",
+            "evidence_kernel_sha256=\"$(sha256_text \"$kernel_json\")\"",
+            ".evidenceKernelSHA256 == $kernel",
+            ".crossSessionBuildReuse == false",
+            ".crossSessionTestWithoutBuilding == false",
+            "test \"${#source_dirs[@]}\" -eq 3",
+            "test -z \"$(find \"$source_root\" -mindepth 1 -maxdepth 1 ! -type d -print -quit)\"",
+            "test -z \"$(find \"$source_dir\" -type l -print -quit)\"",
+            "shasum -a 256 -c SHA256SUMS.txt",
+            ".receiptKind == \"s10.4-segment\"",
+            ".complete == true",
+            ".finalAcceptanceEligible == false",
+            ".runnerProvider == \"github\"",
+            ".runnerLabel == \"macos-26\"",
+            ".xcodeVersion == \"Xcode 26.6\"",
+            ".xcodeBuild == \"17F113\"",
+            ".sdkName == \"iphonesimulator26.5\"",
+            ".sdkBuild == \"23F81a\"",
+            ".buildMode == \"independent-build-for-testing\"",
+            ".unitExecutedTestCount == 5",
+            ".uiExecutedTestCount == 1",
+            "test -s \"$source_dir/build-smoke.log\"",
+            "test -s \"$source_dir/test-smoke.log\"",
+            "test -s \"$source_dir/ui-smoke.log\"",
+            "test \"$(grep -Fxc '** TEST BUILD SUCCEEDED **' \"$source_dir/build-smoke.log\" || true)\" -eq 1",
+            "test \"$(grep -Fxc '** TEST EXECUTE SUCCEEDED **' \"$source_dir/test-smoke.log\" || true)\" -eq 1",
+            "test \"$(grep -Fxc '** TEST EXECUTE SUCCEEDED **' \"$source_dir/ui-smoke.log\" || true)\" -eq 1",
+            "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract",
+            "FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests/testAutomatedBrandLabShard",
+            "for bundle in Build.xcresult UnitTests.xcresult UISmoke.xcresult",
+            "directory_digest \"$source_dir/Build.xcresult\"",
+            "directory_digest \"$source_dir/UnitTests.xcresult\"",
+            "directory_digest \"$source_dir/UISmoke.xcresult\"",
+            "test \"$head\" = \"${GITHUB_SHA:?}\"",
+            "test \"$ref\" = \"${GITHUB_REF:?}\"",
+            "test \"$run\" = \"${GITHUB_RUN_ID:?}\"",
+            "test \"$attempt\" = \"${GITHUB_RUN_ATTEMPT:?}\"",
+            "runner_name=\"$(jq -er '.runnerName' \"$receipt\")\"",
+            "simulator_udid=\"$(jq -er '.simulatorUDID' \"$receipt\")\"",
+            "job_id=\"$(jq -er '.jobID' \"$receipt\")\"",
+            "test -n \"$runner_name\"",
+            "test -n \"$job_id\"",
+            "test \"$(tr '[:lower:]' '[:upper:]' <<< \"$simulator_udid\")\" = \"$simulator_udid\"",
+            "^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$",
+            "expected_session=\"$(printf '%s\\n%s\\n%s\\n%s\\n'",
+            "\"$runner_name\" \"$simulator_udid\" \"$job_id\" \"$(jq -er '.uiIdentitySHA256' \"$receipt\")\"",
+            "| shasum -a 256 | awk '{print toupper($1)}')\"",
+            "test \"$session\" = \"$expected_session\"",
+            "test -z \"${seen_sessions[$session]+x}\"",
+            "test \"${#seen_sessions[@]}\" -eq 3",
+        ] {
+            XCTAssertTrue(assemblerSource.contains(exact), exact)
+        }
+
+        let assemblerSourceLoop = try boundedSource(
+            assemblerSource,
+            from: "for source_dir in \"${source_dirs[@]}\"; do",
+            before: "\ntest \"${#seen_segments[@]}\" -eq 3"
+        )
+        for exact in [
+            ".ownedStateIDs == $expected.ownedStateIDs",
+            ".replayStateIDs == $expected.replayStateIDs",
+            ".ownedStateSHA256 == $expected.ownedStateSHA256",
+            ".replayStateSHA256 == $expected.replayStateSHA256",
+            ".markerCount == $expected.stateCount",
+            ".replayRowCount == $expected.replayCount",
+            ".diagnosticCount == 0",
+            ".attachmentCount == ($expected.stateCount + 1)",
+            ".segmentTerminalAttachmentCount == 1",
+            ".candidateCount == $expected.stateCount",
+            ".stateAXRowCount == $expected.stateCount",
+            ".contrastRowCount == $expected.stateCount",
+            ".accessibilityRowCount == 0",
+            "test ! -e \"$shard_source/shard-receipt.json\"",
+            "test ! -e \"$source_dir/accessibility/$shard_id\"",
+            "[.[].stateID] == $expected.replayStateIDs",
+            "[.[].stateID] == $expected.ownedStateIDs",
+            "S10_MIGRATION_STATE state=",
+            "S10_4_SEGMENT_REPLAY",
+            "^S10_4_AX ",
+            "^S10_4_FRONTIER_REPLAY ",
+            "^S10_4_.*DIAGNOSTIC",
+            "Lost connection to testmanagerd|XCTHTestOperationCoordinatorErrorDomain",
+            ".suggestedHumanReadableName == \"UI Snapshot\"",
+            ".suggestedHumanReadableName == \"Synthesized Event\"",
+            ".suggestedHumanReadableName == \"Screen Recording\"",
+            #"or ((.suggestedHumanReadableName // "") | test("diagnostic"; "i"))"#,
+            ".isAssociatedWithFailure == true",
+            "S10.4 segment terminal $segment_id $shard_id",
+            "([.[]?.attachments[]?] | length) == ($stateCount + 1)",
+            ".suggestedHumanReadableName == $name",
+            ".isAssociatedWithFailure == false",
+            ".exportedFileName | test(\"^[A-Za-z0-9._-]+$\")",
+            ")] | length) == 1",
+            "test \"$(sha256_file \"$candidate_file\")\" = \"$(jq -er '.sha256' <<< \"$candidate_row\")\"",
+            "test \"$(wc -c < \"$candidate_file\" | tr -d ' ')\" = \"$(jq -er '.bytes' <<< \"$candidate_row\")\"",
+            "test ! -e \"$combined_shard/candidates/$state_id.png\"",
+            "test ! -e \"$staging_root/ax/$shard_id/$state_id.json\"",
+            "test ! -e \"$staging_root/contrast/$shard_id/$state_id.json\"",
+            "cp -a \"$source_dir\" \"$staging_root/segment-sources/$segment_id\"",
+        ] {
+            XCTAssertTrue(assemblerSourceLoop.contains(exact), exact)
+        }
+        XCTAssertLessThan(
+            try XCTUnwrap(assemblerSourceLoop.range(of: "runner_name=\"$(jq -er '.runnerName' \"$receipt\")\"")).lowerBound,
+            try XCTUnwrap(assemblerSourceLoop.range(of: "expected_session=\"$(printf '%s\\n%s\\n%s\\n%s\\n'")).lowerBound
+        )
+        XCTAssertLessThan(
+            try XCTUnwrap(assemblerSourceLoop.range(of: "expected_session=\"$(printf '%s\\n%s\\n%s\\n%s\\n'")).lowerBound,
+            try XCTUnwrap(assemblerSourceLoop.range(of: "test \"$session\" = \"$expected_session\"")).lowerBound
+        )
+        XCTAssertLessThan(
+            try XCTUnwrap(assemblerSourceLoop.range(of: "test \"$session\" = \"$expected_session\"")).lowerBound,
+            try XCTUnwrap(assemblerSourceLoop.range(of: "test -z \"${seen_sessions[$session]+x}\"")).lowerBound
+        )
+        XCTAssertEqual(
+            assemblerSourceLoop.components(separatedBy: "cp \"$shard_source/candidates/$state_id.png\"").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            assemblerSourceLoop.components(separatedBy: "cp \"$source_dir/ax/$shard_id/$state_id.json\"").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            assemblerSourceLoop.components(separatedBy: "cp \"$source_dir/contrast/$shard_id/$state_id.json\"").count - 1,
+            1
+        )
+
+        for exact in [
+            "[.[].stateID] == $plan[0].orderedStateIDs and length == 67",
+            ".capture == \"XCUIApplication.debugDescription\"",
+            "test \"$(find \"$combined_shard/candidates\" -type f -name 'state.*.png' | wc -l | tr -d ' ')\" -eq 67",
+            "test \"$(find \"$staging_root/ax/$shard_id\" -type f -name 'state.*.json' | wc -l | tr -d ' ')\" -eq 67",
+            "test \"$(find \"$staging_root/contrast/$shard_id\" -type f -name 'state.*.json' | wc -l | tr -d ' ')\" -eq 67",
+            "($authorities | length) == 8",
+            "($expected | length) == 6",
+            "$today <= $row.exceptionExpiresAt",
+            ".ignoredAuditIssues == []",
+            "else .result == \"EXCEPTION\" end",
+            "$row.exceptionIssueID == ($group.issueIDs | join(\" | \"))",
+            "$row.exceptionOwner == $group.owner",
+            "$row.exceptionExpiresAt == $group.expiry",
+            ".auditTypeRawValue == \"1\"",
+            ".compactDescription == \"Contrast failed\"",
+            ".detailedDescription == \"Contrast failed for SwiftUI.AccessibilityNode\"",
+            ".elementType == \"XCUIElementType(rawValue: 48)\"",
+            ".applicationFrame == {x:0,y:0,width:402,height:874}",
+            "mapfile -t task_ids < <(jq -r '.tasks[].task_id' \"$task_contract_path\")",
+            "test \"${#task_ids[@]}\" -eq 6",
+            ".screen_state_ids | sort[]",
+            "sort_by(.stateID,.exceptionIssueID)",
+            "sort_by(.stateID) | map(.exceptionRationale) | join(\" | \")",
+            "canonical_lines+=(\"$state_id|$digest\")",
+            "aggregate_digest=\"$(sha256_text \"$canonical_evidence\")\"",
+            "state_set_digest=\"$(sha256_text \"$state_set_text\")\"",
+            "automatedReviewer:\"FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests\"",
+            "test \"$(jq 'length' \"$combined_shard/accessibility.json\")\" -eq 6",
+            "jq -c '.' \"$raw_task_file\" >> \"$combined_shard/accessibility.ndjson\"",
+            ". + {sourceProductHead:$productHead}",
+            ".sourceProductHead == $head",
+            "candidateCount:67",
+            "stateAXRowCount:67",
+            "accessibilityRowCount:6",
+            "contrastRowCount:67",
+            "receiptKind:\"s10.4-segment-aggregation\"",
+            "finalAcceptanceEligible:true",
+            "segmentIDs:[\"segment-1\",\"segment-2\",\"segment-3\"]",
+            "segmentCount:3",
+            "distinctSessionCount:3",
+            "sourceSegmentReceipts:$receipts[0]",
+            "find . -type f ! -name 'SHA256SUMS.txt*' -print0",
+            "LC_ALL=C sort -z",
+            "shasum -a 256 -c SHA256SUMS.txt",
+            "test -s \"$output_root/s10-4/$shard_id/shard-receipt.json\"",
+            "test -s \"$output_root/s10-4/$shard_id/segment-aggregation.json\"",
+        ] {
+            XCTAssertTrue(assemblerSource.contains(exact), exact)
+        }
+        XCTAssertEqual(
+            assemblerSource.components(
+                separatedBy: "> \"$raw_task_file\""
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            assemblerSource.components(
+                separatedBy: "> \"$combined_shard/shard-receipt.json\""
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            assemblerSource.components(
+                separatedBy: "> \"$combined_shard/segment-aggregation.json\""
+            ).count - 1,
+            1
+        )
+        for prohibited in [
+            "segment-4",
+            "retry",
+            "subdivide",
+            "getmac",
+            "warp",
+            "test-without-building",
+            "Build/Products",
+            ".xctestrun",
+            "simctl snapshot",
+            "app-container",
+            "audit filter",
+            "performAccessibilityAudit",
+            "state injection",
+        ] {
+            XCTAssertFalse(assemblerSource.lowercased().contains(prohibited.lowercased()), prohibited)
+        }
+    }
+
     func testMinimumOSCameraDeniedLegacyTabCorrectionIsNarrowAndDiagnosticFree() throws {
         let captureSource = try text(
             "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift"
@@ -19222,6 +20184,31 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
     private func text(_ relativePath: String) throws -> String {
         String(decoding: try data(relativePath), as: UTF8.self)
+    }
+
+    private func boundedSource(
+        _ source: String,
+        from start: String,
+        before end: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> String {
+        let startRange = try XCTUnwrap(
+            source.range(of: start),
+            "Missing bounded-source start: \(start)",
+            file: file,
+            line: line
+        )
+        let endRange = try XCTUnwrap(
+            source.range(
+                of: end,
+                range: startRange.upperBound..<source.endIndex
+            ),
+            "Missing bounded-source end: \(end)",
+            file: file,
+            line: line
+        )
+        return String(source[startRange.lowerBound..<endRange.lowerBound])
     }
 
     private func json(_ relativePath: String) throws -> [String: Any] {

@@ -11,6 +11,7 @@ on:
         type: choice
         options:
           - github-xcode-26.6-acceptance
+          - github-xcode-26.6-segmented-acceptance
           - getmac-xcode-26.6-development-only
           - warp-xcode-26.5-development-only
       run_ui_smoke:
@@ -57,6 +58,7 @@ jobs:
       runner_provider: github
       run_ui_smoke: ${{ inputs.run_ui_smoke }}
       s10_4_shard_id: ${{ inputs.s10_4_shard_id }}
+      s10_4_segment_id: none
 
   getmac-shard:
     name: GetMac Xcode 26.6 development-only · ${{ inputs.s10_4_shard_id }}
@@ -67,6 +69,121 @@ jobs:
       runner_provider: getmac
       run_ui_smoke: ${{ inputs.run_ui_smoke }}
       s10_4_shard_id: ${{ inputs.s10_4_shard_id }}
+      s10_4_segment_id: none
+
+  reject-invalid-segmented-selection:
+    name: Reject invalid segmented selection
+    if: ${{ inputs.execution_lane == 'github-xcode-26.6-segmented-acceptance' && (inputs.run_ui_smoke != true || inputs.s10_4_shard_id != 's10.4.current.ax-text') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Reject invalid segmented provider, shard, or UI selection
+        shell: bash
+        run: exit 1
+
+  github-segmented-shard:
+    name: GitHub Xcode 26.6 segmented acceptance · ${{ matrix.segment_id }}
+    if: ${{ inputs.execution_lane == 'github-xcode-26.6-segmented-acceptance' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 's10.4.current.ax-text' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        segment_id:
+          - segment-1
+          - segment-2
+          - segment-3
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: macos-26
+      runner_provider: github
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.ax-text
+      s10_4_segment_id: ${{ matrix.segment_id }}
+
+  assemble-segmented-shard:
+    name: Assemble GitHub Xcode 26.6 segmented acceptance
+    needs: github-segmented-shard
+    if: ${{ always() && inputs.execution_lane == 'github-xcode-26.6-segmented-acceptance' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 's10.4.current.ax-text' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Check out the exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download exact segment artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: ios-ci-${{ github.run_id }}-${{ github.run_attempt }}-s10.4.current.ax-text-segment-*
+          path: ${{ runner.temp }}/S10_4_SEGMENT_SOURCES
+          merge-multiple: false
+
+      - name: Assemble fail-closed segmented evidence
+        id: assemble
+        shell: bash
+        env:
+          SEGMENT_MATRIX_RESULT: ${{ needs.github-segmented-shard.result }}
+        run: |
+          set -euo pipefail
+          test -f Scripts/s10-4-segment-plan.json
+          test -f Scripts/s10-4-segment-assembler.sh
+          mkdir -p "$RUNNER_TEMP/S10_4_SEGMENT_SOURCES" "$RUNNER_TEMP/FieldEvidenceCI"
+          export S10_4_SEGMENT_MATRIX_RESULT="$SEGMENT_MATRIX_RESULT"
+          set +e
+          bash Scripts/s10-4-segment-assembler.sh \
+            "$RUNNER_TEMP/S10_4_SEGMENT_SOURCES" \
+            "$RUNNER_TEMP/FieldEvidenceCI"
+          assembler_status=$?
+          set -e
+          if test "$SEGMENT_MATRIX_RESULT" = "success"; then
+            test "$assembler_status" -eq 0
+            test "$(find "$RUNNER_TEMP/S10_4_SEGMENT_SOURCES" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" -eq 3
+          else
+            test "$assembler_status" -ne 0
+            test ! -e "$RUNNER_TEMP/FieldEvidenceCI/s10-4/s10.4.current.ax-text/shard-receipt.json"
+            exit "$assembler_status"
+          fi
+          test -s "$RUNNER_TEMP/FieldEvidenceCI/SHA256SUMS.txt"
+          test -s "$RUNNER_TEMP/FieldEvidenceCI/s10-4/s10.4.current.ax-text/shard-receipt.json"
+          test -s "$RUNNER_TEMP/FieldEvidenceCI/s10-4/s10.4.current.ax-text/segment-aggregation.json"
+
+      - name: Remove nonaccepting partial aggregate receipts
+        if: ${{ always() && steps.assemble.outcome != 'success' }}
+        shell: bash
+        env:
+          SEGMENT_MATRIX_RESULT: ${{ needs.github-segmented-shard.result }}
+          ASSEMBLER_OUTCOME: ${{ steps.assemble.outcome }}
+        run: |
+          set -euo pipefail
+          shard_evidence_path="$RUNNER_TEMP/FieldEvidenceCI/s10-4/s10.4.current.ax-text"
+          mkdir -p "$RUNNER_TEMP/FieldEvidenceCI"
+          rm -f \
+            "$shard_evidence_path/shard-receipt.json" \
+            "$shard_evidence_path/segment-aggregation.json" \
+            "$RUNNER_TEMP/FieldEvidenceCI/SHA256SUMS.txt"
+          test ! -e "$shard_evidence_path/shard-receipt.json"
+          test ! -e "$shard_evidence_path/segment-aggregation.json"
+          test ! -e "$RUNNER_TEMP/FieldEvidenceCI/SHA256SUMS.txt"
+          printf '%s\n' \
+            "finalAcceptanceEligible=false" \
+            "matrixResult=$SEGMENT_MATRIX_RESULT" \
+            "assemblerOutcome=${ASSEMBLER_OUTCOME:-not-run}" \
+            "runID=$GITHUB_RUN_ID" \
+            "runAttempt=$GITHUB_RUN_ATTEMPT" \
+            "head=$GITHUB_SHA" \
+            > "$RUNNER_TEMP/FieldEvidenceCI/segment-aggregation-failure.txt"
+
+      - name: Upload assembled acceptance evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-ci-${{ github.run_id }}-${{ github.run_attempt }}-s10.4.current.ax-text-assembled
+          path: ${{ runner.temp }}/FieldEvidenceCI
+          if-no-files-found: error
+          retention-days: 14
 
   warpbuild-shard:
     name: WarpBuild Xcode 26.5 development-only · ${{ inputs.s10_4_shard_id }}
@@ -211,6 +328,7 @@ jobs:
           CI_TOTAL_BUDGET_SECONDS="$(jq -r '.totalBudgetSeconds' Scripts/ci-selection.json)"
 
           CI_S10_4_SHARD_ID="none"
+          CI_S10_4_SEGMENT_ID="none"
           CI_ARTIFACT_SUFFIX=""
           if test "$CI_TASK_ID" = "S10.4"; then
             test "$DISPATCH_S10_4_SHARD_ID" != "none"
@@ -456,6 +574,7 @@ jobs:
             "CI_UI_TIMEOUT_SECONDS=$CI_UI_TIMEOUT_SECONDS" \
             "CI_TOTAL_BUDGET_SECONDS=$CI_TOTAL_BUDGET_SECONDS" \
             "CI_S10_4_SHARD_ID=$CI_S10_4_SHARD_ID" \
+            "CI_S10_4_SEGMENT_ID=$CI_S10_4_SEGMENT_ID" \
             "CI_ARTIFACT_SUFFIX=$CI_ARTIFACT_SUFFIX" \
             >> "$GITHUB_ENV"
           if test "$CI_TASK_ID" = "S10.4"; then
@@ -483,6 +602,7 @@ jobs:
               "TEST_RUNNER_SIMULATOR_RUNTIME_BUILD=$SIMULATOR_RUNTIME_BUILD" \
               "TEST_RUNNER_SIMULATOR_NAME=$SIMULATOR_NAME" \
               "TEST_RUNNER_CI_S10_4_SHARD_ID=$CI_S10_4_SHARD_ID" \
+              "TEST_RUNNER_CI_S10_4_SEGMENT_ID=$CI_S10_4_SEGMENT_ID" \
               "TEST_RUNNER_CI_S10_4_PROVISION_RUNTIME=$CI_S10_4_PROVISION_RUNTIME" \
               "TEST_RUNNER_CI_S10_4_RUNTIME_DOWNLOAD_VERSION=$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" \
               "TEST_RUNNER_CI_S10_4_DEVICE_PROFILE_ID=$CI_S10_4_DEVICE_PROFILE_ID" \
@@ -504,8 +624,9 @@ jobs:
           if test "$CI_TASK_ID" = "S10.4"; then
             cp Scripts/s10-4-shards.json "$CI_ARTIFACT_DIR/s10-4-shards.json"
           fi
-          printf 'task_id=%s\ntier=%s\ndispatch_run_ui_smoke=%s\ns10_4_shard_id=%s\n' \
+          printf 'task_id=%s\ntier=%s\ndispatch_run_ui_smoke=%s\ns10_4_shard_id=%s\ns10_4_segment_id=%s\n' \
             "$CI_TASK_ID" "$CI_TIER" "$DISPATCH_RUN_UI_SMOKE" "$CI_S10_4_SHARD_ID" \
+            "$CI_S10_4_SEGMENT_ID" \
             | tee "$CI_ARTIFACT_DIR/ci-selection-validation.txt"
 
       - name: Verify pinned toolchain, shared scheme, and simulator

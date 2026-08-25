@@ -88,6 +88,104 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         AutomationShard(ordinal: 14, shardID: "s10.4.minimum.bounded", requirementID: "bounded", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "differentiate_without_color", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-bounded", layoutDirection: "left_to_right", differentiateWithoutColor: true, reduceMotion: false, reduceTransparency: false),
     ]
 
+    private enum AutomationSegment: String {
+        case none
+        case segment1 = "segment-1"
+        case segment2 = "segment-2"
+        case segment3 = "segment-3"
+
+        var replayCount: Int {
+            switch self {
+            case .none, .segment1: return 0
+            case .segment2: return 22
+            case .segment3: return 50
+            }
+        }
+
+        var ownedCount: Int {
+            switch self {
+            case .none: return 67
+            case .segment1: return 22
+            case .segment2: return 28
+            case .segment3: return 17
+            }
+        }
+
+        var finalOrdinal: Int {
+            replayCount + ownedCount
+        }
+    }
+
+    private static let segmentedRouteStateIDs = [
+        "state.pack.unavailable",
+        "state.welcome.empty",
+        "state.reports-index.empty",
+        "state.sample-report.ready",
+        "state.new-sign.editing",
+        "state.new-sign.validation-error",
+        "state.sign-detail.ready",
+        "state.sign-detail.delete-confirmation",
+        "state.check-preflight.ready",
+        "state.capture.wide-ready",
+        "state.capture.camera-denied",
+        "state.capture.low-storage-error",
+        "state.capture.wide-preview",
+        "state.capture.close-ready",
+        "state.capture.close-preview",
+        "state.check-outcome.visible-issue",
+        "state.check-review.visible-issue",
+        "state.receipt.report-saved",
+        "state.report-detail.ready",
+        "state.report-history.ready",
+        "state.reports-index.ready",
+        "state.sign-detail.open-issue",
+        "state.work.validation-error",
+        "state.work.editing",
+        "state.work.saving",
+        "state.issue.recheck-due",
+        "state.recheck-preflight.ready",
+        "state.recheck-capture.wide-ready",
+        "state.recheck-capture.wide-preview",
+        "state.recheck-capture.close-ready",
+        "state.recheck-capture.close-preview",
+        "state.recheck-outcome.resolved",
+        "state.recheck-review.resolved",
+        "state.recheck-receipt.saved",
+        "state.recheck-report-detail.ready",
+        "state.issue.resolved",
+        "state.check-outcome.no-visible-issue",
+        "state.check-review.no-visible-issue",
+        "state.paywall.available",
+        "state.paywall.purchase-complete",
+        "state.check-outcome.could-not-verify",
+        "state.check-review.could-not-verify",
+        "state.recheck-outcome.could-not-verify",
+        "state.recheck-review.could-not-verify",
+        "state.recheck-outcome.issue-still-visible",
+        "state.recheck-review.issue-still-visible",
+        "state.issue.open",
+        "state.recheck-outcome.different-issue",
+        "state.recheck-review.different-issue",
+        "state.issue.different-open",
+        "state.report-pdf.failed",
+        "state.report-comparison.ready",
+        "state.report-correction.editing",
+        "state.report-correction.validation-error",
+        "state.report-correction.saving",
+        "state.report-correction.completed",
+        "state.paywall.unavailable",
+        "state.feedback.review-ready",
+        "state.settings.hub",
+        "state.backup.ready",
+        "state.diagnostics.ready",
+        "state.feedback.blocked",
+        "state.erase.confirmation",
+        "state.restore.choose-backup",
+        "state.subscription.active",
+        "state.sign-selection.ready",
+        "state.subscription.no-entitlement",
+    ]
+
     private static let contrastAuditExceptionSignatures = [
         ContrastAuditExceptionSignature(
             issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",
@@ -522,6 +620,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     private var automationAXTreeDigests: [String: String] = [:]
     private var automationContrastExceptions: [String: [ContrastAuditExceptionSignature]] = [:]
     private var pseudoLabelSentinelValidated = false
+    private var automationSegment = AutomationSegment.none
+    private var segmentedRouteStateCursor = 0
+    private var automatedSegmentFinished = false
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -536,12 +637,25 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               let shard = Self.automationShards.first(where: { $0.shardID == shardID }) else {
             throw AutomationConfigurationError.invalid("CI_S10_4_SHARD_ID is not a frozen shard")
         }
+        guard let segmentValue = environment["CI_S10_4_SEGMENT_ID"],
+              let segment = AutomationSegment(rawValue: segmentValue) else {
+            throw AutomationConfigurationError.invalid(
+                "CI_S10_4_SEGMENT_ID must equal none, segment-1, segment-2, or segment-3"
+            )
+        }
+        guard segment == .none || shard.shardID == "s10.4.current.ax-text" else {
+            throw AutomationConfigurationError.invalid(
+                "Only the frozen AX-text shard may use a segmented route"
+            )
+        }
+        var expectedEnvironment = shard.expectedEnvironment
+        expectedEnvironment["CI_S10_4_SEGMENT_ID"] = segment.rawValue
         let observed = Dictionary(uniqueKeysWithValues: environment
             .filter { $0.key.hasPrefix("CI_S10_4_") }
             .map { ($0.key, $0.value) })
-        guard observed == shard.expectedEnvironment else {
+        guard observed == expectedEnvironment else {
             let keys = Set(observed.keys)
-                .symmetricDifference(Set(shard.expectedEnvironment.keys))
+                .symmetricDifference(Set(expectedEnvironment.keys))
                 .sorted()
                 .joined(separator: ",")
             throw AutomationConfigurationError.invalid(
@@ -563,9 +677,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
         }
         automationShard = shard
+        automationSegment = segment
+        migratedStateIDs.removeAll()
         automationAXTreeDigests.removeAll()
         automationContrastExceptions.removeAll()
         pseudoLabelSentinelValidated = false
+        segmentedRouteStateCursor = 0
+        automatedSegmentFinished = false
     }
 
     @MainActor
@@ -641,8 +759,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         app.launch()
 
         try completeWorkAndResolvedRecheckAtXXXL(in: app)
+        if automatedSegmentFinished { return }
         captureAlternativeCompletedCheckStates(in: app)
         captureDifferentIssueStatesBeforeRecovery(in: app)
+        if automatedSegmentFinished { return }
         app.terminate()
         app.launch()
         recoverInjectedPDFFailureAtXXXL(in: app)
@@ -4296,6 +4416,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
         }
         captureBaseline("state.sign-detail.open-issue", in: app)
+        if finishAutomatedSegmentIfNeeded(after: 22, in: app) { return }
 
         let recordWork = element("s5.1.sign-detail.record-work", in: app)
         scroll(recordWork, in: app)
@@ -5772,6 +5893,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             timeout: 20
         )
         captureBaseline("state.issue.different-open", in: app)
+        if finishAutomatedSegmentIfNeeded(after: 50, in: app) { return }
         navigateBack(in: app)
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
             .waitForExistence(timeout: 20))
@@ -7127,6 +7249,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             timeout: 20
         )
         captureBaseline("state.subscription.no-entitlement", in: app)
+        if finishAutomatedSegmentIfNeeded(after: 67, in: app) { return }
         assertMigrationStateCoverage()
         emitAutomatedLabAccessibilityRowsIfNeeded()
 
@@ -7937,6 +8060,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             file: file,
             line: line
         )
+        if replaySegmentPrefixIfNeeded(
+            stateID,
+            in: app,
+            file: file,
+            line: line
+        ) {
+            return
+        }
         XCTAssertFalse(
             migratedStateIDs.contains(stateID),
             "Migration state was visited more than once: \(stateID)",
@@ -8092,6 +8223,146 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 line: line
             )
         }
+    }
+
+    @MainActor
+    private func replaySegmentPrefixIfNeeded(
+        _ stateID: String,
+        in app: XCUIApplication,
+        file: StaticString,
+        line: UInt
+    ) -> Bool {
+        guard automationSegment != .none else { return false }
+        guard let shard = automationShard,
+              shard.shardID == "s10.4.current.ax-text" else {
+            XCTFail(
+                "Only the frozen AX-text shard may enter a segmented route",
+                file: file,
+                line: line
+            )
+            return true
+        }
+        guard Self.segmentedRouteStateIDs.count == 67,
+              Set(Self.segmentedRouteStateIDs).count == 67 else {
+            XCTFail(
+                "The frozen segmented route must contain 67 unique states",
+                file: file,
+                line: line
+            )
+            return true
+        }
+        guard segmentedRouteStateCursor < Self.segmentedRouteStateIDs.count else {
+            XCTFail(
+                "The segmented route advanced beyond the frozen state inventory",
+                file: file,
+                line: line
+            )
+            return true
+        }
+
+        let expectedStateID = Self.segmentedRouteStateIDs[segmentedRouteStateCursor]
+        guard stateID == expectedStateID else {
+            XCTFail(
+                "The segmented route order drifted at ordinal "
+                    + "\(segmentedRouteStateCursor + 1): expected "
+                    + "\(expectedStateID), observed \(stateID)",
+                file: file,
+                line: line
+            )
+            return true
+        }
+        guard app.state == .runningForeground else {
+            XCTFail(
+                "The segmented route is not foreground at state \(stateID)",
+                file: file,
+                line: line
+            )
+            return true
+        }
+
+        segmentedRouteStateCursor += 1
+        guard segmentedRouteStateCursor <= automationSegment.finalOrdinal else {
+            XCTFail(
+                "The segmented route advanced beyond \(automationSegment.rawValue)",
+                file: file,
+                line: line
+            )
+            return true
+        }
+        guard segmentedRouteStateCursor <= automationSegment.replayCount else {
+            return false
+        }
+
+        dismissHostedAppleIntelligenceNotificationIfPresent(
+            in: app,
+            file: file,
+            line: line
+        )
+        printJSONLine(prefix: "S10_4_SEGMENT_REPLAY", object: [
+            "ordinal": segmentedRouteStateCursor,
+            "segmentID": automationSegment.rawValue,
+            "shardID": shard.shardID,
+            "stateID": stateID,
+        ])
+        return true
+    }
+
+    @MainActor
+    private func finishAutomatedSegmentIfNeeded(
+        after ordinal: Int,
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> Bool {
+        guard automationSegment != .none,
+              ordinal == automationSegment.finalOrdinal else {
+            return false
+        }
+        automatedSegmentFinished = true
+        guard automationShard?.shardID == "s10.4.current.ax-text" else {
+            XCTFail(
+                "Only the frozen AX-text shard may finish a segmented route",
+                file: file,
+                line: line
+            )
+            return true
+        }
+        guard Self.segmentedRouteStateIDs.count == 67,
+              Set(Self.segmentedRouteStateIDs).count == 67,
+              segmentedRouteStateCursor == ordinal,
+              app.state == .runningForeground else {
+            XCTFail(
+                "The segmented route did not reach its exact foreground boundary",
+                file: file,
+                line: line
+            )
+            return true
+        }
+
+        let expectedOwnedStateIDs = Array(
+            Self.segmentedRouteStateIDs[
+                automationSegment.replayCount..<automationSegment.finalOrdinal
+            ]
+        )
+        guard expectedOwnedStateIDs.count == automationSegment.ownedCount,
+              Set(expectedOwnedStateIDs).count == automationSegment.ownedCount,
+              migratedStateIDs == expectedOwnedStateIDs,
+              Set(automationAXTreeDigests.keys) == Set(expectedOwnedStateIDs),
+              Set(automationContrastExceptions.keys).isSubset(of: Set(expectedOwnedStateIDs)) else {
+            XCTFail(
+                "The segmented route owned-state evidence is incomplete or out of order",
+                file: file,
+                line: line
+            )
+            return true
+        }
+
+        let terminal = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        terminal.name = "S10.4 segment terminal \(automationSegment.rawValue) s10.4.current.ax-text"
+        terminal.lifetime = .keepAlways
+        add(terminal)
+
+        return true
     }
 
     @MainActor

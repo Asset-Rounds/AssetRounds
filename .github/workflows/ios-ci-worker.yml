@@ -21,12 +21,17 @@ on:
         required: true
         default: none
         type: string
+      s10_4_segment_id:
+        description: Exact S10.4 segmented AX session ID; normal execution uses none
+        required: true
+        default: none
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: ios-ci-${{ github.ref }}-${{ inputs.s10_4_shard_id }}
+  group: ${{ inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id) }}
   cancel-in-progress: false
 
 jobs:
@@ -70,6 +75,7 @@ jobs:
         env:
           DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}
           DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
+          DISPATCH_S10_4_SEGMENT_ID: ${{ inputs.s10_4_segment_id }}
         run: |
           set -euo pipefail
           case "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" in
@@ -166,6 +172,7 @@ jobs:
           CI_TOTAL_BUDGET_SECONDS="$(jq -r '.totalBudgetSeconds' Scripts/ci-selection.json)"
 
           CI_S10_4_SHARD_ID="none"
+          CI_S10_4_SEGMENT_ID="none"
           CI_ARTIFACT_SUFFIX=""
           if test "$CI_TASK_ID" = "S10.4"; then
             test "$DISPATCH_S10_4_SHARD_ID" != "none"
@@ -376,7 +383,20 @@ jobs:
               '.deviceProfiles[] | select(.deviceProfileID == $profile)' Scripts/s10-4-shards.json)"
 
             CI_S10_4_SHARD_ID="$DISPATCH_S10_4_SHARD_ID"
-            CI_ARTIFACT_SUFFIX="-$CI_S10_4_SHARD_ID"
+            CI_S10_4_SEGMENT_ID="$DISPATCH_S10_4_SEGMENT_ID"
+            case "$CI_S10_4_SEGMENT_ID" in
+              none)
+                CI_ARTIFACT_SUFFIX="-$CI_S10_4_SHARD_ID"
+                ;;
+              segment-1 | segment-2 | segment-3)
+                test "$CI_RUNNER_PROVIDER" = "github"
+                test "$CI_RUN_UI_SMOKE" = "true"
+                test "$CI_S10_4_SHARD_ID" = "s10.4.current.ax-text"
+                test -f Scripts/s10-4-segment-plan.json
+                CI_ARTIFACT_SUFFIX="-$CI_S10_4_SHARD_ID-$CI_S10_4_SEGMENT_ID"
+                ;;
+              *) exit 1 ;;
+            esac
             SIMULATOR_RUNTIME="$(jq -r '.simulatorRuntime' <<< "$profile_json")"
             SIMULATOR_RUNTIME_BUILD="$(jq -r '.simulatorRuntimeBuild' <<< "$profile_json")"
             SIMULATOR_NAME="$(jq -r '.simulatorName' <<< "$profile_json")"
@@ -417,6 +437,112 @@ jobs:
             fi
           else
             test "$DISPATCH_S10_4_SHARD_ID" = "none"
+            test "$DISPATCH_S10_4_SEGMENT_ID" = "none"
+          fi
+
+          if test "$CI_S10_4_SEGMENT_ID" != "none"; then
+            test "$(shasum -a 256 Scripts/ci-selection.json | awk '{print toupper($1)}')" = \
+              "571AC854A230A95F90368EC50CA625AD13B170AFC06DFF503D1C9F99796EF7D5"
+            test "$(shasum -a 256 Scripts/s10-4-shards.json | awk '{print toupper($1)}')" = \
+              "C023ADE99CAB0F9ED2984C90BCC0E03B0D05A05643DF7185201CC00772E3C8E4"
+            test "$(shasum -a 256 docs/design/s10/s10-screen-state-inventory.json | awk '{print toupper($1)}')" = \
+              "6C820E8A1160297F561EABF1873BE82403589B408E4A8FA3318269293242F507"
+            test "$(shasum -a 256 docs/design/s10/s10-accessibility-common-tasks.json | awk '{print toupper($1)}')" = \
+              "B7EDB1DD18BAB6DEE1884DA52C15F63AD5AD06045F58444C61442957558999F0"
+            jq -e \
+              --arg segment "$CI_S10_4_SEGMENT_ID" '
+                . as $plan
+                | .schemaVersion == 1
+                and .taskID == "S10.4"
+                and .shardID == "s10.4.current.ax-text"
+                and .requirementID == "ax_text"
+                and .deviceProfileID == "iphone-17-ios-26.2-current"
+                and .executionLane == "github-xcode-26.6-segmented-acceptance"
+                and .runnerProvider == "github"
+                and .runnerLabel == "macos-26"
+                and .xcodeVersion == "Xcode 26.6"
+                and .xcodeBuild == "17F113"
+                and .sdkName == "iphonesimulator26.5"
+                and .sdkBuild == "23F81a"
+                and .simulatorName == "iPhone 17"
+                and .simulatorRuntime == "iOS 26.2"
+                and .simulatorRuntimeBuild == "23C54"
+                and .buildMode == "independent-build-for-testing"
+                and .crossSessionBuildReuse == false
+                and .crossSessionTestWithoutBuilding == false
+                and .selectorSHA256 == "571AC854A230A95F90368EC50CA625AD13B170AFC06DFF503D1C9F99796EF7D5"
+                and .shardContractSHA256 == "C023ADE99CAB0F9ED2984C90BCC0E03B0D05A05643DF7185201CC00772E3C8E4"
+                and .inventorySHA256 == "6C820E8A1160297F561EABF1873BE82403589B408E4A8FA3318269293242F507"
+                and .commonTaskSchemaSHA256 == "B7EDB1DD18BAB6DEE1884DA52C15F63AD5AD06045F58444C61442957558999F0"
+                and .stateInventoryPath == "docs/design/s10/s10-screen-state-inventory.json"
+                and .commonTaskSchemaPath == "docs/design/s10/s10-accessibility-common-tasks.json"
+                and .productHead == "460fa9eb0c658b5ce39c20dbd94d1ea8c83168f5"
+                and ((.orderedStateIDs | type) == "array")
+                and ((.orderedStateIDs | length) == 67)
+                and ((.orderedStateIDs | unique | length) == 67)
+                and .orderedStateSHA256 == "8D5D88D21FB60190B3DF5456FE14902602E420CB1810D0EEBA6E0D6ADA37547C"
+                and .stateSetSHA256 == "5F704F0ED4510CFFC24E162EFFE1D85A536686473E6B23FED2965D864AEC87A3"
+                and .captureBaselineSHA256 == "371C419756DF1F86C30BD576938A5089F74616379C790C79089C23A052760CB6"
+                and .state27CallerSHA256 == "468FC591A4CF6C44A93BF51344CA1C7B1C20D9E83BC385EE0EE6E69B9A6A36C8"
+                and .preflightHelperSHA256 == "0062C05D0AE8383E270E491C43450D892914CA1B344C1B17DAB1C6D53D548395"
+                and .issueRecheckHelperSHA256 == "A9D52569212661CD4419ECBF4804DDFDA04187EA2F4BF133387807AF6150AC53"
+                and ((.exceptionAuthorities | type) == "array")
+                and ((.exceptionAuthorities | length) == 8)
+                and (([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 8)
+                and all(.exceptionAuthorities[];
+                  .shardID == "s10.4.current.ax-text"
+                  and (.stateID as $stateID | ($plan.orderedStateIDs | index($stateID)) != null)
+                  and (.taskID | type == "string" and length > 0)
+                  and (.exceptionIssueID | type == "string"
+                    and startswith("S10.4-XCUI-CONTRAST-FP-AX-TEXT-"))
+                  and .exceptionOwner == "palatis3"
+                  and .exceptionExpiresAt == "2026-11-20")
+                and ((.segments | type) == "array")
+                and ((.segments | length) == 3)
+                and ([.segments[].segmentID] == ["segment-1", "segment-2", "segment-3"])
+                and ([.segments[].ordinal] == [1, 2, 3])
+                and ([.segments[].startOrdinal] == [1, 23, 51])
+                and ([.segments[].endOrdinal] == [22, 50, 67])
+                and ([.segments[].stateCount] == [22, 28, 17])
+                and ([.segments[].replayCount] == [0, 22, 50])
+                and ([.segments[].ownedStateSHA256] == [
+                  "8BB0F12120AD78E23B90091E70E8B8C98418A111B2328CE2411981D1AB40F1C3",
+                  "AE2041547A2B421AE0C2424FE8BB25B2FE2901C4385F0009E65E406CAE25392B",
+                  "F8E0BBF45D626938CE13FCE3FEC9232AE83F22B4E3BD2635854382CEF3686F83"
+                ])
+                and ([.segments[].replayStateSHA256] == [
+                  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                  "8BB0F12120AD78E23B90091E70E8B8C98418A111B2328CE2411981D1AB40F1C3",
+                  "80397ABF11A3622661E301900B7A23D0398FBF292CEEE29E1E9FA1E7A8EDA0A4"
+                ])
+                and (.segments[0].ownedStateIDs == .orderedStateIDs[0:22])
+                and (.segments[1].ownedStateIDs == .orderedStateIDs[22:50])
+                and (.segments[2].ownedStateIDs == .orderedStateIDs[50:67])
+                and (.segments[0].replayStateIDs == [])
+                and (.segments[1].replayStateIDs == .orderedStateIDs[0:22])
+                and (.segments[2].replayStateIDs == .orderedStateIDs[0:50])
+                and any(.segments[]; .segmentID == $segment)
+              ' Scripts/s10-4-segment-plan.json > /dev/null
+            evidence_kernel_json="$(jq -cS '
+              {
+                productHead,
+                selectorSHA256,
+                shardContractSHA256,
+                inventorySHA256,
+                commonTaskSchemaSHA256,
+                orderedStateSHA256,
+                stateSetSHA256,
+                captureBaselineSHA256,
+                state27CallerSHA256,
+                preflightHelperSHA256,
+                issueRecheckHelperSHA256,
+                exceptionAuthorities
+              }
+            ' Scripts/s10-4-segment-plan.json)"
+            computed_evidence_kernel_sha256="$(printf '%s' "$evidence_kernel_json" \
+              | shasum -a 256 | awk '{print toupper($1)}')"
+            test "$computed_evidence_kernel_sha256" = \
+              "$(jq -r '.evidenceKernelSHA256' Scripts/s10-4-segment-plan.json)"
           fi
 
           printf '%s\n' \
@@ -429,6 +555,7 @@ jobs:
             "CI_UI_TIMEOUT_SECONDS=$CI_UI_TIMEOUT_SECONDS" \
             "CI_TOTAL_BUDGET_SECONDS=$CI_TOTAL_BUDGET_SECONDS" \
             "CI_S10_4_SHARD_ID=$CI_S10_4_SHARD_ID" \
+            "CI_S10_4_SEGMENT_ID=$CI_S10_4_SEGMENT_ID" \
             "CI_ARTIFACT_SUFFIX=$CI_ARTIFACT_SUFFIX" \
             >> "$GITHUB_ENV"
           if test "$CI_TASK_ID" = "S10.4"; then
@@ -458,6 +585,7 @@ jobs:
               "TEST_RUNNER_SIMULATOR_RUNTIME_BUILD=$SIMULATOR_RUNTIME_BUILD" \
               "TEST_RUNNER_SIMULATOR_NAME=$SIMULATOR_NAME" \
               "TEST_RUNNER_CI_S10_4_SHARD_ID=$CI_S10_4_SHARD_ID" \
+              "TEST_RUNNER_CI_S10_4_SEGMENT_ID=$CI_S10_4_SEGMENT_ID" \
               "TEST_RUNNER_CI_S10_4_PROVISION_RUNTIME=$CI_S10_4_PROVISION_RUNTIME" \
               "TEST_RUNNER_CI_S10_4_RUNTIME_DOWNLOAD_VERSION=$CI_S10_4_RUNTIME_DOWNLOAD_VERSION" \
               "TEST_RUNNER_CI_S10_4_DEVICE_PROFILE_ID=$CI_S10_4_DEVICE_PROFILE_ID" \
@@ -478,9 +606,12 @@ jobs:
           cp Scripts/ci-selection.json "$CI_ARTIFACT_DIR/ci-selection.json"
           if test "$CI_TASK_ID" = "S10.4"; then
             cp Scripts/s10-4-shards.json "$CI_ARTIFACT_DIR/s10-4-shards.json"
+            if test "$CI_S10_4_SEGMENT_ID" != "none"; then
+              cp Scripts/s10-4-segment-plan.json "$CI_ARTIFACT_DIR/s10-4-segment-plan.json"
+            fi
           fi
-          printf 'task_id=%s\ntier=%s\ndispatch_run_ui_smoke=%s\ns10_4_shard_id=%s\n' \
-            "$CI_TASK_ID" "$CI_TIER" "$DISPATCH_RUN_UI_SMOKE" "$CI_S10_4_SHARD_ID" \
+          printf 'task_id=%s\ntier=%s\ndispatch_run_ui_smoke=%s\ns10_4_shard_id=%s\ns10_4_segment_id=%s\n' \
+            "$CI_TASK_ID" "$CI_TIER" "$DISPATCH_RUN_UI_SMOKE" "$CI_S10_4_SHARD_ID" "$CI_S10_4_SEGMENT_ID" \
             | tee "$CI_ARTIFACT_DIR/ci-selection-validation.txt"
 
       - name: Verify pinned toolchain, shared scheme, and simulator
@@ -794,8 +925,434 @@ jobs:
           bash Scripts/run-with-timeout.sh "$CI_UI_TIMEOUT_SECONDS" \
             bash Scripts/ui-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/ui-smoke.log"
 
+      - name: Retain S10.4 segment evidence
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' && inputs.s10_4_segment_id != 'none' }}
+        shell: bash
+        env:
+          DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
+          DISPATCH_S10_4_SEGMENT_ID: ${{ inputs.s10_4_segment_id }}
+        run: |
+          set -euo pipefail
+          test "$CI_TASK_ID" = "S10.4"
+          test "$CI_RUNNER_PROVIDER" = "github"
+          test "$CI_S10_4_SHARD_ID" = "s10.4.current.ax-text"
+          test "$CI_S10_4_SHARD_ID" = "$DISPATCH_S10_4_SHARD_ID"
+          test "$CI_S10_4_SEGMENT_ID" = "$DISPATCH_S10_4_SEGMENT_ID"
+          test -d "$RUNNER_TEMP/FieldEvidenceUISmokeAttachments"
+          attachment_export_path="$RUNNER_TEMP/FieldEvidenceUISmokeAttachments"
+          attachment_manifest_path="$attachment_export_path/manifest.json"
+          test -s "$attachment_manifest_path"
+
+          segment_json="$(jq -cer --arg segment "$CI_S10_4_SEGMENT_ID" \
+            '.segments[] | select(.segmentID == $segment)' \
+            Scripts/s10-4-segment-plan.json)"
+          expected_state_count="$(jq -r '.stateCount' <<< "$segment_json")"
+          expected_replay_count="$(jq -r '.replayCount' <<< "$segment_json")"
+          expected_owned_path="$RUNNER_TEMP/s10-4-segment-owned.json"
+          expected_replay_path="$RUNNER_TEMP/s10-4-segment-replay.json"
+          jq -c '.ownedStateIDs' <<< "$segment_json" > "$expected_owned_path"
+          jq -c '.replayStateIDs' <<< "$segment_json" > "$expected_replay_path"
+          test "$(jq 'length' "$expected_owned_path")" -eq "$expected_state_count"
+          test "$(jq 'length' "$expected_replay_path")" -eq "$expected_replay_count"
+
+          observed_marker_path="$RUNNER_TEMP/s10-4-segment-markers.json"
+          sed -n 's/^S10_MIGRATION_STATE state=//p' "$CI_ARTIFACT_DIR/ui-smoke.log" \
+            | jq -Rsc 'split("\n") | map(select(length > 0))' \
+            > "$observed_marker_path"
+          cmp -s "$expected_owned_path" "$observed_marker_path"
+
+          replay_ndjson_path="$RUNNER_TEMP/s10-4-segment-replay.ndjson"
+          sed -n 's/^S10_4_SEGMENT_REPLAY //p' "$CI_ARTIFACT_DIR/ui-smoke.log" \
+            > "$replay_ndjson_path"
+          jq -s '.' "$replay_ndjson_path" > "$RUNNER_TEMP/s10-4-segment-replay-rows.json"
+          jq -c '[.[].stateID]' "$RUNNER_TEMP/s10-4-segment-replay-rows.json" \
+            > "$RUNNER_TEMP/s10-4-segment-replay-state-ids.json"
+          cmp -s "$expected_replay_path" \
+            "$RUNNER_TEMP/s10-4-segment-replay-state-ids.json"
+          jq -e --arg shard "$CI_S10_4_SHARD_ID" \
+            --arg segment "$CI_S10_4_SEGMENT_ID" \
+            --argjson replayCount "$expected_replay_count" '
+              length == $replayCount
+              and all(to_entries[];
+                .value.shardID == $shard
+                and .value.segmentID == $segment
+                and (.value.stateID | type == "string" and startswith("state."))
+                and (.value.ordinal | type == "number" and floor == .)
+                and .value.ordinal == (.key + 1))
+            ' "$RUNNER_TEMP/s10-4-segment-replay-rows.json" > /dev/null
+
+          test "$(grep -Ec '^S10_4_AX ' "$CI_ARTIFACT_DIR/ui-smoke.log" || true)" -eq 0
+          test "$(grep -Ec '^S10_4_FRONTIER_REPLAY ' "$CI_ARTIFACT_DIR/ui-smoke.log" || true)" -eq 0
+          diagnostic_count="$(grep -Ec '^S10_4_.*DIAGNOSTIC' "$CI_ARTIFACT_DIR/ui-smoke.log" || true)"
+          test "$diagnostic_count" -eq 0
+          test "$(grep -Eic 'Lost connection to testmanagerd|XCTHTestOperationCoordinatorErrorDomain' "$CI_ARTIFACT_DIR/ui-smoke.log" || true)" -eq 0
+          jq -e '
+            [
+              .[]?.attachments[]?
+              | select(
+                  .suggestedHumanReadableName == "UI Snapshot"
+                  or .suggestedHumanReadableName == "Synthesized Event"
+                  or .suggestedHumanReadableName == "Screen Recording"
+                  or ((.suggestedHumanReadableName // "") | test("diagnostic"; "i"))
+                  or .isAssociatedWithFailure == true)
+            ] | length == 0
+          ' "$attachment_manifest_path" > /dev/null
+
+          segment_terminal_name="S10.4 segment terminal $CI_S10_4_SEGMENT_ID $CI_S10_4_SHARD_ID"
+          terminal_export_file="$(jq -er --arg name "$segment_terminal_name" '
+            [
+              .[]
+              | select(
+                  type == "object"
+                  and (.testIdentifier | type == "string")
+                  and (.testIdentifier | startswith("S10_4AutomatedBrandLabUITests/"))
+                  and (.attachments | type == "array"))
+              | .attachments[]
+              | select(
+                  type == "object"
+                  and .isAssociatedWithFailure == false
+                  and .suggestedHumanReadableName == $name
+                  and (.exportedFileName | type == "string")
+                  and (.exportedFileName | test("^[A-Za-z0-9._-]+$")))
+              | .exportedFileName
+            ]
+            | if length == 1 then .[0]
+              else error("expected exactly one segment terminal screenshot") end
+          ' "$attachment_manifest_path")"
+          terminal_export_path="$attachment_export_path/$terminal_export_file"
+          test -f "$terminal_export_path"
+          test ! -L "$terminal_export_path"
+          test "$(LC_ALL=C od -An -tx1 -N8 "$terminal_export_path" \
+            | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')" = \
+            "89504e470d0a1a0a"
+
+          shard_evidence_path="$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID"
+          candidate_path="$shard_evidence_path/candidates"
+          state_ax_path="$CI_ARTIFACT_DIR/ax/$CI_S10_4_SHARD_ID"
+          state_contrast_path="$CI_ARTIFACT_DIR/contrast/$CI_S10_4_SHARD_ID"
+          mkdir -p "$candidate_path" "$state_ax_path" "$state_contrast_path"
+          cp "$attachment_manifest_path" \
+            "$shard_evidence_path/xcresult-attachment-manifest.json"
+          cp "$observed_marker_path" "$shard_evidence_path/owned-state-ids.json"
+          cp "$RUNNER_TEMP/s10-4-segment-replay-rows.json" \
+            "$shard_evidence_path/replay-rows.json"
+
+          candidate_prefix="S10.4 candidate $CI_S10_4_SHARD_ID "
+          jq -e --arg prefix "$candidate_prefix" --argjson expected "$expected_state_count" '
+            [
+              .[]
+              | select(
+                  type == "object"
+                  and (.testIdentifier | type == "string")
+                  and (.testIdentifier | startswith("S10_4AutomatedBrandLabUITests/"))
+                  and (.attachments | type == "array"))
+              | .attachments[]
+              | select(
+                  type == "object"
+                  and .isAssociatedWithFailure == false
+                  and (.suggestedHumanReadableName | type == "string")
+                  and (.suggestedHumanReadableName | startswith($prefix))
+                  and (.exportedFileName | type == "string")
+                  and (.exportedFileName | test("^[A-Za-z0-9._-]+$")))
+              | {
+                  stateID: (.suggestedHumanReadableName
+                    | ltrimstr($prefix)
+                    | sub("_0_[0-9A-Fa-f-]{36}\\."; ".")),
+                  exportedFileName: .exportedFileName
+                }
+            ]
+            | if length == $expected then . else error("segment candidate count") end
+            | if ([.[].stateID] | unique | length) == $expected then .
+              else error("duplicate segment candidate state") end
+            | if ([.[].exportedFileName] | unique | length) == $expected then .
+              else error("duplicate segment candidate file") end
+          ' "$attachment_manifest_path" > "$shard_evidence_path/candidate-exports.json"
+          jq -c '[.[].stateID]' "$shard_evidence_path/candidate-exports.json" \
+            > "$RUNNER_TEMP/s10-4-segment-candidate-state-ids.json"
+          cmp -s "$expected_owned_path" \
+            "$RUNNER_TEMP/s10-4-segment-candidate-state-ids.json"
+
+          : > "$RUNNER_TEMP/s10-4-segment-candidate-files.tsv"
+          while IFS=$'\t' read -r state_id exported_file_name; do
+            source_path="$attachment_export_path/$exported_file_name"
+            destination_path="$candidate_path/$state_id.png"
+            test -f "$source_path"
+            test ! -L "$source_path"
+            test "$(LC_ALL=C od -An -tx1 -N8 "$source_path" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')" = \
+              "89504e470d0a1a0a"
+            cp "$source_path" "$destination_path"
+            cmp -s "$source_path" "$destination_path"
+            printf '%s\t%s\t%s\t%s\n' "$state_id" "candidates/$state_id.png" \
+              "$(shasum -a 256 "$destination_path" | awk '{print toupper($1)}')" \
+              "$(stat -f '%z' "$destination_path")" \
+              >> "$RUNNER_TEMP/s10-4-segment-candidate-files.tsv"
+          done < <(jq -r '.[] | [.stateID, .exportedFileName] | @tsv' \
+            "$shard_evidence_path/candidate-exports.json")
+          jq -Rn '[inputs | split("\t") | {
+              stateID: .[0], artifactPath: .[1], sha256: .[2], bytes: (.[3] | tonumber)
+            }]' < "$RUNNER_TEMP/s10-4-segment-candidate-files.tsv" \
+            > "$shard_evidence_path/candidate-files.json"
+
+          sed -n 's/^S10_4_AX_STATE //p' "$CI_ARTIFACT_DIR/ui-smoke.log" \
+            > "$shard_evidence_path/state-ax.ndjson"
+          jq -s '.' "$shard_evidence_path/state-ax.ndjson" \
+            > "$shard_evidence_path/state-ax.json"
+          jq -c '[.[].stateID]' "$shard_evidence_path/state-ax.json" \
+            > "$RUNNER_TEMP/s10-4-segment-ax-state-ids.json"
+          cmp -s "$expected_owned_path" "$RUNNER_TEMP/s10-4-segment-ax-state-ids.json"
+          jq -e --arg shard "$CI_S10_4_SHARD_ID" --arg requirement "$CI_S10_4_REQUIREMENT_ID" \
+            --arg profile "$CI_S10_4_DEVICE_PROFILE_ID" '
+              all(.[];
+                .shardID == $shard and .requirementID == $requirement
+                and .deviceProfileID == $profile and .result == "PASS"
+                and (.evidenceID == ("s10.4-ax-" + $shard + "-" + .stateID))
+                and .capture == "XCUIApplication.debugDescription"
+                and (.axTreeSHA256 | test("^[0-9A-F]{64}$")))
+            ' "$shard_evidence_path/state-ax.json" > /dev/null
+          while IFS= read -r row; do
+            state_id="$(jq -r '.stateID' <<< "$row")"
+            jq -cS --arg productHead "$GITHUB_SHA" '. + {sourceProductHead: $productHead}' \
+              <<< "$row" > "$state_ax_path/$state_id.json"
+          done < <(jq -c '.[]' "$shard_evidence_path/state-ax.json")
+
+          sed -n 's/^S10_4_CONTRAST //p' "$CI_ARTIFACT_DIR/ui-smoke.log" \
+            > "$shard_evidence_path/contrast.ndjson"
+          jq -s '.' "$shard_evidence_path/contrast.ndjson" \
+            > "$shard_evidence_path/contrast.json"
+          jq -c '[.[].stateID]' "$shard_evidence_path/contrast.json" \
+            > "$RUNNER_TEMP/s10-4-segment-contrast-state-ids.json"
+          cmp -s "$expected_owned_path" \
+            "$RUNNER_TEMP/s10-4-segment-contrast-state-ids.json"
+          jq -e --arg shard "$CI_S10_4_SHARD_ID" --arg requirement "$CI_S10_4_REQUIREMENT_ID" \
+            --arg profile "$CI_S10_4_DEVICE_PROFILE_ID" '
+              all(.[];
+                .shardID == $shard and .requirementID == $requirement
+                and .deviceProfileID == $profile
+                and (.result == "PASS" or .result == "EXCEPTION")
+                and (.evidenceID == ("s10.4-contrast-" + $shard + "-" + .stateID))
+                and (.axTreeSHA256 | test("^[0-9A-F]{64}$"))
+                and (.ignoredAuditIssues | type == "array"))
+            ' "$shard_evidence_path/contrast.json" > /dev/null
+          today="$(date -u +%F)"
+          jq -e --arg today "$today" --slurpfile plan Scripts/s10-4-segment-plan.json '
+            all(.[];
+              . as $row
+              | ([$plan[0].exceptionAuthorities[]
+                    | select(.stateID == $row.stateID)
+                    | .exceptionIssueID] | sort) as $expectedIssueIDs
+              | if ($expectedIssueIDs | length) == 0 then
+                  $row.result == "PASS"
+                  and $row.exceptionIssueID == ""
+                  and $row.exceptionOwner == ""
+                  and $row.exceptionExpiresAt == ""
+                  and $row.exceptionRationale == ""
+                  and $row.ignoredAuditIssues == []
+                else
+                  $row.result == "EXCEPTION"
+                  and (($row.exceptionIssueID | split(" | ") | sort) == $expectedIssueIDs)
+                  and $row.exceptionOwner == "palatis3"
+                  and $row.exceptionExpiresAt == "2026-11-20"
+                  and $today <= $row.exceptionExpiresAt
+                  and ($row.exceptionRationale | type == "string" and length > 0)
+                  and (($row.ignoredAuditIssues | length) == ($expectedIssueIDs | length))
+                  and all($row.ignoredAuditIssues[];
+                    (keys | sort) == ([
+                      "applicationFrame", "auditTypeRawValue", "compactDescription",
+                      "detailedDescription", "elementFrame", "elementIdentifier",
+                      "elementLabel", "elementType"
+                    ] | sort)
+                    and .auditTypeRawValue == "1"
+                    and .compactDescription == "Contrast failed"
+                    and .detailedDescription == "Contrast failed for SwiftUI.AccessibilityNode"
+                    and (.elementIdentifier | type == "string")
+                    and (.elementLabel | type == "string")
+                    and (.elementType | type == "string")
+                    and (.elementFrame | type == "object")
+                    and (.applicationFrame | type == "object"))
+                end)
+          ' "$shard_evidence_path/contrast.json" > /dev/null
+          while IFS= read -r row; do
+            state_id="$(jq -r '.stateID' <<< "$row")"
+            jq -cS --arg productHead "$GITHUB_SHA" '. + {sourceProductHead: $productHead}' \
+              <<< "$row" > "$state_contrast_path/$state_id.json"
+          done < <(jq -c '.[]' "$shard_evidence_path/contrast.json")
+
+          directory_digest() {
+            local source_dir="$1"
+            local digest_rows="$RUNNER_TEMP/segment-directory-digest-$(basename "$source_dir").txt"
+            : > "$digest_rows"
+            while IFS= read -r file_path; do
+              printf '%s  %s\n' "$(shasum -a 256 "$file_path" | awk '{print toupper($1)}')" \
+                "${file_path#"$source_dir/"}" >> "$digest_rows"
+            done < <(find "$source_dir" -type f | LC_ALL=C sort)
+            shasum -a 256 "$digest_rows" | awk '{print toupper($1)}'
+          }
+          build_identity="$(directory_digest "$CI_ARTIFACT_DIR/Build.xcresult")"
+          unit_identity="$(directory_digest "$CI_ARTIFACT_DIR/UnitTests.xcresult")"
+          ui_identity="$(directory_digest "$CI_ARTIFACT_DIR/UISmoke.xcresult")"
+          xcrun xcresulttool get test-results tests --path "$CI_ARTIFACT_DIR/UnitTests.xcresult" \
+            --compact > "$RUNNER_TEMP/s10-4-segment-unit-tests.json"
+          xcrun xcresulttool get test-results tests --path "$CI_ARTIFACT_DIR/UISmoke.xcresult" \
+            --compact > "$RUNNER_TEMP/s10-4-segment-ui-tests.json"
+          unit_executed_test_selectors="$(jq -c '
+            [.. | objects
+              | select(.nodeType? == "Test Case" and .result? == "Passed")
+              | .nodeIdentifier]
+            | unique | sort
+          ' "$RUNNER_TEMP/s10-4-segment-unit-tests.json")"
+          ui_executed_test_selectors="$(jq -c '
+            [.. | objects
+              | select(.nodeType? == "Test Case" and .result? == "Passed")
+              | .nodeIdentifier]
+            | unique | sort
+          ' "$RUNNER_TEMP/s10-4-segment-ui-tests.json")"
+          unit_executed_test_count="$(jq 'length' <<< "$unit_executed_test_selectors")"
+          ui_executed_test_count="$(jq 'length' <<< "$ui_executed_test_selectors")"
+          test "$unit_executed_test_count" -eq 5
+          test "$ui_executed_test_count" -eq 1
+          sdk_version="$(xcrun --sdk iphonesimulator --show-sdk-version)"
+          sdk_build="$(xcrun --sdk iphonesimulator --show-sdk-build-version)"
+          sdk_name="iphonesimulator$sdk_version"
+          test "$sdk_name" = "iphonesimulator26.5"
+          test "$sdk_build" = "23F81a"
+          attachment_count="$(jq '[.[]?.attachments[]?] | length' "$attachment_manifest_path")"
+          session_identity="$(printf '%s\n%s\n%s\n%s\n' "$RUNNER_NAME" "$CI_SIMULATOR_UDID" \
+            "$GITHUB_JOB" "$ui_identity" | shasum -a 256 | awk '{print toupper($1)}')"
+          selector_sha256="$(shasum -a 256 Scripts/ci-selection.json | awk '{print toupper($1)}')"
+          shard_contract_sha256="$(shasum -a 256 Scripts/s10-4-shards.json | awk '{print toupper($1)}')"
+          inventory_sha256="$(shasum -a 256 docs/design/s10/s10-screen-state-inventory.json | awk '{print toupper($1)}')"
+          common_task_schema_sha256="$(shasum -a 256 docs/design/s10/s10-accessibility-common-tasks.json | awk '{print toupper($1)}')"
+          evidence_kernel_json="$(jq -cS '
+            {
+              productHead,
+              selectorSHA256,
+              shardContractSHA256,
+              inventorySHA256,
+              commonTaskSchemaSHA256,
+              orderedStateSHA256,
+              stateSetSHA256,
+              captureBaselineSHA256,
+              state27CallerSHA256,
+              preflightHelperSHA256,
+              issueRecheckHelperSHA256,
+              exceptionAuthorities
+            }
+          ' Scripts/s10-4-segment-plan.json)"
+          evidence_kernel_sha256="$(printf '%s' "$evidence_kernel_json" \
+            | shasum -a 256 | awk '{print toupper($1)}')"
+          test "$evidence_kernel_sha256" = \
+            "$(jq -r '.evidenceKernelSHA256' Scripts/s10-4-segment-plan.json)"
+          plan_sha256="$(shasum -a 256 Scripts/s10-4-segment-plan.json | awk '{print toupper($1)}')"
+          xcode_build="${EXPECTED_XCODE_BUILD#Build version }"
+          jq -n \
+            --arg taskID "$CI_TASK_ID" \
+            --arg shardID "$CI_S10_4_SHARD_ID" \
+            --arg requirementID "$CI_S10_4_REQUIREMENT_ID" \
+            --arg deviceProfileID "$CI_S10_4_DEVICE_PROFILE_ID" \
+            --arg productHead "$GITHUB_SHA" \
+            --arg ref "$GITHUB_REF" \
+            --arg runID "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg jobID "$GITHUB_JOB" \
+            --arg artifactName "ios-ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$CI_S10_4_SHARD_ID-$CI_S10_4_SEGMENT_ID" \
+            --arg runnerProvider "$CI_RUNNER_PROVIDER" \
+            --arg runnerLabel "$CI_RUNNER_LABEL" \
+            --arg runnerName "$RUNNER_NAME" \
+            --arg xcodeVersion "$EXPECTED_XCODE_VERSION" \
+            --arg xcodeBuild "$xcode_build" \
+            --arg sdkName "$sdk_name" \
+            --arg sdkBuild "$sdk_build" \
+            --arg runtime "$SIMULATOR_RUNTIME" \
+            --arg runtimeBuild "$SIMULATOR_RUNTIME_BUILD" \
+            --arg simulatorName "$SIMULATOR_NAME" \
+            --arg simulatorUDID "$CI_SIMULATOR_UDID" \
+            --arg segmentID "$CI_S10_4_SEGMENT_ID" \
+            --arg planSHA256 "$plan_sha256" \
+            --arg buildIdentity "$build_identity" \
+            --arg unitIdentity "$unit_identity" \
+            --arg uiIdentity "$ui_identity" \
+            --arg sessionIdentity "$session_identity" \
+            --arg selectorSHA256 "$selector_sha256" \
+            --arg shardContractSHA256 "$shard_contract_sha256" \
+            --arg inventorySHA256 "$inventory_sha256" \
+            --arg commonTaskSchemaSHA256 "$common_task_schema_sha256" \
+            --arg evidenceKernelSHA256 "$evidence_kernel_sha256" \
+            --argjson unitTestSelectors "$unit_executed_test_selectors" \
+            --argjson uiTestSelectors "$ui_executed_test_selectors" \
+            --argjson unitExecutedTestCount "$unit_executed_test_count" \
+            --argjson uiExecutedTestCount "$ui_executed_test_count" \
+            --argjson attachmentCount "$attachment_count" \
+            --argjson diagnosticCount "$diagnostic_count" \
+            --argjson segment "$segment_json" '
+              {
+                schemaVersion: 1,
+                receiptKind: "s10.4-segment-pending",
+                complete: false,
+                finalAcceptanceEligible: false,
+                taskID: $taskID,
+                shardID: $shardID,
+                requirementID: $requirementID,
+                deviceProfileID: $deviceProfileID,
+                productHead: $productHead,
+                ref: $ref,
+                runID: $runID,
+                runAttempt: $runAttempt,
+                jobID: $jobID,
+                artifactName: $artifactName,
+                segmentID: $segmentID,
+                ordinal: $segment.ordinal,
+                startOrdinal: $segment.startOrdinal,
+                endOrdinal: $segment.endOrdinal,
+                stateCount: $segment.stateCount,
+                replayCount: $segment.replayCount,
+                ownedStateIDs: $segment.ownedStateIDs,
+                replayStateIDs: $segment.replayStateIDs,
+                ownedStateSHA256: $segment.ownedStateSHA256,
+                replayStateSHA256: $segment.replayStateSHA256,
+                segmentPlanSHA256: $planSHA256,
+                selectorSHA256: $selectorSHA256,
+                shardContractSHA256: $shardContractSHA256,
+                inventorySHA256: $inventorySHA256,
+                commonTaskSchemaSHA256: $commonTaskSchemaSHA256,
+                evidenceKernelSHA256: $evidenceKernelSHA256,
+                runnerProvider: $runnerProvider,
+                runnerLabel: $runnerLabel,
+                runnerName: $runnerName,
+                xcodeVersion: $xcodeVersion,
+                xcodeBuild: $xcodeBuild,
+                sdkName: $sdkName,
+                sdkBuild: $sdkBuild,
+                simulatorRuntime: $runtime,
+                simulatorRuntimeBuild: $runtimeBuild,
+                simulatorName: $simulatorName,
+                simulatorUDID: $simulatorUDID,
+                buildMode: "independent-build-for-testing",
+                crossSessionBuildReuse: false,
+                crossSessionTestWithoutBuilding: false,
+                buildIdentitySHA256: $buildIdentity,
+                unitIdentitySHA256: $unitIdentity,
+                uiIdentitySHA256: $uiIdentity,
+                sessionIdentitySHA256: $sessionIdentity,
+                unitTestSelectors: $unitTestSelectors,
+                uiTestSelectors: $uiTestSelectors,
+                unitExecutedTestCount: $unitExecutedTestCount,
+                uiExecutedTestCount: $uiExecutedTestCount,
+                attachmentCount: $attachmentCount,
+                segmentTerminalAttachmentCount: 1,
+                markerCount: $segment.stateCount,
+                replayRowCount: $segment.replayCount,
+                diagnosticCount: $diagnosticCount,
+                candidateCount: $segment.stateCount,
+                stateAXRowCount: $segment.stateCount,
+                contrastRowCount: $segment.stateCount,
+                accessibilityRowCount: 0
+              }
+            ' > "$shard_evidence_path/segment-receipt.pending.json"
+          test ! -e "$shard_evidence_path/segment-receipt.json"
+          test ! -e "$shard_evidence_path/shard-receipt.json"
+
       - name: Retain S10.4 shard evidence
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' && inputs.s10_4_segment_id == 'none' }}
         shell: bash
         env:
           DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
@@ -2165,6 +2722,156 @@ jobs:
               test -s "$CI_ARTIFACT_DIR/simulator-runtime-policy.txt"
               test "${CI_S10_4_SHARD_ID:-none}" != "none"
               shard_evidence_path="$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID"
+              if test "${CI_S10_4_SEGMENT_ID:-none}" != "none"; then
+                segment_json="$(jq -cer --arg segment "$CI_S10_4_SEGMENT_ID" \
+                  '.segments[] | select(.segmentID == $segment)' \
+                  Scripts/s10-4-segment-plan.json)"
+                expected_state_count="$(jq -r '.stateCount' <<< "$segment_json")"
+                expected_replay_count="$(jq -r '.replayCount' <<< "$segment_json")"
+                expected_plan_sha256="$(shasum -a 256 Scripts/s10-4-segment-plan.json | awk '{print toupper($1)}')"
+                expected_evidence_kernel_sha256="$(jq -r '.evidenceKernelSHA256' Scripts/s10-4-segment-plan.json)"
+                expected_selector_sha256="$(shasum -a 256 Scripts/ci-selection.json | awk '{print toupper($1)}')"
+                expected_shard_contract_sha256="$(shasum -a 256 Scripts/s10-4-shards.json | awk '{print toupper($1)}')"
+                expected_inventory_sha256="$(shasum -a 256 docs/design/s10/s10-screen-state-inventory.json | awk '{print toupper($1)}')"
+                expected_common_task_schema_sha256="$(shasum -a 256 docs/design/s10/s10-accessibility-common-tasks.json | awk '{print toupper($1)}')"
+                expected_unit_executed_test_selectors="$(jq -c '
+                  [.. | objects
+                    | select(.nodeType? == "Test Case" and .result? == "Passed")
+                    | .nodeIdentifier]
+                  | unique | sort
+                ' "$CI_ARTIFACT_DIR/unit-test-results.json")"
+                expected_ui_executed_test_selectors="$(jq -c '
+                  [.. | objects
+                    | select(.nodeType? == "Test Case" and .result? == "Passed")
+                    | .nodeIdentifier]
+                  | unique | sort
+                ' "$CI_ARTIFACT_DIR/ui-test-results.json")"
+                expected_attachment_count="$(jq '[.[]?.attachments[]?] | length' \
+                  "$shard_evidence_path/xcresult-attachment-manifest.json")"
+                test "$expected_attachment_count" -eq "$((expected_state_count + 1))"
+                require_nonempty_directory "$shard_evidence_path/candidates"
+                test "$(find "$shard_evidence_path/candidates" -type f -name 'state.*.png' \
+                  | wc -l | tr -d ' ')" -eq "$expected_state_count"
+                test -s "$shard_evidence_path/xcresult-attachment-manifest.json"
+                test -s "$shard_evidence_path/candidate-exports.json"
+                test -s "$shard_evidence_path/candidate-files.json"
+                test -s "$shard_evidence_path/state-ax.ndjson"
+                test -s "$shard_evidence_path/state-ax.json"
+                test -s "$shard_evidence_path/contrast.ndjson"
+                test -s "$shard_evidence_path/contrast.json"
+                test -s "$shard_evidence_path/replay-rows.json"
+                test -s "$shard_evidence_path/segment-receipt.pending.json"
+                test ! -e "$shard_evidence_path/segment-receipt.json"
+                test ! -e "$shard_evidence_path/shard-receipt.json"
+                test "$(jq 'length' "$shard_evidence_path/candidate-files.json")" \
+                  -eq "$expected_state_count"
+                test "$(jq 'length' "$shard_evidence_path/state-ax.json")" \
+                  -eq "$expected_state_count"
+                test "$(jq 'length' "$shard_evidence_path/contrast.json")" \
+                  -eq "$expected_state_count"
+                test "$(jq 'length' "$shard_evidence_path/replay-rows.json")" \
+                  -eq "$expected_replay_count"
+                state_ax_path="$CI_ARTIFACT_DIR/ax/$CI_S10_4_SHARD_ID"
+                state_contrast_path="$CI_ARTIFACT_DIR/contrast/$CI_S10_4_SHARD_ID"
+                require_nonempty_directory "$state_ax_path"
+                require_nonempty_directory "$state_contrast_path"
+                test "$(find "$state_ax_path" -type f -name 'state.*.json' | wc -l | tr -d ' ')" \
+                  -eq "$expected_state_count"
+                test "$(find "$state_contrast_path" -type f -name 'state.*.json' | wc -l | tr -d ' ')" \
+                  -eq "$expected_state_count"
+                test ! -e "$CI_ARTIFACT_DIR/accessibility/$CI_S10_4_SHARD_ID"
+                jq -e --arg segment "$CI_S10_4_SEGMENT_ID" \
+                  --arg head "$GITHUB_SHA" \
+                  --arg ref "$GITHUB_REF" \
+                  --arg run "$GITHUB_RUN_ID" \
+                  --arg job "$GITHUB_JOB" \
+                  --arg artifactName "ios-ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$CI_S10_4_SHARD_ID-$CI_S10_4_SEGMENT_ID" \
+                  --arg planSHA256 "$expected_plan_sha256" \
+                  --arg evidenceKernelSHA256 "$expected_evidence_kernel_sha256" \
+                  --arg selectorSHA256 "$expected_selector_sha256" \
+                  --arg shardContractSHA256 "$expected_shard_contract_sha256" \
+                  --arg inventorySHA256 "$expected_inventory_sha256" \
+                  --arg commonTaskSchemaSHA256 "$expected_common_task_schema_sha256" \
+                  --argjson unitTestSelectors "$expected_unit_executed_test_selectors" \
+                  --argjson uiTestSelectors "$expected_ui_executed_test_selectors" \
+                  --argjson attachmentCount "$expected_attachment_count" \
+                  --argjson segmentPlan "$segment_json" \
+                  --argjson stateCount "$expected_state_count" \
+                  --argjson replayCount "$expected_replay_count" '
+                    .schemaVersion == 1
+                    and .receiptKind == "s10.4-segment-pending"
+                    and .complete == false
+                    and .finalAcceptanceEligible == false
+                    and .segmentID == $segment
+                    and .productHead == $head
+                    and .ref == $ref
+                    and .runID == $run
+                    and .jobID == $job
+                    and .artifactName == $artifactName
+                    and .segmentPlanSHA256 == $planSHA256
+                    and .evidenceKernelSHA256 == $evidenceKernelSHA256
+                    and .selectorSHA256 == $selectorSHA256
+                    and .shardContractSHA256 == $shardContractSHA256
+                    and .inventorySHA256 == $inventorySHA256
+                    and .commonTaskSchemaSHA256 == $commonTaskSchemaSHA256
+                    and .sdkName == "iphonesimulator26.5"
+                    and .sdkBuild == "23F81a"
+                    and .xcodeVersion == "Xcode 26.6"
+                    and .xcodeBuild == "17F113"
+                    and .runnerProvider == "github"
+                    and .runnerLabel == "macos-26"
+                    and .simulatorRuntime == "iOS 26.2"
+                    and .simulatorRuntimeBuild == "23C54"
+                    and .simulatorName == "iPhone 17"
+                    and .buildMode == "independent-build-for-testing"
+                    and .crossSessionBuildReuse == false
+                    and .crossSessionTestWithoutBuilding == false
+                    and .unitExecutedTestCount == 5
+                    and .uiExecutedTestCount == 1
+                    and .unitTestSelectors == $unitTestSelectors
+                    and (.unitTestSelectors | length) == 5
+                    and .uiTestSelectors == $uiTestSelectors
+                    and (.uiTestSelectors | length) == 1
+                    and .attachmentCount == $attachmentCount
+                    and .segmentTerminalAttachmentCount == 1
+                    and .ordinal == $segmentPlan.ordinal
+                    and .startOrdinal == $segmentPlan.startOrdinal
+                    and .endOrdinal == $segmentPlan.endOrdinal
+                    and .ownedStateIDs == $segmentPlan.ownedStateIDs
+                    and .replayStateIDs == $segmentPlan.replayStateIDs
+                    and .ownedStateSHA256 == $segmentPlan.ownedStateSHA256
+                    and .replayStateSHA256 == $segmentPlan.replayStateSHA256
+                    and .stateCount == $stateCount
+                    and .replayCount == $replayCount
+                    and .markerCount == $stateCount
+                    and .replayRowCount == $replayCount
+                    and .diagnosticCount == 0
+                    and .candidateCount == $stateCount
+                    and .stateAXRowCount == $stateCount
+                    and .contrastRowCount == $stateCount
+                    and .accessibilityRowCount == 0
+                    and (.buildIdentitySHA256 | test("^[0-9A-F]{64}$"))
+                    and (.unitIdentitySHA256 | test("^[0-9A-F]{64}$"))
+                    and (.uiIdentitySHA256 | test("^[0-9A-F]{64}$"))
+                    and (.sessionIdentitySHA256 | test("^[0-9A-F]{64}$"))
+                  ' "$shard_evidence_path/segment-receipt.pending.json" > /dev/null
+                for evidence_file in "$state_ax_path"/*.json; do
+                  jq -e --arg shard "$CI_S10_4_SHARD_ID" --arg productHead "$GITHUB_SHA" '
+                    .shardID == $shard
+                    and .sourceProductHead == $productHead
+                    and (.evidenceID == ("s10.4-ax-" + $shard + "-" + .stateID))
+                    and (.axTreeSHA256 | test("^[0-9A-F]{64}$"))
+                  ' "$evidence_file" > /dev/null
+                done
+                for evidence_file in "$state_contrast_path"/*.json; do
+                  jq -e --arg shard "$CI_S10_4_SHARD_ID" --arg productHead "$GITHUB_SHA" '
+                    .shardID == $shard
+                    and .sourceProductHead == $productHead
+                    and (.evidenceID == ("s10.4-contrast-" + $shard + "-" + .stateID))
+                    and (.axTreeSHA256 | test("^[0-9A-F]{64}$"))
+                  ' "$evidence_file" > /dev/null
+                done
+              else
               require_nonempty_directory "$shard_evidence_path/candidates"
               test "$(find "$shard_evidence_path/candidates" -type f -name 'state.*.png' \
                 | wc -l | tr -d ' ')" -eq 67
@@ -2241,6 +2948,7 @@ jobs:
                     and (.contrastEvidenceID == ("s10.4-contrast-" + $shard + "-" + .taskID))
                   ' "$evidence_file" > /dev/null
               done
+              fi
             fi
           else
             test "${CI_RUN_UI_SMOKE:-}" = "false"
@@ -2248,6 +2956,29 @@ jobs:
             test ! -e "$CI_ARTIFACT_DIR/UISmoke.xcresult"
             test ! -e "$CI_ARTIFACT_DIR/ui-final.png"
           fi
+
+      - name: Finalize successful S10.4 segment receipt
+        if: ${{ success() && inputs.s10_4_segment_id != 'none' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shard_evidence_path="$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID"
+          test -s "$shard_evidence_path/segment-receipt.pending.json"
+          test ! -e "$shard_evidence_path/segment-receipt.json"
+          jq -cS '.receiptKind = "s10.4-segment" | .complete = true' \
+            "$shard_evidence_path/segment-receipt.pending.json" \
+            > "$RUNNER_TEMP/s10-4-segment-receipt.final.json"
+          mv "$RUNNER_TEMP/s10-4-segment-receipt.final.json" \
+            "$shard_evidence_path/segment-receipt.json"
+          rm -f "$shard_evidence_path/segment-receipt.pending.json"
+          test -s "$shard_evidence_path/segment-receipt.json"
+          test ! -e "$shard_evidence_path/segment-receipt.pending.json"
+          jq -e '
+            .receiptKind == "s10.4-segment"
+            and .complete == true
+            and .finalAcceptanceEligible == false
+            and .segmentTerminalAttachmentCount == 1
+          ' "$shard_evidence_path/segment-receipt.json" > /dev/null
 
       - name: Record GetMac development-only lane
         if: ${{ always() && inputs.runner_provider == 'getmac' }}
@@ -2442,11 +3173,25 @@ jobs:
             "$elapsed_seconds" "$CI_TOTAL_BUDGET_SECONDS"
           test "$elapsed_seconds" -le "$CI_TOTAL_BUDGET_SECONDS"
 
+      - name: Remove nonaccepting partial S10.4 segment receipt
+        if: ${{ always() && inputs.s10_4_segment_id != 'none' && (failure() || cancelled()) }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shard_evidence_path="$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID"
+          rm -f \
+            "$shard_evidence_path/segment-receipt.json" \
+            "$shard_evidence_path/segment-receipt.pending.json" \
+            "$CI_ARTIFACT_DIR/SHA256SUMS.txt"
+          test ! -e "$shard_evidence_path/segment-receipt.json"
+          test ! -e "$shard_evidence_path/segment-receipt.pending.json"
+          test ! -e "$CI_ARTIFACT_DIR/SHA256SUMS.txt"
+
       - name: Upload build evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id)) }}
+          name: ${{ inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id))) }}
           path: ${{ runner.temp }}/FieldEvidenceCI
           if-no-files-found: error
           retention-days: 14
