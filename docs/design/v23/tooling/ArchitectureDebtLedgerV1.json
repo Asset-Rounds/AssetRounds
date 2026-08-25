@@ -1,0 +1,453 @@
+{
+  "schema": "ArchitectureDebtLedgerV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C10",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "50c18e716575313097d1e6981ef3d444eac01ad4",
+    "baseTree": "307d5dfc0cc95f691185ad8366e3fb7e8dc448bf",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "ac176edb8c0857be5c4b0db315c6237e849ecbac09f9bba254af757ab59dcb68",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "bc54f8887a6006669a74085c0ab88186dbf41266d5c4ece97727f48ad7ae7ee5",
+    "bootstrapPathFenceDigest": "f34d2e3ea8defd5ff7146a499b88e39c76b0a925c519bb524120a2542064d1cb",
+    "provisionalPrerequisiteDigest": "38c99ab22e9ee8193fb44e8ae9b66e1dc54ce9d7d54f348243c7d5ac41b824e8",
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "3b628688db05bf9ba75673faed3bee8e71d4d82b9ac758b72f0d334025a37225",
+    "ledgerCASSequence": 27,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "ratchetKinds": [
+    "DIRECT_DATE",
+    "DIRECT_UUID",
+    "FEATURE_MODELCONTEXT",
+    "FEATURE_CONCRETE_CONSTRUCTION",
+    "PROCESS_INFO",
+    "UNCHECKED_SENDABLE",
+    "NONISOLATED_UNSAFE",
+    "TASK_DETACHED",
+    "OVERSIZED_HOTSPOT"
+  ],
+  "findings": [
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 46,
+      "kind": "processInfo"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 261,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Models/Asset.swift",
+      "line": 17,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Models/Asset.swift",
+      "line": 23,
+      "kind": "directDateConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Models/Site.swift",
+      "line": 15,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Models/Site.swift",
+      "line": 19,
+      "kind": "directDateConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "line": 309,
+      "kind": "directDateConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "line": 328,
+      "kind": "directDateConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "line": 354,
+      "kind": "processInfo"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "line": 366,
+      "kind": "directDateConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 269,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 270,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 271,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 272,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 275,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 276,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 488,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 774,
+      "kind": "directDateConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 889,
+      "kind": "directDateConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 929,
+      "kind": "directDateConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 1549,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+      "line": 522,
+      "kind": "directDateConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "line": 287,
+      "kind": "directDateConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "line": 30,
+      "kind": "directDateConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "line": 234,
+      "kind": "directDateConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "line": 273,
+      "kind": "processInfo"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+      "line": 205,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+      "line": 206,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+      "line": 33,
+      "kind": "processInfo"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+      "line": 20,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 104,
+      "kind": "processInfo"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 361,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 365,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/FirstSignCoordinator.swift",
+      "line": 168,
+      "kind": "directDateConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 20,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 24,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitLifecycleCoordinator.swift",
+      "line": 25,
+      "kind": "uncheckedSendable"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitPurchaseCoordinator.swift",
+      "line": 228,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift",
+      "line": 5,
+      "kind": "uncheckedSendable"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift",
+      "line": 46,
+      "kind": "uncheckedSendable"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift",
+      "line": 67,
+      "kind": "uncheckedSendable"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+      "line": 37,
+      "kind": "uncheckedSendable"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+      "line": 102,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+      "line": 628,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+      "line": 53,
+      "kind": "uncheckedSendable"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+      "line": 78,
+      "kind": "uncheckedSendable"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+      "line": 961,
+      "kind": "uncheckedSendable"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+      "line": 1418,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+      "line": 1610,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift",
+      "line": 63,
+      "kind": "uncheckedSendable"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+      "line": 1466,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "line": 13,
+      "kind": "uncheckedSendable"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "line": 399,
+      "kind": "directDateConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "line": 428,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "line": 429,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "line": 430,
+      "kind": "directUUIDConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/System/SystemRuntimeAdapters.swift",
+      "line": 5,
+      "kind": "directDateConstruction"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/System/SystemRuntimeAdapters.swift",
+      "line": 11,
+      "kind": "directUUIDConstruction"
+    }
+  ],
+  "findingCounts": {
+    "processInfo": 5,
+    "directUUIDConstruction": 28,
+    "directDateConstruction": 15,
+    "uncheckedSendable": 10
+  },
+  "hotspots": [
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift",
+      "lineCount": 2608
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "lineCount": 2171
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift",
+      "lineCount": 1968
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+      "lineCount": 1772
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+      "lineCount": 1741
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "lineCount": 1617
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "lineCount": 1445
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+      "lineCount": 1425
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+      "lineCount": 1348
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "lineCount": 1313
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+      "lineCount": 1176
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift",
+      "lineCount": 1138
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+      "lineCount": 919
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+      "lineCount": 876
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "lineCount": 793
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+      "lineCount": 790
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift",
+      "lineCount": 711
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift",
+      "lineCount": 634
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift",
+      "lineCount": 593
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "lineCount": 545
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift",
+      "lineCount": 543
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+      "lineCount": 538
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+      "lineCount": 536
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift",
+      "lineCount": 523
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/EntitlementStore.swift",
+      "lineCount": 508
+    }
+  ],
+  "newForbiddenDebtCount": 0,
+  "debtBaselineSatisfied": true,
+  "disposition": "BASELINE_CAPTURED_NO_C10_FORBIDDEN_GROWTH",
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "artifactDigest": "ecc1a36dca29e6f4f7acb7840ea95eeec8912a615080c892a9171a33634ff8ea"
+}
