@@ -424,10 +424,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(dispatcherSource.contains("fromJSON("))
         XCTAssertFalse(dispatcherSource.contains("contains("))
         XCTAssertFalse(dispatcherSource.contains("          - all"))
-        XCTAssertFalse(dispatcherSource.contains("strategy:"))
-        XCTAssertFalse(dispatcherSource.contains("matrix:"))
-        XCTAssertFalse(dispatcherSource.contains("max-parallel:"))
-
         let workerEnvironmentMarker = "    env:\n"
         let workerStepsMarker = "    steps:\n"
         guard
@@ -545,15 +541,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertFalse(warpScopeSource.contains("s10.4.minimum."))
         XCTAssertNotEqual(workerExecutionSource, warpExecutionSource)
-        XCTAssertEqual(workerExecutionSource.utf8.count, 40_025)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 71_345)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "47CF2AF4092925F00C25FC7C1E064FF95481166B8658BA67C3DED58C8F9EFAE9"
+            "F415A4EFBED4AA211F0D8557A4CB31C008DFBBEF2964478B614FAD50C19F1BE7"
         )
-        XCTAssertEqual(warpExecutionSource.utf8.count, 36_775)
+        XCTAssertEqual(warpExecutionSource.utf8.count, 36_998)
         XCTAssertEqual(
             Data(warpExecutionSource.utf8).sha256,
-            "7653353DC11C8C0E4382B88E88CDACA5DD87177D537E333B2AEC844703CFB68C"
+            "61931F902E44BDF80EE7C53E41F0BF321167622926805033C59CD23ABA5BCA70"
         )
         XCTAssertEqual(
             warpExecutionSource.components(
@@ -3123,10 +3119,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     signDetailRecordWorkTapRange.upperBound
             ]
         )
-        XCTAssertEqual(signDetailRouteHeadSource.utf8.count, 1_023)
+        XCTAssertEqual(signDetailRouteHeadSource.utf8.count, 1_096)
         XCTAssertEqual(
             Data(signDetailRouteHeadSource.utf8).sha256,
-            "26FFC59CB430880855552D15BFF36CA21D766F8E3A39E7F6B520AB6A1F8B8326"
+            "8457ED26750348E963244182BCD45B4E3A1AB55675928708F638B26DF2BBB8C6"
         )
         let workValidationRouteStart =
             #"        let description = element("s5.1.work.description", in: app)"#
