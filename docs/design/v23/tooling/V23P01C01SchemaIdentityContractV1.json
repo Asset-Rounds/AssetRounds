@@ -1,0 +1,365 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "activeSchema": "PersistentSchemaV1",
+  "adoptionEnabled": false,
+  "artifactDigest": "2344be8d2a2a21a155d2457196d658828e437204a5cfb8d55088802a947a6501",
+  "authority": {
+    "acceptanceCredit": false,
+    "acceptanceEnabled": false,
+    "acceptedS10_6BaselineDigest": null,
+    "adoptionEnabled": false,
+    "baseHead": "f3c4a764ddaa0dd607b04fa1929c80620d3164aa",
+    "baseTree": "d4b04d57475493511a8482563a7f1f981639c65a",
+    "branch": "phase/v23-expansion",
+    "contextDigest": "7e182eeb0787008de8c3ebeb5b575d1138dda4c7c2be6198c41e1ae671b3377b",
+    "deterministicEvidenceIDs": [
+      "V23-P01-C01-G01",
+      "V23-P01-C01-A01",
+      "V23-P01-C01-H01",
+      "V23-P01-C01-I01",
+      "V23-P01-C01-R01"
+    ],
+    "directPrerequisite": {
+      "acceptanceCredit": false,
+      "archiveInspectionComplete": false,
+      "candidateHead": "e6bfa3dd047e15b71f132b76db2e358bc734bfb0",
+      "candidateTree": "e333cf05f1256b2636f31c96cf1d74d323d61193",
+      "cardID": "V23-P00-C06",
+      "checkpointDigest": "8bdd5bcee83c136496e1ca6bd4b2a9ec79719ecf002d6f8bca9b73d853fc03ee",
+      "contextDigest": "afbb364ed404d4fbd57ee66c5707c8f670a002b8d81cdc425cc6a0cfb3c53d60",
+      "installedRuntimeClosureComplete": false,
+      "nativeCompileComplete": false,
+      "pathFenceDigest": "ca49bcc135ddc270e18c42b808a804a6b1de71bb8a08647b32bccd3b1a9a6eca",
+      "platformScopeManifestDigest": "ba548ef8cec1be0d290c300ebf88f10239640bc57e35841843aa4632d4bbed6b",
+      "platformScopeManifestFileSHA256": "cc94c682351116ecb7254ccd3a50a05af835fbebe2fd3f5873a0be7f103df0de",
+      "releaseCredit": false,
+      "releaseHookClosureComplete": false,
+      "toolingManifestDigest": "33e5f0043ab318261ec63ee92b0bc4360215e5fd7bd7ac279b647738b743198e",
+      "toolingManifestFileSHA256": "9e969a4c3b7622d7b02086f41abfc723a53dc97aab619e9f769f500cebcab579",
+      "verificationReceiptDigest": "77444d12c7a2bec4b09f16e96fcb70f8278805d58200a15cd8033263eb4d53b8"
+    },
+    "dossierDigest": "881d5f6b834c73ddfee3e645c133d86f2f01acdc4cb091c0f6ee8e8f1e6358af",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "hostedDispatchRan": false,
+    "inheritedV21BlockDigest": "a590970b54dc229ffc0fc0825935e32465d716237be7cd4764caa5426f99353a",
+    "nativeCompileRan": false,
+    "pathFenceDigest": "26f81fe92663d9450a2292347eaf85dfcf49ac0f7323123995cf6cb07993271b",
+    "phase10PollingDuringParallelExecution": false,
+    "provisionalPrerequisiteDigest": "7c529255d7c23764ff050062fe0e509fa2c70131ca85cd4e022dfbf42841a82b",
+    "releaseCredit": false,
+    "requiresAcceptedS10_6Reconciliation": true
+  },
+  "cardID": "V23-P01-C01",
+  "dormantSchema": "PersistentSchemaV2",
+  "exclusions": [
+    "MIGRATION_IMPLEMENTATION",
+    "PERSISTENT_SCHEMA_V2_ACTIVATION",
+    "CLOUDKIT",
+    "REMOTE_SYNC",
+    "ACCOUNTS_AUTH_TENANCY",
+    "NEW_USER_VISIBLE_FIELDS"
+  ],
+  "hostedDispatchRan": false,
+  "identityTaxonomy": [
+    {
+      "distinctFrom": [
+        "EntityID",
+        "ReplicaID",
+        "GenerationID",
+        "MutationID",
+        "CheckpointID",
+        "AccountID",
+        "ServerID"
+      ],
+      "name": "WorkspaceID",
+      "representation": "UUID",
+      "scope": "STABLE_NON_PERSON_WORKSPACE"
+    },
+    {
+      "distinctFrom": [
+        "WorkspaceID",
+        "ReplicaID",
+        "GenerationID",
+        "MutationID",
+        "CheckpointID",
+        "AccountID",
+        "ServerID"
+      ],
+      "name": "EntityID<Model>",
+      "representation": "UUID",
+      "scope": "GLOBALLY_COLLISION_RESISTANT_TYPED_ENTITY"
+    },
+    {
+      "distinctFrom": [
+        "WorkspaceID",
+        "EntityID",
+        "GenerationID",
+        "MutationID",
+        "CheckpointID",
+        "AccountID",
+        "ServerID"
+      ],
+      "name": "ReplicaID",
+      "representation": "UUID",
+      "scope": "RANDOM_NON_HARDWARE_INSTALLATION"
+    }
+  ],
+  "lifecycle": {
+    "interruption": "FAIL_CLOSED_NO_PARTIAL_ACCEPTANCE",
+    "persistence": "IMMUTABLE_SOURCE_AND_CANDIDATE_BOUND_CONTRACT",
+    "recovery": "BYTE_EXACT_REGENERATION_OR_NEW_SUCCESSOR",
+    "successorTriggers": [
+      "SOURCE_CHANGE",
+      "SCHEMA_CHANGE",
+      "IDENTITY_TAXONOMY_CHANGE",
+      "FACTORY_CHANGE",
+      "EVIDENCE_CHANGE"
+    ],
+    "supersession": "APPEND_SUCCESSOR_NEVER_REWRITE_ACCEPTED_ARTIFACT"
+  },
+  "migrationPlan": "NONE_V2_NOT_ACTIVATED",
+  "modelRegistration": [
+    {
+      "applicationDeleteDisposition": "DELETE_ORPHAN_SITE_IF_SELECTED_ASSET_WAS_LAST_SITE_ASSET",
+      "applicationDeleteRuleOwner": "WholeSignDeletionRule + WholeSignDeletionService.apply(plan:rows:)",
+      "identity": "EntityID<Site>",
+      "name": "Site",
+      "referenceStorageDisposition": "NONE",
+      "references": [],
+      "swiftDataDeleteRuleDisposition": "NONE_NO_SWIFTDATA_RELATIONSHIP"
+    },
+    {
+      "applicationDeleteDisposition": "DELETE_SELECTED_ASSET_AFTER_DEPENDENTS",
+      "applicationDeleteRuleOwner": "WholeSignDeletionRule + WholeSignDeletionService.apply(plan:rows:)",
+      "identity": "EntityID<Asset>",
+      "name": "Asset",
+      "referenceStorageDisposition": "APPLICATION_GOVERNED_SCALAR_UUID",
+      "references": [
+        {
+          "field": "siteID",
+          "targetModel": "Site"
+        }
+      ],
+      "swiftDataDeleteRuleDisposition": "NONE_NO_SWIFTDATA_RELATIONSHIP"
+    },
+    {
+      "applicationDeleteDisposition": "DELETE_SELECTED_ASSET_WORKFLOW_RECORDS",
+      "applicationDeleteRuleOwner": "WholeSignDeletionRule + WholeSignDeletionService.apply(plan:rows:)",
+      "identity": "EntityID<WorkflowRecord>",
+      "name": "WorkflowRecord",
+      "referenceStorageDisposition": "APPLICATION_GOVERNED_SCALAR_UUID",
+      "references": [
+        {
+          "field": "assetID",
+          "targetModel": "Asset"
+        },
+        {
+          "field": "packetID",
+          "targetModel": "Packet"
+        },
+        {
+          "field": "issueID",
+          "targetModel": "Issue"
+        },
+        {
+          "field": "parentRecordID",
+          "targetModel": "WorkflowRecord"
+        },
+        {
+          "field": "recordRevisionRootID",
+          "targetModel": "WorkflowRecord"
+        },
+        {
+          "field": "revisesRecordID",
+          "targetModel": "WorkflowRecord"
+        },
+        {
+          "field": "evidenceSourceRecordID",
+          "targetModel": "WorkflowRecord"
+        }
+      ],
+      "swiftDataDeleteRuleDisposition": "NONE_NO_SWIFTDATA_RELATIONSHIP"
+    },
+    {
+      "applicationDeleteDisposition": "DELETE_SELECTED_RECORD_EVIDENCE",
+      "applicationDeleteRuleOwner": "WholeSignDeletionRule + WholeSignDeletionService.apply(plan:rows:)",
+      "identity": "EntityID<EvidenceFile>",
+      "name": "EvidenceFile",
+      "referenceStorageDisposition": "APPLICATION_GOVERNED_SCALAR_UUID",
+      "references": [
+        {
+          "field": "recordID",
+          "targetModel": "WorkflowRecord"
+        }
+      ],
+      "swiftDataDeleteRuleDisposition": "NONE_NO_SWIFTDATA_RELATIONSHIP"
+    },
+    {
+      "applicationDeleteDisposition": "DELETE_SELECTED_ASSET_ISSUES",
+      "applicationDeleteRuleOwner": "WholeSignDeletionRule + WholeSignDeletionService.apply(plan:rows:)",
+      "identity": "EntityID<Issue>",
+      "name": "Issue",
+      "referenceStorageDisposition": "APPLICATION_GOVERNED_SCALAR_UUID",
+      "references": [
+        {
+          "field": "assetID",
+          "targetModel": "Asset"
+        },
+        {
+          "field": "openedByRecordID",
+          "targetModel": "WorkflowRecord"
+        },
+        {
+          "field": "resolvedByRecordID",
+          "targetModel": "WorkflowRecord"
+        }
+      ],
+      "swiftDataDeleteRuleDisposition": "NONE_NO_SWIFTDATA_RELATIONSHIP"
+    },
+    {
+      "applicationDeleteDisposition": "DELETE_UNCOUNTED_PACKET_OR_TOMBSTONE_COUNTED_PACKET",
+      "applicationDeleteRuleOwner": "WholeSignDeletionRule + WholeSignDeletionService.apply(plan:rows:)",
+      "identity": "EntityID<Packet>",
+      "name": "Packet",
+      "referenceStorageDisposition": "APPLICATION_GOVERNED_SCALAR_UUID",
+      "references": [
+        {
+          "field": "stableRootID",
+          "targetModel": "Packet"
+        },
+        {
+          "field": "currentRecordID",
+          "targetModel": "WorkflowRecord"
+        }
+      ],
+      "swiftDataDeleteRuleDisposition": "NONE_NO_SWIFTDATA_RELATIONSHIP"
+    },
+    {
+      "applicationDeleteDisposition": "DELETE_SELECTED_PACKET_REPORTS",
+      "applicationDeleteRuleOwner": "WholeSignDeletionRule + WholeSignDeletionService.apply(plan:rows:)",
+      "identity": "EntityID<Report>",
+      "name": "Report",
+      "referenceStorageDisposition": "APPLICATION_GOVERNED_SCALAR_UUID",
+      "references": [
+        {
+          "field": "packetID",
+          "targetModel": "Packet"
+        },
+        {
+          "field": "sourceRecordID",
+          "targetModel": "WorkflowRecord"
+        },
+        {
+          "field": "replacesReportID",
+          "targetModel": "Report"
+        }
+      ],
+      "swiftDataDeleteRuleDisposition": "NONE_NO_SWIFTDATA_RELATIONSHIP"
+    }
+  ],
+  "nativeCompileRan": false,
+  "phase10PollingDuringParallelExecution": false,
+  "preOpenVersionLaw": {
+    "missingOrNoncanonical": "REJECT_DATA_POINTER_INVALID",
+    "pointerValidation": "BEFORE_SQLITE_OR_MODELCONTAINER_OPEN",
+    "supportedSchemaVersion": 1,
+    "unknownFutureVersion": "REJECT_DATA_POINTER_INVALID"
+  },
+  "preservation": {
+    "backupRestoreContract": "UNCHANGED",
+    "existingModelFields": "UNCHANGED",
+    "newUserVisibleFields": false,
+    "persistenceWriterContract": "UNCHANGED",
+    "reportContract": "UNCHANGED"
+  },
+  "regressionTestBindings": [
+    {
+      "method": "testBootstrapPersistsReleasesAndReopensTheExactGenerationLedger",
+      "path": "FieldEvidenceAppTests/S2PersistenceLedgerTests.swift",
+      "result": "NOT_RUN"
+    },
+    {
+      "method": "testValidReadyReportRemainsByteIdenticalAndTerminal",
+      "path": "FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift",
+      "result": "NOT_RUN"
+    },
+    {
+      "method": "testCanonicalFixturesAndExportedBundleTypeDeclaration",
+      "path": "FieldEvidenceAppTests/S6_2BackupExportTests.swift",
+      "result": "NOT_RUN"
+    },
+    {
+      "method": "testGoldenMixedPackageStagesValidatesAndRecomputesSummary",
+      "path": "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+      "result": "NOT_RUN"
+    }
+  ],
+  "regressionTestExecution": "NOT_RUN",
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "restoreIdentityLaw": {
+    "backupRestoreBehavior": "UNCHANGED",
+    "entities": "NO_MODEL_FIELD_MIGRATION",
+    "persistedReplicaIDImplemented": false,
+    "replica": "DESTINATION_MINT_FUNCTION_REJECTS_SOURCE_AND_DISALLOWED_IDS",
+    "runtimeRetentionImplemented": false,
+    "scope": "DECLARATION_ONLY_NO_PERSISTED_REPLICA_STATE",
+    "sourceReplicaImport": "FORBIDDEN",
+    "workspace": "NO_NEW_PERSISTED_WORKSPACE_ID_STATE"
+  },
+  "schema": "V23P01C01SchemaIdentityContractV1",
+  "schemaDescriptors": [
+    {
+      "name": "PersistentSchemaV1",
+      "registeredModels": [
+        "Site",
+        "Asset",
+        "WorkflowRecord",
+        "EvidenceFile",
+        "Issue",
+        "Packet",
+        "Report"
+      ],
+      "status": "CURRENT_ACTIVE",
+      "version": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "PersistentSchemaV2",
+      "registeredModels": [
+        "Site",
+        "Asset",
+        "WorkflowRecord",
+        "EvidenceFile",
+        "Issue",
+        "Packet",
+        "Report"
+      ],
+      "status": "DORMANT_DESCRIPTOR_ONLY",
+      "version": [
+        2,
+        0,
+        0
+      ]
+    }
+  ],
+  "schemaVersion": 1,
+  "staticSwiftPaths": [
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceIdentity.swift",
+    "FieldEvidenceAppTests/V9_01VersionedSchemaIdentityTests.swift"
+  ],
+  "storeFactoryLaw": {
+    "automaticOrPrivateCloudKit": "FORBIDDEN",
+    "cloudKitDatabase": "NONE_EXPLICIT",
+    "configurationName": "FieldEvidenceV1",
+    "defaultOrConvenienceConstruction": "FORBIDDEN",
+    "soleProductionFactory": "StoreGenerationFactory.makeContainer"
+  }
+}

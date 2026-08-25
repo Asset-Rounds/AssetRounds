@@ -12,6 +12,23 @@ enum StoreGenerationFailure: Error, Equatable {
     case dataGenerationMissing
 }
 
+private enum StorePointerSchemaRegistry {
+    static let currentVersion = 1
+    static let retiredVersion = 1
+
+    static func requireCurrent(_ version: Int) throws {
+        guard version == currentVersion else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+    }
+
+    static func requireRetired(_ version: Int) throws {
+        guard version == retiredVersion else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+    }
+}
+
 @MainActor
 final class StoreGenerationSession {
     let generationID: UUID
@@ -281,8 +298,8 @@ final class StoreRestoreGenerationAuthority {
                 name: "current.json"
             )
         )
-        guard value.schemaVersion == 1,
-              let id = UUID(uuidString: value.generationID),
+        try StorePointerSchemaRegistry.requireCurrent(value.schemaVersion)
+        guard let id = UUID(uuidString: value.generationID),
               Self.canonical(id) == value.generationID else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
@@ -297,8 +314,8 @@ final class StoreRestoreGenerationAuthority {
                 name: "retired.json"
             )
         )
-        guard value.schemaVersion == 1,
-              value.generationIDs == value.generationIDs.sorted(),
+        try StorePointerSchemaRegistry.requireRetired(value.schemaVersion)
+        guard value.generationIDs == value.generationIDs.sorted(),
               Set(value.generationIDs).count == value.generationIDs.count else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
@@ -330,7 +347,7 @@ final class StoreRestoreGenerationAuthority {
             name: "current.json",
             value: CurrentPointerV1(
                 generationID: Self.canonical(newID),
-                schemaVersion: 1
+                schemaVersion: StorePointerSchemaRegistry.currentVersion
             )
         )
         guard try currentGenerationID() == newID else {
@@ -363,7 +380,7 @@ final class StoreRestoreGenerationAuthority {
             name: "retired.json",
             value: RetiredPointerV1(
                 generationIDs: values.map(Self.canonical),
-                schemaVersion: 1
+                schemaVersion: StorePointerSchemaRegistry.retiredVersion
             )
         )
         guard try retiredGenerationIDs() == values else {
@@ -640,7 +657,7 @@ final class StoreRestoreGenerationAuthority {
             name: "retired.json",
             value: RetiredPointerV1(
                 generationIDs: replacement.map(Self.canonical),
-                schemaVersion: 1
+                schemaVersion: StorePointerSchemaRegistry.retiredVersion
             )
         )
         guard try retiredGenerationIDs() == replacement else {
@@ -1146,8 +1163,8 @@ struct StoreGenerationFactory {
         let pointer: CurrentPointerV1 = try decodeCanonicalPointer(
             at: dataRootURL.appendingPathComponent(Self.currentPointerName)
         )
-        guard pointer.schemaVersion == 1,
-              let value = canonicalUUID(from: pointer.generationID) else {
+        try StorePointerSchemaRegistry.requireCurrent(pointer.schemaVersion)
+        guard let value = canonicalUUID(from: pointer.generationID) else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
         return value
@@ -1294,7 +1311,7 @@ struct StoreGenerationFactory {
         }
         let pointer = CurrentPointerV1(
             generationID: canonicalString(for: newID),
-            schemaVersion: 1
+            schemaVersion: StorePointerSchemaRegistry.currentVersion
         )
         let url = dataRootURL.appendingPathComponent(Self.currentPointerName)
         try canonicalData(for: pointer).write(to: url, options: .atomic)
@@ -1340,7 +1357,7 @@ struct StoreGenerationFactory {
         }
         let pointer = RetiredPointerV1(
             generationIDs: values.map { canonicalString(for: $0) },
-            schemaVersion: 1
+            schemaVersion: StorePointerSchemaRegistry.retiredVersion
         )
         let url = dataRootURL.appendingPathComponent(Self.retiredPointerName)
         try canonicalData(for: pointer).write(to: url, options: .atomic)
@@ -1353,8 +1370,8 @@ struct StoreGenerationFactory {
         let pointer: RetiredPointerV1 = try decodeCanonicalPointer(
             at: dataRootURL.appendingPathComponent(Self.retiredPointerName)
         )
-        guard pointer.schemaVersion == 1,
-              pointer.generationIDs == pointer.generationIDs.sorted(),
+        try StorePointerSchemaRegistry.requireRetired(pointer.schemaVersion)
+        guard pointer.generationIDs == pointer.generationIDs.sorted(),
               Set(pointer.generationIDs).count == pointer.generationIDs.count else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
@@ -1486,11 +1503,11 @@ struct StoreGenerationFactory {
 
         let currentPointer = CurrentPointerV1(
             generationID: generationName,
-            schemaVersion: 1
+            schemaVersion: StorePointerSchemaRegistry.currentVersion
         )
         let retiredPointer = RetiredPointerV1(
             generationIDs: [],
-            schemaVersion: 1
+            schemaVersion: StorePointerSchemaRegistry.retiredVersion
         )
         try canonicalData(for: currentPointer).write(
             to: bootstrapURL.appendingPathComponent(Self.currentPointerName),
@@ -1523,9 +1540,9 @@ struct StoreGenerationFactory {
 
         let current: CurrentPointerV1 = try decodeCanonicalPointer(at: currentURL)
         let retired: RetiredPointerV1 = try decodeCanonicalPointer(at: retiredURL)
-        guard current.schemaVersion == 1,
-              retired.schemaVersion == 1,
-              let currentID = canonicalUUID(from: current.generationID),
+        try StorePointerSchemaRegistry.requireCurrent(current.schemaVersion)
+        try StorePointerSchemaRegistry.requireRetired(retired.schemaVersion)
+        guard let currentID = canonicalUUID(from: current.generationID),
               retired.generationIDs.allSatisfy({ canonicalUUID(from: $0) != nil }),
               retired.generationIDs == retired.generationIDs.sorted(),
               Set(retired.generationIDs).count == retired.generationIDs.count,
@@ -1656,18 +1673,7 @@ struct StoreGenerationFactory {
 
     @MainActor
     private func makeContainer(at modelStoreURL: URL) throws -> ModelContainer {
-        let schema = Schema(
-            [
-                Site.self,
-                Asset.self,
-                WorkflowRecord.self,
-                EvidenceFile.self,
-                Issue.self,
-                Packet.self,
-                Report.self,
-            ],
-            version: Schema.Version(1, 0, 0)
-        )
+        let schema = PersistentSchemaV1.makeSchema()
         let configuration = ModelConfiguration(
             "FieldEvidenceV1",
             schema: schema,
