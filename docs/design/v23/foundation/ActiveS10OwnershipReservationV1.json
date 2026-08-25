@@ -1,8 +1,11 @@
 {
   "schema": "ActiveS10OwnershipReservationV1",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "ownerBranch": "phase/s10-brand-refresh",
-  "ownerHead": "a8dcd01259317b0120a49041bc1bdb6e22fd423c",
+  "ownerHead": "d56de1c635dbbc695532f096a77161a5457aa80b",
+  "ownerTree": "48d86b6d03a4fad911ef23432f161eb0f211f369",
+  "headBindingMode": "FROZEN_OBSERVATION_NO_POLL_UNTIL_OWNER_REPORTS_S10_6_COMPLETE",
+  "reservationAuthority": "FROZEN_86_PATH_SET_DURING_PARALLEL_EXECUTION",
   "reservedPaths": [
     ".github/workflows/ios-ci-worker.yml",
     ".github/workflows/ios-ci.yml",
@@ -104,11 +107,10 @@
   "overlapCount": 0,
   "conflictPolicy": "PAUSE_ONLY_OVERLAPPING_LANE; ACCEPTED_PHASE10_AUTHORITY_WINS_SHARED_UI_AND_BRAND_CONFLICTS",
   "expiresOn": [
-    "ACTIVE_S10_HEAD_CHANGE",
-    "ACCEPTED_S10_6_AVAILABLE",
+    "OWNER_REPORTS_ACCEPTED_S10_6_AVAILABLE",
     "ORIGIN_MAIN_CHANGE",
-    "V23_PATH_FENCE_CHANGE"
+    "V23_PATH_FENCE_OVERLAPS_FROZEN_86_PATH_SET"
   ],
-  "createdAt": "2026-08-25T14:31:40.736Z",
-  "contentDigest": "3736e3eddb65155960780b77daed0df854bb72ce450106885c08ad78666c1f71"
+  "createdAt": "2026-08-25T14:43:38.043Z",
+  "contentDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
 }
