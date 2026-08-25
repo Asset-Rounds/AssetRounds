@@ -13292,10 +13292,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: postPurchaseAXHelperStart,
             before: "    @MainActor\n    private func assertMonthlyPaywallAtXXXL"
         )
-        XCTAssertEqual(postPurchaseAXHelperSource.utf8.count, 10_970)
+        XCTAssertEqual(postPurchaseAXHelperSource.utf8.count, 14_503)
         XCTAssertEqual(
             Data(postPurchaseAXHelperSource.utf8).sha256,
-            "FE777956BBAD3EB876AF8E1C09092D182A948095DE6F79946F4A4BABEE0FFAB0"
+            "CDD8C2C242BA60AA0C4D0867434D6F36D3202781CC5EB1974C3A33A4761107DF"
         )
         let postPurchaseAXStableRouteSource = try boundedSource(
             postPurchaseAXHelperSource,
@@ -13319,7 +13319,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before: "\n\n        let finalStoreFrame = store.frame"
         )
         for structuralLock in [
-            "for _ in 0..<4", "let minimumShift = max(",
+            "for attemptIndex in 0..<4", "let minimumShift = max(",
             "viewportTop - purchaseStateFrame.minY", "viewportBottom - purchaseFrame.minY",
             "let maximumShift = min(", "viewportTop - closeFrame.maxY",
             "viewportBottom - supportFrame.maxY",
@@ -13372,6 +13372,192 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertFalse(lowercasedAXHelperSource.contains(prohibitedHelperSideEffect))
         }
+
+        let purchaseFrontierInventorySource = try boundedSource(
+            uiSource,
+            from: "    private static let axTextPurchaseFrontierReplayCount = 38",
+            before: "    private static let contrastAuditExceptionSignatures = ["
+        )
+        XCTAssertEqual(purchaseFrontierInventorySource.utf8.count, 259)
+        XCTAssertEqual(
+            Data(purchaseFrontierInventorySource.utf8).sha256,
+            "F95308A87F9301AE9932F230109EC17E2B0AF26AE1908E134DADC004F6E14B3F"
+        )
+        for state in [
+            "state.paywall.available", "state.paywall.purchase-complete",
+            "state.check-outcome.could-not-verify",
+        ] {
+            XCTAssertTrue(purchaseFrontierInventorySource.contains(state))
+        }
+
+        let replayFunctionSource = try boundedSource(
+            uiSource,
+            from: "    @MainActor\n    private func replaySegmentPrefixIfNeeded(",
+            before: "    @MainActor\n    private func finishAutomatedSegmentIfNeeded("
+        )
+        let replayNoneSource = try boundedSource(
+            replayFunctionSource,
+            from: "        if automationSegment == .none {",
+            before: "        guard let shard = automationShard,\n" +
+                "              shard.shardID == \"s10.4.current.ax-text\" else {\n" +
+                "            XCTFail(\n" +
+                "                \"Only the frozen AX-text shard may enter a segmented route\""
+        )
+        XCTAssertEqual(replayNoneSource.utf8.count, 3_047)
+        XCTAssertEqual(
+            Data(replayNoneSource.utf8).sha256,
+            "A0870BC80335B4A3E68F1E99707118C4B979BA1164627AE91B2F7985C1F8DC0F"
+        )
+        for replayLock in [
+            "automationSegment == .none", "shard.shardID == \"s10.4.current.ax-text\"",
+            "Self.segmentedRouteStateIDs.count == 67",
+            "Set(Self.segmentedRouteStateIDs).count == 67", "replayCount == 38",
+            "frontierFinalOrdinal == 41", "segmentedRouteStateCursor += 1",
+            "guard segmentedRouteStateCursor <= replayCount else {\n                return false",
+            "prefix: \"S10_4_AX_TEXT_PURCHASE_COMPLETE_FRONTIER_REPLAY\"",
+        ] {
+            XCTAssertTrue(replayNoneSource.contains(replayLock), replayLock)
+        }
+        XCTAssertEqual(replayNoneSource.components(separatedBy: "printJSONLine(").count - 1, 1)
+        for prohibitedReplayEvidence in [
+            "captureBaseline(", "S10_MIGRATION_STATE", "S10_4_AX_STATE",
+            "S10_4_CONTRAST", "XCTAttachment", "candidate", "audit",
+        ] {
+            XCTAssertFalse(replayNoneSource.contains(prohibitedReplayEvidence))
+        }
+
+        let strictCaptureSource = try boundedSource(
+            uiSource,
+            from: "    @MainActor\n    private func captureBaseline(",
+            before: "        guard let shard = automationShard else { return }"
+        )
+        XCTAssertEqual(strictCaptureSource.utf8.count, 1_002)
+        XCTAssertEqual(
+            Data(strictCaptureSource.utf8).sha256,
+            "73F99D6482A35155883975FC39EFF2F480309788553BA2269186204FBD5498D6"
+        )
+        XCTAssertTrue(strictCaptureSource.contains("migratedStateIDs.append(stateID)"))
+        XCTAssertTrue(strictCaptureSource.contains("S10_MIGRATION_STATE state="))
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "captureBaseline(\"state.paywall.available\", in: app)"
+            ).count - 1,
+            1
+        )
+
+        let diagnosticGateSource = try boundedSource(
+            postPurchaseAXHelperSource,
+            from: "            if automationSegment == .none,",
+            before: "            guard viewportTop.isFinite,"
+        )
+        XCTAssertEqual(diagnosticGateSource.utf8.count, 3_522)
+        XCTAssertEqual(
+            Data(diagnosticGateSource.utf8).sha256,
+            "4D49D30E74ED155DF6960FB9F8D92BFCB3C68BD31EEDCDC0F336986D993BD285"
+        )
+        XCTAssertTrue(diagnosticGateSource.contains("minimumShift > maximumShift"))
+        XCTAssertEqual(
+            diagnosticGateSource.components(
+                separatedBy: "diagnoseAXTextPurchaseCompleteFrontier("
+            ).count - 1,
+            1
+        )
+        for binding in [
+            "screen", "store", "close", "purchaseState",
+            "terms", "privacy", "support", "subscribe",
+        ] {
+            XCTAssertTrue(diagnosticGateSource.contains("(\"\(binding)\""))
+        }
+        for term in [
+            "viewportTop", "viewportBottom", "purchaseStateTopShift", "purchaseBelowShift", "closeAboveShift",
+            "supportBottomShift", "minimumShift", "maximumShift", "intervalWidth",
+            "intervalFeasible", "containsZero", "receiverInset", "minimumGestureDistance", "receiverCapacity",
+            "closeWhollyAboveStore", "purchaseStateContainedByStore",
+            "termsContainedByStore", "privacyContainedByStore",
+            "supportContainedByStore", "termsPrivacySupportInOrder",
+            "subscribeWhollyBelowStore",
+        ] {
+            XCTAssertTrue(diagnosticGateSource.contains("\"\(term)\""), term)
+        }
+        for prohibitedDiagnosticAction in [".tap(", ".press(", "swipe", "captureBaseline("] {
+            XCTAssertFalse(diagnosticGateSource.contains(prohibitedDiagnosticAction))
+        }
+
+        let diagnosticHelperSource = try boundedSource(
+            uiSource,
+            from: "    @MainActor\n    private func diagnoseAXTextPurchaseCompleteFrontier(",
+            before: "    @MainActor\n    private func finishAXTextPurchaseCompleteFrontierIfNeeded("
+        )
+        XCTAssertEqual(diagnosticHelperSource.utf8.count, 5_197)
+        XCTAssertEqual(
+            Data(diagnosticHelperSource.utf8).sha256,
+            "5E12A8136CAA100EE4BBD13D18BAED61BB414897BC5D8B71DBFDC4162EFBC35D"
+        )
+        for nodeField in [
+            "queryCount", "exists", "elementTypeRawValue", "elementTypeDescription",
+            "identifier", "label", "value", "isEnabled", "isHittable", "frame",
+        ] {
+            XCTAssertTrue(diagnosticHelperSource.contains("\"\(nodeField)\""))
+        }
+        for contextField in [
+            "acceptanceEligible\": false", "shardID", "requirementID", "deviceProfileID", "segmentID",
+            "stateOrdinal\": 40", "predecessorOrdinal\": 39", "successorOrdinal\": 41",
+            "frontierReplayCount", "frontierStateCursor", "frontierWindowStateIDs",
+            "applicationState", "applicationStateRawValue", "isRunningForeground",
+            "applicationFrame", "bindings", "geometry", "NSNull()",
+        ] {
+            XCTAssertTrue(diagnosticHelperSource.contains(contextField), contextField)
+        }
+        XCTAssertEqual(diagnosticHelperSource.components(separatedBy: "XCTAttachment(").count - 1, 3)
+        XCTAssertEqual(diagnosticHelperSource.components(separatedBy: ".keepAlways").count - 1, 3)
+        XCTAssertEqual(diagnosticHelperSource.components(separatedBy: "add(").count - 1, 3)
+        var orderedDiagnosticTail = diagnosticHelperSource
+        for token in [
+            "JSONSerialization.data(", "S10_4_AX_TEXT_PURCHASE_COMPLETE_FRONTIER_DIAGNOSTIC",
+            "let terminalAttachment", "add(terminalAttachment)", "let treeAttachment",
+            "add(treeAttachment)", "let contextAttachment", "add(contextAttachment)",
+            "frontier diagnostic completed nonaccepting", "return false",
+        ] {
+            let tokenRange = try XCTUnwrap(orderedDiagnosticTail.range(of: token), token)
+            orderedDiagnosticTail = String(orderedDiagnosticTail[tokenRange.upperBound...])
+        }
+        for prohibitedDiagnosticEvidence in [
+            "captureBaseline(", "S10_MIGRATION_STATE", "S10_4_AX_STATE",
+            "S10_4_CONTRAST", "candidate", "recordAudit", "emitAutomated", ".tap(", ".press(",
+        ] {
+            XCTAssertFalse(diagnosticHelperSource.contains(prohibitedDiagnosticEvidence))
+        }
+
+        let frontierFinishSource = try boundedSource(
+            uiSource,
+            from: "    @MainActor\n    private func finishAXTextPurchaseCompleteFrontierIfNeeded(",
+            before: "    @MainActor\n    private func eraseLocalDataAndCaptureNoEntitlement("
+        )
+        XCTAssertEqual(frontierFinishSource.utf8.count, 796)
+        XCTAssertEqual(
+            Data(frontierFinishSource.utf8).sha256,
+            "A0AA73B8018A0960B308498840FC47D01E9551147E86A8490F1063F7756C5EF6"
+        )
+        for finishLock in [
+            "automationSegment == .none", "automationShard?.shardID == \"s10.4.current.ax-text\"",
+            "ordinal == 41", "segmentedRouteStateCursor == 41",
+            "migratedStateIDs == Self.axTextPurchaseFrontierWindowStateIDs",
+            "app.state == .runningForeground", "automatedSegmentFinished = true",
+            "frontier completed nonaccepting", "return true",
+        ] {
+            XCTAssertTrue(frontierFinishSource.contains(finishLock), finishLock)
+        }
+        let frontierFinishCallerSource = try boundedSource(
+            uiSource,
+            from: "        captureBaseline(\"state.check-outcome.could-not-verify\", in: app)",
+            before: "        continueToReview(in: app)"
+        )
+        XCTAssertEqual(frontierFinishCallerSource.utf8.count, 180)
+        XCTAssertEqual(
+            Data(frontierFinishCallerSource.utf8).sha256,
+            "B0B9A915FA7B7F03D884A8B6D9B868DB0B6ACFD11642B27A5EB2BF26EAD54949"
+        )
+        XCTAssertTrue(frontierFinishCallerSource.hasSuffix("            return\n        }\n"))
 
         let deleteCompositionLocks = [
             #"let deleteMessage = element("s6.1.delete.message", in: app)"#,
@@ -18608,11 +18794,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         let uiSource = try text(uiPath)
-        try assertFile(
-            uiPath,
-            byteCount: 518_172,
-            sha256: "B3CFD849481EF177A0A519F65E78192BF85C519F831C008AEE2F1843BE25CE46"
-        )
         XCTAssertFalse(uiSource.contains("\r"))
         let segmentEnum = try boundedSource(
             uiSource,

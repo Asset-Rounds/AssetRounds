@@ -186,6 +186,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         "state.subscription.no-entitlement",
     ]
 
+    private static let axTextPurchaseFrontierReplayCount = 38
+    private static let axTextPurchaseFrontierWindowStateIDs = [
+        "state.paywall.available",
+        "state.paywall.purchase-complete",
+        "state.check-outcome.could-not-verify",
+    ]
+
     private static let contrastAuditExceptionSignatures = [
         ContrastAuditExceptionSignature(
             issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",
@@ -761,6 +768,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         try completeWorkAndResolvedRecheckAtXXXL(in: app)
         if automatedSegmentFinished { return }
         captureAlternativeCompletedCheckStates(in: app)
+        if automatedSegmentFinished { return }
         captureDifferentIssueStatesBeforeRecovery(in: app)
         if automatedSegmentFinished { return }
         app.terminate()
@@ -5523,6 +5531,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         cannotComplete.tap()
         selectCouldNotVerifyReason(in: app)
         captureBaseline("state.check-outcome.could-not-verify", in: app)
+        if finishAXTextPurchaseCompleteFrontierIfNeeded(after: 41, in: app) {
+            return
+        }
         continueToReview(in: app)
         XCTAssertTrue(element("s3.review.could-not-verify", in: app)
             .waitForExistence(timeout: 20))
@@ -7231,7 +7242,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let receiverInset: CGFloat = 24
         let minimumGestureDistance: CGFloat = 44
         var measuredUndertravel: CGFloat = 0
-        for _ in 0..<4 {
+        for attemptIndex in 0..<4 {
             guard hasStableRoute() else {
                 return fail("AX-text purchase-complete route changed.")
             }
@@ -7258,6 +7269,72 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 viewportTop - closeFrame.maxY,
                 viewportBottom - supportFrame.maxY
             )
+            if automationSegment == .none,
+               let shard = automationShard,
+               shard.shardID == "s10.4.current.ax-text",
+               minimumShift > maximumShift {
+                let diagnosticTermsFrame = terms.frame
+                let diagnosticPrivacyFrame = privacy.frame
+                return diagnoseAXTextPurchaseCompleteFrontier(
+                    in: app,
+                    shard: shard,
+                    attemptOrdinal: attemptIndex + 1,
+                    measuredUndertravel: measuredUndertravel,
+                    bindings: [
+                        ("screen", screens, screen),
+                        ("store", stores, store),
+                        ("close", closeButtons, close),
+                        ("purchaseState", purchaseStates, purchaseState),
+                        ("terms", termsButtons, terms),
+                        ("privacy", privacyButtons, privacy),
+                        ("support", supportButtons, support),
+                        ("subscribe", purchaseButtons, purchase),
+                    ],
+                    geometry: [
+                        "viewportTop": Double(viewportTop),
+                        "viewportBottom": Double(viewportBottom),
+                        "purchaseStateTopShift": Double(
+                            viewportTop - purchaseStateFrame.minY
+                        ),
+                        "purchaseBelowShift": Double(
+                            viewportBottom - purchaseFrame.minY
+                        ),
+                        "closeAboveShift": Double(
+                            viewportTop - closeFrame.maxY
+                        ),
+                        "supportBottomShift": Double(
+                            viewportBottom - supportFrame.maxY
+                        ),
+                        "minimumShift": Double(minimumShift),
+                        "maximumShift": Double(maximumShift),
+                        "intervalWidth": Double(maximumShift - minimumShift),
+                        "intervalFeasible": minimumShift <= maximumShift,
+                        "containsZero": minimumShift <= 0 && maximumShift >= 0,
+                        "receiverInset": Double(receiverInset),
+                        "minimumGestureDistance": Double(minimumGestureDistance),
+                        "receiverCapacity": Double(
+                            storeFrame.height - 2 * receiverInset
+                        ),
+                        "closeWhollyAboveStore":
+                            closeFrame.maxY <= storeFrame.minY,
+                        "purchaseStateContainedByStore":
+                            storeFrame.contains(purchaseStateFrame),
+                        "termsContainedByStore":
+                            storeFrame.contains(diagnosticTermsFrame),
+                        "privacyContainedByStore":
+                            storeFrame.contains(diagnosticPrivacyFrame),
+                        "supportContainedByStore":
+                            storeFrame.contains(supportFrame),
+                        "termsPrivacySupportInOrder":
+                            diagnosticTermsFrame.maxY
+                                <= diagnosticPrivacyFrame.minY
+                                && diagnosticPrivacyFrame.maxY
+                                    <= supportFrame.minY,
+                        "subscribeWhollyBelowStore":
+                            purchaseFrame.minY >= storeFrame.maxY,
+                    ]
+                )
+            }
             guard viewportTop.isFinite,
                   viewportBottom.isFinite,
                   minimumShift.isFinite,
@@ -7464,6 +7541,162 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(element("s7.4.signs.selection", in: app)
             .waitForExistence(timeout: 25))
         captureBaseline("state.sign-selection.ready", in: app)
+    }
+
+    @MainActor
+    private func diagnoseAXTextPurchaseCompleteFrontier(
+        in app: XCUIApplication,
+        shard: AutomationShard,
+        attemptOrdinal: Int,
+        measuredUndertravel: CGFloat,
+        bindings: [(
+            name: String,
+            query: XCUIElementQuery,
+            element: XCUIElement
+        )],
+        geometry: [String: Any]
+    ) -> Bool {
+        let predecessorStateID = "state.paywall.available"
+        let targetStateID = "state.paywall.purchase-complete"
+        let successorStateID = "state.check-outcome.could-not-verify"
+        guard automationSegment == .none,
+              automationShard?.shardID == shard.shardID,
+              shard.shardID == "s10.4.current.ax-text",
+              segmentedRouteStateCursor == 39,
+              migratedStateIDs == [predecessorStateID],
+              app.state == .runningForeground,
+              attemptOrdinal >= 1,
+              attemptOrdinal <= 4,
+              bindings.map { $0.name } == [
+                  "screen",
+                  "store",
+                  "close",
+                  "purchaseState",
+                  "terms",
+                  "privacy",
+                  "support",
+                  "subscribe",
+              ] else {
+            XCTFail("S10.4 AX-text purchase-complete frontier context drifted")
+            return false
+        }
+
+        var bindingObjects: [String: Any] = [:]
+        for binding in bindings {
+            let valueObject: Any
+            if let value = binding.element.value as? String {
+                valueObject = value
+            } else {
+                valueObject = NSNull()
+            }
+            bindingObjects[binding.name] = [
+                "queryCount": binding.query.count,
+                "exists": binding.element.exists,
+                "elementTypeRawValue": binding.element.elementType.rawValue,
+                "elementTypeDescription": String(
+                    describing: binding.element.elementType
+                ),
+                "identifier": binding.element.identifier,
+                "label": binding.element.label,
+                "value": valueObject,
+                "isEnabled": binding.element.isEnabled,
+                "isHittable": binding.element.isHittable,
+                "frame": auditFrameObject(binding.element.frame),
+            ]
+        }
+
+        let context: [String: Any] = [
+            "schemaVersion": 1,
+            "acceptanceEligible": false,
+            "shardID": shard.shardID,
+            "requirementID": shard.requirementID,
+            "deviceProfileID": shard.deviceProfileID,
+            "segmentID": automationSegment.rawValue,
+            "stateID": targetStateID,
+            "stateOrdinal": 40,
+            "predecessorStateID": predecessorStateID,
+            "predecessorOrdinal": 39,
+            "successorStateID": successorStateID,
+            "successorOrdinal": 41,
+            "frontierReplayCount": Self.axTextPurchaseFrontierReplayCount,
+            "frontierStateCursor": segmentedRouteStateCursor,
+            "frontierWindowStateIDs": Self.axTextPurchaseFrontierWindowStateIDs,
+            "migratedStateIDs": migratedStateIDs,
+            "attemptOrdinal": attemptOrdinal,
+            "completedGestureCount": attemptOrdinal - 1,
+            "measuredUndertravel": Double(measuredUndertravel),
+            "applicationState": String(describing: app.state),
+            "applicationStateRawValue": app.state.rawValue,
+            "isRunningForeground": app.state == .runningForeground,
+            "applicationFrame": auditFrameObject(app.frame),
+            "bindings": bindingObjects,
+            "geometry": geometry,
+        ]
+        let contextData: Data
+        do {
+            contextData = try JSONSerialization.data(
+                withJSONObject: context,
+                options: [.sortedKeys]
+            )
+        } catch {
+            XCTFail(
+                "S10.4 AX-text purchase-complete frontier JSON encoding failed: \(error)"
+            )
+            return false
+        }
+        let contextString = String(decoding: contextData, as: UTF8.self)
+        print(
+            "S10_4_AX_TEXT_PURCHASE_COMPLETE_FRONTIER_DIAGNOSTIC "
+                + contextString
+        )
+
+        let terminalAttachment = XCTAttachment(
+            screenshot: XCUIScreen.main.screenshot()
+        )
+        terminalAttachment.name =
+            "S10.4 AX-text purchase-complete frontier diagnostic terminal"
+        terminalAttachment.lifetime = .keepAlways
+        add(terminalAttachment)
+
+        let treeAttachment = XCTAttachment(string: app.debugDescription)
+        treeAttachment.name =
+            "S10.4 AX-text purchase-complete frontier diagnostic tree"
+        treeAttachment.lifetime = .keepAlways
+        add(treeAttachment)
+
+        let contextAttachment = XCTAttachment(string: contextString)
+        contextAttachment.name =
+            "S10.4 AX-text purchase-complete frontier diagnostic context"
+        contextAttachment.lifetime = .keepAlways
+        add(contextAttachment)
+
+        XCTFail(
+            "S10.4 AX-text purchase-complete frontier diagnostic completed nonaccepting"
+        )
+        return false
+    }
+
+    @MainActor
+    private func finishAXTextPurchaseCompleteFrontierIfNeeded(
+        after ordinal: Int,
+        in app: XCUIApplication
+    ) -> Bool {
+        guard automationSegment == .none,
+              automationShard?.shardID == "s10.4.current.ax-text" else {
+            return false
+        }
+        guard ordinal == 41,
+              segmentedRouteStateCursor == 41,
+              migratedStateIDs == Self.axTextPurchaseFrontierWindowStateIDs,
+              app.state == .runningForeground else {
+            XCTFail("S10.4 AX-text purchase-complete frontier closure drifted")
+            return true
+        }
+        automatedSegmentFinished = true
+        XCTFail(
+            "S10.4 AX-text purchase-complete frontier completed nonaccepting"
+        )
+        return true
     }
 
     @MainActor
@@ -8505,7 +8738,84 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         file: StaticString,
         line: UInt
     ) -> Bool {
-        guard automationSegment != .none else { return false }
+        if automationSegment == .none {
+            guard let shard = automationShard,
+                  shard.shardID == "s10.4.current.ax-text" else {
+                return false
+            }
+            let replayCount = Self.axTextPurchaseFrontierReplayCount
+            let frontierFinalOrdinal = replayCount
+                + Self.axTextPurchaseFrontierWindowStateIDs.count
+            guard Self.segmentedRouteStateIDs.count == 67,
+                  Set(Self.segmentedRouteStateIDs).count == 67,
+                  replayCount == 38,
+                  frontierFinalOrdinal == 41,
+                  Array(
+                      Self.segmentedRouteStateIDs[
+                          replayCount..<frontierFinalOrdinal
+                      ]
+                  ) == Self.axTextPurchaseFrontierWindowStateIDs else {
+                XCTFail(
+                    "The AX-text purchase frontier inventory is invalid",
+                    file: file,
+                    line: line
+                )
+                return true
+            }
+            guard segmentedRouteStateCursor < frontierFinalOrdinal else {
+                XCTFail(
+                    "The AX-text purchase frontier advanced beyond state 41",
+                    file: file,
+                    line: line
+                )
+                return true
+            }
+
+            let expectedStateID =
+                Self.segmentedRouteStateIDs[segmentedRouteStateCursor]
+            guard stateID == expectedStateID else {
+                XCTFail(
+                    "The AX-text purchase frontier order drifted at ordinal "
+                        + "\(segmentedRouteStateCursor + 1): expected "
+                        + "\(expectedStateID), observed \(stateID)",
+                    file: file,
+                    line: line
+                )
+                return true
+            }
+            guard app.state == .runningForeground else {
+                XCTFail(
+                    "The AX-text purchase frontier is not foreground at \(stateID)",
+                    file: file,
+                    line: line
+                )
+                return true
+            }
+
+            segmentedRouteStateCursor += 1
+            guard segmentedRouteStateCursor <= replayCount else {
+                return false
+            }
+            dismissHostedAppleIntelligenceNotificationIfPresent(
+                in: app,
+                file: file,
+                line: line
+            )
+            printJSONLine(
+                prefix: "S10_4_AX_TEXT_PURCHASE_COMPLETE_FRONTIER_REPLAY",
+                object: [
+                    "schemaVersion": 1,
+                    "acceptanceEligible": false,
+                    "ordinal": segmentedRouteStateCursor,
+                    "replayCount": replayCount,
+                    "targetOrdinal": 40,
+                    "segmentID": automationSegment.rawValue,
+                    "shardID": shard.shardID,
+                    "stateID": stateID,
+                ]
+            )
+            return true
+        }
         guard let shard = automationShard,
               shard.shardID == "s10.4.current.ax-text" else {
             XCTFail(
