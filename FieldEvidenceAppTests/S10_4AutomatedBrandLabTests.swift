@@ -3718,7 +3718,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workValidationPositioningHelperSource.components(
                     separatedBy: lock
                 ).count - 1,
-                2,
+                1,
                 lock
             )
         }
