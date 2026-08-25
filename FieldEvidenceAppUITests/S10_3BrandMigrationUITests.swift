@@ -622,7 +622,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         recordMetric("cold_launch_to_welcome", since: coldLaunchStartedAt)
 
         assertLightFirstSignValidationAndCreation(in: app)
-        completeVisibleIssueCheck(in: app)
+        try completeVisibleIssueCheck(in: app)
         assertFirstReceiptAndReport(in: app)
         assertReportsIndex(in: app)
 
@@ -1431,7 +1431,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func completeVisibleIssueCheck(in app: XCUIApplication) {
+    private func completeVisibleIssueCheck(in app: XCUIApplication) throws {
         let start = element("s2.sign-detail.start-check", in: app)
         scroll(start, in: app)
         assertControl(start, label: "Start Check")
@@ -2928,6 +2928,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
         )
         setToggle("s3.preflight.time-zone-confirmed", in: app)
+        if automationShard?.shardID == "s10.4.current.ax-text" {
+            guard positionPreflightAfterDarkForAXText(in: app) else {
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 AX-text Preflight after-dark positioning failed"
+                )
+            }
+        }
         setToggle("s3.preflight.after-dark", in: app)
         app.swipeUp()
         setToggle("s3.preflight.safe-position", in: app)
@@ -8882,6 +8889,392 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             XCTFail("Unhandled frozen locale profile \(shard.locale)")
         }
         return arguments
+    }
+
+    @MainActor
+    private func positionPreflightAfterDarkForAXText(
+        in app: XCUIApplication
+    ) -> Bool {
+        let expectedAfterDarkLabel =
+            "It is dark enough to observe the sign's visible illumination."
+        let focusedPredicate = NSPredicate(
+            format: "hasKeyboardFocus == true"
+        )
+        let preflightScreens = app.scrollViews.matching(
+            identifier: "s3.preflight.screen"
+        )
+        let preflightScrollViews = app.scrollViews.containing(
+            .switch,
+            identifier: "s3.preflight.after-dark"
+        )
+        let navigationBars = app.navigationBars
+        let tabBars = app.tabBars
+        let zoneFields = app.textFields.matching(
+            identifier: "s3.preflight.time-zone"
+        )
+        let confirmationSwitches = app.switches.matching(
+            identifier: "s3.preflight.time-zone-confirmed"
+        )
+        let afterDarkSwitches = app.switches.matching(
+            identifier: "s3.preflight.after-dark"
+        )
+        let keyboards = app.keyboards
+        let inputViews = app.otherElements.matching(
+            identifier: "inputView"
+        )
+        guard preflightScreens.count == 1,
+              preflightScrollViews.count == 1,
+              navigationBars.count == 1,
+              tabBars.count == 1,
+              zoneFields.count == 1,
+              confirmationSwitches.count == 1,
+              afterDarkSwitches.count == 1 else {
+            XCTFail("AX-text Preflight after-dark positioning bindings are ambiguous.")
+            return false
+        }
+        let preflightScreen = preflightScreens.firstMatch
+        let preflightScrollView = preflightScrollViews.firstMatch
+        let navigationBar = navigationBars.firstMatch
+        let tabBar = tabBars.firstMatch
+        let zoneField = zoneFields.firstMatch
+        let confirmationSwitch = confirmationSwitches.firstMatch
+        let afterDarkSwitch = afterDarkSwitches.firstMatch
+        let keyboard = keyboards.firstMatch
+        let inputView = inputViews.firstMatch
+        let isValidFrame: (CGRect) -> Bool = { frame in
+            !frame.isNull
+                && !frame.isEmpty
+                && !frame.isInfinite
+                && frame.origin.x.isFinite
+                && frame.origin.y.isFinite
+                && frame.size.width.isFinite
+                && frame.size.height.isFinite
+        }
+        let exactInputComposition: () -> Bool = {
+            let inputIsAbsent = keyboards.count == 0
+                && inputViews.count == 0
+            let inputIsPresent = keyboards.count == 1
+                && inputViews.count == 1
+                && keyboard.exists
+                && keyboard.elementType == .keyboard
+                && inputView.exists
+                && inputView.elementType == .other
+                && inputView.identifier == "inputView"
+                && focusedPredicate.evaluate(with: zoneField)
+                && isValidFrame(keyboard.frame)
+                && isValidFrame(inputView.frame)
+            return inputIsAbsent || inputIsPresent
+        }
+        let stablePrePositionRoute: () -> Bool = {
+            let applicationFrame = app.frame
+            let screenFrame = preflightScreen.frame
+            let scrollFrame = preflightScrollView.frame
+            let navigationFrame = navigationBar.frame
+            let tabFrame = tabBar.frame
+            let zoneFrame = zoneField.frame
+            let confirmationFrame = confirmationSwitch.frame
+            let afterDarkFrame = afterDarkSwitch.frame
+            return app.state == .runningForeground
+                && preflightScreens.count == 1
+                && preflightScrollViews.count == 1
+                && navigationBars.count == 1
+                && tabBars.count == 1
+                && zoneFields.count == 1
+                && confirmationSwitches.count == 1
+                && afterDarkSwitches.count == 1
+                && preflightScreen.exists
+                && preflightScreen.elementType == .scrollView
+                && preflightScreen.identifier == "s3.preflight.screen"
+                && preflightScrollView.exists
+                && preflightScrollView.elementType == .scrollView
+                && preflightScrollView.identifier == "s3.preflight.screen"
+                && navigationBar.exists
+                && navigationBar.elementType == .navigationBar
+                && tabBar.exists
+                && tabBar.elementType == .tabBar
+                && zoneField.exists
+                && zoneField.elementType == .textField
+                && zoneField.identifier == "s3.preflight.time-zone"
+                && (zoneField.value as? String) == "America/New_York"
+                && confirmationSwitch.exists
+                && confirmationSwitch.elementType == .switch
+                && confirmationSwitch.identifier
+                    == "s3.preflight.time-zone-confirmed"
+                && confirmationSwitch.isEnabled
+                && (confirmationSwitch.value as? String) == "1"
+                && afterDarkSwitch.exists
+                && afterDarkSwitch.elementType == .switch
+                && afterDarkSwitch.identifier == "s3.preflight.after-dark"
+                && afterDarkSwitch.isEnabled
+                && isValidFrame(applicationFrame)
+                && isValidFrame(screenFrame)
+                && isValidFrame(scrollFrame)
+                && isValidFrame(navigationFrame)
+                && isValidFrame(tabFrame)
+                && isValidFrame(zoneFrame)
+                && isValidFrame(confirmationFrame)
+                && isValidFrame(afterDarkFrame)
+                && screenFrame == scrollFrame
+                && exactInputComposition()
+        }
+        let verticalInset: CGFloat = 16
+        let receiverInset: CGFloat = 24
+        let minimumGestureDistance: CGFloat = 44
+        var previousAfterDarkMinYAfterDrag: CGFloat?
+        for _ in 0..<4 {
+            guard stablePrePositionRoute() else {
+                XCTFail("AX-text Preflight after-dark positioning route changed.")
+                return false
+            }
+            let applicationFrame = app.frame
+            let screenFrame = preflightScreen.frame
+            let scrollFrame = preflightScrollView.frame
+            let navigationFrame = navigationBar.frame
+            let tabFrame = tabBar.frame
+            let zoneFrame = zoneField.frame
+            let confirmationFrame = confirmationSwitch.frame
+            let afterDarkFrame = afterDarkSwitch.frame
+            let mandatoryFramesAreValid = isValidFrame(applicationFrame)
+                && isValidFrame(screenFrame)
+                && isValidFrame(scrollFrame)
+                && isValidFrame(navigationFrame)
+                && isValidFrame(tabFrame)
+                && isValidFrame(zoneFrame)
+                && isValidFrame(confirmationFrame)
+                && isValidFrame(afterDarkFrame)
+            var liveScrollFrame = CGRect.null
+            if mandatoryFramesAreValid {
+                liveScrollFrame = scrollFrame.intersection(applicationFrame)
+            }
+            guard mandatoryFramesAreValid,
+                  isValidFrame(liveScrollFrame),
+                  screenFrame == scrollFrame else {
+                XCTFail("AX-text Preflight after-dark positioning geometry is invalid.")
+                return false
+            }
+            var obstructionTop = min(
+                applicationFrame.maxY,
+                min(liveScrollFrame.maxY, tabFrame.minY)
+            )
+            if keyboards.count == 1,
+               inputViews.count == 1 {
+                let keyboardFrame = keyboard.frame
+                let inputViewFrame = inputView.frame
+                guard isValidFrame(keyboardFrame),
+                      isValidFrame(inputViewFrame) else {
+                    XCTFail("AX-text Preflight after-dark input geometry is invalid.")
+                    return false
+                }
+                obstructionTop = min(
+                    obstructionTop,
+                    min(keyboardFrame.minY, inputViewFrame.minY)
+                )
+            }
+            let liveTop = max(
+                liveScrollFrame.minY,
+                navigationFrame.maxY
+            )
+            let safeTop = liveTop + verticalInset
+            let safeBottom = obstructionTop - verticalInset
+            let receiverTop = liveTop + receiverInset
+            let receiverBottom = obstructionTop - receiverInset
+            let receiverLeft = liveScrollFrame.minX + receiverInset
+            let receiverRight = liveScrollFrame.maxX - receiverInset
+            let receiverCapacity = receiverBottom - receiverTop
+            let minimumShift = safeTop - afterDarkFrame.minY
+            let maximumShift = safeBottom - afterDarkFrame.maxY
+            let targetIsContained = afterDarkFrame.minY >= safeTop
+                && afterDarkFrame.maxY <= safeBottom
+            guard safeTop.isFinite,
+                  safeBottom.isFinite,
+                  receiverTop.isFinite,
+                  receiverBottom.isFinite,
+                  receiverLeft.isFinite,
+                  receiverRight.isFinite,
+                  receiverCapacity.isFinite,
+                  minimumShift.isFinite,
+                  maximumShift.isFinite,
+                  safeTop <= safeBottom,
+                  receiverLeft <= receiverRight,
+                  receiverTop <= receiverBottom,
+                  receiverCapacity >= minimumGestureDistance,
+                  afterDarkFrame.height <= safeBottom - safeTop,
+                  minimumShift <= maximumShift else {
+                XCTFail("AX-text Preflight after-dark has no feasible safe interval.")
+                return false
+            }
+            if targetIsContained {
+                break
+            }
+            guard maximumShift < 0 else {
+                XCTFail("AX-text Preflight after-dark requires a non-upward shift.")
+                return false
+            }
+            let dragDistance: CGFloat
+            let recognizedMinimum = max(
+                minimumShift,
+                -receiverCapacity
+            )
+            let recognizedMaximum = min(
+                maximumShift,
+                -minimumGestureDistance
+            )
+            if recognizedMinimum <= recognizedMaximum {
+                dragDistance = recognizedMaximum
+            } else {
+                let stagedDistance = max(
+                    -receiverCapacity,
+                    maximumShift + minimumGestureDistance
+                )
+                guard stagedDistance <= -minimumGestureDistance else {
+                    XCTFail("AX-text Preflight after-dark staged remainder is not recognizable.")
+                    return false
+                }
+                dragDistance = stagedDistance
+            }
+            guard dragDistance < 0,
+                  dragDistance <= -minimumGestureDistance else {
+                XCTFail("AX-text Preflight after-dark drag direction is invalid.")
+                return false
+            }
+            let receiverFrame = CGRect(
+                x: receiverLeft,
+                y: receiverTop,
+                width: receiverRight - receiverLeft,
+                height: receiverBottom - receiverTop
+            )
+            let startPoint = CGPoint(
+                x: receiverRight,
+                y: receiverBottom
+            )
+            let endPoint = CGPoint(
+                x: startPoint.x,
+                y: startPoint.y + dragDistance
+            )
+            guard isValidFrame(receiverFrame),
+                  startPoint.x >= receiverFrame.minX,
+                  startPoint.x <= receiverFrame.maxX,
+                  startPoint.y >= receiverFrame.minY,
+                  startPoint.y <= receiverFrame.maxY,
+                  endPoint.x >= receiverFrame.minX,
+                  endPoint.x <= receiverFrame.maxX,
+                  endPoint.y >= receiverFrame.minY,
+                  endPoint.y <= receiverFrame.maxY,
+                  liveScrollFrame.contains(startPoint),
+                  liveScrollFrame.contains(endPoint),
+                  !zoneFrame.contains(startPoint),
+                  !zoneFrame.contains(endPoint),
+                  !confirmationFrame.contains(startPoint),
+                  !confirmationFrame.contains(endPoint),
+                  !afterDarkFrame.contains(startPoint),
+                  !afterDarkFrame.contains(endPoint) else {
+                XCTFail("AX-text Preflight after-dark drag receiver is obstructed.")
+                return false
+            }
+            let scrollOrigin = preflightScrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let startCoordinate = scrollOrigin.withOffset(
+                CGVector(
+                    dx: startPoint.x - scrollFrame.minX,
+                    dy: startPoint.y - scrollFrame.minY
+                )
+            )
+            let endCoordinate = scrollOrigin.withOffset(
+                CGVector(
+                    dx: endPoint.x - scrollFrame.minX,
+                    dy: endPoint.y - scrollFrame.minY
+                )
+            )
+            let afterDarkMinYBeforeDrag = afterDarkFrame.minY
+            startCoordinate.press(
+                forDuration: 0.2,
+                thenDragTo: endCoordinate,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            guard stablePrePositionRoute() else {
+                XCTFail("AX-text Preflight after-dark route changed after positioning.")
+                return false
+            }
+            let afterDarkFrameAfterDrag = afterDarkSwitch.frame
+            guard isValidFrame(afterDarkFrameAfterDrag) else {
+                XCTFail("AX-text Preflight after-dark moved frame is invalid.")
+                return false
+            }
+            let observedAfterDarkShift =
+                afterDarkFrameAfterDrag.minY - afterDarkMinYBeforeDrag
+            guard observedAfterDarkShift < 0,
+                  observedAfterDarkShift * dragDistance > 0 else {
+                XCTFail("AX-text Preflight after-dark gesture made no signed progress.")
+                return false
+            }
+            if let previousAfterDarkMinYAfterDrag {
+                guard afterDarkFrameAfterDrag.minY
+                    < previousAfterDarkMinYAfterDrag else {
+                    XCTFail("AX-text Preflight after-dark positioning reversed direction.")
+                    return false
+                }
+            }
+            previousAfterDarkMinYAfterDrag = afterDarkFrameAfterDrag.minY
+        }
+        guard stablePrePositionRoute(),
+              afterDarkSwitch.label == expectedAfterDarkLabel,
+              afterDarkSwitch.isEnabled,
+              (afterDarkSwitch.value as? String) == "0" else {
+            XCTFail("AX-text Preflight after-dark final identity is invalid.")
+            return false
+        }
+        let finalApplicationFrame = app.frame
+        let finalScreenFrame = preflightScreen.frame
+        let finalScrollFrame = preflightScrollView.frame
+        let finalNavigationFrame = navigationBar.frame
+        let finalTabFrame = tabBar.frame
+        let finalAfterDarkFrame = afterDarkSwitch.frame
+        let finalFramesAreValid = isValidFrame(finalApplicationFrame)
+            && isValidFrame(finalScreenFrame)
+            && isValidFrame(finalScrollFrame)
+            && isValidFrame(finalNavigationFrame)
+            && isValidFrame(finalTabFrame)
+            && isValidFrame(finalAfterDarkFrame)
+            && finalScreenFrame == finalScrollFrame
+        var finalCompositionIsSafe = false
+        if finalFramesAreValid {
+            let finalLiveScrollFrame = finalScrollFrame.intersection(
+                finalApplicationFrame
+            )
+            if isValidFrame(finalLiveScrollFrame) {
+                var finalObstructionTop = min(
+                    finalApplicationFrame.maxY,
+                    min(finalLiveScrollFrame.maxY, finalTabFrame.minY)
+                )
+                if keyboards.count == 1,
+                   inputViews.count == 1,
+                   isValidFrame(keyboard.frame),
+                   isValidFrame(inputView.frame) {
+                    finalObstructionTop = min(
+                        finalObstructionTop,
+                        min(keyboard.frame.minY, inputView.frame.minY)
+                    )
+                }
+                let finalSafeTop = max(
+                    finalLiveScrollFrame.minY,
+                    finalNavigationFrame.maxY
+                ) + verticalInset
+                let finalSafeBottom = finalObstructionTop - verticalInset
+                finalCompositionIsSafe = finalSafeTop.isFinite
+                    && finalSafeBottom.isFinite
+                    && finalSafeTop <= finalSafeBottom
+                    && finalAfterDarkFrame.minY >= finalSafeTop
+                    && finalAfterDarkFrame.maxY <= finalSafeBottom
+                    && afterDarkSwitch.isHittable
+            }
+        }
+        guard finalCompositionIsSafe else {
+            XCTFail("AX-text Preflight after-dark final composition is unsafe.")
+            return false
+        }
+        return true
     }
 
     @MainActor

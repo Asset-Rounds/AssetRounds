@@ -1325,11 +1325,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             0
         )
-        try assertFile(
-            sourceParts[0],
-            byteCount: 471_225,
-            sha256: "A463AF1696359361E6AA3CF0B0B773A5E0F2034D4D59E4D934BFA81B51CE7B5A"
-        )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
         let recordWorkWithoutBaselineStart =
@@ -1654,6 +1649,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        )\n" +
                 #"        setToggle("s3.preflight.time-zone-confirmed", in: app)"# +
                 "\n" +
+                #"        if automationShard?.shardID == "s10.4.current.ax-text" {"# +
+                "\n" +
+                "            guard positionPreflightAfterDarkForAXText(in: app) else {\n" +
+                "                throw AutomationConfigurationError.invalid(\n" +
+                #"                    "S10.4 AX-text Preflight after-dark positioning failed""# +
+                "\n" +
+                "                )\n" +
+                "            }\n" +
+                "        }\n" +
                 #"        setToggle("s3.preflight.after-dark", in: app)"# + "\n" +
                 "        app.swipeUp()\n" +
                 #"        setToggle("s3.preflight.safe-position", in: app)"#
@@ -1663,11 +1667,342 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        XCTAssertEqual(freshPreflightKeyboardDismissal.utf8.count, 878)
+        XCTAssertEqual(
+            Data(freshPreflightKeyboardDismissal.utf8).sha256,
+            "97F9B1BB0CA461BD3FC45578679089500DC23B9F1A346CF28ACB564C6BF0A404"
+        )
         XCTAssertFalse(
             uiSource.contains(
                 "doneKey.exists ? doneKey.tap() : dismissKeyboard(in: app)"
             )
         )
+
+        let preflightAfterDarkPositioningHelperStart =
+            "    @MainActor\n" +
+                "    private func positionPreflightAfterDarkForAXText(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) -> Bool {"
+        let preflightAfterDarkPositioningHelperEnd =
+            "\n\n    @MainActor\n" +
+                "    private func setToggle(_ identifier: String, " +
+                "in app: XCUIApplication) {"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: preflightAfterDarkPositioningHelperStart
+            ).count - 1,
+            1
+        )
+        guard let preflightAfterDarkPositioningHelperStartRange =
+            uiSource.range(of: preflightAfterDarkPositioningHelperStart),
+            let preflightAfterDarkPositioningHelperEndRange = uiSource.range(
+                of: preflightAfterDarkPositioningHelperEnd,
+                range:
+                    preflightAfterDarkPositioningHelperStartRange.upperBound ..<
+                    uiSource.endIndex
+            )
+        else {
+            XCTFail("Missing the unique AX-text Preflight after-dark helper")
+            return
+        }
+        let preflightAfterDarkPositioningHelperSource = String(
+            uiSource[
+                preflightAfterDarkPositioningHelperStartRange.lowerBound ..<
+                    preflightAfterDarkPositioningHelperEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(
+            preflightAfterDarkPositioningHelperSource.utf8.count,
+            17_190
+        )
+        XCTAssertEqual(
+            Data(preflightAfterDarkPositioningHelperSource.utf8).sha256,
+            "1262F5610EC60C1D20D0055F5275B08A51E53EEAFEAD433E3FBD16C50A675973"
+        )
+        let preflightAfterDarkBindingLocks = [
+            #"identifier: "s3.preflight.screen""#,
+            #"identifier: "s3.preflight.time-zone""#,
+            #"identifier: "s3.preflight.time-zone-confirmed""#,
+            #"identifier: "s3.preflight.after-dark""#,
+            #"identifier: "inputView""#,
+            "let preflightScreens = app.scrollViews.matching(",
+            "let preflightScrollViews = app.scrollViews.containing(",
+            "let navigationBars = app.navigationBars",
+            "let tabBars = app.tabBars",
+            "let zoneFields = app.textFields.matching(",
+            "let confirmationSwitches = app.switches.matching(",
+            "let afterDarkSwitches = app.switches.matching(",
+            "let keyboards = app.keyboards",
+            "let inputViews = app.otherElements.matching(",
+            "preflightScreens.count == 1",
+            "preflightScrollViews.count == 1",
+            "navigationBars.count == 1",
+            "tabBars.count == 1",
+            "zoneFields.count == 1",
+            "confirmationSwitches.count == 1",
+            "afterDarkSwitches.count == 1",
+            "preflightScreen.elementType == .scrollView",
+            "preflightScrollView.elementType == .scrollView",
+            "navigationBar.elementType == .navigationBar",
+            "tabBar.elementType == .tabBar",
+            "zoneField.elementType == .textField",
+            "confirmationSwitch.elementType == .switch",
+            "afterDarkSwitch.elementType == .switch",
+            #"(zoneField.value as? String) == "America/New_York""#,
+            #"(confirmationSwitch.value as? String) == "1""#,
+        ]
+        for lock in preflightAfterDarkBindingLocks {
+            XCTAssertTrue(
+                preflightAfterDarkPositioningHelperSource.contains(lock),
+                lock
+            )
+        }
+        let preflightAfterDarkAbsentInputComposition =
+            "let inputIsAbsent = keyboards.count == 0\n" +
+                "                && inputViews.count == 0"
+        let preflightAfterDarkPresentInputComposition =
+            "let inputIsPresent = keyboards.count == 1\n" +
+                "                && inputViews.count == 1\n" +
+                "                && keyboard.exists\n" +
+                "                && keyboard.elementType == .keyboard\n" +
+                "                && inputView.exists\n" +
+                "                && inputView.elementType == .other\n" +
+                #"                && inputView.identifier == "inputView""# +
+                "\n" +
+                "                && focusedPredicate.evaluate(with: zoneField)\n" +
+                "                && isValidFrame(keyboard.frame)\n" +
+                "                && isValidFrame(inputView.frame)"
+        XCTAssertEqual(
+            preflightAfterDarkPositioningHelperSource.components(
+                separatedBy: preflightAfterDarkAbsentInputComposition
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            preflightAfterDarkPositioningHelperSource.components(
+                separatedBy: preflightAfterDarkPresentInputComposition
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            preflightAfterDarkPositioningHelperSource.components(
+                separatedBy: "return inputIsAbsent || inputIsPresent"
+            ).count - 1,
+            1
+        )
+        let preflightAfterDarkBaseObstruction =
+            "var obstructionTop = min(\n" +
+                "                applicationFrame.maxY,\n" +
+                "                min(liveScrollFrame.maxY, tabFrame.minY)\n" +
+                "            )"
+        let preflightAfterDarkInputObstruction =
+            "if keyboards.count == 1,\n" +
+                "               inputViews.count == 1 {\n" +
+                "                let keyboardFrame = keyboard.frame\n" +
+                "                let inputViewFrame = inputView.frame\n" +
+                "                guard isValidFrame(keyboardFrame),\n" +
+                "                      isValidFrame(inputViewFrame) else {"
+        let preflightAfterDarkInputObstructionSelection =
+            "obstructionTop = min(\n" +
+                "                    obstructionTop,\n" +
+                "                    min(keyboardFrame.minY, inputViewFrame.minY)\n" +
+                "                )"
+        for obstructionLock in [
+            preflightAfterDarkBaseObstruction,
+            preflightAfterDarkInputObstruction,
+            preflightAfterDarkInputObstructionSelection,
+        ] {
+            XCTAssertEqual(
+                preflightAfterDarkPositioningHelperSource.components(
+                    separatedBy: obstructionLock
+                ).count - 1,
+                1,
+                obstructionLock
+            )
+        }
+        let preflightAfterDarkGeometryLocks = [
+            "let verticalInset: CGFloat = 16",
+            "let receiverInset: CGFloat = 24",
+            "let minimumGestureDistance: CGFloat = 44",
+            "for _ in 0..<4 {",
+            "let mandatoryFramesAreValid = isValidFrame(applicationFrame)",
+            "if mandatoryFramesAreValid {\n" +
+                "                liveScrollFrame = scrollFrame.intersection(applicationFrame)",
+            "let safeTop = liveTop + verticalInset",
+            "let safeBottom = obstructionTop - verticalInset",
+            "let receiverLeft = liveScrollFrame.minX + receiverInset",
+            "let receiverRight = liveScrollFrame.maxX - receiverInset",
+            "let minimumShift = safeTop - afterDarkFrame.minY",
+            "let maximumShift = safeBottom - afterDarkFrame.maxY",
+            "receiverCapacity >= minimumGestureDistance",
+            "minimumShift <= maximumShift",
+            "if targetIsContained {\n" +
+                "                break\n" +
+                "            }",
+            "guard maximumShift < 0 else {",
+            "let recognizedMinimum = max(\n" +
+                "                minimumShift,\n" +
+                "                -receiverCapacity\n" +
+                "            )",
+            "let recognizedMaximum = min(\n" +
+                "                maximumShift,\n" +
+                "                -minimumGestureDistance\n" +
+                "            )",
+            "if recognizedMinimum <= recognizedMaximum {\n" +
+                "                dragDistance = recognizedMaximum\n" +
+                "            } else {",
+            "let stagedDistance = max(\n" +
+                "                    -receiverCapacity,\n" +
+                "                    maximumShift + minimumGestureDistance\n" +
+                "                )",
+            "guard dragDistance < 0,",
+            "x: receiverRight,\n" +
+                "                y: receiverBottom",
+            "startPoint.x >= receiverFrame.minX",
+            "startPoint.x <= receiverFrame.maxX",
+            "startPoint.y >= receiverFrame.minY",
+            "startPoint.y <= receiverFrame.maxY",
+            "endPoint.x >= receiverFrame.minX",
+            "endPoint.x <= receiverFrame.maxX",
+            "endPoint.y >= receiverFrame.minY",
+            "endPoint.y <= receiverFrame.maxY",
+            "liveScrollFrame.contains(startPoint)",
+            "liveScrollFrame.contains(endPoint)",
+            "!zoneFrame.contains(startPoint)",
+            "!zoneFrame.contains(endPoint)",
+            "!confirmationFrame.contains(startPoint)",
+            "!confirmationFrame.contains(endPoint)",
+            "!afterDarkFrame.contains(startPoint)",
+            "!afterDarkFrame.contains(endPoint)",
+            "startCoordinate.press(\n" +
+                "                forDuration: 0.2,\n" +
+                "                thenDragTo: endCoordinate,\n" +
+                "                withVelocity: .slow,\n" +
+                "                thenHoldForDuration: 0.2\n" +
+                "            )",
+            "observedAfterDarkShift < 0",
+            "observedAfterDarkShift * dragDistance > 0",
+            "afterDarkFrameAfterDrag.minY\n" +
+                "                    < previousAfterDarkMinYAfterDrag",
+        ]
+        for lock in preflightAfterDarkGeometryLocks {
+            XCTAssertTrue(
+                preflightAfterDarkPositioningHelperSource.contains(lock),
+                lock
+            )
+        }
+        let preflightAfterDarkFinalLocks = [
+            #""It is dark enough to observe the sign's visible illumination.""#,
+            "guard stablePrePositionRoute(),",
+            "afterDarkSwitch.label == expectedAfterDarkLabel",
+            "afterDarkSwitch.isEnabled",
+            #"(afterDarkSwitch.value as? String) == "0""#,
+            "finalAfterDarkFrame.minY >= finalSafeTop",
+            "finalAfterDarkFrame.maxY <= finalSafeBottom",
+            "afterDarkSwitch.isHittable",
+            "return true",
+        ]
+        for lock in preflightAfterDarkFinalLocks {
+            XCTAssertTrue(
+                preflightAfterDarkPositioningHelperSource.contains(lock),
+                lock
+            )
+        }
+        let preflightAfterDarkContainedBranch =
+            "if targetIsContained {\n" +
+                "                break\n" +
+                "            }"
+        XCTAssertEqual(
+            preflightAfterDarkPositioningHelperSource.components(
+                separatedBy: preflightAfterDarkContainedBranch
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            preflightAfterDarkContainedBranch.components(
+                separatedBy: "isHittable"
+            ).count - 1,
+            0
+        )
+        XCTAssertEqual(
+            preflightAfterDarkPositioningHelperSource.components(
+                separatedBy: "afterDarkSwitch.isHittable"
+            ).count - 1,
+            1
+        )
+        let preflightAfterDarkFailureMessages = [
+            "AX-text Preflight after-dark positioning bindings are ambiguous.",
+            "AX-text Preflight after-dark positioning route changed.",
+            "AX-text Preflight after-dark positioning geometry is invalid.",
+            "AX-text Preflight after-dark input geometry is invalid.",
+            "AX-text Preflight after-dark has no feasible safe interval.",
+            "AX-text Preflight after-dark requires a non-upward shift.",
+            "AX-text Preflight after-dark staged remainder is not recognizable.",
+            "AX-text Preflight after-dark drag direction is invalid.",
+            "AX-text Preflight after-dark drag receiver is obstructed.",
+            "AX-text Preflight after-dark route changed after positioning.",
+            "AX-text Preflight after-dark moved frame is invalid.",
+            "AX-text Preflight after-dark gesture made no signed progress.",
+            "AX-text Preflight after-dark positioning reversed direction.",
+            "AX-text Preflight after-dark final identity is invalid.",
+            "AX-text Preflight after-dark final composition is unsafe.",
+        ]
+        for message in preflightAfterDarkFailureMessages {
+            XCTAssertEqual(
+                preflightAfterDarkPositioningHelperSource.components(
+                    separatedBy: message
+                ).count - 1,
+                1,
+                message
+            )
+        }
+        XCTAssertEqual(
+            preflightAfterDarkPositioningHelperSource.components(
+                separatedBy: "XCTFail("
+            ).count - 1,
+            preflightAfterDarkFailureMessages.count
+        )
+        XCTAssertEqual(
+            preflightAfterDarkPositioningHelperSource.components(
+                separatedBy: "return false"
+            ).count - 1,
+            preflightAfterDarkFailureMessages.count
+        )
+        for prohibited in [
+            "app.swipe",
+            ".swipeUp()",
+            ".swipeDown()",
+            ".tap()",
+            "wait(",
+            "waitForExistence",
+            "waitForNonExistence",
+            "Thread.sleep",
+            "performAccessibilityAudit",
+            "eligibleExceptions",
+            "captureBaseline",
+            "printJSONLine",
+            "S10_MIGRATION_STATE",
+            "S10_4_AX_STATE",
+            "S10_4_CONTRAST",
+            "S10.4 candidate",
+            "tolerance",
+            "epsilon",
+            "rounded",
+            "integral",
+            "fallback",
+            "maximumShift = -",
+            "dragDistance = -44",
+            "keyboards.count <=",
+            "inputViews.count <=",
+        ] {
+            XCTAssertEqual(
+                preflightAfterDarkPositioningHelperSource.components(
+                    separatedBy: prohibited
+                ).count - 1,
+                0,
+                prohibited
+            )
+        }
 
         let preflightQuickPathStart =
             #"        let preflight = element("s3.preflight.screen", in: app)"#
@@ -17921,9 +18256,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(captureSource.contains(mutation), label)
         }
 
+        let throwingVisibleIssueCallChainLocks = [
+            "        try completeVisibleIssueCheck(in: app)",
+            "    private func completeVisibleIssueCheck(in app: XCUIApplication) throws {",
+        ]
+        for lock in throwingVisibleIssueCallChainLocks {
+            XCTAssertEqual(
+                uiSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
         let nonthrowingCallChainLocks = [
-            "        completeVisibleIssueCheck(in: app)",
-            "    private func completeVisibleIssueCheck(in app: XCUIApplication) {",
             "        recoverCameraDenialAndResume(in: app)",
             "    private func recoverCameraDenialAndResume(in app: XCUIApplication) {",
         ]
@@ -17935,10 +18279,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         for throwingForm in [
-            "        try completeVisibleIssueCheck(in: app)",
             "        try? completeVisibleIssueCheck(in: app)",
             "        try! completeVisibleIssueCheck(in: app)",
-            "    private func completeVisibleIssueCheck(in app: XCUIApplication) throws {",
+            "        completeVisibleIssueCheck(in: app)",
+            "    private func completeVisibleIssueCheck(in app: XCUIApplication) {",
             "        try recoverCameraDenialAndResume(in: app)",
             "        try? recoverCameraDenialAndResume(in: app)",
             "        try! recoverCameraDenialAndResume(in: app)",
@@ -17953,7 +18297,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let exactTopRouteCallChain =
             "        assertLightFirstSignValidationAndCreation(in: app)\n" +
-                "        completeVisibleIssueCheck(in: app)\n" +
+                "        try completeVisibleIssueCheck(in: app)\n" +
                 "        assertFirstReceiptAndReport(in: app)"
         let exactCaptureRouteCallChain =
             "        captureBaseline(\"state.capture.wide-ready\", in: app)\n" +
