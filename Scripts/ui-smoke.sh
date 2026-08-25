@@ -40,6 +40,36 @@ if ! [[ "$selected_test_class" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || \
   exit 65
 fi
 
+if [ "${CI_RUNNER_PROVIDER:-}" = "github" ] && \
+   [ "${CI_TASK_ID:-}" = "S10.4" ] && \
+   [ "${CI_S10_4_SHARD_ID:-}" = "s10.4.current.ax-text" ]; then
+  test "${CI_SIMULATOR_BOOT_TIMEOUT_SECONDS:?}" = "900"
+  simulator_refresh_log="$CI_ARTIFACT_DIR/ui-simulator-refresh.log"
+  test ! -e "$simulator_refresh_log"
+  test ! -L "$simulator_refresh_log"
+  simulator_refresh_start_epoch="$(date +%s)"
+  case "$simulator_refresh_start_epoch" in *[!0-9]* | "") exit 1 ;; esac
+  printf 'refresh_start_epoch=%s\nrefresh_udid=%s\nreadiness_budget_seconds=%s\n' \
+    "$simulator_refresh_start_epoch" "$CI_SIMULATOR_UDID" \
+    "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
+    | tee "$simulator_refresh_log"
+  xcrun simctl shutdown "$CI_SIMULATOR_UDID" 2>&1 \
+    | tee -a "$simulator_refresh_log"
+  xcrun simctl boot "$CI_SIMULATOR_UDID" 2>&1 \
+    | tee -a "$simulator_refresh_log"
+  bash Scripts/run-with-timeout.sh "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
+    xcrun simctl bootstatus "$CI_SIMULATOR_UDID" -b 2>&1 \
+    | tee -a "$simulator_refresh_log"
+  simulator_refresh_end_epoch="$(date +%s)"
+  case "$simulator_refresh_end_epoch" in *[!0-9]* | "") exit 1 ;; esac
+  test "$simulator_refresh_end_epoch" -ge "$simulator_refresh_start_epoch"
+  simulator_refresh_elapsed_seconds="$(( simulator_refresh_end_epoch - simulator_refresh_start_epoch ))"
+  test "$simulator_refresh_elapsed_seconds" -le "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS"
+  printf 'refresh_end_epoch=%s\nrefresh_elapsed_seconds=%s\n' \
+    "$simulator_refresh_end_epoch" "$simulator_refresh_elapsed_seconds" \
+    | tee -a "$simulator_refresh_log"
+fi
+
 xcrun simctl bootstatus "$CI_SIMULATOR_UDID" -b
 if xcrun simctl get_app_container "$CI_SIMULATOR_UDID" "$app_bundle_id" app >/dev/null 2>&1; then
   xcrun simctl uninstall "$CI_SIMULATOR_UDID" "$app_bundle_id"
