@@ -10497,24 +10497,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "    private func positionRecheckPreflightContrastTargetsForAXText(\n" +
                 "        in app: XCUIApplication\n" +
                 "    ) -> Bool {"
+        let recheckPreflightPositioningHelperEnd =
+            "\n\n    @MainActor\n" +
+                "    private func shouldDiagnoseAXTextReportCorrectionCompletedFrontier("
         guard let recheckPreflightPositioningHelperStartRange = uiSource.range(
             of: recheckPreflightPositioningHelperStart
         ), let recheckPreflightPositioningHelperEndRange = uiSource.range(
-            of: captureBaselineStart,
+            of: recheckPreflightPositioningHelperEnd,
             range: recheckPreflightPositioningHelperStartRange.upperBound ..<
                 uiSource.endIndex
         ) else {
             XCTFail("Missing the bounded AX-text recheck-Preflight positioning helper")
             return
         }
-        let recheckPreflightPositioningHelperEnd = uiSource.index(
-            recheckPreflightPositioningHelperEndRange.lowerBound,
-            offsetBy: -2
-        )
         let recheckPreflightPositioningHelperSource = String(
             uiSource[
                 recheckPreflightPositioningHelperStartRange.lowerBound ..<
-                    recheckPreflightPositioningHelperEnd
+                    recheckPreflightPositioningHelperEndRange.lowerBound
             ]
         )
         XCTAssertEqual(recheckPreflightPositioningHelperSource.utf8.count, 21_561)
@@ -18989,7 +18988,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(uiSource.contains(removedK128FrontierForm), removedK128FrontierForm)
         }
         let restoredReportCorrectionRoute =
-            "        captureReportComparisonAndCorrectionStates(in: app)\n" +
+            "        try captureReportComparisonAndCorrectionStates(in: app)\n" +
                 "        captureUnavailablePaywallAndFeedbackReview(in: app)"
         XCTAssertEqual(
             uiSource.components(separatedBy: restoredReportCorrectionRoute).count - 1,
