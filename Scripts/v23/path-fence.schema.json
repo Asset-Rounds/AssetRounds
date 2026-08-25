@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assetrounds.local/schemas/v23/path-fence.schema.json",
+  "title": "PathFenceV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "schemaVersion", "cardID", "attemptID", "baseHead", "baseTree", "contextDigest",
+    "bootstrapFenceDigest", "authorityContextDigest", "writerAuthority", "ledgerDigest", "ledgerCASSequence",
+    "allowedPaths", "allowedDeletePaths", "allowedRenamePaths", "prohibitions", "historicalDiffSubsetRequired",
+    "oneShot", "expiresOn", "releaseCredit", "adoptionEnabled", "fenceDigest"
+  ],
+  "properties": {
+    "schema": { "const": "PathFenceV1" },
+    "schemaVersion": { "const": 1 },
+    "cardID": { "type": "string", "pattern": "^V23-P[0-9]{2}-C[0-9]{2}$" },
+    "attemptID": { "type": "integer", "minimum": 1 },
+    "baseHead": { "$ref": "#/$defs/gitObject" },
+    "baseTree": { "$ref": "#/$defs/gitObject" },
+    "contextDigest": { "$ref": "#/$defs/digest" },
+    "bootstrapFenceDigest": { "$ref": "#/$defs/digest" },
+    "authorityContextDigest": { "$ref": "#/$defs/digest" },
+    "writerAuthority": { "type": "object", "additionalProperties": false, "required": ["ownerID", "writerGeneration"], "properties": { "ownerID": { "const": "A00_BOOTSTRAP_CONTROLLER" }, "writerGeneration": { "const": 0 } } },
+    "ledgerDigest": { "$ref": "#/$defs/digest" },
+    "ledgerCASSequence": { "type": "integer", "minimum": 0 },
+    "allowedPaths": { "$ref": "#/$defs/paths" },
+    "allowedDeletePaths": { "type": "array", "maxItems": 0 },
+    "allowedRenamePaths": { "type": "array", "maxItems": 0 },
+    "prohibitions": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+    "historicalDiffSubsetRequired": { "const": true },
+    "oneShot": { "const": true },
+    "expiresOn": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+    "releaseCredit": { "const": false },
+    "adoptionEnabled": { "const": false },
+    "fenceDigest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gitObject": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "path": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$" },
+    "paths": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } }
+  }
+}

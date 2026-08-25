@@ -1,0 +1,87 @@
+{
+  "schema": "V23P00C05ToolingManifestV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C05",
+  "attemptID": 1,
+  "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+  "branch": "phase/v23-expansion",
+  "baseHead": "8bf9839087b83601578fbd03da2124e39f90110d",
+  "baseTree": "52d7dfc8e28cfbb9d061828c2932e4e8b6e9bc90",
+  "authority": {
+    "overrideID": "V23-OWNER-PARALLEL-IMPLEMENTATION-004",
+    "overrideSemanticDigest": "3c1d8779cbc00ed22d26a088bac9f4169e92f630ac3d1f9d5e3fcf43e47bb8cd",
+    "overrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "contextDigest": "f71049e0b10572bd792f5d6aaf42a014266508c3a01d3d20cd415ec4fd452f4b",
+    "bootstrapPathFenceDigest": "0bf5e3c7c274a819087d8d52b971b8fbdd9bafd149ae869852e90785afea98a7",
+    "provisionalPrerequisiteDigest": "292436c7072cfbf0e8e661e647e41d79b5d9a00de4b3bd9a3cb11a77895df2ee",
+    "predecessorCheckpointDigest": "ec491791b199e9455705c94434bdb27d0dea9771bd1eb355dbfd0b574eefbd23",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "registerDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "contractFacetDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c"
+  },
+  "phase10Isolation": {
+    "pollingDuringParallelExecution": false,
+    "frozenReservedPathCount": 86,
+    "frozenReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "overlapCount": 0,
+    "phase10MutationPerformed": false,
+    "deferredReconciliationTrigger": "OWNER_REPORTS_ACCEPTED_S10_6_COMPLETE"
+  },
+  "artifacts": [
+    { "path": "Scripts/v23/card_contracts.py", "sha256": "c59e394188a82ed57e12662fc2d9ddc6af555e432ad9eaee6001dd18cd291222" },
+    { "path": "Scripts/v23/card_authority.py", "sha256": "19bdf78ff7aeb97fc67c3aec62f456f786c3cc6b59b85b14a060ef5ef9471c3a" },
+    { "path": "Scripts/v23/generate_card_projection.py", "sha256": "dc8efb79ebfac71e6d73020958c51039339aeeefc61eceb73d25f1695aa07e2a" },
+    { "path": "Scripts/v23/hydrate_card.py", "sha256": "6a2ddd95c82d700b638054cbf5a8640fe5ee0fb6905d15fc31ea9b36056bb39d" },
+    { "path": "Scripts/v23/verify_card_contracts.py", "sha256": "356582b7b3f2a21f1668554373fd8f939d287d67ffa1ed9206f4c5c11cfa9825" },
+    { "path": "Scripts/v23/hydrated-card-execution-spec.schema.json", "sha256": "21ffff7abfb98923f1051f2a1f70aeb50097d129e6047c35f992d9544d23acd6" },
+    { "path": "Scripts/v23/path-fence.schema.json", "sha256": "6e710a31977816d1593dbdf90472f6e3b3f179bb6a1d4bcefda33dbeefeb4da4" },
+    { "path": "docs/design/v23/tooling/V23PlanningProjectionV1.json", "sha256": "d5b923c5fe435bee2d66980dd3d42b8f68163623af95f5b8f25b0f1e0a4c9c1d" },
+    { "path": "docs/design/v23/tooling/ContractFacetRegistryV1.json", "sha256": "07891606b1a08580db758f1ef8a9c880cd769960bb455e51de42c3b2b7c6550b" }
+  ],
+  "projectionContract": {
+    "cardCount": 146,
+    "directEdgeCount": 230,
+    "nonDirectRelationCount": 1247,
+    "selectorCount": 7,
+    "dependencyDispositionCount": 1058,
+    "contractFacetCount": 69,
+    "contractOwnershipRowCount": 79,
+    "uniqueContractMemberCount": 359,
+    "contractFacetArtifactDigest": "f1795c65e1fbbad514bb63be5e0b7dfa468a6cddabca9f581c39c09fbb0a7b93",
+    "projectionArtifactDigest": "676b8eb03523474ba844ecbcaac5d63a10505b00769debb8dbec2c9aba70c33d",
+    "nonreleaseSpecialEdgeCount": 10,
+    "readinessSource": "DIRECT_EXECUTION_PREREQUISITE_ONLY",
+    "independentParsePassCount": 2
+  },
+  "hydrationContract": {
+    "bootstrapCards": ["V23-P00-C01", "V23-P00-C02", "V23-P00-C04", "V23-P00-C05"],
+    "bootstrapSpecsGeneratedTwiceIdentically": true,
+    "strictAdditionalPropertiesSchemas": true,
+    "exactPathFenceSubsetRequired": true,
+    "currentWriterAuthorityRequired": true,
+    "hostileInterruptionRecoveryCaseCount": 50
+  },
+  "provisionalSafety": {
+    "adoptionEnabled": false,
+    "acceptanceEnabled": false,
+    "releaseCredit": false,
+    "hostedDispatchEnabled": false,
+    "controllerStateMutationPerformed": false,
+    "externalLedgerWriterChanged": false,
+    "productOrProjectMutationPerformed": false
+  },
+  "bootstrapSpecDigests": {
+    "V23-P00-C01": "fd13b148f3cf68e567fb532ca4dfffde0c572f37b0a2f62661e09c2bc318d1b1",
+    "V23-P00-C02": "6629281bee00895f6a0e7722d149a16b2c6d0029b4ab7b55ad0dd44b0c2015d7",
+    "V23-P00-C04": "4da3a684fbcde9413d1ad7022c5e0d293fc9468cf0d73e489e582216bc435a71",
+    "V23-P00-C05": "1bc4d80bc7090db72b370fd3c00b2e2bc449e4dd46d730ef7a852f6d2fff4bdc"
+  },
+  "checkpointDisposition": "LOCAL_STATIC_TOOLING_EVIDENCE_ONLY",
+  "acceptanceCredit": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "selfDigestRule": "MANIFEST_SHA256_IS_RECORDED_IN_EXTERNAL_POST_COMMIT_VERIFICATION_RECEIPT"
+}
