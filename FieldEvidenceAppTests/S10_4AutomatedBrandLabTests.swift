@@ -18886,10 +18886,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let segmentedReplaySource = String(
             replaySource[segmentedReplayStart.lowerBound...]
         )
-        XCTAssertEqual(segmentedReplaySource.utf8.count, 2_485)
+        XCTAssertEqual(segmentedReplaySource.utf8.count, 2_483)
         XCTAssertEqual(
             Data(segmentedReplaySource.utf8).sha256,
-            "FC02D32EB3FAB5A9CB851A46EFCA91188E4DC7F66318A686A15D66860FD1CBF0"
+            "AD9A8FAD9E4D7A14F012443445880997BE8AAAEBD354C1E4280F2A28F44565DF"
         )
         for exact in [
             "shard.shardID == \"s10.4.current.ax-text\"",
