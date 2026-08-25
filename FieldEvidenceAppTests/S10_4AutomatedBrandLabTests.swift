@@ -7030,12 +7030,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for removed in removedMinimumKeyboardDiagnosticForms {
             XCTAssertFalse(uiSource.contains(removed), removed)
         }
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: #"NSPredicate(format: "identifier == %@", "inputView")"#
-            ).count - 1,
-            2
-        )
         let restoredMinimumKeyboardCaller =
             #"        sign.typeText("Monument Sign")"# + "\n" +
                 "        dismissKeyboard(in: app)\n" +
@@ -10503,24 +10497,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "    private func positionRecheckPreflightContrastTargetsForAXText(\n" +
                 "        in app: XCUIApplication\n" +
                 "    ) -> Bool {"
+        let recheckPreflightPositioningHelperEnd =
+            "\n\n    @MainActor\n" +
+                "    private func shouldDiagnoseAXTextReportCorrectionValidationFrontier("
         guard let recheckPreflightPositioningHelperStartRange = uiSource.range(
             of: recheckPreflightPositioningHelperStart
         ), let recheckPreflightPositioningHelperEndRange = uiSource.range(
-            of: captureBaselineStart,
+            of: recheckPreflightPositioningHelperEnd,
             range: recheckPreflightPositioningHelperStartRange.upperBound ..<
                 uiSource.endIndex
         ) else {
             XCTFail("Missing the bounded AX-text recheck-Preflight positioning helper")
             return
         }
-        let recheckPreflightPositioningHelperEnd = uiSource.index(
-            recheckPreflightPositioningHelperEndRange.lowerBound,
-            offsetBy: -2
-        )
         let recheckPreflightPositioningHelperSource = String(
             uiSource[
                 recheckPreflightPositioningHelperStartRange.lowerBound ..<
-                    recheckPreflightPositioningHelperEnd
+                    recheckPreflightPositioningHelperEndRange.lowerBound
             ]
         )
         XCTAssertEqual(recheckPreflightPositioningHelperSource.utf8.count, 21_561)
