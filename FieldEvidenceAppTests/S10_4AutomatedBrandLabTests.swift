@@ -5811,6 +5811,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let preservedNewSignInputLocks = [
             #"        assertLocalizedValue(sign, equals: "Monument Sign")"#,
             #"        XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)"#,
+            #"        let validationDetailRoute = element("s2.sign-detail.screen", in: app)"#,
         ]
         XCTAssertEqual(
             uiSource.components(separatedBy: newSignRoutePreconditionStart).count - 1,
@@ -5899,7 +5900,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "        let prePositionSignValue = sign.value as? String",
             "        let prePositionErrorLabel = error.label",
             "        let prePositionErrorValue = error.value as? String",
-            "        let validationDetailRoute = element(\"s2.sign-detail.screen\", in: app)",
             "        let prePositionDetailRouteExists = validationDetailRoute.exists",
             "        let dragInset: CGFloat = 24",
             "        let minimumGestureDistance: CGFloat = 44",

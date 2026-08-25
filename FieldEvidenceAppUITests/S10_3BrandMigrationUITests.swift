@@ -852,6 +852,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 10))
         assertLocalizedValue(sign, equals: "Monument Sign")
         XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
+        let validationDetailRoute = element("s2.sign-detail.screen", in: app)
         if shouldPrepareNormalEvidence(
             for: "state.new-sign.validation-error",
             in: app
@@ -869,7 +870,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let prePositionSignValue = sign.value as? String
         let prePositionErrorLabel = error.label
         let prePositionErrorValue = error.value as? String
-        let validationDetailRoute = element("s2.sign-detail.screen", in: app)
         let prePositionDetailRouteExists = validationDetailRoute.exists
         let dragInset: CGFloat = 24
         let minimumGestureDistance: CGFloat = 44
