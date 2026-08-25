@@ -788,7 +788,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         app.terminate()
         app.launch()
         recoverInjectedPDFFailureAtXXXL(in: app)
-        captureReportComparisonAndCorrectionStates(in: app)
+        try captureReportComparisonAndCorrectionStates(in: app)
         captureUnavailablePaywallAndFeedbackReview(in: app)
         try assertMonthlyPaywallAtXXXL(in: app)
         eraseLocalDataAndCaptureNoEntitlement(in: app)
@@ -6547,7 +6547,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func captureReportComparisonAndCorrectionStates(
         in app: XCUIApplication
-    ) {
+    ) throws {
         let history = element("s4.4.sign-detail.report-history", in: app)
         scroll(history, in: app)
         assertControl(history, label: "Report history")
@@ -6816,6 +6816,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         captureBaseline("state.report-correction.saving", in: app)
         XCTAssertTrue(element("s4.5.correction.ready", in: app)
             .waitForExistence(timeout: 40))
+        if shouldDiagnoseAXTextReportCorrectionCompletedFrontier(in: app) {
+            try diagnoseAXTextReportCorrectionCompletedFrontier(in: app)
+        }
         captureBaseline("state.report-correction.completed", in: app)
         let currentReport = element("s4.5.correction.current-report", in: app)
         scroll(currentReport, in: app)
@@ -8584,6 +8587,264 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             return false
         }
         return true
+    }
+
+    @MainActor
+    private func shouldDiagnoseAXTextReportCorrectionCompletedFrontier(
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> Bool {
+        guard automationSegment == .segment3 else { return false }
+        let expectedOwnedStateIDs = [
+            "state.report-pdf.failed",
+            "state.report-comparison.ready",
+            "state.report-correction.editing",
+            "state.report-correction.validation-error",
+            "state.report-correction.saving",
+        ]
+        guard automationShard?.shardID == "s10.4.current.ax-text",
+              Self.segmentedRouteStateIDs.count == 67,
+              Set(Self.segmentedRouteStateIDs).count == 67,
+              automationSegment.replayCount == 50,
+              automationSegment.ownedCount == 17,
+              automationSegment.finalOrdinal == 67,
+              segmentedRouteStateCursor == 55,
+              Array(Self.segmentedRouteStateIDs[50..<55])
+                == expectedOwnedStateIDs,
+              migratedStateIDs == expectedOwnedStateIDs,
+              !automatedSegmentFinished,
+              app.state == .runningForeground else {
+            XCTFail(
+                "S10.4 AX-text Report-correction-completed frontier drifted",
+                file: file,
+                line: line
+            )
+            return true
+        }
+        return true
+    }
+
+    @MainActor
+    private func diagnoseAXTextReportCorrectionCompletedFrontier(
+        in app: XCUIApplication
+    ) throws {
+        let targetStateID = "state.report-correction.completed"
+        let expectedOwnedStateIDs = [
+            "state.report-pdf.failed",
+            "state.report-comparison.ready",
+            "state.report-correction.editing",
+            "state.report-correction.validation-error",
+            "state.report-correction.saving",
+        ]
+        guard automationSegment == .segment3,
+              let shard = automationShard,
+              shard.shardID == "s10.4.current.ax-text",
+              Self.segmentedRouteStateIDs.count == 67,
+              Set(Self.segmentedRouteStateIDs).count == 67,
+              automationSegment.replayCount == 50,
+              automationSegment.ownedCount == 17,
+              automationSegment.finalOrdinal == 67,
+              segmentedRouteStateCursor == 55,
+              Array(Self.segmentedRouteStateIDs[50..<55])
+                == expectedOwnedStateIDs,
+              migratedStateIDs == expectedOwnedStateIDs,
+              !automatedSegmentFinished,
+              app.state == .runningForeground else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 AX-text Report-correction-completed frontier context drifted"
+            )
+        }
+
+        let screenElements = app.descendants(matching: .any).matching(
+            identifier: "s4.5.correction.screen"
+        )
+        let readyElements = app.descendants(matching: .any).matching(
+            identifier: "s4.5.correction.ready"
+        )
+        let currentReportElements = app.descendants(matching: .any).matching(
+            identifier: "s4.5.correction.current-report"
+        )
+        let currentReportScrollViews = app.scrollViews.containing(
+            .button,
+            identifier: "s4.5.correction.current-report"
+        )
+        let navigationBars = app.navigationBars
+        let tabBars = app.tabBars
+        let keyboards = app.keyboards
+        let inputViews = app.otherElements.matching(
+            NSPredicate(format: "identifier == %@", "inputView")
+        )
+        let queryBindings: [(name: String, query: XCUIElementQuery)] = [
+            ("screen", screenElements),
+            ("ready", readyElements),
+            ("currentReport", currentReportElements),
+            ("currentReportScrollView", currentReportScrollViews),
+            ("navigationBar", navigationBars),
+            ("tabBar", tabBars),
+            ("keyboard", keyboards),
+            ("inputView", inputViews),
+        ]
+        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
+            element in
+            let valueObject: Any
+            if let value = element.value as? String {
+                valueObject = value
+            } else {
+                valueObject = NSNull()
+            }
+            return [
+                "identifier": element.identifier,
+                "label": element.label,
+                "value": valueObject,
+                "elementTypeRawValue": element.elementType.rawValue,
+                "elementTypeDescription": String(
+                    describing: element.elementType
+                ),
+                "frame": self.auditFrameObject(element.frame),
+                "exists": element.exists,
+                "isEnabled": element.isEnabled,
+                "isHittable": element.isHittable,
+            ]
+        }
+        var queryObjects: [String: Any] = [:]
+        for binding in queryBindings {
+            let actualCount = binding.query.count
+            var elementObjects: [[String: Any]] = []
+            for index in 0..<actualCount {
+                let element = binding.query.element(boundBy: index)
+                elementObjects.append(diagnosticElementObject(element))
+            }
+            queryObjects[binding.name] = [
+                "count": actualCount,
+                "elements": elementObjects,
+            ]
+        }
+
+        let context: [String: Any] = [
+            "schemaVersion": 1,
+            "acceptanceEligible": false,
+            "shardID": shard.shardID,
+            "requirementID": shard.requirementID,
+            "deviceProfileID": shard.deviceProfileID,
+            "segmentID": automationSegment.rawValue,
+            "stateID": targetStateID,
+            "stateOrdinal": 56,
+            "predecessorStateID": "state.report-correction.saving",
+            "predecessorOrdinal": 55,
+            "successorStateID": "state.paywall.unavailable",
+            "successorOrdinal": 57,
+            "segmentReplayCount": automationSegment.replayCount,
+            "segmentOwnedCount": automationSegment.ownedCount,
+            "segmentFinalOrdinal": automationSegment.finalOrdinal,
+            "segmentStateCursor": segmentedRouteStateCursor,
+            "migratedStateIDs": migratedStateIDs,
+            "applicationState": String(describing: app.state),
+            "applicationStateRawValue": app.state.rawValue,
+            "applicationForeground": app.state == .runningForeground,
+            "applicationFrame": auditFrameObject(app.frame),
+            "application": diagnosticElementObject(app),
+            "queries": queryObjects,
+        ]
+        let contextData = try JSONSerialization.data(
+            withJSONObject: context,
+            options: [.sortedKeys]
+        )
+        let contextString = String(decoding: contextData, as: UTF8.self)
+        print(
+            "S10_4_AX_TEXT_REPORT_CORRECTION_COMPLETED_FRONTIER_DIAGNOSTIC "
+                + contextString
+        )
+
+        let appAttachment = XCTAttachment(screenshot: app.screenshot())
+        appAttachment.name =
+            "S10.4 AX-text Report-correction-completed frontier app"
+        appAttachment.lifetime = .keepAlways
+        add(appAttachment)
+        let treeAttachment = XCTAttachment(string: app.debugDescription)
+        treeAttachment.name =
+            "S10.4 AX-text Report-correction-completed frontier tree"
+        treeAttachment.lifetime = .keepAlways
+        add(treeAttachment)
+        let contextAttachment = XCTAttachment(string: contextString)
+        contextAttachment.name =
+            "S10.4 AX-text Report-correction-completed frontier context"
+        contextAttachment.lifetime = .keepAlways
+        add(contextAttachment)
+
+        var observedIssueCount = 0
+        var auditedElementCount = 0
+        var auditErrorDescription: Any = NSNull()
+        do {
+            try app.performAccessibilityAudit(for: .contrast) { issue in
+                observedIssueCount += 1
+                var diagnostic: [String: Any] = [
+                    "schemaVersion": 1,
+                    "acceptanceEligible": false,
+                    "shardID": shard.shardID,
+                    "stateID": targetStateID,
+                    "issueOrdinal": observedIssueCount,
+                    "auditTypeRawValue": String(issue.auditType.rawValue),
+                    "compactDescription": issue.compactDescription,
+                    "detailedDescription": issue.detailedDescription,
+                    "elementIdentifier": NSNull(),
+                    "elementLabel": NSNull(),
+                    "elementValue": NSNull(),
+                    "elementTypeRawValue": NSNull(),
+                    "elementTypeDescription": NSNull(),
+                    "elementFrame": NSNull(),
+                    "applicationFrame": self.auditFrameObject(app.frame),
+                ]
+                if let auditedElement = issue.element {
+                    auditedElementCount += 1
+                    diagnostic["elementIdentifier"] = auditedElement.identifier
+                    diagnostic["elementLabel"] = auditedElement.label
+                    if let value = auditedElement.value as? String {
+                        diagnostic["elementValue"] = value
+                    }
+                    diagnostic["elementTypeRawValue"] =
+                        auditedElement.elementType.rawValue
+                    diagnostic["elementTypeDescription"] = String(
+                        describing: auditedElement.elementType
+                    )
+                    diagnostic["elementFrame"] = self.auditFrameObject(
+                        auditedElement.frame
+                    )
+                    let issueAttachment = XCTAttachment(
+                        screenshot: auditedElement.screenshot()
+                    )
+                    issueAttachment.name =
+                        "S10.4 AX-text Report-correction-completed frontier audit issue "
+                            + String(observedIssueCount)
+                    issueAttachment.lifetime = .keepAlways
+                    self.add(issueAttachment)
+                }
+                self.printJSONLine(
+                    prefix:
+                        "S10_4_AX_TEXT_REPORT_CORRECTION_COMPLETED_FRONTIER_AUDIT",
+                    object: diagnostic
+                )
+                return false
+            }
+        } catch {
+            auditErrorDescription = String(describing: error)
+        }
+        printJSONLine(
+            prefix:
+                "S10_4_AX_TEXT_REPORT_CORRECTION_COMPLETED_FRONTIER_AUDIT_COUNT",
+            object: [
+                "schemaVersion": 1,
+                "acceptanceEligible": false,
+                "shardID": shard.shardID,
+                "stateID": targetStateID,
+                "issueCount": observedIssueCount,
+                "auditedElementCount": auditedElementCount,
+                "auditError": auditErrorDescription,
+            ]
+        )
+        throw AutomationConfigurationError.invalid(
+            "S10.4 AX-text Report-correction-completed frontier diagnostic completed nonaccepting"
+        )
     }
 
     @MainActor
