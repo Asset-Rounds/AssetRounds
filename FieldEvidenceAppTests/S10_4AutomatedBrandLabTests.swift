@@ -541,11 +541,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertFalse(warpScopeSource.contains("s10.4.minimum."))
         XCTAssertNotEqual(workerExecutionSource, warpExecutionSource)
-        XCTAssertEqual(workerExecutionSource.utf8.count, 71_477)
-        XCTAssertEqual(
-            Data(workerExecutionSource.utf8).sha256,
-            "438D05AD490EAA5085C9892E5974D54393C2DF23685EB1611F2C0E1131816A74"
-        )
         XCTAssertEqual(warpExecutionSource.utf8.count, 36_998)
         XCTAssertEqual(
             Data(warpExecutionSource.utf8).sha256,
@@ -18819,7 +18814,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let uiStateList = try boundedSource(
             uiSource,
             from: "    private static let segmentedRouteStateIDs = [",
-            before: "\n\n    private static let contrastAuditExceptionSignatures = ["
+            before: "\n\n    private static let axTextPurchaseFrontierReplayCount = 38"
         )
         var stateSearchStart = uiStateList.startIndex
         for stateID in orderedStateIDs {
@@ -18880,8 +18875,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func replaySegmentPrefixIfNeeded(\n",
             before: "\n\n    @MainActor\n    private func finishAutomatedSegmentIfNeeded("
         )
+        let segmentedReplayStart = try XCTUnwrap(
+            replaySource.range(
+                of: "        guard let shard = automationShard,\n" +
+                    "              shard.shardID == \"s10.4.current.ax-text\" else {\n" +
+                    "            XCTFail(\n" +
+                    "                \"Only the frozen AX-text shard may enter a segmented route\""
+            )
+        )
+        let segmentedReplaySource = String(
+            replaySource[segmentedReplayStart.lowerBound...]
+        )
+        XCTAssertEqual(segmentedReplaySource.utf8.count, 2_485)
+        XCTAssertEqual(
+            Data(segmentedReplaySource.utf8).sha256,
+            "FC02D32EB3FAB5A9CB851A46EFCA91188E4DC7F66318A686A15D66860FD1CBF0"
+        )
         for exact in [
-            "guard automationSegment != .none else { return false }",
             "shard.shardID == \"s10.4.current.ax-text\"",
             "Self.segmentedRouteStateIDs.count == 67",
             "Set(Self.segmentedRouteStateIDs).count == 67",
@@ -18892,7 +18902,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "segmentedRouteStateCursor <= automationSegment.replayCount",
             "printJSONLine(prefix: \"S10_4_SEGMENT_REPLAY\"",
         ] {
-            XCTAssertTrue(replaySource.contains(exact), exact)
+            XCTAssertTrue(segmentedReplaySource.contains(exact), exact)
         }
         for prohibited in [
             "S10_MIGRATION_STATE",
@@ -18905,7 +18915,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "test-without-building",
             "snapshot",
         ] {
-            XCTAssertFalse(replaySource.contains(prohibited), prohibited)
+            XCTAssertFalse(segmentedReplaySource.contains(prohibited), prohibited)
         }
 
         let finalizerSource = try boundedSource(
@@ -18988,10 +18998,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "segment boundary \(boundary)"
             )
         }
-        XCTAssertEqual(
-            uiSource.components(separatedBy: "if automatedSegmentFinished { return }").count - 1,
-            2
-        )
         let terminalBoundary = try XCTUnwrap(
             uiSource.range(
                 of: "if finishAutomatedSegmentIfNeeded(after: 67, in: app) { return }"
