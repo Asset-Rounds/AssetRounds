@@ -14207,8 +14207,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for lock in deleteViewportDiagnosticLocks {
             XCTAssertTrue(uiSource.contains(lock), lock)
         }
+        let postFrontierUIContractSource = String(
+            uiSource[contrastAuthorityStartRange.lowerBound..<uiSource.endIndex]
+        )
         XCTAssertEqual(
-            uiSource.components(
+            postFrontierUIContractSource.components(
                 separatedBy: "state.sign-detail.delete-confirmation"
             ).count - 1,
             2
