@@ -88,40 +88,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         AutomationShard(ordinal: 14, shardID: "s10.4.minimum.bounded", requirementID: "bounded", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "differentiate_without_color", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-bounded", layoutDirection: "left_to_right", differentiateWithoutColor: true, reduceMotion: false, reduceTransparency: false),
     ]
 
-    private static let axTextFrontierReplayStateIDs = [
-        "state.pack.unavailable",
-        "state.welcome.empty",
-        "state.reports-index.empty",
-        "state.sample-report.ready",
-        "state.new-sign.editing",
-        "state.new-sign.validation-error",
-        "state.sign-detail.ready",
-        "state.sign-detail.delete-confirmation",
-        "state.check-preflight.ready",
-        "state.capture.wide-ready",
-        "state.capture.camera-denied",
-        "state.capture.low-storage-error",
-        "state.capture.wide-preview",
-        "state.capture.close-ready",
-        "state.capture.close-preview",
-        "state.check-outcome.visible-issue",
-        "state.check-review.visible-issue",
-        "state.receipt.report-saved",
-        "state.report-detail.ready",
-        "state.report-history.ready",
-        "state.reports-index.ready",
-        "state.sign-detail.open-issue",
-        "state.work.validation-error",
-        "state.work.editing",
-        "state.work.saving",
-    ]
-
-    private static let axTextFrontierWindowStateIDs = [
-        "state.issue.recheck-due",
-        "state.recheck-preflight.ready",
-        "state.recheck-capture.wide-ready",
-    ]
-
     private static let contrastAuditExceptionSignatures = [
         ContrastAuditExceptionSignature(
             issueID: "S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-WIDE-VIEW",
@@ -556,7 +522,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     private var automationAXTreeDigests: [String: String] = [:]
     private var automationContrastExceptions: [String: [ContrastAuditExceptionSignature]] = [:]
     private var pseudoLabelSentinelValidated = false
-    private var axTextFrontierStateCursor = 0
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -601,7 +566,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         automationAXTreeDigests.removeAll()
         automationContrastExceptions.removeAll()
         pseudoLabelSentinelValidated = false
-        axTextFrontierStateCursor = 0
     }
 
     @MainActor
@@ -5299,13 +5263,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         startRecheck.tap()
         XCTAssertTrue(element("s3.preflight.screen", in: app)
             .waitForExistence(timeout: 20))
-        if let shard = automationShard,
-           shard.shardID == "s10.4.current.ax-text" {
-            try diagnoseAXTextRecheckPreflightContrast(
-                in: app,
-                shard: shard,
-                stateID: "state.recheck-preflight.ready"
-            )
+        if automationShard?.shardID == "s10.4.current.ax-text" {
+            guard positionRecheckPreflightContrastTargetsForAXText(in: app) else {
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 AX-text recheck-preflight positioning failed"
+                )
+            }
         }
         captureBaseline("state.recheck-preflight.ready", in: app)
         setToggle("s3.preflight.after-dark", in: app)
@@ -7502,189 +7465,461 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func diagnoseAXTextRecheckPreflightContrast(
-        in app: XCUIApplication,
-        shard: AutomationShard,
-        stateID: String
-    ) throws {
-        let diagnosticStartedAt = ProcessInfo.processInfo.systemUptime
+    private func positionRecheckPreflightContrastTargetsForAXText(
+        in app: XCUIApplication
+    ) -> Bool {
+        let beforeYouBeginLabel = "Before you begin"
+        let afterDarkLabel =
+            "It is dark enough to observe the sign's visible illumination."
+        let safePositionLabel =
+            "I am in a safe, authorized position to take these photos."
+        let focusedPredicate = NSPredicate(format: "hasKeyboardFocus == true")
+        let beforeYouBeginPredicate = NSPredicate(
+            format: "label == %@",
+            beforeYouBeginLabel
+        )
+        let afterDarkPredicate = NSPredicate(
+            format: "label == %@",
+            afterDarkLabel
+        )
         let preflightScreens = app.descendants(matching: .any).matching(
             identifier: "s3.preflight.screen"
         )
-        let preflightScrollViews = app.scrollViews.containing(
-            .textField,
-            identifier: "s3.preflight.time-zone"
+        let preflightScrollViews = app.scrollViews.matching(
+            identifier: "s3.preflight.screen"
         )
-        let beforeYouBeginStaticTexts = app.staticTexts.matching(
-            NSPredicate(
-                format: "label == %@",
-                "Before you begin"
-            )
+        let navigationBars = app.navigationBars.matching(
+            identifier: "Ready for night check"
         )
-        let navigationBars = app.navigationBars
         let tabBars = app.tabBars
-        let beginControls = app.descendants(matching: .any).matching(
+        let beforeYouBeginStaticTexts = app.staticTexts.matching(
+            beforeYouBeginPredicate
+        )
+        let afterDarkStaticTexts = app.staticTexts.matching(afterDarkPredicate)
+        let beginControls = app.buttons.matching(
             identifier: "s3.preflight.begin"
         )
-        let diagnosticQueries: [(String, XCUIElementQuery)] = [
-            ("preflightScreens", preflightScreens),
-            ("preflightScrollViews", preflightScrollViews),
-            ("beforeYouBeginStaticTexts", beforeYouBeginStaticTexts),
-            ("navigationBars", navigationBars),
-            ("tabBars", tabBars),
-            ("beginControls", beginControls),
-        ]
-        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
-            element in
-            let valueObject: Any
-            if let value = element.value as? String {
-                valueObject = value
-            } else {
-                valueObject = NSNull()
-            }
-            return [
-                "exists": element.exists,
-                "isHittable": element.isHittable,
-                "isEnabled": element.isEnabled,
-                "identifier": element.identifier,
-                "label": element.label,
-                "value": valueObject,
-                "elementTypeRawValue": element.elementType.rawValue,
-                "elementTypeDescription": String(describing: element.elementType),
-                "frame": self.auditFrameObject(element.frame),
-            ]
+        let afterDarkSwitches = app.switches.matching(
+            identifier: "s3.preflight.after-dark"
+        )
+        let safePositionSwitches = app.switches.matching(
+            identifier: "s3.preflight.safe-position"
+        )
+        let timeZoneFields = app.textFields.matching(
+            identifier: "s3.preflight.time-zone"
+        )
+        let keyboards = app.keyboards
+        let focusedElements = app.descendants(matching: .any).matching(
+            focusedPredicate
+        )
+        guard preflightScreens.count == 1,
+              preflightScrollViews.count == 1,
+              navigationBars.count == 1,
+              tabBars.count == 1,
+              beforeYouBeginStaticTexts.count == 1,
+              afterDarkStaticTexts.count == 1,
+              beginControls.count == 1,
+              afterDarkSwitches.count == 1,
+              safePositionSwitches.count == 1,
+              timeZoneFields.count == 0,
+              keyboards.count == 0,
+              focusedElements.count == 0 else {
+            XCTFail("AX-text recheck-Preflight positioning bindings are ambiguous.")
+            return false
         }
-        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
-            query in
-            let count = query.count
-            var elements: [[String: Any]] = []
-            for index in 0..<count {
-                elements.append(
-                    diagnosticElementObject(query.element(boundBy: index))
+        let preflightScreen = preflightScreens.firstMatch
+        let preflightScrollView = preflightScrollViews.firstMatch
+        let navigationBar = navigationBars.firstMatch
+        let tabBar = tabBars.firstMatch
+        let beforeYouBeginStaticText = beforeYouBeginStaticTexts.firstMatch
+        let afterDarkStaticText = afterDarkStaticTexts.firstMatch
+        let beginControl = beginControls.firstMatch
+        let afterDarkSwitch = afterDarkSwitches.firstMatch
+        let safePositionSwitch = safePositionSwitches.firstMatch
+        let isValidFrame: (CGRect) -> Bool = { frame in
+            !frame.isNull
+                && !frame.isEmpty
+                && !frame.isInfinite
+                && frame.origin.x.isFinite
+                && frame.origin.y.isFinite
+                && frame.size.width.isFinite
+                && frame.size.height.isFinite
+        }
+        let exactRoute: () -> Bool = {
+            app.state == .runningForeground
+                && preflightScreens.count == 1
+                && preflightScrollViews.count == 1
+                && navigationBars.count == 1
+                && tabBars.count == 1
+                && beforeYouBeginStaticTexts.count == 1
+                && afterDarkStaticTexts.count == 1
+                && beginControls.count == 1
+                && afterDarkSwitches.count == 1
+                && safePositionSwitches.count == 1
+                && timeZoneFields.count == 0
+                && keyboards.count == 0
+                && focusedElements.count == 0
+                && preflightScreen.exists
+                && preflightScreen.elementType == .scrollView
+                && preflightScreen.identifier == "s3.preflight.screen"
+                && preflightScreen.label.isEmpty
+                && (preflightScreen.value as? String) == ""
+                && preflightScreen.isEnabled
+                && preflightScreen.isHittable
+                && preflightScrollView.exists
+                && preflightScrollView.elementType == .scrollView
+                && preflightScrollView.identifier == "s3.preflight.screen"
+                && preflightScrollView.label.isEmpty
+                && (preflightScrollView.value as? String) == ""
+                && preflightScrollView.isEnabled
+                && preflightScrollView.isHittable
+                && navigationBar.exists
+                && navigationBar.elementType == .navigationBar
+                && navigationBar.identifier == "Ready for night check"
+                && navigationBar.label.isEmpty
+                && (navigationBar.value as? String) == ""
+                && navigationBar.isEnabled
+                && navigationBar.isHittable
+                && tabBar.exists
+                && tabBar.elementType == .tabBar
+                && tabBar.identifier.isEmpty
+                && tabBar.label == "Tab Bar"
+                && (tabBar.value as? String) == ""
+                && tabBar.isEnabled
+                && tabBar.isHittable
+                && beforeYouBeginStaticText.exists
+                && beforeYouBeginStaticText.elementType == .staticText
+                && beforeYouBeginStaticText.identifier.isEmpty
+                && beforeYouBeginStaticText.label == beforeYouBeginLabel
+                && (beforeYouBeginStaticText.value as? String) == ""
+                && beforeYouBeginStaticText.isEnabled
+                && afterDarkStaticText.exists
+                && afterDarkStaticText.elementType == .staticText
+                && afterDarkStaticText.identifier.isEmpty
+                && afterDarkStaticText.label == afterDarkLabel
+                && (afterDarkStaticText.value as? String) == ""
+                && afterDarkStaticText.isEnabled
+                && beginControl.exists
+                && beginControl.elementType == .button
+                && beginControl.identifier == "s3.preflight.begin"
+                && beginControl.label == "Begin check"
+                && (beginControl.value as? String) == ""
+                && !beginControl.isEnabled
+                && !beginControl.isHittable
+                && afterDarkSwitch.exists
+                && afterDarkSwitch.elementType == .switch
+                && afterDarkSwitch.identifier == "s3.preflight.after-dark"
+                && afterDarkSwitch.label == afterDarkLabel
+                && afterDarkSwitch.isEnabled
+                && (afterDarkSwitch.value as? String) == "0"
+                && safePositionSwitch.exists
+                && safePositionSwitch.elementType == .switch
+                && safePositionSwitch.identifier == "s3.preflight.safe-position"
+                && safePositionSwitch.label == safePositionLabel
+                && safePositionSwitch.isEnabled
+                && (safePositionSwitch.value as? String) == "0"
+        }
+        guard exactRoute() else {
+            XCTFail("AX-text recheck-Preflight positioning route changed.")
+            return false
+        }
+        let frozenApplicationFrame = app.frame
+        let frozenScreenFrame = preflightScreen.frame
+        let frozenScrollFrame = preflightScrollView.frame
+        let frozenNavigationFrame = navigationBar.frame
+        let frozenTabFrame = tabBar.frame
+        let initialBeforeYouBeginFrame = beforeYouBeginStaticText.frame
+        let initialAfterDarkFrame = afterDarkStaticText.frame
+        let initialBeginFrame = beginControl.frame
+        let initialAfterDarkSwitchFrame = afterDarkSwitch.frame
+        let initialSafePositionSwitchFrame = safePositionSwitch.frame
+        guard isValidFrame(frozenApplicationFrame),
+              isValidFrame(frozenScreenFrame),
+              isValidFrame(frozenScrollFrame),
+              isValidFrame(frozenNavigationFrame),
+              isValidFrame(frozenTabFrame),
+              isValidFrame(initialBeforeYouBeginFrame),
+              isValidFrame(initialAfterDarkFrame),
+              isValidFrame(initialBeginFrame),
+              isValidFrame(initialAfterDarkSwitchFrame),
+              isValidFrame(initialSafePositionSwitchFrame),
+              initialBeforeYouBeginFrame.maxY < initialAfterDarkFrame.minY,
+              frozenScreenFrame == frozenScrollFrame else {
+            XCTFail("AX-text recheck-Preflight initial geometry is invalid.")
+            return false
+        }
+
+        let verticalInset: CGFloat = 16
+        let receiverInset: CGFloat = 24
+        let minimumGestureDistance: CGFloat = 44
+        var previousBeforeYouBeginMinYAfterDrag: CGFloat?
+        var previousAfterDarkMinYAfterDrag: CGFloat?
+        for _ in 0..<4 {
+            guard exactRoute() else {
+                XCTFail("AX-text recheck-Preflight route changed before positioning.")
+                return false
+            }
+            let applicationFrame = app.frame
+            let screenFrame = preflightScreen.frame
+            let scrollFrame = preflightScrollView.frame
+            let navigationFrame = navigationBar.frame
+            let tabFrame = tabBar.frame
+            let beforeYouBeginFrame = beforeYouBeginStaticText.frame
+            let afterDarkFrame = afterDarkStaticText.frame
+            let beginFrame = beginControl.frame
+            let afterDarkSwitchFrame = afterDarkSwitch.frame
+            let safePositionSwitchFrame = safePositionSwitch.frame
+            let requiredFramesAreValid = isValidFrame(applicationFrame)
+                && isValidFrame(screenFrame)
+                && isValidFrame(scrollFrame)
+                && isValidFrame(navigationFrame)
+                && isValidFrame(tabFrame)
+                && isValidFrame(beforeYouBeginFrame)
+                && isValidFrame(afterDarkFrame)
+                && isValidFrame(beginFrame)
+                && isValidFrame(afterDarkSwitchFrame)
+                && isValidFrame(safePositionSwitchFrame)
+            var liveScrollFrame = CGRect.null
+            if requiredFramesAreValid {
+                liveScrollFrame = scrollFrame.intersection(applicationFrame)
+            }
+            guard requiredFramesAreValid,
+                  isValidFrame(liveScrollFrame),
+                  applicationFrame == frozenApplicationFrame,
+                  screenFrame == frozenScreenFrame,
+                  scrollFrame == frozenScrollFrame,
+                  navigationFrame == frozenNavigationFrame,
+                  tabFrame == frozenTabFrame,
+                  screenFrame == scrollFrame,
+                  beforeYouBeginFrame.maxY < afterDarkFrame.minY else {
+                XCTFail("AX-text recheck-Preflight live geometry is invalid.")
+                return false
+            }
+            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)
+            let liveBottom = min(
+                liveScrollFrame.maxY,
+                min(applicationFrame.maxY, tabFrame.minY)
+            )
+            let safeTop = liveTop + verticalInset
+            let safeBottom = liveBottom - verticalInset
+            let receiverTop = liveTop + receiverInset
+            let receiverBottom = liveBottom - receiverInset
+            let receiverLeft = liveScrollFrame.minX + receiverInset
+            let receiverRight = liveScrollFrame.maxX - receiverInset
+            let receiverCapacity = receiverBottom - receiverTop
+            let targetSpan = afterDarkFrame.maxY - beforeYouBeginFrame.minY
+            let minimumShift = max(
+                safeTop - beforeYouBeginFrame.minY,
+                safeTop - afterDarkFrame.minY
+            )
+            let maximumShift = min(
+                safeBottom - beforeYouBeginFrame.maxY,
+                safeBottom - afterDarkFrame.maxY
+            )
+            let targetsAreContained = beforeYouBeginFrame.minY >= safeTop
+                && beforeYouBeginFrame.maxY <= safeBottom
+                && afterDarkFrame.minY >= safeTop
+                && afterDarkFrame.maxY <= safeBottom
+            guard safeTop.isFinite,
+                  safeBottom.isFinite,
+                  receiverTop.isFinite,
+                  receiverBottom.isFinite,
+                  receiverLeft.isFinite,
+                  receiverRight.isFinite,
+                  receiverCapacity.isFinite,
+                  targetSpan.isFinite,
+                  minimumShift.isFinite,
+                  maximumShift.isFinite,
+                  safeTop <= safeBottom,
+                  receiverLeft <= receiverRight,
+                  receiverTop <= receiverBottom,
+                  receiverCapacity >= minimumGestureDistance,
+                  targetSpan <= safeBottom - safeTop,
+                  minimumShift <= maximumShift else {
+                XCTFail("AX-text recheck-Preflight has no feasible safe interval.")
+                return false
+            }
+            if targetsAreContained { break }
+
+            guard maximumShift < 0 else {
+                XCTFail("AX-text recheck-Preflight requires a non-upward shift.")
+                return false
+            }
+            let dragDistance: CGFloat
+            let recognizedMinimum = max(minimumShift, -receiverCapacity)
+            let recognizedMaximum = min(
+                maximumShift,
+                -minimumGestureDistance
+            )
+            if recognizedMinimum <= recognizedMaximum {
+                dragDistance = recognizedMaximum
+            } else {
+                let stagedDistance = max(
+                    -receiverCapacity,
+                    maximumShift + minimumGestureDistance
                 )
+                guard stagedDistance <= -minimumGestureDistance else {
+                    XCTFail("AX-text recheck-Preflight staged remainder is not recognizable.")
+                    return false
+                }
+                dragDistance = stagedDistance
             }
-            return [
-                "count": count,
-                "elements": elements,
-            ]
-        }
-        var diagnosticQueryObjects: [String: Any] = [:]
-        for (name, query) in diagnosticQueries {
-            diagnosticQueryObjects[name] = diagnosticQueryObject(query)
-        }
-        let diagnosticElapsedMilliseconds = Int(
-            (ProcessInfo.processInfo.systemUptime - diagnosticStartedAt) * 1_000
-        )
-        let context: [String: Any] = [
-            "shardID": shard.shardID,
-            "requirementID": shard.requirementID,
-            "deviceProfileID": shard.deviceProfileID,
-            "stateID": stateID,
-            "elapsedMilliseconds": diagnosticElapsedMilliseconds,
-            "applicationState": String(describing: app.state),
-            "applicationStateRawValue": app.state.rawValue,
-            "isRunningForeground": app.state == .runningForeground,
-            "applicationFrame": auditFrameObject(app.frame),
-            "queries": diagnosticQueryObjects,
-        ]
-        printJSONLine(
-            prefix: "S10_4_AX_TEXT_RECHECK_PREFLIGHT_CONTRAST_CONTEXT_DIAGNOSTIC",
-            object: context
-        )
-
-        let appScreenshotAttachment = XCTAttachment(
-            screenshot: XCUIScreen.main.screenshot()
-        )
-        appScreenshotAttachment.name =
-            "S10.4 AX-text Recheck Preflight contrast diagnostic app"
-        appScreenshotAttachment.lifetime = .keepAlways
-        add(appScreenshotAttachment)
-
-        let appTreeAttachment = XCTAttachment(string: app.debugDescription)
-        appTreeAttachment.name =
-            "S10.4 AX-text Recheck Preflight contrast diagnostic tree"
-        appTreeAttachment.lifetime = .keepAlways
-        add(appTreeAttachment)
-
-        let contextData = try JSONSerialization.data(
-            withJSONObject: context,
-            options: [.prettyPrinted, .sortedKeys]
-        )
-        let contextAttachment = XCTAttachment(
-            string: String(decoding: contextData, as: UTF8.self)
-        )
-        contextAttachment.name =
-            "S10.4 AX-text Recheck Preflight contrast diagnostic context"
-        contextAttachment.lifetime = .keepAlways
-        add(contextAttachment)
-
-        var observedIssueCount = 0
-        var diagnosticAuditedElements: [XCUIElement] = []
-        try app.performAccessibilityAudit(for: .contrast) { issue in
-            observedIssueCount += 1
-            let auditedElementObject: Any
-            let elementIdentifier: Any
-            let elementLabel: Any
-            let elementType: Any
-            let elementFrame: Any
-            if let auditedElement = issue.element {
-                diagnosticAuditedElements.append(auditedElement)
-                auditedElementObject = diagnosticElementObject(auditedElement)
-                elementIdentifier = auditedElement.identifier
-                elementLabel = auditedElement.label
-                elementType = String(describing: auditedElement.elementType)
-                elementFrame = self.auditFrameObject(auditedElement.frame)
-            } else {
-                auditedElementObject = NSNull()
-                elementIdentifier = NSNull()
-                elementLabel = NSNull()
-                elementType = NSNull()
-                elementFrame = NSNull()
+            guard dragDistance < 0,
+                  dragDistance <= -minimumGestureDistance else {
+                XCTFail("AX-text recheck-Preflight drag direction is invalid.")
+                return false
             }
-            self.printJSONLine(
-                prefix: "S10_4_AX_TEXT_RECHECK_PREFLIGHT_CONTRAST_ISSUE_DIAGNOSTIC",
-                object: [
-                    "shardID": shard.shardID,
-                    "deviceProfileID": shard.deviceProfileID,
-                    "stateID": stateID,
-                    "ordinal": observedIssueCount,
-                    "auditTypeRawValue": String(issue.auditType.rawValue),
-                    "compactDescription": issue.compactDescription,
-                    "detailedDescription": issue.detailedDescription,
-                    "elementIdentifier": elementIdentifier,
-                    "elementLabel": elementLabel,
-                    "elementType": elementType,
-                    "elementFrame": elementFrame,
-                    "applicationFrame": self.auditFrameObject(app.frame),
-                    "auditedElement": auditedElementObject,
-                ]
+            let receiverFrame = CGRect(
+                x: receiverLeft,
+                y: receiverTop,
+                width: receiverRight - receiverLeft,
+                height: receiverBottom - receiverTop
             )
-            return true
+            let startPoint = CGPoint(x: receiverRight, y: receiverBottom)
+            let endPoint = CGPoint(
+                x: startPoint.x,
+                y: startPoint.y + dragDistance
+            )
+            guard isValidFrame(receiverFrame),
+                  startPoint.x >= receiverFrame.minX,
+                  startPoint.x <= receiverFrame.maxX,
+                  startPoint.y >= receiverFrame.minY,
+                  startPoint.y <= receiverFrame.maxY,
+                  endPoint.x >= receiverFrame.minX,
+                  endPoint.x <= receiverFrame.maxX,
+                  endPoint.y >= receiverFrame.minY,
+                  endPoint.y <= receiverFrame.maxY,
+                  liveScrollFrame.contains(startPoint),
+                  liveScrollFrame.contains(endPoint),
+                  !beforeYouBeginFrame.contains(startPoint),
+                  !beforeYouBeginFrame.contains(endPoint),
+                  !afterDarkFrame.contains(startPoint),
+                  !afterDarkFrame.contains(endPoint) else {
+                XCTFail("AX-text recheck-Preflight drag receiver is obstructed.")
+                return false
+            }
+            let scrollOrigin = preflightScrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let startCoordinate = scrollOrigin.withOffset(
+                CGVector(
+                    dx: startPoint.x - scrollFrame.minX,
+                    dy: startPoint.y - scrollFrame.minY
+                )
+            )
+            let endCoordinate = scrollOrigin.withOffset(
+                CGVector(
+                    dx: endPoint.x - scrollFrame.minX,
+                    dy: endPoint.y - scrollFrame.minY
+                )
+            )
+            let beforeYouBeginMinYBeforeDrag = beforeYouBeginFrame.minY
+            let afterDarkMinYBeforeDrag = afterDarkFrame.minY
+            startCoordinate.press(
+                forDuration: 0.2,
+                thenDragTo: endCoordinate,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            guard exactRoute() else {
+                XCTFail("AX-text recheck-Preflight route changed after positioning.")
+                return false
+            }
+            let beforeYouBeginFrameAfterDrag = beforeYouBeginStaticText.frame
+            let afterDarkFrameAfterDrag = afterDarkStaticText.frame
+            guard isValidFrame(beforeYouBeginFrameAfterDrag),
+                  isValidFrame(afterDarkFrameAfterDrag) else {
+                XCTFail("AX-text recheck-Preflight moved target geometry is invalid.")
+                return false
+            }
+            let observedBeforeYouBeginShift =
+                beforeYouBeginFrameAfterDrag.minY - beforeYouBeginMinYBeforeDrag
+            let observedAfterDarkShift =
+                afterDarkFrameAfterDrag.minY - afterDarkMinYBeforeDrag
+            guard observedBeforeYouBeginShift < 0,
+                  observedAfterDarkShift < 0,
+                  observedBeforeYouBeginShift * dragDistance > 0,
+                  observedAfterDarkShift * dragDistance > 0 else {
+                XCTFail("AX-text recheck-Preflight gesture made no signed progress.")
+                return false
+            }
+            if let previousBeforeYouBeginMinYAfterDrag,
+               let previousAfterDarkMinYAfterDrag {
+                guard beforeYouBeginFrameAfterDrag.minY
+                        < previousBeforeYouBeginMinYAfterDrag,
+                      afterDarkFrameAfterDrag.minY
+                        < previousAfterDarkMinYAfterDrag else {
+                    XCTFail("AX-text recheck-Preflight positioning reversed direction.")
+                    return false
+                }
+            }
+            previousBeforeYouBeginMinYAfterDrag =
+                beforeYouBeginFrameAfterDrag.minY
+            previousAfterDarkMinYAfterDrag = afterDarkFrameAfterDrag.minY
         }
 
-        for (index, auditedElement) in diagnosticAuditedElements.enumerated() {
-            let auditedElementAttachment = XCTAttachment(
-                screenshot: auditedElement.screenshot()
-            )
-            auditedElementAttachment.name =
-                "S10.4 AX-text Recheck Preflight contrast diagnostic element "
-                + String(index + 1)
-            auditedElementAttachment.lifetime = .keepAlways
-            add(auditedElementAttachment)
+        guard exactRoute() else {
+            XCTFail("AX-text recheck-Preflight final route changed.")
+            return false
         }
-        printJSONLine(
-            prefix: "S10_4_AX_TEXT_RECHECK_PREFLIGHT_CONTRAST_COUNT_DIAGNOSTIC",
-            object: [
-                "shardID": shard.shardID,
-                "deviceProfileID": shard.deviceProfileID,
-                "stateID": stateID,
-                "observedIssueCount": observedIssueCount,
-                "auditedElementCount": diagnosticAuditedElements.count,
-            ]
-        )
-        throw AutomationConfigurationError.invalid(
-            "S10.4 AX-text recheck-preflight contrast diagnostic completed nonaccepting observedIssueCount=\(observedIssueCount)"
-        )
+        let finalApplicationFrame = app.frame
+        let finalScreenFrame = preflightScreen.frame
+        let finalScrollFrame = preflightScrollView.frame
+        let finalNavigationFrame = navigationBar.frame
+        let finalTabFrame = tabBar.frame
+        let finalBeforeYouBeginFrame = beforeYouBeginStaticText.frame
+        let finalAfterDarkFrame = afterDarkStaticText.frame
+        let finalBeginFrame = beginControl.frame
+        let finalAfterDarkSwitchFrame = afterDarkSwitch.frame
+        let finalSafePositionSwitchFrame = safePositionSwitch.frame
+        let finalFramesAreValid = isValidFrame(finalApplicationFrame)
+            && isValidFrame(finalScreenFrame)
+            && isValidFrame(finalScrollFrame)
+            && isValidFrame(finalNavigationFrame)
+            && isValidFrame(finalTabFrame)
+            && isValidFrame(finalBeforeYouBeginFrame)
+            && isValidFrame(finalAfterDarkFrame)
+            && isValidFrame(finalBeginFrame)
+            && isValidFrame(finalAfterDarkSwitchFrame)
+            && isValidFrame(finalSafePositionSwitchFrame)
+            && finalApplicationFrame == frozenApplicationFrame
+            && finalScreenFrame == frozenScreenFrame
+            && finalScrollFrame == frozenScrollFrame
+            && finalNavigationFrame == frozenNavigationFrame
+            && finalTabFrame == frozenTabFrame
+            && finalScreenFrame == finalScrollFrame
+        var finalCompositionIsSafe = false
+        if finalFramesAreValid {
+            let finalLiveScrollFrame = finalScrollFrame.intersection(
+                finalApplicationFrame
+            )
+            if isValidFrame(finalLiveScrollFrame) {
+                let finalSafeTop = max(
+                    finalLiveScrollFrame.minY,
+                    finalNavigationFrame.maxY
+                ) + verticalInset
+                let finalSafeBottom = min(
+                    finalLiveScrollFrame.maxY,
+                    min(finalApplicationFrame.maxY, finalTabFrame.minY)
+                ) - verticalInset
+                finalCompositionIsSafe = finalSafeTop.isFinite
+                    && finalSafeBottom.isFinite
+                    && finalSafeTop <= finalSafeBottom
+                    && finalBeforeYouBeginFrame.minY >= finalSafeTop
+                    && finalBeforeYouBeginFrame.maxY <= finalSafeBottom
+                    && finalAfterDarkFrame.minY >= finalSafeTop
+                    && finalAfterDarkFrame.maxY <= finalSafeBottom
+                    && finalBeforeYouBeginFrame.maxY
+                        < finalAfterDarkFrame.minY
+                    && beforeYouBeginStaticText.isHittable
+                    && afterDarkStaticText.isHittable
+            }
+        }
+        guard finalCompositionIsSafe else {
+            XCTFail("AX-text recheck-Preflight final composition is unsafe.")
+            return false
+        }
+        return true
     }
 
     @MainActor
@@ -7710,14 +7945,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         )
         XCTAssertTrue(app.state == .runningForeground, file: file, line: line)
         migratedStateIDs.append(stateID)
-        if replayAXTextFrontierStateIfNeeded(
-            stateID,
-            in: app,
-            file: file,
-            line: line
-        ) {
-            return
-        }
         print("S10_MIGRATION_STATE state=\(stateID)")
 
         guard let shard = automationShard else { return }
@@ -7865,67 +8092,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 line: line
             )
         }
-    }
-
-    @MainActor
-    private func replayAXTextFrontierStateIfNeeded(
-        _ stateID: String,
-        in app: XCUIApplication,
-        file: StaticString,
-        line: UInt
-    ) -> Bool {
-        guard let shard = automationShard,
-              shard.shardID == "s10.4.current.ax-text" else {
-            return false
-        }
-
-        let orderedStateIDs = Self.axTextFrontierReplayStateIDs
-            + Self.axTextFrontierWindowStateIDs
-        guard axTextFrontierStateCursor < orderedStateIDs.count else {
-            XCTFail(
-                "S10.4 AX-text frontier advanced beyond its frozen 28-state window",
-                file: file,
-                line: line
-            )
-            return true
-        }
-
-        let expectedStateID = orderedStateIDs[axTextFrontierStateCursor]
-        guard stateID == expectedStateID else {
-            XCTFail(
-                "S10.4 AX-text frontier order drifted at ordinal "
-                    + "\(axTextFrontierStateCursor + 1): expected "
-                    + "\(expectedStateID), observed \(stateID)",
-                file: file,
-                line: line
-            )
-            return true
-        }
-        guard app.state == .runningForeground else {
-            XCTFail(
-                "S10.4 AX-text frontier state is not running foreground: \(stateID)",
-                file: file,
-                line: line
-            )
-            return true
-        }
-
-        axTextFrontierStateCursor += 1
-        guard axTextFrontierStateCursor <= Self.axTextFrontierReplayStateIDs.count else {
-            return false
-        }
-
-        dismissHostedAppleIntelligenceNotificationIfPresent(
-            in: app,
-            file: file,
-            line: line
-        )
-        printJSONLine(prefix: "S10_4_FRONTIER_REPLAY", object: [
-            "ordinal": axTextFrontierStateCursor,
-            "shardID": shard.shardID,
-            "stateID": stateID,
-        ])
-        return true
     }
 
     @MainActor
