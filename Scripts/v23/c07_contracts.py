@@ -11,6 +11,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
 
+from card_contracts import validate_projection
+
 
 CARD_ID = "V23-P00-C07"
 BASE_HEAD = "02f76e6127804f85e38ad0435ddce70f71439d1f"
@@ -32,6 +34,14 @@ LEDGER_CAS_SEQUENCE = 19
 OVERRIDE_SEMANTIC_DIGEST = "3c1d8779cbc00ed22d26a088bac9f4169e92f630ac3d1f9d5e3fcf43e47bb8cd"
 ALLOCATION_SECTION_DIGEST = "5fb22f8aff4018e1a5c423c1f3606e1937c0360c22be20408181da6f812ea6ba"
 INHERITED_PAYLOAD_DIGEST = "7692169e27cfb6abb157b28007cc3c79f1c51d3e9075dc7a451c3023b3692c80"
+A00_ACTIVATION_EXACT_SHA256 = "05e844ea962860d3df55625565ffed0411011b4a25fa5f0c3eecb72706b22b1f"
+C05_PROJECTION_EXACT_SHA256 = "d5b923c5fe435bee2d66980dd3d42b8f68163623af95f5b8f25b0f1e0a4c9c1d"
+AUTHORITY_FILE_SHA256 = {
+    "docs/design/v23/EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md": "fb3cb3b55e60062e574444b57ddc075345053c396c9da1b2c5e5350f2aeae2a2",
+    "docs/design/v23/EXPANSION_V23_FOUNDATION_PLAN.md": "f7d4ac03f066d85771526c195152ab6e17c32c2a9dee98248c3bfa8813456980",
+    "docs/design/v23/EXPANSION_V23_HANDOFF.md": "4efa25fd6b224179e4c855a45c5cfe9faee232eebb987498901c41ff7e12b950",
+    "docs/design/v23/NEXT_CODEX_SESSION_PROMPT.md": "d45412d274b6d416ff83c3f43c3305c76c10887afa7e9599eed1471f0b182f25",
+}
 
 FOUNDATION = "docs/design/v23/EXPANSION_V23_FOUNDATION_PLAN.md"
 BLUEPRINT = "docs/design/v23/EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md"
@@ -262,7 +272,10 @@ def hook_findings(root: Path, reserved: set[str]) -> list[dict[str, Any]]:
 
 
 def validate_frozen_authority(root: Path) -> None:
-    activation = json.loads((root / "docs/design/v23/receipts/V23-A00-program-activation.json").read_text(encoding="utf-8"))
+    activation_path = root / "docs/design/v23/receipts/V23-A00-program-activation.json"
+    if sha256_bytes(activation_path.read_bytes()) != A00_ACTIVATION_EXACT_SHA256:
+        raise ContractError("A00 activation receipt exact bytes differ")
+    activation = json.loads(activation_path.read_text(encoding="utf-8"))
     package = activation.get("package", {})
     expected_package = {
         "packageDigest": PACKAGE_DIGEST,
@@ -276,9 +289,15 @@ def validate_frozen_authority(root: Path) -> None:
     }
     if any(package.get(key) != value for key, value in expected_package.items()):
         raise ContractError("A00 activation package authority differs")
-    for row in activation.get("authorityFiles", []):
+    authority_rows = activation.get("authorityFiles", [])
+    if {row.get("installedPath") for row in authority_rows} != set(AUTHORITY_FILE_SHA256) or len(authority_rows) != 4:
+        raise ContractError("A00 activation authority file set differs")
+    for row in authority_rows:
         installed = root / row["installedPath"]
-        if not installed.is_file() or sha256_bytes(installed.read_bytes()) != row["installedExactSHA256"]:
+        expected = AUTHORITY_FILE_SHA256[row["installedPath"]]
+        if row.get("sourceExactSHA256") != expected or row.get("installedExactSHA256") != expected or row.get("exactBytesMatch") is not True:
+            raise ContractError(f"A00 authority receipt binding differs: {row.get('installedPath')}")
+        if not installed.is_file() or sha256_bytes(installed.read_bytes()) != expected:
             raise ContractError(f"installed authority bytes differ: {row.get('installedPath')}")
     blueprint = (root / BLUEPRINT).read_text(encoding="utf-8")
     if sha256_bytes(section(blueprint, V23_DOSSIER_START, V23_DOSSIER_END).encode()) != DOSSIER_DIGEST:
@@ -287,7 +306,11 @@ def validate_frozen_authority(root: Path) -> None:
     override_body = {key: value for key, value in override.items() if key != "contentDigest"}
     if override.get("contentDigest") != OVERRIDE_SEMANTIC_DIGEST or digest(override_body) != OVERRIDE_SEMANTIC_DIGEST:
         raise ContractError("owner parallel override semantic digest differs")
-    projection = json.loads((root / "docs/design/v23/tooling/V23PlanningProjectionV1.json").read_text(encoding="utf-8"))
+    projection_path = root / "docs/design/v23/tooling/V23PlanningProjectionV1.json"
+    if sha256_bytes(projection_path.read_bytes()) != C05_PROJECTION_EXACT_SHA256:
+        raise ContractError("C05 planning projection exact bytes differ")
+    projection = json.loads(projection_path.read_text(encoding="utf-8"))
+    validate_projection(projection)
     expected_projection = {
         "register": REGISTER_DIGEST, "graph": GRAPH_DIGEST, "selectors": SELECTOR_DIGEST,
         "relations": RELATION_DIGEST, "dependencyDispositions": DEPENDENCY_DISPOSITION_DIGEST,
@@ -300,12 +323,23 @@ def validate_frozen_authority(root: Path) -> None:
 
 def validate_zero_product_delta(root: Path) -> None:
     completed = subprocess.run(
-        ["git", "-C", str(root), "diff", "--name-only", BASE_HEAD, "--", "FieldEvidenceApp", "FieldEvidenceApp.xcodeproj", "FieldEvidence.storekit"],
+        ["git", "-C", str(root), "diff", "--name-only", BASE_HEAD],
         check=True, capture_output=True, text=True, encoding="utf-8",
     )
-    changed = [line for line in completed.stdout.splitlines() if line]
-    if changed:
-        raise ContractError(f"C07 tooling fence contains a product/project delta: {changed}")
+    changed = {line.replace("\\", "/") for line in completed.stdout.splitlines() if line}
+    if not changed <= set(FENCED_PATHS):
+        raise ContractError(f"C07 tooling fence contains an out-of-fence delta: {sorted(changed - set(FENCED_PATHS))}")
+    status = subprocess.run(
+        ["git", "-C", str(root), "status", "--porcelain=v1", "--untracked-files=all"],
+        check=True, capture_output=True, text=True, encoding="utf-8",
+    )
+    for line in status.stdout.splitlines():
+        code, raw_path = line[:2], line[3:]
+        if " -> " in raw_path or "D" in code or "R" in code:
+            raise ContractError(f"C07 tooling fence contains a delete or rename: {line}")
+        path = raw_path.replace("\\", "/")
+        if path not in FENCED_PATHS:
+            raise ContractError(f"C07 tooling fence contains untracked/out-of-fence work: {path}")
 
 
 def model_test_root(application_support: str, run_id: str, production_roots: Iterable[str], *, symlink_component: bool = False) -> str:

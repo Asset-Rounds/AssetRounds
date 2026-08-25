@@ -39,7 +39,7 @@
   "artifacts": [
     {
       "path": "Scripts/v23/c07_contracts.py",
-      "sha256": "9f965e77dd83af775d7122f417bb4bee0b81d955ff7054ffe96b9aed06e4b52f"
+      "sha256": "2731bf788f35a0b6dc7de438b8f0fc9176032c7fe1187f08d0304c4655d07ad7"
     },
     {
       "path": "Scripts/v23/generate_c07_contracts.py",
@@ -101,5 +101,5 @@
   "provisionalDisposition": "DISJOINT_CONTRACT_TOOLING_ONLY; PRODUCT_HOOK_REMOVAL_AND_NATIVE_ACCEPTANCE_DEFERRED",
   "acceptanceCredit": false,
   "releaseCredit": false,
-  "artifactDigest": "d46c047d880bea6c4128c4393deb59d97734dd4049aea282abd97a1cfdf2a920"
+  "artifactDigest": "1d339540d38e8378b861ef827713d0347197219b0d133c13a8b8de5949608619"
 }
