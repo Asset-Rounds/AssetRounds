@@ -309,7 +309,9 @@ for source_dir in "${source_dirs[@]}"; do
       ([.[]?.attachments[]?] | length) == ($stateCount + 1)
       and ([.[]?.attachments[]? | select(
         .isAssociatedWithFailure == false
-        and .suggestedHumanReadableName == $name
+        and (.suggestedHumanReadableName | type == "string")
+        and ((.suggestedHumanReadableName
+          | sub("_0_[0-9A-Fa-f-]{36}\\."; ".")) == $name)
         and (.exportedFileName | type == "string")
         and (.exportedFileName | test("^[A-Za-z0-9._-]+$"))
       )] | length) == 1

@@ -113,8 +113,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 175_566,
-            sha256: "554410EFB1E386681F430543ECF6B8A0E781AEC589D24A4828997B5F594915AF"
+            byteCount: 175_698,
+            sha256: "C8221655FCE704AB020E3A74B5B8C3CA4DAFF1CB9EE5B28150D158254B75AF1C"
         )
         let workflowSource = try text(workflowPath)
         let workerCallHeader =
@@ -541,10 +541,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertFalse(warpScopeSource.contains("s10.4.minimum."))
         XCTAssertNotEqual(workerExecutionSource, warpExecutionSource)
-        XCTAssertEqual(workerExecutionSource.utf8.count, 71_345)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 71_477)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "F415A4EFBED4AA211F0D8557A4CB31C008DFBBEF2964478B614FAD50C19F1BE7"
+            "438D05AD490EAA5085C9892E5974D54393C2DF23685EB1611F2C0E1131816A74"
         )
         XCTAssertEqual(warpExecutionSource.utf8.count, 36_998)
         XCTAssertEqual(
@@ -18864,6 +18864,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(retainSegmentSource.contains(exact), exact)
         }
+        let workerTerminalPredicateSource = try boundedSource(
+            retainSegmentSource,
+            from: "          segment_terminal_name=\"S10.4 segment terminal $CI_S10_4_SEGMENT_ID $CI_S10_4_SHARD_ID\"",
+            before: "\n\n          shard_evidence_path=\"$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID\""
+        )
+        XCTAssertEqual(
+            workerTerminalPredicateSource.components(
+                separatedBy: #".suggestedHumanReadableName | type == "string""#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workerTerminalPredicateSource.components(
+                separatedBy: #"sub("_0_[0-9A-Fa-f-]{36}\\."; ".")"#
+            ).count - 1,
+            1
+        )
         for field in [
             "productHead", "ref", "runID", "runAttempt", "jobID", "artifactName",
             "segmentID", "ordinal", "startOrdinal", "endOrdinal", "stateCount",
@@ -18950,8 +18967,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let assemblerSource = try text(assemblerPath)
         try assertFile(
             assemblerPath,
-            byteCount: 28_107,
-            sha256: "5CD30DDF0E24C37FBDB7A51B1CB79A196EB1574ABA340A016DD685DB96F58063"
+            byteCount: 28_219,
+            sha256: "41320AACF2492D0DCFF7570110D85502504217BE50721681B0DAF73E319518A9"
         )
         XCTAssertFalse(assemblerSource.contains("\r"))
         XCTAssertTrue(
@@ -19054,7 +19071,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ".isAssociatedWithFailure == true",
             "S10.4 segment terminal $segment_id $shard_id",
             "([.[]?.attachments[]?] | length) == ($stateCount + 1)",
-            ".suggestedHumanReadableName == $name",
             ".isAssociatedWithFailure == false",
             ".exportedFileName | test(\"^[A-Za-z0-9._-]+$\")",
             ")] | length) == 1",
@@ -19067,6 +19083,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(assemblerSourceLoop.contains(exact), exact)
         }
+        let assemblerTerminalPredicateSource = try boundedSource(
+            assemblerSourceLoop,
+            from: "  jq -e --arg name \"S10.4 segment terminal $segment_id $shard_id\"",
+            before: "\n\n  while IFS= read -r candidate_row; do"
+        )
+        XCTAssertEqual(
+            assemblerTerminalPredicateSource.components(
+                separatedBy: #".suggestedHumanReadableName | type == "string""#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            assemblerTerminalPredicateSource.components(
+                separatedBy: #"sub("_0_[0-9A-Fa-f-]{36}\\."; ".")"#
+            ).count - 1,
+            1
+        )
         XCTAssertLessThan(
             try XCTUnwrap(assemblerSourceLoop.range(of: "runner_name=\"$(jq -er '.runnerName' \"$receipt\")\"")).lowerBound,
             try XCTUnwrap(assemblerSourceLoop.range(of: "expected_session=\"$(printf '%s\\n%s\\n%s\\n%s\\n'")).lowerBound
