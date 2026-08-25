@@ -13137,10 +13137,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(separatedBy: postPurchaseCapture).count - 1,
             2
         )
-        XCTAssertEqual(postPurchaseAXGateSource.utf8.count, 391)
+        XCTAssertEqual(postPurchaseAXGateSource.utf8.count, 561)
         XCTAssertEqual(
             Data(postPurchaseAXGateSource.utf8).sha256,
-            "CA0476D0657F6B0B6C2B47E78AE92914E3709201B6F1D032740B9CBA7AD0DF7B"
+            "DE1386524B6B07AD44A4FDF05B56B3C290BEE43337F0C7B63A78513F8F255E72"
         )
         XCTAssertEqual(postPurchaseNonAXSuffixSource.utf8.count, 4_110)
         XCTAssertEqual(
@@ -18758,7 +18758,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let captureSource = try boundedSource(
             uiSource,
             from: "    private func captureBaseline(\n",
-            before: "\n\n    @MainActor\n    private func replaySegmentPrefixIfNeeded("
+            before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
+        )
+        XCTAssertEqual(captureSource.utf8.count, 8_056)
+        XCTAssertEqual(
+            Data(captureSource.utf8).sha256,
+            "8EACDB3319DD0672D4A9414B8A9F0E0ECD9FD1CA3E0F2AC6C2E68A2CE6367D16"
+        )
+        let captureReplayGateSource = try boundedSource(
+            captureSource,
+            from: "    private func captureBaseline(\n",
+            before: "        XCTAssertFalse(\n            migratedStateIDs.contains(stateID),"
+        )
+        XCTAssertEqual(captureReplayGateSource.utf8.count, 613)
+        XCTAssertEqual(
+            Data(captureReplayGateSource.utf8).sha256,
+            "46E3A0F7CAEB9CE49D254A5C378269765DE8CE22EF30927666185AFC79EB4BF7"
         )
         let replayCall = try XCTUnwrap(
             captureSource.range(of: "if replaySegmentPrefixIfNeeded(")
@@ -18773,11 +18788,207 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(captureSource.contains("printJSONLine(prefix: \"S10_4_AX_STATE\""))
         XCTAssertTrue(captureSource.contains("printJSONLine(prefix: \"S10_4_CONTRAST\""))
         XCTAssertTrue(captureSource.contains("XCUIScreen.main.screenshot().pngRepresentation"))
+        XCTAssertFalse(captureSource.contains("segmentedRouteStateCursor += 1"))
+
+        let preparationPredicateSource = try boundedSource(
+            uiSource,
+            from: "    @MainActor\n    private func shouldPrepareNormalEvidence(",
+            before: "\n\n    @MainActor\n    private func replaySegmentPrefixIfNeeded("
+        )
+        XCTAssertEqual(preparationPredicateSource.utf8.count, 1_646)
+        XCTAssertEqual(
+            Data(preparationPredicateSource.utf8).sha256,
+            "E5C14136950646A12636AD5F5CAB03EB8A44FB4D0FDC8C4958D8DA456E0538CC"
+        )
+        for exact in [
+            "guard automationSegment != .none else { return true }",
+            "automationShard?.shardID == \"s10.4.current.ax-text\"",
+            "Self.segmentedRouteStateIDs.count == 67",
+            "Set(Self.segmentedRouteStateIDs).count == 67",
+            "segmentedRouteStateCursor < Self.segmentedRouteStateIDs.count",
+            "Self.segmentedRouteStateIDs[segmentedRouteStateCursor] == stateID",
+            "app.state == .runningForeground",
+            "return segmentedRouteStateCursor >= automationSegment.replayCount",
+        ] {
+            XCTAssertTrue(preparationPredicateSource.contains(exact), exact)
+        }
+        for prohibited in [
+            "segmentedRouteStateCursor =", "segmentedRouteStateCursor +=",
+            ".tap()", ".typeText(", "setToggle(", "navigateBack(",
+            "waitForExistence(", "StoreKit", "positionPreflightAfterDarkForAXText(",
+            "captureBaseline(", "printJSONLine(", "XCTAttachment(",
+        ] {
+            XCTAssertFalse(preparationPredicateSource.contains(prohibited), prohibited)
+        }
+        XCTAssertEqual(
+            preparationPredicateSource.components(separatedBy: "return true").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            preparationPredicateSource.components(separatedBy: "return false").count - 1,
+            4
+        )
+        XCTAssertEqual(
+            preparationPredicateSource.components(separatedBy: "XCTFail(").count - 1,
+            4
+        )
+
+        let preparationGateExpression = try NSRegularExpression(
+            pattern: #"shouldPrepareNormalEvidence\(\s*for: \"(state\.[^\"]+)\","#
+        )
+        let uiRange = NSRange(uiSource.startIndex..<uiSource.endIndex, in: uiSource)
+        let preparationGateMatches = preparationGateExpression.matches(
+            in: uiSource,
+            range: uiRange
+        )
+        let preparationGateStateIDs = preparationGateMatches.compactMap { match -> String? in
+            guard let range = Range(match.range(at: 1), in: uiSource) else { return nil }
+            return String(uiSource[range])
+        }
+        XCTAssertEqual(preparationGateStateIDs, [
+            "state.new-sign.validation-error",
+            "state.sign-detail.delete-confirmation",
+            "state.capture.wide-ready",
+            "state.report-detail.ready",
+            "state.report-history.ready",
+            "state.sign-detail.open-issue",
+            "state.work.validation-error",
+            "state.work.editing",
+            "state.work.saving",
+            "state.issue.recheck-due",
+            "state.recheck-preflight.ready",
+            "state.recheck-outcome.different-issue",
+            "state.paywall.available",
+            "state.paywall.purchase-complete",
+        ])
+        for (ordinal, stateID) in [
+            (6, "state.new-sign.validation-error"),
+            (8, "state.sign-detail.delete-confirmation"),
+            (10, "state.capture.wide-ready"),
+            (19, "state.report-detail.ready"),
+            (20, "state.report-history.ready"),
+            (22, "state.sign-detail.open-issue"),
+            (23, "state.work.validation-error"),
+            (24, "state.work.editing"),
+            (25, "state.work.saving"),
+            (26, "state.issue.recheck-due"),
+            (27, "state.recheck-preflight.ready"),
+            (39, "state.paywall.available"),
+            (40, "state.paywall.purchase-complete"),
+            (48, "state.recheck-outcome.different-issue"),
+        ] {
+            XCTAssertEqual(orderedStateIDs[ordinal - 1], stateID)
+        }
+        for (match, stateID) in zip(preparationGateMatches, preparationGateStateIDs) {
+            let gateRange = try XCTUnwrap(Range(match.range, in: uiSource), stateID)
+            let captureRange = try XCTUnwrap(
+                uiSource.range(
+                    of: "captureBaseline(\"\(stateID)\", in: app)",
+                    range: gateRange.upperBound..<uiSource.endIndex
+                ),
+                stateID
+            )
+            XCTAssertLessThan(gateRange.lowerBound, captureRange.lowerBound, stateID)
+        }
+        XCTAssertEqual(
+            uiSource.components(separatedBy: "shouldPrepareNormalEvidence(").count - 1,
+            15
+        )
+
+        let preparationGateSliceLocks: [(String, String, Int, String)] = [
+            ("        if shouldPrepareNormalEvidence(\n            for: \"state.new-sign.validation-error\",",
+             "        let keyboard = app.keyboards.firstMatch", 124,
+             "7E20A38F6458335F0A2A9993A6EAC679FF11C98BE340E9F33345FF19A8F78198"),
+            ("        if automationShard?.shardID == \"s10.4.current.ax-text\",\n" +
+                "           shouldPrepareNormalEvidence(\n               for: \"state.capture.wide-ready\",",
+             "            let captureScrollViews", 190,
+             "03F7CD28CDC055AEC10026669C77B122F2DA80C98A0F30D9677228FA4C5488CD"),
+            ("        var workEditingAXTextEnabled =", "        let workPreviewImages", 244,
+             "63FB4241C7C1F8EA5B403F3F3B10C2B552A9BBF186DF73091BBB4F73E6BCD59C"),
+            ("        workEditingAXTextEnabled =", "        let workNoteHeadings", 239,
+             "6F27872C3C452E9121A230B689CCA82C4E23D850EE6710DA1B5ABD5F84C178E3"),
+            ("        let preparesPaywallAvailableEvidence =", "        let productName", 196,
+             "82366CC1C409D6E177EC11709EE7C6E1E22352EC4D0EA166E3194FC695B19CF2"),
+            ("                if shouldPrepareNormalEvidence(\n" +
+                "                    for: \"state.recheck-outcome.different-issue\",",
+             "                let navigationBottom", 162,
+             "03B5D49311C7F58EE4B7C8FF49AF79AE7FAA94A347F3DE1ED4A237B9C66EF0A1"),
+        ]
+        for (start, end, bytes, sha256) in preparationGateSliceLocks {
+            let source = try boundedSource(uiSource, from: start, before: end)
+            XCTAssertEqual(source.utf8.count, bytes, start)
+            XCTAssertEqual(Data(source.utf8).sha256, sha256, start)
+        }
+
+        let routeActionExpression = try NSRegularExpression(
+            pattern: #"(?m)^.*(?:\.tap\(\)|\.typeText\(|setToggle\(|acceptImportedPhoto(?:WithoutBaseline)?\(|navigateBack\(|waitForExistence\(|captureBaseline\().*$"#
+        )
+        let routeActionLedger = routeActionExpression.matches(
+            in: uiSource,
+            range: uiRange
+        ).compactMap { match -> String? in
+            guard let range = Range(match.range, in: uiSource) else { return nil }
+            return String(uiSource[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }.joined(separator: "\n")
+        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 440)
+        XCTAssertEqual(
+            Data(routeActionLedger.utf8).sha256,
+            "BC0F10ACF65552D89E9642156CA24A94077DD6913D8C86FF49F8F0D1FB1FFDDE"
+        )
+        let captureLedgerExpression = try NSRegularExpression(
+            pattern: #"(?m)^\s*captureBaseline\(\"[^\"]+\", in: [^)]+\)"#
+        )
+        let captureLedger = captureLedgerExpression.matches(
+            in: uiSource,
+            range: uiRange
+        ).compactMap { match -> String? in
+            guard let range = Range(match.range, in: uiSource) else { return nil }
+            return String(uiSource[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }.joined(separator: "\n")
+        XCTAssertEqual(captureLedger.components(separatedBy: "\n").count, 63)
+        XCTAssertEqual(
+            Data(captureLedger.utf8).sha256,
+            "9C9DF32466544231080A6027B841B40B14511DC8E4E8976753D2721D686A36D5"
+        )
+        for orderedRoute in [
+            [
+                "guard positionPreflightAfterDarkForAXText(in: app) else",
+                "setToggle(\"s3.preflight.after-dark\", in: app)",
+                "begin.tap()",
+                "for: \"state.capture.wide-ready\"",
+                "captureBaseline(\"state.capture.wide-ready\", in: app)",
+            ],
+            [
+                "for: \"state.paywall.available\"",
+                "captureBaseline(\"state.paywall.available\", in: app)",
+                "XCTAssertTrue(store.waitForExistence(timeout: 30))",
+                "purchase.tap()",
+                "for: \"state.paywall.purchase-complete\"",
+                "captureBaseline(\"state.paywall.purchase-complete\", in: app)",
+            ],
+        ] {
+            var routeTail = uiSource[uiSource.startIndex...]
+            for token in orderedRoute {
+                let range = try XCTUnwrap(routeTail.range(of: token), token)
+                routeTail = routeTail[range.upperBound...]
+            }
+        }
 
         let replaySource = try boundedSource(
             uiSource,
             from: "    private func replaySegmentPrefixIfNeeded(\n",
             before: "\n\n    @MainActor\n    private func finishAutomatedSegmentIfNeeded("
+        )
+        XCTAssertEqual(replaySource.utf8.count, 2_715)
+        XCTAssertEqual(
+            Data(replaySource.utf8).sha256,
+            "7FEC2E34333BD2AF2170700F3887F62D79ACCF9C4FD64FC1E7B30527A12A9C0E"
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "segmentedRouteStateCursor += 1"
+            ).count - 1,
+            1
         )
         let segmentedReplayStart = try XCTUnwrap(
             replaySource.range(

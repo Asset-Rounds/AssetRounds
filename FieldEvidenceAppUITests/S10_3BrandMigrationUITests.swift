@@ -852,6 +852,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 10))
         assertLocalizedValue(sign, equals: "Monument Sign")
         XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
+        if shouldPrepareNormalEvidence(
+            for: "state.new-sign.validation-error",
+            in: app
+        ) {
         let keyboard = app.keyboards.firstMatch
         let navigationBottom = app.navigationBars.firstMatch.frame.maxY
         let newSignScrollViews = app.scrollViews.containing(
@@ -1076,6 +1080,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     }
                 }
             }
+        }
         }
         captureBaseline("state.new-sign.validation-error", in: app)
 
@@ -1327,8 +1332,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 )
             }
         }
+        let preparesDeleteConfirmationEvidence = shouldPrepareNormalEvidence(
+            for: "state.sign-detail.delete-confirmation",
+            in: app
+        )
         let runsAXTextDeleteConfirmationDiagnostic =
             automationShard?.shardID == "s10.4.current.ax-text"
+                && preparesDeleteConfirmationEvidence
         if runsAXTextDeleteConfirmationDiagnostic {
             let expectedDeleteMessage =
                 "Delete this sign, its photos, and its reports from this app? " +
@@ -1356,7 +1366,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             guard hasExactDeleteMessage,
                   hasVisibleHittableDeleteActions else { return }
         }
-        if !runsAXTextDeleteConfirmationDiagnostic
+        if preparesDeleteConfirmationEvidence
+            && !runsAXTextDeleteConfirmationDiagnostic
             && !runsMinimumDoubleLengthDeleteComposition {
         for _ in 0..<4 {
             let viewportTop = detail.frame.minY
@@ -3067,7 +3078,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         XCTAssertTrue(element("s3.capture.screen", in: app)
             .waitForExistence(timeout: 20))
-        if automationShard?.shardID == "s10.4.current.ax-text" {
+        if automationShard?.shardID == "s10.4.current.ax-text",
+           shouldPrepareNormalEvidence(
+               for: "state.capture.wide-ready",
+               in: app
+           ) {
             let captureScrollViews = app.scrollViews.matching(
                 identifier: "s3.capture.screen"
             )
@@ -3461,12 +3476,20 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         recordMetric("report_open_to_preview", since: reportOpenAt)
         let preview = element("s4.3.report-detail.preview", in: app)
         XCTAssertTrue(preview.waitForExistence(timeout: 20))
+        let preparesReportDetailEvidence = shouldPrepareNormalEvidence(
+            for: "state.report-detail.ready",
+            in: app
+        )
         if automationShard?.shardID == "s10.4.current.ax-text" {
-            guard scrollReportPreviewForAXText(preview, in: app) else { return }
+            if preparesReportDetailEvidence {
+                guard scrollReportPreviewForAXText(preview, in: app) else { return }
+            }
         } else {
             scroll(preview, in: app)
         }
-        XCTAssertTrue(preview.isHittable)
+        if preparesReportDetailEvidence {
+            XCTAssertTrue(preview.isHittable)
+        }
         captureBaseline("state.report-detail.ready", in: app)
         navigateBack(in: app)
 
@@ -3490,7 +3513,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         recordMetric("report_history_open", since: historyOpenAt)
         XCTAssertTrue(element("s4.4.reports.view-report", in: app)
             .waitForExistence(timeout: 20))
-        if automationShard?.shardID == "s10.4.current.ax-text" {
+        if automationShard?.shardID == "s10.4.current.ax-text",
+           shouldPrepareNormalEvidence(
+               for: "state.report-history.ready",
+               in: app
+           ) {
             guard positionLowerNorthCampusForAXText(in: app) else { return }
             guard positionReportHistoryHeaderAndVisitForAXTextDiagnostic(
                 in: app
@@ -4408,7 +4435,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertEqual(shell.value as? String, effectiveAppearanceName(fallback: "Dark"))
         let signDetail = element("s2.sign-detail.screen", in: app)
         XCTAssertTrue(signDetail.waitForExistence(timeout: 30))
-        if automationShard?.shardID == "s10.4.current.ax-text" {
+        if automationShard?.shardID == "s10.4.current.ax-text",
+           shouldPrepareNormalEvidence(
+               for: "state.sign-detail.open-issue",
+               in: app
+           ) {
             guard positionSignDetailTimeZoneForAXText(in: app) else {
                 throw AutomationConfigurationError.invalid(
                     "S10.4 AX-text sign-detail time-zone positioning failed"
@@ -4433,7 +4464,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let validation = element("s5.1.work.validation", in: app)
         XCTAssertTrue(validation.waitForExistence(timeout: 10))
         assertLocalizedLabel(validation, equals: "Short description")
-        if automationShard?.shardID == "s10.4.current.ax-text" {
+        if automationShard?.shardID == "s10.4.current.ax-text",
+           shouldPrepareNormalEvidence(
+               for: "state.work.validation-error",
+               in: app
+           ) {
             guard positionWorkValidationShortDescriptionForAXText(in: app) else {
                 throw AutomationConfigurationError.invalid(
                     "S10.4 AX-text work-validation Short description positioning failed"
@@ -4490,8 +4525,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let verticalInset: CGFloat = 16
         let receiverInset: CGFloat = 24
         let minimumGestureDistance: CGFloat = 44
-        let workEditingAXTextEnabled =
+        var workEditingAXTextEnabled =
             automationShard?.shardID == "s10.4.current.ax-text"
+                && shouldPrepareNormalEvidence(
+                    for: "state.work.editing",
+                    in: app
+                )
         let workPreviewImages = app.images.matching(
             NSPredicate(format: "identifier == %@", "s5.1.work.photo")
         )
@@ -4845,6 +4884,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let progress = element("s5.1.work.saving", in: app)
         XCTAssertTrue(progress.waitForExistence(timeout: 10))
         assertLocalizedLabel(progress, equals: "Record work")
+        workEditingAXTextEnabled =
+            automationShard?.shardID == "s10.4.current.ax-text"
+                && shouldPrepareNormalEvidence(
+                    for: "state.work.saving",
+                    in: app
+                )
         let workNoteHeadings = app.staticTexts.matching(
             NSPredicate(format: "label == %@", "Note")
         )
@@ -5352,7 +5397,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let dueStatus = element("s5.1.issue.status", in: app)
         XCTAssertTrue(dueStatus.waitForExistence(timeout: 10))
         assertLocalizedLabel(dueStatus, equals: "Attention: Recheck due")
-        if automationShard?.shardID == "s10.4.current.ax-text" {
+        if automationShard?.shardID == "s10.4.current.ax-text",
+           shouldPrepareNormalEvidence(
+               for: "state.issue.recheck-due",
+               in: app
+           ) {
             guard positionIssueRecheckDueDescriptionForAXText(in: app) else {
                 throw AutomationConfigurationError.invalid(
                     "S10.4 AX-text issue recheck-due positioning failed"
@@ -5384,7 +5433,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         startRecheck.tap()
         XCTAssertTrue(element("s3.preflight.screen", in: app)
             .waitForExistence(timeout: 20))
-        if automationShard?.shardID == "s10.4.current.ax-text" {
+        if automationShard?.shardID == "s10.4.current.ax-text",
+           shouldPrepareNormalEvidence(
+               for: "state.recheck-preflight.ready",
+               in: app
+           ) {
             guard positionRecheckPreflightContrastTargetsForAXText(in: app) else {
                 throw AutomationConfigurationError.invalid(
                     "S10.4 AX-text recheck-preflight positioning failed"
@@ -5774,6 +5827,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 scroll(label, in: app)
                 assertControl(label, label: "Visible physical damage")
                 label.tap()
+                if shouldPrepareNormalEvidence(
+                    for: "state.recheck-outcome.different-issue",
+                    in: app
+                ) {
                 let navigationBottom = app.navigationBars.firstMatch.frame.maxY
                 let outcomeScreen = element("s3.outcome.screen", in: app)
                 let viewportBottom = outcomeScreen.frame.maxY
@@ -5818,6 +5875,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTAssertLessThanOrEqual(label.frame.maxY, viewportBottom)
                 XCTAssertTrue(value.isHittable)
                 XCTAssertTrue(label.isHittable)
+                }
                 captureBaseline("state.recheck-outcome.different-issue", in: app)
             case .couldNotVerify:
                 XCTFail("Handled by the partial-evidence branch")
@@ -6875,6 +6933,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         in app: XCUIApplication
     ) -> Bool {
         var usedSettingsRetry = false
+        let preparesPaywallAvailableEvidence = shouldPrepareNormalEvidence(
+            for: "state.paywall.available",
+            in: app
+        )
+        if preparesPaywallAvailableEvidence {
         let productName = element("s7.2.paywall.product-name", in: app)
         let duration = element("s7.2.paywall.duration", in: app)
         let price = element("s7.2.paywall.price", in: app)
@@ -6900,13 +6963,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         assertText("s7.2.paywall.duration", equals: "one month", in: app)
         assertText("s7.2.paywall.price", equals: "$59.99", in: app)
         assertText("s7.2.paywall.trial", equals: "14 days free", in: app)
+        }
         captureBaseline("state.paywall.available", in: app)
+        if preparesPaywallAvailableEvidence {
         let renewal = element("s7.2.paywall.renewal", in: app)
         scroll(renewal, in: app)
         assertLocalizedLabelContains(renewal, "$59.99")
         let noSync = element("s7.2.paywall.no-sync", in: app)
         scroll(noSync, in: app)
         assertLocalizedLabelContains(noSync, "do not sync")
+        }
 
         var store = element("s7.2.paywall.store", in: app)
         XCTAssertTrue(store.waitForExistence(timeout: 30))
@@ -6918,6 +6984,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         XCTAssertTrue(store.isEnabled)
 
+        if preparesPaywallAvailableEvidence {
         for identifier in [
             "s7.2.paywall.close",
             "s7.2.paywall.terms",
@@ -6932,6 +6999,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
             assertMinimumGeometry(control)
             XCTAssertTrue(control.isEnabled)
+        }
         }
 
         var purchase = firstPurchaseButton(in: app)
@@ -7026,9 +7094,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
 
         if automationShard?.shardID == "s10.4.current.ax-text" {
-            guard positionAXTextPurchaseCompleteViewport(in: app) else {
-                XCTFail("S10.4 AX-text purchase-complete positioning failed")
-                return usedSettingsRetry
+            if shouldPrepareNormalEvidence(
+                for: "state.paywall.purchase-complete",
+                in: app
+            ) {
+                guard positionAXTextPurchaseCompleteViewport(in: app) else {
+                    XCTFail("S10.4 AX-text purchase-complete positioning failed")
+                    return usedSettingsRetry
+                }
             }
             captureBaseline("state.paywall.purchase-complete", in: app)
             return usedSettingsRetry
@@ -8662,6 +8735,52 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 line: line
             )
         }
+    }
+
+    @MainActor
+    private func shouldPrepareNormalEvidence(
+        for stateID: String,
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> Bool {
+        guard automationSegment != .none else { return true }
+        guard automationShard?.shardID == "s10.4.current.ax-text" else {
+            XCTFail(
+                "Only the frozen AX-text shard may prepare segmented evidence",
+                file: file,
+                line: line
+            )
+            return false
+        }
+        guard Self.segmentedRouteStateIDs.count == 67,
+              Set(Self.segmentedRouteStateIDs).count == 67,
+              segmentedRouteStateCursor < Self.segmentedRouteStateIDs.count else {
+            XCTFail(
+                "The segmented evidence-preparation cursor is outside the frozen inventory",
+                file: file,
+                line: line
+            )
+            return false
+        }
+        guard Self.segmentedRouteStateIDs[segmentedRouteStateCursor] == stateID else {
+            XCTFail(
+                "Segmented evidence preparation is out of order at ordinal "
+                    + "\(segmentedRouteStateCursor + 1)",
+                file: file,
+                line: line
+            )
+            return false
+        }
+        guard app.state == .runningForeground else {
+            XCTFail(
+                "Segmented evidence preparation requires the foreground route",
+                file: file,
+                line: line
+            )
+            return false
+        }
+        return segmentedRouteStateCursor >= automationSegment.replayCount
     }
 
     @MainActor
