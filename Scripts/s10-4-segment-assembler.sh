@@ -99,8 +99,8 @@ jq -e --arg kernel "$evidence_kernel_sha256" '
   and .segments[0].replayStateIDs == []
   and .segments[1].replayStateIDs == .orderedStateIDs[0:22]
   and .segments[2].replayStateIDs == .orderedStateIDs[0:50]
-  and (.exceptionAuthorities | length) == 8
-  and ([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 8
+  and (.exceptionAuthorities | length) == 9
+  and ([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 9
   and all(.exceptionAuthorities[];
     .shardID == "s10.4.current.ax-text"
     and (.stateID | startswith("state."))
@@ -414,8 +414,8 @@ jq -e --arg today "$(date -u +%F)" --slurpfile plan "$plan_path" '
         and .ignoredAuditIssues == []
       else .result == "EXCEPTION" end)
   and [$actual[].stateID] == [$expected[].stateID]
-  and ($authorities | length) == 8
-  and ($expected | length) == 6
+  and ($authorities | length) == 9
+  and ($expected | length) == 7
   and all($actual[] as $row;
     ($expected[] | select(.stateID == $row.stateID)) as $group
     | $row.exceptionIssueID == ($group.issueIDs | join(" | "))

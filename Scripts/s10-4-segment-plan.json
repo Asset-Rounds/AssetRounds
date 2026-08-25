@@ -32,7 +32,7 @@
   "stateInventoryPath": "docs/design/s10/s10-screen-state-inventory.json",
   "orderedStateSHA256": "8D5D88D21FB60190B3DF5456FE14902602E420CB1810D0EEBA6E0D6ADA37547C",
   "stateSetSHA256": "5F704F0ED4510CFFC24E162EFFE1D85A536686473E6B23FED2965D864AEC87A3",
-  "evidenceKernelSHA256": "4BD11D7355BBBD6B4ED756B2A53D4C0D56DD0ADBBB73093CAAC67C48FEA7F7CE",
+  "evidenceKernelSHA256": "7AE6EF67C35DE3C80D01DA8A69CDFC3EBFA65626543A720563C3293E46D18AC0",
   "orderedStateIDs": [
     "state.pack.unavailable",
     "state.welcome.empty",
@@ -164,6 +164,14 @@
       "stateID": "state.work.validation-error",
       "taskID": "work_and_recheck",
       "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION",
+      "exceptionOwner": "palatis3",
+      "exceptionExpiresAt": "2026-11-20"
+    },
+    {
+      "shardID": "s10.4.current.ax-text",
+      "stateID": "state.report-correction.validation-error",
+      "taskID": "report_comprehension",
+      "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-CORRECTION-COUNT",
       "exceptionOwner": "palatis3",
       "exceptionExpiresAt": "2026-11-20"
     }

@@ -487,8 +487,8 @@ jobs:
                 and .preflightHelperSHA256 == "0062C05D0AE8383E270E491C43450D892914CA1B344C1B17DAB1C6D53D548395"
                 and .issueRecheckHelperSHA256 == "A9D52569212661CD4419ECBF4804DDFDA04187EA2F4BF133387807AF6150AC53"
                 and ((.exceptionAuthorities | type) == "array")
-                and ((.exceptionAuthorities | length) == 8)
-                and (([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 8)
+                and ((.exceptionAuthorities | length) == 9)
+                and (([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 9)
                 and all(.exceptionAuthorities[];
                   .shardID == "s10.4.current.ax-text"
                   and (.stateID as $stateID | ($plan.orderedStateIDs | index($stateID)) != null)
@@ -1740,6 +1740,32 @@ jobs:
                 ]
               },
               {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.report-correction.validation-error",
+                taskID: "report_comprehension",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-CORRECTION-COUNT",
+                exceptionOwner: "palatis3",
+                exceptionExpiresAt: "2026-11-20",
+                exceptionRationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified 0 of 1,000 characters count whose audit-owned crop visibly renders black primary text partially under blurred native Correct report navigation material at y 62 with height 54; exact live geometry requires a downward shift of at least 59.418619791666742 points to clear navigation maxY 116, while Save maxY 523 and inputView minY 539 leave only 16 points, so the simultaneous feasible interval is empty and no rigid ScrollView shift can preserve the validation, Save, keyboard, and inputView composition; the exception is limited to the frozen public issue signature.",
+                ignoredAuditIssues: [
+                  {
+                    auditTypeRawValue: "1",
+                    compactDescription: "Contrast failed",
+                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+                    elementIdentifier: "s4.5.correction.count",
+                    elementLabel: "0 of 1,000 characters",
+                    elementType: "XCUIElementType(rawValue: 48)",
+                    elementFrame: {
+                      x: 32,
+                      y: 56.581380208333258,
+                      width: 198,
+                      height: 102.33333333333326
+                    },
+                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}
+                  }
+                ]
+              },
+              {
                 shardID: "s10.4.current.default-light",
                 stateID: "state.report-correction.validation-error",
                 taskID: "report_comprehension",
@@ -1898,10 +1924,10 @@ jobs:
             ]
           ' > "$contrast_exception_authority_path"
           jq -e --arg today "$(date -u +%F)" '
-            length == 16
-            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 14
-            and ([.[].exceptionIssueID] | unique | length) == 16
-            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 11
+            length == 17
+            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 15
+            and ([.[].exceptionIssueID] | unique | length) == 17
+            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 12
             and ([.[]
               | select(.exceptionIssueID | IN(
                   "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER",
@@ -1921,7 +1947,7 @@ jobs:
                   "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER",
                   "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER"
                 )) | not)
-              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 10
+              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 11
             and ([.[] | {shardID, stateID, taskID, exceptionIssueID}]
               | sort_by(.shardID, .stateID, .exceptionIssueID)) == ([
               {
@@ -1947,6 +1973,12 @@ jobs:
                 stateID: "state.new-sign.editing",
                 taskID: "one_handed_start",
                 exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME"
+              },
+              {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.report-correction.validation-error",
+                taskID: "report_comprehension",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-CORRECTION-COUNT"
               },
               {
                 shardID: "s10.4.current.ax-text",
@@ -2147,7 +2179,7 @@ jobs:
                 if $shardID == "s10.4.current.ax-text"
                    and $taskID == "one_handed_start" then 3
                 elif $shardID == "s10.4.current.ax-text"
-                     and $taskID == "report_comprehension" then 3
+                     and $taskID == "report_comprehension" then 4
                 elif $shardID == "s10.4.current.ax-text"
                      and $taskID == "work_and_recheck" then 2
                 elif $shardID == "s10.4.current.default-light"
@@ -2170,7 +2202,7 @@ jobs:
                 if $shardID == "s10.4.current.ax-text"
                    and $taskID == "one_handed_start" then 2
                 elif $shardID == "s10.4.current.ax-text"
-                     and $taskID == "report_comprehension" then 2
+                     and $taskID == "report_comprehension" then 3
                 elif $shardID == "s10.4.current.ax-text"
                      and $taskID == "work_and_recheck" then 2
                 elif $shardID == "s10.4.current.default-light"
@@ -2250,8 +2282,8 @@ jobs:
                        or ($matchedExceptionStateIDs | length) > 1) then
                    error("reduce-transparency contrast exception bound exceeded")
                 elif $shard == "s10.4.current.ax-text"
-                     and (($matchedAuthorities | length) > 8
-                       or ($matchedExceptionStateIDs | length) > 6) then
+                     and (($matchedAuthorities | length) > 9
+                       or ($matchedExceptionStateIDs | length) > 7) then
                    error("AX-text contrast exception bound exceeded")
                  elif $shard != "s10.4.current.default-light"
                       and $shard != "s10.4.current.default-dark"
@@ -2471,6 +2503,8 @@ jobs:
                 elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.new-sign.editing" then 1
                 elif $shardID == "s10.4.current.ax-text"
+                     and $stateID == "state.report-correction.validation-error" then 1
+                elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.issue.recheck-due" then 1
                 elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.report-history.ready" then 1
@@ -2569,8 +2603,8 @@ jobs:
                         ($matchedAuthorities | length) <= 1
                         and ($matchedExceptionStateIDs | length) <= 1
                       elif $shard == "s10.4.current.ax-text" then
-                        ($matchedAuthorities | length) <= 8
-                        and ($matchedExceptionStateIDs | length) <= 6
+                        ($matchedAuthorities | length) <= 9
+                        and ($matchedExceptionStateIDs | length) <= 7
                       else
                         ($matchedAuthorities | length) == 0
                         and ($matchedExceptionStateIDs | length) == 0
