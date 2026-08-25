@@ -5248,6 +5248,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         startRecheck.tap()
         XCTAssertTrue(element("s3.preflight.screen", in: app)
             .waitForExistence(timeout: 20))
+        if let shard = automationShard,
+           shard.shardID == "s10.4.current.ax-text" {
+            try diagnoseAXTextRecheckPreflightContrast(
+                in: app,
+                shard: shard,
+                stateID: "state.recheck-preflight.ready"
+            )
+        }
         captureBaseline("state.recheck-preflight.ready", in: app)
         setToggle("s3.preflight.after-dark", in: app)
         app.swipeUp()
@@ -6882,6 +6890,192 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(failure.waitForNonExistence(timeout: 30))
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
             .waitForExistence(timeout: 30))
+    }
+
+    @MainActor
+    private func diagnoseAXTextRecheckPreflightContrast(
+        in app: XCUIApplication,
+        shard: AutomationShard,
+        stateID: String
+    ) throws {
+        let diagnosticStartedAt = ProcessInfo.processInfo.systemUptime
+        let preflightScreens = app.descendants(matching: .any).matching(
+            identifier: "s3.preflight.screen"
+        )
+        let preflightScrollViews = app.scrollViews.containing(
+            .textField,
+            identifier: "s3.preflight.time-zone"
+        )
+        let beforeYouBeginStaticTexts = app.staticTexts.matching(
+            NSPredicate(
+                format: "label == %@",
+                "Before you begin"
+            )
+        )
+        let navigationBars = app.navigationBars
+        let tabBars = app.tabBars
+        let beginControls = app.descendants(matching: .any).matching(
+            identifier: "s3.preflight.begin"
+        )
+        let diagnosticQueries: [(String, XCUIElementQuery)] = [
+            ("preflightScreens", preflightScreens),
+            ("preflightScrollViews", preflightScrollViews),
+            ("beforeYouBeginStaticTexts", beforeYouBeginStaticTexts),
+            ("navigationBars", navigationBars),
+            ("tabBars", tabBars),
+            ("beginControls", beginControls),
+        ]
+        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
+            element in
+            let valueObject: Any
+            if let value = element.value as? String {
+                valueObject = value
+            } else {
+                valueObject = NSNull()
+            }
+            return [
+                "exists": element.exists,
+                "isHittable": element.isHittable,
+                "isEnabled": element.isEnabled,
+                "identifier": element.identifier,
+                "label": element.label,
+                "value": valueObject,
+                "elementTypeRawValue": element.elementType.rawValue,
+                "elementTypeDescription": String(describing: element.elementType),
+                "frame": self.auditFrameObject(element.frame),
+            ]
+        }
+        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
+            query in
+            let count = query.count
+            var elements: [[String: Any]] = []
+            for index in 0..<count {
+                elements.append(
+                    diagnosticElementObject(query.element(boundBy: index))
+                )
+            }
+            return [
+                "count": count,
+                "elements": elements,
+            ]
+        }
+        var diagnosticQueryObjects: [String: Any] = [:]
+        for (name, query) in diagnosticQueries {
+            diagnosticQueryObjects[name] = diagnosticQueryObject(query)
+        }
+        let diagnosticElapsedMilliseconds = Int(
+            (ProcessInfo.processInfo.systemUptime - diagnosticStartedAt) * 1_000
+        )
+        let context: [String: Any] = [
+            "shardID": shard.shardID,
+            "requirementID": shard.requirementID,
+            "deviceProfileID": shard.deviceProfileID,
+            "stateID": stateID,
+            "elapsedMilliseconds": diagnosticElapsedMilliseconds,
+            "applicationState": String(describing: app.state),
+            "applicationStateRawValue": app.state.rawValue,
+            "isRunningForeground": app.state == .runningForeground,
+            "applicationFrame": auditFrameObject(app.frame),
+            "queries": diagnosticQueryObjects,
+        ]
+        printJSONLine(
+            prefix: "S10_4_AX_TEXT_RECHECK_PREFLIGHT_CONTRAST_CONTEXT_DIAGNOSTIC",
+            object: context
+        )
+
+        let appScreenshotAttachment = XCTAttachment(
+            screenshot: XCUIScreen.main.screenshot()
+        )
+        appScreenshotAttachment.name =
+            "S10.4 AX-text Recheck Preflight contrast diagnostic app"
+        appScreenshotAttachment.lifetime = .keepAlways
+        add(appScreenshotAttachment)
+
+        let appTreeAttachment = XCTAttachment(string: app.debugDescription)
+        appTreeAttachment.name =
+            "S10.4 AX-text Recheck Preflight contrast diagnostic tree"
+        appTreeAttachment.lifetime = .keepAlways
+        add(appTreeAttachment)
+
+        let contextData = try JSONSerialization.data(
+            withJSONObject: context,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        let contextAttachment = XCTAttachment(
+            string: String(decoding: contextData, as: UTF8.self)
+        )
+        contextAttachment.name =
+            "S10.4 AX-text Recheck Preflight contrast diagnostic context"
+        contextAttachment.lifetime = .keepAlways
+        add(contextAttachment)
+
+        var observedIssueCount = 0
+        var diagnosticAuditedElements: [XCUIElement] = []
+        try app.performAccessibilityAudit(for: .contrast) { issue in
+            observedIssueCount += 1
+            let auditedElementObject: Any
+            let elementIdentifier: Any
+            let elementLabel: Any
+            let elementType: Any
+            let elementFrame: Any
+            if let auditedElement = issue.element {
+                diagnosticAuditedElements.append(auditedElement)
+                auditedElementObject = diagnosticElementObject(auditedElement)
+                elementIdentifier = auditedElement.identifier
+                elementLabel = auditedElement.label
+                elementType = String(describing: auditedElement.elementType)
+                elementFrame = self.auditFrameObject(auditedElement.frame)
+            } else {
+                auditedElementObject = NSNull()
+                elementIdentifier = NSNull()
+                elementLabel = NSNull()
+                elementType = NSNull()
+                elementFrame = NSNull()
+            }
+            self.printJSONLine(
+                prefix: "S10_4_AX_TEXT_RECHECK_PREFLIGHT_CONTRAST_ISSUE_DIAGNOSTIC",
+                object: [
+                    "shardID": shard.shardID,
+                    "deviceProfileID": shard.deviceProfileID,
+                    "stateID": stateID,
+                    "ordinal": observedIssueCount,
+                    "auditTypeRawValue": String(issue.auditType.rawValue),
+                    "compactDescription": issue.compactDescription,
+                    "detailedDescription": issue.detailedDescription,
+                    "elementIdentifier": elementIdentifier,
+                    "elementLabel": elementLabel,
+                    "elementType": elementType,
+                    "elementFrame": elementFrame,
+                    "applicationFrame": self.auditFrameObject(app.frame),
+                    "auditedElement": auditedElementObject,
+                ]
+            )
+            return true
+        }
+
+        for (index, auditedElement) in diagnosticAuditedElements.enumerated() {
+            let auditedElementAttachment = XCTAttachment(
+                screenshot: auditedElement.screenshot()
+            )
+            auditedElementAttachment.name =
+                "S10.4 AX-text Recheck Preflight contrast diagnostic element "
+                + String(index + 1)
+            auditedElementAttachment.lifetime = .keepAlways
+            add(auditedElementAttachment)
+        }
+        printJSONLine(
+            prefix: "S10_4_AX_TEXT_RECHECK_PREFLIGHT_CONTRAST_COUNT_DIAGNOSTIC",
+            object: [
+                "shardID": shard.shardID,
+                "deviceProfileID": shard.deviceProfileID,
+                "stateID": stateID,
+                "observedIssueCount": observedIssueCount,
+                "auditedElementCount": diagnosticAuditedElements.count,
+            ]
+        )
+        throw AutomationConfigurationError.invalid(
+            "S10.4 AX-text recheck-preflight contrast diagnostic completed nonaccepting observedIssueCount=\(observedIssueCount)"
+        )
     }
 
     @MainActor

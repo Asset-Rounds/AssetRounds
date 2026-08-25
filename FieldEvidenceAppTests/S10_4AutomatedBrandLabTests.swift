@@ -1327,8 +1327,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         try assertFile(
             sourceParts[0],
-            byteCount: 431_467,
-            sha256: "6EA5C64EB3BC009855D1F6014D1D5C4A492C07039FC506CAA1706EF27A11999F"
+            byteCount: 439_594,
+            sha256: "CDF03B910F6E9A329C2B39D59C66D2B80A79B90BE2E45AC46367B37E9FBE3F55"
         )
         let uiSource = try text(sourceParts[0])
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
@@ -8968,6 +8968,348 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 ).count - 1,
                 0,
                 removedIssueRecheckDueDiagnosticForm
+            )
+        }
+
+        let recheckPreflightDiagnosticRouteStart =
+            "        startRecheck.tap()"
+        let recheckPreflightDiagnosticRouteEnd =
+            #"        captureBaseline("state.recheck-preflight.ready", in: app)"#
+        guard let recheckPreflightDiagnosticRouteStartRange = uiSource.range(
+            of: recheckPreflightDiagnosticRouteStart
+        ), let recheckPreflightDiagnosticRouteEndRange = uiSource.range(
+            of: recheckPreflightDiagnosticRouteEnd,
+            range: recheckPreflightDiagnosticRouteStartRange.upperBound ..<
+                uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded AX-text recheck-preflight diagnostic route")
+            return
+        }
+        let recheckPreflightDiagnosticRouteSource = String(
+            uiSource[
+                recheckPreflightDiagnosticRouteStartRange.lowerBound ..<
+                    recheckPreflightDiagnosticRouteEndRange.upperBound
+            ]
+        )
+        XCTAssertEqual(recheckPreflightDiagnosticRouteSource.utf8.count, 484)
+        XCTAssertEqual(
+            Data(recheckPreflightDiagnosticRouteSource.utf8).sha256,
+            "8199E8AC0DD2B674C3464901AE41B9CBED639B7AC63E6C752A2B20C9CE9B15CE"
+        )
+        let recheckPreflightDiagnosticRouteLock =
+            "        startRecheck.tap()\n" +
+                #"        XCTAssertTrue(element("s3.preflight.screen", in: app)"# +
+                "\n" +
+                "            .waitForExistence(timeout: 20))\n" +
+                "        if let shard = automationShard,\n" +
+                #"           shard.shardID == "s10.4.current.ax-text" {"# +
+                "\n" +
+                "            try diagnoseAXTextRecheckPreflightContrast(\n" +
+                "                in: app,\n" +
+                "                shard: shard,\n" +
+                #"                stateID: "state.recheck-preflight.ready""# +
+                "\n" +
+                "            )\n" +
+                "        }\n" +
+                recheckPreflightDiagnosticRouteEnd
+        XCTAssertEqual(
+            recheckPreflightDiagnosticRouteSource.components(
+                separatedBy: recheckPreflightDiagnosticRouteLock
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            recheckPreflightDiagnosticRouteSource.components(
+                separatedBy: "diagnoseAXTextRecheckPreflightContrast("
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            recheckPreflightDiagnosticRouteSource.components(
+                separatedBy: #"state.recheck-preflight.ready"#
+            ).count - 1,
+            2
+        )
+
+        let recheckPreflightDiagnosticHelperStart =
+            "    @MainActor\n" +
+                "    private func diagnoseAXTextRecheckPreflightContrast(\n" +
+                "        in app: XCUIApplication,\n" +
+                "        shard: AutomationShard,\n" +
+                "        stateID: String\n" +
+                "    ) throws {"
+        guard let recheckPreflightDiagnosticHelperStartRange = uiSource.range(
+            of: recheckPreflightDiagnosticHelperStart
+        ), let recheckPreflightDiagnosticHelperEndRange = uiSource.range(
+            of: captureBaselineStart,
+            range: recheckPreflightDiagnosticHelperStartRange.upperBound ..<
+                uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded AX-text recheck-preflight diagnostic helper")
+            return
+        }
+        let recheckPreflightDiagnosticHelperEnd = uiSource.index(
+            recheckPreflightDiagnosticHelperEndRange.lowerBound,
+            offsetBy: -2
+        )
+        let recheckPreflightDiagnosticHelperSource = String(
+            uiSource[
+                recheckPreflightDiagnosticHelperStartRange.lowerBound ..<
+                    recheckPreflightDiagnosticHelperEnd
+            ]
+        )
+        XCTAssertEqual(recheckPreflightDiagnosticHelperSource.utf8.count, 7_839)
+        XCTAssertEqual(
+            Data(recheckPreflightDiagnosticHelperSource.utf8).sha256,
+            "1F3725710D07A5FB510619721605D05A247A81FD70645F8AB94F9A21409C1F4D"
+        )
+
+        let recheckPreflightDiagnosticQueryDeclarations = [
+            "        let preflightScreens = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s3.preflight.screen""# + "\n" +
+                "        )",
+            "        let preflightScrollViews = app.scrollViews.containing(\n" +
+                "            .textField,\n" +
+                #"            identifier: "s3.preflight.time-zone""# + "\n" +
+                "        )",
+            "        let beforeYouBeginStaticTexts = app.staticTexts.matching(\n" +
+                "            NSPredicate(\n" +
+                #"                format: "label == %@","# + "\n" +
+                #"                "Before you begin""# + "\n" +
+                "            )\n" +
+                "        )",
+            "        let navigationBars = app.navigationBars",
+            "        let tabBars = app.tabBars",
+            "        let beginControls = app.descendants(matching: .any).matching(\n" +
+                #"            identifier: "s3.preflight.begin""# + "\n" +
+                "        )",
+        ]
+        XCTAssertEqual(recheckPreflightDiagnosticQueryDeclarations.count, 6)
+        for queryDeclaration in recheckPreflightDiagnosticQueryDeclarations {
+            XCTAssertEqual(
+                recheckPreflightDiagnosticHelperSource.components(
+                    separatedBy: queryDeclaration
+                ).count - 1,
+                1,
+                queryDeclaration
+            )
+        }
+        let recheckPreflightDiagnosticQueryTuples = [
+            #"            ("preflightScreens", preflightScreens),"#,
+            #"            ("preflightScrollViews", preflightScrollViews),"#,
+            #"            ("beforeYouBeginStaticTexts", beforeYouBeginStaticTexts),"#,
+            #"            ("navigationBars", navigationBars),"#,
+            #"            ("tabBars", tabBars),"#,
+            #"            ("beginControls", beginControls),"#,
+        ]
+        XCTAssertEqual(recheckPreflightDiagnosticQueryTuples.count, 6)
+        for queryTuple in recheckPreflightDiagnosticQueryTuples {
+            XCTAssertEqual(
+                recheckPreflightDiagnosticHelperSource.components(
+                    separatedBy: queryTuple
+                ).count - 1,
+                1,
+                queryTuple
+            )
+        }
+        for diagnosticEnumerationLock in [
+            "            let count = query.count",
+            "            for index in 0..<count {",
+            "                    diagnosticElementObject(query.element(boundBy: index))",
+            #"                "count": count,"#,
+            #"                "elements": elements,"#,
+            "        for (name, query) in diagnosticQueries {",
+            "            diagnosticQueryObjects[name] = diagnosticQueryObject(query)",
+        ] {
+            XCTAssertEqual(
+                recheckPreflightDiagnosticHelperSource.components(
+                    separatedBy: diagnosticEnumerationLock
+                ).count - 1,
+                1,
+                diagnosticEnumerationLock
+            )
+        }
+        for diagnosticNodeField in [
+            #"                "exists": element.exists,"#,
+            #"                "isHittable": element.isHittable,"#,
+            #"                "isEnabled": element.isEnabled,"#,
+            #"                "identifier": element.identifier,"#,
+            #"                "label": element.label,"#,
+            #"                "value": valueObject,"#,
+            #"                "elementTypeRawValue": element.elementType.rawValue,"#,
+            #"                "elementTypeDescription": String(describing: element.elementType),"#,
+            #"                "frame": self.auditFrameObject(element.frame),"#,
+        ] {
+            XCTAssertEqual(
+                recheckPreflightDiagnosticHelperSource.components(
+                    separatedBy: diagnosticNodeField
+                ).count - 1,
+                1,
+                diagnosticNodeField
+            )
+        }
+        let recheckPreflightDiagnosticNullableValueSerializer =
+            "            let valueObject: Any\n" +
+                "            if let value = element.value as? String {\n" +
+                "                valueObject = value\n" +
+                "            } else {\n" +
+                "                valueObject = NSNull()\n" +
+                "            }"
+        XCTAssertEqual(
+            recheckPreflightDiagnosticHelperSource.components(
+                separatedBy: recheckPreflightDiagnosticNullableValueSerializer
+            ).count - 1,
+            1
+        )
+        for diagnosticContextField in [
+            #"            "shardID": shard.shardID,"#,
+            #"            "requirementID": shard.requirementID,"#,
+            #"            "deviceProfileID": shard.deviceProfileID,"#,
+            #"            "stateID": stateID,"#,
+            #"            "elapsedMilliseconds": diagnosticElapsedMilliseconds,"#,
+            #"            "applicationState": String(describing: app.state),"#,
+            #"            "applicationStateRawValue": app.state.rawValue,"#,
+            #"            "isRunningForeground": app.state == .runningForeground,"#,
+            #"            "applicationFrame": auditFrameObject(app.frame),"#,
+            #"            "queries": diagnosticQueryObjects,"#,
+        ] {
+            XCTAssertEqual(
+                recheckPreflightDiagnosticHelperSource.components(
+                    separatedBy: diagnosticContextField
+                ).count - 1,
+                1,
+                diagnosticContextField
+            )
+        }
+        for diagnosticIssueField in [
+            #"                    "ordinal": observedIssueCount,"#,
+            #"                    "auditTypeRawValue": String(issue.auditType.rawValue),"#,
+            #"                    "compactDescription": issue.compactDescription,"#,
+            #"                    "detailedDescription": issue.detailedDescription,"#,
+            #"                    "elementIdentifier": elementIdentifier,"#,
+            #"                    "elementLabel": elementLabel,"#,
+            #"                    "elementType": elementType,"#,
+            #"                    "elementFrame": elementFrame,"#,
+            #"                    "applicationFrame": self.auditFrameObject(app.frame),"#,
+            #"                    "auditedElement": auditedElementObject,"#,
+        ] {
+            XCTAssertEqual(
+                recheckPreflightDiagnosticHelperSource.components(
+                    separatedBy: diagnosticIssueField
+                ).count - 1,
+                1,
+                diagnosticIssueField
+            )
+        }
+        let recheckPreflightDiagnosticNilIssueElementSerializer =
+            "            } else {\n" +
+                "                auditedElementObject = NSNull()\n" +
+                "                elementIdentifier = NSNull()\n" +
+                "                elementLabel = NSNull()\n" +
+                "                elementType = NSNull()\n" +
+                "                elementFrame = NSNull()\n" +
+                "            }"
+        XCTAssertEqual(
+            recheckPreflightDiagnosticHelperSource.components(
+                separatedBy: recheckPreflightDiagnosticNilIssueElementSerializer
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            recheckPreflightDiagnosticHelperSource.components(
+                separatedBy: "NSNull()"
+            ).count - 1,
+            6
+        )
+        for (diagnosticCardinalityLock, expectedCount) in [
+            ("XCTAttachment(", 4),
+            (".lifetime = .keepAlways", 4),
+            ("        add(", 4),
+            ("try app.performAccessibilityAudit(for: .contrast)", 1),
+            ("            return true", 1),
+            ("return false", 0),
+            (#""observedIssueCount": observedIssueCount"#, 1),
+            (#""auditedElementCount": diagnosticAuditedElements.count"#, 1),
+        ] {
+            XCTAssertEqual(
+                recheckPreflightDiagnosticHelperSource.components(
+                    separatedBy: diagnosticCardinalityLock
+                ).count - 1,
+                expectedCount,
+                diagnosticCardinalityLock
+            )
+        }
+
+        let recheckPreflightDiagnosticOrderedFragments = [
+            "S10_4_AX_TEXT_RECHECK_PREFLIGHT_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "        let appScreenshotAttachment = XCTAttachment(",
+            "        let appTreeAttachment = XCTAttachment(string: app.debugDescription)",
+            "        let contextData = try JSONSerialization.data(",
+            "        let contextAttachment = XCTAttachment(",
+            "        try app.performAccessibilityAudit(for: .contrast) { issue in",
+            "S10_4_AX_TEXT_RECHECK_PREFLIGHT_CONTRAST_ISSUE_DIAGNOSTIC",
+            "        for (index, auditedElement) in diagnosticAuditedElements.enumerated() {",
+            "S10_4_AX_TEXT_RECHECK_PREFLIGHT_CONTRAST_COUNT_DIAGNOSTIC",
+            "        throw AutomationConfigurationError.invalid(",
+        ]
+        var recheckPreflightDiagnosticSearchStart =
+            recheckPreflightDiagnosticHelperSource.startIndex
+        for orderedFragment in recheckPreflightDiagnosticOrderedFragments {
+            guard let orderedRange = recheckPreflightDiagnosticHelperSource.range(
+                of: orderedFragment,
+                range: recheckPreflightDiagnosticSearchStart ..<
+                    recheckPreflightDiagnosticHelperSource.endIndex
+            ) else {
+                XCTFail("Missing ordered recheck-preflight diagnostic fragment: \(orderedFragment)")
+                return
+            }
+            recheckPreflightDiagnosticSearchStart = orderedRange.upperBound
+        }
+        let recheckPreflightDiagnosticTerminal =
+            "        throw AutomationConfigurationError.invalid(\n" +
+                "            \"S10.4 AX-text recheck-preflight contrast diagnostic completed nonaccepting observedIssueCount=\\(observedIssueCount)\"\n" +
+                "        )\n" +
+                "    }"
+        XCTAssertTrue(
+            recheckPreflightDiagnosticHelperSource.hasSuffix(
+                recheckPreflightDiagnosticTerminal
+            )
+        )
+        for prohibitedRecheckPreflightDiagnosticForm in [
+            ".tap(",
+            ".swipe",
+            ".coordinate(",
+            ".press(",
+            "thenDragTo:",
+            "scroll(",
+            ".typeText(",
+            "waitForExistence",
+            "waitForNonExistence",
+            "Thread.sleep",
+            "sleep(",
+            "CGRect(",
+            "count ==",
+            ".firstMatch",
+            ".filter",
+            "matchingExceptions",
+            "eligibleExceptions",
+            "contrastAuditExceptionSignatures",
+            "automationContrastExceptions",
+            "automationAXTreeDigests",
+            #"prefix: "S10_4_AX_STATE""#,
+            #"prefix: "S10_4_CONTRAST""#,
+            "S10_4_CANDIDATE",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+            "S10_4_RETENTION",
+            "captureBaseline(",
+            "attachCandidate(",
+        ] {
+            XCTAssertFalse(
+                recheckPreflightDiagnosticHelperSource.contains(
+                    prohibitedRecheckPreflightDiagnosticForm
+                ),
+                prohibitedRecheckPreflightDiagnosticForm
             )
         }
 
