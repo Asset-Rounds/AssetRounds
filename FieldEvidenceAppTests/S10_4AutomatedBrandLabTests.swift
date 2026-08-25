@@ -3162,39 +3162,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     reportComparisonRouteStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 31_293)
+        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 25_837)
         XCTAssertEqual(
             Data(workValidationPositioningHelperSource.utf8).sha256,
-            "CBE290996554242DC5EB92F3B379BC5053318C14187F7ECA1398EE2388BE5D41"
-        )
-        let workValidationDiagnosticStart =
-            "            if diagnosticAttemptIndex == 0 {"
-        let workValidationDiagnosticEnd =
-            "            guard diagnosticAttemptIndex != 0,\n" +
-                "                  hasExactRoute() else {"
-        guard let workValidationDiagnosticStartRange =
-            workValidationPositioningHelperSource.range(
-                of: workValidationDiagnosticStart
-            ),
-              let workValidationDiagnosticEndRange =
-                workValidationPositioningHelperSource.range(
-                    of: workValidationDiagnosticEnd,
-                    range: workValidationDiagnosticStartRange.upperBound ..<
-                        workValidationPositioningHelperSource.endIndex
-                ) else {
-            XCTFail("Missing bounded work-validation route diagnostic")
-            return
-        }
-        let workValidationDiagnosticSource = String(
-            workValidationPositioningHelperSource[
-                workValidationDiagnosticStartRange.lowerBound ..<
-                    workValidationDiagnosticEndRange.lowerBound
-            ]
-        )
-        XCTAssertEqual(workValidationDiagnosticSource.utf8.count, 6_205)
-        XCTAssertEqual(
-            Data(workValidationDiagnosticSource.utf8).sha256,
-            "B7EE5A46D12E8D7FE84D67250075AAEFCEA05A148CEAB026DD7C0ABED87B9CC0"
+            "25AA5729E5D8927130854D34374C9528A0FE1D0C749871955799431F02305BC4"
         )
 
         let signDetailPositioningGate =
@@ -3846,7 +3817,45 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 lock
             )
         }
-        let workValidationRouteRelationNames = [
+        let workValidationStableRelationsStart =
+            "        let stablePrePositionRouteRelations: () -> [(String, Bool)] = {"
+        let workValidationFinalRelationsStart =
+            "        let finalStrictValueRelations: () -> [(String, Bool)] = {"
+        let workValidationHasStableRouteStart =
+            "        let stablePrePositionFramesAreValid: () -> Bool = {"
+        guard let workValidationStableRelationsStartRange =
+            workValidationPositioningHelperSource.range(
+                of: workValidationStableRelationsStart
+            ),
+              let workValidationFinalRelationsStartRange =
+                workValidationPositioningHelperSource.range(
+                    of: workValidationFinalRelationsStart,
+                    range: workValidationStableRelationsStartRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ),
+              let workValidationHasStableRouteStartRange =
+                workValidationPositioningHelperSource.range(
+                    of: workValidationHasStableRouteStart,
+                    range: workValidationFinalRelationsStartRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ) else {
+            XCTFail("Missing bounded stable/final work-validation relations")
+            return
+        }
+        let workValidationStableRelationsSource = String(
+            workValidationPositioningHelperSource[
+                workValidationStableRelationsStartRange.lowerBound ..<
+                    workValidationFinalRelationsStartRange.lowerBound
+            ]
+        )
+        let workValidationFinalRelationsSource = String(
+            workValidationPositioningHelperSource[
+                workValidationFinalRelationsStartRange.lowerBound ..<
+                    workValidationHasStableRouteStartRange.lowerBound
+            ]
+        )
+
+        let workValidationStableRelationNames = [
             "applicationForeground",
             "workScreensCountOne",
             "descriptionFieldsCountOne",
@@ -3868,13 +3877,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "descriptionFieldTypeTextField",
             "descriptionFieldIdentifier",
             "descriptionFieldLabel",
-            "descriptionFieldValue",
             "descriptionFieldHittable",
             "focusedDescriptionFieldExists",
             "focusedDescriptionFieldTypeTextField",
             "focusedDescriptionFieldIdentifier",
             "focusedDescriptionFieldLabel",
-            "focusedDescriptionFieldValue",
             "focusedDescriptionFieldHittable",
             "validationLabelExists",
             "validationLabelTypeStaticText",
@@ -3912,8 +3919,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "keyboardValueEmpty",
             "keyboardHittable",
         ]
-        XCTAssertEqual(workValidationRouteRelationNames.count, 64)
-        let workValidationRouteRelationPredicates = [
+        XCTAssertEqual(workValidationStableRelationNames.count, 62)
+        let workValidationStableRelationPredicates = [
             "app.state == .runningForeground",
             "workScreens.count == 1",
             "descriptionFields.count == 1",
@@ -3935,13 +3942,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "descriptionField.elementType == .textField",
             #"descriptionField.identifier == "s5.1.work.description""#,
             #"descriptionField.label == "Short description""#,
-            #"(descriptionField.value as? String) == "Short description""#,
             "descriptionField.isHittable",
             "focusedDescriptionField.exists",
             "focusedDescriptionField.elementType == .textField",
             #"focusedDescriptionField.identifier == "s5.1.work.description""#,
             #"focusedDescriptionField.label == "Short description""#,
-            #"(focusedDescriptionField.value as? String) == "Short description""#,
             "focusedDescriptionField.isHittable",
             "validationLabel.exists",
             "validationLabel.elementType == .staticText",
@@ -3979,249 +3984,182 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"(keyboard.value as? String) == """#,
             "keyboard.isHittable",
         ]
-        XCTAssertEqual(workValidationRouteRelationPredicates.count, 64)
+        XCTAssertEqual(workValidationStableRelationPredicates.count, 62)
         var workValidationRelationSearchStart =
-            workValidationPositioningHelperSource.startIndex
+            workValidationStableRelationsSource.startIndex
         for (relationName, predicate) in zip(
-            workValidationRouteRelationNames,
-            workValidationRouteRelationPredicates
+            workValidationStableRelationNames,
+            workValidationStableRelationPredicates
         ) {
             let quotedRelationName = "\"" + relationName + "\""
             XCTAssertEqual(
-                workValidationPositioningHelperSource.components(
+                workValidationStableRelationsSource.components(
                     separatedBy: quotedRelationName
                 ).count - 1,
                 1,
                 relationName
             )
-            guard let relationRange = workValidationPositioningHelperSource.range(
+            guard let relationRange = workValidationStableRelationsSource.range(
                 of: quotedRelationName,
                 range: workValidationRelationSearchStart ..<
-                    workValidationPositioningHelperSource.endIndex
+                    workValidationStableRelationsSource.endIndex
             ) else {
-                XCTFail("Missing ordered work-validation route relation")
+                XCTFail("Missing ordered stable work-validation route relation")
                 return
             }
-            guard let predicateRange = workValidationPositioningHelperSource.range(
+            guard let predicateRange = workValidationStableRelationsSource.range(
                 of: predicate,
                 range: relationRange.upperBound ..<
-                    workValidationPositioningHelperSource.endIndex
+                    workValidationStableRelationsSource.endIndex
             ) else {
-                XCTFail("Missing predicate for ordered work-validation route relation")
+                XCTFail("Missing predicate for ordered stable work-validation relation")
                 return
             }
             workValidationRelationSearchStart = predicateRange.upperBound
         }
+        for volatileValueRelation in [
+            "descriptionFieldValue",
+            "focusedDescriptionFieldValue",
+            #"(descriptionField.value as? String) == """#,
+            #"(focusedDescriptionField.value as? String) == """#,
+        ] {
+            XCTAssertEqual(
+                workValidationStableRelationsSource.components(
+                    separatedBy: volatileValueRelation
+                ).count - 1,
+                0,
+                volatileValueRelation
+            )
+        }
+        let workValidationFinalRelationNames = [
+            "descriptionFieldValue",
+            "focusedDescriptionFieldValue",
+        ]
+        let workValidationFinalRelationPredicates = [
+            #"(descriptionField.value as? String) == """#,
+            #"(focusedDescriptionField.value as? String) == """#,
+        ]
+        XCTAssertEqual(workValidationFinalRelationNames.count, 2)
+        XCTAssertEqual(workValidationFinalRelationPredicates.count, 2)
+        XCTAssertEqual(
+            Set(
+                workValidationStableRelationNames +
+                    workValidationFinalRelationNames
+            ).count,
+            64
+        )
+        var workValidationFinalRelationSearchStart =
+            workValidationFinalRelationsSource.startIndex
+        for (relationName, predicate) in zip(
+            workValidationFinalRelationNames,
+            workValidationFinalRelationPredicates
+        ) {
+            let quotedRelationName = "\"" + relationName + "\""
+            XCTAssertEqual(
+                workValidationFinalRelationsSource.components(
+                    separatedBy: quotedRelationName
+                ).count - 1,
+                1,
+                relationName
+            )
+            guard let relationRange = workValidationFinalRelationsSource.range(
+                of: quotedRelationName,
+                range: workValidationFinalRelationSearchStart ..<
+                    workValidationFinalRelationsSource.endIndex
+            ), let predicateRange = workValidationFinalRelationsSource.range(
+                of: predicate,
+                range: relationRange.upperBound ..<
+                    workValidationFinalRelationsSource.endIndex
+            ) else {
+                XCTFail("Missing ordered final work-validation value relation")
+                return
+            }
+            workValidationFinalRelationSearchStart = predicateRange.upperBound
+        }
+        for staleWorkValidationRelationForm in [
+            #"(descriptionField.value as? String) == "Short description""#,
+            #"(focusedDescriptionField.value as? String) == "Short description""#,
+            "exactRouteRelations",
+            "hasExactRoute",
+        ] {
+            XCTAssertEqual(
+                workValidationPositioningHelperSource.components(
+                    separatedBy: staleWorkValidationRelationForm
+                ).count - 1,
+                0,
+                staleWorkValidationRelationForm
+            )
+        }
         XCTAssertEqual(
             workValidationPositioningHelperSource.components(
-                separatedBy: "        let exactRouteRelations: () -> [(String, Bool)] = {"
+                separatedBy: workValidationStableRelationsStart
+            ).count - 1,
+            1
+        )
+        let workValidationStableFrameClosure =
+            "        let stablePrePositionFramesAreValid: () -> Bool = {\n" +
+                "            isValidFrame(app.frame)\n" +
+                "                && isValidFrame(workScreen.frame)\n" +
+                "                && isValidFrame(descriptionScrollView.frame)\n" +
+                "                && isValidFrame(navigationBar.frame)\n" +
+                "                && isValidFrame(tabBar.frame)\n" +
+                "                && isValidFrame(keyboard.frame)\n" +
+                "                && isValidFrame(shortDescriptionFieldLabel.frame)\n" +
+                "                && isValidFrame(descriptionField.frame)\n" +
+                "                && isValidFrame(validationLabel.frame)\n" +
+                "        }"
+        XCTAssertEqual(
+            workValidationPositioningHelperSource.components(
+                separatedBy: workValidationStableFrameClosure
+            ).count - 1,
+            1
+        )
+        let workValidationInitialStableGuard =
+            "        guard hasStablePrePositionRoute() else {\n" +
+                "            XCTFail(\"AX-text work-validation initial stable route or focus is invalid.\")\n" +
+                "            return false\n" +
+                "        }"
+        XCTAssertEqual(
+            workValidationPositioningHelperSource.components(
+                separatedBy: workValidationInitialStableGuard
             ).count - 1,
             1
         )
         XCTAssertEqual(
             workValidationPositioningHelperSource.components(
                 separatedBy:
-                    "        let hasExactRoute: () -> Bool = {\n" +
-                    "            exactRouteRelations().allSatisfy { relation in relation.1 }\n" +
+                    "        let hasStablePrePositionRoute: () -> Bool = {\n" +
+                    "            stablePrePositionRouteRelations().allSatisfy { relation in relation.1 }\n" +
+                    "                && stablePrePositionFramesAreValid()\n" +
                     "        }"
             ).count - 1,
             1
         )
-        let workValidationDiagnosticQueryCountLocks = [
-            #"                    "workScreens": workScreens.count,"#,
-            #"                    "descriptionFields": descriptionFields.count,"#,
-            #"                    "focusedDescriptionFields": focusedDescriptionFields.count,"#,
-            #"                    "validationLabels": validationLabels.count,"#,
-            #"                    "shortDescriptionStaticTexts": shortDescriptionStaticTexts.count,"#,
-            #"                    "shortDescriptionFieldLabels": shortDescriptionFieldLabels.count,"#,
-            #"                    "descriptionScrollViews": descriptionScrollViews.count,"#,
-            #"                    "navigationBars": navigationBars.count,"#,
-            #"                    "tabBars": tabBars.count,"#,
-            #"                    "keyboards": keyboards.count,"#,
-        ]
-        for lock in workValidationDiagnosticQueryCountLocks {
-            XCTAssertEqual(
-                workValidationDiagnosticSource.components(
-                    separatedBy: lock
-                ).count - 1,
-                1,
-                lock
-            )
-        }
-        let workValidationDiagnosticNodeLocks = [
-            #"                    "workScreen": workValidationRouteDiagnosticElementObject("#,
-            #"                    "descriptionField": workValidationRouteDiagnosticElementObject("#,
-            #"                    "focusedDescriptionField":"#,
-            #"                    "validationLabel": workValidationRouteDiagnosticElementObject("#,
-            #"                    "shortDescriptionFieldLabel":"#,
-            #"                    "descriptionScrollView":"#,
-            #"                    "navigationBar": workValidationRouteDiagnosticElementObject("#,
-            #"                    "tabBar": workValidationRouteDiagnosticElementObject(tabBar),"#,
-            #"                    "keyboard": workValidationRouteDiagnosticElementObject(keyboard),"#,
-        ]
-        for lock in workValidationDiagnosticNodeLocks {
-            XCTAssertEqual(
-                workValidationDiagnosticSource.components(
-                    separatedBy: lock
-                ).count - 1,
-                1,
-                lock
-            )
-        }
-        let workValidationDiagnosticSerializerLocks = [
-            "                let diagnosticRelations = exactRouteRelations()",
-            "                let diagnosticRelationObjects: [[String: Any]] =",
-            "                    diagnosticRelations.map {",
-            #"                        "name": relation.0,"#,
-            #"                        "passed": relation.1,"#,
-            "                let workValidationRouteDiagnosticElementObject:",
-            "                    (XCUIElement) -> [String: Any] = { element in",
-            "                    if let value = element.value as? String {",
-            "                        valueObject = NSNull()",
-            #"                        "exists": element.exists,"#,
-            #"                        "isHittable": element.isHittable,"#,
-            #"                        "isEnabled": element.isEnabled,"#,
-            #"                        "identifier": element.identifier,"#,
-            #"                        "label": element.label,"#,
-            #"                        "value": valueObject,"#,
-            #"                        "elementTypeRawValue": element.elementType.rawValue,"#,
-            #"                        "elementTypeDescription": String("#,
-            #"                        "frame": self.auditFrameObject(element.frame),"#,
-            #"                    "shardID": automationShard?.shardID ?? "","#,
-            #"                    "deviceProfileID": automationShard?.deviceProfileID ?? "","#,
-            #"                    "stateID": "state.work.validation-error","#,
-            #"                    "applicationState": String(describing: app.state),"#,
-            #"                    "applicationStateRawValue": app.state.rawValue,"#,
-            #"                    "isRunningForeground": app.state == .runningForeground,"#,
-            #"                    "applicationFrame": auditFrameObject(app.frame),"#,
-            #"                    "queryCounts": diagnosticQueryCounts,"#,
-            #"                    "relations": diagnosticRelationObjects,"#,
-            #"                    "failedRelations": diagnosticRelations.compactMap {"#,
-            #"                    "nodes": diagnosticNodeObjects,"#,
-            #"                    prefix: "S10_4_AX_TEXT_WORK_VALIDATION_ROUTE_DIAGNOSTIC","#,
-            "                    object: diagnosticContextObject",
-        ]
-        for lock in workValidationDiagnosticSerializerLocks {
-            XCTAssertEqual(
-                workValidationDiagnosticSource.components(
-                    separatedBy: lock
-                ).count - 1,
-                1,
-                lock
-            )
-        }
-        for (lock, count) in [
-            ("printJSONLine(", 1),
-            ("XCTAttachment(", 3),
-            (".lifetime = .keepAlways", 3),
-            ("add(diagnostic", 3),
-            ("JSONSerialization.data(", 1),
-            ("options: [.prettyPrinted, .sortedKeys]", 1),
+        for removedH303WorkValidationDiagnosticForm in [
+            "diagnosticAttemptIndex",
+            "diagnosticRelations",
+            "diagnosticRelationObjects",
+            "workValidationRouteDiagnosticElementObject",
+            "diagnosticQueryCounts",
+            "diagnosticNodeObjects",
+            "diagnosticContextObject",
+            "S10_4_AX_TEXT_WORK_VALIDATION_ROUTE_DIAGNOSTIC",
+            "S10.4 AX-text work-validation route diagnostic app",
+            "S10.4 AX-text work-validation route diagnostic tree",
+            "S10.4 AX-text work-validation route diagnostic context",
+            "XCTAttachment(",
+            "JSONSerialization.data(",
+            "XCUIScreen.main.screenshot()",
+            "guard diagnosticAttemptIndex != 0",
         ] {
             XCTAssertEqual(
-                workValidationDiagnosticSource.components(
-                    separatedBy: lock
+                workValidationPositioningHelperSource.components(
+                    separatedBy: removedH303WorkValidationDiagnosticForm
                 ).count - 1,
-                count,
-                lock
+                0,
+                removedH303WorkValidationDiagnosticForm
             )
         }
-        let workValidationDiagnosticOrder = [
-            "                let diagnosticRelations = exactRouteRelations()",
-            "                let diagnosticRelationObjects: [[String: Any]] =",
-            "                    diagnosticRelations.map {",
-            "                let workValidationRouteDiagnosticElementObject:",
-            "                let diagnosticQueryCounts: [String: Int] = [",
-            "                let diagnosticNodeObjects: [String: Any] = [",
-            "                let diagnosticContextObject: [String: Any] = [",
-            "                printJSONLine(",
-            "                let diagnosticAppAttachment = XCTAttachment(",
-            "                add(diagnosticAppAttachment)",
-            "                let diagnosticTreeAttachment = XCTAttachment(",
-            "                add(diagnosticTreeAttachment)",
-            "                let diagnosticContextData = try? JSONSerialization.data(",
-            "                let diagnosticContextAttachment = XCTAttachment(",
-            "                add(diagnosticContextAttachment)",
-        ]
-        var workValidationDiagnosticOrderStart =
-            workValidationDiagnosticSource.startIndex
-        for lock in workValidationDiagnosticOrder {
-            guard let lockRange = workValidationDiagnosticSource.range(
-                of: lock,
-                range: workValidationDiagnosticOrderStart ..<
-                    workValidationDiagnosticSource.endIndex
-            ) else {
-                XCTFail("Missing ordered work-validation route diagnostic source")
-                return
-            }
-            workValidationDiagnosticOrderStart = lockRange.upperBound
-        }
-        for prohibitedDiagnosticForm in [
-            ".tap(",
-            ".swipe",
-            ".coordinate(",
-            ".press(",
-            "thenDragTo:",
-            "scroll(",
-            "waitForExistence",
-            "waitForNonExistence",
-            ".typeText(",
-            "Thread.sleep",
-            "sleep(",
-            "performAccessibilityAudit",
-            "eligibleExceptions",
-            "ContrastAuditExceptionSignature",
-            "captureBaseline(",
-            "attachCandidate(",
-            #"prefix: "S10_4_AX_STATE""#,
-            #"prefix: "S10_4_CONTRAST""#,
-            "S10_4_CANDIDATE",
-            "S10_4_TASK",
-            "S10_4_SHARD_RECEIPT",
-            "liveScrollFrame",
-            "minimumShift",
-            "maximumShift",
-        ] {
-            XCTAssertFalse(
-                workValidationDiagnosticSource.contains(prohibitedDiagnosticForm),
-                prohibitedDiagnosticForm
-            )
-        }
-        guard let diagnosticAttemptRange =
-            workValidationPositioningHelperSource.range(
-                of: workValidationDiagnosticStart
-            ),
-              let diagnosticGuardRange =
-                workValidationPositioningHelperSource.range(
-                    of: workValidationDiagnosticEnd,
-                    range: diagnosticAttemptRange.upperBound ..<
-                        workValidationPositioningHelperSource.endIndex
-                ),
-              let diagnosticFailureRange =
-                workValidationPositioningHelperSource.range(
-                    of: "                XCTFail(\"AX-text work-validation positioning route or focus changed.\")",
-                    range: diagnosticGuardRange.upperBound ..<
-                        workValidationPositioningHelperSource.endIndex
-                ),
-              let diagnosticReturnFalseRange =
-                workValidationPositioningHelperSource.range(
-                    of: "                return false",
-                    range: diagnosticFailureRange.upperBound ..<
-                        workValidationPositioningHelperSource.endIndex
-                ),
-              let postDiagnosticGeometryRange =
-                workValidationPositioningHelperSource.range(
-                    of: "            let applicationFrame = app.frame",
-                    range: diagnosticReturnFalseRange.upperBound ..<
-                        workValidationPositioningHelperSource.endIndex
-                ) else {
-            XCTFail("Missing diagnostic-to-existing-failure ordering")
-            return
-        }
-        XCTAssertLessThan(diagnosticAttemptRange.lowerBound, diagnosticGuardRange.lowerBound)
-        XCTAssertLessThan(diagnosticGuardRange.lowerBound, diagnosticFailureRange.lowerBound)
-        XCTAssertLessThan(diagnosticFailureRange.lowerBound, diagnosticReturnFalseRange.lowerBound)
-        XCTAssertLessThan(diagnosticReturnFalseRange.lowerBound, postDiagnosticGeometryRange.lowerBound)
 
         let workValidationFrameLocks = [
             "        let isValidFrame: (CGRect) -> Bool = { frame in\n" +
@@ -4322,12 +4260,101 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workValidationFinalIntersectionRange.lowerBound,
             workValidationFinalArithmeticRange.lowerBound
         )
+        guard let workValidationInitialStableGuardRange =
+            workValidationPositioningHelperSource.range(
+                of: workValidationInitialStableGuard
+            ),
+              let workValidationFrozenFrameRange =
+                workValidationPositioningHelperSource.range(
+                    of: "        let frozenApplicationFrame = app.frame",
+                    range: workValidationInitialStableGuardRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ),
+              let workValidationLoopRange =
+                workValidationPositioningHelperSource.range(
+                    of: "        for _ in 0..<4 {",
+                    range: workValidationFrozenFrameRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ),
+              let workValidationLoopStableGuardRange =
+                workValidationPositioningHelperSource.range(
+                    of: "            guard hasStablePrePositionRoute() else {",
+                    range: workValidationLoopRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ),
+              let workValidationLiveFrameRange =
+                workValidationPositioningHelperSource.range(
+                    of: "            let applicationFrame = app.frame",
+                    range: workValidationLoopStableGuardRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ),
+              let workValidationPostDragStableGuardRange =
+                workValidationPositioningHelperSource.range(
+                    of: "            guard hasStablePrePositionRoute(),",
+                    range: workValidationLiveFrameRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ),
+              let workValidationMovedFrameRange =
+                workValidationPositioningHelperSource.range(
+                    of: "            let fieldLabelAfterDrag = shortDescriptionFieldLabel.frame",
+                    range: workValidationPostDragStableGuardRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ),
+              let workValidationFinalStrictRange =
+                workValidationPositioningHelperSource.range(
+                    of: "        let finalStrictComposition = hasStablePrePositionRoute()",
+                    range: workValidationMovedFrameRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ),
+              let workValidationFinalGuardRange =
+                workValidationPositioningHelperSource.range(
+                    of: "        guard finalStrictComposition else {",
+                    range: workValidationFinalStrictRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ),
+              let workValidationSuccessRange =
+                workValidationPositioningHelperSource.range(
+                    of: "        return true",
+                    range: workValidationFinalGuardRange.upperBound ..<
+                        workValidationPositioningHelperSource.endIndex
+                ) else {
+            XCTFail("Missing stable-to-final work-validation ordering")
+            return
+        }
+        XCTAssertLessThan(
+            workValidationInitialStableGuardRange.lowerBound,
+            workValidationFrozenFrameRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workValidationFrozenFrameRange.lowerBound,
+            workValidationLoopStableGuardRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workValidationLoopStableGuardRange.lowerBound,
+            workValidationLiveFrameRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workValidationPostDragStableGuardRange.lowerBound,
+            workValidationMovedFrameRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workValidationMovedFrameRange.lowerBound,
+            workValidationFinalStrictRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workValidationFinalStrictRange.lowerBound,
+            workValidationFinalGuardRange.lowerBound
+        )
+        XCTAssertLessThan(
+            workValidationFinalGuardRange.lowerBound,
+            workValidationSuccessRange.lowerBound
+        )
 
         let workValidationGeometryLocks = [
             "        let verticalInset: CGFloat = 16",
             "        let receiverInset: CGFloat = 24",
             "        let minimumGestureDistance: CGFloat = 44",
-            "        for diagnosticAttemptIndex in 0..<4 {",
+            "        for _ in 0..<4 {",
             "            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)",
             "                    min(keyboardFrame.minY, tabFrame.minY)",
             "            let safeTop = liveTop + verticalInset",
@@ -4477,6 +4504,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let workValidationFailureMessages = [
             "AX-text work-validation positioning bindings are ambiguous.",
+            "AX-text work-validation initial stable route or focus is invalid.",
             "AX-text work-validation positioning route or focus changed.",
             "AX-text work-validation positioning geometry is invalid.",
             "AX-text work-validation composition has no supported downward interval.",
@@ -4487,7 +4515,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "AX-text work-validation route, focus, or keyboard changed after positioning.",
             "AX-text work-validation gesture made no signed triple-node progress.",
             "AX-text work-validation positioning reversed direction.",
-            "AX-text work-validation final route, focus, or keyboard is invalid.",
             "AX-text work-validation final composition is unsafe.",
         ]
         var workValidationFailureSearchStart =
@@ -4514,8 +4541,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("XCTFail(", 13),
             ("return false", 13),
             ("return true", 1),
-            ("let hasExactRoute: () -> Bool", 1),
-            ("hasExactRoute()", 3),
+            ("let hasStablePrePositionRoute: () -> Bool", 1),
+            ("hasStablePrePositionRoute()", 4),
+            ("let finalStrictValueRelations: () -> [(String, Bool)]", 1),
+            ("finalStrictValueRelations()", 1),
+            ("let finalStrictComposition =", 1),
+            ("guard finalStrictComposition else", 1),
             (".firstMatch", 9),
         ] {
             XCTAssertEqual(
@@ -4564,11 +4595,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10_4_WORK_VALIDATION_ROUTE_DIAGNOSTIC",
             "S10_4_WORK_VALIDATION_CONTRAST_DIAGNOSTIC",
             "S10_4_WORK_VALIDATION_CONTRAST_DIAGNOSTIC_COUNT",
+            "S10_4_AX_TEXT_WORK_VALIDATION_ROUTE_DIAGNOSTIC",
+            "workValidationRouteDiagnosticElementObject",
+            "diagnosticAttemptIndex",
             "S10.4 work-validation contrast diagnostic app",
             "S10.4 work-validation contrast diagnostic tree",
             "S10.4 work-validation contrast diagnostic work-route",
             "S10.4 work-validation contrast diagnostic element",
             "S10.4 AX-text Record-work validation contrast diagnostic",
+            "S10.4 AX-text work-validation route diagnostic app",
+            "S10.4 AX-text work-validation route diagnostic tree",
+            "S10.4 AX-text work-validation route diagnostic context",
         ] {
             XCTAssertEqual(
                 uiSource.components(

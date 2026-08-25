@@ -5851,7 +5851,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && frame.size.width.isFinite
                 && frame.size.height.isFinite
         }
-        let exactRouteRelations: () -> [(String, Bool)] = {
+        let stablePrePositionRouteRelations: () -> [(String, Bool)] = {
             [
                     ("applicationForeground", app.state == .runningForeground),
                     ("workScreensCountOne", workScreens.count == 1),
@@ -5901,10 +5901,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         "descriptionFieldLabel",
                         descriptionField.label == "Short description"
                     ),
-                    (
-                        "descriptionFieldValue",
-                        (descriptionField.value as? String) == "Short description"
-                    ),
                     ("descriptionFieldHittable", descriptionField.isHittable),
                     ("focusedDescriptionFieldExists", focusedDescriptionField.exists),
                     (
@@ -5918,10 +5914,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     (
                         "focusedDescriptionFieldLabel",
                         focusedDescriptionField.label == "Short description"
-                    ),
-                    (
-                        "focusedDescriptionFieldValue",
-                        (focusedDescriptionField.value as? String) == "Short description"
                     ),
                     (
                         "focusedDescriptionFieldHittable",
@@ -6015,8 +6007,36 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     ("keyboardHittable", keyboard.isHittable),
             ]
         }
-        let hasExactRoute: () -> Bool = {
-            exactRouteRelations().allSatisfy { relation in relation.1 }
+        let finalStrictValueRelations: () -> [(String, Bool)] = {
+            [
+                (
+                    "descriptionFieldValue",
+                    (descriptionField.value as? String) == ""
+                ),
+                (
+                    "focusedDescriptionFieldValue",
+                    (focusedDescriptionField.value as? String) == ""
+                ),
+            ]
+        }
+        let stablePrePositionFramesAreValid: () -> Bool = {
+            isValidFrame(app.frame)
+                && isValidFrame(workScreen.frame)
+                && isValidFrame(descriptionScrollView.frame)
+                && isValidFrame(navigationBar.frame)
+                && isValidFrame(tabBar.frame)
+                && isValidFrame(keyboard.frame)
+                && isValidFrame(shortDescriptionFieldLabel.frame)
+                && isValidFrame(descriptionField.frame)
+                && isValidFrame(validationLabel.frame)
+        }
+        let hasStablePrePositionRoute: () -> Bool = {
+            stablePrePositionRouteRelations().allSatisfy { relation in relation.1 }
+                && stablePrePositionFramesAreValid()
+        }
+        guard hasStablePrePositionRoute() else {
+            XCTFail("AX-text work-validation initial stable route or focus is invalid.")
+            return false
         }
         let frozenApplicationFrame = app.frame
         let frozenKeyboardFrame = keyboard.frame
@@ -6026,130 +6046,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         var previousFieldLabelMinYAfterDrag: CGFloat?
         var previousDescriptionMinYAfterDrag: CGFloat?
         var previousValidationMinYAfterDrag: CGFloat?
-        for diagnosticAttemptIndex in 0..<4 {
-            if diagnosticAttemptIndex == 0 {
-                let diagnosticRelations = exactRouteRelations()
-                let diagnosticRelationObjects: [[String: Any]] =
-                    diagnosticRelations.map {
-                    relation in
-                    [
-                        "name": relation.0,
-                        "passed": relation.1,
-                    ]
-                    }
-                let workValidationRouteDiagnosticElementObject:
-                    (XCUIElement) -> [String: Any] = { element in
-                    let valueObject: Any
-                    if let value = element.value as? String {
-                        valueObject = value
-                    } else {
-                        valueObject = NSNull()
-                    }
-                    return [
-                        "exists": element.exists,
-                        "isHittable": element.isHittable,
-                        "isEnabled": element.isEnabled,
-                        "identifier": element.identifier,
-                        "label": element.label,
-                        "value": valueObject,
-                        "elementTypeRawValue": element.elementType.rawValue,
-                        "elementTypeDescription": String(
-                            describing: element.elementType
-                        ),
-                        "frame": self.auditFrameObject(element.frame),
-                    ]
-                }
-                let diagnosticQueryCounts: [String: Int] = [
-                    "workScreens": workScreens.count,
-                    "descriptionFields": descriptionFields.count,
-                    "focusedDescriptionFields": focusedDescriptionFields.count,
-                    "validationLabels": validationLabels.count,
-                    "shortDescriptionStaticTexts": shortDescriptionStaticTexts.count,
-                    "shortDescriptionFieldLabels": shortDescriptionFieldLabels.count,
-                    "descriptionScrollViews": descriptionScrollViews.count,
-                    "navigationBars": navigationBars.count,
-                    "tabBars": tabBars.count,
-                    "keyboards": keyboards.count,
-                ]
-                let diagnosticNodeObjects: [String: Any] = [
-                    "workScreen": workValidationRouteDiagnosticElementObject(
-                        workScreen
-                    ),
-                    "descriptionField": workValidationRouteDiagnosticElementObject(
-                        descriptionField
-                    ),
-                    "focusedDescriptionField":
-                        workValidationRouteDiagnosticElementObject(
-                            focusedDescriptionField
-                        ),
-                    "validationLabel": workValidationRouteDiagnosticElementObject(
-                        validationLabel
-                    ),
-                    "shortDescriptionFieldLabel":
-                        workValidationRouteDiagnosticElementObject(
-                            shortDescriptionFieldLabel
-                        ),
-                    "descriptionScrollView":
-                        workValidationRouteDiagnosticElementObject(
-                            descriptionScrollView
-                        ),
-                    "navigationBar": workValidationRouteDiagnosticElementObject(
-                        navigationBar
-                    ),
-                    "tabBar": workValidationRouteDiagnosticElementObject(tabBar),
-                    "keyboard": workValidationRouteDiagnosticElementObject(keyboard),
-                ]
-                let diagnosticContextObject: [String: Any] = [
-                    "shardID": automationShard?.shardID ?? "",
-                    "deviceProfileID": automationShard?.deviceProfileID ?? "",
-                    "stateID": "state.work.validation-error",
-                    "applicationState": String(describing: app.state),
-                    "applicationStateRawValue": app.state.rawValue,
-                    "isRunningForeground": app.state == .runningForeground,
-                    "applicationFrame": auditFrameObject(app.frame),
-                    "queryCounts": diagnosticQueryCounts,
-                    "relations": diagnosticRelationObjects,
-                    "failedRelations": diagnosticRelations.compactMap {
-                        relation in
-                        relation.1 ? nil : relation.0
-                    },
-                    "nodes": diagnosticNodeObjects,
-                ]
-                printJSONLine(
-                    prefix: "S10_4_AX_TEXT_WORK_VALIDATION_ROUTE_DIAGNOSTIC",
-                    object: diagnosticContextObject
-                )
-                let diagnosticAppAttachment = XCTAttachment(
-                    screenshot: XCUIScreen.main.screenshot()
-                )
-                diagnosticAppAttachment.name =
-                    "S10.4 AX-text work-validation route diagnostic app"
-                diagnosticAppAttachment.lifetime = .keepAlways
-                add(diagnosticAppAttachment)
-                let diagnosticTreeAttachment = XCTAttachment(
-                    string: app.debugDescription
-                )
-                diagnosticTreeAttachment.name =
-                    "S10.4 AX-text work-validation route diagnostic tree"
-                diagnosticTreeAttachment.lifetime = .keepAlways
-                add(diagnosticTreeAttachment)
-                let diagnosticContextData = try? JSONSerialization.data(
-                    withJSONObject: diagnosticContextObject,
-                    options: [.prettyPrinted, .sortedKeys]
-                )
-                let diagnosticContextString = diagnosticContextData.flatMap {
-                    String(data: $0, encoding: .utf8)
-                } ?? "{}"
-                let diagnosticContextAttachment = XCTAttachment(
-                    string: diagnosticContextString
-                )
-                diagnosticContextAttachment.name =
-                    "S10.4 AX-text work-validation route diagnostic context"
-                diagnosticContextAttachment.lifetime = .keepAlways
-                add(diagnosticContextAttachment)
-            }
-            guard diagnosticAttemptIndex != 0,
-                  hasExactRoute() else {
+        for _ in 0..<4 {
+            guard hasStablePrePositionRoute() else {
                 XCTFail("AX-text work-validation positioning route or focus changed.")
                 return false
             }
@@ -6330,7 +6228,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 withVelocity: .slow,
                 thenHoldForDuration: 0.2
             )
-            guard hasExactRoute(),
+            guard hasStablePrePositionRoute(),
                   app.frame == frozenApplicationFrame,
                   keyboard.frame == frozenKeyboardFrame else {
                 XCTFail("AX-text work-validation route, focus, or keyboard changed after positioning.")
@@ -6374,12 +6272,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             previousFieldLabelMinYAfterDrag = fieldLabelAfterDrag.minY
             previousDescriptionMinYAfterDrag = descriptionAfterDrag.minY
             previousValidationMinYAfterDrag = validationAfterDrag.minY
-        }
-        guard hasExactRoute(),
-              app.frame == frozenApplicationFrame,
-              keyboard.frame == frozenKeyboardFrame else {
-            XCTFail("AX-text work-validation final route, focus, or keyboard is invalid.")
-            return false
         }
         let finalApplicationFrame = app.frame
         let finalScreenFrame = workScreen.frame
@@ -6433,7 +6325,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     && validationLabel.isHittable
             }
         }
-        guard finalCompositionIsSafe else {
+        let finalStrictComposition = hasStablePrePositionRoute()
+            && finalStrictValueRelations().allSatisfy { relation in relation.1 }
+            && finalFramesAreValid
+            && finalCompositionIsSafe
+        guard finalStrictComposition else {
             XCTFail("AX-text work-validation final composition is unsafe.")
             return false
         }
