@@ -1,0 +1,31 @@
+{
+  "schema": "V23P00C01PreparationManifestV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C01",
+  "attemptID": 1,
+  "executionDisposition": "IMPLEMENTED_PREPARATION_WAITING_ACCEPTED_S10_6",
+  "contextDigest": "25e4c6d54da6aa98ed3bd447e6d7b51a940155181be1e48f6137b03f482454a8",
+  "pathFenceDigest": "052b5dd2d1dc05e3c4b87e8c75ef8ac0aca1f697f0d44ca32f67fb48409ce5c6",
+  "baseHead": "d6b5e88622c5356770c6e9aa3a619afc771b759d",
+  "baseTree": "facca4fd13fc1c13accef1aae8a007cde642caa9",
+  "artifactDigests": {
+    "docs/design/v23/foundation/ActiveS10OwnershipReservationV1.json": "5fd2cf67995c51b26455ce8174906465da0787d92ff4bf9f0e81aee5e5c494f0",
+    "docs/design/v23/foundation/BrandImpactManifestV1.schema.json": "c3776ce82b75f50cca7453a5aee39223767a6699935683cd2973da17ae5abf9a",
+    "docs/design/v23/foundation/PreV23CompatibilitySeedV1.schema.json": "1b1e7fd47fdd5bc9d81e68d9387a8f0f17767eedac1d9d943d1171b390f28412",
+    "docs/design/v23/foundation/UserWorkPreservationManifestV1.json": "8d739b5ef3054608e67285088a9d69c70bb6a1cf95899f0857da46af08ee6bd7",
+    "docs/design/v23/foundation/V23ScopeSupersessionRecordV1.json": "bb3cfac273e380d21a737226f6b6b144c3e33b0bd2e822d9825c53a1bffa0e04"
+  },
+  "productSourcePathsChanged": [],
+  "activeS10OverlapPaths": [],
+  "acceptanceEnabled": false,
+  "remainingAcceptanceInputs": [
+    "EXACT_ACCEPTED_S10_6_HEAD_AND_TREE",
+    "ACCEPTED_S10_6_RECEIPT_AND_EVIDENCE_DIGESTS",
+    "NON_FORCE_INCORPORATION_OF_ACCEPTED_S10_6",
+    "FRESH_AFFECTED_PATH_AND_BRAND_IMPACT_REPROOF",
+    "PRE_V23_COMPATIBILITY_SEED_INSTANCE_FROM_ACCEPTED_S10_6",
+    "P00_C01_TARGETED_AND_OFFICIAL_ACCEPTANCE"
+  ],
+  "createdAt": "2026-08-25T13:43:48.438Z",
+  "contentDigest": "6167c8c704e97a656b153dd121b42405a4b9731ece904687929625597351ab3b"
+}

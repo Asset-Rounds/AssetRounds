@@ -1,0 +1,31 @@
+{
+  "schema": "V23ScopeSupersessionRecordV1",
+  "schemaVersion": 1,
+  "packageID": "ASSETROUNDS-EXPANSION-V23-20260825",
+  "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+  "predecessorGeneration": "V22",
+  "currentGeneration": "V23",
+  "scopeDisposition": "ZERO_PRODUCT_SCOPE_DELTA_EXECUTION_GOVERNANCE_SUCCESSOR",
+  "preservedCardCount": 146,
+  "directEdgeCount": 230,
+  "lineageCounts": {
+    "EXACT_WITH_GENERATION_REBIND": 74,
+    "REFINED_WITHOUT_LOSS": 54,
+    "ADDED_V23": 18
+  },
+  "classificationCounts": {
+    "IMPLEMENT_NOW": 118,
+    "IMPLEMENT_TOOLING_NOW": 7,
+    "PREPARE_NOW": 8,
+    "VALIDATE_NEXT": 9,
+    "DEFER": 2,
+    "OWNER_ACTION": 1,
+    "MONITOR": 1
+  },
+  "interpretation": "Capabilities described as V23 additions or competitive opportunities are preserved V22 product scope rebound into V23; this record authorizes no feature beyond the frozen 146-card package.",
+  "implementationCreditGranted": false,
+  "acceptedS10_6Incorporated": false,
+  "status": "PROVISIONAL_PREPARATION_WAITING_ACCEPTED_S10_6",
+  "createdAt": "2026-08-25T13:43:48.438Z",
+  "contentDigest": "7db9aea08596e6b50be3ca2d5ca154873fde849bc552b63bbaf9f417d9f99613"
+}
