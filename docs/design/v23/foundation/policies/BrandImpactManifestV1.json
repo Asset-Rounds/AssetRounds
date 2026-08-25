@@ -1,0 +1,15 @@
+{
+  "schema": "BrandImpactManifestV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C02",
+  "impactClass": "POLICY_ONLY_NO_SHIPPING_SURFACE_CHANGE",
+  "changedShippingSurfaces": [],
+  "changedBrandTokens": [],
+  "changedSharedComponents": [],
+  "activePhase10Head": "728f76fa51186dd99f4359a529272c667fd1218f",
+  "acceptedS10_6Status": "PENDING",
+  "inheritAcceptedS10_6WhenAvailable": true,
+  "phase10WinsSharedConflicts": true,
+  "requiresPostS10Reconciliation": true,
+  "acceptanceEnabled": false
+}

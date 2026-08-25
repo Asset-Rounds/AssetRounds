@@ -1,0 +1,18 @@
+{
+  "schema": "VerticalWorkflowDemandDispositionV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C02",
+  "evidenceBasis": "OWNER_AUTHORIZED_V23_SCOPE_AND_CONSERVATIVE_DEFAULTS",
+  "dispositions": [
+    {"workflow": "INSTALLATION", "initialDisposition": "DISABLED_PENDING_DEMAND", "currentDisposition": "SUPERSEDED_BY_OWNER_AUTHORIZED_V23_SCOPE", "implementationOwner": "V23-P04-C33", "reentryTrigger": "CANONICAL_GRAPH_ELIGIBILITY"},
+    {"workflow": "PUNCH_REVIEW", "initialDisposition": "DISABLED_PENDING_DEMAND", "currentDisposition": "SUPERSEDED_BY_OWNER_AUTHORIZED_V23_SCOPE", "implementationOwner": "V23-P04-C34", "reentryTrigger": "CANONICAL_GRAPH_ELIGIBILITY"},
+    {"workflow": "LIGHTING_COMMISSIONING", "initialDisposition": "DISABLED_PENDING_DEMAND", "currentDisposition": "DISABLED_PENDING_DEMAND", "implementationOwner": null, "reentryTrigger": "OWNER_AUTHORIZED_DEMAND_EVIDENCE"},
+    {"workflow": "SIGN_MESSAGE_SCHEDULE", "initialDisposition": "DISABLED_PENDING_DEMAND", "currentDisposition": "DISABLED_PENDING_DEMAND", "implementationOwner": null, "reentryTrigger": "OWNER_AUTHORIZED_DEMAND_EVIDENCE"},
+    {"workflow": "ARTWORK_SPECIFICATION_REFERENCE", "initialDisposition": "DISABLED_PENDING_DEMAND", "currentDisposition": "DISABLED_PENDING_DEMAND", "implementationOwner": null, "reentryTrigger": "OWNER_AUTHORIZED_LICENSE_AND_DEMAND_EVIDENCE"},
+    {"workflow": "FUTURE_MARKET_PACKAGES", "initialDisposition": "DEFER", "currentDisposition": "DEFER", "implementationOwner": null, "reentryTrigger": "NEW_CANONICAL_SCOPE_CARD"},
+    {"workflow": "PRODUCT_MEASUREMENT_COLLECTION", "initialDisposition": "NO_GO", "currentDisposition": "NO_GO", "implementationOwner": null, "reentryTrigger": "OWNER_AUTHORIZED_PRIVACY_AND_PURPOSE_DECISION"}
+  ],
+  "researchCredit": false,
+  "legalCredit": false,
+  "releaseCredit": false
+}

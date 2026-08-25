@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assetrounds.local/v23/BrandRevisionContractsV1.schema.json",
+  "title": "Brand revision authority contracts",
+  "type": "object",
+  "oneOf": [
+    {"$ref": "#/$defs/BrandRevisionV1"},
+    {"$ref": "#/$defs/BrandRevisionDecisionV1"},
+    {"$ref": "#/$defs/BrandRevisionActivationEvidenceV1"}
+  ],
+  "$defs": {
+    "BrandRevisionV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "schemaVersion", "revisionID", "intent", "affectedRoots", "ownerEvidenceDigest", "createdAt"],
+      "properties": {
+        "schema": {"const": "BrandRevisionV1"},
+        "schemaVersion": {"const": 1},
+        "revisionID": {"type": "string", "minLength": 1},
+        "intent": {"type": "string", "minLength": 1},
+        "affectedRoots": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+        "ownerEvidenceDigest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "createdAt": {"type": "string", "format": "date-time"}
+      }
+    },
+    "BrandRevisionDecisionV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "schemaVersion", "revisionID", "decision", "revisionDigest", "decidedAt"],
+      "properties": {
+        "schema": {"const": "BrandRevisionDecisionV1"},
+        "schemaVersion": {"const": 1},
+        "revisionID": {"type": "string", "minLength": 1},
+        "decision": {"enum": ["APPROVED", "REJECTED", "DEFERRED"]},
+        "revisionDigest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "decidedAt": {"type": "string", "format": "date-time"}
+      }
+    },
+    "BrandRevisionActivationEvidenceV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "schemaVersion", "revisionID", "decisionDigest", "candidateHead", "candidateTree", "result", "observedAt"],
+      "properties": {
+        "schema": {"const": "BrandRevisionActivationEvidenceV1"},
+        "schemaVersion": {"const": 1},
+        "revisionID": {"type": "string", "minLength": 1},
+        "decisionDigest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "candidateHead": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "candidateTree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "result": {"enum": ["ACTIVATED", "NOT_ACTIVATED", "FAIL_CLOSED"]},
+        "observedAt": {"type": "string", "format": "date-time"}
+      }
+    }
+  }
+}

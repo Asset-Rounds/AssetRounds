@@ -1,0 +1,57 @@
+{
+  "schema": "V23P00C02PolicyManifestV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C02",
+  "attemptID": 2,
+  "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+  "baseHead": "76e7f80b1463f3a697a760e8b6772381da719d70",
+  "baseTree": "14e5bbedebc4a4deece29ab7326cf6146f215d39",
+  "contextDigest": "5c3a8dc8c2c51ea1c3a7e1c43e77cbea6123c8294910f655dc4a3d7dbee3d9ef",
+  "pathFenceDigest": "dd9c3ee57ad3cbfc50910d7b135fba83cdda2ae9e794b481ae03d14f5d65c626",
+  "provisionalPrerequisiteDigest": "4727852b27f0918bfd30572645f1724825db54ad298b898725232584f2214d9e",
+  "artifactDigests": {
+    "docs/design/v23/foundation/policies/BrandImpactManifestV1.json": "529f741583472360b96b90c6e03dedbc140fbb8e6bf565a505255b25485b804f",
+    "docs/design/v23/foundation/policies/BrandRevisionContractsV1.schema.json": "ee629c15af03d2e7382ee637d7634be1e70cbc249258fc030fd630a41012d8aa",
+    "docs/design/v23/foundation/policies/DataAuthorityPolicyV1.json": "8fd269e79b5c5a5503c688f02088ab08730e75a2c27e0418a3a49cdf46ef554d",
+    "docs/design/v23/foundation/policies/OptionalDecisionGateV1.json": "7102e1c53e01e3e22694d1a46f1519dbaf68cc65284ae7dc1fd69907611efcbc",
+    "docs/design/v23/foundation/policies/ProductPolicyBaselineV1.json": "bf04209833834be498186f53f1cb340e0e706120e6e93d57a1fcb2896e8dd25c",
+    "docs/design/v23/foundation/policies/ScenePrivacyDispositionV1.json": "57b95b9e7feba44a74e9d565d1748a5585ac2db98e1e2ad4d7ffe849f941c932",
+    "docs/design/v23/foundation/policies/VerticalWorkflowDemandDispositionV1.json": "ab36ecb979c418a7c9c2dcb75d589907abb650d89bbd34077c1fdd3de9242df7"
+  },
+  "ownedContracts": [
+    "ProductPolicyBaselineV1",
+    "DataAuthorityPolicyV1",
+    "OptionalDecisionGateV1",
+    "VerticalWorkflowDemandDispositionV1",
+    "BrandRevisionV1",
+    "BrandRevisionDecisionV1",
+    "BrandRevisionActivationEvidenceV1",
+    "ScenePrivacyDispositionV1"
+  ],
+  "namedEvidence": [
+    "V23-P00-C02-G01",
+    "V23-P00-C02-A01",
+    "V23-P00-C02-H01",
+    "V23-P00-C02-I01",
+    "V23-P00-C02-R01"
+  ],
+  "repositoryTruth": {
+    "swiftDataModels": ["Site", "Asset", "WorkflowRecord", "EvidenceFile", "Issue", "Packet", "Report"],
+    "privacyManifestCollectedDataTypeCount": 0,
+    "privacyManifestTracking": false,
+    "privacyManifestTrackingDomainCount": 0,
+    "explicitBackupUTType": "com.palatis3.fieldrecordbackup",
+    "phase10ReservedPathCount": 86,
+    "phase10OverlapCount": 0
+  },
+  "verification": {
+    "staticPolicyVerifierRequired": true,
+    "macOSBuildRequiredForThisPolicyOnlyDelta": false,
+    "reason": "ZERO_PRODUCT_ZERO_PROJECT_ZERO_WORKFLOW_MUTATION",
+    "postS10ReconciliationRequired": true
+  },
+  "productMutation": false,
+  "acceptanceEnabled": false,
+  "acceptanceBlocker": "ACCEPTED_S10_6_RECONCILIATION_REQUIRED",
+  "releaseCredit": false
+}

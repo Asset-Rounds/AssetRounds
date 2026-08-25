@@ -1,0 +1,41 @@
+{
+  "schema": "ScenePrivacyDispositionV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C02",
+  "policy": "OBSCURE_PROTECTED_APP_SWITCHER_AND_BACKGROUND_SNAPSHOTS_WITH_INHERITED_BRAND_NEUTRAL_COVER",
+  "mustPreserve": [
+    "ACTIVE_SCREEN",
+    "DRAFT",
+    "STARTUP_AND_RECOVERY_STATE",
+    "SYSTEM_SHEET_STATE",
+    "RESTORATION_STATE"
+  ],
+  "protectedSurfaceClasses": [
+    "CUSTOMER",
+    "EVIDENCE",
+    "CONTACT",
+    "LOCATION",
+    "REPORT",
+    "CAMERA",
+    "DRAFT",
+    "SHARE_SHEET",
+    "PROTECTED_DATA_TRANSITION"
+  ],
+  "mandatoryFixtures": [
+    "CAMERA",
+    "DRAFT",
+    "REPORT",
+    "STARTUP_ROUTER",
+    "SHARE_SHEET",
+    "PROTECTED_DATA"
+  ],
+  "claims": {
+    "preventsUserInitiatedScreenshots": false,
+    "preventsScreenRecording": false,
+    "obscuresSystemBackgroundSnapshot": true
+  },
+  "implementationOwner": "LATER_EXACT_UI_LIFECYCLE_CARD",
+  "currentCardProductMutation": false,
+  "phase10SharedPathMutation": false,
+  "acceptanceEnabled": false
+}
