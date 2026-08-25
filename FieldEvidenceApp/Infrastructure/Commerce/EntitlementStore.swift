@@ -100,6 +100,22 @@ final class EntitlementStore {
             if ownsCommerce { _ = Darwin.close(commerceDescriptor) }
         }
         let commerceIdentity = try Self.directoryIdentity(commerceDescriptor)
+        do {
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .stagingDirectory,
+                relativePath: Self.directoryName,
+                within: root
+            ) {
+                guard try Self.directoryIdentity(applicationSupportDescriptor)
+                        == applicationSupportIdentity,
+                      try Self.directoryIdentity(commerceDescriptor)
+                        == commerceIdentity else {
+                    throw EntitlementStoreError.invalidAuthority
+                }
+            }
+        } catch {
+            throw EntitlementStoreError.invalidAuthority
+        }
 
         self.applicationSupportURL = root
         self.applicationSupportDescriptor = applicationSupportDescriptor
@@ -122,6 +138,10 @@ final class EntitlementStore {
         guard names.allSatisfy({ $0 == Self.cacheName }) else {
             throw EntitlementStoreError.collidingAuthority
         }
+        try verifyExistingPolicy(
+            .commerceEntitlementCache,
+            name: Self.cacheName
+        )
         guard let value = try readIfPresent(Self.cacheName) else {
             return nil
         }
@@ -138,6 +158,10 @@ final class EntitlementStore {
         guard names.allSatisfy({ $0 == Self.cacheName }) else {
             throw EntitlementStoreError.collidingAuthority
         }
+        try verifyExistingPolicy(
+            .commerceEntitlementCache,
+            name: Self.cacheName
+        )
 
         let priorValue = try readIfPresent(Self.cacheName)
         let prior = try priorValue.map { value in
@@ -158,9 +182,12 @@ final class EntitlementStore {
             }
         }
 
+        var temporaryValue: ReadValue?
+        var published = false
+        var swapped = false
         do {
             try failureInjection(.beforeWrite)
-            try createTemporary(replacement)
+            temporaryValue = try createTemporary(replacement)
             try failureInjection(.afterTemporaryWrite)
 
             if let priorValue {
@@ -169,14 +196,17 @@ final class EntitlementStore {
                       current.data == priorValue.data else {
                     throw EntitlementStoreError.collidingAuthority
                 }
-                guard Darwin.renameat(
+                guard Darwin.renameatx_np(
                     commerceDescriptor,
                     Self.temporaryName,
                     commerceDescriptor,
-                    Self.cacheName
+                    Self.cacheName,
+                    UInt32(RENAME_SWAP)
                 ) == 0 else {
                     throw EntitlementStoreError.writeFailed
                 }
+                published = true
+                swapped = true
             } else {
                 guard case nil = try readIfPresent(Self.cacheName),
                       Darwin.renameatx_np(
@@ -188,21 +218,93 @@ final class EntitlementStore {
                       ) == 0 else {
                     throw EntitlementStoreError.collidingAuthority
                 }
+                published = true
             }
-            guard Darwin.fsync(commerceDescriptor) == 0,
-                  let reopened = try readIfPresent(Self.cacheName),
-                  reopened.data == replacement,
-                  try directoryNames() == [Self.cacheName] else {
+            guard Darwin.fsync(commerceDescriptor) == 0 else {
                 throw EntitlementStoreError.writeFailed
+            }
+            guard let temporaryValue else {
+                throw EntitlementStoreError.writeFailed
+            }
+            try applyPublishedPolicy(
+                .commerceEntitlementCache,
+                name: Self.cacheName,
+                expectedIdentity: temporaryValue.identity
+            )
+            guard let reopened = try readIfPresent(Self.cacheName),
+                  reopened.identity == temporaryValue.identity,
+                  reopened.data == replacement else {
+                throw EntitlementStoreError.writeFailed
+            }
+            if let priorValue {
+                try applyPublishedPolicy(
+                    .temporaryFile,
+                    name: Self.temporaryName,
+                    expectedIdentity: priorValue.identity
+                )
+                guard let displaced = try readIfPresent(Self.temporaryName),
+                      displaced.identity == priorValue.identity,
+                      displaced.data == priorValue.data else {
+                    throw EntitlementStoreError.writeFailed
+                }
+                guard try directoryNames()
+                        == [Self.cacheName, Self.temporaryName].sorted() else {
+                    throw EntitlementStoreError.writeFailed
+                }
             }
             let durable = try EntitlementCacheCodecV1.decode(reopened.data)
             guard durable == cache else {
                 throw EntitlementStoreError.writeFailed
             }
+            if let priorValue {
+                try removeExact(Self.temporaryName, expected: priorValue)
+                swapped = false
+            }
+            guard try directoryNames() == [Self.cacheName] else {
+                throw EntitlementStoreError.writeFailed
+            }
             try verifyAuthority()
             return durable
         } catch {
-            try? removeTemporary(matching: replacement)
+            if let temporaryValue {
+                if let priorValue, swapped {
+                    do {
+                        if let current = try readIfPresent(Self.cacheName),
+                           let displaced = try readIfPresent(Self.temporaryName),
+                           current.identity == temporaryValue.identity,
+                           current.data == replacement,
+                           displaced.identity == priorValue.identity,
+                           displaced.data == priorValue.data {
+                            _ = Darwin.renameatx_np(
+                                commerceDescriptor,
+                                Self.temporaryName,
+                                commerceDescriptor,
+                                Self.cacheName,
+                                UInt32(RENAME_SWAP)
+                            )
+                            _ = Darwin.fsync(commerceDescriptor)
+                        }
+                    } catch {
+                        // Preserve the exact failure and leave uncertain state for recovery.
+                    }
+                } else if priorValue == nil, published {
+                    do {
+                        if let current = try readIfPresent(Self.cacheName),
+                           current.identity == temporaryValue.identity,
+                           current.data == replacement {
+                            try removeExact(Self.cacheName, expected: current)
+                        }
+                    } catch {
+                        // Preserve the exact failure and leave uncertain state for recovery.
+                    }
+                }
+            }
+            if let temporaryValue {
+                try? removeIfExact(
+                    Self.temporaryName,
+                    expected: temporaryValue.identity
+                )
+            }
             if let storeError = error as? EntitlementStoreError {
                 throw storeError
             }
@@ -212,6 +314,93 @@ final class EntitlementStore {
 }
 
 private extension EntitlementStore {
+    func policyRelativePath(_ name: String) -> String {
+        "\(Self.directoryName)/\(name)"
+    }
+
+    func verifyExistingPolicy(
+        _ kind: OwnedFileKindV1,
+        name: String
+    ) throws {
+        do {
+            try verifyAuthority()
+            let descriptor = Darwin.openat(
+                commerceDescriptor,
+                name,
+                O_RDONLY | O_NOFOLLOW
+            )
+            if descriptor < 0, errno == ENOENT { return }
+            guard descriptor >= 0 else {
+                throw EntitlementStoreError.invalidAuthority
+            }
+            defer { _ = Darwin.close(descriptor) }
+            let expected = try Self.fileIdentity(descriptor)
+            try ProtectedFilePolicyV1.applyAndVerify(
+                kind,
+                relativePath: policyRelativePath(name),
+                within: applicationSupportURL
+            ) {
+                try verifyAuthority()
+                try verifyLeaf(
+                    name,
+                    descriptor: descriptor,
+                    expected: expected
+                )
+            }
+        } catch {
+            throw EntitlementStoreError.invalidAuthority
+        }
+    }
+
+    func applyPublishedPolicy(
+        _ kind: OwnedFileKindV1,
+        name: String,
+        descriptor: Int32? = nil,
+        expectedIdentity: Identity? = nil
+    ) throws {
+        let retainedDescriptor: Int32
+        let ownsDescriptor: Bool
+        if let descriptor {
+            retainedDescriptor = descriptor
+            ownsDescriptor = false
+        } else {
+            retainedDescriptor = Darwin.openat(
+                commerceDescriptor,
+                name,
+                O_RDONLY | O_NOFOLLOW
+            )
+            guard retainedDescriptor >= 0 else {
+                throw EntitlementStoreError.writeFailed
+            }
+            ownsDescriptor = true
+        }
+        defer {
+            if ownsDescriptor { _ = Darwin.close(retainedDescriptor) }
+        }
+        do {
+            let expected: Identity
+            if let expectedIdentity {
+                expected = expectedIdentity
+            } else {
+                expected = try Self.fileIdentity(retainedDescriptor)
+            }
+            try ProtectedFilePolicyV1.applyAndVerify(
+                kind,
+                relativePath: policyRelativePath(name),
+                within: applicationSupportURL
+            ) {
+                try verifyAuthority()
+                try verifyLeaf(
+                    name,
+                    descriptor: retainedDescriptor,
+                    expected: expected
+                )
+            }
+        } catch {
+            throw EntitlementStoreError.writeFailed
+        }
+    }
+
     func verifyAuthority() throws {
         guard try Self.directoryIdentity(applicationSupportDescriptor)
                 == applicationSupportIdentity,
@@ -248,7 +437,7 @@ private extension EntitlementStore {
         }
     }
 
-    func createTemporary(_ data: Data) throws {
+    func createTemporary(_ data: Data) throws -> ReadValue {
         guard case nil = try readIfPresent(Self.temporaryName) else {
             throw EntitlementStoreError.collidingAuthority
         }
@@ -262,7 +451,14 @@ private extension EntitlementStore {
             throw EntitlementStoreError.writeFailed
         }
         defer { _ = Darwin.close(descriptor) }
+        let expectedIdentity = try Self.fileIdentity(descriptor)
         do {
+            try applyPublishedPolicy(
+                .temporaryFile,
+                name: Self.temporaryName,
+                descriptor: descriptor,
+                expectedIdentity: expectedIdentity
+            )
             try data.withUnsafeBytes { raw in
                 guard let base = raw.baseAddress else { return }
                 var offset = 0
@@ -281,31 +477,60 @@ private extension EntitlementStore {
             }
             guard Darwin.fsync(descriptor) == 0,
                   let reopened = try readIfPresent(Self.temporaryName),
+                  reopened.identity == expectedIdentity,
                   reopened.data == data else {
                 throw EntitlementStoreError.writeFailed
             }
+            return reopened
         } catch {
-            _ = Darwin.unlinkat(commerceDescriptor, Self.temporaryName, 0)
-            _ = Darwin.fsync(commerceDescriptor)
+            try? removeIfExact(
+                Self.temporaryName,
+                expected: expectedIdentity
+            )
             throw error
         }
     }
 
-    func removeTemporary(matching data: Data) throws {
-        guard let current = try readIfPresent(Self.temporaryName) else {
-            return
-        }
-        guard current.data == data,
-              let verified = try readIfPresent(Self.temporaryName),
-              verified.identity == current.identity,
-              verified.data == current.data,
-              Darwin.unlinkat(
-                commerceDescriptor,
-                Self.temporaryName,
-                0
-              ) == 0,
-              Darwin.fsync(commerceDescriptor) == 0 else {
+    func removeIfExact(_ name: String, expected: Identity) throws {
+        guard let current = try readIfPresent(name),
+              current.identity == expected,
+              Darwin.unlinkat(commerceDescriptor, name, 0) == 0,
+              Darwin.fsync(commerceDescriptor) == 0,
+              case nil = try readIfPresent(name) else {
             throw EntitlementStoreError.collidingAuthority
+        }
+    }
+
+    func removeExact(_ name: String, expected: ReadValue) throws {
+        guard let current = try readIfPresent(name),
+              current.identity == expected.identity,
+              current.data == expected.data,
+              Darwin.unlinkat(commerceDescriptor, name, 0) == 0,
+              Darwin.fsync(commerceDescriptor) == 0,
+              case nil = try readIfPresent(name) else {
+            throw EntitlementStoreError.collidingAuthority
+        }
+    }
+
+    func verifyLeaf(
+        _ name: String,
+        descriptor: Int32,
+        expected: Identity
+    ) throws {
+        guard try Self.fileIdentity(descriptor) == expected else {
+            throw EntitlementStoreError.invalidAuthority
+        }
+        var info = stat()
+        guard Darwin.fstatat(
+            commerceDescriptor,
+            name,
+            &info,
+            AT_SYMLINK_NOFOLLOW
+        ) == 0,
+              (info.st_mode & S_IFMT) == S_IFREG,
+              info.st_nlink == 1,
+              Identity(device: info.st_dev, inode: info.st_ino) == expected else {
+            throw EntitlementStoreError.invalidAuthority
         }
     }
 
@@ -397,6 +622,16 @@ private extension EntitlementStore {
         var info = stat()
         guard Darwin.fstat(descriptor, &info) == 0,
               (info.st_mode & S_IFMT) == S_IFDIR else {
+            throw EntitlementStoreError.invalidAuthority
+        }
+        return Identity(device: info.st_dev, inode: info.st_ino)
+    }
+
+    private static func fileIdentity(_ descriptor: Int32) throws -> Identity {
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFREG,
+              info.st_nlink == 1 else {
             throw EntitlementStoreError.invalidAuthority
         }
         return Identity(device: info.st_dev, inode: info.st_ino)

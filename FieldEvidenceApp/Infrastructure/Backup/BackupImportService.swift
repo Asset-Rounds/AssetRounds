@@ -108,6 +108,216 @@ final class BackupImportService {
 }
 
 private extension BackupImportService {
+    private final class PinnedImportAuthority {
+        let applicationSupportDescriptor: Int32
+        let restoreDescriptor: Int32
+        let stagingDescriptor: Int32
+        let applicationSupportIdentity: FileIdentity
+        let restoreIdentity: FileIdentity
+        let stagingIdentity: FileIdentity
+        private let applicationSupportURL: URL
+        private let restoreName: String
+        private let stagingName: String
+
+        private init(
+            applicationSupportDescriptor: Int32,
+            restoreDescriptor: Int32,
+            stagingDescriptor: Int32,
+            applicationSupportIdentity: FileIdentity,
+            restoreIdentity: FileIdentity,
+            stagingIdentity: FileIdentity,
+            applicationSupportURL: URL,
+            restoreName: String,
+            stagingName: String
+        ) {
+            self.applicationSupportDescriptor = applicationSupportDescriptor
+            self.restoreDescriptor = restoreDescriptor
+            self.stagingDescriptor = stagingDescriptor
+            self.applicationSupportIdentity = applicationSupportIdentity
+            self.restoreIdentity = restoreIdentity
+            self.stagingIdentity = stagingIdentity
+            self.applicationSupportURL = applicationSupportURL
+            self.restoreName = restoreName
+            self.stagingName = stagingName
+        }
+
+        deinit {
+            _ = Darwin.close(stagingDescriptor)
+            _ = Darwin.close(restoreDescriptor)
+            _ = Darwin.close(applicationSupportDescriptor)
+        }
+
+        static func open(
+            stagingURL: URL,
+            createMissing: Bool = false
+        ) throws -> PinnedImportAuthority {
+            let stagingURL = stagingURL.standardizedFileURL
+            let restoreURL = stagingURL.deletingLastPathComponent()
+            let applicationSupportURL = restoreURL.deletingLastPathComponent()
+            let applicationSupportName = applicationSupportURL.lastPathComponent
+            let restoreName = restoreURL.lastPathComponent
+            let stagingName = stagingURL.lastPathComponent
+            guard applicationSupportURL.isFileURL,
+                  restoreName == "FieldEvidenceRestore",
+                  stagingName == "staging",
+                  !applicationSupportName.isEmpty,
+                  !applicationSupportName.contains("/") else {
+                throw BackupImportServiceError.invalidGeneration
+            }
+
+            let applicationSupportDescriptor = Darwin.open(
+                applicationSupportURL.path,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard applicationSupportDescriptor >= 0 else {
+                throw BackupImportServiceError.invalidGeneration
+            }
+            var retained = [applicationSupportDescriptor]
+            var succeeded = false
+            defer {
+                if !succeeded {
+                    for descriptor in retained.reversed() {
+                        _ = Darwin.close(descriptor)
+                    }
+                }
+            }
+
+            var restoreDescriptor = Darwin.openat(
+                applicationSupportDescriptor,
+                restoreName,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            if restoreDescriptor < 0, errno == ENOENT, createMissing {
+                guard Darwin.mkdirat(
+                    applicationSupportDescriptor,
+                    restoreName,
+                    mode_t(0o700)
+                ) == 0 || errno == EEXIST,
+                      Darwin.fsync(applicationSupportDescriptor) == 0 else {
+                    throw BackupImportServiceError.invalidGeneration
+                }
+                restoreDescriptor = Darwin.openat(
+                    applicationSupportDescriptor,
+                    restoreName,
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+                )
+            }
+            guard restoreDescriptor >= 0 else {
+                throw BackupImportServiceError.invalidGeneration
+            }
+            retained.append(restoreDescriptor)
+            var stagingDescriptor = Darwin.openat(
+                restoreDescriptor,
+                stagingName,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            if stagingDescriptor < 0, errno == ENOENT, createMissing {
+                guard Darwin.mkdirat(
+                    restoreDescriptor,
+                    stagingName,
+                    mode_t(0o700)
+                ) == 0 || errno == EEXIST,
+                      Darwin.fsync(restoreDescriptor) == 0 else {
+                    throw BackupImportServiceError.invalidGeneration
+                }
+                stagingDescriptor = Darwin.openat(
+                    restoreDescriptor,
+                    stagingName,
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+                )
+            }
+            guard stagingDescriptor >= 0 else {
+                throw BackupImportServiceError.invalidGeneration
+            }
+            retained.append(stagingDescriptor)
+
+            let applicationSupportIdentity = try identity(
+                applicationSupportDescriptor
+            )
+            let restoreIdentity = try identity(restoreDescriptor)
+            let stagingIdentity = try identity(stagingDescriptor)
+            guard try entryIdentity(
+                parent: applicationSupportDescriptor,
+                name: restoreName
+            ) == restoreIdentity,
+                  try entryIdentity(
+                      parent: restoreDescriptor,
+                      name: stagingName
+                  ) == stagingIdentity else {
+                throw BackupImportServiceError.invalidGeneration
+            }
+
+            let authority = PinnedImportAuthority(
+                applicationSupportDescriptor: applicationSupportDescriptor,
+                restoreDescriptor: restoreDescriptor,
+                stagingDescriptor: stagingDescriptor,
+                applicationSupportIdentity: applicationSupportIdentity,
+                restoreIdentity: restoreIdentity,
+                stagingIdentity: stagingIdentity,
+                applicationSupportURL: applicationSupportURL.standardizedFileURL,
+                restoreName: restoreName,
+                stagingName: stagingName
+            )
+            succeeded = true
+            return authority
+        }
+
+        func verify() throws {
+            guard try Self.identity(applicationSupportDescriptor)
+                    == applicationSupportIdentity,
+                  try Self.identity(restoreDescriptor) == restoreIdentity,
+                  try Self.identity(stagingDescriptor) == stagingIdentity,
+                  try Self.entryIdentity(
+                      parent: applicationSupportDescriptor,
+                      name: restoreName
+                  ) == restoreIdentity,
+                  try Self.entryIdentity(
+                      parent: restoreDescriptor,
+                      name: stagingName
+                  ) == stagingIdentity else {
+                throw BackupImportServiceError.cleanupFailed
+            }
+            let reopenedApplicationSupport = Darwin.open(
+                applicationSupportURL.path,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard reopenedApplicationSupport >= 0 else {
+                throw BackupImportServiceError.cleanupFailed
+            }
+            defer { _ = Darwin.close(reopenedApplicationSupport) }
+            guard try Self.identity(reopenedApplicationSupport)
+                    == applicationSupportIdentity else {
+                throw BackupImportServiceError.cleanupFailed
+            }
+        }
+
+        private static func identity(_ descriptor: Int32) throws -> FileIdentity {
+            var information = stat()
+            guard Darwin.fstat(descriptor, &information) == 0,
+                  (information.st_mode & S_IFMT) == S_IFDIR else {
+                throw BackupImportServiceError.cleanupFailed
+            }
+            return FileIdentity(information)
+        }
+
+        private static func entryIdentity(
+            parent: Int32,
+            name: String
+        ) throws -> FileIdentity {
+            var information = stat()
+            guard Darwin.fstatat(
+                parent,
+                name,
+                &information,
+                AT_SYMLINK_NOFOLLOW
+            ) == 0,
+                  (information.st_mode & S_IFMT) == S_IFDIR else {
+                throw BackupImportServiceError.cleanupFailed
+            }
+            return FileIdentity(information)
+        }
+    }
+
     func stageAndValidateCoordinatedSource(
         _ sourceURL: URL
     ) throws -> ValidatedV4BackupPackageV1 {
@@ -122,39 +332,139 @@ private extension BackupImportService {
         )
         try requireCurrentGeneration()
         try prepareStagingDirectory()
+        let importAuthority = try PinnedImportAuthority.open(
+            stagingURL: stagingDirectoryURL
+        )
+        let verifyImportAuthority = {
+            try self.requireCurrentGeneration()
+            try importAuthority.verify()
+        }
+        try verifyImportAuthority()
 
         let operationID = makeUUID()
         let destinationURL = stagingDirectoryURL.appendingPathComponent(
             "\(operationID.uuidString.lowercased()).fieldrecordbackup",
             isDirectory: true
         )
-        guard try itemInformation(at: destinationURL) == nil else {
+        let temporaryURL = stagingDirectoryURL.appendingPathComponent(
+            "\(operationID.uuidString.lowercased())-tmp.fieldrecordbackup",
+            isDirectory: true
+        )
+        try verifyImportAuthority()
+        guard try itemInformation(at: destinationURL) == nil,
+              try itemInformation(at: temporaryURL) == nil else {
             throw BackupImportServiceError.invalidSource
         }
 
         do {
-            try fileManager.copyItem(at: sourceURL, to: destinationURL)
+            try verifyImportAuthority()
+            try fileManager.copyItem(at: sourceURL, to: temporaryURL)
+            try verifyImportAuthority()
+            try protectStagedPackage(
+                at: temporaryURL,
+                authorityCheck: verifyImportAuthority
+            )
         } catch {
-            if try itemInformation(at: destinationURL) != nil {
-                do { try cleanupOwnedPackage(at: destinationURL) }
-                catch { throw BackupImportServiceError.cleanupFailed }
+            let originalError = error
+            do {
+                try verifyImportAuthority()
+                if try itemInformation(at: temporaryURL) != nil {
+                    try cleanupOwnedPackage(
+                        at: temporaryURL,
+                        verifyProtection: false,
+                        authorityCheck: verifyImportAuthority
+                    )
+                }
+            } catch {
+                if isProtectedDataUnavailable(originalError) {
+                    throw originalError
+                }
+                if isProtectedDataUnavailable(error) {
+                    throw error
+                }
+                throw BackupImportServiceError.cleanupFailed
+            }
+            if isProtectedDataUnavailable(originalError) {
+                throw originalError
             }
             throw BackupImportServiceError.copyFailed
         }
 
         do {
-            let value = try validator.validate(stagedPackageURL: destinationURL)
-            guard value.manifest == source.manifest,
+            let temporaryValue = try validator.validate(stagedPackageURL: temporaryURL)
+            guard temporaryValue.manifest == source.manifest,
                   try BackupPackageAnchoredFile.rootIdentity(at: sourceURL)
                     == source.rootIdentity else {
                 throw BackupImportServiceError.invalidSource
             }
-            try requireCurrentGeneration()
+            guard let temporaryInformation = try itemInformation(at: temporaryURL),
+                  isDirectory(temporaryInformation) else {
+                throw BackupImportServiceError.invalidSource
+            }
+            let temporaryIdentity = FileIdentity(temporaryInformation)
+            try verifyImportAuthority()
+            guard try itemInformation(at: temporaryURL)
+                    .map(FileIdentity.init) == temporaryIdentity else {
+                throw BackupImportServiceError.invalidSource
+            }
+            try fileManager.moveItem(at: temporaryURL, to: destinationURL)
+            try verifyImportAuthority()
+            guard try itemInformation(at: destinationURL)
+                    .map(FileIdentity.init) == temporaryIdentity else {
+                throw BackupImportServiceError.copyFailed
+            }
+            try protectStagedPackage(
+                at: destinationURL,
+                authorityCheck: verifyImportAuthority
+            )
+            try verifyImportAuthority()
+            guard try itemInformation(at: destinationURL)
+                    .map(FileIdentity.init) == temporaryIdentity else {
+                throw BackupImportServiceError.copyFailed
+            }
+            let value = try validator.validate(stagedPackageURL: destinationURL)
+            guard value.manifest == source.manifest else {
+                throw BackupImportServiceError.invalidSource
+            }
+            try verifyImportAuthority()
+            guard try itemInformation(at: destinationURL)
+                    .map(FileIdentity.init) == temporaryIdentity else {
+                throw BackupImportServiceError.copyFailed
+            }
             return value
         } catch {
-            do { try cleanupOwnedPackage(at: destinationURL) }
-            catch { throw BackupImportServiceError.cleanupFailed }
-            throw error
+            let originalError = error
+            do {
+                try verifyImportAuthority()
+                if try itemInformation(at: temporaryURL) != nil {
+                    try cleanupOwnedPackage(
+                        at: temporaryURL,
+                        verifyProtection: false,
+                        authorityCheck: verifyImportAuthority
+                    )
+                }
+                try verifyImportAuthority()
+                if try itemInformation(at: destinationURL) != nil {
+                    try cleanupOwnedPackage(
+                        at: destinationURL,
+                        verifyProtection: false,
+                        authorityCheck: verifyImportAuthority
+                    )
+                }
+            } catch {
+                let cleanupError = error
+                if isProtectedDataUnavailable(originalError) {
+                    throw originalError
+                }
+                if isProtectedDataUnavailable(cleanupError) {
+                    throw cleanupError
+                }
+                throw BackupImportServiceError.cleanupFailed
+            }
+            if isProtectedDataUnavailable(originalError) {
+                throw originalError
+            }
+            throw originalError
         }
     }
 
@@ -203,11 +513,15 @@ private extension BackupImportService {
         let sizes = Dictionary(uniqueKeysWithValues: manifest.entries.map {
             ($0.path, Int64($0.byteCount))
         })
+        var enumerationError: Error?
         guard let enumerator = fileManager.enumerator(
             at: root,
             includingPropertiesForKeys: nil,
             options: [],
-            errorHandler: { _, _ in false }
+            errorHandler: { _, error in
+                enumerationError = error
+                return false
+            }
         ) else {
             throw BackupImportServiceError.invalidSource
         }
@@ -241,56 +555,406 @@ private extension BackupImportService {
                 throw BackupImportServiceError.invalidSource
             }
         }
+        if let enumerationError {
+            throw enumerationError
+        }
         return (files, directories)
     }
 
     func prepareStagingDirectory() throws {
-        let restoreURL = stagingDirectoryURL.deletingLastPathComponent()
-        let applicationSupportURL = restoreURL.deletingLastPathComponent()
-        guard try itemInformation(at: applicationSupportURL).map(isDirectory) == true else {
-            throw BackupImportServiceError.invalidGeneration
+        let importAuthority = try PinnedImportAuthority.open(
+            stagingURL: stagingDirectoryURL,
+            createMissing: true
+        )
+        let verifyImportAuthority = {
+            try self.requireCurrentGeneration()
+            try importAuthority.verify()
         }
+        try verifyImportAuthority()
+        let restoreURL = stagingDirectoryURL.deletingLastPathComponent()
         for directory in [restoreURL, stagingDirectoryURL] {
-            if let existing = try itemInformation(at: directory) {
-                guard isDirectory(existing) else {
-                    throw BackupImportServiceError.invalidGeneration
-                }
-            } else {
-                do {
-                    try fileManager.createDirectory(
-                        at: directory,
-                        withIntermediateDirectories: false
-                    )
-                } catch {
-                    throw BackupImportServiceError.copyFailed
-                }
-                guard try itemInformation(at: directory).map(isDirectory) == true else {
-                    throw BackupImportServiceError.invalidGeneration
-                }
+            do {
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    .stagingDirectory,
+                    at: directory,
+                    authorityCheck: verifyImportAuthority
+                )
+            } catch let failure as ProtectedFilePolicyError {
+                throw failure
+            } catch {
+                throw BackupImportServiceError.invalidGeneration
             }
         }
+        try verifyImportAuthority()
     }
 
-    func cleanupOwnedPackage(at packageURL: URL) throws {
+    func protectStagedPackage(
+        at packageURL: URL,
+        authorityCheck: @escaping () throws -> Void = {}
+    ) throws {
+        let packageURL = packageURL.standardizedFileURL
+        let parentURL = packageURL.deletingLastPathComponent()
+        try authorityCheck()
+        let parentDescriptor = try openPinnedDirectory(at: parentURL)
+        defer { _ = Darwin.close(parentDescriptor.descriptor) }
+        let packageDescriptor = Darwin.openat(
+            parentDescriptor.descriptor,
+            packageURL.lastPathComponent,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard packageDescriptor >= 0 else {
+            throw BackupImportServiceError.copyFailed
+        }
+        defer { _ = Darwin.close(packageDescriptor) }
+        let packageIdentity = try directoryIdentity(packageDescriptor)
+        func verifyAuthority() throws {
+            try authorityCheck()
+            try requireCurrentGeneration()
+            try verifyDirectoryPath(parentURL, expected: parentDescriptor.identity)
+            try verifyPackage(
+                packageDescriptor,
+                parent: parentDescriptor.descriptor,
+                name: packageURL.lastPathComponent,
+                expected: packageIdentity
+            )
+        }
+        var enumerationError: Error?
+        try verifyAuthority()
+        try ProtectedFilePolicyV1.applyAndVerify(
+            .restoreStaging,
+            at: packageURL,
+            authorityCheck: verifyAuthority
+        )
+        guard let enumerator = fileManager.enumerator(
+            at: packageURL,
+            includingPropertiesForKeys: nil,
+            options: [],
+            errorHandler: { _, error in
+                enumerationError = error
+                return false
+            }
+        ) else {
+            throw BackupImportServiceError.copyFailed
+        }
+        for case let url as URL in enumerator {
+            try verifyAuthority()
+            guard let information = try itemInformation(at: url) else {
+                throw BackupImportServiceError.copyFailed
+            }
+            let kind: OwnedFileKindV1
+            switch information.st_mode & S_IFMT {
+            case S_IFDIR:
+                kind = .stagingDirectory
+            case S_IFREG:
+                kind = .stagingFile
+            default:
+                throw BackupImportServiceError.invalidSource
+            }
+            let identity = FileIdentity(information)
+            let relative = try relativePath(of: url, within: packageURL)
+            try ProtectedFilePolicyV1.applyAndVerify(
+                kind,
+                relativePath: relative,
+                within: packageURL,
+                authorityCheck: verifyAuthority
+            )
+            try verifyAuthority()
+            guard try itemInformation(at: url).map(FileIdentity.init) == identity else {
+                throw BackupImportServiceError.cleanupFailed
+            }
+        }
+        if let enumerationError {
+            throw enumerationError
+        }
+        try verifyAuthority()
+    }
+
+    func cleanupOwnedPackage(
+        at packageURL: URL,
+        verifyProtection: Bool = true,
+        authorityCheck: @escaping () throws -> Void = {}
+    ) throws {
         let value = packageURL.standardizedFileURL
         let parent = value.deletingLastPathComponent()
-        guard parent == stagingDirectoryURL,
-              value.pathExtension == "fieldrecordbackup",
-              let id = UUID(uuidString: value.deletingPathExtension().lastPathComponent),
-              id.uuidString.lowercased()
-                == value.deletingPathExtension().lastPathComponent else {
+        guard value.pathExtension == "fieldrecordbackup" else {
             throw BackupImportServiceError.cleanupFailed
         }
+        let rawStem = value.deletingPathExtension().lastPathComponent
+        let stem = rawStem.hasSuffix("-tmp")
+            ? String(rawStem.dropLast(4))
+            : rawStem
+        guard parent == stagingDirectoryURL,
+              let id = UUID(uuidString: stem),
+              id.uuidString.lowercased() == stem else {
+            throw BackupImportServiceError.cleanupFailed
+        }
+        let importAuthority = try PinnedImportAuthority.open(
+            stagingURL: stagingDirectoryURL
+        )
+        let verifyImportAuthority = {
+            try self.requireCurrentGeneration()
+            try importAuthority.verify()
+            try authorityCheck()
+        }
+        try verifyImportAuthority()
         guard let information = try itemInformation(at: value) else { return }
         guard isDirectory(information),
               try itemInformation(at: parent).map(isDirectory) == true else {
             throw BackupImportServiceError.cleanupFailed
         }
-        do { try fileManager.removeItem(at: value) }
-        catch { throw BackupImportServiceError.cleanupFailed }
+        if verifyProtection {
+            try protectStagedPackage(
+                at: value,
+                authorityCheck: verifyImportAuthority
+            )
+        }
+        try verifyImportAuthority()
+        let parentDescriptor = (
+            descriptor: importAuthority.stagingDescriptor,
+            identity: importAuthority.stagingIdentity
+        )
+        try verifyDirectoryPath(
+            parent,
+            expected: parentDescriptor.identity
+        )
+        try verifyImportAuthority()
+        let packageDescriptor = Darwin.openat(
+            parentDescriptor.descriptor,
+            value.lastPathComponent,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard packageDescriptor >= 0 else {
+            throw BackupImportServiceError.cleanupFailed
+        }
+        defer { _ = Darwin.close(packageDescriptor) }
+        let packageIdentity = try directoryIdentity(packageDescriptor)
+        try verifyPackage(
+            packageDescriptor,
+            parent: parentDescriptor.descriptor,
+            name: value.lastPathComponent,
+            expected: packageIdentity
+        )
+        try verifyImportAuthority()
+        try removeOwnedPackageContents(
+            root: value,
+            packageDescriptor: packageDescriptor,
+            parentDescriptor: parentDescriptor.descriptor,
+            packageName: value.lastPathComponent,
+            packageIdentity: packageIdentity,
+            authorityCheck: verifyImportAuthority
+        )
+        try verifyImportAuthority()
+        try verifyDirectoryPath(
+            parent,
+            expected: parentDescriptor.identity
+        )
+        try verifyPackage(
+            packageDescriptor,
+            parent: parentDescriptor.descriptor,
+            name: value.lastPathComponent,
+            expected: packageIdentity
+        )
+        try verifyImportAuthority()
+        guard Darwin.unlinkat(
+            parentDescriptor.descriptor,
+            value.lastPathComponent,
+            AT_REMOVEDIR
+        ) == 0,
+              Darwin.fsync(parentDescriptor.descriptor) == 0 else {
+            throw BackupImportServiceError.cleanupFailed
+        }
+        try verifyImportAuthority()
+        try verifyDirectoryPath(
+            parent,
+            expected: parentDescriptor.identity
+        )
+        try verifyImportAuthority()
         guard try itemInformation(at: value) == nil else {
             throw BackupImportServiceError.cleanupFailed
         }
+    }
+
+    private func removeOwnedPackageContents(
+        root: URL,
+        packageDescriptor: Int32,
+        parentDescriptor: Int32,
+        packageName: String,
+        packageIdentity: FileIdentity,
+        authorityCheck: () throws -> Void = {}
+    ) throws {
+        try authorityCheck()
+        var enumerationError: Error?
+        guard let enumerator = fileManager.enumerator(
+            at: root,
+            includingPropertiesForKeys: nil,
+            options: [],
+            errorHandler: { _, error in
+                enumerationError = error
+                return false
+            }
+        ) else {
+            throw BackupImportServiceError.cleanupFailed
+        }
+        var identities = [String: FileIdentity]()
+        var directories = Set<String>()
+        for case let url as URL in enumerator {
+            try authorityCheck()
+            let relative = try relativePath(of: url, within: root)
+            guard let information = try itemInformation(at: url) else {
+                throw BackupImportServiceError.cleanupFailed
+            }
+            let type = information.st_mode & S_IFMT
+            guard type == S_IFDIR || type == S_IFREG else {
+                throw BackupImportServiceError.cleanupFailed
+            }
+            if type == S_IFREG {
+                guard information.st_nlink == 1 else {
+                    throw BackupImportServiceError.cleanupFailed
+                }
+            } else {
+                directories.insert(relative)
+            }
+            guard identities.updateValue(
+                FileIdentity(information),
+                forKey: relative
+            ) == nil else {
+                throw BackupImportServiceError.cleanupFailed
+            }
+        }
+        if let enumerationError {
+            throw enumerationError
+        }
+        let paths = identities.keys.sorted {
+            let leftDepth = $0.split(separator: "/").count
+            let rightDepth = $1.split(separator: "/").count
+            return leftDepth == rightDepth ? $0 > $1 : leftDepth > rightDepth
+        }
+        for relative in paths {
+            try authorityCheck()
+            try verifyPackage(
+                packageDescriptor,
+                parent: parentDescriptor,
+                name: packageName,
+                expected: packageIdentity
+            )
+            let components = relative.split(separator: "/").map(String.init)
+            guard let name = components.last else {
+                throw BackupImportServiceError.cleanupFailed
+            }
+            let parentComponents = Array(components.dropLast())
+            let opened = try openDirectory(
+                packageDescriptor,
+                components: parentComponents
+            )
+            defer {
+                for descriptor in opened.1.reversed() {
+                    _ = Darwin.close(descriptor)
+                }
+            }
+            guard let expected = identities[relative],
+                  try itemIdentity(
+                      parent: opened.0,
+                      name: name
+                  ) == expected else {
+                throw BackupImportServiceError.cleanupFailed
+            }
+            let flags: Int32 = directories.contains(relative)
+                ? AT_REMOVEDIR
+                : 0
+            guard Darwin.unlinkat(opened.0, name, flags) == 0,
+                  Darwin.fsync(opened.0) == 0 else {
+                throw BackupImportServiceError.cleanupFailed
+            }
+            try authorityCheck()
+        }
+    }
+
+    private func openPinnedDirectory(
+        at url: URL
+    ) throws -> (descriptor: Int32, identity: FileIdentity) {
+        let descriptor = Darwin.open(
+            url.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard descriptor >= 0 else {
+            throw BackupImportServiceError.cleanupFailed
+        }
+        do {
+            let identity = try directoryIdentity(descriptor)
+            return (descriptor, identity)
+        } catch {
+            _ = Darwin.close(descriptor)
+            throw error
+        }
+    }
+
+    private func directoryIdentity(_ descriptor: Int32) throws -> FileIdentity {
+        var information = stat()
+        guard Darwin.fstat(descriptor, &information) == 0,
+              (information.st_mode & S_IFMT) == S_IFDIR else {
+            throw BackupImportServiceError.cleanupFailed
+        }
+        return FileIdentity(information)
+    }
+
+    private func verifyDirectoryPath(
+        _ url: URL,
+        expected: FileIdentity
+    ) throws {
+        guard try itemInformation(at: url).map(FileIdentity.init) == expected else {
+            throw BackupImportServiceError.cleanupFailed
+        }
+    }
+
+    private func verifyPackage(
+        _ descriptor: Int32,
+        parent: Int32,
+        name: String,
+        expected: FileIdentity
+    ) throws {
+        guard try directoryIdentity(descriptor) == expected,
+              try itemIdentity(parent: parent, name: name) == expected else {
+            throw BackupImportServiceError.cleanupFailed
+        }
+    }
+
+    private func openDirectory(
+        _ root: Int32,
+        components: [String]
+    ) throws -> (descriptor: Int32, opened: [Int32]) {
+        var current = root
+        var opened = [Int32]()
+        for component in components {
+            let descriptor = Darwin.openat(
+                current,
+                component,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard descriptor >= 0 else {
+                for value in opened.reversed() { _ = Darwin.close(value) }
+                throw BackupImportServiceError.cleanupFailed
+            }
+            opened.append(descriptor)
+            current = descriptor
+        }
+        return (current, opened)
+    }
+
+    private func itemIdentity(
+        parent: Int32,
+        name: String
+    ) throws -> FileIdentity {
+        var information = stat()
+        guard Darwin.fstatat(
+            parent,
+            name,
+            &information,
+            AT_SYMLINK_NOFOLLOW
+        ) == 0,
+              (information.st_mode & S_IFMT) != S_IFLNK else {
+            throw BackupImportServiceError.cleanupFailed
+        }
+        return FileIdentity(information)
     }
 
     func requireCurrentGeneration() throws {
@@ -304,6 +968,10 @@ private extension BackupImportService {
         } catch {
             throw BackupImportServiceError.invalidGeneration
         }
+    }
+
+    func isProtectedDataUnavailable(_ error: Error) -> Bool {
+        ProtectedFilePolicyV1.isProtectedDataUnavailable(error)
     }
 
     func relativePath(of url: URL, within root: URL) throws -> String {

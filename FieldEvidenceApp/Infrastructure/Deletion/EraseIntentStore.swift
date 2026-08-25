@@ -86,6 +86,20 @@ final class EraseIntentStore {
             if ownsEraseDescriptor { _ = Darwin.close(eraseDescriptor) }
         }
         let eraseIdentity = try Self.directoryIdentity(eraseDescriptor)
+        do {
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .stagingDirectory,
+                relativePath: Self.directoryName,
+                within: root
+            ) {
+                guard try Self.directoryIdentity(appDescriptor) == appIdentity,
+                      try Self.directoryIdentity(eraseDescriptor) == eraseIdentity else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+            }
+        } catch {
+            throw EraseIntentStoreError.invalidAuthority
+        }
 
         self.applicationSupportURL = root
         self.applicationSupportDescriptor = appDescriptor
@@ -103,6 +117,8 @@ final class EraseIntentStore {
 
     func load() throws -> EraseIntentV1? {
         try verifyAuthority()
+        try verifyExistingPolicy(.journal, name: Self.intentName)
+        try verifyExistingPolicy(.journalTemporary, name: Self.nextName)
         let canonical = try readIfPresent(Self.intentName)
         let pending = try readIfPresent(Self.nextName)
 
@@ -120,6 +136,17 @@ final class EraseIntentStore {
                     UInt32(RENAME_EXCL)
                   ) == 0,
                   Darwin.fsync(eraseDescriptor) == 0 else {
+                throw EraseIntentStoreError.invalidIntent
+            }
+            try verifyPublishedPolicy(
+                .journal,
+                name: Self.intentName,
+                failure: .invalidIntent,
+                expectedIdentity: pending.identity
+            )
+            guard let promoted = try readIfPresent(Self.intentName),
+                  promoted.identity == pending.identity,
+                  promoted.data == pending.data else {
                 throw EraseIntentStoreError.invalidIntent
             }
             try verifyAuthority()
@@ -141,27 +168,50 @@ final class EraseIntentStore {
 
     func create(_ value: EraseIntentV1) throws {
         try verifyAuthority()
+        try verifyExistingPolicy(.journal, name: Self.intentName)
+        try verifyExistingPolicy(.journalTemporary, name: Self.nextName)
         guard try readIfPresent(Self.intentName) == nil,
               try readIfPresent(Self.nextName) == nil else {
             throw EraseIntentStoreError.intentAlreadyExists
         }
         let data = try encode(value)
-        try createLeaf(Self.nextName, data: data)
-        guard Darwin.renameatx_np(
-            eraseDescriptor,
-            Self.nextName,
-            eraseDescriptor,
-            Self.intentName,
-            UInt32(RENAME_EXCL)
-        ) == 0,
-              Darwin.fsync(eraseDescriptor) == 0 else {
-            try? removeMatching(Self.nextName, data: data)
-            throw EraseIntentStoreError.writeFailed
+        let temporaryIdentity = try createLeaf(Self.nextName, data: data)
+        var published = false
+        do {
+            guard Darwin.renameatx_np(
+                eraseDescriptor,
+                Self.nextName,
+                eraseDescriptor,
+                Self.intentName,
+                UInt32(RENAME_EXCL)
+            ) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            published = true
+            guard Darwin.fsync(eraseDescriptor) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try verifyPublishedPolicy(
+                .journal,
+                name: Self.intentName,
+                failure: .writeFailed,
+                expectedIdentity: temporaryIdentity
+            )
+            guard let publishedValue = try readIfPresent(Self.intentName),
+                  publishedValue.identity == temporaryIdentity,
+                  publishedValue.data == data else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try verifyAuthority()
+        } catch {
+            if published {
+                try? removeExact(
+                    Self.intentName,
+                    expected: (data: data, identity: temporaryIdentity)
+                )
+            }
+            throw error
         }
-        guard try readIfPresent(Self.intentName)?.data == data else {
-            throw EraseIntentStoreError.writeFailed
-        }
-        try verifyAuthority()
     }
 
     func replace(
@@ -169,51 +219,93 @@ final class EraseIntentStore {
         with replacement: EraseIntentV1
     ) throws {
         try verifyAuthority()
+        try verifyExistingPolicy(.journal, name: Self.intentName)
+        try verifyExistingPolicy(.journalTemporary, name: Self.nextName)
         let expectedData = try encode(expected)
         let replacementData = try encode(replacement)
         guard sameOperation(expected, replacement),
               replacement.phase == nextPhase(after: expected.phase),
-              try readIfPresent(Self.intentName)?.data == expectedData,
+              let current = try readIfPresent(Self.intentName),
+              current.data == expectedData,
               try readIfPresent(Self.nextName) == nil else {
             throw EraseIntentStoreError.intentMismatch
         }
-        try createLeaf(Self.nextName, data: replacementData)
-        guard Darwin.renameatx_np(
-            eraseDescriptor,
+        let replacementIdentity = try createLeaf(
             Self.nextName,
-            eraseDescriptor,
-            Self.intentName,
-            UInt32(RENAME_SWAP)
-        ) == 0 else {
-            try? removeMatching(Self.nextName, data: replacementData)
-            throw EraseIntentStoreError.writeFailed
-        }
+            data: replacementData
+        )
+        var swapped = false
         do {
-            guard Darwin.fsync(eraseDescriptor) == 0,
-                  try readIfPresent(Self.intentName)?.data == replacementData,
-                  try readIfPresent(Self.nextName)?.data == expectedData else {
+            guard Darwin.renameatx_np(
+                eraseDescriptor,
+                Self.nextName,
+                eraseDescriptor,
+                Self.intentName,
+                UInt32(RENAME_SWAP)
+            ) == 0 else {
                 throw EraseIntentStoreError.writeFailed
             }
-            try removeMatching(Self.nextName, data: expectedData)
+            swapped = true
+            guard Darwin.fsync(eraseDescriptor) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try verifyPublishedPolicy(
+                .journal,
+                name: Self.intentName,
+                failure: .writeFailed,
+                expectedIdentity: replacementIdentity
+            )
+            try verifyPublishedPolicy(
+                .journalTemporary,
+                name: Self.nextName,
+                failure: .writeFailed,
+                expectedIdentity: current.identity
+            )
+            guard
+                  let published = try readIfPresent(Self.intentName),
+                  let displaced = try readIfPresent(Self.nextName),
+                  published.identity == replacementIdentity,
+                  published.data == replacementData,
+                  displaced.identity == current.identity,
+                  displaced.data == expectedData else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try removeExact(Self.nextName, expected: displaced)
+            swapped = false
             try verifyAuthority()
         } catch {
-            if try readIfPresent(Self.intentName)?.data == replacementData,
-               try readIfPresent(Self.nextName)?.data == expectedData {
-                _ = Darwin.renameatx_np(
-                    eraseDescriptor,
-                    Self.nextName,
-                    eraseDescriptor,
-                    Self.intentName,
-                    UInt32(RENAME_SWAP)
-                )
-                _ = Darwin.fsync(eraseDescriptor)
+            if swapped {
+                do {
+                    if let published = try readIfPresent(Self.intentName),
+                       let displaced = try readIfPresent(Self.nextName),
+                       published.identity == replacementIdentity,
+                       published.data == replacementData,
+                       displaced.identity == current.identity,
+                       displaced.data == expectedData {
+                        _ = Darwin.renameatx_np(
+                            eraseDescriptor,
+                            Self.nextName,
+                            eraseDescriptor,
+                            Self.intentName,
+                            UInt32(RENAME_SWAP)
+                        )
+                        _ = Darwin.fsync(eraseDescriptor)
+                    }
+                } catch {
+                    // Preserve the exact failure and leave uncertain state for recovery.
+                }
             }
+            try? removeIfExact(
+                Self.nextName,
+                expected: replacementIdentity
+            )
             throw error
         }
     }
 
     func remove(expected: EraseIntentV1) throws {
         try verifyAuthority()
+        try verifyExistingPolicy(.journal, name: Self.intentName)
         let data = try encode(expected)
         guard let current = try readIfPresent(Self.intentName) else {
             throw EraseIntentStoreError.intentMissing
@@ -227,6 +319,127 @@ final class EraseIntentStore {
 }
 
 private extension EraseIntentStore {
+    func policyRelativePath(_ name: String) -> String {
+        "\(Self.directoryName)/\(name)"
+    }
+
+    func verifyExistingPolicy(
+        _ kind: OwnedFileKindV1,
+        name: String
+    ) throws {
+        do {
+            try verifyAuthority()
+            let descriptor = Darwin.openat(
+                eraseDescriptor,
+                name,
+                O_RDONLY | O_NOFOLLOW
+            )
+            if descriptor < 0, errno == ENOENT { return }
+            guard descriptor >= 0 else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            defer { _ = Darwin.close(descriptor) }
+            let expected = try Self.fileIdentity(descriptor)
+            try ProtectedFilePolicyV1.applyAndVerify(
+                kind,
+                relativePath: policyRelativePath(name),
+                within: applicationSupportURL
+            ) {
+                try verifyAuthority()
+                try verifyLeaf(
+                    name,
+                    descriptor: descriptor,
+                    expected: expected
+                )
+            }
+        } catch {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+
+    func applyTemporaryPolicy(
+        _ kind: OwnedFileKindV1,
+        name: String,
+        descriptor: Int32
+    ) throws {
+        do {
+            let expected = try Self.fileIdentity(descriptor)
+            try ProtectedFilePolicyV1.applyAndVerify(
+                kind,
+                relativePath: policyRelativePath(name),
+                within: applicationSupportURL
+            ) {
+                try verifyAuthority()
+                try verifyLeaf(
+                    name,
+                    descriptor: descriptor,
+                    expected: expected
+                )
+            }
+        } catch {
+            throw EraseIntentStoreError.writeFailed
+        }
+    }
+
+    func verifyLeaf(
+        _ name: String,
+        descriptor: Int32,
+        expected: Identity
+    ) throws {
+        guard try Self.fileIdentity(descriptor) == expected else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        var info = stat()
+        guard Darwin.fstatat(
+            eraseDescriptor,
+            name,
+            &info,
+            AT_SYMLINK_NOFOLLOW
+        ) == 0,
+              (info.st_mode & S_IFMT) == S_IFREG,
+              info.st_nlink == 1,
+              Identity(device: info.st_dev, inode: info.st_ino) == expected else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+
+    func verifyPublishedPolicy(
+        _ kind: OwnedFileKindV1,
+        name: String,
+        failure: EraseIntentStoreError,
+        expectedIdentity: Identity
+    ) throws {
+        let descriptor = Darwin.openat(
+            eraseDescriptor,
+            name,
+            O_RDONLY | O_NOFOLLOW
+        )
+        guard descriptor >= 0 else { throw failure }
+        defer { _ = Darwin.close(descriptor) }
+        do {
+            try verifyAuthority()
+            try verifyLeaf(
+                name,
+                descriptor: descriptor,
+                expected: expectedIdentity
+            )
+            try ProtectedFilePolicyV1.verify(
+                kind,
+                at: applicationSupportURL
+                    .appendingPathComponent(Self.directoryName, isDirectory: true)
+                    .appendingPathComponent(name)
+            )
+            try verifyAuthority()
+            try verifyLeaf(
+                name,
+                descriptor: descriptor,
+                expected: expectedIdentity
+            )
+        } catch {
+            throw failure
+        }
+    }
+
     func verifyAuthority() throws {
         try Self.requireDirectory(
             applicationSupportDescriptor,
@@ -333,7 +546,7 @@ private extension EraseIntentStore {
         )
     }
 
-    func createLeaf(_ name: String, data: Data) throws {
+    func createLeaf(_ name: String, data: Data) throws -> Identity {
         let descriptor = Darwin.openat(
             eraseDescriptor,
             name,
@@ -344,7 +557,13 @@ private extension EraseIntentStore {
             throw EraseIntentStoreError.writeFailed
         }
         defer { _ = Darwin.close(descriptor) }
+        let expectedIdentity = try Self.fileIdentity(descriptor)
         do {
+            try applyTemporaryPolicy(
+                .journalTemporary,
+                name: name,
+                descriptor: descriptor
+            )
             try data.withUnsafeBytes { raw in
                 guard let base = raw.baseAddress else { return }
                 var offset = 0
@@ -364,18 +583,26 @@ private extension EraseIntentStore {
             guard Darwin.fsync(descriptor) == 0 else {
                 throw EraseIntentStoreError.writeFailed
             }
+            guard let written = try readIfPresent(name),
+                  written.identity == expectedIdentity,
+                  written.data == data else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            return written.identity
         } catch {
-            _ = Darwin.unlinkat(eraseDescriptor, name, 0)
-            _ = Darwin.fsync(eraseDescriptor)
+            try? removeIfExact(name, expected: expectedIdentity)
             throw error
         }
     }
 
-    func removeMatching(_ name: String, data: Data) throws {
-        guard let current = try readIfPresent(name), current.data == data else {
+    func removeIfExact(_ name: String, expected: Identity) throws {
+        guard let current = try readIfPresent(name),
+              current.identity == expected,
+              Darwin.unlinkat(eraseDescriptor, name, 0) == 0,
+              Darwin.fsync(eraseDescriptor) == 0,
+              case nil = try readIfPresent(name) else {
             throw EraseIntentStoreError.cleanupFailed
         }
-        try removeExact(name, expected: current)
     }
 
     private func removeExact(
@@ -398,6 +625,16 @@ private extension EraseIntentStore {
         var info = stat()
         guard Darwin.fstat(descriptor, &info) == 0,
               (info.st_mode & S_IFMT) == S_IFDIR else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return Identity(device: info.st_dev, inode: info.st_ino)
+    }
+
+    private static func fileIdentity(_ descriptor: Int32) throws -> Identity {
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFREG,
+              info.st_nlink == 1 else {
             throw EraseIntentStoreError.invalidAuthority
         }
         return Identity(device: info.st_dev, inode: info.st_ino)

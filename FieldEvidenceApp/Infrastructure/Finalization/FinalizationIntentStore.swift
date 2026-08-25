@@ -135,6 +135,12 @@ actor FinalizationIntentStore {
                   mutationID.uuidString.lowercased() + ".json" == name else {
                 throw FinalizationIntentStoreError.intentInvalid
             }
+            try authority.verifyRegularFilePolicy(
+                .journal,
+                parent: authority.finalizationDescriptor,
+                name: name,
+                policyURL: try authority.finalizationFileURL(name: name)
+            )
             let data = try authority.readRegularFile(
                 parent: authority.finalizationDescriptor,
                 name: name
@@ -353,19 +359,31 @@ actor FinalizationIntentStore {
             try createAndVerifyIntent(intent, name: paths.intentName, authority: authority)
             try authority.verify()
         } catch {
-            try? removeOwnedFileIfMatching(
-                components: paths.stagingComponents,
-                expectedByteCount: snapshot.data.count,
-                expectedSHA256: snapshot.sha256,
-                authority: authority,
-                requireCurrentAuthority: false
-            )
-            try? removeIntentIfMatching(
-                intent,
-                name: paths.intentName,
-                authority: authority,
-                requireCurrentAuthority: false
-            )
+            var cleanupFailed = false
+            do {
+                try removeOwnedFileIfMatching(
+                    components: paths.stagingComponents,
+                    expectedByteCount: snapshot.data.count,
+                    expectedSHA256: snapshot.sha256,
+                    authority: authority,
+                    requireCurrentAuthority: false
+                )
+            } catch {
+                cleanupFailed = true
+            }
+            do {
+                try removeIntentIfMatching(
+                    intent,
+                    name: paths.intentName,
+                    authority: authority,
+                    requireCurrentAuthority: false
+                )
+            } catch {
+                cleanupFailed = true
+            }
+            if cleanupFailed {
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
             throw mapped(error)
         }
 
@@ -416,32 +434,51 @@ actor FinalizationIntentStore {
                 destinationComponents: paths.finalComponents,
                 expectedByteCount: prepared.snapshotByteCount,
                 expectedSHA256: prepared.snapshotSHA256,
+                policyURL: try authority.generationFileURL(
+                    components: paths.finalComponents
+                ),
                 afterMutation: { [authorityBarrier] in
                     authorityBarrier?.reach(.afterLeafMutation)
                 }
             )
             try authority.verify()
         } catch {
-            try? removeOwnedFileIfMatching(
-                components: paths.finalComponents,
-                expectedByteCount: prepared.snapshotByteCount,
-                expectedSHA256: prepared.snapshotSHA256,
-                authority: authority,
-                requireCurrentAuthority: false
-            )
-            try? removeOwnedFileIfMatching(
-                components: paths.stagingComponents,
-                expectedByteCount: prepared.snapshotByteCount,
-                expectedSHA256: prepared.snapshotSHA256,
-                authority: authority,
-                requireCurrentAuthority: false
-            )
-            try? removeIntentIfMatching(
-                prepared.intent,
-                name: paths.intentName,
-                authority: authority,
-                requireCurrentAuthority: false
-            )
+            var cleanupFailed = false
+            do {
+                try removeOwnedFileIfMatching(
+                    components: paths.finalComponents,
+                    expectedByteCount: prepared.snapshotByteCount,
+                    expectedSHA256: prepared.snapshotSHA256,
+                    authority: authority,
+                    requireCurrentAuthority: false
+                )
+            } catch {
+                cleanupFailed = true
+            }
+            do {
+                try removeOwnedFileIfMatching(
+                    components: paths.stagingComponents,
+                    expectedByteCount: prepared.snapshotByteCount,
+                    expectedSHA256: prepared.snapshotSHA256,
+                    authority: authority,
+                    requireCurrentAuthority: false
+                )
+            } catch {
+                cleanupFailed = true
+            }
+            do {
+                try removeIntentIfMatching(
+                    prepared.intent,
+                    name: paths.intentName,
+                    authority: authority,
+                    requireCurrentAuthority: false
+                )
+            } catch {
+                cleanupFailed = true
+            }
+            if cleanupFailed {
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
             throw mapped(error)
         }
 
@@ -619,6 +656,10 @@ actor FinalizationIntentStore {
         guard PinnedAuthority.isRegular(info) else {
             throw FinalizationIntentStoreError.itemTypeInvalid
         }
+        try authority.verifyGenerationFilePolicy(
+            components.first == ".staging" ? .stagingFile : .reportSnapshot,
+            components: components
+        )
         let data = try authority.readGenerationRegularFile(components: components).data
         guard sha256(data) == intent.snapshotSHA256 else {
             throw FinalizationIntentStoreError.bytesMismatch
@@ -733,7 +774,9 @@ actor FinalizationIntentStore {
         try authority.createRegularFile(
             encoded.data,
             parent: authority.finalizationDescriptor,
-            name: name
+            name: name,
+            policyKind: .journal,
+            policyURL: try authority.finalizationFileURL(name: name)
         )
         authorityBarrier?.reach(.afterLeafMutation)
         try verifyIntent(intent, name: name, authority: authority)
@@ -757,6 +800,7 @@ actor FinalizationIntentStore {
             name: name,
             expectedData: old.data,
             replacementData: new.data,
+            policyURL: try authority.finalizationFileURL(name: name),
             afterMutation: { [authorityBarrier, mutationProgress] in
                 mutationProgress.didMutateLeaf = true
                 authorityBarrier?.reach(.afterLeafMutation)
@@ -771,6 +815,12 @@ actor FinalizationIntentStore {
         authority: PinnedAuthority
     ) throws {
         let encoded = try encodedIntent(intent)
+        try authority.verifyRegularFilePolicy(
+            .journal,
+            parent: authority.finalizationDescriptor,
+            name: name,
+            policyURL: try authority.finalizationFileURL(name: name)
+        )
         let read = try authority.readRegularFile(
             parent: authority.finalizationDescriptor,
             name: name
@@ -793,6 +843,12 @@ actor FinalizationIntentStore {
         guard PinnedAuthority.isRegular(info) else {
             throw FinalizationIntentStoreError.itemTypeInvalid
         }
+        try authority.verifyRegularFilePolicy(
+            .journal,
+            parent: authority.finalizationDescriptor,
+            name: name,
+            policyURL: try authority.finalizationFileURL(name: name)
+        )
         let expected = try encodedIntent(intent).data
         let file = try authority.readRegularFile(
             parent: authority.finalizationDescriptor,
@@ -826,6 +882,12 @@ actor FinalizationIntentStore {
         guard PinnedAuthority.isRegular(info) else {
             throw FinalizationIntentStoreError.itemTypeInvalid
         }
+        try authority.verifyRegularFilePolicy(
+            .journal,
+            parent: authority.finalizationDescriptor,
+            name: name,
+            policyURL: try authority.finalizationFileURL(name: name)
+        )
         let firstData = try encodedIntent(first).data
         let secondData = try encodedIntent(second).data
         let file = try authority.readRegularFile(
@@ -856,6 +918,10 @@ actor FinalizationIntentStore {
             guard PinnedAuthority.isRegular(info) else {
                 throw FinalizationIntentStoreError.itemTypeInvalid
             }
+            try authority.verifyGenerationFilePolicy(
+                components.first == ".staging" ? .stagingFile : .reportSnapshot,
+                components: components
+            )
             let file = try authority.readRegularFile(parent: parent, name: name)
             guard file.data.count == expectedByteCount,
                   sha256(file.data) == expectedSHA256 else {
@@ -881,6 +947,10 @@ actor FinalizationIntentStore {
         expectedSHA256: String,
         authority: PinnedAuthority
     ) throws {
+        try authority.verifyGenerationFilePolicy(
+            components.first == ".staging" ? .stagingFile : .reportSnapshot,
+            components: components
+        )
         let read = try authority.readGenerationRegularFile(components: components).data
         guard expectedData.map({ $0 == read }) ?? true,
               expectedByteCount.map({ $0 == read.count }) ?? true,
@@ -896,7 +966,13 @@ actor FinalizationIntentStore {
     ) throws {
         try authority.withGenerationParent(components: components) { parent, name in
             try beforeLeafMutation(authority)
-            try authority.createRegularFile(data, parent: parent, name: name)
+            try authority.createRegularFile(
+                data,
+                parent: parent,
+                name: name,
+                policyKind: .stagingFile,
+                policyURL: try authority.generationFileURL(components: components)
+            )
             authorityBarrier?.reach(.afterLeafMutation)
         }
     }
@@ -1094,6 +1170,55 @@ actor FinalizationIntentStore {
                 stagingSnapshotsDescriptor
             )
             let snapshotsIdentity = try Self.directoryIdentity(snapshotsDescriptor)
+            let operationsURL = applicationSupport.appendingPathComponent(
+                "FieldEvidenceOperations",
+                isDirectory: true
+            )
+            let finalizationURL = operationsURL.appendingPathComponent(
+                "finalization",
+                isDirectory: true
+            )
+            let stagingURL = root.appendingPathComponent(
+                ".staging",
+                isDirectory: true
+            )
+            let stagingSnapshotsURL = stagingURL.appendingPathComponent(
+                "snapshots",
+                isDirectory: true
+            )
+            let snapshotsURL = root.appendingPathComponent(
+                "snapshots",
+                isDirectory: true
+            )
+            for (kind, url, descriptor, expected) in [
+                (OwnedFileKindV1.stagingDirectory, operationsURL,
+                 operationsDescriptor, operationsIdentity),
+                (.stagingDirectory, finalizationURL,
+                 finalizationDescriptor, finalizationIdentity),
+                (.stagingDirectory, stagingURL,
+                 stagingDescriptor, stagingIdentity),
+                (.stagingDirectory, stagingSnapshotsURL,
+                 stagingSnapshotsDescriptor, stagingSnapshotsIdentity),
+                (.durableDirectory, snapshotsURL,
+                 snapshotsDescriptor, snapshotsIdentity),
+            ] {
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    kind,
+                    at: url,
+                    authorityCheck: {
+                        guard try Self.directoryIdentity(descriptor) == expected,
+                              try Self.directoryIdentity(at: url) == expected else {
+                            throw FinalizationIntentStoreError.generationRootInvalid
+                        }
+                        try Self.requireCanonicalGeneration(
+                            applicationSupportURL: applicationSupport,
+                            applicationSupportIdentity: applicationSupportIdentity,
+                            generationName: root.lastPathComponent,
+                            generationIdentity: generationIdentity
+                        )
+                    }
+                )
+            }
             try Self.requireCanonicalGeneration(
                 applicationSupportURL: applicationSupport,
                 applicationSupportIdentity: applicationSupportIdentity,
@@ -1275,7 +1400,9 @@ actor FinalizationIntentStore {
             }
             defer { _ = Darwin.close(descriptor) }
             var before = stat()
-            guard Darwin.fstat(descriptor, &before) == 0, Self.isRegular(before) else {
+            guard Darwin.fstat(descriptor, &before) == 0,
+                  Self.isRegular(before),
+                  before.st_nlink == 1 else {
                 throw FinalizationIntentStoreError.itemTypeInvalid
             }
             let identity = Identity(device: before.st_dev, inode: before.st_ino)
@@ -1295,8 +1422,9 @@ actor FinalizationIntentStore {
             }
             var after = stat()
             guard Darwin.fstat(descriptor, &after) == 0,
-                  Self.isRegular(after),
-                  Identity(device: after.st_dev, inode: after.st_ino) == identity,
+                   Self.isRegular(after),
+                   after.st_nlink == 1,
+                   Identity(device: after.st_dev, inode: after.st_ino) == identity,
                   before.st_size == after.st_size,
                   data.count == Int(after.st_size) else {
                 throw FinalizationIntentStoreError.bytesMismatch
@@ -1307,17 +1435,51 @@ actor FinalizationIntentStore {
         func ensureGenerationDirectory(components: [String]) throws {
             switch components {
             case [".staging", "snapshots"]:
-                try Self.requireDirectory(stagingDescriptor, identity: stagingIdentity)
-                try Self.requireDirectory(
-                    stagingSnapshotsDescriptor,
-                    identity: stagingSnapshotsIdentity
+                try verifyDirectoryPolicy(
+                    .stagingDirectory,
+                    descriptor: stagingDescriptor,
+                    expected: stagingIdentity,
+                    url: generationRootURL.appendingPathComponent(
+                        ".staging",
+                        isDirectory: true
+                    )
+                )
+                try verifyDirectoryPolicy(
+                    .stagingDirectory,
+                    descriptor: stagingSnapshotsDescriptor,
+                    expected: stagingSnapshotsIdentity,
+                    url: generationRootURL.appendingPathComponent(
+                        ".staging/snapshots",
+                        isDirectory: true
+                    )
                 )
             case ["snapshots"]:
-                try Self.requireDirectory(snapshotsDescriptor, identity: snapshotsIdentity)
+                try verifyDirectoryPolicy(
+                    .durableDirectory,
+                    descriptor: snapshotsDescriptor,
+                    expected: snapshotsIdentity,
+                    url: generationRootURL.appendingPathComponent(
+                        "snapshots",
+                        isDirectory: true
+                    )
+                )
             default:
                 throw FinalizationIntentStoreError.unsafePath
             }
             try verify()
+        }
+
+        private func verifyDirectoryPolicy(
+            _ kind: OwnedFileKindV1,
+            descriptor: Int32,
+            expected: Identity,
+            url: URL
+        ) throws {
+            try ProtectedFilePolicyV1.verify(kind, at: url)
+            guard try Self.directoryIdentity(descriptor) == expected,
+                  try Self.directoryIdentity(at: url) == expected else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
         }
 
         func withGenerationParent<T>(
@@ -1340,7 +1502,77 @@ actor FinalizationIntentStore {
             return try body(parent, name)
         }
 
-        func createRegularFile(_ data: Data, parent: Int32, name: String) throws {
+        func generationFileURL(components: [String]) throws -> URL {
+            guard !components.isEmpty, components.allSatisfy(Self.validComponent) else {
+                throw FinalizationIntentStoreError.unsafePath
+            }
+            var url = generationRootURL
+            for component in components {
+                url.appendPathComponent(component, isDirectory: false)
+            }
+            return url
+        }
+
+        func finalizationFileURL(name: String) throws -> URL {
+            guard Self.validComponent(name) else {
+                throw FinalizationIntentStoreError.unsafePath
+            }
+            return applicationSupportURL
+                .appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
+                .appendingPathComponent("finalization", isDirectory: true)
+                .appendingPathComponent(name, isDirectory: false)
+        }
+
+        func verifyGenerationFilePolicy(
+            _ kind: OwnedFileKindV1,
+            components: [String]
+        ) throws {
+            try withGenerationParent(components: components) { parent, name in
+                try verifyRegularFilePolicy(
+                    kind,
+                    parent: parent,
+                    name: name,
+                    policyURL: try generationFileURL(components: components)
+                )
+            }
+        }
+
+        func verifyRegularFilePolicy(
+            _ kind: OwnedFileKindV1,
+            parent: Int32,
+            name: String,
+            policyURL: URL
+        ) throws {
+            do {
+                try verify()
+                let expected = try Self.regularIdentity(parent: parent, name: name)
+                try ProtectedFilePolicyV1.verify(kind, at: policyURL)
+                guard try Self.regularIdentity(parent: parent, name: name) == expected,
+                      try Self.regularIdentity(at: policyURL) == expected else {
+                    throw FinalizationIntentStoreError.notOwned
+                }
+                try verify()
+            } catch let error as FinalizationIntentStoreError {
+                throw error
+            } catch {
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
+        }
+
+        private var generationRootURL: URL {
+            applicationSupportURL
+                .appendingPathComponent("FieldEvidenceData", isDirectory: true)
+                .appendingPathComponent("generations", isDirectory: true)
+                .appendingPathComponent(generationName, isDirectory: true)
+        }
+
+        func createRegularFile(
+            _ data: Data,
+            parent: Int32,
+            name: String,
+            policyKind: OwnedFileKindV1,
+            policyURL: URL
+        ) throws {
             guard Self.validComponent(name) else {
                 throw FinalizationIntentStoreError.unsafePath
             }
@@ -1363,6 +1595,17 @@ actor FinalizationIntentStore {
             }
             var descriptorIsOpen = true
             do {
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    policyKind,
+                    at: policyURL,
+                    authorityCheck: {
+                        try verify()
+                        guard try Self.regularIdentity(descriptor) == identity,
+                              try Self.regularIdentity(at: policyURL) == identity else {
+                            throw FinalizationIntentStoreError.notOwned
+                        }
+                    }
+                )
                 try data.withUnsafeBytes { raw in
                     guard let base = raw.baseAddress else { return }
                     var offset = 0
@@ -1393,13 +1636,17 @@ actor FinalizationIntentStore {
                 if descriptorIsOpen {
                     _ = Darwin.close(descriptor)
                 }
-                try? quarantineAndRemove(
-                    parent: parent,
-                    name: name,
-                    expectedIdentity: identity,
-                    expectedData: nil,
-                    verifyCurrentAuthority: false
-                )
+                do {
+                    try quarantineAndRemove(
+                        parent: parent,
+                        name: name,
+                        expectedIdentity: identity,
+                        expectedData: nil,
+                        verifyCurrentAuthority: false
+                    )
+                } catch {
+                    throw FinalizationIntentStoreError.fileOperationFailed
+                }
                 throw error
             }
         }
@@ -1409,14 +1656,30 @@ actor FinalizationIntentStore {
             name: String,
             expectedData: Data,
             replacementData: Data,
+            policyURL: URL,
             afterMutation: () -> Void
         ) throws {
+            try verifyRegularFilePolicy(
+                .journal,
+                parent: parent,
+                name: name,
+                policyURL: policyURL
+            )
             let original = try readRegularFile(parent: parent, name: name)
             guard original.data == expectedData else {
                 throw FinalizationIntentStoreError.notOwned
             }
             let temporary = ".replace-\(UUID().uuidString.lowercased())"
-            try createRegularFile(replacementData, parent: parent, name: temporary)
+            let temporaryURL = policyURL
+                .deletingLastPathComponent()
+                .appendingPathComponent(temporary, isDirectory: false)
+            try createRegularFile(
+                replacementData,
+                parent: parent,
+                name: temporary,
+                policyKind: .journalTemporary,
+                policyURL: temporaryURL
+            )
             let replacement = try readRegularFile(parent: parent, name: temporary)
             var swapped = false
             do {
@@ -1434,6 +1697,19 @@ actor FinalizationIntentStore {
                 guard Darwin.fsync(parent) == 0 else {
                     throw FinalizationIntentStoreError.fileOperationFailed
                 }
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    .journal,
+                    at: policyURL,
+                    authorityCheck: {
+                        try verify()
+                        guard try readRegularFile(parent: parent, name: name).identity
+                                == replacement.identity,
+                              try Self.regularIdentity(at: policyURL)
+                                == replacement.identity else {
+                            throw FinalizationIntentStoreError.notOwned
+                        }
+                    }
+                )
                 let current = try readRegularFile(parent: parent, name: name)
                 let displaced = try readRegularFile(parent: parent, name: temporary)
                 guard current.identity == replacement.identity,
@@ -1451,17 +1727,19 @@ actor FinalizationIntentStore {
                     verifyCurrentAuthority: false
                 )
             } catch {
+                var cleanupFailed = false
                 if swapped,
                    let current = try? readRegularFile(parent: parent, name: name),
                    current.identity == replacement.identity {
-                    _ = Darwin.renameatx_np(
+                    if Darwin.renameatx_np(
                         parent,
                         temporary,
                         parent,
                         name,
                         UInt32(RENAME_SWAP)
-                    )
-                    _ = Darwin.fsync(parent)
+                    ) != 0 || Darwin.fsync(parent) != 0 {
+                        cleanupFailed = true
+                    }
                 }
                 // If the displaced temporary leaf was concurrently removed,
                 // recreate the exact previously verified journal under the
@@ -1471,18 +1749,29 @@ actor FinalizationIntentStore {
                    current.identity == replacement.identity,
                    current.data == replacementData {
                     if isMissing(parent: parent, name: temporary) {
-                        try? createRegularFile(expectedData, parent: parent, name: temporary)
+                        do {
+                            try createRegularFile(
+                                expectedData,
+                                parent: parent,
+                                name: temporary,
+                                policyKind: .journalTemporary,
+                                policyURL: temporaryURL
+                            )
+                        } catch {
+                            cleanupFailed = true
+                        }
                     }
                     if let restored = try? readRegularFile(parent: parent, name: temporary),
                        restored.data == expectedData {
-                        _ = Darwin.renameatx_np(
+                        if Darwin.renameatx_np(
                             parent,
                             temporary,
                             parent,
                             name,
                             UInt32(RENAME_SWAP)
-                        )
-                        _ = Darwin.fsync(parent)
+                        ) != 0 || Darwin.fsync(parent) != 0 {
+                            cleanupFailed = true
+                        }
                     }
                 }
                 // If exact restoration was impossible, remove only our exact
@@ -1490,23 +1779,31 @@ actor FinalizationIntentStore {
                 if let current = try? readRegularFile(parent: parent, name: name),
                    current.identity == replacement.identity,
                    current.data == replacementData {
-                    try? quarantineAndRemove(
-                        parent: parent,
-                        name: name,
-                        expectedIdentity: replacement.identity,
-                        expectedData: replacementData,
-                        verifyCurrentAuthority: false
-                    )
+                    do {
+                        try quarantineAndRemove(
+                            parent: parent,
+                            name: name,
+                            expectedIdentity: replacement.identity,
+                            expectedData: replacementData,
+                            verifyCurrentAuthority: false
+                        )
+                    } catch {
+                        cleanupFailed = true
+                    }
                 }
                 if let temporaryFile = try? readRegularFile(parent: parent, name: temporary),
                    temporaryFile.identity == replacement.identity {
-                    try? quarantineAndRemove(
-                        parent: parent,
-                        name: temporary,
-                        expectedIdentity: replacement.identity,
-                        expectedData: replacementData,
-                        verifyCurrentAuthority: false
-                    )
+                    do {
+                        try quarantineAndRemove(
+                            parent: parent,
+                            name: temporary,
+                            expectedIdentity: replacement.identity,
+                            expectedData: replacementData,
+                            verifyCurrentAuthority: false
+                        )
+                    } catch {
+                        cleanupFailed = true
+                    }
                 } else if let temporaryFile = try? readRegularFile(
                     parent: parent,
                     name: temporary
@@ -1515,13 +1812,20 @@ actor FinalizationIntentStore {
                     // If a foreign leaf replaced the canonical journal after
                     // the swap, preserve it and remove only the exact prior
                     // mutation journal displaced to our private temp name.
-                    try? quarantineAndRemove(
-                        parent: parent,
-                        name: temporary,
-                        expectedIdentity: original.identity,
-                        expectedData: expectedData,
-                        verifyCurrentAuthority: false
-                    )
+                    do {
+                        try quarantineAndRemove(
+                            parent: parent,
+                            name: temporary,
+                            expectedIdentity: original.identity,
+                            expectedData: expectedData,
+                            verifyCurrentAuthority: false
+                        )
+                    } catch {
+                        cleanupFailed = true
+                    }
+                }
+                if cleanupFailed {
+                    throw FinalizationIntentStoreError.fileOperationFailed
                 }
                 throw error
             }
@@ -1532,12 +1836,22 @@ actor FinalizationIntentStore {
             destinationComponents: [String],
             expectedByteCount: Int,
             expectedSHA256: String,
+            policyURL: URL,
             afterMutation: () -> Void
         ) throws {
             try withGenerationParent(components: sourceComponents) { sourceParent, sourceName in
                 try withGenerationParent(
                     components: destinationComponents
                 ) { destinationParent, destinationName in
+                    let sourcePolicyURL = try generationFileURL(
+                        components: sourceComponents
+                    )
+                    try verifyRegularFilePolicy(
+                        .stagingFile,
+                        parent: sourceParent,
+                        name: sourceName,
+                        policyURL: sourcePolicyURL
+                    )
                     let source = try readRegularFile(parent: sourceParent, name: sourceName)
                     guard source.data.count == expectedByteCount,
                           Self.sha256(source.data) == expectedSHA256 else {
@@ -1564,6 +1878,21 @@ actor FinalizationIntentStore {
                             throw FinalizationIntentStoreError.fileOperationFailed
                         }
                         afterMutation()
+                        try ProtectedFilePolicyV1.applyAndVerify(
+                            .reportSnapshot,
+                            at: policyURL,
+                            authorityCheck: {
+                                try verify()
+                                guard try readRegularFile(
+                                    parent: destinationParent,
+                                    name: destinationName
+                                ).identity == source.identity,
+                                      try Self.regularIdentity(at: policyURL)
+                                        == source.identity else {
+                                    throw FinalizationIntentStoreError.notOwned
+                                }
+                            }
+                        )
                         let destination = try readRegularFile(
                             parent: destinationParent,
                             name: destinationName
@@ -1574,20 +1903,62 @@ actor FinalizationIntentStore {
                         }
                         try verify()
                     } catch {
+                        var cleanupFailed = false
                         if let destination = try? readRegularFile(
                             parent: destinationParent,
                             name: destinationName
                         ), destination.identity == source.identity,
                            isMissing(parent: sourceParent, name: sourceName) {
-                            _ = Darwin.renameatx_np(
+                            let restored = Darwin.renameatx_np(
                                 destinationParent,
                                 destinationName,
                                 sourceParent,
                                 sourceName,
                                 UInt32(RENAME_EXCL)
-                            )
-                            _ = Darwin.fsync(destinationParent)
-                            _ = Darwin.fsync(sourceParent)
+                            ) == 0
+                            guard restored else {
+                                cleanupFailed = true
+                                throw FinalizationIntentStoreError.fileOperationFailed
+                            }
+                            guard Darwin.fsync(destinationParent) == 0,
+                                  Darwin.fsync(sourceParent) == 0 else {
+                                cleanupFailed = true
+                                throw FinalizationIntentStoreError.fileOperationFailed
+                            }
+                            do {
+                                try ProtectedFilePolicyV1.applyAndVerify(
+                                    .stagingFile,
+                                    at: sourcePolicyURL,
+                                    authorityCheck: {
+                                        try verify()
+                                        guard try Self.regularIdentity(
+                                            parent: sourceParent,
+                                            name: sourceName
+                                        ) == source.identity,
+                                              try Self.regularIdentity(
+                                                at: sourcePolicyURL
+                                              ) == source.identity else {
+                                            throw FinalizationIntentStoreError.notOwned
+                                        }
+                                    }
+                                )
+                            } catch {
+                                do {
+                                    try quarantineAndRemove(
+                                        parent: sourceParent,
+                                        name: sourceName,
+                                        expectedIdentity: source.identity,
+                                        expectedData: source.data,
+                                        verifyCurrentAuthority: false
+                                    )
+                                } catch {
+                                    cleanupFailed = true
+                                }
+                                cleanupFailed = true
+                            }
+                        }
+                        if cleanupFailed {
+                            throw FinalizationIntentStoreError.fileOperationFailed
                         }
                         throw error
                     }
@@ -1628,23 +1999,19 @@ actor FinalizationIntentStore {
                     try verify()
                 }
             } catch {
-                _ = Darwin.renameatx_np(
-                    parent,
-                    quarantine,
-                    parent,
-                    name,
-                    UInt32(RENAME_EXCL)
+                restoreQuarantined(
+                    parent: parent,
+                    quarantine: quarantine,
+                    name: name
                 )
                 throw error
             }
             guard Darwin.unlinkat(parent, quarantine, 0) == 0,
                   Darwin.fsync(parent) == 0 else {
-                _ = Darwin.renameatx_np(
-                    parent,
-                    quarantine,
-                    parent,
-                    name,
-                    UInt32(RENAME_EXCL)
+                restoreQuarantined(
+                    parent: parent,
+                    quarantine: quarantine,
+                    name: name
                 )
                 throw FinalizationIntentStoreError.fileOperationFailed
             }
@@ -1657,6 +2024,21 @@ actor FinalizationIntentStore {
             ) == -1, errno == ENOENT else {
                 throw FinalizationIntentStoreError.fileOperationFailed
             }
+        }
+
+        private func restoreQuarantined(
+            parent: Int32,
+            quarantine: String,
+            name: String
+        ) {
+            _ = Darwin.renameatx_np(
+                parent,
+                quarantine,
+                parent,
+                name,
+                UInt32(RENAME_EXCL)
+            )
+            _ = Darwin.fsync(parent)
         }
 
         static func isRegular(_ info: stat) -> Bool {
@@ -1679,12 +2061,45 @@ actor FinalizationIntentStore {
             return Identity(device: info.st_dev, inode: info.st_ino)
         }
 
+        private static func directoryIdentity(at url: URL) throws -> Identity {
+            let descriptor = Darwin.open(
+                url.path,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard descriptor >= 0 else {
+                throw FinalizationIntentStoreError.itemTypeInvalid
+            }
+            defer { _ = Darwin.close(descriptor) }
+            return try directoryIdentity(descriptor)
+        }
+
         private static func regularIdentity(_ descriptor: Int32) throws -> Identity {
             var info = stat()
             guard Darwin.fstat(descriptor, &info) == 0, isRegular(info) else {
                 throw FinalizationIntentStoreError.itemTypeInvalid
             }
             return Identity(device: info.st_dev, inode: info.st_ino)
+        }
+
+        private static func regularIdentity(at url: URL) throws -> Identity {
+            let descriptor = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW)
+            guard descriptor >= 0 else {
+                throw FinalizationIntentStoreError.itemTypeInvalid
+            }
+            defer { _ = Darwin.close(descriptor) }
+            return try regularIdentity(descriptor)
+        }
+
+        private static func regularIdentity(
+            parent: Int32,
+            name: String
+        ) throws -> Identity {
+            let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
+            guard descriptor >= 0 else {
+                throw FinalizationIntentStoreError.itemTypeInvalid
+            }
+            defer { _ = Darwin.close(descriptor) }
+            return try regularIdentity(descriptor)
         }
 
         private static func requireDirectory(

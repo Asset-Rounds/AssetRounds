@@ -1,0 +1,382 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "82cfa6e86cb89a2b8f80ca6dca00dae9e1d2a7fdd200ccdd467bebb8282f8203",
+  "authority": {
+    "acceptedS10_6BaselineDigest": null,
+    "authorizedPriorFenceOverlaps": [
+      {
+        "cardID": "V23-P01-C01",
+        "disposition": "DIRECT_INVALIDATION_AND_REPROOF",
+        "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
+      },
+      {
+        "cardID": "V23-P00-C11",
+        "disposition": "ARCHITECTURE_CONCURRENCY_TARGETED_REPROOF",
+        "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift"
+      }
+    ],
+    "baseHead": "fd303030608600443c8a0151f8f93c27e5cc928e",
+    "baseTree": "cb5f5fc41379e61ed51dc1b3890ad55c63e98433",
+    "branch": "phase/v23-expansion",
+    "contextDigest": "156b0f066a284225ee2a7a569d70b57d8495427f45660c29efc308e3e09eaaee",
+    "coordinationHydrationHead": "86d6325f6eef5b7cae880f314fdc72aa67d6e3b7",
+    "deterministicEvidenceIDs": [
+      "V23-P01-C02-G01",
+      "V23-P01-C02-A01",
+      "V23-P01-C02-H01",
+      "V23-P01-C02-I01",
+      "V23-P01-C02-R01"
+    ],
+    "directPrerequisites": [
+      "V23-P01-C01"
+    ],
+    "dossierDigest": "c1995aa55b9acb0543d7c533d7ae3c37eab766c45861e5941ad48f73d0c341ba",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "e3d5f770500dca343d53dd22c87bdefa54e74e6e5ad172f31e20bcca38478482",
+    "lineage": "REFINED_WITHOUT_LOSS",
+    "pathFenceDigest": "516df34be4e6c68ff8a6d1737c8ced37e2eb1b5ebfd6110542a60b9579c36809",
+    "provisionalPrerequisiteDigest": "927b5353927db5fd57d22973f31e3b7e5ecb4381f91e680dfc0f8b537881cef4",
+    "registerRowDigest": "03010bdab18420ecc5ddd2f4b9ebc17b2af7722753253340379c3742ac813d6c",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "reservationOverlapCount": 0,
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+  },
+  "behavioralDelta": {
+    "backupFormat": false,
+    "delete": false,
+    "export": false,
+    "migration": false,
+    "restore": false,
+    "schema": false
+  },
+  "cardID": "V23-P01-C02",
+  "externalBackupDestination": {
+    "appProtectionAttributeClaim": false,
+    "disposition": "EXTERNAL_PROVIDER_HANDOFF",
+    "owner": "BackupExportService",
+    "providerDestinationEligibilityClaim": false
+  },
+  "forbiddenSecretSurfaces": [
+    "LOGS",
+    "DIAGNOSTICS",
+    "SEARCH",
+    "SPOTLIGHT",
+    "ACCESSIBILITY",
+    "REPORTS",
+    "SCREENSHOTS",
+    "SUPPORT",
+    "MARKETING",
+    "MEASUREMENT"
+  ],
+  "fullPathFence": [
+    "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/RestoreIntentStore.swift",
+    "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift",
+    "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+    "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+    "FieldEvidenceApp/Infrastructure/Commerce/EntitlementStore.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "FieldEvidenceAppTests/V9_02FileAuthorityTests.swift",
+    "docs/privacy/V23P01C02OwnedFilePrivacyInventoryV1.json",
+    "Scripts/v23/p01_c02_contracts.py",
+    "Scripts/v23/generate_p01_c02_contracts.py",
+    "Scripts/v23/verify_p01_c02_contracts.py",
+    "Scripts/v23/owned-file-protection.schema.json",
+    "docs/design/v23/tooling/V23P01C02OwnedFileProtectionContractV1.json",
+    "docs/design/v23/tooling/V23-P01-C02-tooling-manifest.json"
+  ],
+  "handlingClassDeclarations": [
+    {
+      "allowedResidency": "EXACT_PROTECTED_TRANSFERABLE_REQUEST_ARTIFACT_ONLY",
+      "id": "REVIEW_BEARER_CAPABILITY",
+      "keychain": false,
+      "persistence": "ONLY_WHEN_REAL_FEATURE_CREATES_EXACT_ARTIFACT"
+    },
+    {
+      "allowedResidency": "MEMORY_ONLY",
+      "id": "PASSPHRASE",
+      "keychain": false,
+      "persistence": "FORBIDDEN"
+    },
+    {
+      "allowedResidency": "MEMORY_ONLY",
+      "id": "DERIVED_KEY",
+      "keychain": false,
+      "persistence": "FORBIDDEN"
+    }
+  ],
+  "hostedDispatchRan": false,
+  "keychainUsage": "NONE",
+  "lifecycle": {
+    "interruption": "FAIL_CLOSED_NO_PARTIAL_ACCEPTANCE",
+    "persistence": "IMMUTABLE_SOURCE_BOUND_CONTRACT",
+    "recovery": "REGENERATE_FROM_CURRENT_SOURCES_OR_ISSUE_SUCCESSOR",
+    "successorTriggers": [
+      "SOURCE_CHANGE",
+      "PATH_CLASS_CHANGE",
+      "PROTECTION_POLICY_CHANGE",
+      "BACKUP_ELIGIBILITY_CHANGE",
+      "SECRET_INVENTORY_CHANGE",
+      "EVIDENCE_CHANGE"
+    ],
+    "supersession": "APPEND_SUCCESSOR_NEVER_REWRITE_ACCEPTED_ARTIFACT"
+  },
+  "nativeCompileRan": false,
+  "ownedPathMatrix": {
+    "backupExcluded": [
+      {
+        "backup": "EXCLUDED",
+        "id": "RESTORE_IMPORT_STAGING",
+        "owner": "BackupImportService+BackupRestoreService",
+        "pathClass": "FieldEvidenceRestore/**",
+        "reason": "RECREATABLE_OR_UNTRUSTED_STAGING"
+      },
+      {
+        "backup": "EXCLUDED",
+        "id": "JOURNALS_CHECKPOINTS_REPLAY_TEMP",
+        "owner": "IntentStores+recovery services",
+        "pathClass": "**/{journal,checkpoint,replay,temp,next}*",
+        "reason": "TRANSIENT_RECOVERY_STATE"
+      },
+      {
+        "backup": "EXCLUDED",
+        "id": "DIAGNOSTICS",
+        "owner": "DiagnosticsStore",
+        "pathClass": "FieldEvidenceDiagnostics/**",
+        "reason": "RECREATABLE_SECRET_FREE_SUPPORT_STATE"
+      },
+      {
+        "backup": "EXCLUDED",
+        "id": "ENTITLEMENT_CACHE",
+        "owner": "EntitlementStore",
+        "pathClass": "FieldEvidenceCommerce/**",
+        "reason": "PROVIDER_DERIVED_FACTS_NOT_PORTABLE_AUTHORITY"
+      },
+      {
+        "backup": "EXCLUDED",
+        "id": "CACHES_SCRATCH",
+        "owner": "ALL_OWNERS",
+        "pathClass": "**/{cache,caches,scratch,tmp}/**",
+        "reason": "RECREATABLE_NON_DURABLE_STATE"
+      }
+    ],
+    "backupIncluded": [
+      {
+        "backup": "INCLUDED",
+        "id": "DURABLE_DATABASE",
+        "owner": "StoreGenerationFactory",
+        "pathClass": "FieldEvidenceData/generations/<GenerationID>/model.sqlite",
+        "protection": "COMPLETE"
+      },
+      {
+        "backup": "INCLUDED",
+        "id": "DURABLE_DATABASE_WAL",
+        "owner": "StoreGenerationFactory",
+        "pathClass": "FieldEvidenceData/generations/<GenerationID>/model.sqlite-wal",
+        "protection": "COMPLETE"
+      },
+      {
+        "backup": "INCLUDED",
+        "id": "DURABLE_DATABASE_SHM",
+        "owner": "StoreGenerationFactory",
+        "pathClass": "FieldEvidenceData/generations/<GenerationID>/model.sqlite-shm",
+        "protection": "COMPLETE"
+      },
+      {
+        "backup": "INCLUDED",
+        "id": "CURRENT_POINTER",
+        "owner": "StoreGenerationFactory",
+        "pathClass": "FieldEvidenceData/current.json",
+        "protection": "COMPLETE"
+      },
+      {
+        "backup": "INCLUDED",
+        "id": "RETIRED_POINTER",
+        "owner": "StoreGenerationFactory",
+        "pathClass": "FieldEvidenceData/retired.json",
+        "protection": "COMPLETE"
+      },
+      {
+        "backup": "INCLUDED",
+        "id": "ORIGINAL_MEDIA",
+        "owner": "EvidenceBundleStore",
+        "pathClass": "FieldEvidenceMedia/originals/<EvidenceID>",
+        "protection": "COMPLETE"
+      },
+      {
+        "backup": "INCLUDED",
+        "id": "THUMBNAIL_MEDIA",
+        "owner": "EvidenceBundleStore",
+        "pathClass": "FieldEvidenceMedia/thumbnails/<EvidenceID>",
+        "protection": "COMPLETE"
+      },
+      {
+        "backup": "INCLUDED",
+        "id": "REPORT_SNAPSHOT",
+        "owner": "ReportRenderService",
+        "pathClass": "FieldEvidenceReports/snapshots/<ReportID>",
+        "protection": "COMPLETE"
+      },
+      {
+        "backup": "INCLUDED",
+        "id": "REPORT_PDF",
+        "owner": "ReportRenderService",
+        "pathClass": "FieldEvidenceReports/pdfs/<ReportID>.pdf",
+        "protection": "COMPLETE"
+      }
+    ],
+    "closed": true,
+    "unknownDisposition": "FAIL_CLOSED_UNTIL_EXPLICITLY_CLASSIFIED"
+  },
+  "persistentChangeMode": "CONTENT_ONLY",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "protectionLaw": {
+    "allCurrentAndStagedOwnedPathClassesRequired": true,
+    "metadataOnlyCheckInsufficient": true,
+    "physicalLockedVerification": "REQUIRED_PENDING_OWNER",
+    "recheckEvents": [
+      "INITIAL_CREATE",
+      "AFTER_SAVE",
+      "AFTER_ATOMIC_REPLACE",
+      "AFTER_MIGRATION",
+      "AFTER_RESTORE",
+      "AFTER_COPY"
+    ],
+    "requiredProtection": "COMPLETE"
+  },
+  "readOnlyConsumers": [
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift",
+      "role": "S8_3_DIAGNOSTICS_ALLOWLIST_SOURCE_BOUND_READ_ONLY_CONSUMER"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+      "role": "EXTERNAL_BACKUP_EXPORT_DELEGATE_SOURCE_BOUND_READ_ONLY_CONSUMER"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift",
+      "role": "REPORT_RECOVERY_SOURCE_BOUND_READ_ONLY_CONSUMER"
+    }
+  ],
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P01C02OwnedFileProtectionContractV1",
+  "schemaVersion": 1,
+  "secretInventory": [],
+  "secretInventoryCompleteness": "NO_REAL_CURRENT_SECRET_OBSERVED_SOURCE_BOUND_EMPTY",
+  "sourceBindings": [
+    {
+      "bytes": 17409,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+      "role": "FENCED_PRODUCT_SOURCE",
+      "sha256": "354b09ae803c26cead040bd273e551e04482ff2a8f9b1b6ab6730b6d18f60f87"
+    },
+    {
+      "bytes": 124514,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+      "role": "FENCED_PRODUCT_SOURCE",
+      "sha256": "a15610b5727b24182beaed2806c7b45af9d17f642081a8014035fae4a538ec76"
+    },
+    {
+      "bytes": 38395,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+      "role": "FENCED_PRODUCT_SOURCE",
+      "sha256": "62d7ebffe3c73ce853283790a9fad99ebbaa5d104b2861a507e4252c2c93cfa6"
+    },
+    {
+      "bytes": 83199,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "role": "FENCED_PRODUCT_SOURCE",
+      "sha256": "27da93e2460593959b1ff9629dfd38bc9e321962c5ac97d2f69edbb2a1f18661"
+    },
+    {
+      "bytes": 21581,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/RestoreIntentStore.swift",
+      "role": "FENCED_PRODUCT_SOURCE",
+      "sha256": "d359416300136104c8e6092364ae8cb0f6c176b6987025c158c95e7a4567dc1e"
+    },
+    {
+      "bytes": 38432,
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift",
+      "role": "FENCED_PRODUCT_SOURCE",
+      "sha256": "20d15bdf16dcfc5bfd47b1f0513f5af5812694ac16b15c71cd07b4475e431513"
+    },
+    {
+      "bytes": 65743,
+      "path": "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift",
+      "role": "FENCED_PRODUCT_SOURCE",
+      "sha256": "c58ab9d633dcc12295ef62c6c4bcc9111ac119e9662e1beca75d1f8830a3c5ed"
+    },
+    {
+      "bytes": 43961,
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+      "role": "FENCED_PRODUCT_SOURCE",
+      "sha256": "3e247b432a1843750b36a289eb1d1ad295edc0e2b57b793f251f96056f51235e"
+    },
+    {
+      "bytes": 90933,
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+      "role": "FENCED_PRODUCT_SOURCE",
+      "sha256": "312265f809cc4f848262b8e2f39906afa06e2672b42dce78c7bf4f0194a1eeb5"
+    },
+    {
+      "bytes": 26893,
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/EntitlementStore.swift",
+      "role": "FENCED_PRODUCT_SOURCE",
+      "sha256": "dbe1747c031f315d7213974ef886ec8ede282eb6372312ca8165541084ba8844"
+    },
+    {
+      "bytes": 23398,
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "role": "FENCED_PRODUCT_SOURCE",
+      "sha256": "d1893b7aac650cfb6492eb56f4bfd5b75e8ee20b1053d7915dc6df89acf5f8be"
+    },
+    {
+      "bytes": 64168,
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+      "role": "FENCED_PRODUCT_SOURCE",
+      "sha256": "ff35185a2b53b4cd32885fbf11b6b901e3a64d7daf8c3738677c4dc50c09b772"
+    },
+    {
+      "bytes": 61109,
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "role": "FENCED_PRODUCT_SOURCE",
+      "sha256": "be9e516819796d0fecc8e1f99403a118e8f641dd57a56afeb1e3866f2ebe2da2"
+    },
+    {
+      "bytes": 7965,
+      "mutationAuthorized": false,
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift",
+      "role": "S8_3_DIAGNOSTICS_ALLOWLIST_SOURCE_BOUND_READ_ONLY_CONSUMER",
+      "sha256": "c57ad0df48160f4fe0956d151c0e40f5fc831aa85e91608768ae7be25546cb33"
+    },
+    {
+      "bytes": 34827,
+      "mutationAuthorized": false,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+      "role": "EXTERNAL_BACKUP_EXPORT_DELEGATE_SOURCE_BOUND_READ_ONLY_CONSUMER",
+      "sha256": "b6dcc3d5f26cd95cb32f4c328496d82a033e0e7fb426d87efcd2120cd8d9de7c"
+    },
+    {
+      "bytes": 30003,
+      "mutationAuthorized": false,
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift",
+      "role": "REPORT_RECOVERY_SOURCE_BOUND_READ_ONLY_CONSUMER",
+      "sha256": "77869412033327591e8f38a32d47d2bbca392c12212cf006e7a2e5bf36e71fd9"
+    }
+  ]
+}

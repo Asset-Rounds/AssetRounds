@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import SwiftData
 
@@ -55,6 +56,28 @@ final class BackupRestoreFailureInjection {
 
 @MainActor
 final class BackupRestoreService {
+    private struct PinnedIdentity: Equatable {
+        let device: UInt64
+        let inode: UInt64
+        let linkCount: UInt64
+        let type: UInt32
+
+        init(_ info: stat) {
+            device = UInt64(info.st_dev)
+            inode = UInt64(info.st_ino)
+            linkCount = UInt64(info.st_nlink)
+            type = UInt32(info.st_mode & S_IFMT)
+        }
+    }
+
+    private struct PinnedDirectory {
+        let descriptor: Int32
+        let identity: PinnedIdentity
+        let parent: Int32?
+        let name: String?
+    }
+
+    private static let modelStoreName = "model.sqlite"
     private let applicationSupportURL: URL
     private let generationFactory: StoreGenerationFactory
     private var generationAuthority: StoreRestoreGenerationAuthority!
@@ -328,9 +351,19 @@ final class BackupRestoreService {
             try inject(.afterPreparedWrite)
 
             try inject(.beforeGenerationInstall)
+            try protectGenerationTree(
+                id: newGenerationID,
+                root: generationFactory.restoreStagingGenerationURL(id: newGenerationID),
+                staging: true
+            )
             try generationFactory.installRestoreStagingGeneration(
                 id: newGenerationID,
                 authority: generationAuthority
+            )
+            try protectGenerationTree(
+                id: newGenerationID,
+                root: generationFactory.installedGenerationURL(id: newGenerationID),
+                staging: false
             )
             let installed = intent.advancing(to: .generationInstalled)
             try intentStore.replace(expected: intent, with: installed)
@@ -341,6 +374,7 @@ final class BackupRestoreService {
             try inject(.afterGenerationInstall)
 
             try inject(.beforePointerSwitch)
+            try protectDataPointer(named: "current.json")
             try generationFactory.switchCurrentGeneration(
                 expected: currentGenerationID,
                 to: newGenerationID,
@@ -364,6 +398,7 @@ final class BackupRestoreService {
             try inject(.afterNewGenerationValidation)
 
             try inject(.beforeCleanup)
+            try protectDataPointer(named: "retired.json")
             try generationFactory.retireGeneration(
                 oldID: currentGenerationID,
                 currentID: newGenerationID,
@@ -372,12 +407,23 @@ final class BackupRestoreService {
             try intentStore.remove(expected: validated)
             try cleanupEmptyRestoreDirectories()
             return session
+        } catch let failure as ProtectedFilePolicyError
+            where failure == .protectedDataUnavailable {
+            throw failure
         } catch let error as BackupRestoreServiceError
             where error == .injectedFailure {
             throw error
         } catch {
-            if let recovered = try? reconcileAtStartup() {
-                return recovered
+            do {
+                if let recovered = try reconcileAtStartup() {
+                    return recovered
+                }
+            } catch let failure as ProtectedFilePolicyError
+                where failure == .protectedDataUnavailable {
+                throw failure
+            } catch {
+                // Preserve the original restore failure when reconciliation
+                // cannot establish a safe recovery state.
             }
             throw error
         }
@@ -426,7 +472,7 @@ final class BackupRestoreService {
               try generationAuthority.importStagingNames().isEmpty else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
-        guard let oldSession = validInstalledGeneration(
+        guard let oldSession = try validInstalledGeneration(
             id: intent.oldGenerationID
         ), let oldRecords = try? records(in: oldSession.modelContext) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
@@ -448,9 +494,14 @@ final class BackupRestoreService {
         if presence.staging {
             try requireNoUnexpectedStagingBytes(id: intent.newGenerationID)
         }
-        let installedNewSession = presence.installed
-            ? validInstalledGeneration(id: intent.newGenerationID)
-            : nil
+        let installedNewSession: StoreGenerationSession?
+        if presence.installed {
+            installedNewSession = try validInstalledGeneration(
+                id: intent.newGenerationID
+            )
+        } else {
+            installedNewSession = nil
+        }
         if let installedNewSession {
             let newRecords = try records(in: installedNewSession.modelContext)
             guard validMonotonicUnion(from: oldRecords, to: newRecords) else {
@@ -458,7 +509,7 @@ final class BackupRestoreService {
             }
         }
         if presence.staging,
-           let stagedRecords = validStagingGenerationRecords(
+           let stagedRecords = try validStagingGenerationRecords(
                id: intent.newGenerationID
            ),
            !validMonotonicUnion(from: oldRecords, to: stagedRecords) {
@@ -497,6 +548,7 @@ final class BackupRestoreService {
             let newSession = installedNewSession
             guard let newSession else {
                 if currentID == intent.newGenerationID {
+                    try protectDataPointer(named: "current.json")
                     try generationFactory.switchCurrentGeneration(
                         expected: intent.newGenerationID,
                         to: intent.oldGenerationID,
@@ -515,6 +567,7 @@ final class BackupRestoreService {
                 return nil
             }
             if currentID == intent.oldGenerationID {
+                try protectDataPointer(named: "current.json")
                 try generationFactory.switchCurrentGeneration(
                     expected: intent.oldGenerationID,
                     to: intent.newGenerationID,
@@ -539,6 +592,7 @@ final class BackupRestoreService {
                 guard currentID == intent.newGenerationID else {
                     throw BackupRestoreServiceError.invalidRestoreAuthority
                 }
+                try protectDataPointer(named: "current.json")
                 try generationFactory.switchCurrentGeneration(
                     expected: intent.newGenerationID,
                     to: intent.oldGenerationID,
@@ -566,6 +620,7 @@ final class BackupRestoreService {
                   let newSession else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
+            try protectDataPointer(named: "retired.json")
             try generationFactory.retireGeneration(
                 oldID: intent.oldGenerationID,
                 currentID: intent.newGenerationID,
@@ -579,6 +634,17 @@ final class BackupRestoreService {
 }
 
 private extension BackupRestoreService {
+    func protectDataPointer(named name: String) throws {
+        let pointerURL = applicationSupportURL
+            .appendingPathComponent("FieldEvidenceData", isDirectory: true)
+            .appendingPathComponent(name, isDirectory: false)
+        try ProtectedFilePolicyV1.applyAndVerify(
+            .generationPointer,
+            at: pointerURL,
+            authorityCheck: { try generationAuthority.verify() }
+        )
+    }
+
     func ensureGenerationAuthority() throws {
         if generationAuthority == nil {
             generationAuthority = try generationFactory.makeRestoreGenerationAuthority()
@@ -619,6 +685,7 @@ private extension BackupRestoreService {
         try validateLiveSession(session, expected: nil)
         let validated = intent.advancing(to: .newGenerationValidated)
         try intentStore.replace(expected: intent, with: validated)
+        try protectDataPointer(named: "retired.json")
         try generationFactory.retireGeneration(
             oldID: intent.oldGenerationID,
             currentID: intent.newGenerationID,
@@ -672,13 +739,34 @@ private extension BackupRestoreService {
                 value,
                 to: generationFactory.restoreStagingGenerationURL(
                     id: generationID
-                )
+                ),
+                generationID: generationID
+            )
+            try protectGenerationTree(
+                id: generationID,
+                root: generationFactory.restoreStagingGenerationURL(id: generationID),
+                staging: true
             )
         } catch {
-            try? generationFactory.removeRestoreStagingGeneration(
-                id: generationID,
-                authority: generationAuthority
-            )
+            let originalError = error
+            let cleanupError: Error?
+            do {
+                try generationFactory.removeRestoreStagingGeneration(
+                    id: generationID,
+                    authority: generationAuthority
+                )
+                cleanupError = nil
+            } catch {
+                cleanupError = error
+            }
+            if let failure = cleanupError as? ProtectedFilePolicyError,
+               failure == .protectedDataUnavailable {
+                throw failure
+            }
+            if let failure = originalError as? ProtectedFilePolicyError,
+               failure == .protectedDataUnavailable {
+                throw failure
+            }
             throw BackupRestoreServiceError.materializationFailed
         }
     }
@@ -830,67 +918,645 @@ private extension BackupRestoreService {
 
     func writeMembers(
         _ value: ValidatedV4BackupPackageV1,
-        to root: URL
+        to root: URL,
+        generationID: UUID
     ) throws {
         for evidence in value.records.evidenceFiles {
             let id = canonical(evidence.id)
-            let directory = root.appendingPathComponent(
-                "evidence/\(id)",
-                isDirectory: true
-            )
-            try fileManager.createDirectory(
-                at: directory,
-                withIntermediateDirectories: true
+            try protectStagingDirectory(
+                root: root,
+                relativePath: "evidence/\(id)",
+                generationID: generationID
             )
             try writeExact(
                 value.members["media/\(id).jpg"],
                 to: root.appendingPathComponent(evidence.relativePath),
-                expectedHash: evidence.sha256
+                expectedHash: evidence.sha256,
+                generationID: generationID
             )
             try writeExact(
                 value.members["thumbnails/\(id).jpg"],
                 to: root.appendingPathComponent(evidence.thumbnailRelativePath),
-                expectedHash: evidence.thumbnailSHA256
+                expectedHash: evidence.thumbnailSHA256,
+                generationID: generationID
             )
         }
         if !value.records.reports.isEmpty {
-            try fileManager.createDirectory(
-                at: root.appendingPathComponent("snapshots", isDirectory: true),
-                withIntermediateDirectories: false
+            try protectStagingDirectory(
+                root: root,
+                relativePath: "snapshots",
+                generationID: generationID
             )
         }
         if value.records.reports.contains(where: { $0.pdfState == "ready" }) {
-            try fileManager.createDirectory(
-                at: root.appendingPathComponent("pdfs", isDirectory: true),
-                withIntermediateDirectories: false
+            try protectStagingDirectory(
+                root: root,
+                relativePath: "pdfs",
+                generationID: generationID
             )
         }
         for report in value.records.reports {
             try writeExact(
                 value.members[report.snapshotRelativePath],
                 to: root.appendingPathComponent(report.snapshotRelativePath),
-                expectedHash: report.snapshotSHA256
+                expectedHash: report.snapshotSHA256,
+                generationID: generationID
             )
             if let path = report.pdfRelativePath,
                let hash = report.pdfSHA256 {
                 try writeExact(
                     value.members[path],
                     to: root.appendingPathComponent(path),
-                    expectedHash: hash
+                    expectedHash: hash,
+                    generationID: generationID
                 )
             }
         }
     }
 
-    func writeExact(_ data: Data?, to url: URL, expectedHash: String) throws {
+    func writeExact(
+        _ data: Data?,
+        to url: URL,
+        expectedHash: String,
+        generationID: UUID
+    ) throws {
         guard let data,
               CanonicalJSONV1.sha256(data) == expectedHash else {
             throw BackupRestoreServiceError.invalidPackage
         }
-        try data.write(to: url, options: .withoutOverwriting)
-        guard try Data(contentsOf: url) == data else {
-            throw BackupRestoreServiceError.materializationFailed
+        let root = generationFactory.restoreStagingGenerationURL(id: generationID)
+        let relative = try relativePath(of: url, within: root)
+        let components = try validatedPathComponents(relative)
+        guard let finalName = components.last else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
         }
+        let parentRelative = components.dropLast().joined(separator: "/")
+        let temporaryName = ".\(finalName).restore-next"
+        let temporaryRelative = parentRelative.isEmpty
+            ? temporaryName
+            : "\(parentRelative)/\(temporaryName)"
+        let authorityCheck = {
+            try self.generationAuthority.requireStagingGeneration(id: generationID)
+        }
+
+        try withPinnedDirectory(
+            root: root,
+            relativePath: parentRelative,
+            createMissing: false,
+            authorityCheck: authorityCheck
+        ) { parentDescriptor, verifyDirectories in
+            guard try itemExists(parent: parentDescriptor, name: finalName) == false,
+                  try itemExists(parent: parentDescriptor, name: temporaryName) == false else {
+                throw BackupRestoreServiceError.materializationFailed
+            }
+            let descriptor = Darwin.openat(
+                parentDescriptor,
+                temporaryName,
+                O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
+                mode_t(0o600)
+            )
+            guard descriptor >= 0 else {
+                throw BackupRestoreServiceError.materializationFailed
+            }
+            defer { _ = Darwin.close(descriptor) }
+            var temporaryIdentity: PinnedIdentity?
+            do {
+                try data.withUnsafeBytes { raw in
+                    guard let base = raw.baseAddress else { return }
+                    var offset = 0
+                    while offset < raw.count {
+                        let count = Darwin.write(
+                            descriptor,
+                            base.advanced(by: offset),
+                            raw.count - offset
+                        )
+                        if count > 0 {
+                            offset += count
+                        } else if errno != EINTR {
+                            throw BackupRestoreServiceError.materializationFailed
+                        }
+                    }
+                }
+                guard Darwin.fsync(descriptor) == 0 else {
+                    throw BackupRestoreServiceError.materializationFailed
+                }
+                var information = stat()
+                guard Darwin.fstat(descriptor, &information) == 0,
+                      (information.st_mode & S_IFMT) == S_IFREG,
+                      information.st_nlink == 1 else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                let identity = PinnedIdentity(information)
+                temporaryIdentity = identity
+                try verifyDirectories()
+                guard try itemIdentity(
+                    parent: parentDescriptor,
+                    name: temporaryName
+                ) == identity else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    .stagingFile,
+                    relativePath: temporaryRelative,
+                    within: root,
+                    authorityCheck: {
+                        try verifyDirectories()
+                        guard try itemIdentity(
+                            parent: parentDescriptor,
+                            name: temporaryName
+                        ) == identity else {
+                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                        }
+                    }
+                )
+                guard try itemIdentity(
+                    parent: parentDescriptor,
+                    name: temporaryName
+                ) == identity,
+                      try itemExists(parent: parentDescriptor, name: finalName) == false else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                guard Darwin.renameatx_np(
+                    parentDescriptor,
+                    temporaryName,
+                    parentDescriptor,
+                    finalName,
+                    UInt32(RENAME_EXCL)
+                ) == 0,
+                      Darwin.fsync(parentDescriptor) == 0 else {
+                    throw BackupRestoreServiceError.materializationFailed
+                }
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    .stagingFile,
+                    relativePath: relative,
+                    within: root,
+                    authorityCheck: {
+                        try verifyDirectories()
+                        guard try itemIdentity(
+                            parent: parentDescriptor,
+                            name: finalName
+                        ) == identity else {
+                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                        }
+                    }
+                )
+                guard try itemIdentity(
+                    parent: parentDescriptor,
+                    name: finalName
+                ) == identity,
+                      try readRegularFile(
+                          parent: parentDescriptor,
+                          name: finalName,
+                          expected: identity
+                      ) == data else {
+                    throw BackupRestoreServiceError.materializationFailed
+                }
+            } catch {
+                if let temporaryIdentity,
+                   let currentIdentity = try? itemIdentity(
+                       parent: parentDescriptor,
+                       name: temporaryName
+                   ),
+                   currentIdentity == temporaryIdentity {
+                    _ = Darwin.unlinkat(parentDescriptor, temporaryName, 0)
+                    _ = Darwin.fsync(parentDescriptor)
+                }
+                throw error
+            }
+        }
+    }
+
+    func protectStagingDirectory(
+        root: URL,
+        relativePath: String,
+        generationID: UUID
+    ) throws {
+        let authorityCheck = {
+            try self.generationAuthority.requireStagingGeneration(id: generationID)
+        }
+        try withPinnedDirectory(
+            root: root,
+            relativePath: relativePath,
+            createMissing: true,
+            authorityCheck: authorityCheck
+        ) { _, verifyDirectories in
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .stagingDirectory,
+                relativePath: relativePath,
+                within: root,
+                authorityCheck: verifyDirectories
+            )
+        }
+    }
+
+    func protectGenerationTree(
+        id: UUID,
+        root: URL,
+        staging: Bool
+    ) throws {
+        let root = root.standardizedFileURL
+        let authorityCheck = {
+            if staging {
+                try self.generationAuthority.requireStagingGeneration(id: id)
+            } else {
+                try self.generationAuthority.requireInstalledGeneration(id: id)
+            }
+        }
+        try withPinnedDirectory(
+            root: root,
+            relativePath: "",
+            createMissing: false,
+            authorityCheck: authorityCheck
+        ) { _, verifyDirectories in
+            try ProtectedFilePolicyV1.applyAndVerify(
+                staging ? .restoreStaging : .durableDirectory,
+                at: root,
+                authorityCheck: verifyDirectories
+            )
+        }
+        var enumerationError: Error?
+        guard let enumerator = fileManager.enumerator(
+            at: root,
+            includingPropertiesForKeys: nil,
+            options: [],
+            errorHandler: { _, error in
+                enumerationError = error
+                return false
+            }
+        ) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        for case let url as URL in enumerator {
+            let relativePath = try relativePath(of: url, within: root)
+            var information = stat()
+            guard Darwin.lstat(url.path, &information) == 0 else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let kind: OwnedFileKindV1
+            switch information.st_mode & S_IFMT {
+            case S_IFDIR:
+                kind = staging || relativePath == ".staging"
+                    || relativePath.hasPrefix(".staging/")
+                    ? .stagingDirectory
+                    : .durableDirectory
+            case S_IFREG:
+                if staging {
+                    kind = .stagingFile
+                } else {
+                    kind = try installedFileKind(relativePath)
+                }
+            default:
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            try withPinnedExistingItem(
+                root: root,
+                relativePath: relativePath,
+                expectedDirectory: (information.st_mode & S_IFMT) == S_IFDIR,
+                authorityCheck: authorityCheck
+            ) { _, _, verifyItem in
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    kind,
+                    relativePath: relativePath,
+                    within: root,
+                    authorityCheck: verifyItem
+                )
+            }
+        }
+        if let enumerationError {
+            throw enumerationError
+        }
+        try authorityCheck()
+    }
+
+    private func validatedPathComponents(
+        _ relativePath: String
+    ) throws -> [String] {
+        guard !relativePath.hasPrefix("/"),
+              !relativePath.hasPrefix("\\"),
+              !relativePath.contains("\\") else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        if relativePath.isEmpty { return [] }
+        let components = relativePath.split(
+            separator: "/",
+            omittingEmptySubsequences: false
+        ).map(String.init)
+        guard !components.isEmpty,
+              components.allSatisfy({
+                  !$0.isEmpty && $0 != "." && $0 != ".."
+              }) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        return components
+    }
+
+    private func withPinnedDirectory<T>(
+        root: URL,
+        relativePath: String,
+        createMissing: Bool,
+        authorityCheck: () throws -> Void,
+        body: (Int32, () throws -> Void) throws -> T
+    ) throws -> T {
+        let components = try validatedPathComponents(relativePath)
+        try authorityCheck()
+        let rootDescriptor = Darwin.open(
+            root.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard rootDescriptor >= 0 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        var descriptors = [rootDescriptor]
+        defer {
+            for descriptor in descriptors.reversed() {
+                _ = Darwin.close(descriptor)
+            }
+        }
+
+        var rootInformation = stat()
+        guard Darwin.fstat(rootDescriptor, &rootInformation) == 0,
+              (rootInformation.st_mode & S_IFMT) == S_IFDIR else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        var pins = [PinnedDirectory(
+            descriptor: rootDescriptor,
+            identity: PinnedIdentity(rootInformation),
+            parent: nil,
+            name: nil
+        )]
+        var current = rootDescriptor
+        for component in components {
+            var descriptor = Darwin.openat(
+                current,
+                component,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            if descriptor < 0, errno == ENOENT, createMissing {
+                guard Darwin.mkdirat(
+                    current,
+                    component,
+                    mode_t(0o700)
+                ) == 0 || errno == EEXIST,
+                      Darwin.fsync(current) == 0 else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                descriptor = Darwin.openat(
+                    current,
+                    component,
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+                )
+            }
+            guard descriptor >= 0 else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            descriptors.append(descriptor)
+            var information = stat()
+            guard Darwin.fstat(descriptor, &information) == 0,
+                  (information.st_mode & S_IFMT) == S_IFDIR else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            pins.append(PinnedDirectory(
+                descriptor: descriptor,
+                identity: PinnedIdentity(information),
+                parent: current,
+                name: component
+            ))
+            current = descriptor
+        }
+
+        let pinned = pins
+        func verifyDirectories() throws {
+            try authorityCheck()
+            for pin in pinned {
+                var information = stat()
+                guard Darwin.fstat(pin.descriptor, &information) == 0,
+                      PinnedIdentity(information) == pin.identity else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                if let parent = pin.parent, let name = pin.name {
+                    var pathInformation = stat()
+                    guard Darwin.fstatat(
+                        parent,
+                        name,
+                        &pathInformation,
+                        AT_SYMLINK_NOFOLLOW
+                    ) == 0,
+                          PinnedIdentity(pathInformation) == pin.identity else {
+                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                    }
+                }
+            }
+        }
+        try verifyDirectories()
+        let result = try body(current, verifyDirectories)
+        try verifyDirectories()
+        return result
+    }
+
+    private func withPinnedExistingItem<T>(
+        root: URL,
+        relativePath: String,
+        expectedDirectory: Bool,
+        authorityCheck: () throws -> Void,
+        body: (Int32, Int32, () throws -> Void) throws -> T
+    ) throws -> T {
+        let components = try validatedPathComponents(relativePath)
+        guard let name = components.last else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let parentRelative = components.dropLast().joined(separator: "/")
+        return try withPinnedDirectory(
+            root: root,
+            relativePath: parentRelative,
+            createMissing: false,
+            authorityCheck: authorityCheck
+        ) { parentDescriptor, verifyDirectories in
+            let flags: Int32 = expectedDirectory
+                ? (O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                : (O_RDONLY | O_NOFOLLOW)
+            let descriptor = Darwin.openat(parentDescriptor, name, flags)
+            guard descriptor >= 0 else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            defer { _ = Darwin.close(descriptor) }
+            var information = stat()
+            guard Darwin.fstat(descriptor, &information) == 0 else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let identity = PinnedIdentity(information)
+            let expectedType = expectedDirectory
+                ? UInt32(S_IFDIR)
+                : UInt32(S_IFREG)
+            guard identity.type == expectedType,
+                  expectedDirectory || identity.linkCount == 1 else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            func verifyItem() throws {
+                try verifyDirectories()
+                guard try itemIdentity(
+                    parent: parentDescriptor,
+                    name: name
+                ) == identity else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                var descriptorInformation = stat()
+                guard Darwin.fstat(descriptor, &descriptorInformation) == 0,
+                      PinnedIdentity(descriptorInformation) == identity else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+            }
+            try verifyItem()
+            let result = try body(parentDescriptor, descriptor, verifyItem)
+            try verifyItem()
+            return result
+        }
+    }
+
+    private func itemExists(
+        parent: Int32,
+        name: String
+    ) throws -> Bool {
+        var information = stat()
+        if Darwin.fstatat(
+            parent,
+            name,
+            &information,
+            AT_SYMLINK_NOFOLLOW
+        ) == 0 {
+            return true
+        }
+        if errno == ENOENT { return false }
+        throw BackupRestoreServiceError.invalidRestoreAuthority
+    }
+
+    private func itemIdentity(
+        parent: Int32,
+        name: String
+    ) throws -> PinnedIdentity {
+        var information = stat()
+        guard Darwin.fstatat(
+            parent,
+            name,
+            &information,
+            AT_SYMLINK_NOFOLLOW
+        ) == 0 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        guard (information.st_mode & S_IFMT) != S_IFLNK else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        return PinnedIdentity(information)
+    }
+
+    private func readRegularFile(
+        parent: Int32,
+        name: String,
+        expected: PinnedIdentity
+    ) throws -> Data {
+        let descriptor = Darwin.openat(
+            parent,
+            name,
+            O_RDONLY | O_NOFOLLOW
+        )
+        guard descriptor >= 0 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        defer { _ = Darwin.close(descriptor) }
+        var before = stat()
+        guard Darwin.fstat(descriptor, &before) == 0,
+              PinnedIdentity(before) == expected,
+              expected.type == UInt32(S_IFREG),
+              expected.linkCount == 1 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+        while true {
+            let count = buffer.withUnsafeMutableBytes {
+                Darwin.read(descriptor, $0.baseAddress, $0.count)
+            }
+            if count > 0 {
+                data.append(contentsOf: buffer.prefix(count))
+            } else if count == 0 {
+                break
+            } else if errno != EINTR {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        }
+        var after = stat()
+        guard Darwin.fstat(descriptor, &after) == 0,
+              PinnedIdentity(after) == expected,
+              data.count == Int(after.st_size),
+              try itemIdentity(parent: parent, name: name) == expected else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        return data
+    }
+
+    func installedFileKind(_ relativePath: String) throws -> OwnedFileKindV1 {
+        switch relativePath {
+        case Self.modelStoreName:
+            return .database
+        case "\(Self.modelStoreName)-wal":
+            return .databaseWAL
+        case "\(Self.modelStoreName)-shm":
+            return .databaseSHM
+        case ".staging":
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        default:
+            let components = relativePath.split(separator: "/").map(String.init)
+            guard components.count == 3 || components.count == 2 else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            if components.first == "evidence",
+               components.count == 3,
+               let id = UUID(uuidString: components[1]),
+               canonical(id) == components[1],
+               components.last == "original.jpg" {
+                return .mediaOriginal
+            }
+            if components.first == "evidence",
+               components.count == 3,
+               let id = UUID(uuidString: components[1]),
+               canonical(id) == components[1],
+               components.last == "thumbnail.jpg" {
+                return .mediaThumbnail
+            }
+            if components.first == "snapshots",
+               components.count == 2,
+               let id = UUID(uuidString: components[1].replacingOccurrences(of: ".json", with: "")),
+               "\(canonical(id)).json" == components[1],
+               components.last?.hasSuffix(".json") == true {
+                return .reportSnapshot
+            }
+            if components.first == "pdfs",
+               components.count == 2,
+               let id = UUID(uuidString: components[1].replacingOccurrences(of: ".pdf", with: "")),
+               "\(canonical(id)).pdf" == components[1],
+               components.last?.hasSuffix(".pdf") == true {
+                return .reportPDF
+            }
+            if components.first == ".staging" {
+                return .stagingFile
+            }
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+
+    func relativePath(of url: URL, within root: URL) throws -> String {
+        let rootPath = root.standardizedFileURL.path
+        let valuePath = url.standardizedFileURL.path
+        guard valuePath.hasPrefix(rootPath + "/") else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let value = String(valuePath.dropFirst(rootPath.count + 1))
+        guard !value.isEmpty,
+              !value.contains("\\"),
+              !value.split(separator: "/", omittingEmptySubsequences: false)
+                .contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        return value
     }
 
     func validateStagingGeneration(
@@ -901,10 +1567,18 @@ private extension BackupRestoreService {
             id: id,
             authority: generationAuthority
         )
+        try protectGenerationTree(
+            id: id,
+            root: session.generationRootURL,
+            staging: true
+        )
         try validateRows(session.modelContext, expected: expected)
         try validateFrozenFiles(
             root: session.generationRootURL,
-            records: expected
+            records: expected,
+            authorityCheck: {
+                try generationAuthority.requireStagingGeneration(id: id)
+            }
         )
         try validateGenerationTree(
             generationAuthority.stagingTree(id: id),
@@ -919,6 +1593,11 @@ private extension BackupRestoreService {
         let session = try generationFactory.openInstalledGeneration(
             id: id,
             authority: generationAuthority
+        )
+        try protectGenerationTree(
+            id: id,
+            root: session.generationRootURL,
+            staging: false
         )
         try validateLiveSession(session, expected: expected)
     }
@@ -939,6 +1618,9 @@ private extension BackupRestoreService {
                 generationRootURL: session.generationRootURL,
                 now: { Date(timeIntervalSince1970: 0) }
             ).prepare()
+        } catch let failure as ProtectedFilePolicyError
+            where failure == .protectedDataUnavailable {
+            throw failure
         } catch {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
@@ -975,6 +1657,11 @@ private extension BackupRestoreService {
             id: id,
             authority: generationAuthority
         )
+        try protectGenerationTree(
+            id: id,
+            root: session.generationRootURL,
+            staging: false
+        )
         let frozenRecords = try records(in: session.modelContext)
         let tree = try generationAuthority.installedTree(id: id)
         let expected = expectedGenerationTree(records: frozenRecords)
@@ -990,6 +1677,11 @@ private extension BackupRestoreService {
         let session = try generationFactory.openRestoreStagingGeneration(
             id: id,
             authority: generationAuthority
+        )
+        try protectGenerationTree(
+            id: id,
+            root: session.generationRootURL,
+            staging: true
         )
         let frozenRecords = try records(in: session.modelContext)
         let tree = try generationAuthority.stagingTree(id: id)
@@ -1053,22 +1745,52 @@ private extension BackupRestoreService {
         ]
     }
 
-    func validInstalledGeneration(id: UUID) -> StoreGenerationSession? {
-        guard let session = try? generationFactory.openInstalledGeneration(
-            id: id,
-            authority: generationAuthority
-        ),
-              (try? validateLiveSession(session, expected: nil)) != nil else {
+    func validInstalledGeneration(id: UUID) throws -> StoreGenerationSession? {
+        let session: StoreGenerationSession
+        do {
+            session = try generationFactory.openInstalledGeneration(
+                id: id,
+                authority: generationAuthority
+            )
+        } catch let failure as ProtectedFilePolicyError
+            where failure == .protectedDataUnavailable {
+            throw failure
+        } catch {
+            return nil
+        }
+        do {
+            try protectGenerationTree(
+                id: id,
+                root: session.generationRootURL,
+                staging: false
+            )
+        } catch let failure as ProtectedFilePolicyError
+            where failure == .protectedDataUnavailable {
+            throw failure
+        } catch {
+            return nil
+        }
+        do {
+            try validateLiveSession(session, expected: nil)
+        } catch let failure as ProtectedFilePolicyError
+            where failure == .protectedDataUnavailable {
+            throw failure
+        } catch {
             return nil
         }
         return session
     }
 
-    func validStagingGenerationRecords(id: UUID) -> V4BackupRecordsV1? {
+    func validStagingGenerationRecords(id: UUID) throws -> V4BackupRecordsV1? {
         do {
             let session = try generationFactory.openRestoreStagingGeneration(
                 id: id,
                 authority: generationAuthority
+            )
+            try protectGenerationTree(
+                id: id,
+                root: session.generationRootURL,
+                staging: true
             )
             guard !session.modelContext.hasChanges else { return nil }
             let frozenRecords = try records(in: session.modelContext)
@@ -1082,6 +1804,9 @@ private extension BackupRestoreService {
                 records: frozenRecords
             )
             return frozenRecords
+        } catch let failure as ProtectedFilePolicyError
+            where failure == .protectedDataUnavailable {
+            throw failure
         } catch {
             return nil
         }
@@ -1112,14 +1837,23 @@ private extension BackupRestoreService {
         }
     }
 
-    func validateFrozenFiles(root: URL, records: V4BackupRecordsV1) throws {
+    func validateFrozenFiles(
+        root: URL,
+        records: V4BackupRecordsV1,
+        authorityCheck: () throws -> Void = {}
+    ) throws {
+        try authorityCheck()
         for evidence in records.evidenceFiles {
-            let original = try Data(contentsOf: root.appendingPathComponent(
-                evidence.relativePath
-            ))
-            let thumbnail = try Data(contentsOf: root.appendingPathComponent(
-                evidence.thumbnailRelativePath
-            ))
+            let original = try readValidatedRegularFile(
+                root: root,
+                relativePath: evidence.relativePath,
+                authorityCheck: authorityCheck
+            )
+            let thumbnail = try readValidatedRegularFile(
+                root: root,
+                relativePath: evidence.thumbnailRelativePath,
+                authorityCheck: authorityCheck
+            )
             guard original.count == evidence.byteCount,
                   thumbnail.count == evidence.thumbnailByteCount,
                   CanonicalJSONV1.sha256(original) == evidence.sha256,
@@ -1128,19 +1862,59 @@ private extension BackupRestoreService {
             }
         }
         for report in records.reports {
-            let snapshot = try Data(contentsOf: root.appendingPathComponent(
-                report.snapshotRelativePath
-            ))
+            let snapshot = try readValidatedRegularFile(
+                root: root,
+                relativePath: report.snapshotRelativePath,
+                authorityCheck: authorityCheck
+            )
             guard CanonicalJSONV1.sha256(snapshot) == report.snapshotSHA256 else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
             if let path = report.pdfRelativePath,
                let hash = report.pdfSHA256 {
-                let pdf = try Data(contentsOf: root.appendingPathComponent(path))
+                let pdf = try readValidatedRegularFile(
+                    root: root,
+                    relativePath: path,
+                    authorityCheck: authorityCheck
+                )
                 guard CanonicalJSONV1.sha256(pdf) == hash else {
                     throw BackupRestoreServiceError.invalidRestoreAuthority
                 }
             }
+        }
+        try authorityCheck()
+    }
+
+    private func readValidatedRegularFile(
+        root: URL,
+        relativePath: String,
+        authorityCheck: () throws -> Void
+    ) throws -> Data {
+        let components = try validatedPathComponents(relativePath)
+        guard let name = components.last else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        return try withPinnedExistingItem(
+            root: root,
+            relativePath: relativePath,
+            expectedDirectory: false,
+            authorityCheck: authorityCheck
+        ) { parentDescriptor, descriptor, verifyItem in
+            var information = stat()
+            guard Darwin.fstat(descriptor, &information) == 0,
+                  (information.st_mode & S_IFMT) == S_IFREG,
+                  information.st_nlink == 1 else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let identity = PinnedIdentity(information)
+            try verifyItem()
+            let data = try readRegularFile(
+                parent: parentDescriptor,
+                name: name,
+                expected: identity
+            )
+            try verifyItem()
+            return data
         }
     }
 
@@ -1269,6 +2043,9 @@ private extension BackupRestoreService {
                 generationRootURL: currentGenerationRootURL,
                 scopedAccess: .alreadyAuthorized
             ).discard(value)
+        } catch let failure as ProtectedFilePolicyError
+            where failure == .protectedDataUnavailable {
+            throw failure
         } catch {
             throw BackupRestoreServiceError.materializationFailed
         }

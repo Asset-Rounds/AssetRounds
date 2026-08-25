@@ -856,6 +856,11 @@ private final class EraseAuxiliaryAuthority {
         let inode: ino_t
     }
 
+    private struct RegularFileValue {
+        let data: Data
+        let identity: Identity
+    }
+
     private let applicationSupportURL: URL
     private let cachesDirectoryURL: URL
     private let temporaryDirectoryURL: URL
@@ -1069,11 +1074,66 @@ private final class EraseAuxiliaryAuthority {
             throw EraseAllServiceError.invalidAuthority
         }
         defer { _ = Darwin.close(descriptor) }
+        let expectedDirectory = try Self.identity(descriptor)
+        do {
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .stagingDirectory,
+                relativePath: "FieldEvidenceDiagnostics",
+                within: applicationSupportURL
+            ) {
+                try self.verify()
+                guard try Self.identity(descriptor) == expectedDirectory,
+                      try Self.directoryIdentity(
+                          parent: self.applicationSupportDescriptor,
+                          name: "FieldEvidenceDiagnostics"
+                      ) == expectedDirectory else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            }
+        } catch {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let file = Darwin.openat(
+            descriptor,
+            "counters.json",
+            O_RDONLY | O_NOFOLLOW
+        )
+        guard file >= 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        defer { _ = Darwin.close(file) }
+        let expectedFile = try Self.regularFileIdentity(file)
+        do {
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .diagnostics,
+                relativePath: "FieldEvidenceDiagnostics/counters.json",
+                within: applicationSupportURL
+            ) {
+                try self.verify()
+                guard try Self.identity(descriptor) == expectedDirectory,
+                      try Self.regularFileIdentity(file) == expectedFile,
+                      try Self.directoryIdentity(
+                          parent: self.applicationSupportDescriptor,
+                          name: "FieldEvidenceDiagnostics"
+                      ) == expectedDirectory else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                try Self.verifyRegularFilePath(
+                    parent: descriptor,
+                    name: "counters.json",
+                    expected: expectedFile
+                )
+            }
+        } catch {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let published = try Self.readRegularFileValue(
+            parent: descriptor,
+            name: "counters.json"
+        )
         guard try Self.names(in: descriptor) == ["counters.json"],
-              try Self.readRegularFile(
-                parent: descriptor,
-                name: "counters.json"
-              ) == expectedData else {
+              published.identity == expectedFile,
+              published.data == expectedData else {
             throw EraseAllServiceError.invalidAuthority
         }
         try verify()
@@ -1099,6 +1159,24 @@ private final class EraseAuxiliaryAuthority {
         }
         defer { _ = Darwin.close(directory) }
         let expectedDirectory = try Self.identity(directory)
+        do {
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .stagingDirectory,
+                relativePath: "FieldEvidenceDiagnostics",
+                within: applicationSupportURL
+            ) {
+                try self.verify()
+                guard try Self.identity(directory) == expectedDirectory,
+                      try Self.directoryIdentity(
+                          parent: self.applicationSupportDescriptor,
+                          name: "FieldEvidenceDiagnostics"
+                      ) == expectedDirectory else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            }
+        } catch {
+            throw EraseAllServiceError.invalidAuthority
+        }
         let file = Darwin.openat(
             directory,
             "counters.json",
@@ -1108,7 +1186,38 @@ private final class EraseAuxiliaryAuthority {
         guard file >= 0 else {
             throw EraseAllServiceError.invalidAuthority
         }
+        defer { _ = Darwin.close(file) }
+        let expectedFile: Identity
         do {
+            expectedFile = try Self.regularFileIdentity(file)
+        } catch {
+            throw error
+        }
+        do {
+            do {
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    .diagnostics,
+                    relativePath: "FieldEvidenceDiagnostics/counters.json",
+                    within: applicationSupportURL
+                ) {
+                    try self.verify()
+                    guard try Self.identity(directory) == expectedDirectory,
+                          try Self.regularFileIdentity(file) == expectedFile,
+                          try Self.directoryIdentity(
+                              parent: self.applicationSupportDescriptor,
+                              name: "FieldEvidenceDiagnostics"
+                          ) == expectedDirectory else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                    try Self.verifyRegularFilePath(
+                        parent: directory,
+                        name: "counters.json",
+                        expected: expectedFile
+                    )
+                }
+            } catch {
+                throw EraseAllServiceError.invalidAuthority
+            }
             try data.withUnsafeBytes { raw in
                 guard let base = raw.baseAddress else { return }
                 var offset = 0
@@ -1129,23 +1238,58 @@ private final class EraseAuxiliaryAuthority {
                 throw EraseAllServiceError.invalidAuthority
             }
         } catch {
-            _ = Darwin.close(file)
+            try? Self.removeRegularFileIfExact(
+                parent: directory,
+                name: "counters.json",
+                expected: expectedFile,
+                expectedDirectory: expectedDirectory
+            )
             throw error
         }
-        _ = Darwin.close(file)
-        guard Darwin.fsync(directory) == 0,
-              try Self.directoryIdentity(
-                parent: applicationSupportDescriptor,
-                name: "FieldEvidenceDiagnostics"
-              ) == expectedDirectory,
-              try Self.names(in: directory) == ["counters.json"],
-              try Self.readRegularFile(
+        do {
+            guard Darwin.fsync(directory) == 0,
+                  try Self.directoryIdentity(
+                    parent: applicationSupportDescriptor,
+                    name: "FieldEvidenceDiagnostics"
+                  ) == expectedDirectory,
+                  try Self.names(in: directory) == ["counters.json"] else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let published = try Self.readRegularFileValue(
                 parent: directory,
                 name: "counters.json"
-              ) == data else {
+            )
+            guard published.identity == expectedFile,
+                  published.data == data else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try verify()
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .diagnostics,
+                relativePath: "FieldEvidenceDiagnostics/counters.json",
+                within: applicationSupportURL
+            ) {
+                try self.verify()
+                guard try Self.identity(directory) == expectedDirectory,
+                      try Self.regularFileIdentity(file) == expectedFile else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                try Self.verifyRegularFilePath(
+                    parent: directory,
+                    name: "counters.json",
+                    expected: expectedFile
+                )
+            }
+            try verify()
+        } catch {
+            try? Self.removeRegularFileIfExact(
+                parent: directory,
+                name: "counters.json",
+                expected: expectedFile,
+                expectedDirectory: expectedDirectory
+            )
             throw EraseAllServiceError.invalidAuthority
         }
-        try verify()
     }
 
     func removeEraseRootIfEmpty() throws {
@@ -1376,10 +1520,10 @@ private final class EraseAuxiliaryAuthority {
         return result.sorted()
     }
 
-    private static func readRegularFile(
+    private static func readRegularFileValue(
         parent: Int32,
         name: String
-    ) throws -> Data {
+    ) throws -> RegularFileValue {
         let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
         guard descriptor >= 0 else {
             throw EraseAllServiceError.invalidAuthority
@@ -1391,6 +1535,7 @@ private final class EraseAuxiliaryAuthority {
               info.st_nlink == 1 else {
             throw EraseAllServiceError.invalidAuthority
         }
+        let expected = Identity(device: info.st_dev, inode: info.st_ino)
         var result = Data()
         var buffer = [UInt8](repeating: 0, count: 16 * 1024)
         while true {
@@ -1405,10 +1550,76 @@ private final class EraseAuxiliaryAuthority {
                 throw EraseAllServiceError.invalidAuthority
             }
         }
-        guard result.count == Int(info.st_size) else {
+        var after = stat()
+        guard Darwin.fstat(descriptor, &after) == 0,
+              (after.st_mode & S_IFMT) == S_IFREG,
+              after.st_nlink == 1,
+              Identity(device: after.st_dev, inode: after.st_ino) == expected,
+              after.st_size == info.st_size,
+              result.count == Int(after.st_size) else {
             throw EraseAllServiceError.invalidAuthority
         }
-        return result
+        return RegularFileValue(data: result, identity: expected)
+    }
+
+    private static func regularFileIdentity(_ descriptor: Int32) throws -> Identity {
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFREG,
+              info.st_nlink == 1 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return Identity(device: info.st_dev, inode: info.st_ino)
+    }
+
+    private static func verifyRegularFilePath(
+        parent: Int32,
+        name: String,
+        expected: Identity
+    ) throws {
+        var info = stat()
+        guard Darwin.fstatat(parent, name, &info, AT_SYMLINK_NOFOLLOW) == 0,
+              (info.st_mode & S_IFMT) == S_IFREG,
+              info.st_nlink == 1,
+              Identity(device: info.st_dev, inode: info.st_ino) == expected else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
+    private static func removeRegularFileIfExact(
+        parent: Int32,
+        name: String,
+        expected: Identity,
+        expectedDirectory: Identity
+    ) throws {
+        guard try identity(parent) == expectedDirectory else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
+        if descriptor < 0 {
+            if errno == ENOENT { return }
+            throw EraseAllServiceError.invalidAuthority
+        }
+        defer { _ = Darwin.close(descriptor) }
+        guard try regularFileIdentity(descriptor) == expected else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        var current = stat()
+        guard Darwin.fstatat(parent, name, &current, AT_SYMLINK_NOFOLLOW) == 0,
+              (current.st_mode & S_IFMT) == S_IFREG,
+              current.st_nlink == 1,
+              Identity(device: current.st_dev, inode: current.st_ino) == expected,
+              Darwin.unlinkat(parent, name, 0) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        guard Darwin.fsync(parent) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        var absent = stat()
+        guard Darwin.fstatat(parent, name, &absent, AT_SYMLINK_NOFOLLOW) != 0,
+              errno == ENOENT else {
+            throw EraseAllServiceError.invalidAuthority
+        }
     }
 
     private static func identity(_ descriptor: Int32) throws -> Identity {

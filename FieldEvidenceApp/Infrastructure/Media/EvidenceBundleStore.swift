@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 
 struct EvidenceBundleInput: Sendable {
@@ -84,6 +85,11 @@ final class EvidenceBundleStoreFailureInjection: @unchecked Sendable {
 }
 
 actor EvidenceBundleStore {
+    private struct FileIdentity: Equatable {
+        let device: dev_t
+        let inode: ino_t
+    }
+
     private let generationRootURL: URL
     private let fileManager: FileManager
     private let failureInjection: EvidenceBundleStoreFailureInjection?
@@ -118,20 +124,24 @@ actor EvidenceBundleStore {
         }
 
         do {
-            try fileManager.createDirectory(
-                at: paths.stagingDirectoryURL,
-                withIntermediateDirectories: false
+            try ensureDirectory(
+                relativeComponents: [
+                    ".staging",
+                    "evidence",
+                    evidenceID.uuidString.lowercased()
+                ],
+                policyKind: .stagingDirectory
             )
             guard failureInjection?.consume(.stagingWrite) != true else {
                 throw EvidenceBundleStoreError.fileOperationFailed
             }
-            try input.originalJPEG.write(
-                to: paths.stagingOriginalURL,
-                options: .atomic
+            try writeProtectedStagingFile(
+                input.originalJPEG,
+                to: paths.stagingOriginalURL
             )
-            try input.thumbnailJPEG.write(
-                to: paths.stagingThumbnailURL,
-                options: .atomic
+            try writeProtectedStagingFile(
+                input.thumbnailJPEG,
+                to: paths.stagingThumbnailURL
             )
 
             let facts = try verifyBundle(
@@ -154,7 +164,11 @@ actor EvidenceBundleStore {
                 thumbnailSHA256: facts.thumbnailSHA256
             )
         } catch {
-            try? removeExactStagingDirectoryIfPresent(paths.stagingDirectoryURL)
+            do {
+                try removeExactStagingDirectoryIfPresent(paths.stagingDirectoryURL)
+            } catch {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
             if let failure = error as? EvidenceBundleStoreError {
                 throw failure
             }
@@ -183,6 +197,7 @@ actor EvidenceBundleStore {
             throw EvidenceBundleStoreError.promotedBundleAlreadyExists
         }
 
+        try verifyBundlePolicy(paths: paths, isStaging: true)
         let stagedFacts = try verifyBundle(
             directoryURL: paths.stagingDirectoryURL,
             evidenceID: staged.evidenceID,
@@ -209,33 +224,49 @@ actor EvidenceBundleStore {
             }
             // Both directories are in the same immutable generation, so this is
             // one atomic publication of the verified original+thumbnail pair.
-            try fileManager.moveItem(
-                at: paths.stagingDirectoryURL,
-                to: paths.promotedDirectoryURL
+            try moveDirectoryNoReplace(
+                from: paths.stagingDirectoryURL,
+                to: paths.promotedDirectoryURL,
+                didMove: &didPromote
             )
-            didPromote = true
-            let promotedFacts = try verifyBundle(
+            try applyDirectoryPolicy(
+                .durableDirectory,
+                at: paths.promotedDirectoryURL
+            )
+            try applyPromotedMediaPolicy(
+                .mediaOriginal,
+                at: paths.promotedOriginalURL
+            )
+            try applyPromotedMediaPolicy(
+                .mediaThumbnail,
+                at: paths.promotedThumbnailURL
+            )
+            let verifiedPromotedFacts = try verifyBundle(
                 directoryURL: paths.promotedDirectoryURL,
                 evidenceID: staged.evidenceID,
                 paths: paths
             )
-            guard promotedFacts == stagedFacts else {
+            guard verifiedPromotedFacts == stagedFacts else {
                 throw EvidenceBundleStoreError.bundleFactsMismatch
             }
             return PromotedEvidenceBundle(
                 evidenceID: staged.evidenceID,
                 originalRelativePath: paths.originalRelativePath,
                 thumbnailRelativePath: paths.thumbnailRelativePath,
-                originalByteCount: promotedFacts.originalByteCount,
-                thumbnailByteCount: promotedFacts.thumbnailByteCount,
-                originalSHA256: promotedFacts.originalSHA256,
-                thumbnailSHA256: promotedFacts.thumbnailSHA256
+                originalByteCount: verifiedPromotedFacts.originalByteCount,
+                thumbnailByteCount: verifiedPromotedFacts.thumbnailByteCount,
+                originalSHA256: verifiedPromotedFacts.originalSHA256,
+                thumbnailSHA256: verifiedPromotedFacts.thumbnailSHA256
             )
         } catch {
             // The final path was absent immediately before our rename. If this
             // attempt created it but verification failed, it is still unowned.
             if didPromote {
-                try? removeExactDirectoryIfPresent(paths.promotedDirectoryURL)
+                do {
+                    try removeExactDirectoryIfPresent(paths.promotedDirectoryURL)
+                } catch {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
             }
             if let failure = error as? EvidenceBundleStoreError {
                 throw failure
@@ -253,11 +284,8 @@ actor EvidenceBundleStore {
         guard type == .typeDirectory else {
             throw EvidenceBundleStoreError.bundleShapeInvalid
         }
-        do {
-            try fileManager.removeItem(at: target)
-        } catch {
-            throw EvidenceBundleStoreError.fileOperationFailed
-        }
+        try verifyOwnedPolicy(.stagingDirectory, at: target)
+        try removeExactDirectoryIfPresent(target)
     }
 
     func removePromotedBundleIfOwned(_ promoted: PromotedEvidenceBundle) throws {
@@ -279,11 +307,7 @@ actor EvidenceBundleStore {
               promoted.thumbnailSHA256 == facts.thumbnailSHA256 else {
             throw EvidenceBundleStoreError.promotedBundleNotOwned
         }
-        do {
-            try fileManager.removeItem(at: paths.promotedDirectoryURL)
-        } catch {
-            throw EvidenceBundleStoreError.fileOperationFailed
-        }
+        try removeExactDirectoryIfPresent(paths.promotedDirectoryURL)
     }
 
     func verifyPromoted(
@@ -339,6 +363,12 @@ actor EvidenceBundleStore {
             let bundlePaths = paths(for: evidenceID)
             let hasStaging = stagingIDs.contains(evidenceID)
             let hasPromoted = promotedIDs.contains(evidenceID)
+            if hasStaging {
+                try verifyBundlePolicy(paths: bundlePaths, isStaging: true)
+            }
+            if hasPromoted {
+                try verifyBundlePolicy(paths: bundlePaths, isStaging: false)
+            }
 
             guard let authority = authorityByID[evidenceID] else {
                 if hasStaging {
@@ -434,49 +464,34 @@ actor EvidenceBundleStore {
         parentComponents: [String],
         bundleDirectoryName: String
     ) throws -> Set<UUID> {
-        var parentURL = generationRootURL
-        for component in parentComponents {
-            parentURL.appendPathComponent(component, isDirectory: true)
-            guard let parentType = try itemType(at: parentURL) else {
-                return []
-            }
-            guard parentType == .typeDirectory else {
-                throw EvidenceBundleStoreError.bundleShapeInvalid
-            }
+        guard validPathComponent(bundleDirectoryName),
+              parentComponents.allSatisfy(validPathComponent) else {
+            throw EvidenceBundleStoreError.unsafePath
         }
-
-        let bundlesURL = parentURL.appendingPathComponent(
-            bundleDirectoryName,
-            isDirectory: true
-        )
-        guard let bundlesType = try itemType(at: bundlesURL) else {
+        guard let result = try withOptionalDirectoryDescriptor(
+            relativeComponents: parentComponents + [bundleDirectoryName]
+        ) { descriptor in
+            var result: Set<UUID> = []
+            for name in try directoryNames(descriptor) {
+                guard let id = UUID(uuidString: name),
+                      id.uuidString.lowercased() == name,
+                      result.insert(id).inserted else {
+                    throw EvidenceBundleStoreError.bundleShapeInvalid
+                }
+                var info = stat()
+                guard Darwin.fstatat(
+                    descriptor,
+                    name,
+                    &info,
+                    AT_SYMLINK_NOFOLLOW
+                ) == 0,
+                      (info.st_mode & S_IFMT) == S_IFDIR else {
+                    throw EvidenceBundleStoreError.bundleShapeInvalid
+                }
+            }
+            return result
+        } else {
             return []
-        }
-        guard bundlesType == .typeDirectory else {
-            throw EvidenceBundleStoreError.bundleShapeInvalid
-        }
-
-        let names: [String]
-        do {
-            names = try fileManager.contentsOfDirectory(atPath: bundlesURL.path)
-        } catch {
-            throw EvidenceBundleStoreError.fileOperationFailed
-        }
-
-        var result: Set<UUID> = []
-        for name in names {
-            guard let id = UUID(uuidString: name),
-                  id.uuidString.lowercased() == name,
-                  result.insert(id).inserted else {
-                throw EvidenceBundleStoreError.bundleShapeInvalid
-            }
-            let bundleURL = bundlesURL.appendingPathComponent(
-                name,
-                isDirectory: true
-            )
-            guard try itemType(at: bundleURL) == .typeDirectory else {
-                throw EvidenceBundleStoreError.bundleShapeInvalid
-            }
         }
         return result
     }
@@ -486,32 +501,52 @@ actor EvidenceBundleStore {
         evidenceID: UUID,
         paths: BundlePaths
     ) throws -> BundleFacts {
-        guard try itemType(at: directoryURL) == .typeDirectory else {
-            throw EvidenceBundleStoreError.bundleMissing
-        }
-        let names: Set<String>
-        do {
-            names = Set(try fileManager.contentsOfDirectory(atPath: directoryURL.path))
-        } catch {
-            throw EvidenceBundleStoreError.fileOperationFailed
-        }
-        guard names == ["original.jpg", "thumbnail.jpg"] else {
-            throw EvidenceBundleStoreError.bundleShapeInvalid
-        }
-
         let isStaging = directoryURL.standardizedFileURL == paths.stagingDirectoryURL
         let originalURL = isStaging ? paths.stagingOriginalURL : paths.promotedOriginalURL
         let thumbnailURL = isStaging ? paths.stagingThumbnailURL : paths.promotedThumbnailURL
-        try requireRegularNonsymlinkFile(originalURL)
-        try requireRegularNonsymlinkFile(thumbnailURL)
+        let directoryKind: OwnedFileKindV1 = isStaging
+            ? .stagingDirectory
+            : .durableDirectory
+        let originalKind: OwnedFileKindV1 = isStaging
+            ? .stagingFile
+            : .mediaOriginal
+        let thumbnailKind: OwnedFileKindV1 = isStaging
+            ? .stagingFile
+            : .mediaThumbnail
+        guard try itemType(at: directoryURL) == .typeDirectory else {
+            throw EvidenceBundleStoreError.bundleMissing
+        }
 
-        let original: Data
-        let thumbnail: Data
-        do {
-            original = try Data(contentsOf: originalURL, options: .mappedIfSafe)
-            thumbnail = try Data(contentsOf: thumbnailURL, options: .mappedIfSafe)
-        } catch {
-            throw EvidenceBundleStoreError.fileOperationFailed
+        let (original, thumbnail): (Data, Data) = try withOwnedDirectory(
+            at: directoryURL
+        ) { descriptor in
+            let expected = try directoryIdentity(descriptor)
+            do {
+                try ProtectedFilePolicyV1.verify(directoryKind, at: directoryURL)
+            } catch {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            guard try directoryIdentity(descriptor) == expected,
+                  try directoryIdentity(at: directoryURL) == expected else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            let names = Set(try directoryNames(descriptor))
+            guard names == ["original.jpg", "thumbnail.jpg"] else {
+                throw EvidenceBundleStoreError.bundleShapeInvalid
+            }
+            let original = try readProtectedRegularFile(
+                originalKind,
+                at: originalURL,
+                parent: descriptor,
+                name: "original.jpg"
+            )
+            let thumbnail = try readProtectedRegularFile(
+                thumbnailKind,
+                at: thumbnailURL,
+                parent: descriptor,
+                name: "thumbnail.jpg"
+            )
+            return (original, thumbnail)
         }
         try validateCanonicalJPEG(original, kind: .original)
         try validateCanonicalJPEG(thumbnail, kind: .thumbnail)
@@ -542,41 +577,783 @@ actor EvidenceBundleStore {
         }
     }
 
-    private func validateGenerationRoot() throws {
-        guard try itemType(at: generationRootURL) == .typeDirectory else {
+    private struct GenerationRootAuthority {
+        let applicationSupportDescriptor: Int32
+        let dataRootDescriptor: Int32
+        let generationsDescriptor: Int32
+        let generationDescriptor: Int32
+        let generationName: String
+        let applicationSupportURL: URL
+        let dataRootURL: URL
+        let generationsURL: URL
+        let generationRootURL: URL
+        let applicationSupportIdentity: FileIdentity
+        let dataRootIdentity: FileIdentity
+        let generationsIdentity: FileIdentity
+        let generationIdentity: FileIdentity
+    }
+
+    private func openGenerationRootAuthority() throws -> GenerationRootAuthority {
+        let root = generationRootURL.standardizedFileURL
+        let generationsURL = root.deletingLastPathComponent()
+        let dataRootURL = generationsURL.deletingLastPathComponent()
+        let applicationSupportURL = dataRootURL.deletingLastPathComponent()
+        let generationName = root.lastPathComponent
+        guard generationsURL.lastPathComponent == "generations",
+              dataRootURL.lastPathComponent == "FieldEvidenceData",
+              let generationID = UUID(uuidString: generationName),
+              generationID.uuidString.lowercased() == generationName,
+              !applicationSupportURL.path.isEmpty else {
             throw EvidenceBundleStoreError.generationRootInvalid
         }
-        let rootPath = generationRootURL.path
-        guard !rootPath.isEmpty,
-              generationRootURL.standardizedFileURL.path == rootPath else {
-            throw EvidenceBundleStoreError.unsafePath
+
+        var retained: [Int32] = []
+        var succeeded = false
+        defer {
+            if !succeeded {
+                retained.reversed().forEach { _ = Darwin.close($0) }
+            }
+        }
+
+        let applicationSupportDescriptor = Darwin.open(
+            applicationSupportURL.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard applicationSupportDescriptor >= 0 else {
+            throw EvidenceBundleStoreError.generationRootInvalid
+        }
+        retained.append(applicationSupportDescriptor)
+
+        let dataRootDescriptor = Darwin.openat(
+            applicationSupportDescriptor,
+            "FieldEvidenceData",
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard dataRootDescriptor >= 0 else {
+            throw EvidenceBundleStoreError.generationRootInvalid
+        }
+        retained.append(dataRootDescriptor)
+
+        let generationsDescriptor = Darwin.openat(
+            dataRootDescriptor,
+            "generations",
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard generationsDescriptor >= 0 else {
+            throw EvidenceBundleStoreError.generationRootInvalid
+        }
+        retained.append(generationsDescriptor)
+
+        let generationDescriptor = Darwin.openat(
+            generationsDescriptor,
+            generationName,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard generationDescriptor >= 0 else {
+            throw EvidenceBundleStoreError.generationRootInvalid
+        }
+        retained.append(generationDescriptor)
+
+        let authority = GenerationRootAuthority(
+            applicationSupportDescriptor: applicationSupportDescriptor,
+            dataRootDescriptor: dataRootDescriptor,
+            generationsDescriptor: generationsDescriptor,
+            generationDescriptor: generationDescriptor,
+            generationName: generationName,
+            applicationSupportURL: applicationSupportURL,
+            dataRootURL: dataRootURL,
+            generationsURL: generationsURL,
+            generationRootURL: root,
+            applicationSupportIdentity: try directoryIdentity(applicationSupportDescriptor),
+            dataRootIdentity: try directoryIdentity(dataRootDescriptor),
+            generationsIdentity: try directoryIdentity(generationsDescriptor),
+            generationIdentity: try directoryIdentity(generationDescriptor)
+        )
+        try reproveGenerationRoot(authority)
+        succeeded = true
+        return authority
+    }
+
+    private func closeGenerationRootAuthority(_ authority: GenerationRootAuthority) {
+        _ = Darwin.close(authority.generationDescriptor)
+        _ = Darwin.close(authority.generationsDescriptor)
+        _ = Darwin.close(authority.dataRootDescriptor)
+        _ = Darwin.close(authority.applicationSupportDescriptor)
+    }
+
+    private func reproveGenerationRoot(_ authority: GenerationRootAuthority) throws {
+        guard try directoryIdentity(authority.applicationSupportDescriptor)
+                == authority.applicationSupportIdentity,
+              try directoryIdentity(authority.dataRootDescriptor)
+                == authority.dataRootIdentity,
+              try directoryIdentity(authority.generationsDescriptor)
+                == authority.generationsIdentity,
+              try directoryIdentity(authority.generationDescriptor)
+                == authority.generationIdentity,
+              try directoryIdentity(
+                parent: authority.applicationSupportDescriptor,
+                name: "FieldEvidenceData"
+              ) == authority.dataRootIdentity,
+              try directoryIdentity(
+                parent: authority.dataRootDescriptor,
+                name: "generations"
+              ) == authority.generationsIdentity,
+              try directoryIdentity(
+                parent: authority.generationsDescriptor,
+                name: authority.generationName
+              ) == authority.generationIdentity,
+              try directoryIdentity(at: authority.applicationSupportURL)
+                == authority.applicationSupportIdentity,
+              try directoryIdentity(at: authority.dataRootURL)
+                == authority.dataRootIdentity,
+              try directoryIdentity(at: authority.generationsURL)
+                == authority.generationsIdentity,
+              try directoryIdentity(at: authority.generationRootURL)
+                == authority.generationIdentity else {
+            throw EvidenceBundleStoreError.generationRootInvalid
         }
     }
 
-    private func ensureDirectory(relativeComponents: [String]) throws {
-        var current = generationRootURL
-        for component in relativeComponents {
-            guard !component.isEmpty, component != ".", component != "..",
-                  !component.contains("/"), !component.contains("\\") else {
-                throw EvidenceBundleStoreError.unsafePath
+    private func withGenerationRootAuthority<T>(
+        _ body: (GenerationRootAuthority) throws -> T
+    ) throws -> T {
+        let authority = try openGenerationRootAuthority()
+        defer { closeGenerationRootAuthority(authority) }
+        try reproveGenerationRoot(authority)
+        let result = try body(authority)
+        try reproveGenerationRoot(authority)
+        return result
+    }
+
+    private func validateGenerationRoot() throws {
+        try withGenerationRootAuthority { _ in }
+    }
+
+    private func ensureDirectory(
+        relativeComponents: [String],
+        policyKind: OwnedFileKindV1? = nil
+    ) throws {
+        guard !relativeComponents.isEmpty else {
+            throw EvidenceBundleStoreError.unsafePath
+        }
+        let resolvedPolicyKind = policyKind ?? (
+            relativeComponents.first == ".staging"
+                ? .stagingDirectory
+                : .durableDirectory
+        )
+        try withDirectoryDescriptor(relativeComponents: []) { root in
+            let rootExpected = try directoryIdentity(root)
+            var current = root
+            var currentURL = generationRootURL
+            var ownsCurrent = false
+            defer {
+                if ownsCurrent {
+                    _ = Darwin.close(current)
+                }
             }
-            current.appendPathComponent(component, isDirectory: true)
-            switch try itemType(at: current) {
-            case nil:
+
+            for component in relativeComponents {
+                guard validPathComponent(component) else {
+                    throw EvidenceBundleStoreError.unsafePath
+                }
+                let parentExpected = try directoryIdentity(current)
+                var next = Darwin.openat(
+                    current,
+                    component,
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+                )
+                if next < 0, errno == ENOENT {
+                    guard Darwin.mkdirat(current, component, mode_t(0o700)) == 0 else {
+                        throw EvidenceBundleStoreError.fileOperationFailed
+                    }
+                    guard Darwin.fsync(current) == 0 else {
+                        throw EvidenceBundleStoreError.fileOperationFailed
+                    }
+                    next = Darwin.openat(
+                        current,
+                        component,
+                        O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+                    )
+                }
+                guard next >= 0 else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+                currentURL.appendPathComponent(component, isDirectory: true)
                 do {
-                    try fileManager.createDirectory(
-                        at: current,
-                        withIntermediateDirectories: false
+                    let expected = try directoryIdentity(next)
+                    try ProtectedFilePolicyV1.applyAndVerify(
+                        resolvedPolicyKind,
+                        at: currentURL,
+                        authorityCheck: {
+                            guard try directoryIdentity(current) == parentExpected,
+                                  try directoryIdentity(next) == expected,
+                                  try directoryIdentity(at: currentURL) == expected,
+                                  try directoryIdentity(root) == rootExpected else {
+                                throw EvidenceBundleStoreError.fileOperationFailed
+                            }
+                        }
+                    )
+                    guard Darwin.fsync(next) == 0,
+                          Darwin.fsync(current) == 0 else {
+                        throw EvidenceBundleStoreError.fileOperationFailed
+                    }
+                } catch {
+                    _ = Darwin.close(next)
+                    throw error
+                }
+                if ownsCurrent {
+                    _ = Darwin.close(current)
+                }
+                current = next
+                ownsCurrent = true
+            }
+        }
+    }
+
+    private func applyDirectoryPolicy(
+        _ kind: OwnedFileKindV1,
+        at url: URL
+    ) throws {
+        do {
+            try withParentDescriptor(of: url) { parent, leaf in
+                let descriptor = Darwin.openat(
+                    parent,
+                    leaf,
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+                )
+                guard descriptor >= 0 else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+                defer { _ = Darwin.close(descriptor) }
+                let expected = try directoryIdentity(descriptor)
+                let parentExpected = try directoryIdentity(parent)
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    kind,
+                    at: url,
+                    authorityCheck: {
+                        try validateGenerationRoot()
+                        guard try directoryIdentity(descriptor) == expected,
+                              try directoryIdentity(parent) == parentExpected,
+                              try directoryIdentity(at: url) == expected,
+                              try directoryIdentity(parent: parent, name: leaf) == expected else {
+                            throw EvidenceBundleStoreError.fileOperationFailed
+                        }
+                    }
+                )
+                guard Darwin.fsync(descriptor) == 0,
+                      Darwin.fsync(parent) == 0 else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+            }
+        } catch {
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
+    }
+
+    private func writeProtectedStagingFile(
+        _ data: Data,
+        to url: URL
+    ) throws {
+        let temporaryName = ".\(url.lastPathComponent).\(UUID().uuidString.lowercased()).tmp"
+        let temporaryURL = url
+            .deletingLastPathComponent()
+            .appendingPathComponent(temporaryName, isDirectory: false)
+        try withParentDescriptor(of: url) { parent, leaf in
+            let descriptor = Darwin.openat(
+                parent,
+                temporaryName,
+                O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
+                mode_t(0o600)
+            )
+            guard descriptor >= 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            defer { _ = Darwin.close(descriptor) }
+            let expected = try regularIdentity(descriptor)
+            var published = false
+            do {
+                try applyLeafPolicy(
+                    .stagingFile,
+                    at: temporaryURL,
+                    parent: parent,
+                    name: temporaryName,
+                    descriptor: descriptor,
+                    expected: expected
+                )
+                try data.withUnsafeBytes { raw in
+                    guard let base = raw.baseAddress else { return }
+                    var offset = 0
+                    while offset < raw.count {
+                        let count = Darwin.write(
+                            descriptor,
+                            base.advanced(by: offset),
+                            raw.count - offset
+                        )
+                        if count > 0 {
+                            offset += count
+                        } else if count < 0, errno == EINTR {
+                            continue
+                        } else {
+                            throw EvidenceBundleStoreError.fileOperationFailed
+                        }
+                    }
+                }
+                guard Darwin.fsync(descriptor) == 0 else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+                guard Darwin.renameatx_np(
+                    parent,
+                    temporaryName,
+                    parent,
+                    leaf,
+                    UInt32(RENAME_EXCL)
+                ) == 0 else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+                published = true
+                guard Darwin.fsync(parent) == 0 else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+                try applyLeafPolicy(
+                    .stagingFile,
+                    at: url,
+                    parent: parent,
+                    name: leaf,
+                    descriptor: descriptor,
+                    expected: expected
+                )
+                guard Darwin.fsync(descriptor) == 0,
+                      Darwin.fsync(parent) == 0 else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+            } catch {
+                let writeError = error
+                do {
+                    try quarantineRegularFileAndRemove(
+                        parent: parent,
+                        name: published ? leaf : temporaryName,
+                        expectedIdentity: expected
                     )
                 } catch {
                     throw EvidenceBundleStoreError.fileOperationFailed
                 }
-            case .some(.typeDirectory):
-                break
-            case .some:
-                throw EvidenceBundleStoreError.bundleShapeInvalid
+                throw writeError
             }
         }
+    }
+
+    private func applyPromotedMediaPolicy(
+        _ kind: OwnedFileKindV1,
+        at url: URL
+    ) throws {
+        try withParentDescriptor(of: url) { parent, leaf in
+            let descriptor = Darwin.openat(parent, leaf, O_RDONLY | O_NOFOLLOW)
+            guard descriptor >= 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            defer { _ = Darwin.close(descriptor) }
+            let expected = try regularIdentity(descriptor)
+            try applyLeafPolicy(
+                kind,
+                at: url,
+                parent: parent,
+                name: leaf,
+                descriptor: descriptor,
+                expected: expected
+            )
+            guard Darwin.fsync(descriptor) == 0,
+                  Darwin.fsync(parent) == 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+        }
+    }
+
+    private func verifyBundlePolicy(
+        paths: BundlePaths,
+        isStaging: Bool
+    ) throws {
+        try verifyOwnedPolicy(
+            isStaging ? .stagingDirectory : .durableDirectory,
+            at: isStaging ? paths.stagingDirectoryURL : paths.promotedDirectoryURL
+        )
+        try verifyOwnedPolicy(
+            isStaging ? .stagingFile : .mediaOriginal,
+            at: isStaging ? paths.stagingOriginalURL : paths.promotedOriginalURL
+        )
+        try verifyOwnedPolicy(
+            isStaging ? .stagingFile : .mediaThumbnail,
+            at: isStaging ? paths.stagingThumbnailURL : paths.promotedThumbnailURL
+        )
+    }
+
+    private func verifyOwnedPolicy(
+        _ kind: OwnedFileKindV1,
+        at url: URL
+    ) throws {
+        do {
+            try validateGenerationRoot()
+            let disposition = ProtectedFilePolicyV1.disposition(for: kind)
+            if disposition.expectsDirectory {
+                try withOwnedDirectory(at: url) { descriptor in
+                    let expected = try directoryIdentity(descriptor)
+                    try ProtectedFilePolicyV1.verify(kind, at: url)
+                    guard try directoryIdentity(descriptor) == expected,
+                          try directoryIdentity(at: url) == expected else {
+                        throw EvidenceBundleStoreError.fileOperationFailed
+                    }
+                }
+            } else {
+                try withParentDescriptor(of: url) { parent, leaf in
+                    let descriptor = Darwin.openat(parent, leaf, O_RDONLY | O_NOFOLLOW)
+                    guard descriptor >= 0 else {
+                        throw EvidenceBundleStoreError.fileOperationFailed
+                    }
+                    defer { _ = Darwin.close(descriptor) }
+                    let expected = try regularIdentity(descriptor)
+                    let parentExpected = try directoryIdentity(parent)
+                    try ProtectedFilePolicyV1.verify(kind, at: url)
+                    guard try directoryIdentity(parent) == parentExpected,
+                          try regularIdentity(descriptor) == expected,
+                          try regularIdentity(parent: parent, name: leaf) == expected,
+                          try regularIdentity(at: url) == expected else {
+                        throw EvidenceBundleStoreError.fileOperationFailed
+                    }
+                }
+            }
+            try validateGenerationRoot()
+        } catch let error as EvidenceBundleStoreError {
+            throw error
+        } catch {
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
+    }
+
+    private func applyLeafPolicy(
+        _ kind: OwnedFileKindV1,
+        at url: URL,
+        parent: Int32,
+        name: String,
+        descriptor: Int32,
+        expected: FileIdentity
+    ) throws {
+        let parentExpected = try directoryIdentity(parent)
+        try ProtectedFilePolicyV1.applyAndVerify(kind, at: url) {
+            try validateGenerationRoot()
+            guard try directoryIdentity(parent) == parentExpected,
+                  try regularIdentity(descriptor) == expected,
+                  try regularIdentity(parent: parent, name: name) == expected,
+                  try regularIdentity(at: url) == expected else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+        }
+    }
+
+    private func moveDirectoryNoReplace(
+        from sourceURL: URL,
+        to destinationURL: URL,
+        didMove: inout Bool
+    ) throws {
+        try withParentDescriptor(of: sourceURL) { sourceParent, sourceLeaf in
+            try withParentDescriptor(of: destinationURL) { destinationParent, destinationLeaf in
+                let sourceParentExpected = try directoryIdentity(sourceParent)
+                let destinationParentExpected = try directoryIdentity(destinationParent)
+                let sourceExpected = try directoryIdentity(
+                    parent: sourceParent,
+                    name: sourceLeaf
+                )
+                guard try itemType(parent: destinationParent, name: destinationLeaf) == nil,
+                      try directoryIdentity(sourceParent) == sourceParentExpected,
+                      try directoryIdentity(destinationParent) == destinationParentExpected,
+                      try directoryIdentity(parent: sourceParent, name: sourceLeaf)
+                        == sourceExpected else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+                guard Darwin.renameatx_np(
+                    sourceParent,
+                    sourceLeaf,
+                    destinationParent,
+                    destinationLeaf,
+                    UInt32(RENAME_EXCL)
+                ) == 0 else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+                didMove = true
+                guard Darwin.fsync(sourceParent) == 0,
+                      Darwin.fsync(destinationParent) == 0 else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+            }
+        }
+    }
+
+    private func withDirectoryDescriptor<T>(
+        relativeComponents: [String],
+        _ body: (Int32) throws -> T
+    ) throws -> T {
+        guard relativeComponents.allSatisfy(validPathComponent) else {
+            throw EvidenceBundleStoreError.unsafePath
+        }
+        return try withGenerationRootAuthority { authority in
+            var descriptor = Darwin.dup(authority.generationDescriptor)
+            guard descriptor >= 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            defer { _ = Darwin.close(descriptor) }
+            for component in relativeComponents {
+                let next = Darwin.openat(
+                    descriptor,
+                    component,
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+                )
+                guard next >= 0 else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+                _ = Darwin.close(descriptor)
+                descriptor = next
+            }
+            return try body(descriptor)
+        }
+    }
+
+    private func withOptionalDirectoryDescriptor<T>(
+        relativeComponents: [String],
+        _ body: (Int32) throws -> T
+    ) throws -> T? {
+        guard relativeComponents.allSatisfy(validPathComponent) else {
+            throw EvidenceBundleStoreError.unsafePath
+        }
+        return try withGenerationRootAuthority { authority in
+            var descriptor = Darwin.dup(authority.generationDescriptor)
+            guard descriptor >= 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            defer { _ = Darwin.close(descriptor) }
+            for component in relativeComponents {
+                let next = Darwin.openat(
+                    descriptor,
+                    component,
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+                )
+                if next < 0, errno == ENOENT {
+                    return nil
+                }
+                guard next >= 0 else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+                _ = Darwin.close(descriptor)
+                descriptor = next
+            }
+            return try body(descriptor)
+        }
+    }
+
+    private func withOwnedDirectory<T>(
+        at url: URL,
+        _ body: (Int32) throws -> T
+    ) throws -> T {
+        try withParentDescriptor(of: url) { parent, leaf in
+            let descriptor = Darwin.openat(
+                parent,
+                leaf,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard descriptor >= 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            defer { _ = Darwin.close(descriptor) }
+            return try body(descriptor)
+        }
+    }
+
+    private func directoryNames(_ descriptor: Int32) throws -> [String] {
+        let duplicate = Darwin.dup(descriptor)
+        guard duplicate >= 0, let directory = Darwin.fdopendir(duplicate) else {
+            if duplicate >= 0 { _ = Darwin.close(duplicate) }
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
+        defer { _ = Darwin.closedir(directory) }
+        var names: [String] = []
+        errno = 0
+        while let entry = Darwin.readdir(directory) {
+            var tuple = entry.pointee.d_name
+            let capacity = MemoryLayout.size(ofValue: tuple)
+            let name = withUnsafePointer(to: &tuple) { pointer in
+                pointer.withMemoryRebound(
+                    to: CChar.self,
+                    capacity: capacity
+                ) { String(cString: $0) }
+            }
+            if name != "." && name != ".." {
+                names.append(name)
+            }
+            errno = 0
+        }
+        guard errno == 0 else {
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
+        return names.sorted()
+    }
+
+    private func readProtectedRegularFile(
+        _ kind: OwnedFileKindV1,
+        at url: URL,
+        parent: Int32,
+        name: String
+    ) throws -> Data {
+        do {
+            let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
+            guard descriptor >= 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            defer { _ = Darwin.close(descriptor) }
+            var before = stat()
+            guard Darwin.fstat(descriptor, &before) == 0,
+                  (before.st_mode & S_IFMT) == S_IFREG,
+                  before.st_nlink == 1 else {
+                throw EvidenceBundleStoreError.fileTypeInvalid
+            }
+            let expected = FileIdentity(device: before.st_dev, inode: before.st_ino)
+            let parentExpected = try directoryIdentity(parent)
+            try ProtectedFilePolicyV1.verify(kind, at: url)
+            guard try directoryIdentity(parent) == parentExpected,
+                  try regularIdentity(descriptor) == expected,
+                  try regularIdentity(parent: parent, name: name) == expected,
+                  try regularIdentity(at: url) == expected else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+
+            var data = Data()
+            var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+            while true {
+                let count = buffer.withUnsafeMutableBytes { raw in
+                    Darwin.read(descriptor, raw.baseAddress, raw.count)
+                }
+                if count > 0 {
+                    data.append(contentsOf: buffer.prefix(count))
+                } else if count == 0 {
+                    break
+                } else if errno != EINTR {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+            }
+            var after = stat()
+            guard Darwin.fstat(descriptor, &after) == 0,
+                  (after.st_mode & S_IFMT) == S_IFREG,
+                  after.st_nlink == 1,
+                  FileIdentity(device: after.st_dev, inode: after.st_ino) == expected,
+                  before.st_size == after.st_size,
+                  data.count == Int(after.st_size) else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            return data
+        } catch let error as EvidenceBundleStoreError {
+            throw error
+        } catch {
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
+    }
+
+    private func withParentDescriptor<T>(
+        of url: URL,
+        _ body: (Int32, String) throws -> T
+    ) throws -> T {
+        let components = try relativeComponents(for: url)
+        guard let leaf = components.last else {
+            throw EvidenceBundleStoreError.unsafePath
+        }
+        return try withDirectoryDescriptor(
+            relativeComponents: Array(components.dropLast())
+        ) { descriptor in
+            try body(descriptor, leaf)
+        }
+    }
+
+    private func relativeComponents(for url: URL) throws -> [String] {
+        let root = generationRootURL.standardizedFileURL
+        let target = url.standardizedFileURL
+        let prefix = root.path.hasSuffix("/") ? root.path : root.path + "/"
+        guard target.path.hasPrefix(prefix) else {
+            throw EvidenceBundleStoreError.unsafePath
+        }
+        let components = String(target.path.dropFirst(prefix.count))
+            .split(separator: "/", omittingEmptySubsequences: false)
+            .map(String.init)
+        guard !components.isEmpty,
+              components.allSatisfy(validPathComponent) else {
+            throw EvidenceBundleStoreError.unsafePath
+        }
+        return components
+    }
+
+    private func validPathComponent(_ value: String) -> Bool {
+        !value.isEmpty && value != "." && value != ".."
+            && !value.contains("/") && !value.contains("\\")
+    }
+
+    private func directoryIdentity(at url: URL) throws -> FileIdentity {
+        let descriptor = Darwin.open(
+            url.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard descriptor >= 0 else {
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
+        defer { _ = Darwin.close(descriptor) }
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFDIR else {
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
+        return FileIdentity(device: info.st_dev, inode: info.st_ino)
+    }
+
+    private func directoryIdentity(_ descriptor: Int32) throws -> FileIdentity {
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFDIR else {
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
+        return FileIdentity(device: info.st_dev, inode: info.st_ino)
+    }
+
+    private func directoryIdentity(parent: Int32, name: String) throws -> FileIdentity {
+        let child = Darwin.openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard child >= 0 else {
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
+        defer { _ = Darwin.close(child) }
+        return try directoryIdentity(child)
+    }
+
+    private func regularIdentity(at url: URL) throws -> FileIdentity {
+        let descriptor = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW)
+        guard descriptor >= 0 else {
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
+        defer { _ = Darwin.close(descriptor) }
+        return try regularIdentity(descriptor)
+    }
+
+    private func regularIdentity(
+        parent: Int32,
+        name: String
+    ) throws -> FileIdentity {
+        let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
+        guard descriptor >= 0 else {
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
+        defer { _ = Darwin.close(descriptor) }
+        return try regularIdentity(descriptor)
+    }
+
+    private func regularIdentity(_ descriptor: Int32) throws -> FileIdentity {
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFREG,
+              info.st_nlink == 1 else {
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
+        return FileIdentity(device: info.st_dev, inode: info.st_ino)
     }
 
     private func requireRegularNonsymlinkFile(_ url: URL) throws {
@@ -589,14 +1366,42 @@ actor EvidenceBundleStore {
         guard isInsideGeneration(url) else {
             throw EvidenceBundleStoreError.unsafePath
         }
-        do {
-            let attributes = try fileManager.attributesOfItem(atPath: url.path)
-            return attributes[.type] as? FileAttributeType
-        } catch let error as CocoaError where
-            error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile {
-            return nil
-        } catch {
+        let target = url.standardizedFileURL
+        if target.path == generationRootURL.path {
+            return try withDirectoryDescriptor(relativeComponents: []) { _ in
+                .typeDirectory
+            }
+        }
+        let components = try relativeComponents(for: target)
+        return try withOptionalDirectoryDescriptor(
+            relativeComponents: Array(components.dropLast())
+        ) { parent in
+            try itemType(parent: parent, name: components[components.count - 1])
+        } ?? nil
+    }
+
+    private func itemType(parent: Int32, name: String) throws -> FileAttributeType? {
+        guard validPathComponent(name) else {
+            throw EvidenceBundleStoreError.unsafePath
+        }
+        var info = stat()
+        guard Darwin.fstatat(parent, name, &info, AT_SYMLINK_NOFOLLOW) == 0 else {
+            if errno == ENOENT { return nil }
             throw EvidenceBundleStoreError.fileOperationFailed
+        }
+        return fileAttributeType(info.st_mode & S_IFMT)
+    }
+
+    private func fileAttributeType(_ mode: mode_t) -> FileAttributeType {
+        switch mode {
+        case S_IFDIR:
+            return .typeDirectory
+        case S_IFREG:
+            return .typeRegular
+        case S_IFLNK:
+            return .typeSymbolicLink
+        default:
+            return .typeUnknown
         }
     }
 
@@ -617,7 +1422,7 @@ actor EvidenceBundleStore {
         guard type == .typeDirectory else {
             throw EvidenceBundleStoreError.bundleShapeInvalid
         }
-        try fileManager.removeItem(at: url)
+        try removeDirectoryTree(at: url)
     }
 
     private func removeExactDirectoryIfPresent(_ url: URL) throws {
@@ -625,7 +1430,256 @@ actor EvidenceBundleStore {
         guard type == .typeDirectory else {
             throw EvidenceBundleStoreError.bundleShapeInvalid
         }
-        try fileManager.removeItem(at: url)
+        try removeDirectoryTree(at: url)
+    }
+
+    private func removeDirectoryTree(at url: URL) throws {
+        try withParentDescriptor(of: url) { parent, leaf in
+            let descriptor = Darwin.openat(
+                parent,
+                leaf,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard descriptor >= 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            let expected = try directoryIdentity(descriptor)
+            _ = Darwin.close(descriptor)
+            try quarantineDirectoryAndRemove(
+                parent: parent,
+                name: leaf,
+                expectedIdentity: expected
+            )
+        }
+    }
+
+    private func quarantineDirectoryAndRemove(
+        parent: Int32,
+        name: String,
+        expectedIdentity: FileIdentity
+    ) throws {
+        let quarantine = ".remove-\(UUID().uuidString.lowercased()).directory"
+        guard validPathComponent(quarantine),
+              Darwin.renameatx_np(
+                  parent,
+                  name,
+                  parent,
+                  quarantine,
+                  UInt32(RENAME_EXCL)
+              ) == 0 else {
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
+
+        var quarantineDescriptor: Int32 = -1
+        var quarantinePresent = true
+        do {
+            guard Darwin.fsync(parent) == 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            quarantineDescriptor = Darwin.openat(
+                parent,
+                quarantine,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard quarantineDescriptor >= 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            guard try directoryIdentity(quarantineDescriptor) == expectedIdentity else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            try removeDirectoryContents(quarantineDescriptor)
+            guard (try directoryNames(quarantineDescriptor)).isEmpty else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            _ = Darwin.close(quarantineDescriptor)
+            quarantineDescriptor = -1
+            guard Darwin.unlinkat(parent, quarantine, AT_REMOVEDIR) == 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            quarantinePresent = false
+            guard Darwin.fsync(parent) == 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            var after = stat()
+            guard Darwin.fstatat(
+                parent,
+                quarantine,
+                &after,
+                AT_SYMLINK_NOFOLLOW
+            ) == -1, errno == ENOENT else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+        } catch {
+            if quarantineDescriptor >= 0 {
+                _ = Darwin.close(quarantineDescriptor)
+            }
+            if quarantinePresent {
+                _ = restoreQuarantinedItem(
+                    parent: parent,
+                    quarantine: quarantine,
+                    name: name,
+                    expectedIdentity: expectedIdentity,
+                    expectsDirectory: true
+                )
+            }
+            throw error
+        }
+    }
+
+    private func quarantineRegularFileAndRemove(
+        parent: Int32,
+        name: String,
+        expectedIdentity: FileIdentity
+    ) throws {
+        let quarantine = ".remove-\(UUID().uuidString.lowercased()).file"
+        guard validPathComponent(quarantine),
+              Darwin.renameatx_np(
+                  parent,
+                  name,
+                  parent,
+                  quarantine,
+                  UInt32(RENAME_EXCL)
+              ) == 0 else {
+            throw EvidenceBundleStoreError.fileOperationFailed
+        }
+
+        var quarantineDescriptor: Int32 = -1
+        var quarantinePresent = true
+        do {
+            guard Darwin.fsync(parent) == 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            quarantineDescriptor = Darwin.openat(
+                parent,
+                quarantine,
+                O_RDONLY | O_NOFOLLOW
+            )
+            guard quarantineDescriptor >= 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            guard try regularIdentity(quarantineDescriptor) == expectedIdentity else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            _ = Darwin.close(quarantineDescriptor)
+            quarantineDescriptor = -1
+            guard Darwin.unlinkat(parent, quarantine, 0) == 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            quarantinePresent = false
+            guard Darwin.fsync(parent) == 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            var after = stat()
+            guard Darwin.fstatat(
+                parent,
+                quarantine,
+                &after,
+                AT_SYMLINK_NOFOLLOW
+            ) == -1, errno == ENOENT else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+        } catch {
+            if quarantineDescriptor >= 0 {
+                _ = Darwin.close(quarantineDescriptor)
+            }
+            if quarantinePresent {
+                _ = restoreQuarantinedItem(
+                    parent: parent,
+                    quarantine: quarantine,
+                    name: name,
+                    expectedIdentity: expectedIdentity,
+                    expectsDirectory: false
+                )
+            }
+            throw error
+        }
+    }
+
+    private func restoreQuarantinedItem(
+        parent: Int32,
+        quarantine: String,
+        name: String,
+        expectedIdentity: FileIdentity,
+        expectsDirectory: Bool
+    ) -> Bool {
+        let flags = O_RDONLY | O_NOFOLLOW
+            | (expectsDirectory ? O_DIRECTORY : 0)
+        let descriptor = Darwin.openat(parent, quarantine, flags)
+        guard descriptor >= 0 else { return false }
+        let identity: FileIdentity?
+        if expectsDirectory {
+            identity = try? directoryIdentity(descriptor)
+        } else {
+            identity = try? regularIdentity(descriptor)
+        }
+        _ = Darwin.close(descriptor)
+        guard identity == expectedIdentity,
+              Darwin.renameatx_np(
+                  parent,
+                  quarantine,
+                  parent,
+                  name,
+                  UInt32(RENAME_EXCL)
+              ) == 0 else {
+            return false
+        }
+        return Darwin.fsync(parent) == 0
+    }
+
+    private func removeDirectoryContents(_ directory: Int32) throws {
+        for name in try directoryNames(directory) {
+            var info = stat()
+            guard Darwin.fstatat(directory, name, &info, AT_SYMLINK_NOFOLLOW) == 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            let mode = info.st_mode & S_IFMT
+            if mode == S_IFDIR {
+                let child = Darwin.openat(
+                    directory,
+                    name,
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+                )
+                guard child >= 0 else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+                let expected: FileIdentity
+                do {
+                    expected = try directoryIdentity(child)
+                } catch {
+                    _ = Darwin.close(child)
+                    throw error
+                }
+                _ = Darwin.close(child)
+                try quarantineDirectoryAndRemove(
+                    parent: directory,
+                    name: name,
+                    expectedIdentity: expected
+                )
+            } else if mode == S_IFREG {
+                guard info.st_nlink == 1 else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+                let child = Darwin.openat(directory, name, O_RDONLY | O_NOFOLLOW)
+                guard child >= 0 else {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+                let expected: FileIdentity
+                do {
+                    expected = try regularIdentity(child)
+                } catch {
+                    _ = Darwin.close(child)
+                    throw error
+                }
+                _ = Darwin.close(child)
+                try quarantineRegularFileAndRemove(
+                    parent: directory,
+                    name: name,
+                    expectedIdentity: expected
+                )
+            } else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+        }
     }
 
     private func sha256(_ data: Data) -> String {

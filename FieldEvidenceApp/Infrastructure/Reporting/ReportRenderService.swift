@@ -55,14 +55,39 @@ enum ReportPDFAnchoredFile {
             let descriptor = Darwin.openat(parent, leaf, O_RDONLY | O_NOFOLLOW)
             guard descriptor >= 0 else { throw Failure.invalidAuthority }
             let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+            let expectedParent = try directoryIdentity(parent)
             var info = stat()
             guard Darwin.fstat(descriptor, &info) == 0,
-                  (info.st_mode & S_IFMT) == S_IFREG else {
+                  (info.st_mode & S_IFMT) == S_IFREG,
+                  info.st_nlink == 1 else {
+                try? handle.close()
+                throw Failure.invalidAuthority
+            }
+            let expected = RootIdentity(device: info.st_dev, inode: info.st_ino)
+            try ProtectedFilePolicyV1.verify(
+                inferredRegularFileKind(for: url),
+                at: url
+            )
+            guard try directoryIdentity(parent) == expectedParent,
+                  try regularFileIdentity(parent: parent, name: leaf) == expected else {
                 try? handle.close()
                 throw Failure.invalidAuthority
             }
             do {
-                return try handle.readToEnd() ?? Data()
+                let data = try handle.readToEnd() ?? Data()
+                var after = stat()
+                guard Darwin.fstat(descriptor, &after) == 0,
+                      (after.st_mode & S_IFMT) == S_IFREG,
+                      after.st_nlink == 1,
+                      after.st_dev == info.st_dev,
+                      after.st_ino == info.st_ino,
+                      try directoryIdentity(parent) == expectedParent,
+                      try regularFileIdentity(parent: parent, name: leaf) == expected,
+                      after.st_size == info.st_size,
+                      data.count == Int(after.st_size) else {
+                    throw Failure.invalidAuthority
+                }
+                return data
             } catch {
                 throw Failure.invalidAuthority
             }
@@ -83,7 +108,16 @@ enum ReportPDFAnchoredFile {
             let descriptor = Darwin.openat(parent, leaf, O_RDONLY | O_NOFOLLOW)
             guard descriptor >= 0 else { throw Failure.invalidAuthority }
             defer { Darwin.close(descriptor) }
+            let expectedParent = try directoryIdentity(parent)
             let identity = try regularFileIdentity(descriptor)
+            try ProtectedFilePolicyV1.verify(
+                inferredRegularFileKind(for: url),
+                at: url
+            )
+            guard try directoryIdentity(parent) == expectedParent,
+                  try regularFileIdentity(parent: parent, name: leaf) == identity else {
+                throw Failure.invalidAuthority
+            }
             try withParentDescriptor(
                 of: quarantineURL,
                 within: rootURL,
@@ -115,9 +149,23 @@ enum ReportPDFAnchoredFile {
             let descriptor = Darwin.openat(parent, leaf, O_RDONLY | O_NOFOLLOW)
             guard descriptor >= 0 else { throw Failure.cleanupFailed }
             let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+            let expectedParent = try directoryIdentity(parent)
             let identity: RootIdentity
             do {
                 identity = try regularFileIdentity(descriptor)
+            } catch {
+                try? handle.close()
+                throw Failure.cleanupFailed
+            }
+            do {
+                try ProtectedFilePolicyV1.verify(
+                    inferredRegularFileKind(for: url),
+                    at: url
+                )
+                guard try directoryIdentity(parent) == expectedParent,
+                      try regularFileIdentity(parent: parent, name: leaf) == identity else {
+                    throw Failure.cleanupFailed
+                }
             } catch {
                 try? handle.close()
                 throw Failure.cleanupFailed
@@ -129,6 +177,10 @@ enum ReportPDFAnchoredFile {
                 throw Failure.cleanupFailed
             }
             guard bytes == expectedData else { throw Failure.cleanupFailed }
+            guard try directoryIdentity(parent) == expectedParent,
+                  try regularFileIdentity(parent: parent, name: leaf) == identity else {
+                throw Failure.cleanupFailed
+            }
             try withParentDescriptor(
                 of: quarantineURL,
                 within: rootURL,
@@ -145,14 +197,51 @@ enum ReportPDFAnchoredFile {
         }
     }
 
+    static func applyAndVerifyRegularFilePolicy(
+        _ kind: OwnedFileKindV1,
+        at url: URL,
+        within rootURL: URL,
+        rootIdentity: RootIdentity
+    ) throws {
+        try withParentDescriptor(
+            of: url,
+            within: rootURL,
+            rootIdentity: rootIdentity
+        ) { parent, leaf in
+            let descriptor = Darwin.openat(parent, leaf, O_RDONLY | O_NOFOLLOW)
+            guard descriptor >= 0 else { throw Failure.invalidAuthority }
+            defer { _ = Darwin.close(descriptor) }
+            let expected = try regularFileIdentity(descriptor)
+            let expectedParent = try directoryIdentity(parent)
+            try ProtectedFilePolicyV1.applyAndVerify(
+                kind,
+                at: url,
+                authorityCheck: {
+                    guard try directoryIdentity(parent) == expectedParent,
+                          try regularFileIdentity(descriptor) == expected,
+                          try regularFileIdentity(parent: parent, name: leaf) == expected,
+                          try Self.rootIdentity(at: rootURL) == rootIdentity else {
+                        throw Failure.invalidAuthority
+                    }
+                }
+            )
+            guard Darwin.fsync(descriptor) == 0,
+                  Darwin.fsync(parent) == 0 else {
+                throw Failure.invalidAuthority
+            }
+        }
+    }
+
     static func ensureDirectory(
         relativePath: String,
+        policyKind: OwnedFileKindV1,
         within rootURL: URL,
         rootIdentity: RootIdentity
     ) throws {
         let components = try validatedComponents(relativePath)
         try withRootDescriptor(rootURL, identity: rootIdentity) { root in
             var current = Darwin.dup(root)
+            var policyURL = rootURL.standardizedFileURL
             guard current >= 0 else { throw Failure.invalidAuthority }
             defer { Darwin.close(current) }
             for component in components {
@@ -165,6 +254,9 @@ enum ReportPDFAnchoredFile {
                     guard Darwin.mkdirat(current, component, 0o700) == 0 else {
                         throw Failure.invalidAuthority
                     }
+                    guard Darwin.fsync(current) == 0 else {
+                        throw Failure.invalidAuthority
+                    }
                     next = Darwin.openat(
                         current,
                         component,
@@ -172,10 +264,54 @@ enum ReportPDFAnchoredFile {
                     )
                 }
                 guard next >= 0 else { throw Failure.invalidAuthority }
+                policyURL.appendPathComponent(component, isDirectory: true)
+                do {
+                    let expectedParent = try directoryIdentity(current)
+                    let expected = try directoryIdentity(next)
+                    try ProtectedFilePolicyV1.applyAndVerify(
+                        policyKind,
+                        at: policyURL,
+                        authorityCheck: {
+                            guard try directoryIdentity(current) == expectedParent,
+                                  try directoryIdentity(next) == expected,
+                                  try directoryIdentity(at: policyURL) == expected,
+                                  try Self.rootIdentity(at: rootURL) == rootIdentity else {
+                                throw Failure.invalidAuthority
+                            }
+                        }
+                    )
+                    guard Darwin.fsync(next) == 0,
+                          Darwin.fsync(current) == 0 else {
+                        throw Failure.invalidAuthority
+                    }
+                } catch {
+                    Darwin.close(next)
+                    throw error
+                }
                 Darwin.close(current)
                 current = next
             }
         }
+    }
+
+    // Compatibility for the recovery owner that predates the explicit policy
+    // parameter. The canonical path determines the closed policy kind; callers
+    // cannot accidentally classify durable PDFs as staging data.
+    static func ensureDirectory(
+        relativePath: String,
+        within rootURL: URL,
+        rootIdentity: RootIdentity
+    ) throws {
+        let policyKind: OwnedFileKindV1 =
+            relativePath == ".staging" || relativePath.hasPrefix(".staging/")
+                ? .stagingDirectory
+                : .durableDirectory
+        try ensureDirectory(
+            relativePath: relativePath,
+            policyKind: policyKind,
+            within: rootURL,
+            rootIdentity: rootIdentity
+        )
     }
 
     static func createRegularFile(
@@ -205,6 +341,17 @@ enum ReportPDFAnchoredFile {
                 throw Failure.cleanupFailed
             }
             do {
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    .stagingFile,
+                    at: url,
+                    authorityCheck: {
+                        guard try regularFileIdentity(descriptor) == createdIdentity,
+                              try regularFileIdentity(at: url) == createdIdentity,
+                              try Self.rootIdentity(at: rootURL) == rootIdentity else {
+                            throw Failure.invalidAuthority
+                        }
+                    }
+                )
                 try data.withUnsafeBytes { raw in
                     guard let base = raw.baseAddress else { return }
                     var offset = 0
@@ -214,11 +361,17 @@ enum ReportPDFAnchoredFile {
                             base.advanced(by: offset),
                             raw.count - offset
                         )
-                        guard count > 0 else { throw Failure.invalidAuthority }
-                        offset += count
+                        if count > 0 {
+                            offset += count
+                        } else if count < 0, errno == EINTR {
+                            continue
+                        } else {
+                            throw Failure.invalidAuthority
+                        }
                     }
                 }
-                guard Darwin.fsync(descriptor) == 0 else {
+                guard Darwin.fsync(descriptor) == 0,
+                      Darwin.fsync(parent) == 0 else {
                     throw Failure.invalidAuthority
                 }
             } catch {
@@ -274,6 +427,10 @@ enum ReportPDFAnchoredFile {
                 ) == 0 else {
                     throw Failure.invalidAuthority
                 }
+                guard Darwin.fsync(sourceParent) == 0,
+                      Darwin.fsync(destinationParent) == 0 else {
+                    throw Failure.invalidAuthority
+                }
             }
         }
     }
@@ -295,14 +452,14 @@ enum ReportPDFAnchoredFile {
             guard descriptor >= 0 else { throw Failure.invalidAuthority }
             defer { Darwin.close(descriptor) }
             for component in components.dropLast() {
-            let next = Darwin.openat(
-                descriptor,
-                component,
-                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
-            )
-            guard next >= 0 else { throw Failure.invalidAuthority }
-            Darwin.close(descriptor)
-            descriptor = next
+                let next = Darwin.openat(
+                    descriptor,
+                    component,
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+                )
+                guard next >= 0 else { throw Failure.invalidAuthority }
+                Darwin.close(descriptor)
+                descriptor = next
             }
             guard let leaf = components.last else { throw Failure.invalidAuthority }
             return try body(descriptor, leaf)
@@ -366,10 +523,47 @@ enum ReportPDFAnchoredFile {
     private static func regularFileIdentity(_ descriptor: Int32) throws -> RootIdentity {
         var info = stat()
         guard Darwin.fstat(descriptor, &info) == 0,
-              (info.st_mode & S_IFMT) == S_IFREG else {
+              (info.st_mode & S_IFMT) == S_IFREG,
+              info.st_nlink == 1 else {
             throw Failure.invalidAuthority
         }
         return RootIdentity(device: info.st_dev, inode: info.st_ino)
+    }
+
+    private static func regularFileIdentity(
+        parent: Int32,
+        name: String
+    ) throws -> RootIdentity {
+        let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw Failure.invalidAuthority }
+        defer { _ = Darwin.close(descriptor) }
+        return try regularFileIdentity(descriptor)
+    }
+
+    static func regularFileIdentity(at url: URL) throws -> RootIdentity {
+        let descriptor = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw Failure.invalidAuthority }
+        defer { _ = Darwin.close(descriptor) }
+        return try regularFileIdentity(descriptor)
+    }
+
+    private static func directoryIdentity(_ descriptor: Int32) throws -> RootIdentity {
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFDIR else {
+            throw Failure.invalidAuthority
+        }
+        return RootIdentity(device: info.st_dev, inode: info.st_ino)
+    }
+
+    private static func directoryIdentity(at url: URL) throws -> RootIdentity {
+        let descriptor = Darwin.open(
+            url.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard descriptor >= 0 else { throw Failure.invalidAuthority }
+        defer { _ = Darwin.close(descriptor) }
+        return try directoryIdentity(descriptor)
     }
 
     /// Move the exact opened inode to the report's other canonical crash-window
@@ -394,6 +588,16 @@ enum ReportPDFAnchoredFile {
         ) == 0 else {
             throw Failure.cleanupFailed
         }
+        guard Darwin.fsync(sourceParent) == 0,
+              Darwin.fsync(quarantineParent) == 0 else {
+            restoreQuarantined(
+                quarantineParent: quarantineParent,
+                quarantineLeaf: quarantineLeaf,
+                sourceParent: sourceParent,
+                sourceLeaf: sourceLeaf
+            )
+            throw Failure.cleanupFailed
+        }
 
         var quarantined = stat()
         guard Darwin.fstatat(
@@ -407,24 +611,25 @@ enum ReportPDFAnchoredFile {
                   device: quarantined.st_dev,
                   inode: quarantined.st_ino
               ) == expectedIdentity else {
-            _ = Darwin.renameatx_np(
-                quarantineParent,
-                quarantineLeaf,
-                sourceParent,
-                sourceLeaf,
-                UInt32(RENAME_EXCL)
+            restoreQuarantined(
+                quarantineParent: quarantineParent,
+                quarantineLeaf: quarantineLeaf,
+                sourceParent: sourceParent,
+                sourceLeaf: sourceLeaf
             )
             throw Failure.cleanupFailed
         }
 
         guard Darwin.unlinkat(quarantineParent, quarantineLeaf, 0) == 0 else {
-            _ = Darwin.renameatx_np(
-                quarantineParent,
-                quarantineLeaf,
-                sourceParent,
-                sourceLeaf,
-                UInt32(RENAME_EXCL)
+            restoreQuarantined(
+                quarantineParent: quarantineParent,
+                quarantineLeaf: quarantineLeaf,
+                sourceParent: sourceParent,
+                sourceLeaf: sourceLeaf
             )
+            throw Failure.cleanupFailed
+        }
+        guard Darwin.fsync(quarantineParent) == 0 else {
             throw Failure.cleanupFailed
         }
         var after = stat()
@@ -439,6 +644,23 @@ enum ReportPDFAnchoredFile {
         }
     }
 
+    private static func restoreQuarantined(
+        quarantineParent: Int32,
+        quarantineLeaf: String,
+        sourceParent: Int32,
+        sourceLeaf: String
+    ) {
+        _ = Darwin.renameatx_np(
+            quarantineParent,
+            quarantineLeaf,
+            sourceParent,
+            sourceLeaf,
+            UInt32(RENAME_EXCL)
+        )
+        _ = Darwin.fsync(quarantineParent)
+        _ = Darwin.fsync(sourceParent)
+    }
+
     private static func validatedComponents(_ relativePath: String) throws -> [String] {
         let components = relativePath.split(
             separator: "/",
@@ -449,6 +671,12 @@ enum ReportPDFAnchoredFile {
             throw Failure.invalidAuthority
         }
         return components
+    }
+
+    private static func inferredRegularFileKind(for url: URL) -> OwnedFileKindV1 {
+        url.standardizedFileURL.pathComponents.contains(".staging")
+            ? .stagingFile
+            : .reportPDF
     }
 }
 
@@ -608,6 +836,7 @@ final class ReportRenderService {
             if failureInjection?.consume(.stageWrite) == true {
                 throw ReportRenderServiceError.writeFailed
             }
+            try applyPolicy(.stagingFile, at: paths.stageURL)
             try verify(
                 paths.stageURL,
                 expectedData: rendered.data,
@@ -631,6 +860,7 @@ final class ReportRenderService {
             if failureInjection?.consume(.reread) == true {
                 throw ReportRenderServiceError.bytesMismatch
             }
+            try applyPolicy(.reportPDF, at: paths.finalURL)
             try verify(
                 paths.finalURL,
                 expectedData: rendered.data,
@@ -739,6 +969,24 @@ final class ReportRenderService {
         }
     }
 
+    private func applyPolicy(
+        _ kind: OwnedFileKindV1,
+        at url: URL
+    ) throws {
+        do {
+            try ReportPDFAnchoredFile.applyAndVerifyRegularFilePolicy(
+                kind,
+                at: url,
+                within: generationRootURL,
+                rootIdentity: rootIdentity
+            )
+        } catch let error as ReportRenderServiceError {
+            throw error
+        } catch {
+            throw ReportRenderServiceError.writeFailed
+        }
+    }
+
     private func persistFailed(reportID: UUID) throws {
         guard !modelContext.hasChanges else {
             throw ReportRenderServiceError.contextHasChanges
@@ -830,16 +1078,19 @@ final class ReportRenderService {
         do {
             try ReportPDFAnchoredFile.ensureDirectory(
                 relativePath: ".staging",
+                policyKind: .stagingDirectory,
                 within: generationRootURL,
                 rootIdentity: rootIdentity
             )
             try ReportPDFAnchoredFile.ensureDirectory(
                 relativePath: ".staging/pdfs",
+                policyKind: .stagingDirectory,
                 within: generationRootURL,
                 rootIdentity: rootIdentity
             )
             try ReportPDFAnchoredFile.ensureDirectory(
                 relativePath: "pdfs",
+                policyKind: .durableDirectory,
                 within: generationRootURL,
                 rootIdentity: rootIdentity
             )

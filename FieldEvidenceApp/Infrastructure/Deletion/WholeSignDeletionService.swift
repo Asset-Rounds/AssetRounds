@@ -891,12 +891,41 @@ private final class DeletionJournalStore {
         )
         defer { Darwin.close(operations) }
         let capturedOperationsIdentity = try Self.identity(operations)
+        do {
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .stagingDirectory,
+                relativePath: "FieldEvidenceOperations",
+                within: root
+            ) {
+                guard try Self.identity(descriptor) == capturedIdentity,
+                      try Self.identity(operations) == capturedOperationsIdentity else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+            }
+        } catch {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
         let deletion = try Self.openOrCreateDirectory(
             parent: operations,
             name: "deletion"
         )
         defer { Darwin.close(deletion) }
         let capturedDeletionIdentity = try Self.identity(deletion)
+        do {
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .stagingDirectory,
+                relativePath: "FieldEvidenceOperations/deletion",
+                within: root
+            ) {
+                guard try Self.identity(descriptor) == capturedIdentity,
+                      try Self.identity(operations) == capturedOperationsIdentity,
+                      try Self.identity(deletion) == capturedDeletionIdentity else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+            }
+        } catch {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
         self.applicationSupportURL = root
         identity = capturedIdentity
         operationsIdentity = capturedOperationsIdentity
@@ -912,6 +941,7 @@ private final class DeletionJournalStore {
             throw WholeSignDeletionServiceError.journalInvalid
         }
         let expected = intent.withPhase(.prepared)
+        try verifyExistingPolicy(.journal, name: Self.name(intent.deletionID))
         try withDeletionDirectory { descriptor in
             let existing = try Self.decode(
                 Self.read(descriptor: descriptor, name: Self.name(intent.deletionID))
@@ -924,6 +954,7 @@ private final class DeletionJournalStore {
     }
 
     func remove(_ expected: DeletionIntentV1) throws {
+        try verifyExistingPolicy(.journal, name: Self.name(expected.deletionID))
         try withDeletionDirectory { descriptor in
             let name = Self.name(expected.deletionID)
             let existing = try Self.decode(Self.read(descriptor: descriptor, name: name))
@@ -968,6 +999,7 @@ private final class DeletionJournalStore {
             }
             let journalIDs = Set(journalNames.compactMap(Self.journalIdentifier))
             for temporary in temporaryNames {
+                try verifyExistingPolicy(.journalTemporary, name: temporary)
                 guard let temporaryID = Self.temporaryIdentifier(temporary) else {
                     throw WholeSignDeletionServiceError.journalInvalid
                 }
@@ -976,13 +1008,17 @@ private final class DeletionJournalStore {
                     throw WholeSignDeletionServiceError.journalInvalid
                 }
                 var info = stat()
-                let valid = Darwin.fstat(file, &info) == 0
-                    && (info.st_mode & S_IFMT) == S_IFREG
-                    && info.st_nlink == 1
-                Darwin.close(file)
-                guard valid else {
+                guard Darwin.fstat(file, &info) == 0,
+                      (info.st_mode & S_IFMT) == S_IFREG,
+                      info.st_nlink == 1 else {
+                    Darwin.close(file)
                     throw WholeSignDeletionServiceError.journalInvalid
                 }
+                let expectedTemporary = Identity(
+                    device: info.st_dev,
+                    inode: info.st_ino
+                )
+                Darwin.close(file)
                 if journalIDs.contains(temporaryID) {
                     let existing = try Self.decode(
                         Self.read(descriptor: descriptor, name: Self.name(temporaryID))
@@ -996,14 +1032,17 @@ private final class DeletionJournalStore {
                         throw WholeSignDeletionServiceError.journalInvalid
                     }
                 }
-                guard Darwin.unlinkat(descriptor, temporary, 0) == 0 else {
-                    throw WholeSignDeletionServiceError.journalInvalid
-                }
+                try Self.removeIfExact(
+                    descriptor: descriptor,
+                    name: temporary,
+                    expected: expectedTemporary
+                )
             }
             if !temporaryNames.isEmpty, Darwin.fsync(descriptor) != 0 {
                 throw WholeSignDeletionServiceError.journalInvalid
             }
             return try journalNames.sorted().map { name in
+                try verifyExistingPolicy(.journal, name: name)
                 guard let identifier = Self.journalIdentifier(name) else {
                     throw WholeSignDeletionServiceError.journalInvalid
                 }
@@ -1038,11 +1077,26 @@ private final class DeletionJournalStore {
                 O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, mode_t(S_IRUSR | S_IWUSR)
             )
             guard file >= 0 else { throw WholeSignDeletionServiceError.journalInvalid }
+            defer { Darwin.close(file) }
+            let expectedTemporary = try Self.fileIdentity(file)
             var succeeded = false
+            var published = false
+            var swapped = false
             defer {
-                Darwin.close(file)
-                if !succeeded { _ = Darwin.unlinkat(descriptor, temporary, 0) }
+                if !succeeded && !published {
+                    try? Self.removeIfExact(
+                        descriptor: descriptor,
+                        name: temporary,
+                        expected: expectedTemporary
+                    )
+                }
             }
+            try applyPolicy(
+                .journalTemporary,
+                name: temporary,
+                descriptor: file,
+                expected: expectedTemporary
+            )
             try data.withUnsafeBytes { raw in
                 guard let base = raw.baseAddress else { return }
                 var written = 0
@@ -1055,12 +1109,265 @@ private final class DeletionJournalStore {
             guard Darwin.fsync(file) == 0 else {
                 throw WholeSignDeletionServiceError.journalInvalid
             }
-            let flags = exclusive ? UInt32(RENAME_EXCL) : UInt32(0)
-            guard Darwin.renameatx_np(descriptor, temporary, descriptor, name, flags) == 0,
-                  Darwin.fsync(descriptor) == 0 else {
+            guard let temporaryValue = try Self.readValueIfPresent(
+                descriptor: descriptor,
+                name: temporary
+            ), temporaryValue.identity == expectedTemporary,
+                  temporaryValue.data == data else {
                 throw WholeSignDeletionServiceError.journalInvalid
             }
-            succeeded = true
+            let priorValue: ReadValue?
+            if exclusive {
+                priorValue = nil
+            } else {
+                let expectedData: Data
+                do {
+                    expectedData = try DeletionIntentEncoderV1()
+                        .encode(intent.withPhase(.prepared)).data
+                } catch {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+                guard let existing = try Self.readValueIfPresent(
+                    descriptor: descriptor,
+                    name: name
+                ), existing.data == expectedData else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+                priorValue = existing
+            }
+            let flags = exclusive ? UInt32(RENAME_EXCL) : UInt32(RENAME_SWAP)
+            guard Darwin.renameatx_np(
+                descriptor,
+                temporary,
+                descriptor,
+                name,
+                flags
+            ) == 0 else {
+                throw WholeSignDeletionServiceError.journalInvalid
+            }
+            published = true
+            swapped = priorValue != nil
+            do {
+                guard Darwin.fsync(descriptor) == 0 else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+                try verifyPublishedPolicy(
+                    .journal,
+                    name: name,
+                    expectedIdentity: temporaryValue.identity
+                )
+                guard let publishedValue = try Self.readValueIfPresent(
+                    descriptor: descriptor,
+                    name: name
+                ), publishedValue.identity == temporaryValue.identity,
+                      publishedValue.data == data else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+                if let priorValue {
+                    try verifyPublishedPolicy(
+                        .journalTemporary,
+                        name: temporary,
+                        expectedIdentity: priorValue.identity
+                    )
+                    guard let displaced = try Self.readValueIfPresent(
+                        descriptor: descriptor,
+                        name: temporary
+                    ), displaced.identity == priorValue.identity,
+                          displaced.data == priorValue.data else {
+                        throw WholeSignDeletionServiceError.journalInvalid
+                    }
+                    try Self.removeExact(
+                        descriptor: descriptor,
+                        name: temporary,
+                        expected: displaced
+                    )
+                    swapped = false
+                }
+                succeeded = true
+            } catch {
+                if let priorValue, swapped {
+                    do {
+                        if let publishedValue = try Self.readValueIfPresent(
+                            descriptor: descriptor,
+                            name: name
+                        ), let displaced = try Self.readValueIfPresent(
+                            descriptor: descriptor,
+                            name: temporary
+                        ), publishedValue.identity == temporaryValue.identity,
+                              publishedValue.data == data,
+                              displaced.identity == priorValue.identity,
+                              displaced.data == priorValue.data,
+                              Darwin.renameatx_np(
+                                descriptor,
+                                temporary,
+                                descriptor,
+                                name,
+                                UInt32(RENAME_SWAP)
+                              ) == 0,
+                              Darwin.fsync(descriptor) == 0 {
+                            try Self.removeExact(
+                                descriptor: descriptor,
+                                name: temporary,
+                                expected: temporaryValue
+                            )
+                            published = false
+                            swapped = false
+                        }
+                    } catch {
+                        // Preserve the exact failure and leave uncertain state for recovery.
+                    }
+                } else if priorValue == nil, published {
+                    do {
+                        try Self.removeExact(
+                            descriptor: descriptor,
+                            name: name,
+                            expected: temporaryValue
+                        )
+                        published = false
+                    } catch {
+                        // Preserve the exact failure and leave uncertain state for recovery.
+                    }
+                }
+                throw error
+            }
+        }
+    }
+
+    private func policyRelativePath(_ name: String) -> String {
+        "FieldEvidenceOperations/deletion/\(name)"
+    }
+
+    private func verifyExistingPolicy(
+        _ kind: OwnedFileKindV1,
+        name: String
+    ) throws {
+        guard let root = applicationSupportURL else {
+            throw WholeSignDeletionServiceError.invalidGeneration
+        }
+        do {
+            try withDeletionDirectory { descriptor in
+                let leaf = Darwin.openat(
+                    descriptor,
+                    name,
+                    O_RDONLY | O_NOFOLLOW
+                )
+                if leaf < 0, errno == ENOENT { return }
+                guard leaf >= 0 else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+                defer { Darwin.close(leaf) }
+                let expected = try Self.fileIdentity(leaf)
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    kind,
+                    relativePath: policyRelativePath(name),
+                    within: root
+                ) {
+                    try self.withDeletionDirectory { _ in }
+                    try self.verifyLeaf(
+                        name,
+                        descriptor: leaf,
+                        expected: expected
+                    )
+                }
+            }
+        } catch {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
+    }
+
+    private func applyPolicy(
+        _ kind: OwnedFileKindV1,
+        name: String,
+        descriptor: Int32,
+        expected: Identity
+    ) throws {
+        guard let root = applicationSupportURL else {
+            throw WholeSignDeletionServiceError.invalidGeneration
+        }
+        do {
+            try ProtectedFilePolicyV1.applyAndVerify(
+                kind,
+                relativePath: policyRelativePath(name),
+                within: root
+            ) {
+                try self.withDeletionDirectory { _ in }
+                try self.verifyLeaf(
+                    name,
+                    descriptor: descriptor,
+                    expected: expected
+                )
+            }
+        } catch {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
+    }
+
+    private func verifyLeaf(
+        _ name: String,
+        descriptor: Int32,
+        expected: Identity
+    ) throws {
+        guard try Self.fileIdentity(descriptor) == expected else {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
+        var info = stat()
+        guard try withDeletionDirectory { parent in
+            Darwin.fstatat(
+                parent,
+                name,
+                &info,
+                AT_SYMLINK_NOFOLLOW
+            ) == 0
+        },
+              (info.st_mode & S_IFMT) == S_IFREG,
+              info.st_nlink == 1,
+              Identity(device: info.st_dev, inode: info.st_ino) == expected else {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
+    }
+
+    private func verifyPublishedPolicy(
+        _ kind: OwnedFileKindV1,
+        name: String,
+        expectedIdentity: Identity
+    ) throws {
+        guard let root = applicationSupportURL else {
+            throw WholeSignDeletionServiceError.invalidGeneration
+        }
+        do {
+            try withDeletionDirectory { descriptor in
+                let leaf = Darwin.openat(
+                    descriptor,
+                    name,
+                    O_RDONLY | O_NOFOLLOW
+                )
+                guard leaf >= 0 else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+                defer { Darwin.close(leaf) }
+                guard try Self.fileIdentity(leaf) == expectedIdentity else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+                try self.verifyLeaf(
+                    name,
+                    descriptor: leaf,
+                    expected: expectedIdentity
+                )
+                try ProtectedFilePolicyV1.verify(
+                    kind,
+                    at: root
+                        .appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
+                        .appendingPathComponent("deletion", isDirectory: true)
+                        .appendingPathComponent(name)
+                )
+                try self.verifyLeaf(
+                    name,
+                    descriptor: leaf,
+                    expected: expectedIdentity
+                )
+            }
+        } catch {
+            throw WholeSignDeletionServiceError.journalInvalid
         }
     }
 
@@ -1114,18 +1421,90 @@ private final class DeletionJournalStore {
     }
 
     private static func read(descriptor: Int32, name: String) throws -> Data {
+        try readValue(descriptor: descriptor, name: name).data
+    }
+
+    private static func readValueIfPresent(
+        descriptor: Int32,
+        name: String
+    ) throws -> ReadValue? {
+        var info = stat()
+        guard Darwin.fstatat(
+            descriptor,
+            name,
+            &info,
+            AT_SYMLINK_NOFOLLOW
+        ) == 0 else {
+            if errno == ENOENT { return nil }
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
+        return try readValue(descriptor: descriptor, name: name)
+    }
+
+    private static func readValue(
+        descriptor: Int32,
+        name: String
+    ) throws -> ReadValue {
         let file = Darwin.openat(descriptor, name, O_RDONLY | O_NOFOLLOW)
         guard file >= 0 else { throw WholeSignDeletionServiceError.journalInvalid }
         let handle = FileHandle(fileDescriptor: file, closeOnDealloc: true)
-        var info = stat()
-        guard Darwin.fstat(file, &info) == 0,
-              (info.st_mode & S_IFMT) == S_IFREG,
-              info.st_nlink == 1 else {
+        var before = stat()
+        guard Darwin.fstat(file, &before) == 0,
+              (before.st_mode & S_IFMT) == S_IFREG,
+              before.st_nlink == 1,
+              before.st_size >= 0 else {
             try? handle.close()
             throw WholeSignDeletionServiceError.journalInvalid
         }
-        do { return try handle.readToEnd() ?? Data() }
+        let data: Data
+        do { data = try handle.readToEnd() ?? Data() }
         catch { throw WholeSignDeletionServiceError.journalInvalid }
+        var after = stat()
+        guard Darwin.fstat(file, &after) == 0,
+              before.st_dev == after.st_dev,
+              before.st_ino == after.st_ino,
+              before.st_size == after.st_size,
+              data.count == Int(after.st_size) else {
+            try? handle.close()
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
+        return ReadValue(
+            data: data,
+            identity: Identity(device: after.st_dev, inode: after.st_ino)
+        )
+    }
+
+    private static func removeIfExact(
+        descriptor: Int32,
+        name: String,
+        expected: Identity
+    ) throws {
+        guard let current = try readValueIfPresent(
+            descriptor: descriptor,
+            name: name
+        ), current.identity == expected,
+              Darwin.unlinkat(descriptor, name, 0) == 0,
+              Darwin.fsync(descriptor) == 0,
+              try readValueIfPresent(descriptor: descriptor, name: name) == nil else {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
+    }
+
+    private static func removeExact(
+        descriptor: Int32,
+        name: String,
+        expected: ReadValue
+    ) throws {
+        guard let current = try readValueIfPresent(
+            descriptor: descriptor,
+            name: name
+        ), current.identity == expected.identity,
+              current.data == expected.data,
+              Darwin.unlinkat(descriptor, name, 0) == 0,
+              Darwin.fsync(descriptor) == 0,
+              try readValueIfPresent(descriptor: descriptor, name: name) == nil else {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
     }
 
     private static func decode(_ data: Data) throws -> DeletionIntentV1 {
@@ -1138,11 +1517,26 @@ private final class DeletionJournalStore {
         let inode: ino_t
     }
 
+    private struct ReadValue: Equatable {
+        let data: Data
+        let identity: Identity
+    }
+
     private static func identity(_ descriptor: Int32) throws -> Identity {
         var info = stat()
         guard Darwin.fstat(descriptor, &info) == 0,
               (info.st_mode & S_IFMT) == S_IFDIR else {
             throw WholeSignDeletionServiceError.invalidGeneration
+        }
+        return Identity(device: info.st_dev, inode: info.st_ino)
+    }
+
+    private static func fileIdentity(_ descriptor: Int32) throws -> Identity {
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFREG,
+              info.st_nlink == 1 else {
+            throw WholeSignDeletionServiceError.journalInvalid
         }
         return Identity(device: info.st_dev, inode: info.st_ino)
     }
