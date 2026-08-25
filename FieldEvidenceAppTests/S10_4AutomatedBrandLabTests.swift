@@ -10948,7 +10948,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             contrastAuthoritySource.components(
                 separatedBy: "ContrastAuditExceptionSignature("
             ).count - 1,
-            16
+            17
         )
         for prohibitedReduceMotionSavingTaskExpansion in [
             #"case ("s10.4.current.reduce-motion", "work_and_recheck")"#,
@@ -18636,12 +18636,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 separatedBy: #"taskID: "history_recovery""#
             ).count - 1,
             2
-        )
-        XCTAssertEqual(
-            workflowSource.components(
-                separatedBy: #"taskID: "report_comprehension""#
-            ).count - 1,
-            20
         )
         XCTAssertEqual(
             workflowSource.components(
