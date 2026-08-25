@@ -3155,20 +3155,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     workValidationRouteEndRange.upperBound
             ]
         )
-        let workValidationPositioningGate =
+        let k121WorkValidationPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
                 "           shouldPrepareNormalEvidence(\n" +
                 #"               for: "state.work.validation-error","# + "\n" +
                 "               in: app\n" +
                 "           ) {"
-        let workValidationBaseline =
+        let k121WorkValidationBaseline =
             #"        captureBaseline("state.work.validation-error", in: app)"#
         let workValidationGateRange = try XCTUnwrap(
-            workValidationRouteSource.range(of: workValidationPositioningGate)
+            workValidationRouteSource.range(of: k121WorkValidationPositioningGate)
         )
         let workValidationBaselineRange = try XCTUnwrap(
             workValidationRouteSource.range(
-                of: workValidationBaseline,
+                of: k121WorkValidationBaseline,
                 range: workValidationGateRange.upperBound..<workValidationRouteSource.endIndex
             )
         )
