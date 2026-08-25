@@ -1,0 +1,2822 @@
+{
+  "schema": "ReleaseHookInventoryV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C07",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "02f76e6127804f85e38ad0435ddce70f71439d1f",
+    "baseTree": "88849f23750b5c81f511742d8fe154c134badb7d",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "a1390808d3cd7c4b8fc4e00611b459f03a144c99706aa1d80a7dfb9d31e4074b",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "bff6077e212515cf6118ea25d44d3c8217c19132ce43b34d85baff404acae922",
+    "bootstrapPathFenceDigest": "c64e2e6c8241a94432f6683f7daa8ee23a0b74618a229cc898714ccf75f1849d",
+    "provisionalPrerequisiteDigest": "eda9c9cf0bbf4654eb571c01eadffbab062e6fa5c1c929817ca19a1d8aab032f",
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "74de7edc5c206592410440a320d3dc46a32151e4ae052cf4e138044d6df6f0b7",
+    "ledgerCASSequence": 19,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "scannerVersion": 1,
+  "scanRuleDigest": "29f97388f5d193d33a004848afecb581c855f9033d4242164eff84e9a3ba0786",
+  "sourceRoot": "PRODUCTION_TARGET_AND_PROJECT_CONFIGURATION",
+  "sourceFiles": [
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "sha256": "7c33e08af4b67ffa60f4574192cca077548e9d1d5989f890be2a3a07c7fa8563"
+    },
+    {
+      "path": "FieldEvidenceApp/App/LaunchView.swift",
+      "sha256": "0edfb71ef5636add42cfdc00a66789515507407c7ce215561bc019edfa6b1684"
+    },
+    {
+      "path": "FieldEvidenceApp/DesignSystem/DesignTokens.swift",
+      "sha256": "59ad0c6445779814d0b621dc2ba47a660052b8bc289d1c9dd773caa1aaf58164"
+    },
+    {
+      "path": "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+      "sha256": "60b2cd11ed0c07e7573906e4cc01e1e3bb4c5b496991eaa79c9874d343e6042d"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Backup/ReplacementRestoreRule.swift",
+      "sha256": "581febdb661538131fa831e316b7c45816c762c2a435a2d8b49371703291731a"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Backup/RestoreIntentV1.swift",
+      "sha256": "68c0fe876e22d4d00877e14cb23591d242b988ae6bf789a6ef9dc18116b283c4"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+      "sha256": "2cb5c170e278f80cb81ac8280d3560a6e9a6f9e5058eaf206eb5a4319181b7ab"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Backup/V4BackupImportContracts.swift",
+      "sha256": "8b097e59c5b5eb82d1c3d274da9a0ed4da3417f8db3ca28dfdaae215b2051ef3"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Commerce/DraftAccessPolicy.swift",
+      "sha256": "3012993ee30ca16fd4485dbaac87e1817e5d6cdc81bbf156639575cda505e4e8"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Commerce/EntitlementFactsV1.swift",
+      "sha256": "8dca55d581242ff4597d3be9f332b31b0f6d79e064a8bd577cac4a03a0ae5b8c"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Commerce/EntitlementReducerV1.swift",
+      "sha256": "7a73cbaf58fcc9a178a5929e21ffa09c6a6af41bcfd8ca1adb51ef498d3fcc4b"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Feedback/FeedbackConfigurationV1.swift",
+      "sha256": "5a69f1326f53075ae45e2dcfe950d3ca15f4533e3ec08df8979da5ef19829fc2"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Media/MediaContractV1.swift",
+      "sha256": "25df20e6926d9a41322e0e56907dbc23aa5a07c081687f3911264589a09420bf"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Models/Asset.swift",
+      "sha256": "0a8b9033700537be9f08db67108b40cbaabb3ecb1f55005d2102a11f9dc7edc9"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Models/Site.swift",
+      "sha256": "13a2271f982e4a9d4d5f9a0caff9fee6338a2483e265b9c4e4acc9b7e23dbd6c"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Models/WorkflowModels.swift",
+      "sha256": "da544883ec37ba1339a1543c900e2bf6d832cbe906741d91cd628588b414d546"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Packs/SignPack.swift",
+      "sha256": "505f67dda9b3fa9adf5213d9a5d4092c4be1bd6126e74dbbe9649e64dd317b81"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Packs/SignPackLoader.swift",
+      "sha256": "ff6c32e99db3b8a79c364ddcb789d750c38ff0221ea5c9fac9a8bbb9f69490b7"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Workflow/DeletionIntentV1.swift",
+      "sha256": "691b3aa6e8a6d5dea779301ebb2c29adf8d6182514e120fb7ba3ec49fb9219a9"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Workflow/DifferentIssueOutcomeRule.swift",
+      "sha256": "14af503420267e4bf7e71f4adeba80f7c86f0fb4c2a5d060d4aee4063baed66e"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Workflow/EraseIntentV1.swift",
+      "sha256": "92e101a7011bd4d93ee4b7053d4e1c126e6dbfbd15e4d9510f0d5b96770208e4"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Workflow/FinalizationContracts.swift",
+      "sha256": "8ee08387e12eff3e694aad2a69317c7dacf9279ec1b114c9267b061844b3cacf"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Workflow/RecheckOutcomeRule.swift",
+      "sha256": "295e92dfec8feed10c410b80bb29a515ef084b01d5958836089bcd044d8bf91e"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Workflow/ReportCorrectionRule.swift",
+      "sha256": "322ceeb6cc072e8238a4df9829c81009adfea9756268fd475e3335966cbdb420"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift",
+      "sha256": "62ae808c9fc0139dac753620fe66317c670f6485a59f5645e81b28d361ba7852"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Workflow/TimeContextRule.swift",
+      "sha256": "aa9a1c88696406273035fd68141aa68ed195e3e7b1a5716e1a5e7935d9d53b9f"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Workflow/WholeSignDeletionRule.swift",
+      "sha256": "2e8d27766dc0fafece56b9115851205560ecc8ec274764f16a129611d69d2b22"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Workflow/WorkflowContracts.swift",
+      "sha256": "63157822edc1471187d2e3d729ffeb7addd644dccc63d0c1b4840211c6edd35e"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Workflow/WorkRule.swift",
+      "sha256": "c2523cf3f662f3f15177f5fdf9bf99088756ca2b2853c79caac0cef25bfa82bc"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "sha256": "700ad042adb3f6cf69eb18e41e078ad0a59e049680bd42e71cd62ca14c7432a0"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+      "sha256": "fefb968c6900e8cf9abd054e09e424cac7510c56e82642657efda45fa81ff559"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CameraCaptureView.swift",
+      "sha256": "78801306ed4c780147306b9f2e3de9b96dcd2e19cb9e4cf5022339ac306c0605"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "sha256": "f2290620946afbb1b60577db62203a5c99e3012b74943b5cbbe7c576c83a71e8"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "sha256": "5012a8bea2cc33961382d783420a239c987dc2e71b62328b436095932242cfa0"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+      "sha256": "bfa8424e5cd55367d34c80562567651e23107b7c01995604311fdb5578cebc7b"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "sha256": "0e3a4d543e588ae24a0ed06aaf05d50081341602cdf1fe04b9ddfd0bb945a955"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+      "sha256": "57ffc1c79e02a1adad526837339c21baba35f4a41bd340ab547f64eebcc51fd8"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+      "sha256": "9978ab0b437f7d5c37afa3c7e867f2a46bcd57339efc23e4633a1e9e1af0e789"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "sha256": "d8b9376be21c1b441c5f166ed22b851c35de63d8ba056e82ae1d30f4628933e6"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+      "sha256": "8c7dd5d1412895266be2ad1c5bffe743c13db2b1c2074e2f35d5b0e6d947f310"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+      "sha256": "dd5d6dddb6e58fbc86e9cbbf7318a8ad6d3271bd93117b4c72ac52d058381fd8"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+      "sha256": "22387f27d46acfbf2e021b89e3f2bc2caf63fcdc95f8dc5cb6d2259d73ff3716"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+      "sha256": "e869176ccc9a768f1c351442c3e22d4a560bd7b39ab2ea209d85774c1079d26a"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+      "sha256": "73161df4862a170d8232b61e922d7cb60d577e95d7e6727406ff754d83a80350"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Sample/PackSampleView.swift",
+      "sha256": "d491780c325cd2613a0ce3d6612ef6af614a0953af630ade2dc0fc0e9e2aa988"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+      "sha256": "82f4862beabd981422629fad66065086571fc66d1f79d982df3deec683ade1a0"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+      "sha256": "007303e9c3ac6125a0833ecd045b5d4338ccc7c49832cd03a9692dcdac7ccc34"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+      "sha256": "955f13980acd330d98aaa0ee13735bb6f6f2b3c45772fbe8e7ebf8b5c2269c1f"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+      "sha256": "64e594839fbc4d3dfb2974539449c4644fe07cda52a1c30a06078ac8f427398a"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "sha256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+      "sha256": "64f745df1643d2271317756930f2cb003a9bc34bfba23a8cd70477a9a047aa7f"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/FirstSignCoordinator.swift",
+      "sha256": "740c54f5f08a6073be097eb450976e3276e38f28be6d61e24fe811428f674a73"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+      "sha256": "ecf83578f59beef12e9aa03a0324acc7779f9847ff163d1ba5271c84a7f230af"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+      "sha256": "7f4ff80b1949f0d851358c732a6add07d9567f1e2f50f7701810fccf657e2b39"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "sha256": "4b59bad89665bbf0b1b7c6189c09090f93e78d1b963152f344b9611490cf527f"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+      "sha256": "28c95fc0a9c84f29ef3e26f758f6c22eee92927ee5e9a40a650e62db1d9f11a7"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
+      "sha256": "7b25a78ebd2a216ef538bc22260f8b85d1ef2b8d239e94c5f0e93c03eee24a04"
+    },
+    {
+      "path": "FieldEvidenceApp/Info.plist",
+      "sha256": "e2d69642f719dc4386350e0bc46e468ad51c5be9e3d35e25717cae1c9fe959a4"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
+      "sha256": "5ea63149ff713508857d356a4461416fc534b559206fc96d4c59ea106510e49a"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+      "sha256": "61732f59a7baf93939fc0e6beee6613b583c5f4e4efe1e59b1336863c18e1077"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+      "sha256": "b6dcc3d5f26cd95cb32f4c328496d82a033e0e7fb426d87efcd2120cd8d9de7c"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+      "sha256": "3305df4288073ff24eb2ef69cdbd3cdeeae9d2eed3428d5ac7ff9c4fe85fad57"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+      "sha256": "9f877276015564f390a8924a237448383f2e158df235ebd91bdf41eeae406e25"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "sha256": "d2708f88a8c51794eb255ac413c7356529a64b4b1c324e0fcba1a7298595ad50"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/RestoreIntentStore.swift",
+      "sha256": "cca462d92a3f38589612a3a41c375986afc749132b081a95b19aec8ecae362fa"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Camera/CameraAdapter.swift",
+      "sha256": "c27258821509516754711607b9ea864ba2dd9f324d6a8769f867a129adf9fe30"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/EntitlementStore.swift",
+      "sha256": "1430d9f0517a606f732275196d980417a8b185b894fdd94769518fcf0a42716b"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitLifecycleCoordinator.swift",
+      "sha256": "153b2ab2e01a70c2077c4dd91d98cfb78de59cb9e5369a42494d55df74c938c4"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitProductLoader.swift",
+      "sha256": "e449da69efd64ae6ae953707db18a11175092ca428274aa3114b95a95012c9ff"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitPurchaseCoordinator.swift",
+      "sha256": "6c7492636f9dc17d0ed23ec2cd3be516e7f32ecd8b3f142255afbc0f1624d151"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift",
+      "sha256": "4624e392d7df109288e6784ea6326dad2d775c876c3ebbc83ef7ddc56d33d6f4"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "sha256": "de35d741f64fe954dc0855a37557328404d8cf3124623de8e58315cf522794e4"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "sha256": "c117ee16df83770129f5a5bb3a2945fa9f9e62cd8bc5c6dd72dc68a55067fd14"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+      "sha256": "79c0749f745a63c89f418fa17c0955e4efc96068051852d5b2d8da21499e72ba"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift",
+      "sha256": "c57ad0df48160f4fe0956d151c0e40f5fc831aa85e91608768ae7be25546cb33"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsLogger.swift",
+      "sha256": "a3a165b36faa354860335177b35fabe053545fe8440d4eb70bf64ede6421f17f"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift",
+      "sha256": "d51b6b5283f2a76f29c0521b1edf58c76dd4f0fc5e7af2fb0ea253395368c050"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/MetricKitDiagnosticsAdapter.swift",
+      "sha256": "53b00167f20179f1bbae89e699cdbfa5bcbad546f41b38e0ae71bf813426f3b9"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+      "sha256": "4cf086de5ca3ffc3aad964cd1bc57d4526cadb558ed251697bb4dbd19507b5ba"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+      "sha256": "836da39317c05e6f076316c7523cc20f9e06c25c180fccb2855f118f87e29202"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift",
+      "sha256": "2be5ff9d6ac9f8ae16ab4b33dd9a3aa4277e1821c76f8eb0969e2c0843be6d03"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift",
+      "sha256": "268b25bf6bcbf500d86ce40c89a37c6a2aee630d8265fe5faeca72eaa0d7a3db"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift",
+      "sha256": "57371183b695aa6f77635928c7d1c497a6be74fc85390a1c21ae070886c2ff13"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift",
+      "sha256": "90703ecd113303fe7b447a4c2b41222d507b916381a98bcf6aa38274f1fabc13"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Media/MediaNormalizerV1.swift",
+      "sha256": "251e8ee8b3e9975a42883d4e76ac06c7fbd954ad7c5a46ac22ed97971e469404"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+      "sha256": "716703e48b2339128e79298956f0f01864a4db7a8777a75e3dd5b7cf0c50a71b"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+      "sha256": "8a9722959cab1e2fb1da3b564b8f17c0d2cf6d3dab21e0f79f9957f0a0a9a924"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+      "sha256": "8fd20f57371cb5a674d40cde0fd9b0c4eee677e1ca32c96c098887d3df4be708"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "sha256": "535a99dce4298c11b659fba8fd936bc75a86ff7bb956949ed95a624c1eb3c00c"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift",
+      "sha256": "6d5f094d58921cfd85206068f5684ed5bdf169cf7a75c5dc97c8e9c8a13440a3"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift",
+      "sha256": "77869412033327591e8f38a32d47d2bbca392c12212cf006e7a2e5bf36e71fd9"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+      "sha256": "cc3302fded8dd0061a2a682bea4ee1c089c72eaa0f0e4823794fee243691a947"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift",
+      "sha256": "b0b3619f49e8f3d2084563a1eeeced1ccfe96234bd15cf578dbfcfe8a7d09bd3"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift",
+      "sha256": "40c2c71ed4dcfe59c1c273dc6b84f4dc5b93bbcde55e159f87cca8104d4d1053"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift",
+      "sha256": "3b57f7d13052b789c54191000a9348e4ec25792648ede8ac64f3f2679ae3c6a5"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/Contents.json",
+      "sha256": "10e3b5dc202f1cd9fad1f688c8fc9fe9e9669bf3f8295e67d216b10fd99b6f49"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightAccentContainer.colorset/Contents.json",
+      "sha256": "ccb95b27a0ac129a06c1bcf8a8808b3a4d37ff29bc3c034532ebed8950e3aeec"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightAttentionContainer.colorset/Contents.json",
+      "sha256": "20fa3b676eb358584f74dc331573af8c39ace89d4ae8f1affe79cef3e5005883"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightAttentionText.colorset/Contents.json",
+      "sha256": "5873b56c8a25e01837ab5902aa33f672802257376f58a8d00791b0f7768704c5"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightBlockedContainer.colorset/Contents.json",
+      "sha256": "9fc2be80e9b98d29b6a44cc05b83769c1bb6e01f9470376d99cc40357ce0e31f"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightBlockedText.colorset/Contents.json",
+      "sha256": "e01b82e0bd5d3e068956a9c4ab96a333b2ea28fb609cafa9646a37609cb25a14"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightCanvas.colorset/Contents.json",
+      "sha256": "3c533b6c91e218be256498fb60f5b08b87523191eca23b352d19168e3b2d3755"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightCompleteContainer.colorset/Contents.json",
+      "sha256": "31fbe82dc9314d2cfae3b1ab0ebf30f02723b045253936b2a7cb9ab3bb373d7f"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightCompleteText.colorset/Contents.json",
+      "sha256": "1147a43ce9c651780bbe668feb1695d59fed196537007d30e71db32c66c5e974"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightEssentialControlStroke.colorset/Contents.json",
+      "sha256": "7d36cdb415d213791af0d4ceec9bf2eded103e37689451e55cb9bfbd8c190330"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightInformationContainer.colorset/Contents.json",
+      "sha256": "46e7b6816be176e4b447839607910a6d50436c08a4f765e23b0691eb2e5f37e2"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightInformationText.colorset/Contents.json",
+      "sha256": "0886aa586a96d47cc5cb69f767d8c4b5d61de90b83a59fba88c54a300ea9ab2f"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightInteractionAccent.colorset/Contents.json",
+      "sha256": "b0a7c24a325d8923ea6ff49661efd7a4fb640ff2329c95d4b6cee48f8bf9af09"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightOnAccent.colorset/Contents.json",
+      "sha256": "956cd33ed2b557412b5deeba9f8b772eac64e0414a48c9b066d2c84097392878"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightOnAccentContainer.colorset/Contents.json",
+      "sha256": "2527b3e372dc80a747c341c6e35cdee85eea342499e7108b8b1636bccdd38a8f"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightPrimaryText.colorset/Contents.json",
+      "sha256": "29214fa0b83c9039b36375b1a3c00910210b4399a0e44c6ae09d67ad5a325188"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightRaisedSurface.colorset/Contents.json",
+      "sha256": "8e9732fdab7dec23a02a4ba8f95e72bed74fb8de4a53f97b9954fd5724d3c105"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightSecondaryText.colorset/Contents.json",
+      "sha256": "320a2770cf9b51141ed22f6daa1b62a1a4c5ad9f17d8a2d0ebe1a458c1403346"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightSurface.colorset/Contents.json",
+      "sha256": "91376bdd33ec82524d847f9929f6c3d35d8bb87463ed583e817bd8db1c7c625d"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/WorklightTertiaryText.colorset/Contents.json",
+      "sha256": "4788eca8cb6733aaf8f7da2d83cf83c8316f3b74ed4222bb228387699dddb08a"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Packs/IlluminatedSignPack.json",
+      "sha256": "16eb7ba240668775fdeab66c93f1149e5ba205969e2e736c2f27c4d0f7e39e5f"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "sha256": "5646bddac1b7dd34c5148dfcb40c5209c66ae13c588f7c6f371a26263779337f"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme",
+      "sha256": "69f1f6a5d1bc06553766761d8b12f77081e54f785724075a977385bfbaf432e3"
+    }
+  ],
+  "sourceSnapshotDigest": "79ab7ee6756ddd65b25e80910fb400c00375171751277d601a639a0af6366880",
+  "patterns": [
+    "PROCESS_INFO_ARGUMENTS",
+    "PROCESS_INFO_ENVIRONMENT",
+    "UI_TEST_SYMBOL",
+    "UI_TEST_FIXTURE_SYMBOL",
+    "TEST_ACTIVATION_LITERAL",
+    "FIXTURE_SYMBOL",
+    "FAILURE_INJECTION_SYMBOL"
+  ],
+  "findings": [
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 9,
+      "category": "TEST_ACTIVATION_LITERAL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "c843f3c067546a0ca8622d61db45491f257b9bce673b44b89c37a9b9caa95b45",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 10,
+      "category": "TEST_ACTIVATION_LITERAL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "46d3fed446d42ba9dd0b529c047138ac1d803169ef01b6f776d7aad652063dbf",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 11,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "7e8da8957fdef8d1dae85cb3130e909d5a715aed5a6feab41e31f7f86a4fd544",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 12,
+      "category": "TEST_ACTIVATION_LITERAL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "c0c7ba7418ec064f7f384cc7fc770bdef2644bb5bf6740479c5249930857d089",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 14,
+      "category": "TEST_ACTIVATION_LITERAL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "29c19a7adc9141d570354916b1e8250336b81c6c4da06fbd0521425e9d7c982f",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 16,
+      "category": "TEST_ACTIVATION_LITERAL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "c8c973fd9ea0809c8374375011982ad7a5dde7fb3f24e827f54b03f40f9e2b36",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 18,
+      "category": "TEST_ACTIVATION_LITERAL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "a2aca6df7afcf70a395c3b07594b1634d1fcdc04ced7fead358b396455260703",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 19,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "609763e8557412af6db91055c55b9a7d7991014cc33da80f97f8f0834fc56e02",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 20,
+      "category": "TEST_ACTIVATION_LITERAL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "cc4bbe42b4fcc73527f9de9e26f2aff221c57e51502fe98f36150f8d2dd5a41d",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 21,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "8cc9850b4872b6ffa986d644ab6701d3778e88793ad8b08e90e3020abaa12fd0",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 22,
+      "category": "TEST_ACTIVATION_LITERAL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0eadf5d3e74885cda2d60fac19abfb96f9fce2ac75a97b8c6a1edcf3786d5faf",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 23,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "cc087d8519411f1309b1a66110ae26f472836a1a42be572ebb53e2bd3022300b",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 24,
+      "category": "TEST_ACTIVATION_LITERAL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "9a3e92ea91b2d8c9d8e65e4940e448404c416fc9a9caa9623c445c0e19dfac6c",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 25,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "5bd6854d710f8ec3dec94e10426aadf342e7f77bf5073a38952f6930077753a5",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 26,
+      "category": "TEST_ACTIVATION_LITERAL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "c3d9cf9f1a7063dfc13297b1d88871e4165d685f8bba7831e966239bbe3f3f6d",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 27,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "f50592977031018f849181ea4d87c28740a6d1615a7bd29d80cb1bccab3f6bde",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 28,
+      "category": "TEST_ACTIVATION_LITERAL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "7a1f59e7129b34b5ec6dac0a5c3034a6dff4f852956bf2d16c7088a7fb5251c6",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 35,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "883df90df368349a1a49ad9c7ae3150a92b0fa76d08f7496a7f2d92ff3b6b8f4",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 36,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "1b8a19094a2c4f8a8ae30e439963e3bcf34aa3cca17a3afbfa44d5f834be238a",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 36,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "1b8a19094a2c4f8a8ae30e439963e3bcf34aa3cca17a3afbfa44d5f834be238a",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 37,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "1cf43f4b04ccc46ffb4e19b5b7c7e5bfbb654f919840f31e3159a59e397212d3",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 39,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "f2b712efc06fabcc52cb8beec4c0d726406a56e990b0057dcd5dd1fe94cf8fd7",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 46,
+      "category": "PROCESS_INFO_ARGUMENTS",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0114652a36a40182770d6a2bf2d62d8acac9d556afae676feb4f4157e2914b55",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 50,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "f86d53bccd87b8875c42467f3c76b4be1b3627cfe6162c909980305780c9e85c",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 51,
+      "category": "UI_TEST_FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "d6cb31590648132bd0a01adf9d8e91d461be6b3224128832c1aed096d6a2057c",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 51,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "d6cb31590648132bd0a01adf9d8e91d461be6b3224128832c1aed096d6a2057c",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 53,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "1ef11282d9b66de582f742ff2931fd23eb2b84a610a87afa2ab2198600fbbbff",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 54,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "cd11bcf6b6e3e09487235c0605caaf5fa03d6e637131bd41c61695c02846b0b9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 56,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "a3d5e745e6e952e712304dfd53c5cf0c0cf1c8a2269d0986d2f0fb557dd3883e",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 57,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "86fa40c2a9356379bc21f793f19b017c4bd17b06cf465cba7283e106f0db6c30",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 59,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "b194c4172a5566ed80adb47219e85901c07570bd94c9d229e07400330bf484f5",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 60,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "a6525db436f7fb8ed8b9c2b27e57440b1ff483d319df5c829953ad2a9e9ef9a5",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 61,
+      "category": "UI_TEST_FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "d6cb31590648132bd0a01adf9d8e91d461be6b3224128832c1aed096d6a2057c",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 61,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "d6cb31590648132bd0a01adf9d8e91d461be6b3224128832c1aed096d6a2057c",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 63,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "67c0196efee2ca4b9c4475bdb37cbd7a5e641a08a56a28f3ee0203d080a5c1b6",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 64,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "24925e19d3fbc6ce7877acc284509e9a3e9e64a491256a3b26371c45ab97b60b",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 65,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "5f7c90560fff639f93c2b7018469d44352d4ac7c45cdb3df014b1d9143a7ea88",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 75,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "bc25f2bb0ce25ed52b973d90732cf3acbf82cb23b3d907082523c41e5c2908e3",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 76,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "1347d2bcf7dad24ef9e0dd161fb654749562ae97f4f4c89f77fb55839f68fb47",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 78,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "e9c330a35b59cdbc90ef5e81d1700856bfbc13d84812b5ff4757ddf3c82e7391",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 79,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "34e43b7a023553f9a1fce12fcaac010ff5b3d3547ebbde42d3ef5962ffdd8c20",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 81,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "9d8a3792f6637f1b61764063b0ecc3cea4cddeb8df0010cb308c9b3d6fd273fd",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 96,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "1fcd9173be4387b98a5012836816760c377f4ebbe78ef202cf97a95c411cd51e",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 98,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "d6ce4828c2b5885944d3f594bbb67e14b59599852f36880c05695334e75a2cbd",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 105,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "191f2017fc95bfc842f178fd9832c289e1f3b32f5ad3288a19467f589ed38a3c",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 109,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "407ed76996de572196a189ef5c8ab89bd19623033442bf69058240ae83e0252e",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 120,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "fa08f693fc71d835dc5de537470adcac036be80d6071f3745a996402470ad7b4",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 120,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "fa08f693fc71d835dc5de537470adcac036be80d6071f3745a996402470ad7b4",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 121,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "4d62aa6b7212b5f9642814d366b34b6590cf3d6c039674dfdaa2b772f7124cc1",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 123,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "51b9be9c8ab40087ca0885f1172837f69758ca70acab27425949efbdaa43f173",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 157,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "4eb718e94979d447c467994c21fa1fb799832b52115d91769d629013e15e34a7",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 160,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "4eb718e94979d447c467994c21fa1fb799832b52115d91769d629013e15e34a7",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 163,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "258bab562150247f5a0e86743be893007f5974bf5d6dde683a25eef67bc38575",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 172,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "31601cd4e62f4b3fd2c3c7b9d0e9816ad1f424c607de1d0773f4b27a863c1b6d",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 173,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "18f0bdccae6a175b1f3b218b346e73539e7e4a2270e6fb39f486f8222ecdd2fc",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 173,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "18f0bdccae6a175b1f3b218b346e73539e7e4a2270e6fb39f486f8222ecdd2fc",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 174,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "959059876474d788eaf99cfe90d0365eeeacf5d7c29756176a2f27187c3db67a",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 175,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "29687df6a701763b99191a450d4405325e32a0dd28c894e93e44a656a8e672ae",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 178,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "8fdd5e328b1408e8363ee98e96393626b01f273d3e7892e2592388f4dd9dc474",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 193,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "e016819c940ee525eb71e73389cb637e92fd53063a851e66b894f4a979ca35bb",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 194,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "285688b7e4f1838bafb14869be3a3ae8418346c374623c156a33251cd858afd9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 194,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "285688b7e4f1838bafb14869be3a3ae8418346c374623c156a33251cd858afd9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 195,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "c62b7090c2a5bae44e026e70ea167bb64a6eb43f11c94cb363f585c91a2b8e49",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 198,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "1755b51d42d4a4347ae33410639722dd4f9290ee65906b2563add5eddaf1948d",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 234,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "31601cd4e62f4b3fd2c3c7b9d0e9816ad1f424c607de1d0773f4b27a863c1b6d",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 235,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "18f0bdccae6a175b1f3b218b346e73539e7e4a2270e6fb39f486f8222ecdd2fc",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 235,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "18f0bdccae6a175b1f3b218b346e73539e7e4a2270e6fb39f486f8222ecdd2fc",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 236,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "959059876474d788eaf99cfe90d0365eeeacf5d7c29756176a2f27187c3db67a",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 237,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "29687df6a701763b99191a450d4405325e32a0dd28c894e93e44a656a8e672ae",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 241,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "cb1cbcdcdc70cfda8d7430e015074820b9980d43b2aa45bec1db7cc0a6b910d9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 242,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "ca322e1fcb50ce9e0b21010f24654a4732c70eddb966ad78a438fcb30ad6f219",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 271,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "e016819c940ee525eb71e73389cb637e92fd53063a851e66b894f4a979ca35bb",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 272,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "285688b7e4f1838bafb14869be3a3ae8418346c374623c156a33251cd858afd9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 272,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "285688b7e4f1838bafb14869be3a3ae8418346c374623c156a33251cd858afd9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 273,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "c62b7090c2a5bae44e026e70ea167bb64a6eb43f11c94cb363f585c91a2b8e49",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 277,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "1755b51d42d4a4347ae33410639722dd4f9290ee65906b2563add5eddaf1948d",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 291,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "31601cd4e62f4b3fd2c3c7b9d0e9816ad1f424c607de1d0773f4b27a863c1b6d",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 298,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "18f0bdccae6a175b1f3b218b346e73539e7e4a2270e6fb39f486f8222ecdd2fc",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 298,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "18f0bdccae6a175b1f3b218b346e73539e7e4a2270e6fb39f486f8222ecdd2fc",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 299,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "959059876474d788eaf99cfe90d0365eeeacf5d7c29756176a2f27187c3db67a",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 300,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "29687df6a701763b99191a450d4405325e32a0dd28c894e93e44a656a8e672ae",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "line": 330,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "6bb23d5f6ebbaa22eb9f9cd8c61680ceafb2729a6db71246a3dd39ac863805f0",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Feedback/FeedbackConfigurationV1.swift",
+      "line": 7,
+      "category": "UI_TEST_FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "83da34ebf0a194671ea2a3773d5ecdcc9aed7f9bdf929f49b242fd257051486d",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Feedback/FeedbackConfigurationV1.swift",
+      "line": 7,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "83da34ebf0a194671ea2a3773d5ecdcc9aed7f9bdf929f49b242fd257051486d",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "line": 34,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "48f6a2f54802cca4d8fee05708b60b21afb9639150c0f769f68fe4379e4b9177",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "line": 46,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "19b9765c29d55b20cc6c2a39a51a18406baee4bd210b5e34f671b1f477792a6d",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "line": 56,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "de8697eeb5b1fe41eed76552368f9b5a6584c1968b4db7fe51c05d991e6168e1",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "line": 64,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "8e552ddf8236555edeb90e319af72feebc8ea7d0b958419637137f6f8d1b63f7",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "line": 194,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "ce6e679d3ee2e0febd047341f74c8f3b765274c9179eb85f12c64aada01f09e8",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "line": 195,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "5eeb1adf89ce737a7f1f84a706ce7a8fa95875d7e2cc48be9c658a28401d9372",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "line": 196,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "8fcca7a3fb5077a81e30a1c121443cb678b252f5f057f42325863acbaf784c2c",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "line": 197,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "b8bc78b3f908883f2ec954fba3b2701ae96b7e1427ee7726d9a5464fa9bff2e5",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "line": 24,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "285688b7e4f1838bafb14869be3a3ae8418346c374623c156a33251cd858afd9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "line": 24,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "285688b7e4f1838bafb14869be3a3ae8418346c374623c156a33251cd858afd9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "line": 202,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "957058fe5bb31570459c4041968de0e7017282edf3e203e737a3d99c6930da44",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "line": 202,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "957058fe5bb31570459c4041968de0e7017282edf3e203e737a3d99c6930da44",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "line": 204,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "69828fae8bc7bd4698ba6c8d8746315e4431dad9b58f4de37faddada28ade3d4",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "line": 284,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "957058fe5bb31570459c4041968de0e7017282edf3e203e737a3d99c6930da44",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "line": 284,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "957058fe5bb31570459c4041968de0e7017282edf3e203e737a3d99c6930da44",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "line": 285,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "69828fae8bc7bd4698ba6c8d8746315e4431dad9b58f4de37faddada28ade3d4",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "line": 347,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "aa099fc7575e411b34fcbb9dbb8a4f05c8c017057651c952bad069cb8fbfad0b",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "line": 354,
+      "category": "PROCESS_INFO_ENVIRONMENT",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "3bd1ebbc3347c7cec6122700a6ac8847e9cf65ee324b51391aca6c8894904b4a",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 159,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "65f44a6764a893ce8dd6a3a98917e636050eb18d90d1f50bc9090d79faf6f68e",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 162,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "9f73ad872d438fe3dbf54e722d1fc08406c444888a193cbc93290bbb27926596",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 192,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "7daeab6a996b6b2bee85ed33540bb81049152e1b43efc0cd845e6d77e536348d",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 193,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "2467a06e723f2916c323f4fc664388575b58d0eaedeaefe123ed8965f825c3a7",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 194,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "9b233c9ba03adf990637a483424a88e731ce5e662790bf5ec41d772c3fa73a36",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 195,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "9d467fe036c60299d21261ea34d3bedce44a5186aba61801d679171367207397",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 218,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "d1b3f9807c2a0daa1c7178a1754c1618debd4e598fb23950ef94f2385e3a0ec1",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 219,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "61d4adf2a4a80204ce7dc51e4f6e557efb7df29ea1d66ed6e2cf21626198d478",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 220,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "406ad837ebf5cb5c92d781616dfdd945db8fce42140f6df82956b65c537c36b8",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 221,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "061da5d16e515c288003bc1d60dea34ff2280884a58a3dca784113ea3ac66b51",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 222,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "7ad28c1243e9b5655bea0b13eaded657d646b9fb5a73cc4b78d92066190d6412",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 228,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "300c8994e5b6a151c59633e4998fc12b1fc4530b09fb2c542e1d8796a419d59a",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 229,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "32698c0d90f69b0987ee9e59c27979a53011006aef9d900f50287d3977e9ac4b",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 230,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "e91543ca58fcb506a738a3df21c8098d024227428f1e5d551afb5ff2876f5ea8",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 231,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "1e2d642fc9b779968832ae2aeb5c682e1b68c7aa69971b50cbfcf111344f5fdd",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 233,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "840f169f141db2efd0f89cf58791244337bf532dde4e5941cfbc7ea11984274d",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 287,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0f423693acb118b668ff74c5b30b8e89d4abc5e7ee58d876cd103f26a6a7320e",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 471,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "c8d2bfd0f093259e4a5730d5b2422c2711805f98e0336603901e484468e57679",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 472,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "c95cf55ed08dccccfcfa34318c13842e6169f119dacfbfcdbf58a6040f4cb27e",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "line": 747,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "1b4531a7eca17da12416f5a951de7c735860d6f36d9fdd68ec6b92a25d1cd070",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "line": 17,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "285688b7e4f1838bafb14869be3a3ae8418346c374623c156a33251cd858afd9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "line": 17,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "285688b7e4f1838bafb14869be3a3ae8418346c374623c156a33251cd858afd9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "line": 44,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0e2c00bdf89148fc83024db7d47024b663f0b00f513659a5ba3980a13a6d25d0",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "line": 44,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0e2c00bdf89148fc83024db7d47024b663f0b00f513659a5ba3980a13a6d25d0",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "line": 53,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "6c1442d47426b2720c8c144efc6fd562bac5667b64fe034de529d59a754c9215",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "line": 53,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "6c1442d47426b2720c8c144efc6fd562bac5667b64fe034de529d59a754c9215",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "line": 54,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0eaaeb54f181e11c6ee1c3b9e085223d14b20528421e90c3dcf10baaf3d67d8c",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "line": 54,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0eaaeb54f181e11c6ee1c3b9e085223d14b20528421e90c3dcf10baaf3d67d8c",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "line": 69,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0e98aef9a3cca6b2a676dafac4a13d31fc0a8078b98b05e78d87265f13ab1769",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "line": 69,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0e98aef9a3cca6b2a676dafac4a13d31fc0a8078b98b05e78d87265f13ab1769",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "line": 70,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "e9f033cc875576f13f740371627a335c93064f7e10b4ccacb597c6572bbf74ed",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "line": 70,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "e9f033cc875576f13f740371627a335c93064f7e10b4ccacb597c6572bbf74ed",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "line": 12,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0cb01b9d656afe8631135bc22c93c83b34ce784fe18461d1645b44de3fc3c18b",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "line": 27,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "63000e126af617e2eb2e0939d9641b62a525a2d11b819eed4b582eb2c777ff2d",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "line": 27,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "63000e126af617e2eb2e0939d9641b62a525a2d11b819eed4b582eb2c777ff2d",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "line": 134,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "b144987396cbf97dc7a1e994414491370bc08623bbf064edec653e5b41a1ccbf",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "line": 134,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "b144987396cbf97dc7a1e994414491370bc08623bbf064edec653e5b41a1ccbf",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "line": 137,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "8408e7b0883f284d41faadf8b268e4c32c4be6376b472efed8f5b07465ec3390",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "line": 141,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "5987320d8e86e49adf3cc3bcf8b94d38ab365ef9baf30c4efcb60bb12e5a9f8a",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "line": 272,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "b42001bba6fb7fd06cc9c69212ec986467fbf8e6d0d73b5c698d6ca882d74c3a",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "line": 273,
+      "category": "PROCESS_INFO_ENVIRONMENT",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "fbdf0038916723ab3561e4f217ea23338693ec082c0f4faf6e34f24ba9a1dbe9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+      "line": 66,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "d68085aaa7a13f53d8de4969e3e59b8f2b7ba1d1ceab404735a52d4e43b2823f",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+      "line": 69,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "593071cb7e4c4c8b5398a05586e18f5784cfaac66152edf59029635e8a22a0d8",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+      "line": 101,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "979cbcfdd1f406f6966c0e9ecba9749ea0ab74851c50a47c1718e8d50f736b8d",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+      "line": 118,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "d1b3f9807c2a0daa1c7178a1754c1618debd4e598fb23950ef94f2385e3a0ec1",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+      "line": 119,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "b55213c41f569e8dd9151ebf75936695cb3b6d1c046ac01c775a0b92f299f692",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+      "line": 129,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0f423693acb118b668ff74c5b30b8e89d4abc5e7ee58d876cd103f26a6a7320e",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+      "line": 19,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "d181608a9bcbd10000b2a0a92ffc47089cf971d4b58ceffe5969b6a27277abb6",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+      "line": 33,
+      "category": "PROCESS_INFO_ARGUMENTS",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "acd9157b090b91c73e8631c4f59ee0053843f1e8e9fc7ae03e7725a19f092ea3",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+      "line": 33,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "acd9157b090b91c73e8631c4f59ee0053843f1e8e9fc7ae03e7725a19f092ea3",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+      "line": 34,
+      "category": "TEST_ACTIVATION_LITERAL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "3eb6e4d40ee31d3de5fdec8b4a9117984875ac940ed00c5c8bc10ffa0682b903",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+      "line": 116,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "fd2c898a8e97c02501629acbf77a29f15bd72aaba7d93a6fbb62fa3ccb945a1e",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 37,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "e016819c940ee525eb71e73389cb637e92fd53063a851e66b894f4a979ca35bb",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 44,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "285688b7e4f1838bafb14869be3a3ae8418346c374623c156a33251cd858afd9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 44,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "285688b7e4f1838bafb14869be3a3ae8418346c374623c156a33251cd858afd9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 45,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "c62b7090c2a5bae44e026e70ea167bb64a6eb43f11c94cb363f585c91a2b8e49",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 58,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "b4b9cc04183578770b985abf573833ac420bf3ad48e8282792716510187d99b5",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 65,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0e2c00bdf89148fc83024db7d47024b663f0b00f513659a5ba3980a13a6d25d0",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 65,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0e2c00bdf89148fc83024db7d47024b663f0b00f513659a5ba3980a13a6d25d0",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 66,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "7ad28c1243e9b5655bea0b13eaded657d646b9fb5a73cc4b78d92066190d6412",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 75,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "23e0e84e29bdd05ecbb208bcb044db3c5e35043438a837377e373c45d337cae6",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 82,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "cb035a000c368ea5e8d10a2d690dd79af40178eb8b5406c67badda1c6781bdf2",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 82,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "cb035a000c368ea5e8d10a2d690dd79af40178eb8b5406c67badda1c6781bdf2",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 83,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "af6275ee24ef586a4b015f01752e09ff700cc42453d732b7344886f3e0e4dcf4",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 84,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "4916897126939d821280495a8c07da3dbdcadfb1d6118fb119c4343e20935a62",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 104,
+      "category": "PROCESS_INFO_ARGUMENTS",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0114652a36a40182770d6a2bf2d62d8acac9d556afae676feb4f4157e2914b55",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 105,
+      "category": "TEST_ACTIVATION_LITERAL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "715dd67197ff8acb972ace64f5843c686c1b21bdf83b6ea7e4dcc3f8572288f8",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 106,
+      "category": "TEST_ACTIVATION_LITERAL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "45482fcabc589814667569be7e3fb84cdd49ed9d07c1d45e08accda704557129",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 107,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "6589a910d7b81e87beb4b9509d39249518f8c6c0efe342d3a77ef1c7ca25b1f2",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 110,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "ac3c2b3c3e9aa0bfddecc54d650ee485beb009da89bdb3b58b1390cffdc54424",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 111,
+      "category": "TEST_ACTIVATION_LITERAL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0f3e22f8b36d069e7d15c92eba690c2fc5b66b25ee09077f9b223e3ada7bda72",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 135,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "18f0bdccae6a175b1f3b218b346e73539e7e4a2270e6fb39f486f8222ecdd2fc",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 135,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "18f0bdccae6a175b1f3b218b346e73539e7e4a2270e6fb39f486f8222ecdd2fc",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 136,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "959059876474d788eaf99cfe90d0365eeeacf5d7c29756176a2f27187c3db67a",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 137,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "29687df6a701763b99191a450d4405325e32a0dd28c894e93e44a656a8e672ae",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 146,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "f77b02ad560dafbf7f2a0ebf68d4edc7fbbfd87c0f6917dfe23ce74d3f408715",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 207,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "61a5266936192c823fa4efc77bfa914c458003ca051fc95270efa77e87889459",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 210,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "617eca792fb637bf2a3678bf80096f219220850997a5facf075c2c81725f2c14",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 237,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "be07aa648aed718160f93a87101881ae779dee53e4151232f708f43409f6e8e8",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 241,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "d6ce4828c2b5885944d3f594bbb67e14b59599852f36880c05695334e75a2cbd",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 246,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "9013abb22c052622ede5ca0e1f4d5edb297cc0f6be4e6b3bcab35b4a8002cd00",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 257,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "401017fb5137ea2385a460fe6d5da896d4ec2361f4bec90c5650f0402c478f76",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "line": 283,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "26422c5864c1b8c6ab7f2cb51347fbe0b89b0c7d4f72134371484c8970a62eee",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 45,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "285688b7e4f1838bafb14869be3a3ae8418346c374623c156a33251cd858afd9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 45,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "285688b7e4f1838bafb14869be3a3ae8418346c374623c156a33251cd858afd9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 80,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0e2c00bdf89148fc83024db7d47024b663f0b00f513659a5ba3980a13a6d25d0",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 80,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0e2c00bdf89148fc83024db7d47024b663f0b00f513659a5ba3980a13a6d25d0",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 81,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "7ad28c1243e9b5655bea0b13eaded657d646b9fb5a73cc4b78d92066190d6412",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 95,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "cb035a000c368ea5e8d10a2d690dd79af40178eb8b5406c67badda1c6781bdf2",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 95,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "cb035a000c368ea5e8d10a2d690dd79af40178eb8b5406c67badda1c6781bdf2",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 113,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "959059876474d788eaf99cfe90d0365eeeacf5d7c29756176a2f27187c3db67a",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 114,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "29687df6a701763b99191a450d4405325e32a0dd28c894e93e44a656a8e672ae",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 232,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0e98aef9a3cca6b2a676dafac4a13d31fc0a8078b98b05e78d87265f13ab1769",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 232,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0e98aef9a3cca6b2a676dafac4a13d31fc0a8078b98b05e78d87265f13ab1769",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 233,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "e9f033cc875576f13f740371627a335c93064f7e10b4ccacb597c6572bbf74ed",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 233,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "e9f033cc875576f13f740371627a335c93064f7e10b4ccacb597c6572bbf74ed",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 292,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "eb447cbcd0834455d1085bd10d635be7cba397aa80c44fc6d3e68cb0c92920df",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 292,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "eb447cbcd0834455d1085bd10d635be7cba397aa80c44fc6d3e68cb0c92920df",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 293,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0eaaeb54f181e11c6ee1c3b9e085223d14b20528421e90c3dcf10baaf3d67d8c",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "line": 293,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0eaaeb54f181e11c6ee1c3b9e085223d14b20528421e90c3dcf10baaf3d67d8c",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "line": 13,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "a0b7198a11f52f7823c1200e093d0300085d300db721b8f120547fd650ba22b6",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "line": 42,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "c2d0effc3b424f6e775ded62d9973447d75b714fe63e573059734da2a0999ea6",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "line": 45,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "aaf21563093757e47c81f21d387354bebbb20a7490a723b6b6235502e947f208",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "line": 66,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "5a8cd6177fb0ea19c817948a4c12f0f8db35e533f9b0345589469c27e8517600",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "line": 74,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "759d9e94ff043d4ecf05be798ab05104d08b3c4398d141015d294aa755b8c877",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "line": 376,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "768a77adfc34f322bc5179a558d799ab9f77ced09362424c7a898817769a4361",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "line": 1306,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "d2898833031a562d99629f7830717ffe4ba23a6ace782ecf0bc67a4f5e91460d",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitPurchaseCoordinator.swift",
+      "line": 44,
+      "category": "UI_TEST_FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "46bf601cab67135e05b1918303fe8d49cee9384516ab90305761d096fb58f846",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitPurchaseCoordinator.swift",
+      "line": 44,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "46bf601cab67135e05b1918303fe8d49cee9384516ab90305761d096fb58f846",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "line": 10,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "a0b7198a11f52f7823c1200e093d0300085d300db721b8f120547fd650ba22b6",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "line": 38,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "bcdf7e43e695b4646c010f6f193f07f10bad1dae9c4baf835c1aa5007ad15c40",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "line": 41,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "e3d1ce156195fa187a241a9390343b858c4bd0b5fd5a2b5ea17b53378e2d9e18",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "line": 79,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "6a8155c3872b9ee3f9987cbf25faa3ec5eab109839f45b3d6151ec8a993eee4d",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "line": 90,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "9d33964361117e293ba8e8052cb7c7a5732a96c033056520c5dc7278a272603c",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "line": 818,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0a6141f61dff45201a2136bf427a4d782435286efb91b7f31c9e1299efab08ba",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+      "line": 26,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "a0b7198a11f52f7823c1200e093d0300085d300db721b8f120547fd650ba22b6",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+      "line": 37,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "ff9b23f6ed304cd752f30d9ac39796dd38874135bdb2b1502fc5ba386d5833f6",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+      "line": 41,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "56a1d6bbd5ae8211ed1aba0a6712a4dad32ebc9d65f1b09286844911552495ae",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+      "line": 69,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "ce7b7f359f0a431c13403525cd76d2e5e21d03d0d404ddb43dea99dce1df46ca",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+      "line": 77,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "278a5ba64d69ea31a3846bbf7fb9e47b7f66c6ff5b6cc7d07f562f17aa869bce",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+      "line": 253,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "afd56a05b9d1c30f81ec64d070bfc614be2f01eedf2055cdf65d8a81282226b3",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+      "line": 124,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "56f80fa9be129652676da85575631072977bf600259d1a8a0eb701185c6f7ad4",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+      "line": 128,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "d8806d0e65e73a06c4c6539709e3a027c76de1c035bbd95de685acb9f6371241",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+      "line": 128,
+      "category": "UI_TEST_FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "d8806d0e65e73a06c4c6539709e3a027c76de1c035bbd95de685acb9f6371241",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+      "line": 197,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "93063251138aaaaf85c94f3bd7d36c580ed76f8256b061b45f9aa4b6864931c4",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+      "line": 197,
+      "category": "UI_TEST_FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "93063251138aaaaf85c94f3bd7d36c580ed76f8256b061b45f9aa4b6864931c4",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+      "line": 53,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "9dd20b5e5f47b5b2aab0f5677fed2d4ee4eb47812f32510c4d4fc56bccd6adb1",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+      "line": 57,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "3b1ad415dbf5f64601043c33bf53fa7197a472cd2bceb8ea2b337c798383d49d",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+      "line": 98,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "e30d37b164c5525a0e1e8123cf811dade32d42c9724c3e8b4bb7f3269c8eff03",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+      "line": 108,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "0d6dd846323d998bbe071a3cccd7bf4b6ea67bc088e11c5afa707c2625d599ed",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift",
+      "line": 68,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "e74bb92d330df19e0fc46178f1767bde774e546477e61f467b8fb18f4b8aa492",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift",
+      "line": 71,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "928e6ad875a81b37deab3d1f3cd7e1714cc3678189b63deb0a5eec409f8e40c0",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift",
+      "line": 115,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "629f0f2ac7e8b1b3e3cf9d48c42867a31221ba3ff78ba23e1045838b318503ef",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift",
+      "line": 122,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "4cdfc54e4009dabb7a345d7056c8b53104818ceaceae7da6224a0c0ee36857d7",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift",
+      "line": 123,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "fca1e2b5ab0c90f65d726d25caadd0979699c33404da8d1ef463ffbe3ef232e5",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift",
+      "line": 152,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "cc90b25deeaaf39b7f8feda86898fb8396deb23dff9faf1a65b3e862e7044f4c",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift",
+      "line": 63,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "3450cdac033f530ac6a9f03ec97a429ac80d45d1fcbcadfa80416d0a83c1c7c9",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift",
+      "line": 67,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "3a34c495be3c3052357c9e01483358b7b736bdb6c78ffdf9ff508c5d23271f1b",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift",
+      "line": 89,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "b7b0d9dfad1d1cfcdb5282ab115f24d3eda729405b1922b3426a7eebdedbb133",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift",
+      "line": 94,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "d6a13699a5f87aefee14837f26e3bc4e30d95256068133db59ad269617b2e98b",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "line": 81,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "9b233c9ba03adf990637a483424a88e731ce5e662790bf5ec41d772c3fa73a36",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "line": 82,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "9d467fe036c60299d21261ea34d3bedce44a5186aba61801d679171367207397",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "line": 92,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "daa6d1fd0a5b8958e5a6a448ed1f435760373f810fc1b8cbaf35690c20261559",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "line": 93,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "406ad837ebf5cb5c92d781616dfdd945db8fce42140f6df82956b65c537c36b8",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "line": 94,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "061da5d16e515c288003bc1d60dea34ff2280884a58a3dca784113ea3ac66b51",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "line": 118,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "cb5159c177dcfa99434455b76bbe3373a53c496befc1e4fc10db984f43f3c2a7",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "line": 131,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "e91543ca58fcb506a738a3df21c8098d024227428f1e5d551afb5ff2876f5ea8",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "line": 132,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "1e2d642fc9b779968832ae2aeb5c682e1b68c7aa69971b50cbfcf111344f5fdd",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "line": 526,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "c8d2bfd0f093259e4a5730d5b2422c2711805f98e0336603901e484468e57679",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "line": 527,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "d4a41670824af6f848ab3508bd415e9fc9b137158fcc6c1c5f17a7e5ea2a983b",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift",
+      "line": 38,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "6397272aec1f0f7051168f44454a41d00e8d2f5533958793565892c652f310f1",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift",
+      "line": 41,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "70d05c5fe890d50ca9bcb10aa5fd3e6d51a23c1f34fbeab2e98fb208b228f8a8",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift",
+      "line": 64,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "3a19c90a82e535f4594e2a46762982e61ec244825c207c43e3ec944ec1c3f5b3",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift",
+      "line": 73,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "340e7acc669a64e24e38eaccc4d7405ca9f39cee0c2ab3dc9bd85df12c758f0c",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift",
+      "line": 74,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "7f12c73746d7087412ae837d05c9e15bba03435ee779575f1108ff7ea89f27db",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift",
+      "line": 90,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "d687bc11c773fbb1587f0ce027f669035236840f20673bbd77d06a13d6a7d4f2",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+      "line": 16,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "a0b7198a11f52f7823c1200e093d0300085d300db721b8f120547fd650ba22b6",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+      "line": 477,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "7eefd6ac57a9d41c863edc031e8ea718b30dea5499c2f1447be8ad8249eb0b7c",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+      "line": 480,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "378d6b9934555a1f98683eb95ca20c22b1aa867b49223658c587848becf3babc",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+      "line": 501,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "894a8d631f5c13b7a8055ebe86fda1cecf66febf91ed6635d0fbc8511a320ef2",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+      "line": 510,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "ff1fb57f0e48556514cff5d2828e9e2ebeeddbcf23df8b20d10cbc592f5ca99c",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+      "line": 581,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "844b771f328e5c1f0cf5bd9fdf42a7b2c68129a78100ba7ac61376b99f5908b8",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+      "line": 805,
+      "category": "FAILURE_INJECTION_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "09f61eb0a315bc75c406c30b8f31c173d25f2efc18b1e9fe84a25652f1340cb5",
+      "disposition": "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "line": 33,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "004c019cac07015d7c0415ea939ef9ff2f440c92f9b3b4b74df18321e9ddb13e",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "line": 34,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "7f29130df346934a497a1447f3a32f51076ff5204f9d7136c09f711e618f881e",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "line": 61,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "826e842dd85d79d52c5b6179496fe40ddf5878be6cca5a1d1eac968ba657f17c",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "line": 63,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "c97daff92df7c18d9a6edde1aa3b345aaa12c4901fd45fce3fbc2cbc10217c68",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "line": 98,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "b6e8e35d2db9e15fd0fea3bcff475d210bd1d6b33a2a993c74bc9a21eed034e9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "line": 109,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "e7531c3199f3f841e375f0e17ee8a872063001f563607696c8ae1f6ca1d9ae5b",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "line": 162,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "c575caea70a7abd94a135dcd567603d66491110f3faa267071e0c3bf673168a1",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "line": 164,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "9cb2c87f6d757a3703a43fb7484270e31aa0e868b8c89d346513932b8ded458a",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "line": 176,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "b6e8e35d2db9e15fd0fea3bcff475d210bd1d6b33a2a993c74bc9a21eed034e9",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "line": 178,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "e66450da58f002a2b017bded20616446442f8f3cb78a8d06dfd5fb4e7c4ba5cd",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "line": 181,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "f5ce414dc2b1c47daebe1faf83c7f0068b4c85a92a8387f2645dd25d224c80b4",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "line": 182,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "2b4ae8d99e38cb72a05676710752ccda3b910f394914b8d1c245d4e35a4fba6a",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "line": 224,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "b220e415b45d15196efc0a622ee93812459d3383163a3727d70201d8885c6abd",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "line": 496,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "3939cb07d8edc34af99134aa1b2b3e777c9f7c4155df001fb4a09b082877100a",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme",
+      "line": 46,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "8628640da9df0b62da77582425d87f0f0e7951045a69c515004a610e06924e7e",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme",
+      "line": 47,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "9122afed827e3690f122c89e4f43c9225a68dd688ed472c43ad37f1d93475afc",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme",
+      "line": 72,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "8628640da9df0b62da77582425d87f0f0e7951045a69c515004a610e06924e7e",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme",
+      "line": 73,
+      "category": "UI_TEST_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "9122afed827e3690f122c89e4f43c9225a68dd688ed472c43ad37f1d93475afc",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme",
+      "line": 88,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "b0b66ac8c2b914b54e7771dfaa3573289ff6197c9a977f780570ce3332cb8fe0",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    },
+    {
+      "path": "FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme",
+      "line": 111,
+      "category": "FIXTURE_SYMBOL",
+      "reachability": "PRODUCTION_SOURCE_TARGET",
+      "evidenceSHA256": "b0b66ac8c2b914b54e7771dfaa3573289ff6197c9a977f780570ce3332cb8fe0",
+      "disposition": "DEFERRED_FROZEN_S10_RESERVED_PATH"
+    }
+  ],
+  "countsByCategory": {
+    "FAILURE_INJECTION_SYMBOL": 80,
+    "FIXTURE_SYMBOL": 57,
+    "PROCESS_INFO_ARGUMENTS": 3,
+    "PROCESS_INFO_ENVIRONMENT": 2,
+    "TEST_ACTIVATION_LITERAL": 15,
+    "UI_TEST_FIXTURE_SYMBOL": 6,
+    "UI_TEST_SYMBOL": 122
+  },
+  "countsByDisposition": {
+    "DEFERRED_FROZEN_S10_RESERVED_PATH": 206,
+    "REQUIRES_C07_RELEASE_ISOLATION_REMEDIATION": 79
+  },
+  "releaseAbsenceSatisfied": false,
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "artifactDigest": "30da83dc94aebc95be69af806aa7b87cb0fe938b7fc99c048c1bac7599b389aa"
+}

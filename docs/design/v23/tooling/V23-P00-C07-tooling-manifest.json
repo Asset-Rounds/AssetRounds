@@ -1,0 +1,105 @@
+{
+  "schema": "V23P00C07ToolingManifestV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C07",
+  "baseHead": "02f76e6127804f85e38ad0435ddce70f71439d1f",
+  "baseTree": "88849f23750b5c81f511742d8fe154c134badb7d",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "02f76e6127804f85e38ad0435ddce70f71439d1f",
+    "baseTree": "88849f23750b5c81f511742d8fe154c134badb7d",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "a1390808d3cd7c4b8fc4e00611b459f03a144c99706aa1d80a7dfb9d31e4074b",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "bff6077e212515cf6118ea25d44d3c8217c19132ce43b34d85baff404acae922",
+    "bootstrapPathFenceDigest": "c64e2e6c8241a94432f6683f7daa8ee23a0b74618a229cc898714ccf75f1849d",
+    "provisionalPrerequisiteDigest": "eda9c9cf0bbf4654eb571c01eadffbab062e6fa5c1c929817ca19a1d8aab032f",
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "74de7edc5c206592410440a320d3dc46a32151e4ae052cf4e138044d6df6f0b7",
+    "ledgerCASSequence": 19,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "fencedPathCount": 16,
+  "artifacts": [
+    {
+      "path": "Scripts/v23/c07_contracts.py",
+      "sha256": "9f965e77dd83af775d7122f417bb4bee0b81d955ff7054ffe96b9aed06e4b52f"
+    },
+    {
+      "path": "Scripts/v23/generate_c07_contracts.py",
+      "sha256": "0760e157ce39ddfb9ccc347742549dc7f2e403a780e9216d0cf436cc14e0b283"
+    },
+    {
+      "path": "Scripts/v23/verify_c07_contracts.py",
+      "sha256": "f2deac66ace4dec94a25ad58be94dfd6df4b8359f2b07a6fdb360cd8846ebe58"
+    },
+    {
+      "path": "Scripts/v23/v21-c07-requirement-allocation.schema.json",
+      "sha256": "7404a6213448f5e8d427c6c85c51ae07525e78ffceda9ac1b717dfd5a9e1ed19"
+    },
+    {
+      "path": "Scripts/v23/v21-c07-closure-set.schema.json",
+      "sha256": "6a4129fa79821c762932a0c3e9d3a9e9809e1c6caf3c3bc84dbe055af043c5ce"
+    },
+    {
+      "path": "Scripts/v23/release-hook-inventory.schema.json",
+      "sha256": "6fd993be0ef0a6ca8b6a04db18eb9882f1e6e3d5d900dce0167bddde5b6f6c80"
+    },
+    {
+      "path": "Scripts/v23/release-test-support-absence-receipt.schema.json",
+      "sha256": "3476050c423cdb4f18ef2f3a38ef084d7a3a502c208ba5619c48b94976501d13"
+    },
+    {
+      "path": "Scripts/v23/test-harness-availability-receipt.schema.json",
+      "sha256": "3416f453cf34ce0121a5d9a3f1d517d9398f9b40a4cd4f2d6d11d24a7f35bcfa"
+    },
+    {
+      "path": "Scripts/v23/writer-boundary-interlock.schema.json",
+      "sha256": "d55e94de7ba1e5136b7c57714211529e2d3af9acf4dd62d73085a700a2eb2a55"
+    },
+    {
+      "path": "docs/design/v23/tooling/V21C07RequirementAllocationV1.json",
+      "sha256": "12ac24977a035ad74e55f5ed9529ac11abbdabc04b34cbd8a561fe4d97d3ebb0"
+    },
+    {
+      "path": "docs/design/v23/tooling/V21C07ClosureSetV1.json",
+      "sha256": "a24ddf76e1c0cc387517e5e9655648eda7f7cd1689825b7757c54382ec6ad0f4"
+    },
+    {
+      "path": "docs/design/v23/tooling/ReleaseHookInventoryV1.json",
+      "sha256": "7e3f2fc6bdede77a921ae69bd72d483efdd544dad29aa2beff17d057e44b2ca5"
+    },
+    {
+      "path": "docs/design/v23/tooling/ReleaseTestSupportAbsenceReceiptV1.json",
+      "sha256": "3a66e7d25a7dce8d43cbf86a6989bd4dfd190a228d16f218eb847c0aae1608df"
+    },
+    {
+      "path": "docs/design/v23/tooling/TestHarnessAvailabilityReceiptV1.json",
+      "sha256": "9af69c7fc4bf843c7f2aca78b0f21fc2a45a046c3bfa11d2fc7e69c5c2b493a4"
+    },
+    {
+      "path": "docs/design/v23/tooling/WriterBoundaryInterlockV1.json",
+      "sha256": "fb289f6e0880af8538100dc974a47de3ab8a6f7aa07281882390f328e10ef5cf"
+    }
+  ],
+  "provisionalDisposition": "DISJOINT_CONTRACT_TOOLING_ONLY; PRODUCT_HOOK_REMOVAL_AND_NATIVE_ACCEPTANCE_DEFERRED",
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "artifactDigest": "d46c047d880bea6c4128c4393deb59d97734dd4049aea282abd97a1cfdf2a920"
+}

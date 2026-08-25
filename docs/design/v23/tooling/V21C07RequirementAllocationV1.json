@@ -1,0 +1,630 @@
+{
+  "schema": "V21C07RequirementAllocationV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C07",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "02f76e6127804f85e38ad0435ddce70f71439d1f",
+    "baseTree": "88849f23750b5c81f511742d8fe154c134badb7d",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "a1390808d3cd7c4b8fc4e00611b459f03a144c99706aa1d80a7dfb9d31e4074b",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "bff6077e212515cf6118ea25d44d3c8217c19132ce43b34d85baff404acae922",
+    "bootstrapPathFenceDigest": "c64e2e6c8241a94432f6683f7daa8ee23a0b74618a229cc898714ccf75f1849d",
+    "provisionalPrerequisiteDigest": "eda9c9cf0bbf4654eb571c01eadffbab062e6fa5c1c929817ca19a1d8aab032f",
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "74de7edc5c206592410440a320d3dc46a32151e4ae052cf4e138044d6df6f0b7",
+    "ledgerCASSequence": 19,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "sourceAllocationSHA256": "5fb22f8aff4018e1a5c423c1f3606e1937c0360c22be20408181da6f812ea6ba",
+  "sourceInheritedPayloadSHA256": "7692169e27cfb6abb157b28007cc3c79f1c51d3e9075dc7a451c3023b3692c80",
+  "orderedAtomicClauseIDs": [
+    "V21-C07-O01",
+    "V21-C07-B01",
+    "V21-C07-B02",
+    "V21-C07-B03A",
+    "V21-C07-B03B",
+    "V21-C07-B03C",
+    "V21-C07-B04",
+    "V21-C07-B05",
+    "V21-C07-B06A",
+    "V21-C07-B06B",
+    "V21-C07-B07",
+    "V21-C07-B08A",
+    "V21-C07-B08B",
+    "V21-C07-B09",
+    "V21-C07-B10",
+    "V21-C07-B11",
+    "V21-C07-B12A",
+    "V21-C07-B12B",
+    "V21-C07-B12C",
+    "V21-C07-B13A",
+    "V21-C07-B13B",
+    "V21-C07-B14A",
+    "V21-C07-B14B",
+    "V21-C07-B15A",
+    "V21-C07-B15B",
+    "V21-C07-B16A",
+    "V21-C07-B16B",
+    "V21-C07-B16C",
+    "V21-C07-B16D",
+    "V21-C07-B16E",
+    "V21-C07-N01",
+    "V21-C07-N02",
+    "V21-C07-N03",
+    "V21-C07-N04",
+    "V21-C07-K01",
+    "V21-C07-K02",
+    "V21-C07-K03",
+    "V21-C07-K04",
+    "V21-C07-K05",
+    "V21-C07-L01",
+    "V21-C07-I01",
+    "V21-C07-A01",
+    "V21-C07-A02",
+    "V21-C07-A03",
+    "V21-C07-A04",
+    "V21-C07-A05",
+    "V21-C07-A06",
+    "V21-C07-H01",
+    "V21-C07-H02",
+    "V21-C07-H03",
+    "V21-C07-R01",
+    "V21-C07-E01",
+    "V21-C07-E02",
+    "V21-C07-E03",
+    "V21-C07-E04",
+    "V21-C07-E05",
+    "V21-C07-G01"
+  ],
+  "rows": [
+    {
+      "ordinal": 1,
+      "atomicClauseID": "V21-C07-O01",
+      "obligation": "Outcome: one enforceable architecture/test/concurrency closure",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "V21C07ClosureSetV1 over C07/C09/C10/C11/C12",
+      "acceptanceBoundary": "zero missing or duplicate atomic clauses",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 2,
+      "atomicClauseID": "V21-C07-B01",
+      "obligation": "Build 01: composition root constructs live and test adapters",
+      "soleOwner": "V23-P00-C10",
+      "evidenceContract": "ProductionCompositionRootV1",
+      "acceptanceBoundary": "composition-root and construction scanner green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 3,
+      "atomicClauseID": "V21-C07-B02",
+      "obligation": "Build 02: protocols only at volatile boundaries; no speculative micro-modules",
+      "soleOwner": "V23-P00-C10",
+      "evidenceContract": "DependencyPortRegistryV1",
+      "acceptanceBoundary": "port inventory and architecture fitness green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 4,
+      "atomicClauseID": "V21-C07-B03A",
+      "obligation": "Build 03A: inward import direction and sole concrete-infrastructure assembly",
+      "soleOwner": "V23-P00-C10",
+      "evidenceContract": "ArchitectureBoundaryManifestV1",
+      "acceptanceBoundary": "forbidden-import scanner green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 5,
+      "atomicClauseID": "V21-C07-B03B",
+      "obligation": "Build 03B: TestSupport outside production reach",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "ReleaseTestSupportAbsenceReceiptV1",
+      "acceptanceBoundary": "Release archive reachability scan green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 6,
+      "atomicClauseID": "V21-C07-B03C",
+      "obligation": "Build 03C: logical seam mandatory; physical target extraction only on measured benefit",
+      "soleOwner": "V23-P00-C10",
+      "evidenceContract": "ArchitectureFitnessReceiptV1",
+      "acceptanceBoundary": "logical boundary proven; extraction decision recorded",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 7,
+      "atomicClauseID": "V21-C07-B04",
+      "obligation": "Build 04: inventory ModelContext ownership and decompose oversized coordinators without behavior rewrite",
+      "soleOwner": "V23-P00-C10",
+      "evidenceContract": "CoordinatorDecompositionReceiptV1",
+      "acceptanceBoundary": "golden parity and hotspot ratchet green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 8,
+      "atomicClauseID": "V21-C07-B05",
+      "obligation": "Build 05: typed UI-test scenario, digest, fixtures, clock/ID, faults, robots, and state recipes",
+      "soleOwner": "V23-P00-C09",
+      "evidenceContract": "UITestScenarioV1 and PageRobotRegistryV1",
+      "acceptanceBoundary": "scenario/robot schema and parity tests green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 9,
+      "atomicClauseID": "V21-C07-B06A",
+      "obligation": "Build 06A: bounded synthetic manifest through UITesting-only or separate TestSupport boundary",
+      "soleOwner": "V23-P00-C09",
+      "evidenceContract": "UITestScenarioDigestV1",
+      "acceptanceBoundary": "version/size/unknown/corrupt manifest tests green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 10,
+      "atomicClauseID": "V21-C07-B06B",
+      "obligation": "Build 06B: no Release parser, key, object, resource, fault hook, or legacy activation behavior",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "ReleaseTestSupportAbsenceReceiptV1",
+      "acceptanceBoundary": "archive absence and no-behavior-change proof green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 11,
+      "atomicClauseID": "V21-C07-B07",
+      "obligation": "Build 07: remove shipping test plumbing; safe isolated TestRuns roots and visible cleanup failure",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "TestHarnessAvailabilityReceiptV1",
+      "acceptanceBoundary": "root containment/symlink/error tests green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 12,
+      "atomicClauseID": "V21-C07-B08A",
+      "obligation": "Build 08A: generated scanner inventory for every shipping test hook and implementation",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "ReleaseHookInventoryV1",
+      "acceptanceBoundary": "zero shipping implementations with legitimate ports retained",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 13,
+      "atomicClauseID": "V21-C07-B08B",
+      "obligation": "Build 08B: ban source byte/hash/line/count locks except immutable fixtures and schemas",
+      "soleOwner": "V23-P00-C09",
+      "evidenceContract": "SourceLockEliminationReceiptV1",
+      "acceptanceBoundary": "test-source lock scanner green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 14,
+      "atomicClauseID": "V21-C07-B09",
+      "obligation": "Build 09: viewport preconditions; route drivers, page robots, bounded scenarios, and small true E2E set",
+      "soleOwner": "V23-P00-C09",
+      "evidenceContract": "ViewportContractV1",
+      "acceptanceBoundary": "anchor/safe-area/reachability and E2E allocation green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 15,
+      "atomicClauseID": "V21-C07-B10",
+      "obligation": "Build 10: MailComposer delegate actor isolation and exactly-once outcomes",
+      "soleOwner": "V23-P00-C11",
+      "evidenceContract": "PlatformAdapterConcurrencyReceiptV1",
+      "acceptanceBoundary": "success/cancel/save/failure actor tests green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 16,
+      "atomicClauseID": "V21-C07-B11",
+      "obligation": "Build 11: five checked-in plans with one topology owner and diagnostic nonpromotion",
+      "soleOwner": "V23-P00-C09",
+      "evidenceContract": "TestPlanReleaseV1",
+      "acceptanceBoundary": "discoverability/inventory/gating-role tests green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 17,
+      "atomicClauseID": "V21-C07-B12A",
+      "obligation": "Build 12A: architecture, writer, dependency-cycle, and hotspot ratchets",
+      "soleOwner": "V23-P00-C10",
+      "evidenceContract": "ArchitectureDebtLedgerV1",
+      "acceptanceBoundary": "baseline does not grow without typed exception",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 18,
+      "atomicClauseID": "V21-C07-B12B",
+      "obligation": "Build 12B: Sendable, unsafe isolation, and detached-task ratchets",
+      "soleOwner": "V23-P00-C11",
+      "evidenceContract": "UnsafeBoundaryDispositionV1",
+      "acceptanceBoundary": "zero unowned concurrency-debt growth",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 19,
+      "atomicClauseID": "V21-C07-B12C",
+      "obligation": "Build 12C: no new production ProcessInfo test-scenario parsing",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "ReleaseHookInventoryV1",
+      "acceptanceBoundary": "production parser scanner green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 20,
+      "atomicClauseID": "V21-C07-B13A",
+      "obligation": "Build 13A: composition root and command/query seams without competing feature services",
+      "soleOwner": "V23-P00-C10",
+      "evidenceContract": "ProductionCompositionRootV1",
+      "acceptanceBoundary": "one composition authority and parity green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 21,
+      "atomicClauseID": "V21-C07-B13B",
+      "obligation": "Build 13B: no competing persistence writer before P02-C01; preserve existing behavior behind seam",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "WriterBoundaryInterlockV1",
+      "acceptanceBoundary": "zero duplicate writer and explicit handoff green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 22,
+      "atomicClauseID": "V21-C07-B14A",
+      "obligation": "Build 14A: pin concurrency settings; inventory/fix unsafe boundaries; Swift 5 Complete zero warnings",
+      "soleOwner": "V23-P00-C11",
+      "evidenceContract": "ConcurrencyIsolationInventoryV1",
+      "acceptanceBoundary": "all target/config Swift-5-Complete receipts green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 23,
+      "atomicClauseID": "V21-C07-B14B",
+      "obligation": "Build 14B: enable Swift 6 for every target/config and reprove",
+      "soleOwner": "V23-P00-C12",
+      "evidenceContract": "SwiftLanguageModeClosureReceiptV1",
+      "acceptanceBoundary": "all target/config Swift-6 receipts green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 24,
+      "atomicClauseID": "V21-C07-B15A",
+      "obligation": "Build 15A: target-by-target migration after retained Swift-5-Complete checkpoint",
+      "soleOwner": "V23-P00-C11",
+      "evidenceContract": "ConcurrencyMigrationPlanV1",
+      "acceptanceBoundary": "ordered checkpoint and writer truth preserved",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 25,
+      "atomicClauseID": "V21-C07-B15B",
+      "obligation": "Build 15B: final every-target/configuration Swift 6 closure",
+      "soleOwner": "V23-P00-C12",
+      "evidenceContract": "SwiftLanguageModeClosureReceiptV1",
+      "acceptanceBoundary": "no silent Swift 5 target or suppression",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 26,
+      "atomicClauseID": "V21-C07-B16A",
+      "obligation": "Build 16A: plan enrollment and affected-contract routing through five-slot controller",
+      "soleOwner": "V23-P00-C09",
+      "evidenceContract": "TestPlanEnrollmentReceiptV1",
+      "acceptanceBoundary": "all five plans and exact inventory enrolled",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 27,
+      "atomicClauseID": "V21-C07-B16B",
+      "obligation": "Build 16B: isolated-root and Release-exclusion checkpoint",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "ReleaseTestSupportAbsenceReceiptV1",
+      "acceptanceBoundary": "checkpoint green on exact head",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 28,
+      "atomicClauseID": "V21-C07-B16C",
+      "obligation": "Build 16C: Swift-5-Complete checkpoint",
+      "soleOwner": "V23-P00-C11",
+      "evidenceContract": "ConcurrencyClosureReceiptV1",
+      "acceptanceBoundary": "checkpoint green on exact head",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 29,
+      "atomicClauseID": "V21-C07-B16D",
+      "obligation": "Build 16D: Swift-6 and platform-adapter checkpoint",
+      "soleOwner": "V23-P00-C12",
+      "evidenceContract": "SwiftLanguageModeClosureReceiptV1",
+      "acceptanceBoundary": "checkpoint green on exact head",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 30,
+      "atomicClauseID": "V21-C07-B16E",
+      "obligation": "Build 16E: retain correction receipts but emit one final inherited closure",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "V21C07ClosureSetV1",
+      "acceptanceBoundary": "five compatible member receipts at candidate",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 31,
+      "atomicClauseID": "V21-C07-N01",
+      "obligation": "Do-not-build 01–03: no big-bang rewrite, service locator/singleton, or speculative target explosion",
+      "soleOwner": "V23-P00-C10",
+      "evidenceContract": "ArchitectureFitnessReceiptV1",
+      "acceptanceBoundary": "prohibited-pattern scan and measured-extraction disposition",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 32,
+      "atomicClauseID": "V21-C07-N02",
+      "obligation": "Do-not-build 04: no blanket unsafe concurrency or warning escape",
+      "soleOwner": "V23-P00-C11",
+      "evidenceContract": "UnsafeBoundaryDispositionV1",
+      "acceptanceBoundary": "every retained unsafe boundary owned, expiring, and tested",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 33,
+      "atomicClauseID": "V21-C07-N03",
+      "obligation": "Do-not-build 05: direct-state tests never replace required E2E journeys",
+      "soleOwner": "V23-P00-C09",
+      "evidenceContract": "TestPlanReleaseV1",
+      "acceptanceBoundary": "journey inventory has no substitution",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 34,
+      "atomicClauseID": "V21-C07-N04",
+      "obligation": "Do-not-build 06: no shipping fixture/parser/key/object/resource/fault/controller",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "ReleaseTestSupportAbsenceReceiptV1",
+      "acceptanceBoundary": "Release archive scan green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 35,
+      "atomicClauseID": "V21-C07-K01",
+      "obligation": "Owned contracts: architecture boundary, composition root, dependency boundary, debt ledger",
+      "soleOwner": "V23-P00-C10",
+      "evidenceContract": "contract family declaration",
+      "acceptanceBoundary": "single declaration owner and contract tests",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 36,
+      "atomicClauseID": "V21-C07-K02",
+      "obligation": "Owned contracts: scenario, scenario digest, harness availability, plan topology/enrollment, viewport",
+      "soleOwner": "V23-P00-C09",
+      "evidenceContract": "contract family declaration",
+      "acceptanceBoundary": "single declaration owner and test-plan receipts",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 37,
+      "atomicClauseID": "V21-C07-K03",
+      "obligation": "Owned contracts: strict-concurrency disposition, unsafe inventory, concurrency closure",
+      "soleOwner": "V23-P00-C11",
+      "evidenceContract": "contract family declaration",
+      "acceptanceBoundary": "pre-Swift-6 closure green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 38,
+      "atomicClauseID": "V21-C07-K04",
+      "obligation": "Owned contract: final Swift-language-mode closure",
+      "soleOwner": "V23-P00-C12",
+      "evidenceContract": "contract family declaration",
+      "acceptanceBoundary": "all target/config Swift-6 closure green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 39,
+      "atomicClauseID": "V21-C07-K05",
+      "obligation": "Owned contract: Release TestSupport absence and inherited closure allocation",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "contract family declaration",
+      "acceptanceBoundary": "absence and allocation validators green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 40,
+      "atomicClauseID": "V21-C07-L01",
+      "obligation": "Lifecycle/recovery clause for persistent, portable, scratch, and immutable evidence",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "V21C07ClosureSetV1 lifecycle projection",
+      "acceptanceBoundary": "each allocated owner supplies applicable lifecycle disposition",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 41,
+      "atomicClauseID": "V21-C07-I01",
+      "obligation": "Implementation-boundary clause: future writer/search owners are not current and duplicate truth is forbidden",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "WriterBoundaryInterlockV1",
+      "acceptanceBoundary": "authority-closure and duplicate-owner scans green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 42,
+      "atomicClauseID": "V21-C07-A01",
+      "obligation": "Acceptance family: architecture imports, composition, construction, coordinator, and debt ratchets",
+      "soleOwner": "V23-P00-C10",
+      "evidenceContract": "ArchitectureFitnessReceiptV1",
+      "acceptanceBoundary": "all architecture named checks green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 43,
+      "atomicClauseID": "V21-C07-A02",
+      "obligation": "Acceptance family: scenario, safe roots, source locks, viewport, robots, and plan inventory",
+      "soleOwner": "V23-P00-C09",
+      "evidenceContract": "TestPlanAcceptanceReceiptV1",
+      "acceptanceBoundary": "all test-harness named checks green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 44,
+      "atomicClauseID": "V21-C07-A03",
+      "obligation": "Acceptance family: Release hook/scenario/resource absence and activation inertness",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "ReleaseTestSupportAbsenceReceiptV1",
+      "acceptanceBoundary": "all Release-exclusion named checks green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 45,
+      "atomicClauseID": "V21-C07-A04",
+      "obligation": "Acceptance family: Swift-5 diagnostics, mail callbacks, and retained unsafe-boundary races",
+      "soleOwner": "V23-P00-C11",
+      "evidenceContract": "ConcurrencyClosureReceiptV1",
+      "acceptanceBoundary": "all preparation named checks green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 46,
+      "atomicClauseID": "V21-C07-A05",
+      "obligation": "Acceptance family: every target/configuration Swift 6 and platform adapters",
+      "soleOwner": "V23-P00-C12",
+      "evidenceContract": "SwiftLanguageModeClosureReceiptV1",
+      "acceptanceBoundary": "final compiler/runtime proof green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 47,
+      "atomicClauseID": "V21-C07-A06",
+      "obligation": "Acceptance family: five-lane routing preserves one exact accepting head",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "V21C07ClosureSetV1",
+      "acceptanceBoundary": "controller and compatible-candidate proof green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 48,
+      "atomicClauseID": "V21-C07-H01",
+      "obligation": "Hostile family: outward construction, dependency cycles, and oversized growth",
+      "soleOwner": "V23-P00-C10",
+      "evidenceContract": "ArchitectureFitnessReceiptV1",
+      "acceptanceBoundary": "hostile architecture fixtures green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 49,
+      "atomicClauseID": "V21-C07-H02",
+      "obligation": "Hostile family: malformed/real-data/path-escaping scenario, E2E substitution, plan omission, artifact mismatch",
+      "soleOwner": "V23-P00-C09",
+      "evidenceContract": "TestPlanAcceptanceReceiptV1",
+      "acceptanceBoundary": "hostile harness and artifact fixtures green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 50,
+      "atomicClauseID": "V21-C07-H03",
+      "obligation": "Hostile family: Swift suppression or unchecked isolation without evidence",
+      "soleOwner": "V23-P00-C11",
+      "evidenceContract": "UnsafeBoundaryDispositionV1",
+      "acceptanceBoundary": "hostile concurrency scan green",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 51,
+      "atomicClauseID": "V21-C07-R01",
+      "obligation": "Interruption, idempotent recovery, prior-generation preservation, and immutable evidence",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "V21C07ClosureSetV1 recovery projection",
+      "acceptanceBoundary": "every allocated owner supplies interruption/recovery receipt",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 52,
+      "atomicClauseID": "V21-C07-E01",
+      "obligation": "Required evidence: dependency graph, composition, boundary, and architecture-debt deltas",
+      "soleOwner": "V23-P00-C10",
+      "evidenceContract": "ArchitectureFitnessReceiptV1",
+      "acceptanceBoundary": "exact-head evidence complete",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 53,
+      "atomicClauseID": "V21-C07-E02",
+      "obligation": "Required evidence: scenario, fixture, robot, plan, test inventory, and affected selection",
+      "soleOwner": "V23-P00-C09",
+      "evidenceContract": "TestPlanAcceptanceReceiptV1",
+      "acceptanceBoundary": "exact-head evidence complete",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 54,
+      "atomicClauseID": "V21-C07-E03",
+      "obligation": "Required evidence: Release exclusion and five-slot closure",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "V21C07ClosureSetV1",
+      "acceptanceBoundary": "exact-head evidence complete",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 55,
+      "atomicClauseID": "V21-C07-E04",
+      "obligation": "Required evidence: Swift-5-Complete inventory and receipts",
+      "soleOwner": "V23-P00-C11",
+      "evidenceContract": "ConcurrencyClosureReceiptV1",
+      "acceptanceBoundary": "exact-head evidence complete",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 56,
+      "atomicClauseID": "V21-C07-E05",
+      "obligation": "Required evidence: Swift-6 zero diagnostics for all targets/configurations",
+      "soleOwner": "V23-P00-C12",
+      "evidenceContract": "SwiftLanguageModeClosureReceiptV1",
+      "acceptanceBoundary": "exact-head evidence complete",
+      "implementationCredit": false
+    },
+    {
+      "ordinal": 57,
+      "atomicClauseID": "V21-C07-G01",
+      "obligation": "Brand/accessibility/privacy, rollback/forward-fix, hard-stop, future-trigger, and lineage semantic clauses",
+      "soleOwner": "V23-P00-C07",
+      "evidenceContract": "V21C07ClosureSetV1 common-policy projection",
+      "acceptanceBoundary": "all five owner receipts satisfy common policy; lineage preserved",
+      "implementationCredit": false
+    }
+  ],
+  "ownerCounts": {
+    "V23-P00-C07": 18,
+    "V23-P00-C09": 11,
+    "V23-P00-C10": 12,
+    "V23-P00-C11": 10,
+    "V23-P00-C12": 6
+  },
+  "expectedClauseCount": 57,
+  "observedClauseCount": 57,
+  "missingClauseCount": 0,
+  "duplicateClauseCount": 0,
+  "orphanClauseCount": 0,
+  "overlapClauseCount": 0,
+  "allocationComplete": true,
+  "c13InheritedClauseCount": 0,
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "artifactDigest": "a3974f7989a5efe5674af12e5d73710be06a87ac5c609a8dd504ee00c38d4a0a"
+}

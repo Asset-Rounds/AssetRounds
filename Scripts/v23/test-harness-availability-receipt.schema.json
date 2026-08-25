@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assetrounds.invalid/v23/TestHarnessAvailabilityReceiptV1.schema.json",
+  "title": "TestHarnessAvailabilityReceiptV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "contractRoot",
+    "opaqueRunIDPattern",
+    "testSupportTarget",
+    "isolatedRootImplementation",
+    "cleanupFailureBehavior",
+    "hostedWorkflowEvidence",
+    "checks",
+    "disposition",
+    "acceptanceCredit",
+    "releaseCredit",
+    "artifactDigest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "TestHarnessAvailabilityReceiptV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "cardID": {
+      "const": "V23-P00-C07"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attemptID",
+        "executionMode",
+        "baseHead",
+        "baseTree",
+        "candidateBinding",
+        "packageDigest",
+        "dossierDigest",
+        "canonicalRegisterDigest",
+        "directGraphDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "ownerOverrideReceiptDigest",
+        "frozenS10ReservationDigest",
+        "bootstrapContextDigest",
+        "bootstrapPathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "writerAuthority",
+        "ledgerDigest",
+        "ledgerCASSequence",
+        "phase10PollingDuringParallelExecution",
+        "acceptanceEnabled",
+        "hostedDispatchEnabled",
+        "adoptionEnabled",
+        "requiresAcceptedS10_6Reconciliation",
+        "releaseCredit"
+      ],
+      "properties": {
+        "attemptID": {
+          "const": 1
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "baseHead": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "baseTree": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "candidateBinding": {
+          "const": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED"
+        },
+        "packageDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "dossierDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "canonicalRegisterDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "directGraphDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "selectorManifestDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "relationManifestDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "dependencyDispositionDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ownerOverrideReceiptDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "frozenS10ReservationDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bootstrapContextDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bootstrapPathFenceDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "provisionalPrerequisiteDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "writerAuthority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ownerID",
+            "writerGeneration"
+          ],
+          "properties": {
+            "ownerID": {
+              "const": "A00_BOOTSTRAP_CONTROLLER"
+            },
+            "writerGeneration": {
+              "const": 0
+            }
+          }
+        },
+        "ledgerDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ledgerCASSequence": {
+          "const": 19
+        },
+        "phase10PollingDuringParallelExecution": {
+          "const": false
+        },
+        "acceptanceEnabled": {
+          "const": false
+        },
+        "hostedDispatchEnabled": {
+          "const": false
+        },
+        "adoptionEnabled": {
+          "const": false
+        },
+        "requiresAcceptedS10_6Reconciliation": {
+          "const": true
+        },
+        "releaseCredit": {
+          "const": false
+        }
+      }
+    },
+    "acceptanceCredit": {
+      "const": false
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "artifactDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "contractRoot": {
+      "const": "Application Support/TestRuns/<opaque-run-id>"
+    },
+    "opaqueRunIDPattern": {
+      "type": "string",
+      "minLength": 1
+    },
+    "testSupportTarget": {
+      "const": "ABSENT_NOT_INVENTED"
+    },
+    "isolatedRootImplementation": {
+      "const": "REFERENCE_MODEL_ONLY"
+    },
+    "cleanupFailureBehavior": {
+      "const": "MUST_SURFACE"
+    },
+    "hostedWorkflowEvidence": {
+      "const": "NOT_RUN_HOSTED_DISPATCH_DISABLED"
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "case",
+          "expected",
+          "result"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "case": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expected": {
+            "type": "string",
+            "minLength": 1
+          },
+          "result": {
+            "enum": [
+              "PASS",
+              "DEFERRED"
+            ]
+          }
+        }
+      }
+    },
+    "disposition": {
+      "const": "CONTRACT_MODEL_GREEN_NATIVE_INSTALLATION_DEFERRED"
+    }
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "schema": "V21C07ClosureSetV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C07",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "02f76e6127804f85e38ad0435ddce70f71439d1f",
+    "baseTree": "88849f23750b5c81f511742d8fe154c134badb7d",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "a1390808d3cd7c4b8fc4e00611b459f03a144c99706aa1d80a7dfb9d31e4074b",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "bff6077e212515cf6118ea25d44d3c8217c19132ce43b34d85baff404acae922",
+    "bootstrapPathFenceDigest": "c64e2e6c8241a94432f6683f7daa8ee23a0b74618a229cc898714ccf75f1849d",
+    "provisionalPrerequisiteDigest": "eda9c9cf0bbf4654eb571c01eadffbab062e6fa5c1c929817ca19a1d8aab032f",
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "74de7edc5c206592410440a320d3dc46a32151e4ae052cf4e138044d6df6f0b7",
+    "ledgerCASSequence": 19,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "orderedMembers": [
+    "V23-P00-C07",
+    "V23-P00-C09",
+    "V23-P00-C10",
+    "V23-P00-C11",
+    "V23-P00-C12"
+  ],
+  "requiredMemberCount": 5,
+  "observedCompatibleMemberCount": 0,
+  "missingCompatibleMemberCount": 5,
+  "members": [
+    {
+      "cardID": "V23-P00-C07",
+      "allocatedClauseCount": 18,
+      "requiredReceiptContract": "V23CardAcceptanceReceiptV2+ReleaseTestSupportAbsenceReceiptV1+TestHarnessAvailabilityReceiptV1+WriterBoundaryInterlockV1",
+      "receiptState": "PROVISIONAL_TOOLING_IMPLEMENTING",
+      "candidateIdentity": null,
+      "compatibilityDisposition": "NOT_ESTABLISHED",
+      "candidateCompatibility": false
+    },
+    {
+      "cardID": "V23-P00-C09",
+      "allocatedClauseCount": 11,
+      "requiredReceiptContract": "TestPlanAcceptanceReceiptV1",
+      "receiptState": "NOT_STARTED",
+      "candidateIdentity": null,
+      "compatibilityDisposition": "NOT_ESTABLISHED",
+      "candidateCompatibility": false
+    },
+    {
+      "cardID": "V23-P00-C10",
+      "allocatedClauseCount": 12,
+      "requiredReceiptContract": "ArchitectureFitnessReceiptV1",
+      "receiptState": "NOT_STARTED",
+      "candidateIdentity": null,
+      "compatibilityDisposition": "NOT_ESTABLISHED",
+      "candidateCompatibility": false
+    },
+    {
+      "cardID": "V23-P00-C11",
+      "allocatedClauseCount": 10,
+      "requiredReceiptContract": "ConcurrencyClosureReceiptV1",
+      "receiptState": "NOT_STARTED",
+      "candidateIdentity": null,
+      "compatibilityDisposition": "NOT_ESTABLISHED",
+      "candidateCompatibility": false
+    },
+    {
+      "cardID": "V23-P00-C12",
+      "allocatedClauseCount": 6,
+      "requiredReceiptContract": "SwiftLanguageModeClosureReceiptV1",
+      "receiptState": "NOT_STARTED",
+      "candidateIdentity": null,
+      "compatibilityDisposition": "NOT_ESTABLISHED",
+      "candidateCompatibility": false
+    }
+  ],
+  "sharedCandidateIdentity": null,
+  "closureEligible": false,
+  "closureStatus": "OPEN_PROVISIONAL_NO_COMPATIBLE_CANDIDATE",
+  "lifecycleDisposition": "NONPERSISTENT_EVIDENCE_VERSIONED_BY_IMMUTABLE_DIGEST; PRODUCT_LIFECYCLE_REMAINS_WITH_ALLOCATED_OWNER",
+  "recoveryDisposition": "REGENERATE_IDENTICAL_ARTIFACT_OR_FAIL_CLOSED; NEVER_REWRITE_ACCEPTED_HISTORY",
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "artifactDigest": "f0824d704639364e904d93dc0f7b3984a06774711329776bc49de0cd5466b94f"
+}
