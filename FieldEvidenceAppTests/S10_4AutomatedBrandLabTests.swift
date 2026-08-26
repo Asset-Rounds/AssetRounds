@@ -9293,10 +9293,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 20_431)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 20_441)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "143E85971F6A2CAD305B67C1F1A0EF7ADE4880A4BDF0472EDA7DD4723116731F"
+            "20D4B8465F4C6A93DDC71BEEBA9336D85BE33A43434649EF7AAEFB483179E87F"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
@@ -19671,10 +19671,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 20_416)
+        XCTAssertEqual(captureSource.utf8.count, 20_426)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "55DDF75946F5015B54118BCAAAAC0CC27E14F40093B393D6E7C44F5A6DF1E18B"
+            "E216462A65F19C9A80F81F2772B35E9EBB5DBB0FFA93444BBC257C3A1B91BDC1"
         )
         let captureReplayGateSource = try boundedSource(
             captureSource,
@@ -19708,11 +19708,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             k154WorkValidationNativeContrastDiagnosticSource.utf8.count,
-            12_360
+            12_370
         )
         XCTAssertEqual(
             Data(k154WorkValidationNativeContrastDiagnosticSource.utf8).sha256,
-            "33AE73884285BD9B0C7D7F1063314DC1718F222B18EAC6C0BF658823A7ADEE03"
+            "DDCB36C2BEB3CBD30FFF14022D8CC91A4CEB584DE1437FBAC41582857BAB47ED"
         )
         for exactGate in [
             "automationSegment == .segment2",
