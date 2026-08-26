@@ -316,6 +316,70 @@ struct WorkspaceMutationRequestV1: Codable, Equatable, Sendable {
     let command: WorkspaceCommandV1
 }
 
+struct OwnedStorageAttemptIDV1: Hashable, Sendable {
+    let workspaceID: WorkspaceID
+    let generationID: UUID
+    let mutationID: MutationIDV1
+
+    init(
+        workspaceID: WorkspaceID,
+        generationID: UUID,
+        mutationID: MutationIDV1
+    ) throws {
+        guard workspaceID.rawValue != Self.zero,
+              generationID != Self.zero else {
+            throw WorkspaceMutationContractFailureV1.invalidID
+        }
+        self.workspaceID = workspaceID
+        self.generationID = generationID
+        self.mutationID = mutationID
+    }
+
+    private static let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+}
+
+struct OwnedStorageVolumeIdentityV1: Equatable, Hashable, Sendable {
+    let device: UInt64
+}
+
+struct OwnedStorageReservationV1: Equatable, Sendable {
+    let attemptID: OwnedStorageAttemptIDV1
+    let requiredBytes: Int64
+    let volumeIdentity: OwnedStorageVolumeIdentityV1
+}
+
+protocol WorkspaceStorageAdmissionPortV1: AnyObject {
+    func reserve(
+        attemptID: OwnedStorageAttemptIDV1,
+        requiredBytes: Int64
+    ) throws -> OwnedStorageReservationV1
+    func release(reservation: OwnedStorageReservationV1)
+}
+
+enum WorkspaceStorageEstimateV1 {
+    /// Bounded allowance for the journal, SQLite pages and sidecars written by
+    /// one canonical transaction. Existing feature-specific preflight
+    /// estimates remain unchanged and additive.
+    static let canonicalMutationAllowanceBytes: Int64 = 1_048_576
+
+    static func requiredBytes(for command: WorkspaceCommandV1) throws -> Int64 {
+        var required = canonicalMutationAllowanceBytes
+        if case let .acceptCheckEvidence(value) = command {
+            guard value.byteCount >= 0, value.thumbnailByteCount >= 0 else {
+                throw WorkspaceMutationContractFailureV1.invalidPlan
+            }
+            let (content, contentOverflow) = Int64(value.byteCount)
+                .addingReportingOverflow(Int64(value.thumbnailByteCount))
+            let (total, totalOverflow) = required.addingReportingOverflow(content)
+            guard !contentOverflow, !totalOverflow, total >= 0 else {
+                throw WorkspaceMutationContractFailureV1.invalidPlan
+            }
+            required = total
+        }
+        return required
+    }
+}
+
 struct WorkspaceMutationEffectV1: Codable, Equatable, Sendable {
     let affectedEntities: [WorkspaceEntityIdentityV1]
     let temporaryRelativePath: String
@@ -360,6 +424,7 @@ enum WorkspaceMutationFailureV1: Error, Equatable {
     case invalidReversal
     case receiptHistoryCorrupt
     case sequenceCollision
+    case storageAdmissionFailed
     case persistenceFailed
 }
 

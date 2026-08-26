@@ -1,7 +1,30 @@
 import Foundation
 
 protocol ApplicationClock: Sendable {
+    /// Wall time for durable records and user-visible calendar context only.
+    /// It must never be used to order causal mutations or measure durations.
     func now() -> Date
+}
+
+/// An in-process monotonic instant. It deliberately has no Codable
+/// conformance because monotonic ticks have no meaning after process restart.
+struct ApplicationMonotonicInstantV1: Equatable, Comparable, Sendable {
+    let uptimeNanoseconds: UInt64
+
+    init(uptimeNanoseconds: UInt64) {
+        self.uptimeNanoseconds = uptimeNanoseconds
+    }
+
+    static func < (
+        lhs: ApplicationMonotonicInstantV1,
+        rhs: ApplicationMonotonicInstantV1
+    ) -> Bool {
+        lhs.uptimeNanoseconds < rhs.uptimeNanoseconds
+    }
+}
+
+protocol ApplicationMonotonicClockV1: Sendable {
+    func instant() -> ApplicationMonotonicInstantV1
 }
 
 protocol ApplicationIDSource: Sendable {

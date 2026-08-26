@@ -126,6 +126,100 @@ actor LocalJobStoreV1: ResumableLocalJobPortV1 {
         if changed { try replace(jobs: jobs) }
     }
 
+    /// Records an interruption without applying user-cancellation cleanup.
+    /// Awaiting-publication rows are intentionally not eligible here.
+    @discardableResult
+    func markLifecycleSuspended(
+        id: LocalJobIDV1,
+        expectedAttemptCount: Int,
+        reason: LocalJobLifecycleSuspensionReasonV1
+    ) throws -> ResumableLocalJobV1 {
+        try mutate(id: id) { job in
+            guard job.attemptCount == expectedAttemptCount else {
+                throw LocalJobStoreFailureV1.staleJob
+            }
+            // Matching resume may already have requeued this exact attempt.
+            // An older task unwind can never overwrite QUEUED with BLOCKED.
+            if job.state == .queued { return }
+            guard job.state == .running else {
+                throw LocalJobStoreFailureV1.staleJob
+            }
+            switch reason {
+            case .protectedDataUnavailable:
+                guard job.permitsTransition(to: .blockedProtectedData) else {
+                    throw LocalJobStoreFailureV1.invalidTransition
+                }
+                job.state = .blockedProtectedData
+                job.retryClassification = .protectedDataUnavailable
+            case .sceneBackground:
+                guard job.permitsTransition(to: .queued) else {
+                    throw LocalJobStoreFailureV1.invalidTransition
+                }
+                job.state = .queued
+                job.retryClassification = .retryable
+            }
+            job.outputSHA256 = nil
+            job.failureCode = nil
+            job.updatedAt = clock.now()
+        }
+    }
+
+    /// Completes an already-cancelled lifecycle attempt after its matching
+    /// resume edge has durably read the store. The old task alone performs
+    /// this transition, preventing a successor attempt from overlapping it.
+    @discardableResult
+    func markLifecycleRecoveryQueued(
+        id: LocalJobIDV1,
+        expectedAttemptCount: Int
+    ) throws -> ResumableLocalJobV1 {
+        try mutate(id: id) { job in
+            guard job.attemptCount == expectedAttemptCount else {
+                throw LocalJobStoreFailureV1.staleJob
+            }
+            if job.state == .queued { return }
+            guard job.state == .running,
+                  job.permitsTransition(to: .queued) else {
+                throw LocalJobStoreFailureV1.staleJob
+            }
+            job.state = .queued
+            job.outputSHA256 = nil
+            job.failureCode = nil
+            job.retryClassification = .retryable
+            job.updatedAt = clock.now()
+        }
+    }
+
+    /// Unlock recovery first discards the actor cache and proves an exact
+    /// descriptor-pinned durable read. Only then are blocked/interrupted rows
+    /// requeued and durably read back by `replace`.
+    func resumeAfterProtectedDataAvailable() throws {
+        envelope = nil
+        receipt = nil
+        try ensureLoaded()
+        let now = clock.now()
+        var jobs = envelope?.jobs ?? []
+        var changed = false
+        for index in jobs.indices {
+            switch jobs[index].state {
+            case .blockedProtectedData:
+                jobs[index].state = .queued
+                jobs[index].retryClassification = .retryable
+                jobs[index].failureCode = nil
+                jobs[index].updatedAt = now
+                changed = true
+            case .running:
+                jobs[index].state = .queued
+                jobs[index].retryClassification = .retryable
+                jobs[index].failureCode = nil
+                jobs[index].updatedAt = now
+                changed = true
+            default:
+                break
+            }
+        }
+        if changed { try replace(jobs: jobs) }
+    }
+
     func removeTerminal(id: LocalJobIDV1) throws {
         try ensureLoaded()
         guard let current = envelope?.jobs.first(where: { $0.id == id }) else {

@@ -31,6 +31,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
     private let fileAuthority: any ApplicationFileAuthorityV1
     private let adapter: any WorkspaceWriterAdapterPortV1
     private let journalStore: MutationJournalStoreV1?
+    private let storageAdmission: (any WorkspaceStorageAdmissionPortV1)?
     private let maximumRememberedMutationCount: Int
 
     private var workspaceRevision: UInt64
@@ -49,6 +50,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         fileAuthority: any ApplicationFileAuthorityV1,
         adapter: any WorkspaceWriterAdapterPortV1,
         journalStore: MutationJournalStoreV1? = nil,
+        storageAdmission: (any WorkspaceStorageAdmissionPortV1)? = nil,
         maximumRememberedMutationCount: Int = WorkspaceWriterV1.defaultMaximumRememberedMutationCount
     ) throws {
         guard initialRevision.workspaceID == identity.workspaceID else {
@@ -76,6 +78,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         self.fileAuthority = fileAuthority
         self.adapter = adapter
         self.journalStore = journalStore
+        self.storageAdmission = storageAdmission
         self.maximumRememberedMutationCount = maximumRememberedMutationCount
     }
 
@@ -240,6 +243,27 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
             affectedEntities: targets,
             temporaryRelativePath: temporaryRelativePath
         )
+
+        let storageReservation: OwnedStorageReservationV1?
+        do {
+            storageReservation = try storageAdmission?.reserve(
+                attemptID: OwnedStorageAttemptIDV1(
+                    workspaceID: identity.workspaceID,
+                    generationID: generationID,
+                    mutationID: request.mutationID
+                ),
+                requiredBytes: WorkspaceStorageEstimateV1.requiredBytes(
+                    for: request.command
+                )
+            )
+        } catch {
+            throw WorkspaceMutationFailureV1.storageAdmissionFailed
+        }
+        defer {
+            if let storageReservation {
+                storageAdmission?.release(reservation: storageReservation)
+            }
+        }
 
         isExecuting = true
         defer { isExecuting = false }

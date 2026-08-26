@@ -1,0 +1,481 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "74b489960e1ec77df161b56c0f7e5a5776a65f33f0a08b1efa9d5b28d1194b89",
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "0272a8ffc24af98343fdfbc0b51e5063bd3e1134",
+    "appBaseTree": "d603f733609dd5d8214ff59bca0b172bb4c770d2",
+    "attemptID": 1,
+    "authorityReceiptDigest": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752",
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C06",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "862112f0903b8f78834332ef9f089dd91907a8a39b32748ee055c749dd660f86",
+    "coordinationAuthorityHead": "9cf025a2b8a99d2aed2822824b245fa84916f0b8",
+    "coordinationAuthorityTree": "6dea1d96e3d1fe9cf6656682b6e6b62b2e3ac6bb",
+    "coordinationCASSequence": 104,
+    "coordinationLedgerDigest": "f867bd6467c7287683fbf86a9049dd8609e0c70fa24d2d8b68e1b03f7b87b492",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P02-C06-G01",
+      "V23-P02-C06-A01",
+      "V23-P02-C06-H01",
+      "V23-P02-C06-I01",
+      "V23-P02-C06-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P02-C05"
+    ],
+    "dossierDigest": "74cb5ad75992718658327f60b44ab752e2aa4bda09119ddeaf06c7ec1353f443",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "6c10ad0d12d106c1e3ed09ed731afb143a914acc1595772a3088ad18a09b4d44",
+    "hydrationTransitionDigest": "dbbb09e0cadda8c20dfc64e3dd79e64862b531714538028952f1bf0f416b1c8c",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "0a7f64772e37775628a9721a280be83c7c0cb389d234672b4f4d7f39861cf7d5",
+    "invalidationConsumers": [
+      "V23-P02-C07"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P02-C06",
+    "ownerParallelOverrideAuthorityReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "pathFenceDigest": "b90723f324e2126e5fe04878e5016adb6c07e18b9972684415c692203d953f5a",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "ca153b318446a7aead005e8f4c510a1c384b093c622efc8d0fb444d003d8e1b0",
+    "registerOrdinal": 26,
+    "registerRowDigest": "ce7cb0a63873f41df355e4ec13c2869c98e70438cb42f2a029e2fed7bf6605ea",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Protected-data lifecycle, storage pressure, and device-time semantics"
+  },
+  "backupBehaviorDelta": true,
+  "backupRestore": {
+    "canonicalContentSurvivalAuthority": true,
+    "deviceLocalReservationsReconstructed": true,
+    "operationalStateIncludedInUserBackup": false,
+    "operationalStateIncludedInUserExport": false,
+    "restoreRebuildsFromCanonicalIncompleteIntents": true
+  },
+  "cardID": "V23-P02-C06",
+  "deleteBehaviorDelta": false,
+  "evidenceIDs": [
+    "V23-P02-C06-G01",
+    "V23-P02-C06-A01",
+    "V23-P02-C06-H01",
+    "V23-P02-C06-I01",
+    "V23-P02-C06-R01"
+  ],
+  "exportBehaviorDelta": false,
+  "hostedDispatchRan": false,
+  "interruptionBoundaries": [
+    "BEFORE_PROTECTED_DATA_EFFECT",
+    "AFTER_DURABLE_CHECKPOINT",
+    "SCENE_BACKGROUND",
+    "PROCESS_RELAUNCH",
+    "EFFECT_BEFORE_PUBLICATION_RECEIPT",
+    "BEFORE_DESTRUCTIVE_REMOVE"
+  ],
+  "lifecycle": {
+    "actions": [
+      "NONE",
+      "SUSPEND_PROTECTED_DATA",
+      "RESUME_PROTECTED_DATA",
+      "SUSPEND_SCENE_BACKGROUND",
+      "RESUME_SCENE_BACKGROUND"
+    ],
+    "bootstrap": {
+      "backgroundSuspendedBeforeReturn": true,
+      "defaultInitialState": "initiallyConservative",
+      "method": "DeviceLifecycleCoordinatorV1.bootstrap",
+      "protectedDataUnavailableSuspendedBeforeReturn": true
+    },
+    "events": [
+      "protectedDataBecameUnavailable",
+      "protectedDataBecameAvailable",
+      "sceneBecameInactive",
+      "sceneEnteredBackground",
+      "sceneBecameActive"
+    ],
+    "failClosed": {
+      "ambiguousDestructiveRemoval": "RETAIN_OPERATIONAL_ROW",
+      "protectedDataDenial": "VISIBLE_BLOCKED_STATE_NO_EFFECT",
+      "storageAdmissionFailure": "VISIBLE_FAILURE_BEFORE_CANONICAL_MUTATION",
+      "unknownOrCorruptOperationalState": "QUARANTINE_DELETE_AND_RECONSTRUCT"
+    },
+    "initialState": {
+      "protectedData": "UNAVAILABLE",
+      "scene": "INACTIVE"
+    },
+    "protectedData": {
+      "availableRequeuesOnlyAfterDurableStoreReadback": true,
+      "failureHook": "protectedDataFailureHook",
+      "noPartialCanonicalSuccess": true,
+      "unavailableBlocksBeforeEffect": true
+    },
+    "reducer": "DeviceLifecycleReducerV1",
+    "reducerBehavior": {
+      "sceneBecameActiveFromActiveState": "NONE",
+      "sceneBecameActiveFromAnyNonActiveState": "RESUME_SCENE_BACKGROUND"
+    },
+    "relaunch": {
+      "awaitingPublicationAdoptsExactReadback": true,
+      "cancellationRequestedRowsCancelWithoutPublication": true,
+      "effectBeforeReceipt": "ADOPT_ONLY_OR_PUBLISH_OR_ADOPT_EXACT_READBACK",
+      "noSpinOnSuppressedPublicationRetry": true,
+      "reconcileStateBeforeResume": true,
+      "runningRowsRequeue": true
+    },
+    "sameEdgeIsIdempotent": true,
+    "scene": {
+      "activeResumesAfterDurableReadback": true,
+      "backgroundSuspendsLifecycleWork": true,
+      "inactiveIsObservedWithoutSuspension": true,
+      "optionalBackgroundTokenAcceleration": false
+    },
+    "stateTruthPreservedWhenRecoveryBlocked": true,
+    "states": [
+      "PROTECTED_DATA_AVAILABLE",
+      "PROTECTED_DATA_UNAVAILABLE",
+      "SCENE_ACTIVE",
+      "SCENE_INACTIVE",
+      "SCENE_BACKGROUND",
+      "RELAUNCH_RECONCILIATION",
+      "FAIL_CLOSED"
+    ],
+    "suspensionIsNotUserCancellation": true,
+    "suspensionReasons": [
+      "PROTECTED_DATA_UNAVAILABLE",
+      "SCENE_BACKGROUND"
+    ]
+  },
+  "migrationBehaviorDelta": false,
+  "nativeCompileRan": false,
+  "owner": "DeviceLifecycleCoordinatorV1",
+  "persistentChangeMode": "CONTENT_ONLY",
+  "persistentContractSchema": "PROTECTED_DATA_STORAGE_PRESSURE_AND_DEVICE_TIME_SEMANTICS_V1",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "prohibitedTokens": [
+    "accountID",
+    "authenticatedUserID",
+    "backgroundDaemon",
+    "CloudKit",
+    "CKRecord",
+    "inbox",
+    "outbox",
+    "providerID",
+    "remoteProvider",
+    "serverCursor",
+    "serverRevision",
+    "tenantID",
+    "vectorClock",
+    "accessToken",
+    "serviceCredential",
+    "secretMaterial"
+  ],
+  "provisional": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "restoreBehaviorDelta": true,
+  "schema": "DeviceLifecycleBoundaryContractV1",
+  "schemaBehaviorDelta": false,
+  "schemaVersion": 1,
+  "sourceBindings": [
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Application/Ports/ApplicationRuntimePorts.swift",
+      "requiredTokens": [
+        "Wall time for durable records",
+        "never be used to order causal mutations or measure durations",
+        "ApplicationMonotonicInstantV1",
+        "no Codable",
+        "ApplicationMonotonicClockV1"
+      ],
+      "symbols": [
+        "ApplicationClock",
+        "ApplicationMonotonicInstantV1",
+        "ApplicationMonotonicClockV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Application/Ports/ResumableLocalJobPortV1.swift",
+      "requiredTokens": [
+        "PROTECTED_DATA_UNAVAILABLE",
+        "SCENE_BACKGROUND",
+        "suspendForLifecycle",
+        "resumeAfterLifecycle",
+        "never equivalent to user cancellation"
+      ],
+      "symbols": [
+        "LocalJobLifecycleSuspensionReasonV1",
+        "ResumableLocalJobLifecyclePortV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift",
+      "requiredTokens": [
+        "OwnedStorageAttemptIDV1",
+        "OwnedStorageVolumeIdentityV1",
+        "OwnedStorageReservationV1",
+        "WorkspaceStorageAdmissionPortV1",
+        "storageAdmissionFailed"
+      ],
+      "symbols": [
+        "OwnedStorageAttemptIDV1",
+        "OwnedStorageVolumeIdentityV1",
+        "OwnedStorageReservationV1",
+        "WorkspaceStorageAdmissionPortV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+      "requiredTokens": [
+        "storageAdmissionFailed",
+        "WorkspaceStorageAdmissionPortV1",
+        "reserve",
+        "release"
+      ],
+      "symbols": [
+        "WorkspaceWriterV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Infrastructure/System/SystemRuntimeAdapters.swift",
+      "requiredTokens": [
+        "DispatchTime.now().uptimeNanoseconds",
+        "SystemApplicationMonotonicClockV1"
+      ],
+      "symbols": [
+        "SystemApplicationClock",
+        "SystemApplicationMonotonicClockV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift",
+      "requiredTokens": [
+        "StoragePreflightService",
+        "capacityUnavailable",
+        "insufficientCapacity"
+      ],
+      "symbols": [
+        "StoragePreflightService"
+      ]
+    },
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+      "requiredTokens": [
+        "protectedDataUnavailable",
+        "symbolicLink",
+        "O_NOFOLLOW"
+      ],
+      "symbols": [
+        "ProtectedFilePolicyV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C05",
+      "path": "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobV1.swift",
+      "requiredTokens": [
+        "AWAITING_PUBLICATION",
+        "pendingPublication",
+        "publicationReceipt",
+        "PUBLISH_OR_ADOPT",
+        "ADOPT_ONLY"
+      ],
+      "symbols": [
+        "ResumableLocalJobV1",
+        "LocalJobPendingPublicationV1",
+        "LocalJobPublicationReceiptV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C05",
+      "path": "FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreV1.swift",
+      "requiredTokens": [
+        "resumePending",
+        "markLifecycleSuspended",
+        "resumeAfterProtectedDataAvailable",
+        "markAwaitingPublication",
+        "markPublicationSucceeded",
+        "markPublicationAbsentAndCancelled",
+        "quarantineAndRebuild",
+        "removeJobs",
+        "eraseAll"
+      ],
+      "symbols": [
+        "LocalJobStoreV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C05",
+      "path": "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift",
+      "requiredTokens": [
+        "suspendForLifecycle",
+        "resumeAfterLifecycle",
+        "suppressedPublicationRetries",
+        "reconcileForDestructiveRemoval",
+        "generationPublicationAdapter",
+        "awaitingPublication"
+      ],
+      "symbols": [
+        "ResumableLocalJobRunnerV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/DeviceLifecycleCoordinatorV1.swift",
+      "requiredTokens": [
+        "protectedDataBecameUnavailable",
+        "protectedDataBecameAvailable",
+        "sceneBecameInactive",
+        "sceneEnteredBackground",
+        "sceneBecameActive",
+        "state.scene == .active",
+        "suspendForLifecycle",
+        "resumeAfterLifecycle",
+        "pendingActions",
+        "initiallyConservative",
+        "bootstrap",
+        "fail-closed"
+      ],
+      "symbols": [
+        "ProtectedDataLifecycleStateV1",
+        "SceneLifecycleStateV1",
+        "DeviceLifecycleStateV1",
+        "DeviceLifecycleEventV1",
+        "DeviceLifecycleActionV1",
+        "DeviceLifecycleTransitionV1",
+        "DeviceLifecycleReducerV1",
+        "DeviceLifecycleCoordinatorV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
+      "requiredTokens": [
+        "OwnedStorageRootKindV1",
+        "OwnedStorageRootV1",
+        "OwnedStorageSnapshotV1",
+        "OwnedStorageLedgerFailureV1",
+        "OwnedStorageLedgerV1",
+        "snapshot",
+        "reserve",
+        "release",
+        "reconcile",
+        "reservationLimitExceeded",
+        "maximumScannedEntryCount",
+        "maximumDirectoryDepth",
+        "maximumActiveReservationCount",
+        "O_NOFOLLOW",
+        "AT_SYMLINK_NOFOLLOW",
+        "Storage pressure never authorizes deletion"
+      ],
+      "symbols": [
+        "OwnedStorageRootKindV1",
+        "OwnedStorageRootV1",
+        "OwnedStorageSnapshotV1",
+        "OwnedStorageLedgerFailureV1",
+        "OwnedStorageLedgerV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Infrastructure/System/DeviceTimeSemanticsV1.swift",
+      "requiredTokens": [
+        "DeviceTimeSemanticsFailureV1",
+        "DeviceWallTimeRecordV1",
+        "InProcessDurationTokenV1",
+        "monotonicClockRegressed",
+        "durationOverflow",
+        "timeZoneIdentifier",
+        "utcOffsetSeconds",
+        "isDaylightSavingTime",
+        "maximumTimeZoneIdentifierUTF8ByteCount",
+        "maximumAbsoluteUTCOffsetSeconds",
+        "trimmingCharacters",
+        "controlCharacters",
+        "timeZoneIdentifier.utf8.count",
+        "wallTimeRecord",
+        "secondsFromGMT",
+        "record.validate"
+      ],
+      "symbols": [
+        "DeviceTimeSemanticsFailureV1",
+        "DeviceWallTimeRecordV1",
+        "InProcessDurationTokenV1",
+        "DeviceTimeSemanticsV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceAppTests/V9_10LifecycleBoundaryTests.swift",
+      "requiredTokens": [
+        "testV9_10G01ProtectedDataAndSceneLifecycleMatrix",
+        "testV9_10A01LowSpacePreflightRefusesBeforeCanonicalMutation",
+        "testV9_10H01LockDuringOperationFailsRecoverablyWithoutPartialSuccess",
+        "testV9_10I01BackgroundTerminationAtEveryDurableBoundaryRelaunchesCleanly",
+        "testV9_10R01StorageReconciliationAndClockTimezoneDSTRecovery",
+        "protectedDataBecameUnavailable",
+        "sceneBecameInactive",
+        "sceneEnteredBackground",
+        "sceneBecameActive",
+        "initiallyConservative",
+        "fail-closed bootstrap must suspend before returning",
+        "capacityUnavailable",
+        "storageAdmissionFailed",
+        "wallClockJumpsSeconds",
+        "monotonicElapsedNanoseconds",
+        "relaunch",
+        "fail closed",
+        "awaitingPublicationEffectBeforeReceipt",
+        "capturedBeforeTZDBDrift",
+        "durable captured tuple must survive later TZDB interpretation drift",
+        "maximumTimeZoneIdentifierUTF8ByteCount",
+        "maximumAbsoluteUTCOffsetSeconds",
+        "foldFirstCivil",
+        "foldSecondCivil"
+      ],
+      "symbols": [
+        "testV9_10G01ProtectedDataAndSceneLifecycleMatrix",
+        "testV9_10A01LowSpacePreflightRefusesBeforeCanonicalMutation",
+        "testV9_10H01LockDuringOperationFailsRecoverablyWithoutPartialSuccess",
+        "testV9_10I01BackgroundTerminationAtEveryDurableBoundaryRelaunchesCleanly",
+        "testV9_10R01StorageReconciliationAndClockTimezoneDSTRecovery"
+      ]
+    },
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Lifecycle/V21P02C06LifecycleBoundaryCorpusV1.json",
+      "requiredTokens": [
+        "fixtureIdentity",
+        "protectedDataBecameUnavailable",
+        "sceneEnteredBackground",
+        "awaitingPublicationEffectBeforeReceipt",
+        "storage",
+        "timeCases",
+        "wallClockJumpsSeconds",
+        "monotonicElapsedNanoseconds"
+      ],
+      "symbols": [
+        "V21P02C06LifecycleBoundaryCorpusV1"
+      ]
+    }
+  ]
+}

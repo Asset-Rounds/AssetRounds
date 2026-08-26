@@ -1,0 +1,1148 @@
+{
+  "$id": "https://assetrounds.invalid/v23/LifecycleBoundaryCorpusManifestV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateAcceptanceMemberships": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "AutonomousRequiredAcceptedSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "appBaseHead": {
+          "const": "0272a8ffc24af98343fdfbc0b51e5063bd3e1134"
+        },
+        "appBaseTree": {
+          "const": "d603f733609dd5d8214ff59bca0b172bb4c770d2"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "authorityReceiptDigest": {
+          "const": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752"
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P02-C06"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "const": "862112f0903b8f78834332ef9f089dd91907a8a39b32748ee055c749dd660f86"
+        },
+        "coordinationAuthorityHead": {
+          "const": "9cf025a2b8a99d2aed2822824b245fa84916f0b8"
+        },
+        "coordinationAuthorityTree": {
+          "const": "6dea1d96e3d1fe9cf6656682b6e6b62b2e3ac6bb"
+        },
+        "coordinationCASSequence": {
+          "const": 104
+        },
+        "coordinationLedgerDigest": {
+          "const": "f867bd6467c7287683fbf86a9049dd8609e0c70fa24d2d8b68e1b03f7b87b492"
+        },
+        "dependencyDispositionDigest": {
+          "const": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C06-G01"
+            },
+            {
+              "const": "V23-P02-C06-A01"
+            },
+            {
+              "const": "V23-P02-C06-H01"
+            },
+            {
+              "const": "V23-P02-C06-I01"
+            },
+            {
+              "const": "V23-P02-C06-R01"
+            }
+          ],
+          "type": "array"
+        },
+        "directGraphDigest": {
+          "const": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C05"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "const": "74cb5ad75992718658327f60b44ab752e2aa4bda09119ddeaf06c7ec1353f443"
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "const": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f"
+        },
+        "foundationRegisterDigest": {
+          "const": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd"
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "hydrationProjectionDigest": {
+          "const": "6c10ad0d12d106c1e3ed09ed731afb143a914acc1595772a3088ad18a09b4d44"
+        },
+        "hydrationTransitionDigest": {
+          "const": "dbbb09e0cadda8c20dfc64e3dd79e64862b531714538028952f1bf0f416b1c8c"
+        },
+        "impactManifestDigest": {
+          "const": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b"
+        },
+        "inheritedV21BlockDigest": {
+          "const": "0a7f64772e37775628a9721a280be83c7c0cb389d234672b4f4d7f39861cf7d5"
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C07"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "EXACT_WITH_GENERATION_REBIND"
+        },
+        "lineageSource": {
+          "const": "V21-P02-C06"
+        },
+        "ownerParallelOverrideAuthorityReceiptDigest": {
+          "const": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452"
+        },
+        "pathFenceDigest": {
+          "const": "b90723f324e2126e5fe04878e5016adb6c07e18b9972684415c692203d953f5a"
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "const": "ca153b318446a7aead005e8f4c510a1c384b093c622efc8d0fb444d003d8e1b0"
+        },
+        "registerOrdinal": {
+          "const": 26
+        },
+        "registerRowDigest": {
+          "const": "ce7cb0a63873f41df355e4ec13c2869c98e70438cb42f2a029e2fed7bf6605ea"
+        },
+        "relationManifestDigest": {
+          "const": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4"
+        },
+        "selectorManifestDigest": {
+          "const": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+        },
+        "title": {
+          "const": "Protected-data lifecycle, storage pressure, and device-time semantics"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "lineageSource",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationAuthorityHead",
+        "coordinationAuthorityTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "hydrationProjectionDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "hydrationTransitionDigest",
+        "authorityReceiptDigest",
+        "ownerParallelOverrideAuthorityReceiptDigest",
+        "registerRowDigest",
+        "dossierDigest",
+        "inheritedV21BlockDigest",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "aggregateAcceptanceMemberships",
+        "conformanceSubjects",
+        "deterministicEvidenceIDs"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P02-C06"
+    },
+    "customerDataPresent": {
+      "const": false
+    },
+    "evidence": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P02-C06-G01"
+            },
+            "testMethod": {
+              "const": "testV9_10G01ProtectedDataAndSceneLifecycleMatrix"
+            }
+          },
+          "required": [
+            "evidenceID",
+            "testMethod"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P02-C06-A01"
+            },
+            "testMethod": {
+              "const": "testV9_10A01LowSpacePreflightRefusesBeforeCanonicalMutation"
+            }
+          },
+          "required": [
+            "evidenceID",
+            "testMethod"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P02-C06-H01"
+            },
+            "testMethod": {
+              "const": "testV9_10H01LockDuringOperationFailsRecoverablyWithoutPartialSuccess"
+            }
+          },
+          "required": [
+            "evidenceID",
+            "testMethod"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P02-C06-I01"
+            },
+            "testMethod": {
+              "const": "testV9_10I01BackgroundTerminationAtEveryDurableBoundaryRelaunchesCleanly"
+            }
+          },
+          "required": [
+            "evidenceID",
+            "testMethod"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P02-C06-R01"
+            },
+            "testMethod": {
+              "const": "testV9_10R01StorageReconciliationAndClockTimezoneDSTRecovery"
+            }
+          },
+          "required": [
+            "evidenceID",
+            "testMethod"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "evidenceIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "V23-P02-C06-G01"
+        },
+        {
+          "const": "V23-P02-C06-A01"
+        },
+        {
+          "const": "V23-P02-C06-H01"
+        },
+        {
+          "const": "V23-P02-C06-I01"
+        },
+        {
+          "const": "V23-P02-C06-R01"
+        }
+      ],
+      "type": "array"
+    },
+    "exactFiveTestMethods": {
+      "const": true
+    },
+    "executableEvidence": {
+      "items": false,
+      "maxItems": 6,
+      "minItems": 6,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "case": {
+              "const": "PROTECTED_DATA_LIFECYCLE_HOOK"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 7,
+              "minItems": 7,
+              "prefixItems": [
+                {
+                  "const": "protectedDataBecameUnavailable"
+                },
+                {
+                  "const": "protectedDataBecameAvailable"
+                },
+                {
+                  "const": "sceneBecameInactive"
+                },
+                {
+                  "const": "sceneBecameActive"
+                },
+                {
+                  "const": "initiallyConservative"
+                },
+                {
+                  "const": "suspendForLifecycle"
+                },
+                {
+                  "const": "resumeAfterLifecycle"
+                }
+              ],
+              "type": "array"
+            },
+            "testPath": {
+              "const": "FieldEvidenceAppTests/V9_10LifecycleBoundaryTests.swift"
+            }
+          },
+          "required": [
+            "case",
+            "testPath",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "case": {
+              "const": "STORAGE_ADMISSION_BEFORE_CANONICAL_MUTATION"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "storageAdmissionFailed"
+                },
+                {
+                  "const": "canonicalMutationAllowanceBytes"
+                },
+                {
+                  "const": "capacityUnavailable"
+                }
+              ],
+              "type": "array"
+            },
+            "testPath": {
+              "const": "FieldEvidenceAppTests/V9_10LifecycleBoundaryTests.swift"
+            }
+          },
+          "required": [
+            "case",
+            "testPath",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "case": {
+              "const": "RELAUNCH_CANCELLATION_CLEANUP"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "relaunch"
+                },
+                {
+                  "const": "awaitingPublicationEffectBeforeReceipt"
+                },
+                {
+                  "const": "fail-closed"
+                }
+              ],
+              "type": "array"
+            },
+            "testPath": {
+              "const": "FieldEvidenceAppTests/V9_10LifecycleBoundaryTests.swift"
+            }
+          },
+          "required": [
+            "case",
+            "testPath",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "case": {
+              "const": "HOSTILE_SYMLINK_CLEANUP"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "hostile-symlink"
+                },
+                {
+                  "const": "O_NOFOLLOW"
+                },
+                {
+                  "const": "AT_SYMLINK_NOFOLLOW"
+                }
+              ],
+              "type": "array"
+            },
+            "testPath": {
+              "const": "FieldEvidenceAppTests/V9_10LifecycleBoundaryTests.swift"
+            }
+          },
+          "required": [
+            "case",
+            "testPath",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "case": {
+              "const": "DESTRUCTIVE_REMOVE_RECONCILIATION"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "removeJobs"
+                },
+                {
+                  "const": "eraseAll"
+                },
+                {
+                  "const": "reconcileForDestructiveRemoval"
+                },
+                {
+                  "const": "fail-closed"
+                }
+              ],
+              "type": "array"
+            },
+            "testPath": {
+              "const": "FieldEvidenceAppTests/V9_10LifecycleBoundaryTests.swift"
+            }
+          },
+          "required": [
+            "case",
+            "testPath",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "case": {
+              "const": "WALL_CLOCK_AND_MONOTONIC_SEPARATION"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 6,
+              "minItems": 6,
+              "prefixItems": [
+                {
+                  "const": "wallClockJumpsSeconds"
+                },
+                {
+                  "const": "monotonicElapsedNanoseconds"
+                },
+                {
+                  "const": "timeCases"
+                },
+                {
+                  "const": "capturedBeforeTZDBDrift"
+                },
+                {
+                  "const": "foldFirstCivil"
+                },
+                {
+                  "const": "foldSecondCivil"
+                }
+              ],
+              "type": "array"
+            },
+            "testPath": {
+              "const": "FieldEvidenceAppTests/V9_10LifecycleBoundaryTests.swift"
+            }
+          },
+          "required": [
+            "case",
+            "testPath",
+            "requiredTokens"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "fixtureGeneratedByTooling": {
+      "const": false
+    },
+    "fixturePath": {
+      "const": "FieldEvidenceAppTests/Fixtures/V21/Lifecycle/V21P02C06LifecycleBoundaryCorpusV1.json"
+    },
+    "fixtureRequiredDurableBoundaries": {
+      "items": false,
+      "maxItems": 4,
+      "minItems": 4,
+      "prefixItems": [
+        {
+          "const": "queuedBeforeClaim"
+        },
+        {
+          "const": "runningAfterCheckpoint"
+        },
+        {
+          "const": "awaitingPublicationEffectBeforeReceipt"
+        },
+        {
+          "const": "terminalSucceeded"
+        }
+      ],
+      "type": "array"
+    },
+    "fixtureRequiredLifecycleEvents": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "protectedDataBecameUnavailable"
+        },
+        {
+          "const": "protectedDataBecameAvailable"
+        },
+        {
+          "const": "sceneBecameInactive"
+        },
+        {
+          "const": "sceneEnteredBackground"
+        },
+        {
+          "const": "sceneBecameActive"
+        }
+      ],
+      "type": "array"
+    },
+    "fixtureRequiredMonotonicElapsedNanoseconds": {
+      "const": 250000000
+    },
+    "fixtureRequiredTimeCases": {
+      "items": false,
+      "maxItems": 7,
+      "minItems": 7,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dst": {
+              "const": false
+            },
+            "offset": {
+              "const": -18000
+            },
+            "utc": {
+              "const": "2026-01-15T17:00:00Z"
+            },
+            "zone": {
+              "const": "America/New_York"
+            }
+          },
+          "required": [
+            "utc",
+            "zone",
+            "offset",
+            "dst"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dst": {
+              "const": true
+            },
+            "offset": {
+              "const": -14400
+            },
+            "utc": {
+              "const": "2026-07-15T16:00:00Z"
+            },
+            "zone": {
+              "const": "America/New_York"
+            }
+          },
+          "required": [
+            "utc",
+            "zone",
+            "offset",
+            "dst"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dst": {
+              "const": false
+            },
+            "offset": {
+              "const": -18000
+            },
+            "utc": {
+              "const": "2026-03-08T06:59:59Z"
+            },
+            "zone": {
+              "const": "America/New_York"
+            }
+          },
+          "required": [
+            "utc",
+            "zone",
+            "offset",
+            "dst"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dst": {
+              "const": true
+            },
+            "offset": {
+              "const": -14400
+            },
+            "utc": {
+              "const": "2026-03-08T07:00:00Z"
+            },
+            "zone": {
+              "const": "America/New_York"
+            }
+          },
+          "required": [
+            "utc",
+            "zone",
+            "offset",
+            "dst"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dst": {
+              "const": true
+            },
+            "offset": {
+              "const": -14400
+            },
+            "utc": {
+              "const": "2026-11-01T05:00:00Z"
+            },
+            "zone": {
+              "const": "America/New_York"
+            }
+          },
+          "required": [
+            "utc",
+            "zone",
+            "offset",
+            "dst"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dst": {
+              "const": false
+            },
+            "offset": {
+              "const": -18000
+            },
+            "utc": {
+              "const": "2026-11-01T06:00:00Z"
+            },
+            "zone": {
+              "const": "America/New_York"
+            }
+          },
+          "required": [
+            "utc",
+            "zone",
+            "offset",
+            "dst"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dst": {
+              "const": false
+            },
+            "offset": {
+              "const": 43200
+            },
+            "utc": {
+              "const": "2026-07-15T16:00:00Z"
+            },
+            "zone": {
+              "const": "Pacific/Auckland"
+            }
+          },
+          "required": [
+            "utc",
+            "zone",
+            "offset",
+            "dst"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "fixtureRequiredWallClockJumpsSeconds": {
+      "items": false,
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "const": -86400
+        },
+        {
+          "const": 259200
+        }
+      ],
+      "type": "array"
+    },
+    "fixtureSchema": {
+      "const": "V21P02C06LifecycleBoundaryCorpusV1"
+    },
+    "fixtureSchemaVersion": {
+      "const": 1
+    },
+    "fixtureStorageFields": {
+      "items": false,
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "const": "canonicalMutationAllowanceBytes"
+        },
+        {
+          "const": "ownedFileBytes"
+        },
+        {
+          "const": "reservationBytes"
+        }
+      ],
+      "type": "array"
+    },
+    "fixtureTimeCaseFields": {
+      "items": false,
+      "maxItems": 4,
+      "minItems": 4,
+      "prefixItems": [
+        {
+          "const": "utc"
+        },
+        {
+          "const": "zone"
+        },
+        {
+          "const": "offset"
+        },
+        {
+          "const": "dst"
+        }
+      ],
+      "type": "array"
+    },
+    "fixtureTopLevelFields": {
+      "items": false,
+      "maxItems": 8,
+      "minItems": 8,
+      "prefixItems": [
+        {
+          "const": "schemaVersion"
+        },
+        {
+          "const": "fixtureIdentity"
+        },
+        {
+          "const": "lifecycleEvents"
+        },
+        {
+          "const": "durableBoundaries"
+        },
+        {
+          "const": "storage"
+        },
+        {
+          "const": "timeCases"
+        },
+        {
+          "const": "wallClockJumpsSeconds"
+        },
+        {
+          "const": "monotonicElapsedNanoseconds"
+        }
+      ],
+      "type": "array"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "hostileFailClosed": {
+      "const": true
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "destructiveRemoval": {
+          "const": "FAIL_CLOSED_UNTIL_RECONCILED"
+        },
+        "downgrade": {
+          "const": "FORWARD_FIX_ONLY"
+        },
+        "migrationBehaviorDelta": {
+          "const": false
+        },
+        "noDeletionForSpace": {
+          "const": true
+        },
+        "noPersistedMonotonicTicks": {
+          "const": true
+        },
+        "operationalJobStore": {
+          "const": "SEPARATELY_VERSIONED_DEVICE_LOCAL_RECONSTRUCTABLE"
+        },
+        "persistentChangeMode": {
+          "const": "CONTENT_ONLY"
+        },
+        "publication": {
+          "const": "AWAITING_PUBLICATION_RECONCILES_EFFECT_BEFORE_RECEIPT"
+        },
+        "publicationFailure": {
+          "const": "SUPPRESS_RETRY_NO_SPIN"
+        },
+        "replaceRestore": {
+          "const": "REBUILD_FROM_CANONICAL_INCOMPLETE_INTENTS"
+        },
+        "schemaBehaviorDelta": {
+          "const": false
+        },
+        "userBackupAndExport": {
+          "const": "EXCLUDED"
+        },
+        "workspaceDeleteEraseExpiry": {
+          "const": "RECONCILE_THEN_REMOVE_OPERATIONAL_ROWS"
+        }
+      },
+      "required": [
+        "persistentChangeMode",
+        "schemaBehaviorDelta",
+        "migrationBehaviorDelta",
+        "operationalJobStore",
+        "userBackupAndExport",
+        "replaceRestore",
+        "workspaceDeleteEraseExpiry",
+        "downgrade",
+        "noPersistedMonotonicTicks",
+        "noDeletionForSpace",
+        "publication",
+        "publicationFailure",
+        "destructiveRemoval"
+      ],
+      "type": "object"
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "provisional": {
+      "const": true
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiredCoverage": {
+      "additionalProperties": false,
+      "properties": {
+        "A01": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "STORAGE_PREFLIGHT"
+            },
+            {
+              "const": "NO_CANONICAL_MUTATION_ON_ADMISSION_FAILURE"
+            },
+            {
+              "const": "REFUSAL_BEFORE_CANONICAL_MUTATION"
+            }
+          ],
+          "type": "array"
+        },
+        "G01": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "PROTECTED_DATA_STATE_REDUCER"
+            },
+            {
+              "const": "SCENE_ACTIVE_INACTIVE_BACKGROUND"
+            },
+            {
+              "const": "LIFECYCLE_SUSPENSION_NOT_USER_CANCELLATION"
+            }
+          ],
+          "type": "array"
+        },
+        "H01": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "PROTECTED_DATA_LOCK_INTERRUPTION"
+            },
+            {
+              "const": "HOSTILE_SYMLINK_FAIL_CLOSED"
+            },
+            {
+              "const": "STALE_RESUME_NEW_SUSPEND"
+            }
+          ],
+          "type": "array"
+        },
+        "I01": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "DURABLE_BOUNDARY_TERMINATION_RELAUNCH"
+            },
+            {
+              "const": "EFFECT_BEFORE_RECEIPT_ADOPTION"
+            },
+            {
+              "const": "DESTRUCTIVE_ADOPT_ONLY_RECONCILIATION"
+            }
+          ],
+          "type": "array"
+        },
+        "R01": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "STORAGE_RECONCILIATION_AND_RESERVATION_RACE"
+            },
+            {
+              "const": "WALL_CLOCK_ROLLBACK_FORWARD"
+            },
+            {
+              "const": "TIMEZONE_DST_AND_MONOTONIC_CLOCK_JUMPS"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": [
+        "G01",
+        "A01",
+        "H01",
+        "I01",
+        "R01"
+      ],
+      "type": "object"
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "schema": {
+      "const": "LifecycleBoundaryCorpusManifestV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "secretsPresent": {
+      "const": false
+    },
+    "testPath": {
+      "const": "FieldEvidenceAppTests/V9_10LifecycleBoundaryTests.swift"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "fixturePath",
+    "fixtureSchema",
+    "fixtureSchemaVersion",
+    "testPath",
+    "fixtureTopLevelFields",
+    "fixtureRequiredLifecycleEvents",
+    "fixtureRequiredDurableBoundaries",
+    "fixtureStorageFields",
+    "fixtureTimeCaseFields",
+    "fixtureRequiredTimeCases",
+    "fixtureRequiredWallClockJumpsSeconds",
+    "fixtureRequiredMonotonicElapsedNanoseconds",
+    "evidence",
+    "requiredCoverage",
+    "executableEvidence",
+    "hostileFailClosed",
+    "customerDataPresent",
+    "secretsPresent",
+    "fixtureGeneratedByTooling",
+    "exactFiveTestMethods",
+    "lifecycle",
+    "evidenceIDs",
+    "provisional",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "phase10PollingDuringParallelExecution",
+    "requiresAcceptedS10_6Reconciliation",
+    "artifactDigest"
+  ],
+  "title": "LifecycleBoundaryCorpusManifestV1",
+  "type": "object"
+}

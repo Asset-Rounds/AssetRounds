@@ -1,8 +1,17 @@
+import Dispatch
 import Foundation
 
 struct SystemApplicationClock: ApplicationClock {
     func now() -> Date {
         Date()
+    }
+}
+
+struct SystemApplicationMonotonicClockV1: ApplicationMonotonicClockV1 {
+    func instant() -> ApplicationMonotonicInstantV1 {
+        ApplicationMonotonicInstantV1(
+            uptimeNanoseconds: DispatchTime.now().uptimeNanoseconds
+        )
     }
 }
 

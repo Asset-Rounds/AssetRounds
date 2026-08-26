@@ -320,12 +320,13 @@ struct ResumableLocalJobV1: Codable, Equatable, Sendable {
               Self.isSafeRelativePath(stagingRelativePath),
               createdAt.timeIntervalSinceReferenceDate.isFinite,
               updatedAt.timeIntervalSinceReferenceDate.isFinite,
-              updatedAt >= createdAt,
               attemptCount >= 0,
               outputSHA256.map(Self.isSHA256) ?? true,
               failureCode.map(Self.isSafeCode) ?? true else {
             throw LocalJobValidationFailureV1.invalidContract
         }
+        // Wall-clock records may move backward or forward. Job causality is
+        // carried by attempt/checkpoint/state transitions, not Date ordering.
         try pendingPublication?.validate(
             totalUnitCount: checkpoint.totalUnitCount
         )

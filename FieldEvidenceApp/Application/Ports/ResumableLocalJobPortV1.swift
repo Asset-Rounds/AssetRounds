@@ -18,6 +18,32 @@ protocol ResumableLocalJobPortV1: Sendable {
     func eraseAll() async throws
 }
 
+enum LocalJobLifecycleSuspensionReasonV1: String, Equatable, Hashable, Sendable {
+    case protectedDataUnavailable = "PROTECTED_DATA_UNAVAILABLE"
+    case sceneBackground = "SCENE_BACKGROUND"
+}
+
+/// Provisional kernel boundary. Lifecycle suspension preserves durable
+/// checkpoints, attempt-owned staging, and awaiting-publication uncertainty;
+/// it is never equivalent to user cancellation.
+protocol ResumableLocalJobLifecyclePortV1: Sendable {
+    func suspendForLifecycle(
+        _ reason: LocalJobLifecycleSuspensionReasonV1
+    ) async throws
+    func resumeAfterLifecycle(
+        _ reason: LocalJobLifecycleSuspensionReasonV1
+    ) async throws
+}
+
+enum ResumableLocalJobLifecycleHookPointV1: Equatable, Sendable {
+    case beforeSuspensionPersistence
+}
+
+typealias ResumableLocalJobLifecycleHookV1 = @Sendable (
+    LocalJobIDV1,
+    ResumableLocalJobLifecycleHookPointV1
+) async -> Void
+
 /// A unit of resumable work. Implementations must check cancellation before
 /// and after every checkpoint or output-publication boundary.
 typealias ResumableLocalJobOperationV1 = @Sendable (

@@ -69,6 +69,19 @@ enum ProtectedFilePolicyV1 {
         disposition(for: kind).isExcludedFromBackup
     }
 
+    /// Every closed file kind remains part of owned-byte accounting even when
+    /// it is excluded from filesystem backup or portable export.
+    static func countsTowardOwnedStorage(_ kind: OwnedFileKindV1) -> Bool {
+        OwnedFileKindV1.allCases.contains(kind)
+    }
+
+    /// Storage pressure is an admission signal, never deletion authority.
+    static func permitsAutomaticStoragePressureDeletion(
+        _: OwnedFileKindV1
+    ) -> Bool {
+        false
+    }
+
     static func disposition(
         for kind: OwnedFileKindV1
     ) -> OwnedFileProtectionDispositionV1 {

@@ -154,6 +154,39 @@ struct StoragePreflightService {
         )
     }
 
+    func storageAdmissionRequiredBytes(
+        requestedBytes: Int64,
+        alreadyReservedBytes: Int64
+    ) throws -> Int64 {
+        guard requestedBytes >= 0, alreadyReservedBytes >= 0 else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let (required, overflow) = requestedBytes.addingReportingOverflow(
+            alreadyReservedBytes
+        )
+        guard !overflow, required >= 0 else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        return required
+    }
+
+    /// Reserves no bytes itself. The caller owns attempt identity and releases
+    /// its process-local reservation; this method is the single volume-capacity
+    /// refusal policy used immediately before canonical mutation.
+    func checkStorageAdmission(
+        requestedBytes: Int64,
+        alreadyReservedBytes: Int64,
+        onVolumeContaining targetURL: URL
+    ) throws {
+        try check(
+            requiredBytes: storageAdmissionRequiredBytes(
+                requestedBytes: requestedBytes,
+                alreadyReservedBytes: alreadyReservedBytes
+            ),
+            onVolumeContaining: targetURL
+        )
+    }
+
     private func check(requiredBytes: Int64, onVolumeContaining targetURL: URL) throws {
         guard let availableBytes = try capacityProvider(targetURL) else {
             throw StoragePreflightError.capacityUnavailable

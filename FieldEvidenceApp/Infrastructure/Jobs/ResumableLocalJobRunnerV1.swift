@@ -11,6 +11,15 @@ enum ResumableLocalJobRunnerFailureV1: Error, Equatable, Sendable {
     case invalidResult
     case unsafeStagingPath
     case stagingCleanupFailed
+    case lifecycleGenerationExhausted
+    case destructiveScopeBusy
+}
+
+private enum PendingLifecycleCancellationV1: Equatable, Sendable {
+    case suspend(LocalJobLifecycleSuspensionReasonV1)
+    /// The matching resume edge completed its durable readback while the old
+    /// task was still unwinding. That task must queue its own attempt.
+    case resumeAfterReadback
 }
 
 /// Bounded structured executor for durable local jobs.
@@ -18,11 +27,14 @@ enum ResumableLocalJobRunnerFailureV1: Error, Equatable, Sendable {
 /// The actor owns every child task, retains a reader generation lease for the
 /// full duration of long reads, and serializes exactly one terminal store
 /// transition per claimed attempt. Operations never run on the UI actor.
-actor ResumableLocalJobRunnerV1: ResumableLocalJobPortV1 {
+actor ResumableLocalJobRunnerV1:
+    ResumableLocalJobPortV1,
+    ResumableLocalJobLifecyclePortV1 {
     private let store: LocalJobStoreV1
     private let stagingRootURL: URL
     private let generationLeaseRegistry: GenerationLeaseRegistryV1?
     private let generationPublicationAdapter: GenerationLocalJobPublicationAdapterV1?
+    private let lifecycleHook: ResumableLocalJobLifecycleHookV1
     private let maximumConcurrency: Int
 
     private var operations: [
@@ -33,6 +45,21 @@ actor ResumableLocalJobRunnerV1: ResumableLocalJobPortV1 {
     ] = [:]
     private var activeTasks: [LocalJobIDV1: Task<Void, Never>] = [:]
     private var suppressedPublicationRetries: Set<LocalJobIDV1> = []
+    private var lifecycleSuspensions: Set<LocalJobLifecycleSuspensionReasonV1> = []
+    private var lifecycleGenerations: [
+        LocalJobLifecycleSuspensionReasonV1: UInt64
+    ] = [:]
+    private var exhaustedLifecycleGenerations: Set<
+        LocalJobLifecycleSuspensionReasonV1
+    > = []
+    private var lifecycleCancellationReasons: [
+        LocalJobIDV1: PendingLifecycleCancellationV1
+    ] = [:]
+    private var userCancellationRequests: Set<LocalJobIDV1> = []
+    private var globalDestructiveGate = false
+    private var workspaceDestructiveGates: Set<UUID> = []
+    private var globalMutationCount = 0
+    private var workspaceMutationCounts: [UUID: Int] = [:]
     private var lastInfrastructureFailureCode: String?
 
     init(
@@ -40,7 +67,11 @@ actor ResumableLocalJobRunnerV1: ResumableLocalJobPortV1 {
         stagingRootURL: URL,
         generationLeaseRegistry: GenerationLeaseRegistryV1? = nil,
         generationPublicationAdapter: GenerationLocalJobPublicationAdapterV1? = nil,
-        maximumConcurrency: Int = JobScaleBudgetPolicyV1.maximumRunnerConcurrency
+        maximumConcurrency: Int = JobScaleBudgetPolicyV1.maximumRunnerConcurrency,
+        initialLifecycleGenerations: [
+            LocalJobLifecycleSuspensionReasonV1: UInt64
+        ] = [:],
+        lifecycleHook: @escaping ResumableLocalJobLifecycleHookV1 = { _, _ in }
     ) throws {
         guard stagingRootURL.isFileURL,
               (1...JobScaleBudgetPolicyV1.maximumRunnerConcurrency)
@@ -52,6 +83,8 @@ actor ResumableLocalJobRunnerV1: ResumableLocalJobPortV1 {
         self.generationLeaseRegistry = generationLeaseRegistry
         self.generationPublicationAdapter = generationPublicationAdapter
         self.maximumConcurrency = maximumConcurrency
+        lifecycleGenerations = initialLifecycleGenerations
+        self.lifecycleHook = lifecycleHook
     }
 
     func register(
@@ -78,6 +111,8 @@ actor ResumableLocalJobRunnerV1: ResumableLocalJobPortV1 {
 
     @discardableResult
     func enqueue(_ job: ResumableLocalJobV1) async throws -> ResumableLocalJobV1 {
+        try beginMutation(workspaceID: job.workspaceID)
+        defer { endMutation(workspaceID: job.workspaceID) }
         if job.generationEpoch != nil, generationPublicationAdapter == nil {
             throw ResumableLocalJobRunnerFailureV1
                 .publicationAuthorityUnavailable
@@ -97,9 +132,15 @@ actor ResumableLocalJobRunnerV1: ResumableLocalJobPortV1 {
 
     @discardableResult
     func requestCancellation(id: LocalJobIDV1) async throws -> ResumableLocalJobV1 {
+        guard let existing = try await store.job(id: id) else {
+            throw LocalJobStoreFailureV1.jobNotFound
+        }
+        try beginMutation(workspaceID: existing.workspaceID)
+        defer { endMutation(workspaceID: existing.workspaceID) }
         let requested = try await store.requestCancellation(id: id)
         suppressedPublicationRetries.remove(id)
         if let task = activeTasks[id] {
+            userCancellationRequests.insert(id)
             task.cancel()
             return requested
         }
@@ -115,6 +156,8 @@ actor ResumableLocalJobRunnerV1: ResumableLocalJobPortV1 {
     }
 
     func resumePending() async throws {
+        try beginMutation(workspaceID: nil)
+        defer { endMutation(workspaceID: nil) }
         try await store.resumePending()
         suppressedPublicationRetries.removeAll()
         let resumedJobs = try await store.jobs(workspaceID: nil)
@@ -135,13 +178,16 @@ actor ResumableLocalJobRunnerV1: ResumableLocalJobPortV1 {
         guard activeTasks[id] == nil else {
             throw LocalJobStoreFailureV1.invalidTransition
         }
-        if let job = try await store.job(id: id) {
-            try cleanupStaging(for: job)
-        }
+        guard let job = try await store.job(id: id) else { return }
+        try beginMutation(workspaceID: job.workspaceID)
+        defer { endMutation(workspaceID: job.workspaceID) }
+        try cleanupStaging(for: job)
         try await store.removeTerminal(id: id)
     }
 
     func removeJobs(workspaceID: UUID) async throws {
+        try beginDestructiveRemoval(workspaceID: workspaceID)
+        defer { endDestructiveRemoval(workspaceID: workspaceID) }
         let scoped = try await store.jobs(workspaceID: workspaceID)
         for job in scoped where !job.state.isTerminal {
             _ = try await store.requestCancellation(id: job.id)
@@ -161,6 +207,8 @@ actor ResumableLocalJobRunnerV1: ResumableLocalJobPortV1 {
     }
 
     func eraseAll() async throws {
+        try beginDestructiveRemoval(workspaceID: nil)
+        defer { endDestructiveRemoval(workspaceID: nil) }
         let allJobs = try await store.jobs(workspaceID: nil)
         for job in allJobs where !job.state.isTerminal {
             _ = try await store.requestCancellation(id: job.id)
@@ -193,9 +241,105 @@ actor ResumableLocalJobRunnerV1: ResumableLocalJobPortV1 {
         lastInfrastructureFailureCode
     }
 
+    func suspendForLifecycle(
+        _ reason: LocalJobLifecycleSuspensionReasonV1
+    ) async throws {
+        lifecycleSuspensions.insert(reason)
+        let currentGeneration = lifecycleGenerations[reason] ?? 0
+        let generationExhausted = exhaustedLifecycleGenerations.contains(reason)
+            || currentGeneration == UInt64.max
+        if generationExhausted {
+            exhaustedLifecycleGenerations.insert(reason)
+        } else {
+            lifecycleGenerations[reason] = currentGeneration + 1
+        }
+        let active = activeTasks
+        for id in active.keys {
+            if lifecycleCancellationReasons[id]
+                != .suspend(.protectedDataUnavailable) {
+                lifecycleCancellationReasons[id] = .suspend(reason)
+            }
+        }
+        active.values.forEach { $0.cancel() }
+        // Suspension itself is bounded. Durable RUNNING/checkpoint state is
+        // already sufficient for termination recovery; owned tasks converge
+        // when they next reach their mandatory cancellation boundary.
+        if generationExhausted {
+            throw ResumableLocalJobRunnerFailureV1.lifecycleGenerationExhausted
+        }
+    }
+
+    func resumeAfterLifecycle(
+        _ reason: LocalJobLifecycleSuspensionReasonV1
+    ) async throws {
+        try beginMutation(workspaceID: nil)
+        defer { endMutation(workspaceID: nil) }
+        guard !exhaustedLifecycleGenerations.contains(reason),
+              lifecycleSuspensions.contains(reason),
+              let expectedGeneration = lifecycleGenerations[reason] else {
+            if exhaustedLifecycleGenerations.contains(reason) {
+                throw ResumableLocalJobRunnerFailureV1
+                    .lifecycleGenerationExhausted
+            }
+            return
+        }
+        let activeIDs = Set(activeTasks.keys)
+        switch reason {
+        case .protectedDataUnavailable:
+            // This forces a descriptor-pinned disk reload before any blocked
+            // job becomes eligible to run again.
+            try await store.resumeAfterProtectedDataAvailable()
+        case .sceneBackground:
+            try await store.resumePending()
+        }
+        guard lifecycleGenerations[reason] == expectedGeneration,
+              lifecycleSuspensions.contains(reason),
+              !exhaustedLifecycleGenerations.contains(reason) else {
+            // A newer observation won while readback was suspended. Any rows
+            // safely requeued by the stale readback remain queued, but the
+            // newer global suspension prevents their scheduling.
+            return
+        }
+        // Readback requeued RUNNING rows, including active attempts. Their
+        // task slot remains the successor-exclusion fence until unwind.
+        for id in activeIDs {
+            if lifecycleCancellationReasons[id] == .suspend(reason) {
+                lifecycleCancellationReasons[id] = .resumeAfterReadback
+            }
+        }
+        lifecycleSuspensions.remove(reason)
+        suppressedPublicationRetries.removeAll()
+        try await scheduleAvailableWork()
+    }
+
+    func isLifecycleSuspended(
+        _ reason: LocalJobLifecycleSuspensionReasonV1
+    ) -> Bool {
+        lifecycleSuspensions.contains(reason)
+    }
+
+    func lifecycleGeneration(
+        _ reason: LocalJobLifecycleSuspensionReasonV1
+    ) -> UInt64? {
+        lifecycleGenerations[reason]
+    }
+
+    func isDestructiveOperationGated(workspaceID: UUID?) -> Bool {
+        if globalDestructiveGate { return true }
+        guard let workspaceID else {
+            return !workspaceDestructiveGates.isEmpty
+        }
+        return workspaceDestructiveGates.contains(workspaceID)
+    }
+
     func retry(id: LocalJobIDV1) async throws {
+        guard let existing = try await store.job(id: id) else {
+            throw LocalJobStoreFailureV1.jobNotFound
+        }
+        try beginMutation(workspaceID: existing.workspaceID)
+        defer { endMutation(workspaceID: existing.workspaceID) }
         suppressedPublicationRetries.remove(id)
-        if (try await store.job(id: id))?.state != .awaitingPublication {
+        if existing.state != .awaitingPublication {
             _ = try await store.requeue(id: id)
         }
         try await scheduleAvailableWork()
@@ -203,6 +347,76 @@ actor ResumableLocalJobRunnerV1: ResumableLocalJobPortV1 {
 }
 
 private extension ResumableLocalJobRunnerV1 {
+    func beginMutation(workspaceID: UUID?) throws {
+        guard !globalDestructiveGate else {
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        if let workspaceID {
+            guard !workspaceDestructiveGates.contains(workspaceID) else {
+                throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+            }
+            let current = workspaceMutationCounts[workspaceID] ?? 0
+            guard current < Int.max else {
+                throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+            }
+            workspaceMutationCounts[workspaceID] = current + 1
+        } else {
+            guard workspaceDestructiveGates.isEmpty,
+                  globalMutationCount < Int.max else {
+                throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+            }
+            globalMutationCount += 1
+        }
+    }
+
+    func endMutation(workspaceID: UUID?) {
+        if let workspaceID {
+            guard let current = workspaceMutationCounts[workspaceID] else {
+                return
+            }
+            if current == 1 {
+                workspaceMutationCounts.removeValue(forKey: workspaceID)
+            } else {
+                workspaceMutationCounts[workspaceID] = current - 1
+            }
+        } else if globalMutationCount > 0 {
+            globalMutationCount -= 1
+        }
+    }
+
+    func beginDestructiveRemoval(workspaceID: UUID?) throws {
+        if let workspaceID {
+            guard !globalDestructiveGate,
+                  !workspaceDestructiveGates.contains(workspaceID),
+                  globalMutationCount == 0,
+                  workspaceMutationCounts[workspaceID] == nil else {
+                throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+            }
+            workspaceDestructiveGates.insert(workspaceID)
+        } else {
+            guard !globalDestructiveGate,
+                  workspaceDestructiveGates.isEmpty,
+                  globalMutationCount == 0,
+                  workspaceMutationCounts.isEmpty else {
+                throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+            }
+            globalDestructiveGate = true
+        }
+    }
+
+    func endDestructiveRemoval(workspaceID: UUID?) {
+        if let workspaceID {
+            workspaceDestructiveGates.remove(workspaceID)
+        } else {
+            globalDestructiveGate = false
+        }
+    }
+
+    func isDestructivelyGated(workspaceID: UUID) -> Bool {
+        globalDestructiveGate
+            || workspaceDestructiveGates.contains(workspaceID)
+    }
+
     func reconcileForDestructiveRemoval(workspaceID: UUID?) async throws {
         let pending = try await store.jobs(workspaceID: workspaceID)
         for job in pending where job.state == .cancellationRequested {
@@ -224,19 +438,32 @@ private extension ResumableLocalJobRunnerV1 {
     }
 
     func scheduleAvailableWork() async throws {
+        guard lifecycleSuspensions.isEmpty else { return }
+        guard !globalDestructiveGate else { return }
         guard activeTasks.count < maximumConcurrency else { return }
         let storedJobs = try await store.jobs(workspaceID: nil)
         let candidates = storedJobs.filter {
             ($0.state == .queued || $0.state == .awaitingPublication)
                 && activeTasks[$0.id] == nil
                 && !suppressedPublicationRetries.contains($0.id)
+                && !isDestructivelyGated(workspaceID: $0.workspaceID)
         }
         for candidate in candidates.prefix(maximumConcurrency - activeTasks.count) {
+            guard !isDestructivelyGated(workspaceID: candidate.workspaceID) else {
+                continue
+            }
             let isQueued = candidate.state == .queued
             let scheduled: ResumableLocalJobV1
             let operation: ResumableLocalJobOperationV1?
             if isQueued {
-                scheduled = try await store.claimForExecution(id: candidate.id)
+                try beginMutation(workspaceID: candidate.workspaceID)
+                do {
+                    scheduled = try await store.claimForExecution(id: candidate.id)
+                    endMutation(workspaceID: candidate.workspaceID)
+                } catch {
+                    endMutation(workspaceID: candidate.workspaceID)
+                    throw error
+                }
                 operation = operations[scheduled.kind]
             } else {
                 scheduled = candidate
@@ -349,6 +576,65 @@ private extension ResumableLocalJobRunnerV1 {
                 ownsTaskSlot: true
             )
             return
+        } else if operationFailure is CancellationError,
+                  userCancellationRequests.remove(job.id) != nil {
+            do {
+                try cleanupStaging(for: job)
+                _ = try await store.markCancelled(
+                    id: job.id,
+                    expectedAttemptCount: attempt
+                )
+            } catch {
+                await recordTerminalFailure(
+                    job: job,
+                    attempt: attempt,
+                    classification: .retryable,
+                    code: "staging_cleanup_failed"
+                )
+            }
+        } else if operationFailure is CancellationError,
+                  let lifecycleCancellation = lifecycleCancellationReasons.removeValue(
+                      forKey: job.id
+                  ) {
+            do {
+                await lifecycleHook(
+                    job.id,
+                    .beforeSuspensionPersistence
+                )
+                switch lifecycleCancellation {
+                case .suspend(let lifecycleReason):
+                    _ = try await store.markLifecycleSuspended(
+                        id: job.id,
+                        expectedAttemptCount: attempt,
+                        reason: lifecycleReason
+                    )
+                case .resumeAfterReadback:
+                    _ = try await store.markLifecycleRecoveryQueued(
+                        id: job.id,
+                        expectedAttemptCount: attempt
+                    )
+                }
+            } catch let failure as LocalJobStoreFailureV1
+                where failure == .protectedDataUnavailable {
+                // The already-durable RUNNING checkpoint remains recovery
+                // authority while protected files cannot be opened.
+                lastInfrastructureFailureCode = "protected_data_unavailable"
+            } catch let failure as LocalJobStoreFailureV1
+                where failure == .staleJob {
+                do {
+                    let converged = try await store.job(id: job.id)
+                    if converged?.attemptCount != attempt
+                        || converged?.state != .queued {
+                        lastInfrastructureFailureCode = normalizedCode(failure)
+                    }
+                    // Matching readback already queued this exact attempt.
+                    // The old suspension write is an expected idempotent no-op.
+                } catch {
+                    lastInfrastructureFailureCode = normalizedCode(error)
+                }
+            } catch {
+                lastInfrastructureFailureCode = normalizedCode(error)
+            }
         } else if operationFailure is CancellationError {
             do {
                 try cleanupStaging(for: job)
@@ -366,12 +652,29 @@ private extension ResumableLocalJobRunnerV1 {
             }
         } else if let operationFailure {
             let mapped = classify(operationFailure)
-            await recordTerminalFailure(
-                job: job,
-                attempt: attempt,
-                classification: mapped.classification,
-                code: mapped.code
-            )
+            if mapped.classification == .protectedDataUnavailable {
+                do {
+                    _ = try await store.markLifecycleSuspended(
+                        id: job.id,
+                        expectedAttemptCount: attempt,
+                        reason: .protectedDataUnavailable
+                    )
+                } catch let failure as LocalJobStoreFailureV1
+                    where failure == .protectedDataUnavailable {
+                    // Durable RUNNING plus its last checkpoint is the relaunch
+                    // recovery state when the store itself is locked.
+                    lastInfrastructureFailureCode = mapped.code
+                } catch {
+                    lastInfrastructureFailureCode = normalizedCode(error)
+                }
+            } else {
+                await recordTerminalFailure(
+                    job: job,
+                    attempt: attempt,
+                    classification: mapped.classification,
+                    code: mapped.code
+                )
+            }
         } else {
             await recordTerminalFailure(
                 job: job,
@@ -380,6 +683,8 @@ private extension ResumableLocalJobRunnerV1 {
                 code: "missing_operation_result"
             )
         }
+        lifecycleCancellationReasons.removeValue(forKey: job.id)
+        userCancellationRequests.remove(job.id)
         activeTasks.removeValue(forKey: job.id)
         do { try await scheduleAvailableWork() }
         catch { lastInfrastructureFailureCode = normalizedCode(error) }
@@ -425,6 +730,10 @@ private extension ResumableLocalJobRunnerV1 {
                 pending: pending,
                 mode: mode
             )
+            try Task.checkCancellation()
+            guard lifecycleSuspensions.isEmpty else {
+                throw CancellationError()
+            }
             let invoke: @Sendable () throws -> LocalJobPublicationOutcomeV1 = {
                 try publisher(context)
             }
@@ -472,7 +781,21 @@ private extension ResumableLocalJobRunnerV1 {
             // Awaiting publication is intentionally nonterminal. Relaunch or
             // retry re-invokes the idempotent adapter and adopts exact readback.
             lastInfrastructureFailureCode = normalizedCode(error)
-            suppressedPublicationRetries.insert(scheduledJob.id)
+            if error is CancellationError {
+                let userRequested = userCancellationRequests.remove(
+                    scheduledJob.id
+                ) != nil
+                let lifecycleResumed = lifecycleCancellationReasons[
+                    scheduledJob.id
+                ] == .resumeAfterReadback
+                if userRequested || lifecycleResumed {
+                    suppressedPublicationRetries.remove(scheduledJob.id)
+                } else {
+                    suppressedPublicationRetries.insert(scheduledJob.id)
+                }
+            } else {
+                suppressedPublicationRetries.insert(scheduledJob.id)
+            }
         }
         if let leaseHandle {
             do { try leaseHandle.close() }
@@ -486,6 +809,7 @@ private extension ResumableLocalJobRunnerV1 {
         if completedTerminalTransition {
             suppressedPublicationRetries.remove(scheduledJob.id)
         }
+        lifecycleCancellationReasons.removeValue(forKey: scheduledJob.id)
         if ownsTaskSlot {
             activeTasks.removeValue(forKey: scheduledJob.id)
             do { try await scheduleAvailableWork() }
@@ -554,6 +878,10 @@ private extension ResumableLocalJobRunnerV1 {
                 return (.permanent, "invalid_result")
             case .unsafeStagingPath, .stagingCleanupFailed:
                 return (.retryable, "staging_cleanup_failed")
+            case .lifecycleGenerationExhausted:
+                return (.permanent, "lifecycle_generation_exhausted")
+            case .destructiveScopeBusy:
+                return (.retryable, "destructive_scope_busy")
             }
         }
         return (.retryable, "operation_failed")
