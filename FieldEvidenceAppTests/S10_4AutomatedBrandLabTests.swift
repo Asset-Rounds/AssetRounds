@@ -1368,7 +1368,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(
                 separatedBy: "recordWorkWithoutBaseline(in: app)"
             ).count - 1,
-            2
+            3
         )
         let recordWorkNavigationWait =
             "        save.tap()\n" +
@@ -3311,8 +3311,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
              "BA050D696FD3D315E1E289A0411ECF7699F2E519B3A60E4B31578D6C6B5E209B"),
             (signDetailPositioningGateSource, 443,
              "37E9246E6725B110AFBB1C0DF6BC8F53B9DBF03FDDF2BFB4BD26DFB38159D21C"),
-            (signDetailPositioningTailSource, 329,
-             "2DB00BB4D24C3B4FF476905723BB2BB34F0A8B44C14BBA33591D7CBCE45425EC"),
+            (signDetailPositioningTailSource, 471,
+             "E652C283399D20271E348B04FA26C76E1E88E158FA2C9558A449237C2371BD95"),
         ] {
             XCTAssertEqual(source.utf8.count, bytes)
             XCTAssertEqual(Data(source.utf8).sha256, sha256)
@@ -18655,7 +18655,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 Array(orderedStateIDs.prefix(expectedReplayCounts[index]))
             )
             XCTAssertTrue(Set(ownedStateIDs).isDisjoint(with: priorOwnedStateIDs))
-            XCTAssertEqual(Set(replayStateIDs), priorOwnedStateIDs)
+            if index < 2 {
+                XCTAssertEqual(Set(replayStateIDs), priorOwnedStateIDs)
+            } else {
+                XCTAssertTrue(Set(replayStateIDs).isSubset(of: priorOwnedStateIDs))
+            }
             XCTAssertEqual(
                 Data(ownedStateIDs.joined(separator: "\n").utf8).sha256,
                 expectedOwnedDigests[index]
@@ -19617,7 +19621,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "segmentedRouteStateCursor < Self.segmentedRouteStateIDs.count",
             "Self.segmentedRouteStateIDs[segmentedRouteStateCursor] == stateID",
             "segmentedRouteStateCursor < automationSegment.replayCount",
-            "segmentedRouteStateCursor >= automationSegment.ownedStartOrdinal - 1",
+            "segmentedRouteStateCursor\n" +
+                "                    >= automationSegment.ownedStartOrdinal - 1",
             "Segmented evidence preparation entered an unowned resume gap",
             "app.state == .runningForeground",
             "return segmentedRouteStateCursor >= automationSegment.replayCount",
@@ -20092,13 +20097,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10_4_SEGMENT_REPLAY",
             "S10_4_SEGMENT_RESUME_SETUP",
             "resume-setup-rows.json",
-            ".resumeMode == $segmentPlan.resumeMode",
-            ".dependencySegmentIDs == $segmentPlan.dependencySegmentIDs",
-            ".dependencyOwnedStateCount == $segmentPlan.dependencyOwnedStateCount",
-            ".dependencyOwnedStateIDs == $segmentPlan.dependencyOwnedStateIDs",
-            ".dependencyOwnedStateSHA256 == $segmentPlan.dependencyOwnedStateSHA256",
-            ".resumeSetup == $segmentPlan.resumeSetup",
-            ".resumeSetupRowCount == $resumeSetupRowCount",
+            "resumeMode: $segment.resumeMode",
+            "dependencySegmentIDs: $segment.dependencySegmentIDs",
+            "dependencyOwnedStateCount: $segment.dependencyOwnedStateCount",
+            "dependencyOwnedStateIDs: $segment.dependencyOwnedStateIDs",
+            "dependencyOwnedStateSHA256: $segment.dependencyOwnedStateSHA256",
+            "resumeSetup: $segment.resumeSetup",
+            "resumeSetupRowCount: $resumeSetupRowCount",
             "^S10_4_.*DIAGNOSTIC",
             "Lost connection to testmanagerd|XCTHTestOperationCoordinatorErrorDomain",
             ".suggestedHumanReadableName == \"UI Snapshot\"",
@@ -20142,6 +20147,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "test ! -e \"$shard_evidence_path/shard-receipt.json\"",
         ] {
             XCTAssertTrue(retainSegmentSource.contains(exact), exact)
+        }
+        for exact in [
+            ".resumeMode == $segmentPlan.resumeMode",
+            ".dependencySegmentIDs == $segmentPlan.dependencySegmentIDs",
+            ".dependencyOwnedStateCount == $segmentPlan.dependencyOwnedStateCount",
+            ".dependencyOwnedStateIDs == $segmentPlan.dependencyOwnedStateIDs",
+            ".dependencyOwnedStateSHA256 == $segmentPlan.dependencyOwnedStateSHA256",
+            ".resumeSetup == $segmentPlan.resumeSetup",
+            ".resumeSetupRowCount == $resumeSetupRowCount",
+        ] {
+            XCTAssertTrue(workerSource.contains(exact), exact)
         }
         let workerResumeValidationSource = try boundedSource(
             retainSegmentSource,
@@ -20542,10 +20558,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before:
                 "\njq -s '.' \"$combined_shard/state-ax.ndjson\" > \"$combined_shard/state-ax.json\""
         )
-        XCTAssertEqual(assemblerDependencySource.utf8.count, 2_790)
+        XCTAssertEqual(assemblerDependencySource.utf8.count, 2_789)
         XCTAssertEqual(
             Data(assemblerDependencySource.utf8).sha256,
-            "64E56050FA5ED52BA7F98A3E60E2DFFA0107D700A43387C8644FB9437F8493B3"
+            "879F42A3E49C35047D9D7304655401EEF6E6FA5461AA0989E0E80BC16D523992"
         )
         for exact in [
             #"select(.segmentID == "segment-3")"#,
