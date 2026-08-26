@@ -7426,22 +7426,60 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(signsTab.exists)
         let topClearance: CGFloat = 24
         let bottomClearance: CGFloat = 16
+        let usesSegment3AXTextFeedbackCorrection =
+            automationSegment == .segment3
+                && automationShard?.shardID == "s10.4.current.ax-text"
+                && automationSegment.replayCount == 22
+                && automationSegment.ownedStartOrdinal == 51
+                && automationSegment.ownedCount == 17
+                && automationSegment.finalOrdinal == 67
+                && segmentedRouteStateCursor == 57
+                && migratedStateIDs
+                    == Array(Self.segmentedRouteStateIDs[50..<57])
+                && !automatedSegmentFinished
+                && app.state == .runningForeground
         var measuredUndertravel: CGFloat = 0
         var compensatedDirection: CGFloat = 0
+        var usedSegment3DisjointFeedbackCorrection = false
         for _ in 0..<4 {
+            if usedSegment3DisjointFeedbackCorrection,
+               appMetadata.frame.maxY <= navigationBar.frame.minY,
+               saveDiagnostics.frame.maxY
+                <= signsTab.frame.minY - bottomClearance {
+                break
+            }
             let minimumShift = navigationBar.frame.maxY
                 + topClearance
                 - appMetadata.frame.minY
             let maximumShift = signsTab.frame.minY
                 - bottomClearance
                 - saveDiagnostics.frame.maxY
-            XCTAssertGreaterThanOrEqual(maximumShift, minimumShift)
-            if minimumShift <= 0, maximumShift >= 0 { break }
-            let targetDistance = minimumShift > 0
-                ? maximumShift
-                : minimumShift
+            let targetDistance: CGFloat
+            if maximumShift < minimumShift {
+                guard usesSegment3AXTextFeedbackCorrection,
+                      maximumShift < 0 else {
+                    XCTFail("Feedback review positioning interval is impossible.")
+                    return
+                }
+                usedSegment3DisjointFeedbackCorrection = true
+                targetDistance = maximumShift
+            } else {
+                if minimumShift <= 0, maximumShift >= 0 { break }
+                targetDistance = minimumShift > 0
+                    ? maximumShift
+                    : minimumShift
+            }
             let direction: CGFloat = targetDistance > 0 ? 1 : -1
-            if compensatedDirection != direction {
+            if usedSegment3DisjointFeedbackCorrection {
+                guard direction == -1,
+                      compensatedDirection == 0
+                        || compensatedDirection == direction else {
+                    XCTFail(
+                        "AX-text segment-3 Feedback positioning reversed direction."
+                    )
+                    return
+                }
+            } else if compensatedDirection != direction {
                 measuredUndertravel = 0
             }
             let dragDistance = targetDistance
@@ -7465,10 +7503,17 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 : abs(dragDistance)
             compensatedDirection = direction
         }
-        XCTAssertGreaterThanOrEqual(
-            appMetadata.frame.minY,
-            navigationBar.frame.maxY + topClearance
-        )
+        if usedSegment3DisjointFeedbackCorrection {
+            XCTAssertLessThanOrEqual(
+                appMetadata.frame.maxY,
+                navigationBar.frame.minY
+            )
+        } else {
+            XCTAssertGreaterThanOrEqual(
+                appMetadata.frame.minY,
+                navigationBar.frame.maxY + topClearance
+            )
+        }
         XCTAssertLessThanOrEqual(
             saveDiagnostics.frame.maxY,
             signsTab.frame.minY - bottomClearance

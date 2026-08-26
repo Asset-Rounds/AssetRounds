@@ -19107,6 +19107,101 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
 
+        let k152FeedbackReviewSource = try boundedSource(
+            uiSource,
+            from:
+                "    @MainActor\n" +
+                    "    private func captureUnavailablePaywallAndFeedbackReview(",
+            before:
+                "\n    @MainActor\n" +
+                    "    private func captureAvailablePaywallAndPurchase("
+        )
+        XCTAssertEqual(k152FeedbackReviewSource.utf8.count, 7_249)
+        XCTAssertEqual(
+            Data(k152FeedbackReviewSource.utf8).sha256,
+            "A1671A834C3585E2307990049830FDC86760907E01E8A7E8AED864C7E7492130"
+        )
+        let k152FeedbackCorrectionSource = try boundedSource(
+            k152FeedbackReviewSource,
+            from: "        let topClearance: CGFloat = 24",
+            before: #"        captureBaseline("state.feedback.review-ready", in: app)"#
+        )
+        XCTAssertEqual(k152FeedbackCorrectionSource.utf8.count, 4_011)
+        XCTAssertEqual(
+            Data(k152FeedbackCorrectionSource.utf8).sha256,
+            "BBA61090944DE2A8F1BD9A069109FD8FFBB4A7B18A83C60714D657B4D2F9CE9F"
+        )
+        for exact in [
+            "automationSegment == .segment3",
+            #"automationShard?.shardID == "s10.4.current.ax-text""#,
+            "automationSegment.replayCount == 22",
+            "automationSegment.ownedStartOrdinal == 51",
+            "automationSegment.ownedCount == 17",
+            "automationSegment.finalOrdinal == 67",
+            "segmentedRouteStateCursor == 57",
+            "Array(Self.segmentedRouteStateIDs[50..<57])",
+            "!automatedSegmentFinished",
+            "app.state == .runningForeground",
+            "var measuredUndertravel: CGFloat = 0",
+            "var compensatedDirection: CGFloat = 0",
+            "var usedSegment3DisjointFeedbackCorrection = false",
+            "for _ in 0..<4",
+            "if maximumShift < minimumShift",
+            "guard usesSegment3AXTextFeedbackCorrection,",
+            "maximumShift < 0",
+            "targetDistance = maximumShift",
+            "if minimumShift <= 0, maximumShift >= 0 { break }",
+            "targetDistance = minimumShift > 0",
+            "guard direction == -1,",
+            "compensatedDirection == 0",
+            "|| compensatedDirection == direction",
+            "targetDistance\n                + direction * measuredUndertravel",
+            "forDuration: 0.2",
+            "withVelocity: .slow",
+            "thenHoldForDuration: 0.2",
+            "appMetadata.frame.maxY",
+            "navigationBar.frame.minY",
+            "appMetadata.frame.minY",
+            "navigationBar.frame.maxY + topClearance",
+            "saveDiagnostics.frame.maxY",
+            "signsTab.frame.minY - bottomClearance",
+        ] {
+            XCTAssertTrue(k152FeedbackCorrectionSource.contains(exact), exact)
+        }
+        var k152FeedbackTail = k152FeedbackCorrectionSource[
+            k152FeedbackCorrectionSource.startIndex...
+        ]
+        for token in [
+            "if maximumShift < minimumShift",
+            "maximumShift < 0",
+            "usedSegment3DisjointFeedbackCorrection = true",
+            "targetDistance = maximumShift",
+            "let dragDistance = targetDistance",
+            "dragStart.press(",
+            "if usedSegment3DisjointFeedbackCorrection {",
+            "appMetadata.frame.maxY",
+            "navigationBar.frame.minY",
+            "saveDiagnostics.frame.maxY",
+            "signsTab.frame.minY - bottomClearance",
+        ] {
+            let range = try XCTUnwrap(k152FeedbackTail.range(of: token), token)
+            k152FeedbackTail = k152FeedbackTail[range.upperBound...]
+        }
+        for prohibited in [
+            "performAccessibilityAudit", "matchingExceptions",
+            "ContrastAuditExceptionSignature", "printJSONLine(",
+            "attachCandidate(", "S10_MIGRATION_STATE", "S10_4_AX_STATE",
+            "S10_4_CONTRAST", "S10_4_CANDIDATE", "S10_4_TASK",
+            "migratedStateIDs.append", "segmentedRouteStateCursor +=",
+        ] {
+            XCTAssertFalse(k152FeedbackCorrectionSource.contains(prohibited), prohibited)
+        }
+        XCTAssertTrue(
+            k152FeedbackReviewSource.contains(
+                #"captureBaseline("state.feedback.review-ready", in: app)"#
+            )
+        )
+
         let k134State56RouteSource = try boundedSource(
             uiSource,
             from: #"        XCTAssertTrue(element("s4.5.correction.ready", in: app)"#,
