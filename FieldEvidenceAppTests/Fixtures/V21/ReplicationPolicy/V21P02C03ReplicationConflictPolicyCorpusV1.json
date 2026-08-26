@@ -1,0 +1,86 @@
+{
+  "schema": "V21P02C03ReplicationConflictPolicyCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P02-C03",
+  "caseIDs": [
+    "V23-P02-C03-G01",
+    "V23-P02-C03-A01",
+    "V23-P02-C03-H01",
+    "V23-P02-C03-I01",
+    "V23-P02-C03-R01"
+  ],
+  "inventoryExpectations": {
+    "registrationCount": 84,
+    "persistentModelCount": 13,
+    "ownedFileClassCount": 20,
+    "portableContentProjectionCount": 13,
+    "derivedIndexProjectionCount": 10,
+    "journalRecoveryCount": 21,
+    "diagnosticCount": 7,
+    "categoryCounts": {
+      "DIAGNOSTIC": 7,
+      "INDEX": 2,
+      "JOURNAL": 21,
+      "OWNED_FILE_CLASS": 20,
+      "PERSISTENT_MODEL": 13,
+      "PROJECTION": 21,
+      "SECRET": 0
+    },
+    "classificationCounts": {
+      "CONTENT_BLOB": 4,
+      "DERIVED_REBUILDABLE": 26,
+      "LOCAL_ONLY": 32,
+      "PRIVATE_DEVICE_ONLY": 8,
+      "REPLICATED": 14
+    }
+  },
+  "rules": [
+    { "rule": "IMMUTABLE_VERSION", "disposition": "IMMUTABLE_UNION" },
+    { "rule": "STABLE_ID_APPEND_UNION", "disposition": "STABLE_ID_APPEND_UNION" },
+    { "rule": "EXACT_REVISION_MANUAL", "disposition": "MANUAL_RESOLUTION_REQUIRED" },
+    { "rule": "DELETE_WINS", "disposition": "DELETE_WINS" },
+    { "rule": "DERIVED_REBUILD", "disposition": "REBUILD_DERIVED" },
+    { "rule": "LOCAL_ONLY", "disposition": "RETAIN_LOCAL_ONLY" }
+  ],
+  "permutations": {
+    "twoWay": [[0, 1], [1, 0]],
+    "threeWay": [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]]
+  },
+  "hostileCases": [
+    "unknown_schema_version",
+    "unknown_classification",
+    "unknown_conflict_rule",
+    "over_registration_limit",
+    "over_competitor_limit",
+    "private_transport_enabled",
+    "unsorted_dependencies",
+    "duplicate_dependency",
+    "duplicate_mutation_id",
+    "identity_collision",
+    "customer_data_present",
+    "secret_present",
+    "external_provider_authority_present",
+    "provider_controlled_retention_present",
+    "unknown_declared_model_default_classification",
+    "unknown_declared_file_default_classification",
+    "secret_portability_enabled"
+  ],
+  "interruptionBoundaries": [
+    "before_basis_bytes",
+    "after_partial_basis_bytes",
+    "after_complete_basis_before_validation",
+    "after_validation_before_use"
+  ],
+  "lifecycle": {
+    "resolutionRequiresAllNamedInputs": true,
+    "basisIsFrozen": true,
+    "lateCompetitorCreatesSuccessor": true,
+    "lateInputRequiresSuccessor": true,
+    "declarationOnlyNoDurableState": true
+  },
+  "privacy": {
+    "syntheticOnly": true,
+    "containsCustomerData": false,
+    "containsSecrets": false
+  }
+}
