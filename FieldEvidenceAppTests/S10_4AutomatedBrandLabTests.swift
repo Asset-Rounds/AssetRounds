@@ -18760,11 +18760,31 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "    private func positionReportCorrectionCompletedForAXText(",
             before: "\n    @MainActor\n    private func captureBaseline("
         )
-        XCTAssertEqual(k134State56HelperSource.utf8.count, 30_626)
-        XCTAssertEqual(
-            Data(k134State56HelperSource.utf8).sha256,
-            "48031803CA9F45E20164AD25C2BE522809EB00478FF4CD226B8371C05E4156E6"
+        let k147State56FirstTargetSource = try boundedSource(
+            k134State56HelperSource,
+            from: "            let midpointDistance =",
+            before: "            let direction: CGFloat"
         )
+        XCTAssertEqual(k147State56FirstTargetSource.utf8.count, 341)
+        XCTAssertEqual(
+            Data(k147State56FirstTargetSource.utf8).sha256,
+            "0C7B70F195B6E41FA18A952B0087F45D78D42BD216E1AC207074BE51D3833674"
+        )
+        var k147FirstTargetTail = k147State56FirstTargetSource[
+            k147State56FirstTargetSource.startIndex...
+        ]
+        for token in [
+            "let midpointDistance = (",
+            "geometry.minimumShift + geometry.maximumShift",
+            "let targetDistance = completedGestureCount == 0",
+            "midpointDistance > 0",
+            "geometry.maximumShift",
+            "geometry.minimumShift",
+            ": midpointDistance",
+        ] {
+            let range = try XCTUnwrap(k147FirstTargetTail.range(of: token), token)
+            k147FirstTargetTail = k147FirstTargetTail[range.upperBound...]
+        }
         let k143State56MagnitudeSource = try boundedSource(
             k134State56HelperSource,
             from: "            let compensatedMagnitude =",
@@ -18797,7 +18817,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "func acceptingCompositionRelations(",
             "func isAcceptingComposition(",
             "while completedGestureCount < maximumGestureCount",
-            "let targetDistance = (",
+            "let midpointDistance = (",
+            "let targetDistance = completedGestureCount == 0",
+            "? geometry.maximumShift",
+            ": geometry.minimumShift",
+            ": midpointDistance",
             "let direction: CGFloat = targetDistance > 0 ? 1 : -1",
             "positioningDirection == direction",
             "receiverCapacity >= minimumGestureDistance",

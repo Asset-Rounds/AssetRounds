@@ -9449,9 +9449,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 )
             }
 
-            let targetDistance = (
+            let midpointDistance = (
                 geometry.minimumShift + geometry.maximumShift
             ) / 2
+            let targetDistance = completedGestureCount == 0
+                ? (midpointDistance > 0
+                    ? geometry.maximumShift
+                    : geometry.minimumShift)
+                : midpointDistance
             let direction: CGFloat = targetDistance > 0 ? 1 : -1
             if let positioningDirection {
                 guard positioningDirection == direction else {
