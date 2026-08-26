@@ -184,7 +184,7 @@ enum BackupPackageAnchoredFile {
     }
 }
 
-struct BackupPackageValidatorV1 {
+struct BackupPackageValidatorV1: Sendable {
     private let fileManager: FileManager
     private let signPack: SignPack
     private let limits: StreamingArchiveLimitsV1
@@ -211,9 +211,38 @@ struct BackupPackageValidatorV1 {
         } catch let failure as StreamingArchiveFailureV1
             where failure == .cancelled {
             throw failure
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let failure as GenerationLeaseRegistryFailureV1 {
+            throw failure
         } catch {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
+    }
+
+    /// Runs descriptor-pinned hashing and semantic validation on a utility
+    /// executor. Existing synchronous callers retain their exact behavior.
+    func validateOffMain(
+        stagedPackageURL: URL,
+        context: ResumableLocalJobExecutionContextV1? = nil
+    ) async throws -> ValidatedV4BackupPackageV1 {
+        try await context?.cancellationBoundary()
+        try context?.validateGenerationLease()
+        let taskContext = context
+        let value = try await BackupOffMainWorkV1.run {
+            try self.validate(
+                stagedPackageURL: stagedPackageURL,
+                cancellation: StreamingArchiveCancellationV1 {
+                    guard !Task.isCancelled else {
+                        throw StreamingArchiveFailureV1.cancelled
+                    }
+                    try taskContext?.validateGenerationLease()
+                }
+            )
+        }
+        try await context?.cancellationBoundary()
+        try context?.validateGenerationLease()
+        return value
     }
 }
 

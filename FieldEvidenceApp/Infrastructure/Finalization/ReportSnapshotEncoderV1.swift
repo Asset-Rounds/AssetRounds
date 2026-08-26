@@ -10,7 +10,7 @@ enum ReportSnapshotEncodingErrorV1: Error, Equatable {
     case noncanonicalData
 }
 
-struct ReportSnapshotEncoderV1 {
+struct ReportSnapshotEncoderV1: Sendable {
     func encode(_ snapshot: ReportSnapshotV1) throws -> EncodedReportSnapshotV1 {
         guard Self.isValid(snapshot) else {
             throw ReportSnapshotEncodingErrorV1.invalidSnapshot
@@ -40,6 +40,20 @@ struct ReportSnapshotEncoderV1 {
             throw ReportSnapshotEncodingErrorV1.noncanonicalData
         }
         return snapshot
+    }
+
+    /// Provisional job-kernel entry point. The released synchronous encoder is
+    /// intentionally unchanged while activation remains disabled.
+    func encodeOffMain(
+        _ snapshot: ReportSnapshotV1
+    ) async throws -> EncodedReportSnapshotV1 {
+        let worker = DeterministicOffMainWorkerV1()
+        return try await worker.run { try self.encode(snapshot) }
+    }
+
+    func decodeOffMain(_ data: Data) async throws -> ReportSnapshotV1 {
+        let worker = DeterministicOffMainWorkerV1()
+        return try await worker.run { try self.decode(data) }
     }
 
     private static func isValid(_ snapshot: ReportSnapshotV1) -> Bool {

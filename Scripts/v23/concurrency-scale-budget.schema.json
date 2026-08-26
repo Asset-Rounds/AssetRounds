@@ -1,0 +1,975 @@
+{
+  "$id": "https://assetrounds.invalid/v23/ConcurrencyScaleBudgetPolicyV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateAcceptanceMemberships": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "AutonomousRequiredAcceptedSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "appBaseHead": {
+          "const": "a6742867a235ad7cc4e4bc07f2b650cca82434cd"
+        },
+        "appBaseTree": {
+          "const": "fc0d86d8d02fc463621540637321d4645ad727f8"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "authorityReceiptDigest": {
+          "const": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752"
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P02-C05"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "const": "625a596b0bd0f67c4ca83befe0b05309f35535c9db70584ff9bef3df87bdacaa"
+        },
+        "coordinationAuthorityHead": {
+          "const": "a02692c9f20c6fe4944c7771dde6dd9bdcd51a71"
+        },
+        "coordinationAuthorityTree": {
+          "const": "f326ad839c04b312bb07cbdba17953c6a10237f6"
+        },
+        "coordinationCASSequence": {
+          "const": 101
+        },
+        "coordinationLedgerDigest": {
+          "const": "1cd7e2f90d12258b9e079c650d40d4ce4cee1f22a6b28970167883a26f6d3916"
+        },
+        "dependencyDispositionDigest": {
+          "const": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C05-G01"
+            },
+            {
+              "const": "V23-P02-C05-A01"
+            },
+            {
+              "const": "V23-P02-C05-H01"
+            },
+            {
+              "const": "V23-P02-C05-I01"
+            },
+            {
+              "const": "V23-P02-C05-R01"
+            }
+          ],
+          "type": "array"
+        },
+        "directGraphDigest": {
+          "const": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "V23-P00-C08"
+            },
+            {
+              "const": "V23-P02-C04"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "const": "ec42ff8d9671a79c44c9d20d861958771689e6b391e00de2d6527dac31e206fe"
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "const": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f"
+        },
+        "foundationRegisterDigest": {
+          "const": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd"
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "hydrationProjectionDigest": {
+          "const": "65d096f19e97ee8b8bdc52a297d58510a57397b952ec9da02432b23ba9145fb2"
+        },
+        "hydrationTransitionDigest": {
+          "const": "620971c0df32ad82017122d3c81a73f2edec048196412a4454ad8be2a3f6e5d1"
+        },
+        "impactManifestDigest": {
+          "const": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b"
+        },
+        "inheritedV21BlockDigest": {
+          "const": "2d967b801e515707b91344039ceb22c2dad717847cb297f05b4fddb510e6989b"
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C06"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "EXACT_WITH_GENERATION_REBIND"
+        },
+        "lineageSource": {
+          "const": "V21-P02-C05"
+        },
+        "ownerParallelOverrideAuthorityReceiptDigest": {
+          "const": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452"
+        },
+        "pathFenceDigest": {
+          "const": "336ad660a86cb30e4ea70ae99ca157f3dbaac1f89dd3011d0f37dd61926a73ac"
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "const": "9da050851718d6877bb678614f014e657e60868fa9160a62a3a5778da7776d1b"
+        },
+        "registerOrdinal": {
+          "const": 25
+        },
+        "registerRowDigest": {
+          "const": "59877398b77b4aefa0bd64678165c52939906eb97bc82e0f9288704366f8f283"
+        },
+        "relationManifestDigest": {
+          "const": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4"
+        },
+        "selectorManifestDigest": {
+          "const": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+        },
+        "title": {
+          "const": "Off-main resumable local jobs, cancellation, concurrency, and scale budgets"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "lineageSource",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationAuthorityHead",
+        "coordinationAuthorityTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "hydrationProjectionDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "hydrationTransitionDigest",
+        "authorityReceiptDigest",
+        "ownerParallelOverrideAuthorityReceiptDigest",
+        "registerRowDigest",
+        "dossierDigest",
+        "inheritedV21BlockDigest",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "aggregateAcceptanceMemberships",
+        "conformanceSubjects",
+        "deterministicEvidenceIDs"
+      ],
+      "type": "object"
+    },
+    "breachRecovery": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalDataSurvival": {
+          "const": true
+        },
+        "requiredDisposition": {
+          "const": "DISABLE_OVER_BUDGET_OPTIONAL_PATH_OR_USE_ACCEPTED_ADAPTER"
+        },
+        "rerunAfterRecovery": {
+          "const": true
+        },
+        "silentBudgetLoosening": {
+          "const": false
+        }
+      },
+      "required": [
+        "requiredDisposition",
+        "silentBudgetLoosening",
+        "rerunAfterRecovery",
+        "canonicalDataSurvival"
+      ],
+      "type": "object"
+    },
+    "budgetFields": {
+      "items": false,
+      "maxItems": 10,
+      "minItems": 10,
+      "prefixItems": [
+        {
+          "const": "fixture"
+        },
+        {
+          "const": "assetCount"
+        },
+        {
+          "const": "proxyByteCount"
+        },
+        {
+          "const": "maximumConcurrency"
+        },
+        {
+          "const": "chunkByteCount"
+        },
+        {
+          "const": "maximumResidentMemoryBytes"
+        },
+        {
+          "const": "p50LatencyMilliseconds"
+        },
+        {
+          "const": "p95LatencyMilliseconds"
+        },
+        {
+          "const": "maximumInitialStallMilliseconds"
+        },
+        {
+          "const": "progressHeartbeatMilliseconds"
+        }
+      ],
+      "type": "array"
+    },
+    "cardID": {
+      "const": "V23-P02-C05"
+    },
+    "concurrency": {
+      "additionalProperties": false,
+      "properties": {
+        "backpressure": {
+          "const": true
+        },
+        "concurrentFinalizeExportDeleteArbitration": {
+          "const": "SERIAL_CANONICAL_OWNER_WITH_BOUNDED_LOCAL_WORKERS"
+        },
+        "oneActiveTaskConsumesOneSlot": {
+          "const": true
+        },
+        "oversubscriptionDisposition": {
+          "const": "FAIL_CLOSED"
+        },
+        "runnerMaximum": {
+          "const": 2
+        }
+      },
+      "required": [
+        "runnerMaximum",
+        "backpressure",
+        "oneActiveTaskConsumesOneSlot",
+        "oversubscriptionDisposition",
+        "concurrentFinalizeExportDeleteArbitration"
+      ],
+      "type": "object"
+    },
+    "evidenceIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "V23-P02-C05-G01"
+        },
+        {
+          "const": "V23-P02-C05-A01"
+        },
+        {
+          "const": "V23-P02-C05-H01"
+        },
+        {
+          "const": "V23-P02-C05-I01"
+        },
+        {
+          "const": "V23-P02-C05-R01"
+        }
+      ],
+      "type": "array"
+    },
+    "frozenBudgets": {
+      "items": false,
+      "maxItems": 4,
+      "minItems": 4,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "assetCount": {
+              "const": 1
+            },
+            "chunkByteCount": {
+              "const": 262144
+            },
+            "fixture": {
+              "const": "ASSET_1"
+            },
+            "maximumConcurrency": {
+              "const": 1
+            },
+            "maximumInitialStallMilliseconds": {
+              "const": 250
+            },
+            "maximumResidentMemoryBytes": {
+              "const": 67108864
+            },
+            "p50LatencyMilliseconds": {
+              "const": 250
+            },
+            "p95LatencyMilliseconds": {
+              "const": 1000
+            },
+            "progressHeartbeatMilliseconds": {
+              "const": 500
+            },
+            "proxyByteCount": {
+              "const": 0
+            }
+          },
+          "required": [
+            "fixture",
+            "assetCount",
+            "proxyByteCount",
+            "maximumConcurrency",
+            "chunkByteCount",
+            "maximumResidentMemoryBytes",
+            "p50LatencyMilliseconds",
+            "p95LatencyMilliseconds",
+            "maximumInitialStallMilliseconds",
+            "progressHeartbeatMilliseconds"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "assetCount": {
+              "const": 100
+            },
+            "chunkByteCount": {
+              "const": 524288
+            },
+            "fixture": {
+              "const": "ASSET_100"
+            },
+            "maximumConcurrency": {
+              "const": 2
+            },
+            "maximumInitialStallMilliseconds": {
+              "const": 500
+            },
+            "maximumResidentMemoryBytes": {
+              "const": 134217728
+            },
+            "p50LatencyMilliseconds": {
+              "const": 2000
+            },
+            "p95LatencyMilliseconds": {
+              "const": 5000
+            },
+            "progressHeartbeatMilliseconds": {
+              "const": 1000
+            },
+            "proxyByteCount": {
+              "const": 0
+            }
+          },
+          "required": [
+            "fixture",
+            "assetCount",
+            "proxyByteCount",
+            "maximumConcurrency",
+            "chunkByteCount",
+            "maximumResidentMemoryBytes",
+            "p50LatencyMilliseconds",
+            "p95LatencyMilliseconds",
+            "maximumInitialStallMilliseconds",
+            "progressHeartbeatMilliseconds"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "assetCount": {
+              "const": 10000
+            },
+            "chunkByteCount": {
+              "const": 524288
+            },
+            "fixture": {
+              "const": "ASSET_10000"
+            },
+            "maximumConcurrency": {
+              "const": 2
+            },
+            "maximumInitialStallMilliseconds": {
+              "const": 1000
+            },
+            "maximumResidentMemoryBytes": {
+              "const": 201326592
+            },
+            "p50LatencyMilliseconds": {
+              "const": 15000
+            },
+            "p95LatencyMilliseconds": {
+              "const": 30000
+            },
+            "progressHeartbeatMilliseconds": {
+              "const": 2000
+            },
+            "proxyByteCount": {
+              "const": 0
+            }
+          },
+          "required": [
+            "fixture",
+            "assetCount",
+            "proxyByteCount",
+            "maximumConcurrency",
+            "chunkByteCount",
+            "maximumResidentMemoryBytes",
+            "p50LatencyMilliseconds",
+            "p95LatencyMilliseconds",
+            "maximumInitialStallMilliseconds",
+            "progressHeartbeatMilliseconds"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "assetCount": {
+              "const": 1
+            },
+            "chunkByteCount": {
+              "const": 1048576
+            },
+            "fixture": {
+              "const": "LARGE_MEDIA_PROXY"
+            },
+            "maximumConcurrency": {
+              "const": 1
+            },
+            "maximumInitialStallMilliseconds": {
+              "const": 1000
+            },
+            "maximumResidentMemoryBytes": {
+              "const": 134217728
+            },
+            "p50LatencyMilliseconds": {
+              "const": 10000
+            },
+            "p95LatencyMilliseconds": {
+              "const": 25000
+            },
+            "progressHeartbeatMilliseconds": {
+              "const": 2000
+            },
+            "proxyByteCount": {
+              "const": 536870912
+            }
+          },
+          "required": [
+            "fixture",
+            "assetCount",
+            "proxyByteCount",
+            "maximumConcurrency",
+            "chunkByteCount",
+            "maximumResidentMemoryBytes",
+            "p50LatencyMilliseconds",
+            "p95LatencyMilliseconds",
+            "maximumInitialStallMilliseconds",
+            "progressHeartbeatMilliseconds"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "largeMediaProxy": {
+      "additionalProperties": false,
+      "properties": {
+        "chunkByteCount": {
+          "const": 1048576
+        },
+        "maximumConcurrency": {
+          "const": 1
+        },
+        "maximumResidentMemoryBytes": {
+          "const": 134217728
+        },
+        "physicalThermalOrBatteryClaim": {
+          "const": false
+        },
+        "proxyByteCount": {
+          "const": 536870912
+        }
+      },
+      "required": [
+        "proxyByteCount",
+        "maximumConcurrency",
+        "chunkByteCount",
+        "maximumResidentMemoryBytes",
+        "physicalThermalOrBatteryClaim"
+      ],
+      "type": "object"
+    },
+    "maximumRunnerConcurrency": {
+      "const": 2
+    },
+    "measurement": {
+      "additionalProperties": false,
+      "properties": {
+        "additionalBatchConditionPercent": {
+          "const": 5
+        },
+        "additionalBatchMaximum": {
+          "const": 10
+        },
+        "gateStatistic": {
+          "const": "P95"
+        },
+        "maximumIsDiagnosticExceptHang": {
+          "const": true
+        },
+        "measurementBinding": {
+          "items": false,
+          "maxItems": 8,
+          "minItems": 8,
+          "prefixItems": [
+            {
+              "const": "EXACT_HEAD"
+            },
+            {
+              "const": "EXACT_TREE"
+            },
+            {
+              "const": "TOOLCHAIN_RUNTIME"
+            },
+            {
+              "const": "FIXTURE_DIGEST"
+            },
+            {
+              "const": "DEVICE_CLASS"
+            },
+            {
+              "const": "POWER_MODE"
+            },
+            {
+              "const": "ACCESSIBILITY_PROFILE"
+            },
+            {
+              "const": "COLD_OR_WARM_STATE"
+            }
+          ],
+          "type": "array"
+        },
+        "minimumRepetitions": {
+          "const": 20
+        },
+        "requiredMeasurements": {
+          "items": false,
+          "maxItems": 10,
+          "minItems": 10,
+          "prefixItems": [
+            {
+              "const": "P50_LATENCY"
+            },
+            {
+              "const": "P95_LATENCY"
+            },
+            {
+              "const": "PEAK_RESIDENT_MEMORY"
+            },
+            {
+              "const": "CONCURRENCY_TRACE"
+            },
+            {
+              "const": "INITIAL_STALL"
+            },
+            {
+              "const": "PROGRESS_HEARTBEAT"
+            },
+            {
+              "const": "END_TO_END_ENQUEUE_TO_PUBLISHED_LATENCY"
+            },
+            {
+              "const": "FINAL_HEARTBEAT_GAP"
+            },
+            {
+              "const": "EXPLICIT_COMPLETED_JOB_IDS"
+            },
+            {
+              "const": "HANG_COUNT"
+            }
+          ],
+          "type": "array"
+        },
+        "singleSamplePass": {
+          "const": false
+        },
+        "thresholdMutation": {
+          "const": "FORBIDDEN"
+        },
+        "zeroHangsRequired": {
+          "const": true
+        }
+      },
+      "required": [
+        "minimumRepetitions",
+        "additionalBatchMaximum",
+        "additionalBatchConditionPercent",
+        "gateStatistic",
+        "zeroHangsRequired",
+        "maximumIsDiagnosticExceptHang",
+        "singleSamplePass",
+        "thresholdMutation",
+        "measurementBinding",
+        "requiredMeasurements"
+      ],
+      "type": "object"
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "owner": {
+      "const": "JobScaleBudgetPolicyV1"
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "policyVersion": {
+      "const": 1
+    },
+    "prohibitedTokens": {
+      "items": false,
+      "maxItems": 16,
+      "minItems": 16,
+      "prefixItems": [
+        {
+          "const": "accountID"
+        },
+        {
+          "const": "authenticatedUserID"
+        },
+        {
+          "const": "backgroundDaemon"
+        },
+        {
+          "const": "CloudKit"
+        },
+        {
+          "const": "CKRecord"
+        },
+        {
+          "const": "inbox"
+        },
+        {
+          "const": "outbox"
+        },
+        {
+          "const": "providerID"
+        },
+        {
+          "const": "remoteProvider"
+        },
+        {
+          "const": "serverCursor"
+        },
+        {
+          "const": "serverRevision"
+        },
+        {
+          "const": "tenantID"
+        },
+        {
+          "const": "vectorClock"
+        },
+        {
+          "const": "accessToken"
+        },
+        {
+          "const": "serviceCredential"
+        },
+        {
+          "const": "secretMaterial"
+        }
+      ],
+      "type": "array"
+    },
+    "provisional": {
+      "const": true
+    },
+    "publicationMeasurements": {
+      "additionalProperties": false,
+      "properties": {
+        "completionEvidence": {
+          "additionalProperties": false,
+          "properties": {
+            "completedJobIDCountEqualsRepetitions": {
+              "const": true
+            },
+            "completedJobIDsRequired": {
+              "const": true
+            },
+            "hangCountMustEqual": {
+              "const": 0
+            },
+            "hangCountRequired": {
+              "const": true
+            }
+          },
+          "required": [
+            "completedJobIDsRequired",
+            "hangCountRequired",
+            "hangCountMustEqual",
+            "completedJobIDCountEqualsRepetitions"
+          ],
+          "type": "object"
+        },
+        "endToEndLatency": {
+          "additionalProperties": false,
+          "properties": {
+            "end": {
+              "const": "PUBLISHED_OR_ADOPTED_RECEIPT"
+            },
+            "includesPublisherReadback": {
+              "const": true
+            },
+            "name": {
+              "const": "END_TO_END_ENQUEUE_TO_PUBLISHED_LATENCY"
+            },
+            "requiredPerRepetition": {
+              "const": true
+            },
+            "start": {
+              "const": "ENQUEUE"
+            }
+          },
+          "required": [
+            "name",
+            "start",
+            "end",
+            "includesPublisherReadback",
+            "requiredPerRepetition"
+          ],
+          "type": "object"
+        },
+        "finalHeartbeatGap": {
+          "additionalProperties": false,
+          "properties": {
+            "measuredThrough": {
+              "const": "PUBLISHER_FINISH"
+            },
+            "name": {
+              "const": "FINAL_HEARTBEAT_GAP"
+            },
+            "requiredPerCompletedJob": {
+              "const": true
+            }
+          },
+          "required": [
+            "name",
+            "measuredThrough",
+            "requiredPerCompletedJob"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "endToEndLatency",
+        "finalHeartbeatGap",
+        "completionEvidence"
+      ],
+      "type": "object"
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "schema": {
+      "const": "ConcurrencyScaleBudgetPolicyV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sourceBindings": {
+      "items": false,
+      "maxItems": 1,
+      "minItems": 1,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C05"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Jobs/JobScaleBudgetPolicyV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 6,
+              "minItems": 6,
+              "prefixItems": [
+                {
+                  "const": "maximumRunnerConcurrency"
+                },
+                {
+                  "const": "oneAsset"
+                },
+                {
+                  "const": "hundredAssets"
+                },
+                {
+                  "const": "tenThousandAssets"
+                },
+                {
+                  "const": "largeMediaProxy"
+                },
+                {
+                  "const": "p95LatencyMilliseconds"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "JobScaleFixtureV1"
+                },
+                {
+                  "const": "JobScaleBudgetV1"
+                },
+                {
+                  "const": "JobScaleBudgetPolicyV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "owner",
+    "policyVersion",
+    "maximumRunnerConcurrency",
+    "budgetFields",
+    "frozenBudgets",
+    "measurement",
+    "publicationMeasurements",
+    "concurrency",
+    "largeMediaProxy",
+    "breachRecovery",
+    "sourceBindings",
+    "prohibitedTokens",
+    "evidenceIDs",
+    "provisional",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "phase10PollingDuringParallelExecution",
+    "requiresAcceptedS10_6Reconciliation",
+    "artifactDigest"
+  ],
+  "title": "ConcurrencyScaleBudgetPolicyV1",
+  "type": "object"
+}

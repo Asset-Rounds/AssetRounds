@@ -1,6 +1,34 @@
 import Foundation
 
-struct BackupCanonicalDecoderV1 {
+struct BackupCanonicalDecoderV1: Sendable {
+    func decodeManifestOffMain(
+        _ data: Data,
+        context: ResumableLocalJobExecutionContextV1? = nil
+    ) async throws -> V4BackupManifestV1 {
+        try await context?.cancellationBoundary()
+        try context?.validateGenerationLease()
+        let value = try await BackupOffMainWorkV1.run {
+            try Self().decodeManifest(data)
+        }
+        try await context?.cancellationBoundary()
+        try context?.validateGenerationLease()
+        return value
+    }
+
+    func decodeRecordsOffMain(
+        _ data: Data,
+        context: ResumableLocalJobExecutionContextV1? = nil
+    ) async throws -> V4BackupRecordsV1 {
+        try await context?.cancellationBoundary()
+        try context?.validateGenerationLease()
+        let value = try await BackupOffMainWorkV1.run {
+            try Self().decodeRecords(data)
+        }
+        try await context?.cancellationBoundary()
+        try context?.validateGenerationLease()
+        return value
+    }
+
     func decodeManifest(_ data: Data) throws -> V4BackupManifestV1 {
         do {
             let value = try decoder().decode(V4BackupManifestV1.self, from: data)
@@ -31,12 +59,13 @@ struct BackupCanonicalDecoderV1 {
 private extension BackupCanonicalDecoderV1 {
     func decoder() -> JSONDecoder {
         let value = JSONDecoder()
+        let timestampFormatter = Self.makeTimestampFormatter()
         value.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let string = try container.decode(String.self)
             guard Self.isCanonicalTimestamp(string),
-                  let date = Self.timestampFormatter.date(from: string),
-                  Self.timestampFormatter.string(from: date) == string else {
+                  let date = timestampFormatter.date(from: string),
+                  timestampFormatter.string(from: date) == string else {
                 throw DecodingError.dataCorruptedError(
                     in: container,
                     debugDescription: "Expected canonical RFC3339 UTC milliseconds"
@@ -69,10 +98,10 @@ private extension BackupCanonicalDecoderV1 {
         return true
     }
 
-    static let timestampFormatter: ISO8601DateFormatter = {
+    static func makeTimestampFormatter() -> ISO8601DateFormatter {
         let value = ISO8601DateFormatter()
         value.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         value.timeZone = TimeZone(secondsFromGMT: 0)
         return value
-    }()
+    }
 }

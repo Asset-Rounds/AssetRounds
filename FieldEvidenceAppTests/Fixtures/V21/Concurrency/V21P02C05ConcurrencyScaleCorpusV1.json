@@ -1,0 +1,71 @@
+{
+  "authority": "V21-P02-C05_EXACT_WITH_GENERATION_REBIND_V23-P02-C05",
+  "cardID": "V23-P02-C05",
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "generator": {
+    "seed": 230205,
+    "version": "p02-c05-contracts-v1"
+  },
+  "hostileCases": [
+    "CANCEL_AT_EVERY_PUBLICATION_BOUNDARY",
+    "EFFECT_ESCAPES_BEFORE_DURABLE_PUBLICATION_RECEIPT",
+    "GENERATION_LEASE_LOST_BEFORE_PUBLICATION",
+    "PROTECTED_DATA_UNAVAILABLE",
+    "UNKNOWN_OR_CORRUPT_CHECKPOINT_STORE"
+  ],
+  "interruptionBoundaries": [
+    "AFTER_CLAIM_BEFORE_FIRST_CHECKPOINT",
+    "AFTER_DURABLE_CHECKPOINT_BEFORE_NEXT_CHUNK",
+    "AFTER_FINAL_CHECKPOINT_BEFORE_OUTPUT_PUBLICATION"
+  ],
+  "provisional": true,
+  "recoveryCases": [
+    "RELAUNCH_RESUMES_FROM_MONOTONIC_CHECKPOINT",
+    "CANCELLATION_REMOVES_STAGING_AND_PUBLISHES_NO_PARTIAL_BYTES",
+    "CORRUPT_OPERATIONAL_STATE_QUARANTINES_AND_REBUILDS",
+    "OVER_BUDGET_OPTIONAL_PATH_DISABLED_WITHOUT_THRESHOLD_MUTATION"
+  ],
+  "scaleCases": [
+    {
+      "assetCount": 1,
+      "budgetReference": "ASSET_1",
+      "caseID": "ASSET_1",
+      "expectedLogicalChunkCount": 1,
+      "fixture": "ASSET_1",
+      "measurementRepetitions": 20,
+      "proxyByteCount": 0
+    },
+    {
+      "assetCount": 100,
+      "budgetReference": "ASSET_100",
+      "caseID": "ASSET_100",
+      "expectedLogicalChunkCount": 1,
+      "fixture": "ASSET_100",
+      "measurementRepetitions": 20,
+      "proxyByteCount": 0
+    },
+    {
+      "assetCount": 10000,
+      "budgetReference": "ASSET_10000",
+      "caseID": "ASSET_10000",
+      "expectedLogicalChunkCount": 20,
+      "fixture": "ASSET_10000",
+      "measurementRepetitions": 20,
+      "proxyByteCount": 0
+    },
+    {
+      "assetCount": 1,
+      "budgetReference": "LARGE_MEDIA_PROXY",
+      "caseID": "LARGE_MEDIA_PROXY",
+      "expectedLogicalChunkCount": 512,
+      "fixture": "LARGE_MEDIA_PROXY",
+      "measurementRepetitions": 20,
+      "proxyBacking": "FILE_BACKED_SPARSE",
+      "proxyByteCount": 536870912
+    }
+  ],
+  "schema": "V21P02C05ConcurrencyScaleCorpusV1",
+  "schemaVersion": 1,
+  "synthetic": true
+}

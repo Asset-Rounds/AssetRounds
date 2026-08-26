@@ -10,7 +10,35 @@ enum BackupCanonicalEncodingErrorV1: Error, Equatable {
     case invalidManifest
 }
 
-struct BackupCanonicalEncoderV1 {
+struct BackupCanonicalEncoderV1: Sendable {
+    func encodeRecordsOffMain(
+        _ records: V4BackupRecordsV1,
+        context: ResumableLocalJobExecutionContextV1? = nil
+    ) async throws -> EncodedBackupJSONV1 {
+        try await context?.cancellationBoundary()
+        try context?.validateGenerationLease()
+        let value = try await BackupOffMainWorkV1.run {
+            try Self().encodeRecords(records)
+        }
+        try await context?.cancellationBoundary()
+        try context?.validateGenerationLease()
+        return value
+    }
+
+    func encodeManifestOffMain(
+        _ manifest: V4BackupManifestV1,
+        context: ResumableLocalJobExecutionContextV1? = nil
+    ) async throws -> EncodedBackupJSONV1 {
+        try await context?.cancellationBoundary()
+        try context?.validateGenerationLease()
+        let value = try await BackupOffMainWorkV1.run {
+            try Self().encodeManifest(manifest)
+        }
+        try await context?.cancellationBoundary()
+        try context?.validateGenerationLease()
+        return value
+    }
+
     func encodeRecords(_ records: V4BackupRecordsV1) throws -> EncodedBackupJSONV1 {
         guard Self.valid(records) else {
             throw BackupCanonicalEncodingErrorV1.invalidRecords

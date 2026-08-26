@@ -10,9 +10,9 @@ enum BackupImportServiceError: Error, Equatable {
     case cleanupFailed
 }
 
-struct BackupSecurityScopedAccessV1 {
-    let start: (URL) -> Bool
-    let stop: (URL) -> Void
+struct BackupSecurityScopedAccessV1: Sendable {
+    let start: @Sendable (URL) -> Bool
+    let stop: @Sendable (URL) -> Void
 
     static let live = BackupSecurityScopedAccessV1(
         start: { $0.startAccessingSecurityScopedResource() },
@@ -25,7 +25,10 @@ struct BackupSecurityScopedAccessV1 {
     )
 }
 
-final class BackupImportService {
+/// The class is immutable after initialization. Its unchecked conformance is
+/// limited to legacy injected Foundation/file-system collaborators; one job
+/// owns an instance, and all mutation is descriptor-pinned on that worker.
+final class BackupImportService: @unchecked Sendable {
     private struct SourceBoundary {
         let manifest: V4BackupManifestV1
         let rootIdentity: BackupPackageRootIdentity
@@ -39,7 +42,7 @@ final class BackupImportService {
     private let archiveLimits: StreamingArchiveLimitsV1
     private let archiveService: StreamingArchiveService
     private let fileManager: FileManager
-    private let makeUUID: () -> UUID
+    private let makeUUID: @Sendable () -> UUID
     private let scopedAccess: BackupSecurityScopedAccessV1
 
     init(
@@ -48,7 +51,7 @@ final class BackupImportService {
         validator: BackupPackageValidatorV1 = BackupPackageValidatorV1(),
         archiveLimits: StreamingArchiveLimitsV1 = .card17,
         fileManager: FileManager = .default,
-        makeUUID: @escaping () -> UUID = UUID.init,
+        makeUUID: @escaping @Sendable () -> UUID = UUID.init,
         scopedAccess: BackupSecurityScopedAccessV1 = .live
     ) throws {
         let root = generationRootURL.standardizedFileURL
@@ -116,9 +119,41 @@ final class BackupImportService {
         return try coordinatedResult.get()
     }
 
+    func stageAndValidateOffMain(
+        selectedPackageURL: URL,
+        context: ResumableLocalJobExecutionContextV1? = nil
+    ) async throws -> ValidatedV4BackupPackageV1 {
+        try await context?.cancellationBoundary()
+        try context?.validateGenerationLease()
+        let taskContext = context
+        return try await BackupOffMainWorkV1.run {
+            try self.stageAndValidate(
+                selectedPackageURL: selectedPackageURL,
+                cancellation: StreamingArchiveCancellationV1 {
+                    guard !Task.isCancelled else {
+                        throw StreamingArchiveFailureV1.cancelled
+                    }
+                    try taskContext?.validateGenerationLease()
+                }
+            )
+        }
+    }
+
     func discard(_ value: ValidatedV4BackupPackageV1) throws {
         try requireCurrentGeneration()
         try cleanupOwnedPackage(at: value.stagedPackageURL)
+    }
+
+    func discardOffMain(
+        _ value: ValidatedV4BackupPackageV1,
+        context: ResumableLocalJobExecutionContextV1? = nil
+    ) async throws {
+        try await context?.cancellationBoundary()
+        try context?.validateGenerationLease()
+        try await BackupOffMainWorkV1.run {
+            try self.discard(value)
+        }
+        try await context?.cancellationBoundary()
     }
 }
 
@@ -341,7 +376,10 @@ private extension BackupImportService {
             throw BackupImportServiceError.invalidSource
         }
         if isDirectory(information) {
-            return try stageAndValidateLegacyDirectory(sourceURL)
+            return try stageAndValidateLegacyDirectory(
+                sourceURL,
+                cancellation: cancellation
+            )
         }
         guard isRegularFile(information) else {
             throw BackupImportServiceError.invalidSource
@@ -362,8 +400,10 @@ private extension BackupImportService {
     }
 
     func stageAndValidateLegacyDirectory(
-        _ sourceURL: URL
+        _ sourceURL: URL,
+        cancellation: StreamingArchiveCancellationV1
     ) throws -> ValidatedV4BackupPackageV1 {
+        try cancellation.checkpoint()
         try requireCurrentGeneration()
         let source = try validateSourceBoundary(sourceURL)
         let applicationSupportURL = stagingDirectoryURL
@@ -401,7 +441,9 @@ private extension BackupImportService {
 
         do {
             try verifyImportAuthority()
+            try cancellation.checkpoint()
             try fileManager.copyItem(at: sourceURL, to: temporaryURL)
+            try cancellation.checkpoint()
             try verifyImportAuthority()
             try protectStagedPackage(
                 at: temporaryURL,
@@ -430,11 +472,19 @@ private extension BackupImportService {
             if isProtectedDataUnavailable(originalError) {
                 throw originalError
             }
+            if originalError is CancellationError
+                || originalError is GenerationLeaseRegistryFailureV1
+                || (originalError as? StreamingArchiveFailureV1) == .cancelled {
+                throw originalError
+            }
             throw BackupImportServiceError.copyFailed
         }
 
         do {
-            let temporaryValue = try validator.validate(stagedPackageURL: temporaryURL)
+            let temporaryValue = try validator.validate(
+                stagedPackageURL: temporaryURL,
+                cancellation: cancellation
+            )
             guard temporaryValue.manifest == source.manifest,
                   try BackupPackageAnchoredFile.rootIdentity(at: sourceURL)
                     == source.rootIdentity else {
@@ -450,6 +500,7 @@ private extension BackupImportService {
                     .map(FileIdentity.init) == temporaryIdentity else {
                 throw BackupImportServiceError.invalidSource
             }
+            try cancellation.checkpoint()
             try fileManager.moveItem(at: temporaryURL, to: destinationURL)
             try verifyImportAuthority()
             guard try itemInformation(at: destinationURL)
@@ -465,7 +516,11 @@ private extension BackupImportService {
                     .map(FileIdentity.init) == temporaryIdentity else {
                 throw BackupImportServiceError.copyFailed
             }
-            let value = try validator.validate(stagedPackageURL: destinationURL)
+            try cancellation.checkpoint()
+            let value = try validator.validate(
+                stagedPackageURL: destinationURL,
+                cancellation: cancellation
+            )
             guard value.manifest == source.manifest else {
                 throw BackupImportServiceError.invalidSource
             }
@@ -599,6 +654,7 @@ private extension BackupImportService {
                     .map(FileIdentity.init) == temporaryIdentity else {
                 throw BackupImportServiceError.invalidSource
             }
+            try cancellation.checkpoint()
             try fileManager.moveItem(at: temporaryURL, to: destinationURL)
             try verifyImportAuthority()
             guard try itemInformation(at: destinationURL)

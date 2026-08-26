@@ -727,6 +727,7 @@ final class ReportRenderService {
     private let rootIdentity: ReportPDFAnchoredFile.RootIdentity
     private var failNextRenderAttempt: Bool
     private let failureInjection: ReportRenderFailureInjection?
+    private let offMainWorker = DeterministicOffMainWorkerV1()
 
     init(
         modelContext: ModelContext,
@@ -776,6 +777,86 @@ final class ReportRenderService {
             guard Self.isRetryableRenderFailure(error) else { throw error }
             try persistFailed(reportID: reportID)
             return .failed(reportID: reportID)
+        }
+    }
+
+    /// Captures and validates the immutable input for a resumable render job.
+    /// Publication remains owned by this MainActor service; the job may only
+    /// return bytes and digests for subsequent read-back/reproof.
+    func validatedSnapshotForResumableJob(
+        id reportID: UUID
+    ) throws -> ValidatedReportSnapshotV1 {
+        guard !modelContext.hasChanges else {
+            throw ReportRenderServiceError.contextHasChanges
+        }
+        let reports = try modelContext.fetch(FetchDescriptor<Report>()).filter {
+            $0.id == reportID
+        }
+        guard reports.count == 1, let report = reports.first,
+              report.pdfState == ReportPDFState.pending.rawValue,
+              report.pdfRelativePath == nil, report.pdfSHA256 == nil else {
+            throw reports.isEmpty
+                ? ReportRenderServiceError.reportNotFound
+                : ReportRenderServiceError.reportNotPending
+        }
+        try requireAttemptPathsAbsent(for: reportID)
+        let validated = try validator.validate(report: report)
+        try storagePreflight.checkPDFGeneration(
+            referencedImageByteCount: validated.referencedImageByteCount,
+            onVolumeContaining: generationRootURL
+        )
+        return validated
+    }
+
+    func resumableRenderJob(
+        id reportID: UUID,
+        workspaceID: UUID,
+        generationEpoch: GenerationEpochV1,
+        createdAt: Date
+    ) throws -> ResumableLocalJobV1 {
+        guard !modelContext.hasChanges else {
+            throw ReportRenderServiceError.contextHasChanges
+        }
+        let reports = try modelContext.fetch(FetchDescriptor<Report>()).filter {
+            $0.id == reportID
+        }
+        guard reports.count == 1, let report = reports.first,
+              report.pdfState == ReportPDFState.pending.rawValue,
+              report.pdfRelativePath == nil, report.pdfSHA256 == nil,
+              Self.isLowercaseSHA256(report.snapshotSHA256) else {
+            throw reports.isEmpty
+                ? ReportRenderServiceError.reportNotFound
+                : ReportRenderServiceError.reportNotPending
+        }
+        try requireAttemptPathsAbsent(for: reportID)
+        let jobID = LocalJobIDV1.deterministic(
+            kind: .render,
+            workspaceID: workspaceID,
+            immutableInputSHA256: report.snapshotSHA256
+        )
+        return try ResumableLocalJobV1(
+            id: jobID,
+            workspaceID: workspaceID,
+            kind: .render,
+            immutableInputSHA256: report.snapshotSHA256,
+            stagingRelativePath: "report-render/\(jobID.rawValue.uuidString.lowercased())",
+            generationEpoch: generationEpoch,
+            createdAt: createdAt,
+            checkpoint: LocalJobCheckpointV1(
+                nextChunkIndex: 0,
+                completedUnitCount: 0,
+                totalUnitCount: 3
+            )
+        )
+    }
+
+    /// CPU-only provisional kernel boundary. It cannot publish a PDF or mutate
+    /// canonical report state, so cancellation leaves no partial artifact.
+    func renderOffMainForResumableJob(
+        _ validated: ValidatedReportSnapshotV1
+    ) async throws -> RenderedPDFV1 {
+        try await offMainWorker.run {
+            try WorklightPDFRendererV1().render(validated)
         }
     }
 

@@ -2,7 +2,10 @@ import CryptoKit
 import Darwin
 import Foundation
 
-struct StreamingArchiveService {
+/// Value-only archive worker. The synchronous entry points remain for released
+/// callers; resumable jobs use the async variants so byte work never inherits
+/// the UI actor.
+struct StreamingArchiveService: Sendable {
     private struct CreatedExtraction {
         let parentDescriptor: Int32
         let rootDescriptor: Int32
@@ -14,11 +17,11 @@ struct StreamingArchiveService {
     }
 
     private let limits: StreamingArchiveLimitsV1
-    private let makeOperationID: () -> UUID
+    private let makeOperationID: @Sendable () -> UUID
 
     init(
         limits: StreamingArchiveLimitsV1 = .card17,
-        makeOperationID: @escaping () -> UUID = UUID.init
+        makeOperationID: @escaping @Sendable () -> UUID = UUID.init
     ) {
         self.limits = limits
         self.makeOperationID = makeOperationID
@@ -42,6 +45,36 @@ struct StreamingArchiveService {
             byteCount: StreamingArchiveFormatV1.magic.count
         )
         return StreamingArchiveFormatV1.hasMagic(prefix)
+    }
+
+    static func hasFormatMagicOffMain(at archiveURL: URL) async throws -> Bool {
+        try await BackupOffMainWorkV1.run {
+            try hasFormatMagic(at: archiveURL)
+        }
+    }
+
+    func writeOffMain(
+        _ plan: StreamingArchiveWritePlanV1,
+        to destinationURL: URL,
+        context: ResumableLocalJobExecutionContextV1? = nil,
+        storageCheck: @escaping @Sendable (Int64) throws -> Void = { _ in }
+    ) async throws -> StreamingArchiveWriteReceiptV1 {
+        try await context?.cancellationBoundary()
+        try context?.validateGenerationLease()
+        let taskContext = context
+        return try await BackupOffMainWorkV1.run {
+            try self.write(
+                plan,
+                to: destinationURL,
+                cancellation: StreamingArchiveCancellationV1 {
+                    guard !Task.isCancelled else {
+                        throw StreamingArchiveFailureV1.cancelled
+                    }
+                    try taskContext?.validateGenerationLease()
+                },
+                storageCheck: storageCheck
+            )
+        }
     }
 
     func write(
@@ -458,6 +491,9 @@ struct StreamingArchiveService {
             if !cleanupSucceeded {
                 throw StreamingArchiveFailureV1.cleanupFailed
             }
+            if error is GenerationLeaseRegistryFailureV1 || error is CancellationError {
+                throw error
+            }
             throw map(error)
         }
     }
@@ -621,7 +657,59 @@ struct StreamingArchiveService {
             )
         } catch {
             let cleaned = cleanupExtraction(&created)
-            throw cleaned ? map(error) : StreamingArchiveFailureV1.cleanupFailed
+            guard cleaned else { throw StreamingArchiveFailureV1.cleanupFailed }
+            if error is GenerationLeaseRegistryFailureV1 || error is CancellationError {
+                throw error
+            }
+            throw map(error)
+        }
+    }
+
+    func extractOffMain(
+        _ archiveURL: URL,
+        to extractedDirectoryURL: URL,
+        context: ResumableLocalJobExecutionContextV1? = nil,
+        storageCheck: @escaping @Sendable (Int64) throws -> Void = { _ in }
+    ) async throws -> StreamingArchiveExtractionV1 {
+        try await context?.cancellationBoundary()
+        try context?.validateGenerationLease()
+        let taskContext = context
+        return try await BackupOffMainWorkV1.run {
+            try self.extract(
+                archiveURL,
+                to: extractedDirectoryURL,
+                cancellation: StreamingArchiveCancellationV1 {
+                    guard !Task.isCancelled else {
+                        throw StreamingArchiveFailureV1.cancelled
+                    }
+                    try taskContext?.validateGenerationLease()
+                },
+                storageCheck: storageCheck
+            )
+        }
+    }
+}
+
+private actor BackupOffMainWorkerV1 {
+    static let shared = BackupOffMainWorkerV1()
+
+    func run<Value: Sendable>(
+        _ operation: @Sendable () throws -> Value
+    ) throws -> Value {
+        try Task.checkCancellation()
+        return try operation()
+    }
+}
+
+enum BackupOffMainWorkV1 {
+    static func run<Value: Sendable>(
+        _ operation: @escaping @Sendable () throws -> Value
+    ) async throws -> Value {
+        do {
+            return try await BackupOffMainWorkerV1.shared.run(operation)
+        } catch let failure as StreamingArchiveFailureV1
+            where failure == .cancelled {
+            throw CancellationError()
         }
     }
 }

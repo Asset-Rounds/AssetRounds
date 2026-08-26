@@ -1,0 +1,115 @@
+import Foundation
+
+/// Narrow application boundary for the device-local operational job ledger.
+///
+/// The ledger is not canonical workspace truth. Callers enqueue work only
+/// after its canonical intent exists and reconcile terminal jobs back to that
+/// intent through the owning feature service.
+protocol ResumableLocalJobPortV1: Sendable {
+    @discardableResult
+    func enqueue(_ job: ResumableLocalJobV1) async throws -> ResumableLocalJobV1
+    func job(id: LocalJobIDV1) async throws -> ResumableLocalJobV1?
+    func jobs(workspaceID: UUID?) async throws -> [ResumableLocalJobV1]
+    @discardableResult
+    func requestCancellation(id: LocalJobIDV1) async throws -> ResumableLocalJobV1
+    func resumePending() async throws
+    func removeTerminal(id: LocalJobIDV1) async throws
+    func removeJobs(workspaceID: UUID) async throws
+    func eraseAll() async throws
+}
+
+/// A unit of resumable work. Implementations must check cancellation before
+/// and after every checkpoint or output-publication boundary.
+typealias ResumableLocalJobOperationV1 = @Sendable (
+    ResumableLocalJobExecutionContextV1
+) async throws -> ResumableLocalJobResultV1
+
+/// Idempotent publication adapter contract. `publishOrAdopt` may perform the
+/// one atomic effect or adopt an exact readback. `adoptOnly` must never create
+/// an effect; it returns `.absent` when no exact readback exists.
+typealias ResumableLocalJobPublisherV1 = @Sendable (
+    ResumableLocalJobPublicationContextV1
+) throws -> LocalJobPublicationOutcomeV1
+
+/// For a generation-bound job this wrapper is mandatory. It validates the
+/// accepted/current epoch and retains publication authority across the entire
+/// publisher atomic-effect plus readback closure.
+typealias ResumableLocalJobPublicationAuthorityV1 = @Sendable (
+    GenerationEpochV1,
+    @escaping @Sendable () throws -> LocalJobPublicationOutcomeV1
+) throws -> LocalJobPublicationOutcomeV1
+
+enum GenerationLocalJobPublicationFailureV1: Error, Equatable, Sendable {
+    case generationEpochRequired
+    case staleGeneration
+}
+
+/// Generation publication adapter for the narrow atomic effect/readback
+/// boundary. `withAuthorizedCommit` must hold the matching generation's
+/// stale-writer commit authority for the complete synchronous closure.
+struct GenerationLocalJobPublicationAdapterV1: Sendable {
+    private let currentGenerationEpoch: @Sendable () throws -> GenerationEpochV1
+    private let withAuthorizedCommit: ResumableLocalJobPublicationAuthorityV1
+
+    init(
+        currentGenerationEpoch: @escaping @Sendable () throws -> GenerationEpochV1,
+        withAuthorizedCommit: @escaping ResumableLocalJobPublicationAuthorityV1
+    ) {
+        self.currentGenerationEpoch = currentGenerationEpoch
+        self.withAuthorizedCommit = withAuthorizedCommit
+    }
+
+    func publish(
+        job: ResumableLocalJobV1,
+        effectAndReadback: @escaping @Sendable () throws -> LocalJobPublicationOutcomeV1
+    ) throws -> LocalJobPublicationOutcomeV1 {
+        guard let expectedEpoch = job.generationEpoch else {
+            throw GenerationLocalJobPublicationFailureV1.generationEpochRequired
+        }
+        try expectedEpoch.validate()
+        guard try currentGenerationEpoch() == expectedEpoch else {
+            throw GenerationLocalJobPublicationFailureV1.staleGeneration
+        }
+        return try withAuthorizedCommit(expectedEpoch) {
+            guard try currentGenerationEpoch() == expectedEpoch else {
+                throw GenerationLocalJobPublicationFailureV1.staleGeneration
+            }
+            let outcome = try effectAndReadback()
+            guard try currentGenerationEpoch() == expectedEpoch else {
+                throw GenerationLocalJobPublicationFailureV1.staleGeneration
+            }
+            return outcome
+        }
+    }
+}
+
+struct ResumableLocalJobExecutionContextV1: Sendable {
+    let job: ResumableLocalJobV1
+    let checkpoint: @Sendable (LocalJobCheckpointV1) async throws -> Void
+    let cancellationBoundary: @Sendable () async throws -> Void
+    /// Source-compatible pre-staging validation boundary. This never grants
+    /// escaped publication authority; only the registered publisher may do so.
+    let publicationBoundary: @Sendable () async throws -> Void
+    let validateGenerationLease: @Sendable () throws -> Void
+}
+
+struct ResumableLocalJobResultV1: Codable, Equatable, Sendable {
+    let outputSHA256: String
+    let completedUnitCount: Int
+
+    init(outputSHA256: String, completedUnitCount: Int) {
+        self.outputSHA256 = outputSHA256
+        self.completedUnitCount = completedUnitCount
+    }
+}
+
+struct ResumableLocalJobPublicationContextV1: Sendable {
+    let job: ResumableLocalJobV1
+    let pending: LocalJobPendingPublicationV1
+    let mode: LocalJobPublicationModeV1
+}
+
+enum LocalJobPublicationOutcomeV1: Equatable, Sendable {
+    case completed(LocalJobPublicationReceiptV1)
+    case absent
+}

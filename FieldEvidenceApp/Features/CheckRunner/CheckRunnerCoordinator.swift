@@ -45,6 +45,7 @@ final class CheckRunnerCoordinator {
     private let finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection?
     private let finalizationServiceFailureInjection: FinalizationServiceFailureInjection?
     private let draftAccessState: (@MainActor () -> DraftAccessNormalizedStateV1)?
+    private let offMainWorker = DeterministicOffMainWorkerV1()
     private var captureGenerationRootURL: URL?
     private var evidenceBundleStore: EvidenceBundleStore?
     private var reportDeliveryCoordinator: ReportDeliveryCoordinator?
@@ -134,6 +135,25 @@ final class CheckRunnerCoordinator {
             return try Data(contentsOf: candidate, options: .mappedIfSafe)
         } catch {
             throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+    }
+
+    /// Provisional job-kernel route. Existing synchronous UI callers remain
+    /// source-compatible until the S10.6 shipping-route reconciliation.
+    func reviewThumbnailDataOffMain(for evidence: ReviewEvidence) async throws -> Data {
+        guard let generationRootURL = captureGenerationRootURL else {
+            throw CheckRunnerCoordinatorError.captureNotConfigured
+        }
+        let root = generationRootURL.standardizedFileURL
+        let relativePath = evidence.thumbnailRelativePath
+        return try await offMainWorker.run {
+            try Task.checkCancellation()
+            let candidate = root.appendingPathComponent(relativePath).standardizedFileURL
+            guard candidate.path.hasPrefix(root.path + "/"),
+                  !relativePath.hasPrefix("/"), !relativePath.contains("..") else {
+                throw CheckRunnerCoordinatorError.invalidCaptureState
+            }
+            return try Data(contentsOf: candidate, options: .mappedIfSafe)
         }
     }
 

@@ -134,6 +134,34 @@ final class ReportHistoryCoordinator {
         stableRootID: UUID
     ) throws -> ReportHistoryComparisonValue? {
         let authority = try buildAuthority()
+        return try comparison(stableRootID: stableRootID, authority: authority)
+    }
+
+    /// Builds authority once for a list instead of repeating the complete
+    /// report/file projection once per rendered row. The current views retain
+    /// their synchronous API until provisional-kernel reconciliation.
+    func comparableStableRootIDs(
+        _ stableRootIDs: [UUID]
+    ) throws -> Set<UUID> {
+        guard Set(stableRootIDs).count == stableRootIDs.count else {
+            throw ReportHistoryCoordinatorError.invalidAuthority
+        }
+        let authority = try buildAuthority()
+        var result = Set<UUID>()
+        result.reserveCapacity(stableRootIDs.count)
+        for stableRootID in stableRootIDs {
+            try Task.checkCancellation()
+            if try comparison(stableRootID: stableRootID, authority: authority) != nil {
+                result.insert(stableRootID)
+            }
+        }
+        return result
+    }
+
+    private func comparison(
+        stableRootID: UUID,
+        authority: ReportHistoryAuthority
+    ) throws -> ReportHistoryComparisonValue? {
         guard !authority.comparisonGloballyBlocked else { return nil }
         let selected = authority.visits.filter {
             $0.stableRootID == stableRootID

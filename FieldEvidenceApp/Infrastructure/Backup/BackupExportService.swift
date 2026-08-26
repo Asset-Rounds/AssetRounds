@@ -14,6 +14,7 @@ enum BackupExportServiceError: Error, Equatable {
     case sourceChanged
     case cleanupFailed
     case writeFailed
+    case generationLeaseLost
 }
 
 @MainActor
@@ -28,8 +29,8 @@ final class BackupExportService {
         let reports: [Report]
     }
 
-    private struct StreamingSource: Equatable {
-        enum Location: Equatable {
+    private struct StreamingSource: Equatable, Sendable {
+        enum Location: Equatable, Sendable {
             case generatedRecords
             case generationRelative(String)
         }
@@ -41,7 +42,7 @@ final class BackupExportService {
         let location: Location
     }
 
-    private struct StreamingPrepared: Equatable {
+    private struct StreamingPrepared: Equatable, Sendable {
         let preview: BackupExportPreviewV1
         let manifest: V4BackupManifestV1
         let manifestData: Data
@@ -62,10 +63,11 @@ final class BackupExportService {
     private let archiveLimits: StreamingArchiveLimitsV1
     private let archiveService: StreamingArchiveService
     private let now: () -> Date
-    private let makeUUID: () -> UUID
+    private let makeUUID: @Sendable () -> UUID
     private let appVersion: () -> String
     private let appBuild: () -> String
     private let fileManager: FileManager
+    private let generationLeaseValidation: @Sendable () throws -> Void
     private var prepared: PreparedV4BackupV1?
     private var streamingPrepared: StreamingPrepared?
 
@@ -75,7 +77,7 @@ final class BackupExportService {
         storagePreflight: StoragePreflightService = StoragePreflightService(),
         archiveLimits: StreamingArchiveLimitsV1 = .card17,
         now: @escaping () -> Date = Date.init,
-        makeUUID: @escaping () -> UUID = UUID.init,
+        makeUUID: @escaping @Sendable () -> UUID = UUID.init,
         appVersion: @escaping () -> String = {
             Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
                 as? String ?? "0"
@@ -84,7 +86,8 @@ final class BackupExportService {
             Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion")
                 as? String ?? "0"
         },
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        generationLeaseValidation: @escaping @Sendable () throws -> Void = {}
     ) {
         self.modelContext = modelContext
         self.generationRootURL = generationRootURL.standardizedFileURL
@@ -99,6 +102,7 @@ final class BackupExportService {
         self.appVersion = appVersion
         self.appBuild = appBuild
         self.fileManager = fileManager
+        self.generationLeaseValidation = generationLeaseValidation
         let root = generationRootURL.standardizedFileURL
         let dataRoot = root.deletingLastPathComponent().deletingLastPathComponent()
         if root.isFileURL,
@@ -113,6 +117,7 @@ final class BackupExportService {
     }
 
     func prepare() throws -> BackupExportPreviewV1 {
+        try validateGenerationLease()
         guard !modelContext.hasChanges else {
             throw BackupExportServiceError.contextHasChanges
         }
@@ -124,6 +129,7 @@ final class BackupExportService {
             throw BackupExportServiceError.contextHasChanges
         }
         streamingPrepared = value
+        try validateGenerationLease()
         return value.preview
     }
 
@@ -264,6 +270,7 @@ final class BackupExportService {
         to destinationDirectoryURL: URL,
         cancellation: StreamingArchiveCancellationV1 = .none
     ) throws -> URL {
+        try validateGenerationLease()
         guard !modelContext.hasChanges else {
             throw BackupExportServiceError.contextHasChanges
         }
@@ -364,6 +371,7 @@ final class BackupExportService {
                 to: recordsSource,
                 expectedRootIdentity: stagingRootIdentity
             ))
+            try validateGenerationLease()
 
             var entries = [StreamingArchiveWriteEntryV1(
                 path: "manifest.json",
@@ -433,6 +441,7 @@ final class BackupExportService {
                 throw BackupExportServiceError.writeFailed
             }
             let receipt = try coordinatedResult.get()
+            try validateGenerationLease()
             publishedURL = receipt.archiveURL
             guard receipt.index.entries.map(\.path) == entries
                     .sorted(by: { utf8Less($0.path, $1.path) })
@@ -530,6 +539,7 @@ private extension BackupExportService {
             guard !Task.isCancelled else {
                 throw BackupExportServiceError.cancelled
             }
+            try validateGenerationLease()
             let canonicalID = uuid(evidence.id)
             guard evidence.relativePath == "evidence/\(canonicalID)/original.jpg",
                   evidence.thumbnailRelativePath
@@ -592,6 +602,7 @@ private extension BackupExportService {
             guard !Task.isCancelled else {
                 throw BackupExportServiceError.cancelled
             }
+            try validateGenerationLease()
             do { try delivery.validateRecoveryAuthority(id: report.id) }
             catch { throw BackupExportServiceError.invalidAuthority }
             let canonicalID = uuid(report.id)
@@ -1909,6 +1920,9 @@ private extension BackupExportService {
     }
 
     func mapStreamingExportError(_ error: Error) -> BackupExportServiceError {
+        if error is GenerationLeaseRegistryFailureV1 {
+            return .generationLeaseLost
+        }
         if let typed = error as? BackupExportServiceError { return typed }
         if let storage = error as? StoragePreflightError {
             if case .insufficientCapacity = storage { return .insufficientStorage }
@@ -1930,6 +1944,14 @@ private extension BackupExportService {
             return .destinationExists
         default:
             return .writeFailed
+        }
+    }
+
+    func validateGenerationLease() throws {
+        do {
+            try generationLeaseValidation()
+        } catch {
+            throw BackupExportServiceError.generationLeaseLost
         }
     }
 
