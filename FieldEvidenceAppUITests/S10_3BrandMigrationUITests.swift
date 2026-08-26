@@ -6785,15 +6785,49 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             XCTFail("AX-text work-validation final composition is unsafe.")
             return false
         }
-        let finalSemanticRelations = finalStrictSemanticRelations()
-        guard finalSemanticRelations.allSatisfy({ relation in relation.1 }) else {
-            if automationSegment == .segment2 {
-                return diagnoseSegment2FinalSemantics(finalSemanticRelations)
-            }
-            XCTFail("AX-text work-validation final semantics are invalid.")
-            return false
+        let initialFinalSemanticRelations = finalStrictSemanticRelations()
+        if initialFinalSemanticRelations.allSatisfy({ relation in relation.1 }) {
+            return true
         }
-        return true
+        let initialFailedFinalSemanticRelationNames =
+            initialFinalSemanticRelations.compactMap { relation in
+                relation.1 ? nil : relation.0
+            }
+        if initialFailedFinalSemanticRelationNames == [
+            "descriptionFieldValue",
+            "focusedDescriptionFieldValue",
+        ] {
+            let exactDescriptionValuePredicate = NSPredicate(
+                format: "value == %@",
+                "Short description"
+            )
+            let descriptionValueExpectation = XCTNSPredicateExpectation(
+                predicate: exactDescriptionValuePredicate,
+                object: descriptionField
+            )
+            let focusedDescriptionValueExpectation = XCTNSPredicateExpectation(
+                predicate: exactDescriptionValuePredicate,
+                object: focusedDescriptionField
+            )
+            _ = XCTWaiter.wait(
+                for: [
+                    descriptionValueExpectation,
+                    focusedDescriptionValueExpectation,
+                ],
+                timeout: 1
+            )
+            let stabilizedFinalSemanticRelations = finalStrictSemanticRelations()
+            if stabilizedFinalSemanticRelations.allSatisfy({ relation in
+                relation.1
+            }) {
+                return true
+            }
+        }
+        if automationSegment == .segment2 {
+            return diagnoseSegment2FinalSemantics(initialFinalSemanticRelations)
+        }
+        XCTFail("AX-text work-validation final semantics are invalid.")
+        return false
     }
 
     @MainActor
