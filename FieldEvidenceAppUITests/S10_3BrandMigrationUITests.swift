@@ -6070,14 +6070,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             XCTFail("AX-text work-validation field-label authority is ambiguous or expired.")
             return false
         }
-        guard let frozenDescriptionValue = descriptionField.value as? String,
-              let frozenFocusedDescriptionValue =
-                focusedDescriptionField.value as? String,
-              frozenDescriptionValue == "Short description",
-              frozenFocusedDescriptionValue == frozenDescriptionValue else {
-            XCTFail("AX-text work-validation initial description values are invalid.")
-            return false
-        }
         let isValidFrame: (CGRect) -> Bool = { frame in
             !frame.isNull
                 && !frame.isEmpty
@@ -6089,186 +6081,203 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         let stablePrePositionRouteRelations: () -> [(String, Bool)] = {
             [
-                    ("applicationForeground", app.state == .runningForeground),
-                    ("workScreensCountOne", workScreens.count == 1),
-                    ("descriptionFieldsCountOne", descriptionFields.count == 1),
-                    (
-                        "focusedDescriptionFieldsCountOne",
-                        focusedDescriptionFields.count == 1
-                    ),
-                    ("validationLabelsCountOne", validationLabels.count == 1),
-                    (
-                        "shortDescriptionStaticTextsCountTwo",
-                        shortDescriptionStaticTexts.count == 2
-                    ),
-                    (
-                        "shortDescriptionFieldLabelsCountOne",
-                        shortDescriptionFieldLabels.count == 1
-                    ),
-                    ("noteStaticTextsCountOne", noteStaticTexts.count == 1),
-                    (
-                        "descriptionScrollViewsCountOne",
-                        descriptionScrollViews.count == 1
-                    ),
-                    ("navigationBarsCountOne", navigationBars.count == 1),
-                    ("tabBarsCountOne", tabBars.count == 1),
-                    ("keyboardsCountOne", keyboards.count == 1),
-                    ("workScreenExists", workScreen.exists),
-                    ("workScreenTypeScrollView", workScreen.elementType == .scrollView),
-                    (
-                        "workScreenIdentifier",
-                        workScreen.identifier == "s5.1.work.screen"
-                    ),
-                    ("workScreenLabelEmpty", workScreen.label.isEmpty),
-                    (
-                        "workScreenValueEmpty",
-                        (workScreen.value as? String) == ""
-                    ),
-                    ("workScreenHittable", workScreen.isHittable),
-                    ("descriptionFieldExists", descriptionField.exists),
-                    (
-                        "descriptionFieldTypeTextField",
-                        descriptionField.elementType == .textField
-                    ),
-                    (
-                        "descriptionFieldIdentifier",
-                        descriptionField.identifier == "s5.1.work.description"
-                    ),
-                    (
-                        "descriptionFieldLabel",
-                        descriptionField.label == "Short description"
-                    ),
-                    ("descriptionFieldHittable", descriptionField.isHittable),
-                    ("focusedDescriptionFieldExists", focusedDescriptionField.exists),
-                    (
-                        "focusedDescriptionFieldTypeTextField",
-                        focusedDescriptionField.elementType == .textField
-                    ),
-                    (
-                        "focusedDescriptionFieldIdentifier",
-                        focusedDescriptionField.identifier == "s5.1.work.description"
-                    ),
-                    (
-                        "focusedDescriptionFieldLabel",
-                        focusedDescriptionField.label == "Short description"
-                    ),
-                    (
-                        "focusedDescriptionFieldHittable",
-                        focusedDescriptionField.isHittable
-                    ),
-                    ("validationLabelExists", validationLabel.exists),
-                    (
-                        "validationLabelTypeStaticText",
-                        validationLabel.elementType == .staticText
-                    ),
-                    (
-                        "validationLabelIdentifier",
-                        validationLabel.identifier == "s5.1.work.validation"
-                    ),
-                    (
-                        "validationLabelLabel",
-                        validationLabel.label == "Short description"
-                    ),
-                    (
-                        "validationLabelValueEmpty",
-                        (validationLabel.value as? String) == ""
-                    ),
-                    ("validationLabelHittable", validationLabel.isHittable),
-                    (
-                        "shortDescriptionFieldLabelExists",
-                        shortDescriptionFieldLabel.exists
-                    ),
-                    (
-                        "shortDescriptionFieldLabelTypeStaticText",
-                        shortDescriptionFieldLabel.elementType == .staticText
-                    ),
-                    (
-                        "shortDescriptionFieldLabelIdentifierEmpty",
-                        shortDescriptionFieldLabel.identifier.isEmpty
-                    ),
-                    (
-                        "shortDescriptionFieldLabelLabel",
-                        shortDescriptionFieldLabel.label == "Short description"
-                    ),
-                    (
-                        "shortDescriptionFieldLabelValueEmpty",
-                        (shortDescriptionFieldLabel.value as? String) == ""
-                    ),
-                    ("noteStaticTextExists", noteStaticText.exists),
-                    (
-                        "noteStaticTextTypeStaticText",
-                        noteStaticText.elementType == .staticText
-                    ),
-                    (
-                        "noteStaticTextIdentifierEmpty",
-                        noteStaticText.identifier.isEmpty
-                    ),
-                    ("noteStaticTextLabel", noteStaticText.label == "Note"),
-                    (
-                        "noteStaticTextValueEmpty",
-                        (noteStaticText.value as? String) == ""
-                    ),
-                    ("descriptionScrollViewExists", descriptionScrollView.exists),
-                    (
-                        "descriptionScrollViewTypeScrollView",
-                        descriptionScrollView.elementType == .scrollView
-                    ),
-                    (
-                        "descriptionScrollViewIdentifier",
-                        descriptionScrollView.identifier == "s5.1.work.screen"
-                    ),
-                    (
-                        "descriptionScrollViewLabelEmpty",
-                        descriptionScrollView.label.isEmpty
-                    ),
-                    (
-                        "descriptionScrollViewValueEmpty",
-                        (descriptionScrollView.value as? String) == ""
-                    ),
-                    (
-                        "descriptionScrollViewHittable",
-                        descriptionScrollView.isHittable
-                    ),
-                    ("navigationBarExists", navigationBar.exists),
-                    (
-                        "navigationBarTypeNavigationBar",
-                        navigationBar.elementType == .navigationBar
-                    ),
-                    (
-                        "navigationBarIdentifier",
-                        navigationBar.identifier == "Record work"
-                    ),
-                    ("navigationBarLabelEmpty", navigationBar.label.isEmpty),
-                    (
-                        "navigationBarValueEmpty",
-                        (navigationBar.value as? String) == ""
-                    ),
-                    ("navigationBarHittable", navigationBar.isHittable),
-                    ("tabBarExists", tabBar.exists),
-                    ("tabBarTypeTabBar", tabBar.elementType == .tabBar),
-                    ("tabBarIdentifierEmpty", tabBar.identifier.isEmpty),
-                    ("tabBarLabel", tabBar.label == "Tab Bar"),
-                    ("tabBarValueEmpty", (tabBar.value as? String) == ""),
-                    ("tabBarHittable", tabBar.isHittable),
-                    ("keyboardExists", keyboard.exists),
-                    ("keyboardTypeKeyboard", keyboard.elementType == .keyboard),
-                    ("keyboardIdentifierEmpty", keyboard.identifier.isEmpty),
-                    ("keyboardLabelEmpty", keyboard.label.isEmpty),
-                    ("keyboardValueEmpty", (keyboard.value as? String) == ""),
-                    ("keyboardHittable", keyboard.isHittable),
+                ("applicationForeground", app.state == .runningForeground),
+                ("workScreensCountOne", workScreens.count == 1),
+                ("descriptionFieldsCountOne", descriptionFields.count == 1),
+                (
+                    "focusedDescriptionFieldsCountOne",
+                    focusedDescriptionFields.count == 1
+                ),
+                ("validationLabelsCountOne", validationLabels.count == 1),
+                (
+                    "shortDescriptionStaticTextsCountTwo",
+                    shortDescriptionStaticTexts.count == 2
+                ),
+                (
+                    "shortDescriptionFieldLabelsCountOne",
+                    shortDescriptionFieldLabels.count == 1
+                ),
+                ("noteStaticTextsCountOne", noteStaticTexts.count == 1),
+                (
+                    "descriptionScrollViewsCountOne",
+                    descriptionScrollViews.count == 1
+                ),
+                ("navigationBarsCountOne", navigationBars.count == 1),
+                ("tabBarsCountOne", tabBars.count == 1),
+                ("keyboardsCountOne", keyboards.count == 1),
+                ("workScreenExists", workScreen.exists),
+                ("workScreenTypeScrollView", workScreen.elementType == .scrollView),
+                (
+                    "workScreenIdentifier",
+                    workScreen.identifier == "s5.1.work.screen"
+                ),
+                ("descriptionFieldExists", descriptionField.exists),
+                (
+                    "descriptionFieldTypeTextField",
+                    descriptionField.elementType == .textField
+                ),
+                (
+                    "descriptionFieldIdentifier",
+                    descriptionField.identifier == "s5.1.work.description"
+                ),
+                ("focusedDescriptionFieldExists", focusedDescriptionField.exists),
+                (
+                    "focusedDescriptionFieldTypeTextField",
+                    focusedDescriptionField.elementType == .textField
+                ),
+                (
+                    "focusedDescriptionFieldIdentifier",
+                    focusedDescriptionField.identifier == "s5.1.work.description"
+                ),
+                ("validationLabelExists", validationLabel.exists),
+                (
+                    "validationLabelTypeStaticText",
+                    validationLabel.elementType == .staticText
+                ),
+                (
+                    "validationLabelIdentifier",
+                    validationLabel.identifier == "s5.1.work.validation"
+                ),
+                (
+                    "shortDescriptionFieldLabelExists",
+                    shortDescriptionFieldLabel.exists
+                ),
+                (
+                    "shortDescriptionFieldLabelTypeStaticText",
+                    shortDescriptionFieldLabel.elementType == .staticText
+                ),
+                (
+                    "shortDescriptionFieldLabelIdentifierEmpty",
+                    shortDescriptionFieldLabel.identifier.isEmpty
+                ),
+                ("noteStaticTextExists", noteStaticText.exists),
+                (
+                    "noteStaticTextTypeStaticText",
+                    noteStaticText.elementType == .staticText
+                ),
+                (
+                    "noteStaticTextIdentifierEmpty",
+                    noteStaticText.identifier.isEmpty
+                ),
+                ("descriptionScrollViewExists", descriptionScrollView.exists),
+                (
+                    "descriptionScrollViewTypeScrollView",
+                    descriptionScrollView.elementType == .scrollView
+                ),
+                (
+                    "descriptionScrollViewIdentifier",
+                    descriptionScrollView.identifier == "s5.1.work.screen"
+                ),
+                ("navigationBarExists", navigationBar.exists),
+                (
+                    "navigationBarTypeNavigationBar",
+                    navigationBar.elementType == .navigationBar
+                ),
+                (
+                    "navigationBarIdentifier",
+                    navigationBar.identifier == "Record work"
+                ),
+                ("tabBarExists", tabBar.exists),
+                ("tabBarTypeTabBar", tabBar.elementType == .tabBar),
+                ("tabBarIdentifierEmpty", tabBar.identifier.isEmpty),
+                ("keyboardExists", keyboard.exists),
+                ("keyboardTypeKeyboard", keyboard.elementType == .keyboard),
+                ("keyboardIdentifierEmpty", keyboard.identifier.isEmpty),
             ]
         }
-        let finalStrictValueRelations: () -> [(String, Bool)] = {
+        let finalStrictSemanticRelations: () -> [(String, Bool)] = {
             [
+                ("workScreenLabelEmpty", workScreen.label.isEmpty),
+                ("workScreenValueEmpty", (workScreen.value as? String) == ""),
+                ("workScreenEnabled", workScreen.isEnabled),
+                ("workScreenHittable", workScreen.isHittable),
+                (
+                    "descriptionFieldLabel",
+                    descriptionField.label == "Short description"
+                ),
                 (
                     "descriptionFieldValue",
-                    (descriptionField.value as? String) == frozenDescriptionValue
+                    (descriptionField.value as? String) == "Short description"
+                ),
+                ("descriptionFieldEnabled", descriptionField.isEnabled),
+                ("descriptionFieldHittable", descriptionField.isHittable),
+                (
+                    "focusedDescriptionFieldLabel",
+                    focusedDescriptionField.label == "Short description"
                 ),
                 (
                     "focusedDescriptionFieldValue",
                     (focusedDescriptionField.value as? String)
-                        == frozenFocusedDescriptionValue
+                        == "Short description"
                 ),
+                (
+                    "focusedDescriptionFieldEnabled",
+                    focusedDescriptionField.isEnabled
+                ),
+                (
+                    "focusedDescriptionFieldHittable",
+                    focusedDescriptionField.isHittable
+                ),
+                (
+                    "validationLabelLabel",
+                    validationLabel.label == "Short description"
+                ),
+                (
+                    "validationLabelValueEmpty",
+                    (validationLabel.value as? String) == ""
+                ),
+                ("validationLabelEnabled", validationLabel.isEnabled),
+                ("validationLabelHittable", validationLabel.isHittable),
+                (
+                    "shortDescriptionFieldLabelLabel",
+                    shortDescriptionFieldLabel.label == "Short description"
+                ),
+                (
+                    "shortDescriptionFieldLabelValueEmpty",
+                    (shortDescriptionFieldLabel.value as? String) == ""
+                ),
+                (
+                    "shortDescriptionFieldLabelEnabled",
+                    shortDescriptionFieldLabel.isEnabled
+                ),
+                ("noteStaticTextLabel", noteStaticText.label == "Note"),
+                (
+                    "noteStaticTextValueEmpty",
+                    (noteStaticText.value as? String) == ""
+                ),
+                ("noteStaticTextEnabled", noteStaticText.isEnabled),
+                ("noteStaticTextHittable", noteStaticText.isHittable),
+                (
+                    "descriptionScrollViewLabelEmpty",
+                    descriptionScrollView.label.isEmpty
+                ),
+                (
+                    "descriptionScrollViewValueEmpty",
+                    (descriptionScrollView.value as? String) == ""
+                ),
+                (
+                    "descriptionScrollViewEnabled",
+                    descriptionScrollView.isEnabled
+                ),
+                (
+                    "descriptionScrollViewHittable",
+                    descriptionScrollView.isHittable
+                ),
+                ("navigationBarLabelEmpty", navigationBar.label.isEmpty),
+                (
+                    "navigationBarValueEmpty",
+                    (navigationBar.value as? String) == ""
+                ),
+                ("navigationBarEnabled", navigationBar.isEnabled),
+                ("navigationBarHittable", navigationBar.isHittable),
+                ("tabBarLabel", tabBar.label == "Tab Bar"),
+                ("tabBarValueEmpty", (tabBar.value as? String) == ""),
+                ("tabBarEnabled", tabBar.isEnabled),
+                ("tabBarHittable", tabBar.isHittable),
+                ("keyboardLabelEmpty", keyboard.label.isEmpty),
+                ("keyboardValueEmpty", (keyboard.value as? String) == ""),
+                ("keyboardEnabled", keyboard.isEnabled),
+                ("keyboardHittable", keyboard.isHittable),
             ]
         }
         let stablePrePositionFramesAreValid: () -> Bool = {
@@ -6307,9 +6316,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && liveFrame.width == frozenFrame.width
                 && liveFrame.height == frozenFrame.height
         }
-        let hasFinalComposition: () -> Bool = {
-            guard hasStablePrePositionRoute(),
-                  finalStrictValueRelations().allSatisfy({ relation in relation.1 }) else {
+        let hasFinalPositionComposition: () -> Bool = {
+            guard hasStablePrePositionRoute() else {
                 return false
             }
             let applicationFrame = app.frame
@@ -6403,15 +6411,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && focusedDescriptionField.isEnabled
                 && validationLabel.isEnabled
                 && noteStaticText.isEnabled
-                && descriptionField.isHittable
-                && focusedDescriptionField.isHittable
-                && validationLabel.isHittable
-                && noteStaticText.isHittable
         }
         var restorationDirection: CGFloat?
         var previousRemainingDistance: CGFloat?
         for _ in 0..<4 {
-            if hasFinalComposition() { return true }
+            if hasFinalPositionComposition() { break }
             guard hasStablePrePositionRoute() else {
                 XCTFail("AX-text work-validation positioning route or focus changed.")
                 return false
@@ -6615,8 +6619,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 return false
             }
         }
-        guard hasFinalComposition() else {
+        guard hasFinalPositionComposition() else {
             XCTFail("AX-text work-validation final composition is unsafe.")
+            return false
+        }
+        guard finalStrictSemanticRelations().allSatisfy({ relation in relation.1 }) else {
+            XCTFail("AX-text work-validation final semantics are invalid.")
             return false
         }
         return true
@@ -8721,65 +8729,115 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && frame.size.width.isFinite
                 && frame.size.height.isFinite
         }
+        let exactRouteRelations: () -> [(String, Bool)] = {
+            [
+                ("applicationForeground", app.state == .runningForeground),
+                ("screenElementsCountOne", screenElements.count == 1),
+                ("readyElementsCountOne", readyElements.count == 1),
+                ("priorReportButtonsCountOne", priorReportButtons.count == 1),
+                ("currentReportButtonsCountOne", currentReportButtons.count == 1),
+                (
+                    "currentReportScrollViewsCountOne",
+                    currentReportScrollViews.count == 1
+                ),
+                ("navigationBarsCountOne", navigationBars.count == 1),
+                ("tabBarsCountOne", tabBars.count == 1),
+                ("keyboardsCountZero", keyboards.count == 0),
+                ("inputViewsCountZero", inputViews.count == 0),
+                ("screenExists", screen.exists),
+                ("readyExists", ready.exists),
+                ("priorReportExists", priorReport.exists),
+                ("currentReportExists", currentReport.exists),
+                ("scrollViewExists", scrollView.exists),
+                ("navigationBarExists", navigationBar.exists),
+                ("tabBarExists", tabBar.exists),
+                ("screenTypeScrollView", screen.elementType == .scrollView),
+                (
+                    "screenIdentifier",
+                    screen.identifier == "s4.5.correction.screen"
+                ),
+                ("screenLabelEmpty", screen.label == ""),
+                ("screenValueEmpty", (screen.value as? String) == ""),
+                ("screenEnabled", screen.isEnabled),
+                ("screenHittable", screen.isHittable),
+                (
+                    "scrollViewTypeScrollView",
+                    scrollView.elementType == .scrollView
+                ),
+                (
+                    "scrollViewIdentifier",
+                    scrollView.identifier == "s4.5.correction.screen"
+                ),
+                ("scrollViewLabelEmpty", scrollView.label == ""),
+                ("scrollViewValueEmpty", (scrollView.value as? String) == ""),
+                ("scrollViewEnabled", scrollView.isEnabled),
+                ("scrollViewHittable", scrollView.isHittable),
+                (
+                    "navigationBarTypeNavigationBar",
+                    navigationBar.elementType == .navigationBar
+                ),
+                (
+                    "navigationBarIdentifier",
+                    navigationBar.identifier == "Correct report"
+                ),
+                ("navigationBarLabelEmpty", navigationBar.label == ""),
+                (
+                    "navigationBarValueEmpty",
+                    (navigationBar.value as? String) == ""
+                ),
+                ("navigationBarEnabled", navigationBar.isEnabled),
+                ("navigationBarHittable", navigationBar.isHittable),
+                ("tabBarTypeTabBar", tabBar.elementType == .tabBar),
+                ("tabBarIdentifierEmpty", tabBar.identifier == ""),
+                ("tabBarLabel", tabBar.label == "Tab Bar"),
+                ("tabBarValueEmpty", (tabBar.value as? String) == ""),
+                ("tabBarEnabled", tabBar.isEnabled),
+                ("tabBarHittable", tabBar.isHittable),
+                ("readyTypeStaticText", ready.elementType == .staticText),
+                (
+                    "readyIdentifier",
+                    ready.identifier == "s4.5.correction.ready"
+                ),
+                (
+                    "readyLabel",
+                    ready.label
+                        == "The prior report and evidence remain unchanged."
+                ),
+                ("readyValueEmpty", (ready.value as? String) == ""),
+                ("readyEnabled", ready.isEnabled),
+                ("readyHittable", ready.isHittable),
+                ("priorReportTypeButton", priorReport.elementType == .button),
+                (
+                    "priorReportIdentifier",
+                    priorReport.identifier == "s4.5.correction.prior-report"
+                ),
+                ("priorReportLabel", priorReport.label == "View prior report"),
+                (
+                    "priorReportValueEmpty",
+                    (priorReport.value as? String) == ""
+                ),
+                ("priorReportEnabled", priorReport.isEnabled),
+                (
+                    "currentReportTypeButton",
+                    currentReport.elementType == .button
+                ),
+                (
+                    "currentReportIdentifier",
+                    currentReport.identifier == "s4.5.correction.current-report"
+                ),
+                (
+                    "currentReportLabel",
+                    currentReport.label == "View corrected report"
+                ),
+                (
+                    "currentReportValueEmpty",
+                    (currentReport.value as? String) == ""
+                ),
+                ("currentReportEnabled", currentReport.isEnabled),
+            ]
+        }
         let hasExactRoute: () -> Bool = {
-            app.state == .runningForeground
-                && screenElements.count == 1
-                && readyElements.count == 1
-                && priorReportButtons.count == 1
-                && currentReportButtons.count == 1
-                && currentReportScrollViews.count == 1
-                && navigationBars.count == 1
-                && tabBars.count == 1
-                && keyboards.count == 0
-                && inputViews.count == 0
-                && screen.exists
-                && ready.exists
-                && priorReport.exists
-                && currentReport.exists
-                && scrollView.exists
-                && navigationBar.exists
-                && tabBar.exists
-                && screen.elementType == .scrollView
-                && screen.identifier == "s4.5.correction.screen"
-                && screen.label == ""
-                && (screen.value as? String) == ""
-                && screen.isEnabled
-                && screen.isHittable
-                && scrollView.elementType == .scrollView
-                && scrollView.identifier == "s4.5.correction.screen"
-                && scrollView.label == ""
-                && (scrollView.value as? String) == ""
-                && scrollView.isEnabled
-                && scrollView.isHittable
-                && navigationBar.elementType == .navigationBar
-                && navigationBar.identifier == "Correct report"
-                && navigationBar.label == ""
-                && (navigationBar.value as? String) == ""
-                && navigationBar.isEnabled
-                && navigationBar.isHittable
-                && tabBar.elementType == .tabBar
-                && tabBar.identifier == ""
-                && tabBar.label == "Tab Bar"
-                && (tabBar.value as? String) == ""
-                && tabBar.isEnabled
-                && tabBar.isHittable
-                && ready.elementType == .staticText
-                && ready.identifier == "s4.5.correction.ready"
-                && ready.label
-                    == "The prior report and evidence remain unchanged."
-                && (ready.value as? String) == ""
-                && ready.isEnabled
-                && ready.isHittable
-                && priorReport.elementType == .button
-                && priorReport.identifier == "s4.5.correction.prior-report"
-                && priorReport.label == "View prior report"
-                && (priorReport.value as? String) == ""
-                && priorReport.isEnabled
-                && currentReport.elementType == .button
-                && currentReport.identifier == "s4.5.correction.current-report"
-                && currentReport.label == "View corrected report"
-                && (currentReport.value as? String) == ""
-                && currentReport.isEnabled
+            exactRouteRelations().allSatisfy { relation in relation.1 }
         }
         let hasStableRoute: () -> Bool = {
             app.state == .runningForeground
@@ -8828,6 +8886,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let frozenScrollFrame = scrollView.frame
         let frozenNavigationFrame = navigationBar.frame
         let frozenTabFrame = tabBar.frame
+        let frozenReadyFrame = ready.frame
+        let frozenPriorFrame = priorReport.frame
+        let frozenCurrentFrame = currentReport.frame
         guard [
             frozenApplicationFrame,
             frozenScreenFrame,
@@ -8839,13 +8900,20 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 "AX-text Report-correction-completed container frames are invalid."
             )
         }
+        let finalStrictRouteRelations: () -> [(String, Bool)] = {
+            exactRouteRelations() + [
+                ("applicationFrameFrozen", app.frame == frozenApplicationFrame),
+                ("screenFrameFrozen", screen.frame == frozenScreenFrame),
+                ("scrollFrameFrozen", scrollView.frame == frozenScrollFrame),
+                (
+                    "navigationFrameFrozen",
+                    navigationBar.frame == frozenNavigationFrame
+                ),
+                ("tabFrameFrozen", tabBar.frame == frozenTabFrame),
+            ]
+        }
         let hasFinalStrictRoute: () -> Bool = {
-            hasExactRoute()
-                && app.frame == frozenApplicationFrame
-                && screen.frame == frozenScreenFrame
-                && scrollView.frame == frozenScrollFrame
-                && navigationBar.frame == frozenNavigationFrame
-                && tabBar.frame == frozenTabFrame
+            finalStrictRouteRelations().allSatisfy { relation in relation.1 }
         }
 
         let visualClearance: CGFloat = 8
@@ -8925,35 +8993,246 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
         }
 
+        typealias CompletedComposition = (
+            scrollFrame: CGRect,
+            safeTop: CGFloat,
+            safeBottom: CGFloat,
+            readyFrame: CGRect,
+            priorFrame: CGRect,
+            currentFrame: CGRect,
+            minimumShift: CGFloat,
+            maximumShift: CGFloat
+        )
+        func acceptingCompositionRelations(
+            _ geometry: CompletedComposition?
+        ) -> [(String, Bool)] {
+            [
+                ("hasFinalStrictRoute", hasFinalStrictRoute()),
+                (
+                    "readyMinYAtOrBelowSafeTop",
+                    geometry.map { $0.readyFrame.minY >= $0.safeTop } ?? false
+                ),
+                (
+                    "readyMaxYAtOrAboveSafeBottom",
+                    geometry.map { $0.readyFrame.maxY <= $0.safeBottom } ?? false
+                ),
+                (
+                    "priorMinYAtOrBelowSafeTop",
+                    geometry.map { $0.priorFrame.minY >= $0.safeTop } ?? false
+                ),
+                (
+                    "priorMaxYAtOrAboveSafeBottom",
+                    geometry.map { $0.priorFrame.maxY <= $0.safeBottom } ?? false
+                ),
+                (
+                    "currentMinYAtOrBelowSafeTop",
+                    geometry.map { $0.currentFrame.minY >= $0.safeTop } ?? false
+                ),
+                (
+                    "currentMaxYAtOrAboveSafeBottom",
+                    geometry.map { $0.currentFrame.maxY <= $0.safeBottom } ?? false
+                ),
+                (
+                    "readyWhollyAbovePrior",
+                    geometry.map { $0.readyFrame.maxY <= $0.priorFrame.minY } ?? false
+                ),
+                (
+                    "priorWhollyAboveCurrent",
+                    geometry.map { $0.priorFrame.maxY <= $0.currentFrame.minY } ?? false
+                ),
+                (
+                    "priorWidthAtLeastMinimum",
+                    geometry.map {
+                        $0.priorFrame.width >= minimumGestureDistance
+                    } ?? false
+                ),
+                (
+                    "priorHeightAtLeastMinimum",
+                    geometry.map {
+                        $0.priorFrame.height >= minimumGestureDistance
+                    } ?? false
+                ),
+                (
+                    "currentWidthAtLeastMinimum",
+                    geometry.map {
+                        $0.currentFrame.width >= minimumGestureDistance
+                    } ?? false
+                ),
+                (
+                    "currentHeightAtLeastMinimum",
+                    geometry.map {
+                        $0.currentFrame.height >= minimumGestureDistance
+                    } ?? false
+                ),
+                ("priorReportEnabled", priorReport.isEnabled),
+                ("priorReportHittable", priorReport.isHittable),
+                ("currentReportEnabled", currentReport.isEnabled),
+                ("currentReportHittable", currentReport.isHittable),
+            ]
+        }
         func isAcceptingComposition(
-            _ geometry: (
-                scrollFrame: CGRect,
-                safeTop: CGFloat,
-                safeBottom: CGFloat,
-                readyFrame: CGRect,
-                priorFrame: CGRect,
-                currentFrame: CGRect,
-                minimumShift: CGFloat,
-                maximumShift: CGFloat
-            )
+            _ geometry: CompletedComposition
         ) -> Bool {
-            hasFinalStrictRoute()
-                && geometry.readyFrame.minY >= geometry.safeTop
-                && geometry.readyFrame.maxY <= geometry.safeBottom
-                && geometry.priorFrame.minY >= geometry.safeTop
-                && geometry.priorFrame.maxY <= geometry.safeBottom
-                && geometry.currentFrame.minY >= geometry.safeTop
-                && geometry.currentFrame.maxY <= geometry.safeBottom
-                && geometry.readyFrame.maxY <= geometry.priorFrame.minY
-                && geometry.priorFrame.maxY <= geometry.currentFrame.minY
-                && geometry.priorFrame.width >= minimumGestureDistance
-                && geometry.priorFrame.height >= minimumGestureDistance
-                && geometry.currentFrame.width >= minimumGestureDistance
-                && geometry.currentFrame.height >= minimumGestureDistance
-                && priorReport.isEnabled
-                && priorReport.isHittable
-                && currentReport.isEnabled
-                && currentReport.isHittable
+            acceptingCompositionRelations(geometry)
+                .allSatisfy { relation in relation.1 }
+        }
+        func diagnoseSegment3FinalComposition(
+            _ geometry: CompletedComposition?
+        ) -> Bool {
+            guard automationSegment == .segment3,
+                  let shard = automationShard,
+                  shard.shardID == "s10.4.current.ax-text",
+                  automationSegment.replayCount == 50,
+                  automationSegment.ownedCount == 17,
+                  automationSegment.finalOrdinal == 67,
+                  segmentedRouteStateCursor == 55,
+                  migratedStateIDs
+                    == Array(Self.segmentedRouteStateIDs[50..<55]),
+                  !automatedSegmentFinished,
+                  app.state == .runningForeground else {
+                XCTFail(
+                    "S10.4 AX-text report-correction completed final-composition diagnostic context drifted"
+                )
+                return false
+            }
+            let publicNodeObject: (XCUIElement) -> [String: Any] = { element in
+                [
+                    "exists": element.exists,
+                    "isEnabled": element.isEnabled,
+                    "isHittable": element.isHittable,
+                    "identifier": element.identifier,
+                    "label": element.label,
+                    "value": (element.value as? String).map { $0 as Any }
+                        ?? NSNull(),
+                    "elementTypeRawValue": element.elementType.rawValue,
+                    "elementTypeDescription": String(describing: element.elementType),
+                    "frame": self.auditFrameObject(element.frame),
+                ]
+            }
+            let publicQueryObject: (XCUIElementQuery) -> [String: Any] = { query in
+                let actualCount = query.count
+                return [
+                    "count": actualCount,
+                    "elements": (0..<actualCount).map { index in
+                        publicNodeObject(query.element(boundBy: index))
+                    },
+                ]
+            }
+            let relationObject: ([(String, Bool)]) -> [String: Bool] = {
+                relations in
+                Dictionary(uniqueKeysWithValues: relations)
+            }
+            let nullableScalar: (CGFloat?) -> Any = { value in
+                guard let value else { return NSNull() }
+                return Double(value)
+            }
+            let context: [String: Any] = [
+                "schemaVersion": 1,
+                "acceptanceEligible": false,
+                "shardID": shard.shardID,
+                "requirementID": shard.requirementID,
+                "deviceProfileID": shard.deviceProfileID,
+                "segmentID": automationSegment.rawValue,
+                "segmentReplayCount": automationSegment.replayCount,
+                "segmentOwnedCount": automationSegment.ownedCount,
+                "segmentFinalOrdinal": automationSegment.finalOrdinal,
+                "segmentStateCursor": segmentedRouteStateCursor,
+                "migratedStateIDs": migratedStateIDs,
+                "stateID": "state.report-correction.completed",
+                "stateOrdinal": 56,
+                "predecessorStateID": "state.report-correction.saving",
+                "predecessorOrdinal": 55,
+                "successorStateID": "state.paywall.unavailable",
+                "successorOrdinal": 57,
+                "applicationState": String(describing: app.state),
+                "applicationStateRawValue": app.state.rawValue,
+                "applicationForeground": app.state == .runningForeground,
+                "applicationFrame": self.auditFrameObject(app.frame),
+                "queries": [
+                    "screenElements": publicQueryObject(screenElements),
+                    "readyElements": publicQueryObject(readyElements),
+                    "priorReportButtons": publicQueryObject(priorReportButtons),
+                    "currentReportButtons": publicQueryObject(currentReportButtons),
+                    "currentReportScrollViews": publicQueryObject(
+                        currentReportScrollViews
+                    ),
+                    "navigationBars": publicQueryObject(navigationBars),
+                    "tabBars": publicQueryObject(tabBars),
+                    "keyboards": publicQueryObject(keyboards),
+                    "inputViews": publicQueryObject(inputViews),
+                ],
+                "frozenFrames": [
+                    "application": self.auditFrameObject(frozenApplicationFrame),
+                    "screen": self.auditFrameObject(frozenScreenFrame),
+                    "scrollView": self.auditFrameObject(frozenScrollFrame),
+                    "navigationBar": self.auditFrameObject(frozenNavigationFrame),
+                    "tabBar": self.auditFrameObject(frozenTabFrame),
+                    "ready": self.auditFrameObject(frozenReadyFrame),
+                    "priorReport": self.auditFrameObject(frozenPriorFrame),
+                    "currentReport": self.auditFrameObject(frozenCurrentFrame),
+                ],
+                "currentFrames": [
+                    "application": self.auditFrameObject(app.frame),
+                    "screen": self.auditFrameObject(screen.frame),
+                    "scrollView": self.auditFrameObject(scrollView.frame),
+                    "navigationBar": self.auditFrameObject(navigationBar.frame),
+                    "tabBar": self.auditFrameObject(tabBar.frame),
+                    "ready": self.auditFrameObject(ready.frame),
+                    "priorReport": self.auditFrameObject(priorReport.frame),
+                    "currentReport": self.auditFrameObject(currentReport.frame),
+                ],
+                "finalRouteRelations": relationObject(
+                    finalStrictRouteRelations()
+                ),
+                "acceptingCompositionRelations": relationObject(
+                    acceptingCompositionRelations(geometry)
+                ),
+                "safeTop": nullableScalar(geometry?.safeTop),
+                "safeBottom": nullableScalar(geometry?.safeBottom),
+                "minimumShift": nullableScalar(geometry?.minimumShift),
+                "maximumShift": nullableScalar(geometry?.maximumShift),
+                "completedGestureCount": completedGestureCount,
+                "measuredUndertravel": Double(measuredUndertravel),
+                "positioningDirection": nullableScalar(positioningDirection),
+            ]
+            guard JSONSerialization.isValidJSONObject(context),
+                  let contextData = try? JSONSerialization.data(
+                    withJSONObject: context,
+                    options: [.sortedKeys]
+                  ),
+                  let contextText = String(data: contextData, encoding: .utf8),
+                  !contextText.contains("\n") else {
+                XCTFail(
+                    "S10.4 AX-text report-correction completed final-composition diagnostic JSON is invalid"
+                )
+                return false
+            }
+            self.printJSONLine(
+                prefix:
+                    "S10_4_AX_TEXT_REPORT_CORRECTION_COMPLETED_FINAL_COMPOSITION_DIAGNOSTIC",
+                object: context
+            )
+            let appAttachment = XCTAttachment(
+                screenshot: app.screenshot()
+            )
+            appAttachment.name =
+                "S10.4 AX-text report-correction completed final composition diagnostic app"
+            appAttachment.lifetime = .keepAlways
+            add(appAttachment)
+            let treeAttachment = XCTAttachment(string: app.debugDescription)
+            treeAttachment.name =
+                "S10.4 AX-text report-correction completed final composition diagnostic tree"
+            treeAttachment.lifetime = .keepAlways
+            add(treeAttachment)
+            let contextAttachment = XCTAttachment(string: contextText)
+            contextAttachment.name =
+                "S10.4 AX-text report-correction completed final composition diagnostic context"
+            contextAttachment.lifetime = .keepAlways
+            add(contextAttachment)
+            XCTFail(
+                "S10.4 AX-text report-correction completed final-composition diagnostic is nonaccepting"
+            )
+            return false
         }
 
         while completedGestureCount < maximumGestureCount {
@@ -9076,8 +9355,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
         }
 
-        guard let finalGeometry = liveComposition(),
+        let terminalGeometry = liveComposition()
+        guard let finalGeometry = terminalGeometry,
               isAcceptingComposition(finalGeometry) else {
+            if automationSegment == .segment3 {
+                return diagnoseSegment3FinalComposition(terminalGeometry)
+            }
             return fail(
                 "AX-text Report-correction-completed final composition is unsafe."
             )
