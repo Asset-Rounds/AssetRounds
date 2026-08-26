@@ -1811,6 +1811,32 @@ jobs:
                 ]
               },
               {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.recheck-preflight.ready",
+                taskID: "work_and_recheck",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-RECHECK-PREFLIGHT-SAFE-POSITION-CONFIRMATION",
+                exceptionOwner: "palatis3",
+                exceptionExpiresAt: "2026-11-20",
+                exceptionRationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier safe-position confirmation whose frozen public frame extends below the native tab-safe viewport in the AX-text recheck-preflight state; exact live geometry proves its ordered composition with Before you begin spans 896 points and cannot fit within the 643-point navigation/tab-safe interval, and the exception is limited to the frozen public issue signature.",
+                ignoredAuditIssues: [
+                  {
+                    auditTypeRawValue: "1",
+                    compactDescription: "Contrast failed",
+                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+                    elementIdentifier: "",
+                    elementLabel: "I am in a safe, authorized position to take these photos.",
+                    elementType: "XCUIElementType(rawValue: 48)",
+                    elementFrame: {
+                      x: 32,
+                      y: 763,
+                      width: 249,
+                      height: 373.33333333333326
+                    },
+                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}
+                  }
+                ]
+              },
+              {
                 shardID: "s10.4.current.default-dark",
                 stateID: "state.feedback.review-ready",
                 taskID: "history_recovery",
@@ -2021,10 +2047,10 @@ jobs:
             ]
           ' > "$contrast_exception_authority_path"
           jq -e --arg today "$(date -u +%F)" '
-            length == 17
-            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 15
-            and ([.[].exceptionIssueID] | unique | length) == 17
-            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 12
+            length == 18
+            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 16
+            and ([.[].exceptionIssueID] | unique | length) == 18
+            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 13
             and ([.[]
               | select(.exceptionIssueID | IN(
                   "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER",
@@ -2044,7 +2070,7 @@ jobs:
                   "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER",
                   "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER"
                 )) | not)
-              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 11
+              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 12
             and ([.[] | {shardID, stateID, taskID, exceptionIssueID}]
               | sort_by(.shardID, .stateID, .exceptionIssueID)) == ([
               {
@@ -2070,6 +2096,12 @@ jobs:
                 stateID: "state.new-sign.editing",
                 taskID: "one_handed_start",
                 exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME"
+              },
+              {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.recheck-preflight.ready",
+                taskID: "work_and_recheck",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-RECHECK-PREFLIGHT-SAFE-POSITION-CONFIRMATION"
               },
               {
                 shardID: "s10.4.current.ax-text",
@@ -2278,7 +2310,7 @@ jobs:
                 elif $shardID == "s10.4.current.ax-text"
                      and $taskID == "report_comprehension" then 4
                 elif $shardID == "s10.4.current.ax-text"
-                     and $taskID == "work_and_recheck" then 2
+                     and $taskID == "work_and_recheck" then 3
                 elif $shardID == "s10.4.current.default-light"
                      and $taskID == "report_comprehension" then 1
                 elif $shardID == "s10.4.current.default-dark"
@@ -2301,7 +2333,7 @@ jobs:
                 elif $shardID == "s10.4.current.ax-text"
                      and $taskID == "report_comprehension" then 3
                 elif $shardID == "s10.4.current.ax-text"
-                     and $taskID == "work_and_recheck" then 2
+                     and $taskID == "work_and_recheck" then 3
                 elif $shardID == "s10.4.current.default-light"
                      and $taskID == "report_comprehension" then 1
                 elif $shardID == "s10.4.current.default-dark"
@@ -2379,8 +2411,8 @@ jobs:
                        or ($matchedExceptionStateIDs | length) > 1) then
                    error("reduce-transparency contrast exception bound exceeded")
                 elif $shard == "s10.4.current.ax-text"
-                     and (($matchedAuthorities | length) > 9
-                       or ($matchedExceptionStateIDs | length) > 7) then
+                     and (($matchedAuthorities | length) > 10
+                       or ($matchedExceptionStateIDs | length) > 8) then
                    error("AX-text contrast exception bound exceeded")
                  elif $shard != "s10.4.current.default-light"
                       and $shard != "s10.4.current.default-dark"
@@ -2700,8 +2732,8 @@ jobs:
                         ($matchedAuthorities | length) <= 1
                         and ($matchedExceptionStateIDs | length) <= 1
                       elif $shard == "s10.4.current.ax-text" then
-                        ($matchedAuthorities | length) <= 9
-                        and ($matchedExceptionStateIDs | length) <= 7
+                        ($matchedAuthorities | length) <= 10
+                        and ($matchedExceptionStateIDs | length) <= 8
                       else
                         ($matchedAuthorities | length) == 0
                         and ($matchedExceptionStateIDs | length) == 0
