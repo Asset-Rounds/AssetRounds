@@ -350,6 +350,28 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
         ),
         ContrastAuditExceptionSignature(
+            issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-RECHECK-CAPTURE-WIDE-READY-CANNOT-COMPLETE",
+            shardID: "s10.4.current.ax-text",
+            stateID: "state.recheck-capture.wide-ready",
+            taskID: "work_and_recheck",
+            owner: "palatis3",
+            expiresAt: "2026-11-20",
+            rationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Cannot complete button whose frozen public frame begins in the final 4.33333333333337 points of the 874-point application viewport and extends almost entirely below it in the AX-text recheck-capture wide-ready state; the live capture composition already places Take photo and Choose from Photos above it while Import test photo continues below it, so the required ordered controls cannot fit simultaneously within the visible application composition under rigid translation, and the exception is limited to the frozen public issue signature.",
+            auditTypeRawValue: "1",
+            compactDescription: "Contrast failed",
+            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+            elementIdentifier: "s3.capture.cannot-complete",
+            elementLabel: "Cannot complete",
+            elementTypeDescription: "XCUIElementType(rawValue: 9)",
+            elementFrame: CGRect(
+                x: 28,
+                y: 869.66666666666663,
+                width: 254,
+                height: 125.33333333333337
+            ),
+            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
+        ),
+        ContrastAuditExceptionSignature(
             issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS",
             shardID: "s10.4.current.ax-text",
             stateID: "state.report-history.ready",
@@ -5522,9 +5544,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         XCTAssertTrue(element("s3.capture.screen", in: app)
             .waitForExistence(timeout: 20))
-        if automationSegment == .segment2 {
-            try diagnoseSegment2AXTextRecheckCaptureWideReadyNativeContrast(in: app)
-        }
         captureBaseline("state.recheck-capture.wide-ready", in: app)
         acceptImportedPhoto(
             in: app,
@@ -8741,284 +8760,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(failure.waitForNonExistence(timeout: 30))
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
             .waitForExistence(timeout: 30))
-    }
-
-    @MainActor
-    private func diagnoseSegment2AXTextRecheckCaptureWideReadyNativeContrast(
-        in app: XCUIApplication
-    ) throws {
-        let stateID = "state.recheck-capture.wide-ready"
-        let expectedMigratedStateIDs = Array(
-            Self.segmentedRouteStateIDs[22..<27]
-        )
-        let expectedContrastExceptionStateIDs = [
-            "state.issue.recheck-due",
-            "state.recheck-preflight.ready",
-            "state.work.validation-error",
-        ]
-        guard let shard = automationShard,
-              shard.shardID == "s10.4.current.ax-text",
-              automationSegment == .segment2,
-              automationSegment.replayCount == 22,
-              automationSegment.ownedStartOrdinal == 23,
-              automationSegment.ownedCount == 28,
-              automationSegment.finalOrdinal == 50,
-              Self.segmentedRouteStateIDs.count == 67,
-              Set(Self.segmentedRouteStateIDs).count == 67,
-              Self.segmentedRouteStateIDs[27] == stateID,
-              segmentedRouteStateCursor == 27,
-              migratedStateIDs == expectedMigratedStateIDs,
-              automationAXTreeDigests.keys.sorted()
-                == expectedMigratedStateIDs.sorted(),
-              automationContrastExceptions.keys.sorted()
-                == expectedContrastExceptionStateIDs,
-              !automatedSegmentFinished,
-              app.state == .runningForeground else {
-            throw AutomationConfigurationError.invalid(
-                "S10.4 AX-text recheck-capture wide-ready native contrast diagnostic gate is invalid"
-            )
-        }
-
-        let diagnosticQueryBindings: [(
-            name: String,
-            query: XCUIElementQuery
-        )] = [
-            (
-                "captureScreens",
-                app.descendants(matching: .any).matching(
-                    identifier: "s3.capture.screen"
-                )
-            ),
-            (
-                "captureScrollViews",
-                app.scrollViews.matching(identifier: "s3.capture.screen")
-            ),
-            (
-                "captureHeadings",
-                app.descendants(matching: .any).matching(
-                    identifier: "s3.capture.heading"
-                )
-            ),
-            (
-                "takePhotoControls",
-                app.descendants(matching: .any).matching(
-                    identifier: "s3.capture.take-photo"
-                )
-            ),
-            (
-                "choosePhotosControls",
-                app.descendants(matching: .any).matching(
-                    identifier: "s3.capture.choose-photos"
-                )
-            ),
-            (
-                "cannotCompleteControls",
-                app.descendants(matching: .any).matching(
-                    identifier: "s3.capture.cannot-complete"
-                )
-            ),
-            (
-                "importFixtureControls",
-                app.descendants(matching: .any).matching(
-                    identifier: "s3.capture.import-fixture"
-                )
-            ),
-            (
-                "capturePreviews",
-                app.descendants(matching: .any).matching(
-                    identifier: "s3.capture.preview"
-                )
-            ),
-            ("navigationBars", app.navigationBars),
-            ("tabBars", app.tabBars),
-            ("keyboards", app.keyboards),
-            (
-                "inputViews",
-                app.otherElements.matching(
-                    NSPredicate(format: "identifier == %@", "inputView")
-                )
-            ),
-        ]
-        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
-            element in
-            let valueObject: Any
-            if let value = element.value as? String {
-                valueObject = value
-            } else {
-                valueObject = NSNull()
-            }
-            return [
-                "exists": element.exists,
-                "isEnabled": element.isEnabled,
-                "isHittable": element.isHittable,
-                "identifier": element.identifier,
-                "label": element.label,
-                "value": valueObject,
-                "elementTypeRawValue": element.elementType.rawValue,
-                "elementTypeDescription": String(describing: element.elementType),
-                "frame": self.auditFrameObject(element.frame),
-            ]
-        }
-        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
-            query in
-            let count = query.count
-            var elements: [[String: Any]] = []
-            for index in 0..<count {
-                elements.append(
-                    diagnosticElementObject(query.element(boundBy: index))
-                )
-            }
-            return [
-                "count": count,
-                "elements": elements,
-            ]
-        }
-        var diagnosticQueryObjects: [String: Any] = [:]
-        for binding in diagnosticQueryBindings {
-            diagnosticQueryObjects[binding.name] = diagnosticQueryObject(binding.query)
-        }
-        let diagnosticContext: [String: Any] = [
-            "schemaVersion": 1,
-            "acceptanceEligible": false,
-            "shardID": shard.shardID,
-            "requirementID": shard.requirementID,
-            "deviceProfileID": shard.deviceProfileID,
-            "segmentID": automationSegment.rawValue,
-            "segmentReplayCount": automationSegment.replayCount,
-            "segmentOwnedStartOrdinal": automationSegment.ownedStartOrdinal,
-            "segmentOwnedCount": automationSegment.ownedCount,
-            "segmentFinalOrdinal": automationSegment.finalOrdinal,
-            "segmentStateCursor": segmentedRouteStateCursor,
-            "stateID": stateID,
-            "stateOrdinal": 28,
-            "predecessorStateID": "state.recheck-preflight.ready",
-            "predecessorOrdinal": 27,
-            "successorStateID": "state.recheck-capture.wide-preview",
-            "successorOrdinal": 29,
-            "migratedStateIDs": migratedStateIDs,
-            "axTreeDigestStateIDs": automationAXTreeDigests.keys.sorted(),
-            "contrastExceptionStateIDs": automationContrastExceptions.keys.sorted(),
-            "applicationState": String(describing: app.state),
-            "applicationStateRawValue": app.state.rawValue,
-            "applicationForeground": app.state == .runningForeground,
-            "applicationFrame": auditFrameObject(app.frame),
-            "application": diagnosticElementObject(app),
-            "queries": diagnosticQueryObjects,
-        ]
-        printJSONLine(
-            prefix:
-                "S10_4_AX_TEXT_RECHECK_CAPTURE_WIDE_READY_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
-            object: diagnosticContext
-        )
-
-        let appAttachment = XCTAttachment(screenshot: app.screenshot())
-        appAttachment.name =
-            "S10.4 AX-text recheck-capture wide-ready native contrast diagnostic app"
-        appAttachment.lifetime = .keepAlways
-        add(appAttachment)
-        let treeAttachment = XCTAttachment(string: app.debugDescription)
-        treeAttachment.name =
-            "S10.4 AX-text recheck-capture wide-ready native contrast diagnostic tree"
-        treeAttachment.lifetime = .keepAlways
-        add(treeAttachment)
-        let contextData = try JSONSerialization.data(
-            withJSONObject: diagnosticContext,
-            options: [.prettyPrinted, .sortedKeys]
-        )
-        let contextAttachment = XCTAttachment(
-            string: String(decoding: contextData, as: UTF8.self)
-        )
-        contextAttachment.name =
-            "S10.4 AX-text recheck-capture wide-ready native contrast diagnostic context"
-        contextAttachment.lifetime = .keepAlways
-        add(contextAttachment)
-
-        var observedIssueCount = 0
-        var auditedElementCount = 0
-        try app.performAccessibilityAudit(for: .contrast) { issue in
-            observedIssueCount += 1
-            let auditedElement = issue.element
-            var diagnosticIssue: [String: Any] = [
-                "schemaVersion": 1,
-                "acceptanceEligible": false,
-                "shardID": shard.shardID,
-                "requirementID": shard.requirementID,
-                "deviceProfileID": shard.deviceProfileID,
-                "segmentID": self.automationSegment.rawValue,
-                "segmentStateCursor": self.segmentedRouteStateCursor,
-                "stateID": stateID,
-                "stateOrdinal": 28,
-                "issueOrdinal": observedIssueCount,
-                "auditTypeRawValue": String(issue.auditType.rawValue),
-                "compactDescription": issue.compactDescription,
-                "detailedDescription": issue.detailedDescription,
-                "elementExists": NSNull(),
-                "elementEnabled": NSNull(),
-                "elementHittable": NSNull(),
-                "elementIdentifier": NSNull(),
-                "elementLabel": NSNull(),
-                "elementValue": NSNull(),
-                "elementTypeRawValue": NSNull(),
-                "elementTypeDescription": NSNull(),
-                "elementFrame": NSNull(),
-                "applicationFrame": self.auditFrameObject(app.frame),
-            ]
-            if let auditedElement {
-                auditedElementCount += 1
-                let valueObject: Any
-                if let value = auditedElement.value as? String {
-                    valueObject = value
-                } else {
-                    valueObject = NSNull()
-                }
-                diagnosticIssue["elementExists"] = auditedElement.exists
-                diagnosticIssue["elementEnabled"] = auditedElement.isEnabled
-                diagnosticIssue["elementHittable"] = auditedElement.isHittable
-                diagnosticIssue["elementIdentifier"] = auditedElement.identifier
-                diagnosticIssue["elementLabel"] = auditedElement.label
-                diagnosticIssue["elementValue"] = valueObject
-                diagnosticIssue["elementTypeRawValue"] =
-                    auditedElement.elementType.rawValue
-                diagnosticIssue["elementTypeDescription"] =
-                    String(describing: auditedElement.elementType)
-                diagnosticIssue["elementFrame"] =
-                    self.auditFrameObject(auditedElement.frame)
-            }
-            self.printJSONLine(
-                prefix:
-                    "S10_4_AX_TEXT_RECHECK_CAPTURE_WIDE_READY_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
-                object: diagnosticIssue
-            )
-            if let auditedElement {
-                let issueAttachment = XCTAttachment(
-                    screenshot: auditedElement.screenshot()
-                )
-                issueAttachment.name =
-                    "S10.4 AX-text recheck-capture wide-ready native contrast diagnostic audited element "
-                        + String(observedIssueCount)
-                issueAttachment.lifetime = .keepAlways
-                self.add(issueAttachment)
-            }
-            return true
-        }
-        printJSONLine(
-            prefix:
-                "S10_4_AX_TEXT_RECHECK_CAPTURE_WIDE_READY_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
-            object: [
-                "schemaVersion": 1,
-                "acceptanceEligible": false,
-                "shardID": shard.shardID,
-                "segmentID": automationSegment.rawValue,
-                "stateID": stateID,
-                "stateOrdinal": 28,
-                "segmentStateCursor": segmentedRouteStateCursor,
-                "observedIssueCount": observedIssueCount,
-                "auditedElementCount": auditedElementCount,
-            ]
-        )
-        throw AutomationConfigurationError.invalid(
-            "S10.4 AX-text recheck-capture wide-ready native contrast diagnostic completed nonaccepting"
-        )
     }
 
     @MainActor

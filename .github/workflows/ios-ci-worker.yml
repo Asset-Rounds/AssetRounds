@@ -1837,6 +1837,32 @@ jobs:
                 ]
               },
               {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.recheck-capture.wide-ready",
+                taskID: "work_and_recheck",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-RECHECK-CAPTURE-WIDE-READY-CANNOT-COMPLETE",
+                exceptionOwner: "palatis3",
+                exceptionExpiresAt: "2026-11-20",
+                exceptionRationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Cannot complete button whose frozen public frame begins in the final 4.33333333333337 points of the 874-point application viewport and extends almost entirely below it in the AX-text recheck-capture wide-ready state; the live capture composition already places Take photo and Choose from Photos above it while Import test photo continues below it, so the required ordered controls cannot fit simultaneously within the visible application composition under rigid translation, and the exception is limited to the frozen public issue signature.",
+                ignoredAuditIssues: [
+                  {
+                    auditTypeRawValue: "1",
+                    compactDescription: "Contrast failed",
+                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+                    elementIdentifier: "s3.capture.cannot-complete",
+                    elementLabel: "Cannot complete",
+                    elementType: "XCUIElementType(rawValue: 9)",
+                    elementFrame: {
+                      x: 28,
+                      y: 869.66666666666663,
+                      width: 254,
+                      height: 125.33333333333337
+                    },
+                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}
+                  }
+                ]
+              },
+              {
                 shardID: "s10.4.current.default-dark",
                 stateID: "state.feedback.review-ready",
                 taskID: "history_recovery",
@@ -2047,10 +2073,10 @@ jobs:
             ]
           ' > "$contrast_exception_authority_path"
           jq -e --arg today "$(date -u +%F)" '
-            length == 18
-            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 16
-            and ([.[].exceptionIssueID] | unique | length) == 18
-            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 13
+            length == 19
+            and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 17
+            and ([.[].exceptionIssueID] | unique | length) == 19
+            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 14
             and ([.[]
               | select(.exceptionIssueID | IN(
                   "S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER",
@@ -2070,7 +2096,7 @@ jobs:
                   "S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER",
                   "S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER"
                 )) | not)
-              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 12
+              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 13
             and ([.[] | {shardID, stateID, taskID, exceptionIssueID}]
               | sort_by(.shardID, .stateID, .exceptionIssueID)) == ([
               {
@@ -2096,6 +2122,12 @@ jobs:
                 stateID: "state.new-sign.editing",
                 taskID: "one_handed_start",
                 exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME"
+              },
+              {
+                shardID: "s10.4.current.ax-text",
+                stateID: "state.recheck-capture.wide-ready",
+                taskID: "work_and_recheck",
+                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-RECHECK-CAPTURE-WIDE-READY-CANNOT-COMPLETE"
               },
               {
                 shardID: "s10.4.current.ax-text",
@@ -2310,7 +2342,7 @@ jobs:
                 elif $shardID == "s10.4.current.ax-text"
                      and $taskID == "report_comprehension" then 4
                 elif $shardID == "s10.4.current.ax-text"
-                     and $taskID == "work_and_recheck" then 3
+                     and $taskID == "work_and_recheck" then 4
                 elif $shardID == "s10.4.current.default-light"
                      and $taskID == "report_comprehension" then 1
                 elif $shardID == "s10.4.current.default-dark"
@@ -2333,7 +2365,7 @@ jobs:
                 elif $shardID == "s10.4.current.ax-text"
                      and $taskID == "report_comprehension" then 3
                 elif $shardID == "s10.4.current.ax-text"
-                     and $taskID == "work_and_recheck" then 3
+                     and $taskID == "work_and_recheck" then 4
                 elif $shardID == "s10.4.current.default-light"
                      and $taskID == "report_comprehension" then 1
                 elif $shardID == "s10.4.current.default-dark"
@@ -2411,8 +2443,8 @@ jobs:
                        or ($matchedExceptionStateIDs | length) > 1) then
                    error("reduce-transparency contrast exception bound exceeded")
                 elif $shard == "s10.4.current.ax-text"
-                     and (($matchedAuthorities | length) > 10
-                       or ($matchedExceptionStateIDs | length) > 8) then
+                     and (($matchedAuthorities | length) > 11
+                       or ($matchedExceptionStateIDs | length) > 9) then
                    error("AX-text contrast exception bound exceeded")
                  elif $shard != "s10.4.current.default-light"
                       and $shard != "s10.4.current.default-dark"
@@ -2636,6 +2668,8 @@ jobs:
                 elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.issue.recheck-due" then 1
                 elif $shardID == "s10.4.current.ax-text"
+                     and $stateID == "state.recheck-capture.wide-ready" then 1
+                elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.report-history.ready" then 1
                 elif $shardID == "s10.4.current.ax-text"
                      and $stateID == "state.reports-index.ready" then 2
@@ -2732,8 +2766,8 @@ jobs:
                         ($matchedAuthorities | length) <= 1
                         and ($matchedExceptionStateIDs | length) <= 1
                       elif $shard == "s10.4.current.ax-text" then
-                        ($matchedAuthorities | length) <= 10
-                        and ($matchedExceptionStateIDs | length) <= 8
+                        ($matchedAuthorities | length) <= 11
+                        and ($matchedExceptionStateIDs | length) <= 9
                       else
                         ($matchedAuthorities | length) == 0
                         and ($matchedExceptionStateIDs | length) == 0
