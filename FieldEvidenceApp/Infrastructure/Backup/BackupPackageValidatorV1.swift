@@ -476,7 +476,19 @@ private extension BackupPackageValidatorV1 {
         default:
             sourceIdentityIsValid = false
         }
+        let schemaPairIsValid: Bool
+        switch (
+            manifest.backupSchemaVersion,
+            manifest.source.persistentSchemaVersion,
+            manifest.source.recordsSchemaVersion
+        ) {
+        case (1, 1, 1), (2, 1, 1), (2, 3, 2):
+            schemaPairIsValid = true
+        default:
+            schemaPairIsValid = false
+        }
         guard sourceIdentityIsValid,
+              schemaPairIsValid,
               manifest.entries.count <= limits.maximumEntryCount,
               manifest.declaredPayloadByteCount >= 0 else {
             throw BackupPackageValidationErrorV1.invalidPackage
@@ -525,6 +537,7 @@ private extension BackupPackageValidatorV1 {
         _ records: V4BackupRecordsV1,
         manifest: V4BackupManifestV1
     ) throws {
+        try validateDeletionLedger(records, manifest: manifest)
         let allIDs = records.sites.map(\.id) + records.assets.map(\.id)
             + records.workflowRecords.map(\.id) + records.evidenceFiles.map(\.id)
             + records.issues.map(\.id) + records.packets.map(\.id)
@@ -549,7 +562,6 @@ private extension BackupPackageValidatorV1 {
                             in: .whitespacesAndNewlines
                         ) && TimeZone.knownTimeZoneIdentifiers.contains(value)
                     }) ?? true)
-                    && records.assets.contains(where: { $0.siteID == site.id })
               }),
               records.assets.allSatisfy({ asset in
                   asset.schemaVersion == 1
@@ -796,6 +808,57 @@ private extension BackupPackageValidatorV1 {
         guard unique(records.packets.map(\.stableRootID)),
               counted == manifest.consumedEvaluationRootIDs,
               manifest.packs == expectedPacks else { throw invalid() }
+    }
+
+    func validateDeletionLedger(
+        _ records: V4BackupRecordsV1,
+        manifest: V4BackupManifestV1
+    ) throws {
+        guard records.recordsSchemaVersion == manifest.source.recordsSchemaVersion else {
+            throw invalid()
+        }
+        switch (records.recordsSchemaVersion, records.deletionLedger) {
+        case (1, nil):
+            return
+        case (2, let ledger?):
+            do { try ledger.validate() }
+            catch { throw invalid() }
+            guard ledger.entries.count <= DeletionLedgerV2.maximumEntryCount else {
+                throw invalid()
+            }
+            let byIdentity = Dictionary(
+                uniqueKeysWithValues: ledger.entries.map { ($0.identity, $0) }
+            )
+            func deleted(_ kind: DeletionRecordKindV2, _ id: UUID) throws -> Bool {
+                byIdentity[try DeletionIdentityV2(kind: kind, id: id)] != nil
+            }
+            guard try records.sites.allSatisfy({ try !deleted(.site, $0.id) }),
+                  try records.assets.allSatisfy({ try !deleted(.asset, $0.id) }),
+                  try records.workflowRecords.allSatisfy({
+                      try !deleted(.workflowRecord, $0.id)
+                  }),
+                  try records.evidenceFiles.allSatisfy({
+                      try !deleted(.evidenceFile, $0.id)
+                  }),
+                  try records.issues.allSatisfy({ try !deleted(.issue, $0.id) }),
+                  try records.reports.allSatisfy({ try !deleted(.report, $0.id) }) else {
+                throw invalid()
+            }
+            for packet in records.packets {
+                let identity = try DeletionIdentityV2(kind: .packet, id: packet.id)
+                if packet.currentRecordID == nil {
+                    guard packet.evaluationCounted,
+                          let deletedAt = packet.contentDeletedAt,
+                          byIdentity[identity]?.deletedAt == deletedAt else {
+                        throw invalid()
+                    }
+                } else if byIdentity[identity] != nil {
+                    throw invalid()
+                }
+            }
+        default:
+            throw invalid()
+        }
     }
 
     func validCurrentIssueState(

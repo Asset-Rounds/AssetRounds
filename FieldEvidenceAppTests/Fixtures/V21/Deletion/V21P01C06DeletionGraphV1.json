@@ -1,0 +1,483 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "afterDelete": {
+    "assetFileIDs": [],
+    "emptySiteIDs": [
+      "00000000-0000-4000-8000-000000000001"
+    ],
+    "ledgerEntries": [
+      {
+        "deletedAt": "2026-01-02T03:04:05Z",
+        "identity": {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "kind": "asset"
+        },
+        "schemaVersion": 2
+      },
+      {
+        "deletedAt": "2026-01-02T03:04:05Z",
+        "identity": {
+          "id": "00000000-0000-4000-8000-000000000005",
+          "kind": "evidenceFile"
+        },
+        "schemaVersion": 2
+      },
+      {
+        "deletedAt": "2026-01-02T03:04:05Z",
+        "identity": {
+          "id": "00000000-0000-4000-8000-000000000006",
+          "kind": "issue"
+        },
+        "schemaVersion": 2
+      },
+      {
+        "deletedAt": "2026-01-02T03:04:05Z",
+        "identity": {
+          "id": "00000000-0000-4000-8000-000000000003",
+          "kind": "packet"
+        },
+        "schemaVersion": 2
+      },
+      {
+        "deletedAt": "2026-01-02T03:04:05Z",
+        "identity": {
+          "id": "00000000-0000-4000-8000-000000000007",
+          "kind": "report"
+        },
+        "schemaVersion": 2
+      },
+      {
+        "deletedAt": "2026-01-02T03:04:05Z",
+        "identity": {
+          "id": "00000000-0000-4000-8000-000000000004",
+          "kind": "workflowRecord"
+        },
+        "schemaVersion": 2
+      }
+    ],
+    "nodes": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "kind": "site"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000008",
+        "kind": "site"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000009",
+        "kind": "asset",
+        "parentID": "00000000-0000-4000-8000-000000000008"
+      },
+      {
+        "id": "00000000-0000-4000-8000-00000000000a",
+        "kind": "packet",
+        "parentID": "00000000-0000-4000-8000-000000000009"
+      }
+    ]
+  },
+  "artifactDigest": "b5431c5683fdddc9624da1134d792f16b3d377773a7f83585ed5cf836e7cbbc3",
+  "authority": {
+    "acceptedS10_6BaselineDigest": null,
+    "activeS10OverlapCount": 0,
+    "authorityCorrectionReceiptDigest": "a8935b4a310b37db1794417d2c9c2538654e27cd43a4d3c02140b7e0aec79099",
+    "authorizedPriorFenceOverlapCount": 32,
+    "baseHead": "417aec8af085ac4e01d4b73c822ba99511a14611",
+    "baseTree": "147f18696ca118a577b000c85850b47ddad82bfc",
+    "branch": "phase/v23-expansion",
+    "conformanceSubjectSet": "KernelConformanceSubjectSetV1",
+    "contextDigest": "ef201489b04abbbbddec862efd462bdba4afcb4a43b50e57f2e1f285bde4f4ad",
+    "coordinationAuthorityHead": "438505bfbe87613ad3afa2309ff978d6a15f8f2a",
+    "coordinationCASSequence": 74,
+    "coordinationLedgerDigest": "201eb3d1d49742fc7412ca4d41d722162ca5451857f188c9ed31cb7999a7b4b0",
+    "coordinationLedgerSequence": 74,
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P01-C06-G01",
+      "V23-P01-C06-A01",
+      "V23-P01-C06-H01",
+      "V23-P01-C06-I01",
+      "V23-P01-C06-R01"
+    ],
+    "directPrerequisite": "V23-P01-C05",
+    "dossierDigest": "41ab6dd6355216800cce04b50e2f9d2a28ee43e7dfe4609aa2063e7483a4b739",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationCorrectionReceiptDigest": "a8935b4a310b37db1794417d2c9c2538654e27cd43a4d3c02140b7e0aec79099",
+    "hydrationRevision": 2,
+    "hydrationTransitionDigest": "a11aeaf21b80f95eeb5a9c047effeccbad30b84c54f7c8260330e2b6bce3eca7",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "62e25505dd8d40524b6a5a2f8ef25116f78be7e7bc0c85b887ae5a0ca5cabef3",
+    "invalidationConsumer": "V23-P01-C07",
+    "lineage": "REFINED_WITHOUT_LOSS",
+    "ownerParallelOverrideAuthorityReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "ownerParallelOverrideReason": "OWNER_AUTHORIZED_PRE_S10_6_ORDERED_IMPLEMENTATION_V4",
+    "pathFenceDigest": "914d1e54c267c4069f2f0c89920107012ebbf372301adccf9d79b7a50cf4819c",
+    "priorCoordinationLedgerDigest": "d285fc795036fc441a7ee796962232e04d6c7f4606576691b463e253467c7467",
+    "provisionalPrerequisiteDigest": "8bb9b15619b5d5029ce8947c9ff345fcbd15259699e26fff91863d81c1c3d8d3",
+    "registerRowDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "registeredKindPolicy": {
+      "coverageRequirement": "ALL_CURRENTLY_REGISTERED_KINDS",
+      "currentPersistentTagKindPresent": false,
+      "dormantTagEntityAuthorized": false,
+      "futureRegistrationRequirement": "ADD_DELETION_KIND_AND_REVOCATION_CONTRACT_WITH_REGISTRATION"
+    },
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "supersedesFenceDigest": "6d5cec5dd55f856160c824d8bec254ee35207d366b184a52fc84900a83e55cdd"
+  },
+  "beforeDelete": {
+    "assetFileIDs": [
+      "00000000-0000-4000-8000-000000000005"
+    ],
+    "nodes": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "kind": "site"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "kind": "asset",
+        "parentID": "00000000-0000-4000-8000-000000000001"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000004",
+        "kind": "workflowRecord",
+        "parentID": "00000000-0000-4000-8000-000000000002"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000005",
+        "kind": "evidenceFile",
+        "parentID": "00000000-0000-4000-8000-000000000004"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000006",
+        "kind": "issue",
+        "parentID": "00000000-0000-4000-8000-000000000002"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "kind": "packet",
+        "parentID": "00000000-0000-4000-8000-000000000002"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000007",
+        "kind": "report",
+        "parentID": "00000000-0000-4000-8000-000000000003"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000008",
+        "kind": "site"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000009",
+        "kind": "asset",
+        "parentID": "00000000-0000-4000-8000-000000000008"
+      },
+      {
+        "id": "00000000-0000-4000-8000-00000000000a",
+        "kind": "packet",
+        "parentID": "00000000-0000-4000-8000-000000000009"
+      }
+    ]
+  },
+  "cardID": "V23-P01-C06",
+  "cases": [
+    {
+      "evidenceID": "V23-P01-C06-G01",
+      "expectedOutcome": "TOMBSTONE_WINS_AND_EMPTY_SITE_SURVIVES",
+      "family": "G01",
+      "id": "DELETE_THEN_RESTORE_ALL_MODES",
+      "modes": [
+        "EMPTY_INSTALL",
+        "REPLACE_EXISTING",
+        "CLONE",
+        "FORK"
+      ]
+    },
+    {
+      "evidenceID": "V23-P01-C06-G01",
+      "expectedOutcome": "SITE_REMAINS_VALID_WITHOUT_ASSETS",
+      "family": "G01",
+      "id": "FINAL_ASSET_DELETE_PRESERVES_EMPTY_SITE",
+      "modes": [
+        "EMPTY_INSTALL",
+        "REPLACE_EXISTING",
+        "CLONE",
+        "FORK"
+      ]
+    },
+    {
+      "evidenceID": "V23-P01-C06-A01",
+      "expectedOutcome": "NEW_IDENTITY_MATERIALIZES_WHILE_OLD_TOMBSTONE_REMAINS",
+      "family": "A01",
+      "id": "DELETE_RECREATE_DISTINCT_IDENTITY",
+      "modes": [
+        "REPLACE_EXISTING"
+      ]
+    },
+    {
+      "evidenceID": "V23-P01-C06-A01",
+      "expectedOutcome": "FILES_CLEANED_BY_SEPARATE_SERVICE",
+      "family": "A01",
+      "id": "ORPHAN_CLEANUP_AFTER_GRAPH_DELETE",
+      "modes": [
+        "ALL"
+      ]
+    },
+    {
+      "evidenceID": "V23-P01-C06-H01",
+      "expectedOutcome": "REJECT_LIVE_RECORD_AGAINST_TOMBSTONE",
+      "family": "H01",
+      "id": "OLD_ARCHIVE_RESURRECTION",
+      "modes": [
+        "ALL"
+      ]
+    },
+    {
+      "evidenceID": "V23-P01-C06-H01",
+      "expectedOutcome": "FAIL_CLOSED_PRESERVE_LEDGER",
+      "family": "H01",
+      "id": "REVOKED_KIND_AND_UNKNOWN_KIND",
+      "modes": [
+        "ALL"
+      ]
+    },
+    {
+      "evidenceID": "V23-P01-C06-H01",
+      "expectedOutcome": "REJECT_UNVERIFIED_CLEAR",
+      "family": "H01",
+      "id": "NON_ERASE_LEDGER_CLEAR",
+      "modes": [
+        "ALL"
+      ]
+    },
+    {
+      "evidenceID": "V23-P01-C06-I01",
+      "expectedOutcome": "TOMBSTONES_RETAINED_AND_FORWARD_CLEANUP",
+      "family": "I01",
+      "id": "PARTIAL_GRAPH_DELETION",
+      "modes": [
+        "ALL"
+      ]
+    },
+    {
+      "evidenceID": "V23-P01-C06-I01",
+      "expectedOutcome": "RELAUNCH_FORWARD_RECOVERY",
+      "family": "I01",
+      "id": "INTERRUPTED_ERASE_EACH_PHASE",
+      "modes": [
+        "ALL"
+      ]
+    },
+    {
+      "evidenceID": "V23-P01-C06-I01",
+      "expectedOutcome": "DURABLE_MARKER_PRECEDES_TARGET_GENERATION",
+      "family": "I01",
+      "id": "ERASE_PREPARATION_MARKER_BEFORE_TARGET",
+      "modes": [
+        "ALL"
+      ]
+    },
+    {
+      "evidenceID": "V23-P01-C06-I01",
+      "expectedOutcome": "DISCARD_PREPARED_TARGET_ONLY_AFTER_MANIFEST_PROOF",
+      "family": "I01",
+      "id": "CORE_DISCARD_SEAM_MANIFEST_FIRST",
+      "modes": [
+        "ALL"
+      ]
+    },
+    {
+      "evidenceID": "V23-P01-C06-R01",
+      "expectedOutcome": "NO_LEDGER_CLEAR_UNTIL_VERIFIED_ERASE",
+      "family": "R01",
+      "id": "DISABLED_DELETE_PATH_RETAIN_TOMBSTONES",
+      "modes": [
+        "ALL"
+      ]
+    },
+    {
+      "evidenceID": "V23-P01-C06-R01",
+      "expectedOutcome": "EMPTY_GENERATION_AND_LEDGER_CLEAR",
+      "family": "R01",
+      "id": "VERIFIED_COMPLETE_ERASE_CLEARS_LEDGER",
+      "modes": [
+        "ALL"
+      ]
+    },
+    {
+      "evidenceID": "V23-P01-C06-R01",
+      "expectedOutcome": "RECONCILE_PREPARATION_MARKER_WITHOUT_CLEARING_LEDGER",
+      "family": "R01",
+      "id": "NO_INTENT_ORPHAN_PREPARATION_RECOVERY",
+      "modes": [
+        "ALL"
+      ]
+    }
+  ],
+  "clock": {
+    "recreateAt": "2026-01-02T03:05:05Z",
+    "tombstoneAt": "2026-01-02T03:04:05Z"
+  },
+  "coverage": {
+    "allCurrentlyRegisteredKinds": true,
+    "allDeletionModes": true,
+    "deletionWins": true,
+    "emptySitePreserved": true,
+    "eraseOnlyClearing": true,
+    "erasePreparationMarkerRecovery": true,
+    "evidenceIDs": [
+      "V23-P01-C06-G01",
+      "V23-P01-C06-A01",
+      "V23-P01-C06-H01",
+      "V23-P01-C06-I01",
+      "V23-P01-C06-R01"
+    ],
+    "families": [
+      "G01",
+      "A01",
+      "H01",
+      "I01",
+      "R01"
+    ],
+    "manifestFirstDiscard": true,
+    "noIntentOrphanRecovery": true,
+    "orphanCleanupSeparated": true,
+    "privacyMinimalTombstones": true,
+    "unknownKindFailClosed": true
+  },
+  "deletionModes": [
+    {
+      "destinationPrecondition": "NO_CANONICAL_WORKSPACE",
+      "emptySiteDisposition": "PRESERVE_IF_FINAL_ASSET_DELETED",
+      "existingDestinationDisposition": "NONE",
+      "incomingLiveDisposition": "REJECT_IF_CURRENT_LEDGER_TOMBSTONE",
+      "incomingTombstoneDisposition": "PRESERVE",
+      "ledgerOperation": "UNION_INCOMING_TOMBSTONES_DELETION_WINS",
+      "mode": "EMPTY_INSTALL",
+      "sourceReplicaDisposition": "PROVENANCE_ONLY_NEVER_ACTIVE"
+    },
+    {
+      "destinationPrecondition": "EXPLICIT_MATCHED_DESTINATION_AUTHORITY",
+      "emptySiteDisposition": "PRESERVE_IF_FINAL_ASSET_DELETED",
+      "existingDestinationDisposition": "REPLACE_CONTENT_ONLY",
+      "incomingLiveDisposition": "REJECT_IF_CURRENT_LEDGER_TOMBSTONE",
+      "incomingTombstoneDisposition": "PRESERVE",
+      "ledgerOperation": "UNION_CURRENT_AND_INCOMING_DELETION_WINS",
+      "mode": "REPLACE_EXISTING",
+      "sourceReplicaDisposition": "PROVENANCE_ONLY_NEVER_ACTIVE"
+    },
+    {
+      "destinationPrecondition": "EXPLICIT_CLONE_AUTHORIZATION",
+      "emptySiteDisposition": "PRESERVE_IF_FINAL_ASSET_DELETED",
+      "existingDestinationDisposition": "NEW_GENERATION_ONLY",
+      "incomingLiveDisposition": "MATERIALIZE_ONLY_WITHOUT_TOMBSTONE",
+      "incomingTombstoneDisposition": "PRESERVE",
+      "ledgerOperation": "COPY_INCOMING_TOMBSTONES_DELETION_WINS",
+      "mode": "CLONE",
+      "sourceReplicaDisposition": "PROVENANCE_ONLY_NEVER_ACTIVE"
+    },
+    {
+      "destinationPrecondition": "EXPLICIT_FORK_AUTHORIZATION_AND_LINEAGE",
+      "emptySiteDisposition": "PRESERVE_IF_FINAL_ASSET_DELETED",
+      "existingDestinationDisposition": "NEW_GENERATION_ONLY",
+      "incomingLiveDisposition": "MATERIALIZE_ONLY_WITHOUT_TOMBSTONE",
+      "incomingTombstoneDisposition": "PRESERVE",
+      "ledgerOperation": "COPY_INCOMING_TOMBSTONES_DELETION_WINS",
+      "mode": "FORK",
+      "sourceReplicaDisposition": "PROVENANCE_ONLY_NEVER_ACTIVE"
+    }
+  ],
+  "erasePhases": [
+    "empty_generation_prepared",
+    "pointer_switched",
+    "session_activated",
+    "cleanup_complete"
+  ],
+  "erasePreparation": {
+    "coreDiscardSeam": "MANIFEST_FIRST_THEN_TARGET_ROOT",
+    "ledgerClearPredicate": "VERIFIED_COMPLETE_ERASE_ONLY",
+    "markerWriteOrder": "DURABLE_MARKER_BEFORE_TARGET_GENERATION",
+    "noIntentOrphanRecovery": "RECONCILE_MARKER_THEN_DISCARD_OR_RETAIN_LEDGER",
+    "schema": "ErasePreparationV2",
+    "targetBinding": "MARKER_BINDS_TARGET_EMPTY_GENERATION"
+  },
+  "fixtureID": "V21P01C06DeletionGraphV1",
+  "hostedDispatchRan": false,
+  "nativeCompileRan": false,
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "recreated": {
+    "newAssetID": "00000000-0000-4000-8000-00000000000b",
+    "oldAssetID": "00000000-0000-4000-8000-000000000002",
+    "oldTombstonePreserved": true
+  },
+  "registeredKindPolicy": {
+    "coverageRequirement": "ALL_CURRENTLY_REGISTERED_KINDS",
+    "currentPersistentTagKindPresent": false,
+    "dormantTagEntityAuthorized": false,
+    "futureRegistrationRequirement": "ADD_DELETION_KIND_AND_REVOCATION_CONTRACT_WITH_REGISTRATION"
+  },
+  "registeredKinds": [
+    {
+      "identityField": "siteID",
+      "kind": "site",
+      "persistentEntity": "Site",
+      "scope": "workspace"
+    },
+    {
+      "identityField": "assetID",
+      "kind": "asset",
+      "persistentEntity": "Asset",
+      "scope": "site"
+    },
+    {
+      "identityField": "recordID",
+      "kind": "workflowRecord",
+      "persistentEntity": "WorkflowRecord",
+      "scope": "asset"
+    },
+    {
+      "identityField": "evidenceFileID",
+      "kind": "evidenceFile",
+      "persistentEntity": "EvidenceFile",
+      "scope": "workflowRecord"
+    },
+    {
+      "identityField": "issueID",
+      "kind": "issue",
+      "persistentEntity": "Issue",
+      "scope": "asset"
+    },
+    {
+      "identityField": "packetID",
+      "kind": "packet",
+      "persistentEntity": "Packet",
+      "scope": "asset"
+    },
+    {
+      "identityField": "reportID",
+      "kind": "report",
+      "persistentEntity": "Report",
+      "scope": "packet"
+    }
+  ],
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V21P01C06DeletionGraphV1",
+  "schemaVersion": 1,
+  "semanticScope": {
+    "currentPersistentTagKindPresent": false,
+    "deletionRegistryCoverage": "ALL_CURRENTLY_REGISTERED_KINDS",
+    "dormantTagEntityAuthorized": false,
+    "emptySitePolicy": "PRESERVE_AFTER_FINAL_ASSET_DELETION",
+    "futurePersistentKindRegistration": "MUST_ADD_DELETION_KIND_AND_REVOCATION_CONTRACT",
+    "ledgerClearingAuthority": "VERIFIED_COMPLETE_ERASE_ONLY",
+    "orphanCleanup": "SEPARATE_AND_CANNOT_MUTATE_DELETION_LEDGER",
+    "tombstonePolicy": "DELETION_WINS_PRIVACY_MINIMAL_INDEFINITE_UNTIL_VERIFIED_COMPLETE_ERASE",
+    "unknownRecordKindPolicy": "FAIL_CLOSED_PRESERVE_LEDGER"
+  }
+}

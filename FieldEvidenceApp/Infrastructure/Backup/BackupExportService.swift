@@ -467,7 +467,14 @@ private extension BackupExportService {
         let sourceIdentity = try currentStreamingWorkspaceIdentity()
         let rows = try fetchRows()
         try validateGraph(rows)
-        let records = makeRecords(rows)
+        let deletionLedger: DeletionLedgerV2
+        do {
+            deletionLedger = try DeletionLedgerStore(context: modelContext).snapshot()
+            try validateDeletionLedger(deletionLedger, rows: rows)
+        } catch {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        let records = makeRecords(rows, deletionLedger: deletionLedger)
         let recordsData: Data
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
@@ -609,6 +616,8 @@ private extension BackupExportService {
         guard try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
                 == rootIdentity,
               try currentStreamingWorkspaceIdentity() == sourceIdentity,
+              try DeletionLedgerStore(context: modelContext).snapshot()
+                == deletionLedger,
               !modelContext.hasChanges else {
             throw BackupExportServiceError.invalidGeneration
         }
@@ -672,9 +681,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 1,
+                persistentSchemaVersion: 3,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 1,
+                recordsSchemaVersion: 2,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
         )
@@ -1275,10 +1284,7 @@ private extension BackupExportService {
             }
             return packet.currentRecordID == nil ? owners.isEmpty : owners.count == 1
         }
-        guard rows.sites.allSatisfy({ site in
-                  rows.assets.contains(where: { $0.siteID == site.id })
-              }),
-              rows.assets.allSatisfy({ asset in
+        guard rows.assets.allSatisfy({ asset in
                   siteIDs.contains(asset.siteID)
                     && asset.packID == exactPack.packID
                     && asset.packSchemaVersion == exactPack.schemaVersion
@@ -1346,7 +1352,10 @@ private extension BackupExportService {
         }
     }
 
-    private func makeRecords(_ rows: Rows) -> V4BackupRecordsV1 {
+    private func makeRecords(
+        _ rows: Rows,
+        deletionLedger: DeletionLedgerV2? = nil
+    ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             assets: rows.assets.map {
                 .init(
@@ -1356,6 +1365,7 @@ private extension BackupExportService {
                     createdAt: $0.createdAt, updatedAt: $0.updatedAt
                 )
             }.sorted(by: dtoOrder),
+            deletionLedger: deletionLedger,
             evidenceFiles: rows.evidence.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion, recordID: $0.recordID,
@@ -1385,7 +1395,7 @@ private extension BackupExportService {
                     contentDeletedAt: $0.contentDeletedAt, createdAt: $0.createdAt
                 )
             }.sorted(by: dtoOrder),
-            recordsSchemaVersion: 1,
+            recordsSchemaVersion: deletionLedger == nil ? 1 : 2,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -1406,6 +1416,53 @@ private extension BackupExportService {
             }.sorted(by: dtoOrder),
             workflowRecords: rows.records.map(workflowDTO).sorted(by: dtoOrder)
         )
+    }
+
+    func validateDeletionLedger(_ ledger: DeletionLedgerV2, rows: Rows) throws {
+        try ledger.validate()
+        guard ledger.entries.count <= DeletionLedgerV2.maximumEntryCount else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        let deleted = Set(ledger.entries.map(\.identity))
+        func identity(_ kind: DeletionRecordKindV2, _ id: UUID) throws
+            -> DeletionIdentityV2 {
+            try DeletionIdentityV2(kind: kind, id: id)
+        }
+        guard try rows.sites.allSatisfy({
+                  !deleted.contains(try identity(.site, $0.id))
+              }),
+              try rows.assets.allSatisfy({
+                  !deleted.contains(try identity(.asset, $0.id))
+              }),
+              try rows.records.allSatisfy({
+                  !deleted.contains(try identity(.workflowRecord, $0.id))
+              }),
+              try rows.evidence.allSatisfy({
+                  !deleted.contains(try identity(.evidenceFile, $0.id))
+              }),
+              try rows.issues.allSatisfy({
+                  !deleted.contains(try identity(.issue, $0.id))
+              }),
+              try rows.reports.allSatisfy({
+                  !deleted.contains(try identity(.report, $0.id))
+              }) else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        let byIdentity = Dictionary(
+            uniqueKeysWithValues: ledger.entries.map { ($0.identity, $0) }
+        )
+        for packet in rows.packets {
+            let packetIdentity = try identity(.packet, packet.id)
+            if packet.currentRecordID == nil {
+                guard packet.evaluationCounted,
+                      let deletedAt = packet.contentDeletedAt,
+                      byIdentity[packetIdentity]?.deletedAt == deletedAt else {
+                    throw BackupExportServiceError.invalidAuthority
+                }
+            } else if byIdentity[packetIdentity] != nil {
+                throw BackupExportServiceError.invalidAuthority
+            }
+        }
     }
 
     func workflowDTO(_ value: WorkflowRecord) -> V4BackupWorkflowRecordDTO {

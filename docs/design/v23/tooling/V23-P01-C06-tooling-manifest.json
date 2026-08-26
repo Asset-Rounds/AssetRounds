@@ -1,0 +1,163 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "artifactCount": 7,
+  "artifactDigest": "6ac0ae2d33720842d935423c01ce67ea08272d54a4586b96f1e8f6291e0c4fe0",
+  "artifactSetDigest": "1b87eeed6d853fe3ce0ab77da4e9685688c034cd2ea7c3e8e16e5b92be8e1a68",
+  "artifacts": [
+    {
+      "bytes": 35508,
+      "path": "Scripts/v23/p01_c06_contracts.py",
+      "sha256": "6c68cd01cb538a074dbcfe49f046072629ea98d39af9dbc2075f9bc480dbe098"
+    },
+    {
+      "bytes": 1716,
+      "path": "Scripts/v23/generate_p01_c06_contracts.py",
+      "sha256": "1cebca1fa47e9754f210a1d7f7503857d777bc81f8c56010153aedeb21d85fb8"
+    },
+    {
+      "bytes": 20441,
+      "path": "Scripts/v23/verify_p01_c06_contracts.py",
+      "sha256": "9743c28085bf83e0aabecc33e3220c29fe15d6083708a5dfd5c05884ae00b351"
+    },
+    {
+      "bytes": 87686,
+      "path": "Scripts/v23/deletion-ledger.schema.json",
+      "sha256": "746e21af0c2c53381d08421cf2cb9dce15c4f30f20a8ed2f4bc8f7e2ad58f856"
+    },
+    {
+      "bytes": 52978,
+      "path": "Scripts/v23/deletion-graph-fixture.schema.json",
+      "sha256": "0d0198bce7a4eb49c414f6bd12e204927e6910392ff824708b9cd322ff6b6929"
+    },
+    {
+      "bytes": 28781,
+      "path": "docs/design/v23/tooling/V23P01C06DeletionRightsContractV1.json",
+      "sha256": "4250ed5c5c6aad2f6278bc0114ef3b426b01d0eea6bff03e0bdc5a824dc383cd"
+    },
+    {
+      "bytes": 15010,
+      "path": "docs/design/v23/tooling/V23P01C06DeletionGraphManifestV1.json",
+      "sha256": "dbbdb369ef7a6425378fc1d304cde22ec6578343b8ee9c97a7010a5558f96fda"
+    }
+  ],
+  "authority": {
+    "acceptedS10_6BaselineDigest": null,
+    "activeS10OverlapCount": 0,
+    "authorityCorrectionReceiptDigest": "a8935b4a310b37db1794417d2c9c2538654e27cd43a4d3c02140b7e0aec79099",
+    "authorizedPriorFenceOverlapCount": 32,
+    "baseHead": "417aec8af085ac4e01d4b73c822ba99511a14611",
+    "baseTree": "147f18696ca118a577b000c85850b47ddad82bfc",
+    "branch": "phase/v23-expansion",
+    "conformanceSubjectSet": "KernelConformanceSubjectSetV1",
+    "contextDigest": "ef201489b04abbbbddec862efd462bdba4afcb4a43b50e57f2e1f285bde4f4ad",
+    "coordinationAuthorityHead": "438505bfbe87613ad3afa2309ff978d6a15f8f2a",
+    "coordinationCASSequence": 74,
+    "coordinationLedgerDigest": "201eb3d1d49742fc7412ca4d41d722162ca5451857f188c9ed31cb7999a7b4b0",
+    "coordinationLedgerSequence": 74,
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P01-C06-G01",
+      "V23-P01-C06-A01",
+      "V23-P01-C06-H01",
+      "V23-P01-C06-I01",
+      "V23-P01-C06-R01"
+    ],
+    "directPrerequisite": "V23-P01-C05",
+    "dossierDigest": "41ab6dd6355216800cce04b50e2f9d2a28ee43e7dfe4609aa2063e7483a4b739",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationCorrectionReceiptDigest": "a8935b4a310b37db1794417d2c9c2538654e27cd43a4d3c02140b7e0aec79099",
+    "hydrationRevision": 2,
+    "hydrationTransitionDigest": "a11aeaf21b80f95eeb5a9c047effeccbad30b84c54f7c8260330e2b6bce3eca7",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "62e25505dd8d40524b6a5a2f8ef25116f78be7e7bc0c85b887ae5a0ca5cabef3",
+    "invalidationConsumer": "V23-P01-C07",
+    "lineage": "REFINED_WITHOUT_LOSS",
+    "ownerParallelOverrideAuthorityReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "ownerParallelOverrideReason": "OWNER_AUTHORIZED_PRE_S10_6_ORDERED_IMPLEMENTATION_V4",
+    "pathFenceDigest": "914d1e54c267c4069f2f0c89920107012ebbf372301adccf9d79b7a50cf4819c",
+    "priorCoordinationLedgerDigest": "d285fc795036fc441a7ee796962232e04d6c7f4606576691b463e253467c7467",
+    "provisionalPrerequisiteDigest": "8bb9b15619b5d5029ce8947c9ff345fcbd15259699e26fff91863d81c1c3d8d3",
+    "registerRowDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "registeredKindPolicy": {
+      "coverageRequirement": "ALL_CURRENTLY_REGISTERED_KINDS",
+      "currentPersistentTagKindPresent": false,
+      "dormantTagEntityAuthorized": false,
+      "futureRegistrationRequirement": "ADD_DELETION_KIND_AND_REVOCATION_CONTRACT_WITH_REGISTRATION"
+    },
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "supersedesFenceDigest": "6d5cec5dd55f856160c824d8bec254ee35207d366b184a52fc84900a83e55cdd"
+  },
+  "cardID": "V23-P01-C06",
+  "evidenceIDs": [
+    "V23-P01-C06-G01",
+    "V23-P01-C06-A01",
+    "V23-P01-C06-H01",
+    "V23-P01-C06-I01",
+    "V23-P01-C06-R01"
+  ],
+  "fullCardFence": [
+    "FieldEvidenceApp/Domain/Backup/DeletionLedgerV2.swift",
+    "FieldEvidenceApp/Domain/Backup/ReplacementRestoreRule.swift",
+    "FieldEvidenceApp/Domain/Backup/RestoreIdentityV1.swift",
+    "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+    "FieldEvidenceApp/Domain/Models/WorkflowModels.swift",
+    "FieldEvidenceApp/Domain/Workflow/DeletionIntentV1.swift",
+    "FieldEvidenceApp/Domain/Workflow/EraseIntentV1.swift",
+    "FieldEvidenceApp/Domain/Workflow/WholeSignDeletionRule.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/DeletionLedgerStore.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/OrphanFileCleanupService.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+    "FieldEvidenceAppTests/S6_1DeletionGraphTests.swift",
+    "FieldEvidenceAppTests/V9_01VersionedSchemaIdentityTests.swift",
+    "FieldEvidenceAppTests/V9_03MigrationRecoveryTests.swift",
+    "FieldEvidenceAppTests/V9_06DeletionRightsTests.swift",
+    "FieldEvidenceAppTests/V9_06DeletionArchiveIntegrationTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Deletion/V21P01C06DeletionGraphV1.json",
+    "Scripts/v23/p01_c06_contracts.py",
+    "Scripts/v23/generate_p01_c06_contracts.py",
+    "Scripts/v23/verify_p01_c06_contracts.py",
+    "Scripts/v23/deletion-ledger.schema.json",
+    "Scripts/v23/deletion-graph-fixture.schema.json",
+    "docs/design/v23/tooling/V23P01C06DeletionRightsContractV1.json",
+    "docs/design/v23/tooling/V23P01C06DeletionGraphManifestV1.json",
+    "docs/design/v23/tooling/V23-P01-C06-tooling-manifest.json"
+  ],
+  "hostedDispatchRan": false,
+  "nativeCompileRan": false,
+  "pathFence": [
+    "Scripts/v23/p01_c06_contracts.py",
+    "Scripts/v23/generate_p01_c06_contracts.py",
+    "Scripts/v23/verify_p01_c06_contracts.py",
+    "Scripts/v23/deletion-ledger.schema.json",
+    "Scripts/v23/deletion-graph-fixture.schema.json",
+    "docs/design/v23/tooling/V23P01C06DeletionRightsContractV1.json",
+    "docs/design/v23/tooling/V23P01C06DeletionGraphManifestV1.json",
+    "docs/design/v23/tooling/V23-P01-C06-tooling-manifest.json"
+  ],
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P01C06ToolingManifestV1",
+  "schemaVersion": 1,
+  "sourceBindingComplete": true,
+  "sourceBindingCount": 30,
+  "toolingPathCount": 8
+}

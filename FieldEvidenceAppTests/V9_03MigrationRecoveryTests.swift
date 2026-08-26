@@ -12,6 +12,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let sourceID: UUID
         let migrationID: UUID
         let targetID: UUID
+        let v3TargetID: UUID
         let siteID: UUID
         let assetID: UUID
         let processIDs: [UUID]
@@ -147,12 +148,30 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         XCTAssertNotEqual(fixture.processIDs[0], fixture.processIDs[1])
         var secondLaunch: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
         let second = try XCTUnwrap(secondLaunch)
-        XCTAssertEqual(second.generationID, fixture.targetID)
+        XCTAssertEqual(second.generationID, fixture.v3TargetID)
         try assertMigratedRows(in: second.modelContext, fixture: fixture)
+        XCTAssertEqual(
+            try DeletionLedgerStore(context: second.modelContext).snapshot(),
+            .empty
+        )
         secondLaunch = nil
 
+        let v3FirstLaunch = try XCTUnwrap(try store.loadJournal())
+        XCTAssertEqual(v3FirstLaunch.sourceRelease, .v2)
+        XCTAssertEqual(v3FirstLaunch.targetRelease, .v3)
+        XCTAssertEqual(v3FirstLaunch.phase, .firstLaunchValidated)
+        XCTAssertEqual(try pointerSchema(in: fixture.root), 3)
+
+        var thirdLaunch: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
+        let third = try XCTUnwrap(thirdLaunch)
+        XCTAssertEqual(third.generationID, fixture.v3TargetID)
+        XCTAssertEqual(
+            try DeletionLedgerStore(context: third.modelContext).snapshot(),
+            .empty
+        )
+        thirdLaunch = nil
         XCTAssertNil(try store.loadJournal())
-        XCTAssertEqual(try pointerSchema(in: fixture.root), 2)
+        XCTAssertEqual(try pointerSchema(in: fixture.root), 3)
     }
 
 #if DEBUG
@@ -305,15 +324,16 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
             var finalSession: StoreGenerationSession? =
                 try factory.openOrBootstrapCurrent()
             let final = try XCTUnwrap(finalSession)
-            XCTAssertEqual(final.generationID, fixture.targetID, boundary.rawValue)
+            XCTAssertEqual(final.generationID, fixture.v3TargetID, boundary.rawValue)
             try assertMigratedRows(in: final.modelContext, fixture: fixture)
             finalSession = nil
             try assertMarker(
                 at: final.generationRootURL.appendingPathComponent("model.sqlite"),
-                migrationID: fixture.migrationID
+                migrationID: fixture.migrationID,
+                release: .v3
             )
             XCTAssertNil(try loadJournal(in: fixture.root), boundary.rawValue)
-            XCTAssertEqual(try pointerSchema(in: fixture.root), 2, boundary.rawValue)
+            XCTAssertEqual(try pointerSchema(in: fixture.root), 3, boundary.rawValue)
         }
     }
 
@@ -349,12 +369,26 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         firstRecovery = nil
         var secondRecovery: StoreGenerationSession? = try sourceCloneFactory
             .openOrBootstrapCurrent()
+        XCTAssertEqual(secondRecovery?.generationID, sourceCloneFixture.v3TargetID)
+        XCTAssertEqual(
+            try DeletionLedgerStore(
+                context: try XCTUnwrap(secondRecovery).modelContext
+            ).snapshot(),
+            .empty
+        )
         secondRecovery = nil
-        XCTAssertEqual(try pointerSchema(in: sourceCloneFixture.root), 2)
+        XCTAssertEqual(try pointerSchema(in: sourceCloneFixture.root), 3)
         let installedModelURL = sourceCloneFactory
             .installedGenerationURL(id: sourceCloneFixture.targetID)
             .appendingPathComponent("model.sqlite", isDirectory: false)
         XCTAssertTrue(fileManager.fileExists(atPath: installedModelURL.path))
+        XCTAssertEqual(
+            try loadJournal(in: sourceCloneFixture.root)?.targetRelease,
+            .v3
+        )
+        var thirdRecovery: StoreGenerationSession? = try sourceCloneFactory
+            .openOrBootstrapCurrent()
+        thirdRecovery = nil
         XCTAssertNil(try loadJournal(in: sourceCloneFixture.root))
 
         let authorizedFixture = try makeLegacyFixture(suffix: "ForwardOnly")
@@ -636,6 +670,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let sourceID = fixedUUID("00000000-0000-0000-0000-000000000010")
         let migrationID = fixedUUID("00000000-0000-0000-0000-000000000011")
         let targetID = fixedUUID("00000000-0000-0000-0000-000000000012")
+        let v3TargetID = fixedUUID("00000000-0000-0000-0000-000000000015")
         let siteID = fixedUUID("00000000-0000-0000-0000-000000000013")
         let assetID = fixedUUID("00000000-0000-0000-0000-000000000014")
         let processIDs = (0..<8).map {
@@ -712,6 +747,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
             sourceID: sourceID,
             migrationID: migrationID,
             targetID: targetID,
+            v3TargetID: v3TargetID,
             siteID: siteID,
             assetID: assetID,
             processIDs: processIDs
@@ -737,7 +773,20 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
     ) -> StoreMigrationIdentitySourceV1 {
         StoreMigrationIdentitySourceV1(
             makeMigrationID: { fixture.migrationID },
-            makeGenerationID: { fixture.targetID },
+            makeGenerationID: {
+                let pointerURL = fixture.root
+                    .appendingPathComponent("FieldEvidenceData", isDirectory: true)
+                    .appendingPathComponent("current.json", isDirectory: false)
+                let schemaVersion: Int?
+                if let data = try? Data(contentsOf: pointerURL),
+                   let object = try? JSONSerialization.jsonObject(with: data),
+                   let fields = object as? [String: Any] {
+                    schemaVersion = fields["schemaVersion"] as? Int
+                } else {
+                    schemaVersion = nil
+                }
+                return schemaVersion == 1 ? fixture.targetID : fixture.v3TargetID
+            },
             makeProcessID: {
                 defer { processCursor.index += 1 }
                 return fixture.processIDs[
@@ -781,8 +830,23 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         XCTAssertEqual(asset.label, "Synthetic Legacy Asset")
     }
 
-    private func assertMarker(at modelURL: URL, migrationID: UUID) throws {
-        let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
+    private func assertMarker(
+        at modelURL: URL,
+        migrationID: UUID,
+        release: PersistentSchemaReleaseV1 = .v2
+    ) throws {
+        let schema: Schema
+        switch release {
+        case .v1:
+            throw StoreMigrationFailure.invalidContract
+        case .v2:
+            schema = Schema(
+                PersistentSchemaV2.models,
+                version: PersistentSchemaV2.versionIdentifier
+            )
+        case .v3:
+            schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
+        }
         let configuration = ModelConfiguration(
             "V9_03MarkerInspection",
             schema: schema,
@@ -801,14 +865,18 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let marker = try XCTUnwrap(markers.first)
         XCTAssertEqual(markers.count, 1)
         XCTAssertEqual(marker.id, PersistentSchemaReleaseRegistryV1.v2MarkerID)
-        XCTAssertEqual(marker.schemaVersion, 2)
+        XCTAssertEqual(marker.schemaVersion, release == .v3 ? 3 : 2)
         XCTAssertEqual(
             marker.releaseID,
-            PersistentSchemaReleaseRegistryV1.v2CompatibilityID
+            release == .v3
+                ? PersistentSchemaReleaseRegistryV1.v3CompatibilityID
+                : PersistentSchemaReleaseRegistryV1.v2CompatibilityID
         )
         XCTAssertEqual(
             marker.predecessorReleaseID,
-            PersistentSchemaReleaseRegistryV1.v1CompatibilityID
+            release == .v3
+                ? PersistentSchemaReleaseRegistryV1.v2CompatibilityID
+                : PersistentSchemaReleaseRegistryV1.v1CompatibilityID
         )
         XCTAssertEqual(marker.migrationID, migrationID)
     }
@@ -823,6 +891,11 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         case .v1:
             schema = PersistentSchemaV1.makeSchema()
         case .v2:
+            schema = Schema(
+                PersistentSchemaV2.models,
+                version: PersistentSchemaV2.versionIdentifier
+            )
+        case .v3:
             schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
         }
         let configuration = ModelConfiguration(

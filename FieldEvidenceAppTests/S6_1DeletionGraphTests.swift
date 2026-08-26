@@ -19,7 +19,7 @@ final class S6_1DeletionGraphTests: XCTestCase {
 
         XCTAssertEqual(result.countedTombstoneCount, 1)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Asset>()), 0)
-        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Site>()), 0)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Site>()), 1)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<WorkflowRecord>()), 0)
         let packets = try harness.context.fetch(FetchDescriptor<Packet>())
         XCTAssertEqual(packets.count, 1)
@@ -27,6 +27,21 @@ final class S6_1DeletionGraphTests: XCTestCase {
         XCTAssertNil(packets[0].currentRecordID)
         XCTAssertNotNil(packets[0].contentDeletedAt)
         XCTAssertEqual(try Data(contentsOf: retained), retainedBytes)
+        let ledger = try DeletionLedgerStore(context: harness.context).snapshot()
+        XCTAssertEqual(
+            Set(ledger.entries.map(\.identity.kind)),
+            Set([.asset, .workflowRecord, .packet])
+        )
+        XCTAssertEqual(ledger.entries.filter { $0.identity.kind == .asset }.count, 1)
+        XCTAssertEqual(ledger.entries.filter { $0.identity.kind == .workflowRecord }.count, 2)
+        XCTAssertEqual(ledger.entries.filter { $0.identity.kind == .packet }.count, 2)
+        XCTAssertFalse(ledger.entries.contains { $0.identity.kind == .site })
+        XCTAssertEqual(
+            ledger.entries.first(where: {
+                $0.identity.kind == .packet && $0.identity.id == packets[0].id
+            })?.deletedAt,
+            packets[0].contentDeletedAt
+        )
     }
 
     @MainActor
@@ -55,6 +70,7 @@ final class S6_1DeletionGraphTests: XCTestCase {
         XCTAssertEqual(held.currentRecordID, originalRecordID)
         XCTAssertNil(held.contentDeletedAt)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Asset>()), 1)
+        XCTAssertEqual(try DeletionLedgerStore(context: harness.context).snapshot(), .empty)
         XCTAssertEqual(try deletionJournalNames(harness), [])
     }
 
@@ -70,9 +86,60 @@ final class S6_1DeletionGraphTests: XCTestCase {
         await assertThrows(.injectedFailure) {
             _ = try await before.delete(assetID: prepared.assetID)
         }
-        let cancelled = try await prepared.service.reconcile()
-        XCTAssertEqual(cancelled.cancelledPreparedCount, 1)
+        let interruptedReplay = WholeSignDeletionService(
+            modelContext: prepared.context,
+            generationRootURL: prepared.generationRootURL,
+            failureInjection: WholeSignDeletionFailureInjection(failOnceAt: .databaseSave)
+        )
+        await assertThrows(.injectedFailure) {
+            _ = try await interruptedReplay.reconcile()
+        }
         XCTAssertEqual(try prepared.context.fetchCount(FetchDescriptor<Asset>()), 1)
+        XCTAssertEqual(try DeletionLedgerStore(context: prepared.context).snapshot(), .empty)
+        XCTAssertEqual(try deletionJournalNames(prepared).count, 1)
+        let replayed = try await prepared.service.reconcile()
+        XCTAssertEqual(replayed.cancelledPreparedCount, 0)
+        XCTAssertEqual(replayed.completedCommittedCount, 1)
+        XCTAssertEqual(try prepared.context.fetchCount(FetchDescriptor<Asset>()), 0)
+        XCTAssertEqual(try prepared.context.fetchCount(FetchDescriptor<Site>()), 1)
+
+        let legacy = try makeHarness(counted: true)
+        defer { try? fileManager.removeItem(at: legacy.applicationSupportURL) }
+        let legacyDeletionID = UUID()
+        let legacyInterrupted = WholeSignDeletionService(
+            modelContext: legacy.context,
+            generationRootURL: legacy.generationRootURL,
+            makeUUID: { legacyDeletionID },
+            failureInjection: WholeSignDeletionFailureInjection(failOnceAt: .preparedJournal)
+        )
+        await assertThrows(.injectedFailure) {
+            _ = try await legacyInterrupted.delete(assetID: legacy.assetID)
+        }
+        let legacyURL = deletionJournalURL(legacy).appendingPathComponent(
+            "\(legacyDeletionID.uuidString.lowercased()).json"
+        )
+        let currentIntent = try DeletionIntentDecoderV1().decode(Data(contentsOf: legacyURL))
+        let legacyIntent = DeletionIntentV1(
+            assetID: currentIntent.assetID,
+            countedPacketTombstones: currentIntent.countedPacketTombstones,
+            deletionID: currentIntent.deletionID,
+            generationID: currentIntent.generationID,
+            ledgerEntries: [],
+            phase: currentIntent.phase,
+            relativePaths: currentIntent.relativePaths,
+            schemaVersion: 1
+        )
+        let legacyBytes = try DeletionIntentEncoderV1().encode(legacyIntent).data
+        let legacyHandle = try FileHandle(forWritingTo: legacyURL)
+        try legacyHandle.truncate(atOffset: 0)
+        try legacyHandle.write(contentsOf: legacyBytes)
+        try legacyHandle.synchronize()
+        try legacyHandle.close()
+        let legacySummary = try await legacy.service.reconcile()
+        XCTAssertEqual(legacySummary.cancelledPreparedCount, 1)
+        XCTAssertEqual(legacySummary.completedCommittedCount, 0)
+        XCTAssertEqual(try legacy.context.fetchCount(FetchDescriptor<Asset>()), 1)
+        XCTAssertEqual(try DeletionLedgerStore(context: legacy.context).snapshot(), .empty)
 
         let committed = try makeHarness(counted: true)
         defer { try? fileManager.removeItem(at: committed.applicationSupportURL) }
@@ -134,6 +201,310 @@ final class S6_1DeletionGraphTests: XCTestCase {
             _ = try await mismatch.service.reconcile()
         }
         XCTAssertEqual(try deletionJournalNames(mismatch).count, 1)
+    }
+
+    @MainActor
+    func testOrphanCleanupIsCanonicalBoundedAndPreservesTombstones() async throws {
+        let harness = try makeHarness(counted: true)
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        _ = try await harness.service.delete(assetID: harness.assetID)
+        let tombstone = try XCTUnwrap(
+            harness.context.fetch(FetchDescriptor<Packet>()).first
+        )
+
+        let referencedEvidenceID = UUID()
+        let orphanEvidenceID = UUID()
+        for id in [referencedEvidenceID, orphanEvidenceID] {
+            let directory = harness.generationRootURL.appendingPathComponent(
+                "evidence/\(id.uuidString.lowercased())",
+                isDirectory: true
+            )
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            try Data("original".utf8).write(
+                to: directory.appendingPathComponent("original.jpg")
+            )
+            try Data("thumbnail".utf8).write(
+                to: directory.appendingPathComponent("thumbnail.jpg")
+            )
+        }
+        let referencedSnapshotID = UUID()
+        let orphanSnapshotID = UUID()
+        let snapshots = harness.generationRootURL.appendingPathComponent(
+            "snapshots", isDirectory: true
+        )
+        try fileManager.createDirectory(at: snapshots, withIntermediateDirectories: true)
+        try Data("referenced".utf8).write(to: snapshots.appendingPathComponent(
+            "\(referencedSnapshotID.uuidString.lowercased()).json"
+        ))
+        try Data("orphan".utf8).write(to: snapshots.appendingPathComponent(
+            "\(orphanSnapshotID.uuidString.lowercased()).json"
+        ))
+        let unrelated = harness.generationRootURL.appendingPathComponent("unrelated.bin")
+        try Data("untouched".utf8).write(to: unrelated)
+
+        let cleanup = try OrphanFileCleanupService(
+            generationRootURL: harness.generationRootURL
+        )
+        let evidenceID = referencedEvidenceID.uuidString.lowercased()
+        let summary = try cleanup.reconcile(referencedRelativePaths: [
+            "evidence/\(evidenceID)/original.jpg",
+            "evidence/\(evidenceID)/thumbnail.jpg",
+            "snapshots/\(referencedSnapshotID.uuidString.lowercased()).json",
+        ])
+
+        XCTAssertEqual(summary.removedFileCount, 3)
+        XCTAssertEqual(summary.removedDirectoryCount, 1)
+        XCTAssertTrue(fileManager.fileExists(atPath: unrelated.path))
+        XCTAssertTrue(fileManager.fileExists(atPath: snapshots.appendingPathComponent(
+            "\(referencedSnapshotID.uuidString.lowercased()).json"
+        ).path))
+        XCTAssertFalse(fileManager.fileExists(atPath: snapshots.appendingPathComponent(
+            "\(orphanSnapshotID.uuidString.lowercased()).json"
+        ).path))
+        XCTAssertEqual(
+            try harness.context.fetch(FetchDescriptor<Packet>()).first?.id,
+            tombstone.id
+        )
+        XCTAssertNotNil(
+            try harness.context.fetch(FetchDescriptor<Packet>()).first?.contentDeletedAt
+        )
+
+        XCTAssertThrowsError(
+            try cleanup.reconcile(referencedRelativePaths: ["../model.sqlite"])
+        )
+    }
+
+    @MainActor
+    func testRuleLedgerCoversEveryDeletedDependentKindAndLegacyCodecIsExact() throws {
+        let siteID = UUID()
+        let assetID = UUID()
+        let recordID = UUID()
+        let evidenceID = UUID()
+        let issueID = UUID()
+        let packetID = UUID()
+        let reportID = UUID()
+        let created = Date(timeIntervalSince1970: 1_760_000_000)
+        let deleted = created.addingTimeInterval(120)
+        let record = completedRecord(id: recordID, assetID: assetID, packetID: packetID)
+        let input = WholeSignDeletionRuleInput(
+            assetID: assetID,
+            deletionID: UUID(),
+            deletedAt: deleted,
+            generationID: UUID(),
+            sites: [.init(id: siteID, schemaVersion: 1)],
+            assets: [.init(id: assetID, schemaVersion: 1, siteID: siteID)],
+            records: [payload(record)],
+            evidence: [.init(
+                id: evidenceID,
+                schemaVersion: 1,
+                recordID: recordID,
+                purposeKey: "wide_context",
+                relativePath: "evidence/\(evidenceID.uuidString.lowercased())/original.jpg",
+                mimeType: "image/jpeg",
+                byteCount: 1,
+                sha256: String(repeating: "a", count: 64),
+                thumbnailRelativePath:
+                    "evidence/\(evidenceID.uuidString.lowercased())/thumbnail.jpg",
+                thumbnailByteCount: 1,
+                thumbnailSHA256: String(repeating: "b", count: 64)
+            )],
+            issues: [.init(
+                id: issueID,
+                schemaVersion: 1,
+                assetID: assetID,
+                openedByRecordID: recordID,
+                labelKey: "dark_section",
+                labelDisplaySnapshot: "Section appears dark",
+                status: IssueStatus.open.rawValue,
+                resolvedByRecordID: nil,
+                createdAt: created,
+                updatedAt: created
+            )],
+            packets: [.init(
+                id: packetID,
+                schemaVersion: 1,
+                stableRootID: UUID(),
+                currentRecordID: recordID,
+                evaluationCounted: true,
+                contentDeletedAt: nil,
+                createdAt: created
+            )],
+            reports: [.init(
+                id: reportID,
+                schemaVersion: 1,
+                packetID: packetID,
+                sourceRecordID: recordID,
+                snapshotSchemaVersion: 1,
+                snapshotRelativePath: "snapshots/\(reportID.uuidString.lowercased()).json",
+                snapshotSHA256: String(repeating: "c", count: 64),
+                pdfState: ReportPDFState.pending.rawValue,
+                pdfRelativePath: nil,
+                pdfSHA256: nil,
+                createdAt: created,
+                replacesReportID: nil
+            )]
+        )
+        let plan = try WholeSignDeletionRule.makePlan(input)
+        XCTAssertEqual(
+            Set(plan.intent.ledgerEntries.map(\.identity.kind)),
+            Set([.asset, .workflowRecord, .evidenceFile, .issue, .packet, .report])
+        )
+        XCTAssertEqual(plan.intent.schemaVersion, 2)
+        XCTAssertEqual(
+            plan.intent.ledgerEntries.first(where: { $0.identity.kind == .packet })?.deletedAt,
+            deleted
+        )
+        let sitePreview = try WholeSignDeletionRule.makeExplicitSiteDeletionPreview(
+            ExplicitSiteDeletionInputV1(
+                siteID: siteID,
+                generationID: plan.intent.generationID,
+                deletionID: plan.intent.deletionID,
+                deletedAt: deleted,
+                siteSchemaVersion: 1,
+                label: "Site",
+                address: nil,
+                timeZoneID: nil,
+                createdAt: created,
+                updatedAt: created,
+                siteAssets: input.assets,
+                assetPlans: [plan]
+            )
+        )
+        XCTAssertEqual(
+            Set(sitePreview.ledgerEntries.map(\.identity.kind)),
+            Set(DeletionRecordKindV2.allCases)
+        )
+
+        let legacy = DeletionIntentV1(
+            assetID: plan.intent.assetID,
+            countedPacketTombstones: plan.intent.countedPacketTombstones,
+            deletionID: plan.intent.deletionID,
+            generationID: plan.intent.generationID,
+            ledgerEntries: [],
+            phase: plan.intent.phase,
+            relativePaths: plan.intent.relativePaths,
+            schemaVersion: 1
+        )
+        let legacyBytes = try DeletionIntentEncoderV1().encode(legacy).data
+        XCTAssertFalse(String(decoding: legacyBytes, as: UTF8.self).contains("ledgerEntries"))
+        let decoded = try DeletionIntentDecoderV1().decode(legacyBytes)
+        XCTAssertEqual(decoded, legacy)
+        XCTAssertEqual(try DeletionIntentEncoderV1().encode(decoded).data, legacyBytes)
+    }
+
+    @MainActor
+    func testExplicitPreviewBoundSiteDeletionIsSeparateAndLedgered() async throws {
+        let assetDeletion = try makeHarness(counted: false)
+        defer { try? fileManager.removeItem(at: assetDeletion.applicationSupportURL) }
+        let siteID = try XCTUnwrap(
+            assetDeletion.context.fetch(FetchDescriptor<Site>()).first?.id
+        )
+        _ = try await assetDeletion.service.delete(assetID: assetDeletion.assetID)
+        XCTAssertEqual(try assetDeletion.context.fetchCount(FetchDescriptor<Site>()), 1)
+
+        let siteDeletion = try makeHarness(counted: false)
+        defer { try? fileManager.removeItem(at: siteDeletion.applicationSupportURL) }
+        let explicitSiteID = try XCTUnwrap(
+            siteDeletion.context.fetch(FetchDescriptor<Site>()).first?.id
+        )
+        let preview = try siteDeletion.service.previewSiteDeletion(siteID: explicitSiteID)
+        XCTAssertEqual(preview.assetPlans.map(\.assetID), [siteDeletion.assetID])
+        XCTAssertTrue(preview.ledgerEntries.contains {
+            $0.identity.kind == .site && $0.identity.id == explicitSiteID
+        })
+        let site = try XCTUnwrap(
+            siteDeletion.context.fetch(FetchDescriptor<Site>()).first
+        )
+        site.label = "Changed after preview"
+        try siteDeletion.context.save()
+        await assertThrows(.graphInvalid) {
+            _ = try await siteDeletion.service.deleteSite(preview: preview)
+        }
+        site.label = "Site"
+        try siteDeletion.context.save()
+        let result = try await siteDeletion.service.deleteSite(preview: preview)
+        XCTAssertEqual(result.siteID, explicitSiteID)
+        XCTAssertEqual(try siteDeletion.context.fetchCount(FetchDescriptor<Site>()), 0)
+        XCTAssertEqual(try siteDeletion.context.fetchCount(FetchDescriptor<Asset>()), 0)
+        let ledger = try DeletionLedgerStore(context: siteDeletion.context).snapshot()
+        XCTAssertTrue(ledger.entries.contains {
+            $0.identity.kind == .site && $0.identity.id == explicitSiteID
+        })
+        XCTAssertEqual(
+            Set(ledger.entries.map(\.identity.kind)),
+            Set([.site, .asset, .workflowRecord, .packet])
+        )
+    }
+
+    func testOrphanReplacementRaceFailsBeforeDeletingReplacement() throws {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "orphan-race-\(UUID().uuidString)", isDirectory: true
+        )
+        defer { try? fileManager.removeItem(at: root) }
+        let generationID = UUID()
+        let generation = root
+            .appendingPathComponent("FieldEvidenceData/generations", isDirectory: true)
+            .appendingPathComponent(generationID.uuidString.lowercased(), isDirectory: true)
+        let snapshots = generation.appendingPathComponent("snapshots", isDirectory: true)
+        try fileManager.createDirectory(at: snapshots, withIntermediateDirectories: true)
+        let target = snapshots.appendingPathComponent("\(UUID().uuidString.lowercased()).json")
+        let parked = generation.appendingPathComponent("parked-original.json")
+        try Data("original".utf8).write(to: target)
+        let injection = OrphanFileCleanupReplacementInjection { url in
+            try self.fileManager.moveItem(at: url, to: parked)
+            try Data("replacement".utf8).write(to: url)
+        }
+        let service = try OrphanFileCleanupService(
+            generationRootURL: generation,
+            replacementInjection: injection
+        )
+        XCTAssertThrowsError(try service.reconcile(referencedRelativePaths: [])) { error in
+            XCTAssertEqual(error as? OrphanFileCleanupServiceError, .identityChanged)
+        }
+        XCTAssertEqual(try Data(contentsOf: target), Data("replacement".utf8))
+        XCTAssertEqual(try Data(contentsOf: parked), Data("original".utf8))
+    }
+
+    @MainActor
+    func testExplicitSitePostcommitCleanupInterruptionLeavesOnlyOrphans() async throws {
+        let harness = try makeHarness(counted: false)
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let snapshots = harness.generationRootURL.appendingPathComponent(
+            "snapshots", isDirectory: true
+        )
+        try fileManager.createDirectory(at: snapshots, withIntermediateDirectories: true)
+        let orphan = snapshots.appendingPathComponent(
+            "\(UUID().uuidString.lowercased()).json"
+        )
+        try Data("orphan".utf8).write(to: orphan)
+        let service = WholeSignDeletionService(
+            modelContext: harness.context,
+            generationRootURL: harness.generationRootURL,
+            failureInjection: WholeSignDeletionFailureInjection(failOnceAt: .fileCleanup)
+        )
+        let siteID = try XCTUnwrap(
+            harness.context.fetch(FetchDescriptor<Site>()).first?.id
+        )
+        let preview = try service.previewSiteDeletion(siteID: siteID)
+        await assertThrows(.injectedFailure) {
+            _ = try await service.deleteSite(preview: preview)
+        }
+
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Site>()), 0)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Asset>()), 0)
+        XCTAssertTrue(try DeletionLedgerStore(context: harness.context).snapshot().entries.contains {
+            $0.identity.kind == .site && $0.identity.id == siteID
+        })
+        XCTAssertEqual(try deletionJournalNames(harness), [])
+        XCTAssertTrue(fileManager.fileExists(atPath: orphan.path))
+
+        let summary = try OrphanFileCleanupService(
+            generationRootURL: harness.generationRootURL
+        ).reconcile(referencedRelativePaths: [])
+        XCTAssertEqual(summary.removedFileCount, 1)
+        XCTAssertFalse(fileManager.fileExists(atPath: orphan.path))
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Site>()), 0)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Asset>()), 0)
     }
 
     @MainActor
@@ -229,8 +600,8 @@ private extension S6_1DeletionGraphTests {
         try fileManager.createDirectory(at: generationRootURL, withIntermediateDirectories: true)
         let schema = Schema([
             Site.self, Asset.self, WorkflowRecord.self, EvidenceFile.self,
-            Issue.self, Packet.self, Report.self,
-        ], version: Schema.Version(1, 0, 0))
+            Issue.self, Packet.self, Report.self, DeletionLedgerRow.self,
+        ], version: Schema.Version(3, 0, 0))
         let container = try ModelContainer(
             for: schema,
             migrationPlan: nil,
@@ -374,6 +745,52 @@ private extension S6_1DeletionGraphTests {
             couldNotVerifyKey: nil, couldNotVerifyDisplaySnapshot: nil,
             couldNotVerifyRegistryVersion: nil, workPerformedLocalDate: nil,
             workDescription: nil, note: nil, finalizationMutationID: UUID()
+        )
+    }
+
+    func payload(_ row: WorkflowRecord) -> WorkflowRecordPayloadV1 {
+        WorkflowRecordPayloadV1(
+            id: row.id,
+            schemaVersion: row.schemaVersion,
+            assetID: row.assetID,
+            packetID: row.packetID,
+            issueID: row.issueID,
+            parentRecordID: row.parentRecordID,
+            recordRevisionRootID: row.recordRevisionRootID,
+            revisesRecordID: row.revisesRecordID,
+            evidenceSourceRecordID: row.evidenceSourceRecordID,
+            revisionKind: row.revisionKind,
+            stage: row.stage,
+            state: row.state,
+            draftStepKey: row.draftStepKey,
+            startedAt: row.startedAt,
+            completedAt: row.completedAt,
+            observedAtUTC: row.observedAtUTC,
+            timeZoneID: row.timeZoneID,
+            utcOffsetMinutes: row.utcOffsetMinutes,
+            localDate: row.localDate,
+            localTime: row.localTime,
+            afterDarkAcknowledgementKey: row.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: row.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: row.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: row.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: row.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: row.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: row.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: row.safePositionAcknowledgementAccepted,
+            packID: row.packID,
+            packSchemaVersion: row.packSchemaVersion,
+            packContentVersion: row.packContentVersion,
+            pdfTemplateID: row.pdfTemplateID,
+            pdfTemplateVersion: row.pdfTemplateVersion,
+            outcomeKey: row.outcomeKey,
+            couldNotVerifyKey: row.couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: row.couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: row.couldNotVerifyRegistryVersion,
+            workPerformedLocalDate: row.workPerformedLocalDate,
+            workDescription: row.workDescription,
+            note: row.note,
+            finalizationMutationID: row.finalizationMutationID
         )
     }
 

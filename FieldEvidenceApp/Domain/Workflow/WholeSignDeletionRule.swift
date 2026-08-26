@@ -50,11 +50,94 @@ struct WholeSignDeletionPlan: Codable, Equatable, Sendable {
     let workflowRecordIDs: [UUID]
 }
 
+struct ExplicitSiteDeletionInputV1: Equatable, Sendable {
+    let siteID: UUID
+    let generationID: UUID
+    let deletionID: UUID
+    let deletedAt: Date
+    let siteSchemaVersion: Int
+    let label: String
+    let address: String?
+    let timeZoneID: String?
+    let createdAt: Date
+    let updatedAt: Date
+    let siteAssets: [DeletionAssetPayloadV1]
+    let assetPlans: [WholeSignDeletionPlan]
+}
+
+struct ExplicitSiteDeletionPreviewV1: Equatable, Sendable {
+    let siteID: UUID
+    let generationID: UUID
+    let deletionID: UUID
+    let deletedAt: Date
+    let siteSchemaVersion: Int
+    let label: String
+    let address: String?
+    let timeZoneID: String?
+    let createdAt: Date
+    let updatedAt: Date
+    let assetPlans: [WholeSignDeletionPlan]
+    let ledgerEntries: [DeletionLedgerEntryV2]
+    let schemaVersion: Int
+}
+
 enum WholeSignDeletionRuleError: Error, Equatable {
     case invalidGraph
 }
 
 enum WholeSignDeletionRule {
+    static func makeExplicitSiteDeletionPreview(
+        _ input: ExplicitSiteDeletionInputV1
+    ) throws -> ExplicitSiteDeletionPreviewV1 {
+        guard input.siteSchemaVersion == 1,
+              input.updatedAt >= input.createdAt,
+              input.deletedAt >= input.createdAt,
+              !input.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              unique(input.siteAssets.map(\.id)),
+              input.siteAssets.allSatisfy({
+                  $0.schemaVersion == 1 && $0.siteID == input.siteID
+              }),
+              Set(input.siteAssets.map(\.id)) == Set(input.assetPlans.map(\.assetID)),
+              unique(input.assetPlans.map(\.assetID)),
+              input.assetPlans.allSatisfy({ plan in
+                  plan.intent.schemaVersion == 2
+                    && plan.intent.generationID == input.generationID
+                    && plan.intent.deletionID == input.deletionID
+                    && plan.intent.ledgerEntries.allSatisfy({ $0.deletedAt == input.deletedAt })
+                    && plan.siteIDToDelete == nil
+              }) else {
+            throw WholeSignDeletionRuleError.invalidGraph
+        }
+        let relativePaths = input.assetPlans.flatMap { $0.intent.relativePaths }
+        guard unique(relativePaths) else {
+            throw WholeSignDeletionRuleError.invalidGraph
+        }
+        let siteEntry = try DeletionLedgerEntryV2(
+            identity: DeletionIdentityV2(kind: .site, id: input.siteID),
+            deletedAt: input.deletedAt
+        )
+        let entries = (input.assetPlans.flatMap { $0.intent.ledgerEntries } + [siteEntry])
+            .sorted { $0.identity < $1.identity }
+        _ = try DeletionLedgerV2(entries: entries)
+        return ExplicitSiteDeletionPreviewV1(
+            siteID: input.siteID,
+            generationID: input.generationID,
+            deletionID: input.deletionID,
+            deletedAt: input.deletedAt,
+            siteSchemaVersion: input.siteSchemaVersion,
+            label: input.label,
+            address: input.address,
+            timeZoneID: input.timeZoneID,
+            createdAt: input.createdAt,
+            updatedAt: input.updatedAt,
+            assetPlans: input.assetPlans.sorted {
+                canonicalID($0.assetID) < canonicalID($1.assetID)
+            },
+            ledgerEntries: entries,
+            schemaVersion: 1
+        )
+    }
+
     static func makePlan(
         _ input: WholeSignDeletionRuleInput
     ) throws -> WholeSignDeletionPlan {
@@ -120,14 +203,22 @@ enum WholeSignDeletionRule {
             countedPacketTombstones: tombstones,
             deletionID: input.deletionID,
             generationID: input.generationID,
+            ledgerEntries: try ledgerEntries(
+                asset: asset,
+                evidence: selectedEvidence,
+                issues: selectedIssues,
+                packets: selectedPackets,
+                reports: selectedReports,
+                records: selectedRecords,
+                deletedAt: input.deletedAt
+            ),
             phase: .prepared,
             relativePaths: paths,
-            schemaVersion: 1
+            schemaVersion: 2
         )
         guard DeletionIntentEncoderV1.valid(intent) else {
             throw WholeSignDeletionRuleError.invalidGraph
         }
-        let deletesSite = input.assets.filter { $0.siteID == asset.siteID }.count == 1
         return WholeSignDeletionPlan(
             assetID: asset.id,
             evidenceIDs: sortedIDs(selectedEvidence.map(\.id)),
@@ -137,7 +228,7 @@ enum WholeSignDeletionRule {
                 selectedPackets.filter { !$0.evaluationCounted }.map(\.id)
             ),
             reportIDs: sortedIDs(selectedReports.map(\.id)),
-            siteIDToDelete: deletesSite ? asset.siteID : nil,
+            siteIDToDelete: nil,
             workflowRecordIDs: sortedIDs(selectedRecords.map(\.id))
         )
     }
@@ -160,10 +251,7 @@ enum WholeSignDeletionRule {
               unique(input.reports.compactMap(\.replacesReportID)),
               unique(input.records.compactMap(\.finalizationMutationID)),
               uniqueAcrossAuthorities(input),
-              input.sites.allSatisfy({ site in
-                  site.schemaVersion == 1
-                    && input.assets.contains(where: { $0.siteID == site.id })
-              }),
+              input.sites.allSatisfy({ $0.schemaVersion == 1 }),
               input.assets.allSatisfy({ asset in
                   asset.schemaVersion == 1
                     && exactlyOne(input.sites, where: { $0.id == asset.siteID })
@@ -175,6 +263,36 @@ enum WholeSignDeletionRule {
             return false
         }
         return true
+    }
+
+    private static func ledgerEntries(
+        asset: DeletionAssetPayloadV1,
+        evidence: [DeletionEvidencePayloadV1],
+        issues: [IssuePayloadV1],
+        packets: [PacketPayloadV1],
+        reports: [ReportPayloadV1],
+        records: [WorkflowRecordPayloadV1],
+        deletedAt: Date
+    ) throws -> [DeletionLedgerEntryV2] {
+        var identities = [try DeletionIdentityV2(kind: .asset, id: asset.id)]
+        identities += try evidence.map {
+            try DeletionIdentityV2(kind: .evidenceFile, id: $0.id)
+        }
+        identities += try issues.map {
+            try DeletionIdentityV2(kind: .issue, id: $0.id)
+        }
+        identities += try packets.map {
+            try DeletionIdentityV2(kind: .packet, id: $0.id)
+        }
+        identities += try reports.map {
+            try DeletionIdentityV2(kind: .report, id: $0.id)
+        }
+        identities += try records.map {
+            try DeletionIdentityV2(kind: .workflowRecord, id: $0.id)
+        }
+        return try identities.sorted().map {
+            try DeletionLedgerEntryV2(identity: $0, deletedAt: deletedAt)
+        }
     }
 
     private static func validRecords(_ input: WholeSignDeletionRuleInput) -> Bool {

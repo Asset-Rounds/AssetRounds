@@ -2,6 +2,19 @@ import Foundation
 import SwiftData
 
 @Model
+final class DeletionLedgerRow {
+    var schemaVersion: Int
+    @Attribute(.unique) var typedID: String
+    var deletedAt: Date
+
+    init(typedID: String, deletedAt: Date, schemaVersion: Int = 2) {
+        self.schemaVersion = schemaVersion
+        self.typedID = typedID
+        self.deletedAt = deletedAt
+    }
+}
+
+@Model
 final class WorkflowRecord {
     @Attribute(.unique) var id: UUID
     var schemaVersion: Int

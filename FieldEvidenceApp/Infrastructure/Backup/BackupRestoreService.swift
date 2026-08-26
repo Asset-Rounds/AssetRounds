@@ -147,6 +147,7 @@ final class BackupRestoreService {
                 && modelContext.fetchCount(FetchDescriptor<Issue>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<Packet>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<Report>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<DeletionLedgerRow>()) == 0
         } catch {
             return false
         }
@@ -216,7 +217,7 @@ final class BackupRestoreService {
             guard initialIsEmpty else {
                 throw BackupRestoreServiceError.currentGenerationNotEmpty
             }
-            frozenCurrentRecords = nil
+            frozenCurrentRecords = try records(in: currentModelContext)
         case .replaceExisting:
             guard !initialIsEmpty else {
                 throw BackupRestoreServiceError.currentGenerationEmpty
@@ -260,50 +261,43 @@ final class BackupRestoreService {
             throw BackupRestoreServiceError.contextHasChanges
         }
 
-        let expectedRecords: V4BackupRecordsV1
+        guard let frozenCurrentRecords,
+              try records(in: currentModelContext) == frozenCurrentRecords else {
+            throw BackupRestoreServiceError.contextHasChanges
+        }
         switch mode {
         case .emptyInstall:
             guard Self.isEmptyCurrent(currentModelContext) else {
                 throw BackupRestoreServiceError.currentGenerationNotEmpty
             }
-            expectedRecords = validatedPackage.records
         case .replaceExisting:
-            guard !Self.isEmptyCurrent(currentModelContext),
-                  let frozenCurrentRecords,
-                  try records(in: currentModelContext) == frozenCurrentRecords else {
-                throw BackupRestoreServiceError.contextHasChanges
+            guard !Self.isEmptyCurrent(currentModelContext) else {
+                throw BackupRestoreServiceError.currentGenerationEmpty
             }
             _ = try Self.currentSummary(
                 modelContext: currentModelContext,
                 generationRootURL: currentGenerationRootURL
             )
-            let plan: ReplacementRestorePlan
-            do {
-                plan = try ReplacementRestoreRule.makePlan(
-                    ReplacementRestoreRuleInput(
-                        currentPackets: frozenCurrentRecords.packets,
-                        incomingPackets: validatedPackage.records.packets,
-                        replacementAt: now()
-                    )
-                )
-            } catch {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
-            }
-            let replacementRecords = replacingPackets(
-                in: validatedPackage.records,
-                with: plan.packetsAfter
-            )
-            guard uniqueModelIDs(in: replacementRecords) else {
-                throw BackupRestoreServiceError.invalidRestoreAuthority
-            }
-            expectedRecords = replacementRecords
         case .clone, .fork:
-            guard let frozenCurrentRecords,
-                  try records(in: currentModelContext) == frozenCurrentRecords,
-                  uniqueModelIDs(in: validatedPackage.records) else {
+            guard uniqueModelIDs(in: validatedPackage.records) else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
-            expectedRecords = validatedPackage.records
+        }
+        let expectedRecords: V4BackupRecordsV1
+        do {
+            expectedRecords = try ReplacementRestoreRule.makeDeletionWinningPlan(
+                DeletionWinningRestoreInputV2(
+                    currentRecords: frozenCurrentRecords,
+                    incomingRecords: validatedPackage.records,
+                    mode: mode,
+                    replacementAt: now()
+                )
+            ).recordsAfter
+        } catch {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        guard uniqueModelIDs(in: expectedRecords) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
         }
 
         let newGenerationID = makeUUID()
@@ -805,7 +799,7 @@ final class BackupRestoreService {
     func migrationCanonicalRecords(
         in context: ModelContext
     ) throws -> V4BackupRecordsV1 {
-        try records(in: context)
+        try records(in: context, includingDeletionLedger: false)
     }
 }
 
@@ -873,12 +867,15 @@ private extension BackupRestoreService {
         guard let identity = intent.identity else {
             return validMonotonicUnion(from: old, to: target)
         }
-        switch identity.mode {
-        case .replaceExisting:
-            return validMonotonicUnion(from: old, to: target)
-        case .emptyInstall, .clone, .fork:
-            return uniqueModelIDs(in: target)
-        }
+        guard let plan = try? ReplacementRestoreRule.makeDeletionWinningPlan(
+            DeletionWinningRestoreInputV2(
+                currentRecords: old,
+                incomingRecords: target,
+                mode: identity.mode,
+                replacementAt: now()
+            )
+        ) else { return false }
+        return plan.recordsAfter == target
     }
 
     func makeIdentityDecision(
@@ -1121,6 +1118,7 @@ private extension BackupRestoreService {
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             assets: records.assets,
+            deletionLedger: records.deletionLedger,
             evidenceFiles: records.evidenceFiles,
             issues: records.issues,
             packets: packets,
@@ -1156,6 +1154,7 @@ private extension BackupRestoreService {
             }
             try writeMembers(
                 value,
+                records: records,
                 to: generationFactory.restoreStagingGenerationURL(
                     id: generationID
                 ),
@@ -1191,7 +1190,17 @@ private extension BackupRestoreService {
     }
 
     func insert(_ records: V4BackupRecordsV1, into context: ModelContext) throws {
-        guard records.recordsSchemaVersion == 1 else {
+        switch (records.recordsSchemaVersion, records.deletionLedger) {
+        case (1, nil):
+            break
+        case (2, let ledger?):
+            do {
+                try ledger.validate()
+                try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
+            } catch {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        default:
             throw BackupRestoreServiceError.invalidPackage
         }
         for value in records.sites {
@@ -1337,10 +1346,11 @@ private extension BackupRestoreService {
 
     func writeMembers(
         _ value: ValidatedV4BackupPackageV1,
+        records: V4BackupRecordsV1,
         to root: URL,
         generationID: UUID
     ) throws {
-        for evidence in value.records.evidenceFiles {
+        for evidence in records.evidenceFiles {
             let id = canonical(evidence.id)
             try protectStagingDirectory(
                 root: root,
@@ -1360,21 +1370,21 @@ private extension BackupRestoreService {
                 generationID: generationID
             )
         }
-        if !value.records.reports.isEmpty {
+        if !records.reports.isEmpty {
             try protectStagingDirectory(
                 root: root,
                 relativePath: "snapshots",
                 generationID: generationID
             )
         }
-        if value.records.reports.contains(where: { $0.pdfState == "ready" }) {
+        if records.reports.contains(where: { $0.pdfState == "ready" }) {
             try protectStagingDirectory(
                 root: root,
                 relativePath: "pdfs",
                 generationID: generationID
             )
         }
-        for report in value.records.reports {
+        for report in records.reports {
             try writeExact(
                 value.members[report.snapshotRelativePath],
                 to: root.appendingPathComponent(report.snapshotRelativePath),
@@ -2327,16 +2337,17 @@ private extension BackupRestoreService {
         from current: V4BackupRecordsV1,
         to replacement: V4BackupRecordsV1
     ) -> Bool {
-        guard let plan = try? ReplacementRestoreRule.makePlan(
-            ReplacementRestoreRuleInput(
-                currentPackets: current.packets,
-                incomingPackets: replacement.packets,
+        guard let plan = try? ReplacementRestoreRule.makeDeletionWinningPlan(
+            DeletionWinningRestoreInputV2(
+                currentRecords: current,
+                incomingRecords: replacement,
+                mode: .replaceExisting,
                 replacementAt: now()
             )
         ) else {
             return false
         }
-        return plan.packetsAfter == replacement.packets
+        return plan.recordsAfter == replacement
     }
 
     func validateRows(
@@ -2430,6 +2441,13 @@ private extension BackupRestoreService {
     }
 
     func records(in context: ModelContext) throws -> V4BackupRecordsV1 {
+        try records(in: context, includingDeletionLedger: true)
+    }
+
+    func records(
+        in context: ModelContext,
+        includingDeletionLedger: Bool
+    ) throws -> V4BackupRecordsV1 {
         let sites = try context.fetch(FetchDescriptor<Site>())
         let assets = try context.fetch(FetchDescriptor<Asset>())
         let workflow = try context.fetch(FetchDescriptor<WorkflowRecord>())
@@ -2437,6 +2455,12 @@ private extension BackupRestoreService {
         let issues = try context.fetch(FetchDescriptor<Issue>())
         let packets = try context.fetch(FetchDescriptor<Packet>())
         let reports = try context.fetch(FetchDescriptor<Report>())
+        let deletionLedger: DeletionLedgerV2?
+        if includingDeletionLedger {
+            deletionLedger = try DeletionLedgerStore(context: context).snapshot()
+        } else {
+            deletionLedger = nil
+        }
         return V4BackupRecordsV1(
             assets: assets.map {
                 .init(
@@ -2446,6 +2470,7 @@ private extension BackupRestoreService {
                     createdAt: $0.createdAt, updatedAt: $0.updatedAt
                 )
             }.sorted { canonical($0.id) < canonical($1.id) },
+            deletionLedger: deletionLedger,
             evidenceFiles: evidence.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2479,7 +2504,7 @@ private extension BackupRestoreService {
                     createdAt: $0.createdAt
                 )
             }.sorted { canonical($0.id) < canonical($1.id) },
-            recordsSchemaVersion: 1,
+            recordsSchemaVersion: includingDeletionLedger ? 2 : 1,
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,

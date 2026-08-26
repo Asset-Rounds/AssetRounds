@@ -3,6 +3,47 @@ import Darwin
 import Foundation
 import SwiftData
 
+private enum DeletionDescriptorRead {
+    static func read(
+        descriptor: Int32,
+        declaredSize: off_t,
+        maximumByteCount: Int
+    ) -> Data? {
+        guard declaredSize >= 0,
+              maximumByteCount >= 0,
+              UInt64(declaredSize) <= UInt64(maximumByteCount),
+              UInt64(declaredSize) <= UInt64(Int.max) else {
+            return nil
+        }
+        let expected = Int(declaredSize)
+        var data = Data(count: expected)
+        let filled = data.withUnsafeMutableBytes {
+            (raw: UnsafeMutableRawBufferPointer) -> Bool in
+            var offset = 0
+            while offset < expected {
+                let count = Darwin.read(
+                    descriptor,
+                    raw.baseAddress!.advanced(by: offset),
+                    expected - offset
+                )
+                if count < 0, errno == EINTR { continue }
+                guard count > 0 else { return false }
+                offset += count
+            }
+            return true
+        }
+        guard filled else { return nil }
+        var trailing: UInt8 = 0
+        while true {
+            let count = Darwin.read(descriptor, &trailing, 1)
+            if count < 0, errno == EINTR { continue }
+            guard count == 0 else { return nil }
+            break
+        }
+        return data
+    }
+}
+
 struct WholeSignDeletionOutcome: Equatable, Sendable {
     let assetID: UUID
     let deletionID: UUID
@@ -12,6 +53,11 @@ struct WholeSignDeletionOutcome: Equatable, Sendable {
 struct WholeSignDeletionRecoverySummary: Equatable, Sendable {
     let cancelledPreparedCount: Int
     let completedCommittedCount: Int
+}
+
+struct ExplicitSiteDeletionOutcomeV1: Equatable, Sendable {
+    let siteID: UUID
+    let deletionID: UUID
 }
 
 enum WholeSignDeletionServiceError: Error, Equatable {
@@ -59,11 +105,14 @@ final class WholeSignDeletionFailureInjection: @unchecked Sendable {
 
 @MainActor
 final class WholeSignDeletionService {
+    private static let maximumSnapshotByteCount = 32 * 1_024 * 1_024
+    private static let maximumPDFByteCount = 128 * 1_024 * 1_024
     private let modelContext: ModelContext
     private let generationRootURL: URL
     private let generationID: UUID
     private let journal: DeletionJournalStore
     private let files: DeletionGenerationFiles
+    private let ledgerStore: DeletionLedgerStore
     private let now: () -> Date
     private let makeUUID: () -> UUID
     private let failureInjection: WholeSignDeletionFailureInjection?
@@ -77,6 +126,7 @@ final class WholeSignDeletionService {
         failureInjection: WholeSignDeletionFailureInjection? = nil
     ) {
         self.modelContext = modelContext
+        ledgerStore = DeletionLedgerStore(context: modelContext)
         self.generationRootURL = generationRootURL.standardizedFileURL
         self.now = now
         self.makeUUID = makeUUID
@@ -147,6 +197,7 @@ final class WholeSignDeletionService {
             siteIDToDelete: rulePlan.siteIDToDelete,
             workflowRecordIDs: rulePlan.workflowRecordIDs
         )
+        try requireLedgerEntriesUnseen(plan.intent)
         try validateOwnedFiles(plan: plan, rows: rows)
         try journal.create(plan.intent)
         try inject(.preparedJournal)
@@ -155,6 +206,7 @@ final class WholeSignDeletionService {
             ($0.id, ($0.currentRecordID, $0.evaluationCounted, $0.contentDeletedAt))
         })
         do {
+            try ledgerStore.stageUnion(plan.intent.ledgerEntries)
             try apply(plan: plan, rows: rows)
             try inject(.databaseSave)
             try modelContext.save()
@@ -194,6 +246,109 @@ final class WholeSignDeletionService {
         )
     }
 
+    func previewSiteDeletion(
+        siteID: UUID
+    ) throws -> ExplicitSiteDeletionPreviewV1 {
+        try requireAuthority()
+        guard !modelContext.hasChanges else {
+            throw WholeSignDeletionServiceError.contextHasChanges
+        }
+        guard try journal.loadAll().isEmpty else {
+            throw WholeSignDeletionServiceError.recoveryRequired
+        }
+        let rows = try fetchRows()
+        guard let site = rows.sites.first(where: { $0.id == siteID }) else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        do {
+            return try WholeSignDeletionRule.makeExplicitSiteDeletionPreview(
+                try explicitSiteInput(
+                    site: site,
+                    rows: rows,
+                    deletionID: makeUUID(),
+                    deletedAt: now()
+                )
+            )
+        } catch {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+    }
+
+    func deleteSite(
+        preview: ExplicitSiteDeletionPreviewV1
+    ) async throws -> ExplicitSiteDeletionOutcomeV1 {
+        try requireAuthority()
+        guard !modelContext.hasChanges else {
+            throw WholeSignDeletionServiceError.contextHasChanges
+        }
+        guard try journal.loadAll().isEmpty,
+              preview.generationID == generationID,
+              preview.schemaVersion == 1 else {
+            throw WholeSignDeletionServiceError.recoveryRequired
+        }
+        let rows = try fetchRows()
+        guard let site = rows.sites.first(where: { $0.id == preview.siteID }) else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        let current: ExplicitSiteDeletionPreviewV1
+        do {
+            current = try WholeSignDeletionRule.makeExplicitSiteDeletionPreview(
+                try explicitSiteInput(
+                    site: site,
+                    rows: rows,
+                    deletionID: preview.deletionID,
+                    deletedAt: preview.deletedAt
+                )
+            )
+        } catch {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        guard current == preview else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        for plan in preview.assetPlans {
+            try validateOwnedFiles(plan: plan, rows: rows)
+        }
+        try requireLedgerIdentitiesUnseen(preview.ledgerEntries.map(\.identity))
+        let packetStates = Dictionary(uniqueKeysWithValues: rows.packets.map {
+            ($0.id, ($0.currentRecordID, $0.evaluationCounted, $0.contentDeletedAt))
+        })
+        do {
+            try ledgerStore.stageUnion(preview.ledgerEntries)
+            for plan in preview.assetPlans {
+                try apply(plan: plan, rows: rows)
+            }
+            modelContext.delete(site)
+            try inject(.databaseSave)
+            try modelContext.save()
+        } catch {
+            for packet in rows.packets {
+                if let state = packetStates[packet.id] {
+                    packet.currentRecordID = state.0
+                    packet.evaluationCounted = state.1
+                    packet.contentDeletedAt = state.2
+                }
+            }
+            modelContext.rollback()
+            if error is WholeSignDeletionServiceError { throw error }
+            throw WholeSignDeletionServiceError.saveFailed
+        }
+        do {
+            try inject(.fileCleanup)
+            for plan in preview.assetPlans {
+                try cleanup(plan.intent)
+            }
+        } catch let error as WholeSignDeletionServiceError {
+            throw error
+        } catch {
+            throw WholeSignDeletionServiceError.cleanupFailed
+        }
+        return ExplicitSiteDeletionOutcomeV1(
+            siteID: preview.siteID,
+            deletionID: preview.deletionID
+        )
+    }
+
     func reconcile() async throws -> WholeSignDeletionRecoverySummary {
         try requireAuthority()
         guard !modelContext.hasChanges else {
@@ -204,9 +359,13 @@ final class WholeSignDeletionService {
         let intentPacketIDs = intents.flatMap {
             $0.countedPacketTombstones.map(\.id)
         }
+        let intentLedgerIdentities = intents.flatMap {
+            $0.ledgerEntries.map(\.identity)
+        }
         guard Set(intents.map(\.assetID)).count == intents.count,
               Set(intentPaths).count == intentPaths.count,
-              Set(intentPacketIDs).count == intentPacketIDs.count else {
+              Set(intentPacketIDs).count == intentPacketIDs.count,
+              Set(intentLedgerIdentities).count == intentLedgerIdentities.count else {
             throw WholeSignDeletionServiceError.journalInvalid
         }
         var cancelled = 0
@@ -217,15 +376,49 @@ final class WholeSignDeletionService {
             }
             let rows = try fetchRows()
             if rows.assets.contains(where: { $0.id == intent.assetID }) {
+                if intent.schemaVersion == 1 {
+                    guard intent.phase == .prepared,
+                          try legacyPreparedIntentMatches(intent, rows: rows) else {
+                        throw WholeSignDeletionServiceError.journalInvalid
+                    }
+                    try journal.remove(intent)
+                    cancelled += 1
+                    continue
+                }
                 guard intent.phase == .prepared,
-                      try preparedIntentMatches(intent, rows: rows) else {
+                      let plan = try preparedPlan(intent, rows: rows) else {
                     throw WholeSignDeletionServiceError.journalInvalid
                 }
-                try journal.remove(intent)
-                cancelled += 1
+                try requireLedgerEntriesUnseen(intent)
+                let packetStates = Dictionary(uniqueKeysWithValues: rows.packets.map {
+                    ($0.id, ($0.currentRecordID, $0.evaluationCounted, $0.contentDeletedAt))
+                })
+                do {
+                    try ledgerStore.stageUnion(intent.ledgerEntries)
+                    try apply(plan: plan, rows: rows)
+                    try inject(.databaseSave)
+                    try modelContext.save()
+                } catch {
+                    for packet in rows.packets {
+                        if let state = packetStates[packet.id] {
+                            packet.currentRecordID = state.0
+                            packet.evaluationCounted = state.1
+                            packet.contentDeletedAt = state.2
+                        }
+                    }
+                    modelContext.rollback()
+                    if error is WholeSignDeletionServiceError { throw error }
+                    throw WholeSignDeletionServiceError.saveFailed
+                }
+                try inject(.committedPhase)
+                try journal.replace(intent.withPhase(.databaseCommitted))
+                try cleanup(intent)
+                try inject(.journalRemoval)
+                try journal.remove(intent.withPhase(.databaseCommitted))
+                completed += 1
                 continue
             }
-            guard committedStateMatches(intent, rows: rows) else {
+            guard try committedStateMatches(intent, rows: rows) else {
                 throw WholeSignDeletionServiceError.journalInvalid
             }
             if intent.phase == .prepared {
@@ -289,17 +482,27 @@ private extension WholeSignDeletionService {
     func fetchRows() throws -> Rows {
         do {
             return Rows(
-                sites: try modelContext.fetch(FetchDescriptor<Site>()),
-                assets: try modelContext.fetch(FetchDescriptor<Asset>()),
-                records: try modelContext.fetch(FetchDescriptor<WorkflowRecord>()),
-                evidence: try modelContext.fetch(FetchDescriptor<EvidenceFile>()),
-                issues: try modelContext.fetch(FetchDescriptor<Issue>()),
-                packets: try modelContext.fetch(FetchDescriptor<Packet>()),
-                reports: try modelContext.fetch(FetchDescriptor<Report>())
+                sites: try boundedFetch(Site.self),
+                assets: try boundedFetch(Asset.self),
+                records: try boundedFetch(WorkflowRecord.self),
+                evidence: try boundedFetch(EvidenceFile.self),
+                issues: try boundedFetch(Issue.self),
+                packets: try boundedFetch(Packet.self),
+                reports: try boundedFetch(Report.self)
             )
         } catch {
             throw WholeSignDeletionServiceError.graphInvalid
         }
+    }
+
+    func boundedFetch<T: PersistentModel>(_ type: T.Type) throws -> [T] {
+        var descriptor = FetchDescriptor<T>()
+        descriptor.fetchLimit = Self.maximumGraphRowsPerKind + 1
+        let rows = try modelContext.fetch(descriptor)
+        guard rows.count <= Self.maximumGraphRowsPerKind else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        return rows
     }
 
     func makeRuleInput(
@@ -359,6 +562,44 @@ private extension WholeSignDeletionService {
                     createdAt: $0.createdAt, replacesReportID: $0.replacesReportID
                 )
             }
+        )
+    }
+
+    func explicitSiteInput(
+        site: Site,
+        rows: Rows,
+        deletionID: UUID,
+        deletedAt: Date
+    ) throws -> ExplicitSiteDeletionInputV1 {
+        let assetPlans = try rows.assets
+            .filter { $0.siteID == site.id }
+            .map { asset in
+                try WholeSignDeletionRule.makePlan(makeRuleInput(
+                    rows: rows,
+                    assetID: asset.id,
+                    deletionID: deletionID,
+                    deletedAt: deletedAt
+                ))
+            }
+        return ExplicitSiteDeletionInputV1(
+            siteID: site.id,
+            generationID: generationID,
+            deletionID: deletionID,
+            deletedAt: deletedAt,
+            siteSchemaVersion: site.schemaVersion,
+            label: site.label,
+            address: site.address,
+            timeZoneID: site.timeZoneID,
+            createdAt: site.createdAt,
+            updatedAt: site.updatedAt,
+            siteAssets: rows.assets.filter { $0.siteID == site.id }.map {
+                DeletionAssetPayloadV1(
+                    id: $0.id,
+                    schemaVersion: $0.schemaVersion,
+                    siteID: $0.siteID
+                )
+            },
+            assetPlans: assetPlans
         )
     }
 
@@ -428,7 +669,22 @@ private extension WholeSignDeletionService {
         })
         for path in plan.intent.relativePaths {
             let data: Data
-            do { data = try files.read(relativePath: path) }
+            let maximumByteCount: Int
+            if evidenceByPath[path] != nil {
+                maximumByteCount = path.hasSuffix("thumbnail.jpg")
+                    ? MediaContractV1.thumbnailByteCountMaximum
+                    : MediaContractV1.originalByteCountMaximum
+            } else if path.hasPrefix("snapshots/") {
+                maximumByteCount = Self.maximumSnapshotByteCount
+            } else {
+                maximumByteCount = Self.maximumPDFByteCount
+            }
+            do {
+                data = try files.read(
+                    relativePath: path,
+                    maximumByteCount: maximumByteCount
+                )
+            }
             catch { throw WholeSignDeletionServiceError.fileInvalid }
             if let authority = evidenceByPath[path] {
                 guard data.count == authority.0,
@@ -498,21 +754,57 @@ private extension WholeSignDeletionService {
         }
     }
 
-    func preparedIntentMatches(_ intent: DeletionIntentV1, rows: Rows) throws -> Bool {
+    func preparedPlan(
+        _ intent: DeletionIntentV1,
+        rows: Rows
+    ) throws -> WholeSignDeletionPlan? {
+        guard intent.schemaVersion == 2 else { return nil }
         let dates = Set(intent.countedPacketTombstones.compactMap(\.contentDeletedAt))
-        guard dates.count <= 1 else { return false }
+        let ledgerDates = Set(intent.ledgerEntries.map(\.deletedAt))
+        guard dates.count <= 1,
+              ledgerDates.count == 1,
+              let ledgerDate = ledgerDates.first else { return nil }
         let input = makeRuleInput(
             rows: rows, assetID: intent.assetID,
             deletionID: intent.deletionID,
-            deletedAt: dates.first ?? .distantPast
+            deletedAt: dates.first ?? ledgerDate
         )
         guard let plan = try? WholeSignDeletionRule.makePlan(input),
-              plan.intent == intent else { return false }
+              plan.intent == intent else { return nil }
+        try validateOwnedFiles(plan: plan, rows: rows)
+        return plan
+    }
+
+    func legacyPreparedIntentMatches(
+        _ intent: DeletionIntentV1,
+        rows: Rows
+    ) throws -> Bool {
+        guard intent.schemaVersion == 1, intent.ledgerEntries.isEmpty else { return false }
+        let dates = Set(intent.countedPacketTombstones.compactMap(\.contentDeletedAt))
+        guard dates.count <= 1 else { return false }
+        let input = makeRuleInput(
+            rows: rows,
+            assetID: intent.assetID,
+            deletionID: intent.deletionID,
+            deletedAt: dates.first ?? .distantPast
+        )
+        guard let plan = try? WholeSignDeletionRule.makePlan(input) else { return false }
+        let legacy = DeletionIntentV1(
+            assetID: plan.intent.assetID,
+            countedPacketTombstones: plan.intent.countedPacketTombstones,
+            deletionID: plan.intent.deletionID,
+            generationID: plan.intent.generationID,
+            ledgerEntries: [],
+            phase: plan.intent.phase,
+            relativePaths: plan.intent.relativePaths,
+            schemaVersion: 1
+        )
+        guard legacy == intent else { return false }
         try validateOwnedFiles(plan: plan, rows: rows)
         return true
     }
 
-    func committedStateMatches(_ intent: DeletionIntentV1, rows: Rows) -> Bool {
+    func committedStateMatches(_ intent: DeletionIntentV1, rows: Rows) throws -> Bool {
         let tombstones = Dictionary(uniqueKeysWithValues:
             intent.countedPacketTombstones.map { ($0.id, $0) }
         )
@@ -524,10 +816,7 @@ private extension WholeSignDeletionService {
               unique(rows.packets.map(\.id)),
               unique(rows.packets.map(\.stableRootID)),
               unique(rows.reports.map(\.id)),
-              rows.sites.allSatisfy({ site in
-                  site.schemaVersion == 1
-                    && rows.assets.contains(where: { $0.siteID == site.id })
-              }),
+              rows.sites.allSatisfy({ $0.schemaVersion == 1 }),
               rows.assets.allSatisfy({ asset in
                   asset.schemaVersion == 1
                     && rows.sites.contains(where: { $0.id == asset.siteID })
@@ -570,12 +859,45 @@ private extension WholeSignDeletionService {
                   return packet.evaluationCounted && packet.contentDeletedAt != nil
                     && rows.records.allSatisfy({ $0.packetID != packet.id })
                     && rows.reports.allSatisfy({ $0.packetID != packet.id })
+              }),
+              intent.ledgerEntries.allSatisfy({ entry in
+                  if entry.identity.kind == .packet,
+                     tombstones[entry.identity.id] != nil {
+                      return true
+                  }
+                  return !contains(entry.identity, rows: rows)
               }) else { return false }
+        if intent.schemaVersion == 2 {
+            do {
+                try ledgerStore.requireContains(Set(intent.ledgerEntries.map(\.identity)))
+            } catch {
+                return false
+            }
+        }
         return true
     }
 
     func unique<T: Hashable>(_ values: [T]) -> Bool {
         Set(values).count == values.count
+    }
+
+    func contains(_ identity: DeletionIdentityV2, rows: Rows) -> Bool {
+        switch identity.kind {
+        case .site:
+            return rows.sites.contains { $0.id == identity.id }
+        case .asset:
+            return rows.assets.contains { $0.id == identity.id }
+        case .workflowRecord:
+            return rows.records.contains { $0.id == identity.id }
+        case .evidenceFile:
+            return rows.evidence.contains { $0.id == identity.id }
+        case .issue:
+            return rows.issues.contains { $0.id == identity.id }
+        case .packet:
+            return rows.packets.contains { $0.id == identity.id }
+        case .report:
+            return rows.reports.contains { $0.id == identity.id }
+        }
     }
 
     func apply(plan: WholeSignDeletionPlan, rows: Rows) throws {
@@ -603,15 +925,34 @@ private extension WholeSignDeletionService {
             throw WholeSignDeletionServiceError.graphInvalid
         }
         modelContext.delete(asset)
-        if let siteID = plan.siteIDToDelete,
-           let site = rows.sites.first(where: { $0.id == siteID }) {
-            modelContext.delete(site)
+        guard plan.siteIDToDelete == nil else {
+            throw WholeSignDeletionServiceError.graphInvalid
         }
     }
 
     func sha256(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
+
+    func requireLedgerEntriesUnseen(_ intent: DeletionIntentV1) throws {
+        try requireLedgerIdentitiesUnseen(intent.ledgerEntries.map(\.identity))
+    }
+
+    func requireLedgerIdentitiesUnseen(_ identities: [DeletionIdentityV2]) throws {
+        let expected = Set(identities)
+        do {
+            let existing = Set(try ledgerStore.snapshot().entries.map(\.identity))
+            guard expected.isDisjoint(with: existing) else {
+                throw WholeSignDeletionServiceError.graphInvalid
+            }
+        } catch let error as WholeSignDeletionServiceError {
+            throw error
+        } catch {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+    }
+
+    static let maximumGraphRowsPerKind = DeletionLedgerV2.maximumEntryCount
 }
 
 private final class DeletionGenerationFiles {
@@ -641,20 +982,31 @@ private final class DeletionGenerationFiles {
         generationID = parsed
     }
 
-    func read(relativePath: String) throws -> Data {
+    func read(relativePath: String, maximumByteCount: Int) throws -> Data {
         try withParent(relativePath) { parent, leaf in
             let descriptor = Darwin.openat(parent, leaf, O_RDONLY | O_NOFOLLOW)
             guard descriptor >= 0 else { throw WholeSignDeletionServiceError.fileInvalid }
-            let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+            defer { Darwin.close(descriptor) }
             var info = stat()
             guard Darwin.fstat(descriptor, &info) == 0,
                   (info.st_mode & S_IFMT) == S_IFREG,
-                  info.st_nlink == 1 else {
-                try? handle.close()
+                  info.st_nlink == 1,
+                  let data = DeletionDescriptorRead.read(
+                    descriptor: descriptor,
+                    declaredSize: info.st_size,
+                    maximumByteCount: maximumByteCount
+                  ) else {
                 throw WholeSignDeletionServiceError.fileInvalid
             }
-            do { return try handle.readToEnd() ?? Data() }
-            catch { throw WholeSignDeletionServiceError.fileInvalid }
+            var after = stat()
+            guard Darwin.fstat(descriptor, &after) == 0,
+                  info.st_dev == after.st_dev,
+                  info.st_ino == after.st_ino,
+                  info.st_size == after.st_size,
+                  data.count == Int(after.st_size) else {
+                throw WholeSignDeletionServiceError.fileInvalid
+            }
+            return data
         }
     }
 
@@ -851,7 +1203,12 @@ private final class DeletionGenerationFiles {
                     String(cString: $0)
                 }
             }
-            if name != "." && name != ".." { result.append(name) }
+            if name != "." && name != ".." {
+                guard result.count < 16 else {
+                    throw WholeSignDeletionServiceError.fileInvalid
+                }
+                result.append(name)
+            }
             errno = 0
         }
         guard errno == 0 else { throw WholeSignDeletionServiceError.fileInvalid }
@@ -860,6 +1217,9 @@ private final class DeletionGenerationFiles {
 }
 
 private final class DeletionJournalStore {
+    private static let maximumJournalEntryCount = 1_024
+    private static let maximumJournalFileByteCount = 64 * 1_024 * 1_024
+    private static let maximumJournalEnumerationByteCount: Int64 = 64 * 1_024 * 1_024
     private let applicationSupportURL: URL?
     private let identity: Identity?
     private let operationsIdentity: Identity?
@@ -986,7 +1346,12 @@ private final class DeletionJournalStore {
                         String(cString: $0)
                     }
                 }
-                if name != "." && name != ".." { names.append(name) }
+                if name != "." && name != ".." {
+                    guard names.count < Self.maximumJournalEntryCount else {
+                        throw WholeSignDeletionServiceError.journalInvalid
+                    }
+                    names.append(name)
+                }
                 errno = 0
             }
             guard errno == 0 else {
@@ -996,6 +1361,25 @@ private final class DeletionJournalStore {
             let journalNames = names.filter { Self.journalIdentifier($0) != nil }
             guard temporaryNames.count + journalNames.count == names.count else {
                 throw WholeSignDeletionServiceError.journalInvalid
+            }
+            var enumeratedBytes: Int64 = 0
+            for name in names {
+                var info = stat()
+                guard Darwin.fstatat(
+                    descriptor,
+                    name,
+                    &info,
+                    AT_SYMLINK_NOFOLLOW
+                ) == 0,
+                      (info.st_mode & S_IFMT) == S_IFREG,
+                      info.st_nlink == 1,
+                      info.st_size >= 0,
+                      Int64(info.st_size) <= Int64(Self.maximumJournalFileByteCount),
+                      enumeratedBytes
+                        <= Self.maximumJournalEnumerationByteCount - Int64(info.st_size) else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+                enumeratedBytes += Int64(info.st_size)
             }
             let journalIDs = Set(journalNames.compactMap(Self.journalIdentifier))
             for temporary in temporaryNames {
@@ -1447,25 +1831,27 @@ private final class DeletionJournalStore {
     ) throws -> ReadValue {
         let file = Darwin.openat(descriptor, name, O_RDONLY | O_NOFOLLOW)
         guard file >= 0 else { throw WholeSignDeletionServiceError.journalInvalid }
-        let handle = FileHandle(fileDescriptor: file, closeOnDealloc: true)
+        defer { Darwin.close(file) }
         var before = stat()
         guard Darwin.fstat(file, &before) == 0,
               (before.st_mode & S_IFMT) == S_IFREG,
               before.st_nlink == 1,
               before.st_size >= 0 else {
-            try? handle.close()
             throw WholeSignDeletionServiceError.journalInvalid
         }
-        let data: Data
-        do { data = try handle.readToEnd() ?? Data() }
-        catch { throw WholeSignDeletionServiceError.journalInvalid }
+        guard let data = DeletionDescriptorRead.read(
+            descriptor: file,
+            declaredSize: before.st_size,
+            maximumByteCount: Self.maximumJournalFileByteCount
+        ) else {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
         var after = stat()
         guard Darwin.fstat(file, &after) == 0,
               before.st_dev == after.st_dev,
               before.st_ino == after.st_ino,
               before.st_size == after.st_size,
               data.count == Int(after.st_size) else {
-            try? handle.close()
             throw WholeSignDeletionServiceError.journalInvalid
         }
         return ReadValue(

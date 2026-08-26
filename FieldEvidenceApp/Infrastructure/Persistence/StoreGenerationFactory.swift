@@ -37,6 +37,71 @@ private enum StorePointerSchemaRegistry {
 private extension StoreGenerationFactory {
     @MainActor
     private func beginMigration(
+        sourcePointer: CurrentGenerationPointerV3,
+        sourcePointerData: Data,
+        retired: RetiredPointerV1,
+        dataRootURL: URL,
+        store: StoreMigrationJournalStoreV1,
+        processID: UUID
+    ) throws -> StoreGenerationSession {
+        try sourcePointer.validate()
+        guard sourcePointer.storeSchemaVersion == 2,
+              let sourceID = canonicalUUID(from: sourcePointer.generationID),
+              !retired.generationIDs.contains(sourcePointer.generationID) else {
+            throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+        }
+        let sourceManifest = try store.loadManifest(
+            targetGenerationID: sourceID,
+            expectedDigest: sourcePointer.generationManifestSHA256
+        )
+        guard sourceManifest.storeSchemaRelease == .v2,
+              sourceManifest.semanticSHA256 != nil else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        }
+        let identities = migrationIdentitySource ?? .live
+        let targetID = identities.makeGenerationID()
+        guard sourceManifest.migrationID != targetID,
+              sourceID != targetID else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let authority = try makeRestoreGenerationAuthority()
+        try authority.requireNoRestoreJournal()
+        try authority.requireNoEraseAuthority()
+        let snapshot = try authority.snapshotInstalledGeneration(id: sourceID)
+        guard snapshot.files == sourceManifest.files,
+              snapshot.frozenIdentityDigest == sourceManifest.frozenIdentityDigest else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        }
+        let pointerDigest = StoreMigrationCanonicalJSONV1.sha256(sourcePointerData)
+        let prepared = try StoreMigrationJournalV1(
+            migrationID: sourceManifest.migrationID,
+            sourceGenerationID: sourceID,
+            targetGenerationID: targetID,
+            sourceRelease: .v2,
+            targetRelease: .v3,
+            sourcePointerDigest: pointerDigest,
+            sourceTreeDigest: snapshot.sourceTreeDigest,
+            sourceManifestDigest: sourcePointer.generationManifestSHA256,
+            frozenIdentityDigest: snapshot.frozenIdentityDigest,
+            expectedPointerDigest: pointerDigest,
+            originatingProcessID: processID,
+            phase: .prepared,
+            targetWritePossible: false,
+            pointerPublicationAttempted: false
+        )
+        try reachMigrationBoundary(.beforePreparedJournalWrite)
+        try store.createPreparedMigration(journal: prepared, sourceManifest: sourceManifest)
+        try reachMigrationBoundary(.afterPreparedJournalWrite)
+        return try resumeMigration(
+            prepared,
+            dataRootURL: dataRootURL,
+            store: store,
+            processID: processID
+        )
+    }
+
+    @MainActor
+    private func beginMigration(
         sourcePointer: CurrentPointerV1,
         sourcePointerData: Data,
         retired: RetiredPointerV1,
@@ -236,9 +301,14 @@ private extension StoreGenerationFactory {
                     at: restoreStagingGenerationURL(
                         id: journal.targetGenerationID
                     ).appendingPathComponent(Self.modelStoreName),
-                    release: .v1,
+                    release: journal.sourceRelease,
                     markerMigrationID: nil
                 )
+                if journal.sourceRelease != .v1,
+                   sourceManifest.semanticSHA256
+                    != StoreMigrationCanonicalJSONV1.sha256(sourceSemantic) {
+                    throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                }
                 let next = try migrationJournal(
                     journal,
                     phase: .sourceCloned,
@@ -290,7 +360,7 @@ private extension StoreGenerationFactory {
                 }
                 let recoveredSourceSemantic = try semanticExport(
                     at: targetRoot.appendingPathComponent(Self.modelStoreName),
-                    release: .v1,
+                    release: journal.sourceRelease,
                     markerMigrationID: nil
                 )
                 guard StoreMigrationCanonicalJSONV1.sha256(
@@ -316,8 +386,10 @@ private extension StoreGenerationFactory {
                     throw StoreMigrationFailure.maintenanceRequired(.targetUnavailable)
                 }
                 try reachMigrationBoundary(.beforeV2Validation)
-                let targetSemantic = try migrateAndValidateV2Clone(
+                let targetSemantic = try migrateAndValidateClone(
                     at: targetRoot,
+                    sourceRelease: journal.sourceRelease,
+                    targetRelease: journal.targetRelease,
                     migrationID: journal.migrationID,
                     expectedSemanticDigest: try requiredSourceSemanticDigest(
                         journal
@@ -332,17 +404,18 @@ private extension StoreGenerationFactory {
                     generationID: journal.targetGenerationID,
                     predecessorGenerationID: journal.sourceGenerationID,
                     migrationID: journal.migrationID,
-                    storeSchemaRelease: .v2,
+                    storeSchemaRelease: journal.targetRelease,
                     semanticSHA256: targetSemantic,
                     frozenIdentityDigest: try frozenIdentityDigest(for: targetRoot),
                     files: try generationFileDigests(at: targetRoot, durable: true)
                 )
                 let targetManifestDigest = try store.writeManifest(targetManifest)
-                let desiredPointer = try CurrentGenerationPointerV2(
-                    generationID: journal.targetGenerationID,
-                    generationManifestSHA256: targetManifestDigest
+                let desiredPointerDigest = StoreMigrationCanonicalJSONV1.sha256(
+                    try desiredMigrationPointerData(
+                        journal: journal,
+                        manifestDigest: targetManifestDigest
+                    )
                 )
-                let desiredPointerDigest = try desiredPointer.canonicalSHA256()
                 let next = try migrationJournal(
                     journal,
                     phase: .v2Validated,
@@ -461,7 +534,14 @@ private extension StoreGenerationFactory {
                     authority: authority,
                     store: store
                 )
-                return session
+                return try continueIntoActiveReleaseIfNeeded(
+                    after: journal,
+                    validatedSession: session,
+                    authority: authority,
+                    dataRootURL: dataRootURL,
+                    store: store,
+                    processID: processID
+                )
 
             case .secondLaunchValidated:
                 let session = try openPublishedMigrationTarget(
@@ -474,9 +554,62 @@ private extension StoreGenerationFactory {
                     authority: authority,
                     store: store
                 )
-                return session
+                return try continueIntoActiveReleaseIfNeeded(
+                    after: journal,
+                    validatedSession: session,
+                    authority: authority,
+                    dataRootURL: dataRootURL,
+                    store: store,
+                    processID: processID
+                )
             }
         }
+    }
+
+    /// Closes one accepted adjacent migration and starts the next without
+    /// recursively re-entering startup. A V2 session must never escape once
+    /// V3 is the active release because ledger-aware callers can only use a
+    /// V3 ModelContext.
+    @MainActor
+    private func continueIntoActiveReleaseIfNeeded(
+        after completed: StoreMigrationJournalV1,
+        validatedSession: StoreGenerationSession,
+        authority: StoreRestoreGenerationAuthority,
+        dataRootURL: URL,
+        store: StoreMigrationJournalStoreV1,
+        processID: UUID
+    ) throws -> StoreGenerationSession {
+        guard completed.targetRelease != PersistentSchemaReleaseRegistryV1.activeRelease else {
+            return validatedSession
+        }
+        guard completed.targetRelease == .v2,
+              PersistentSchemaReleaseRegistryV1.activeRelease == .v3 else {
+            throw StoreMigrationFailure.maintenanceRequired(.futureVersion)
+        }
+        let current = try decodeCurrentPointer(
+            at: dataRootURL.appendingPathComponent(Self.currentPointerName)
+        )
+        guard case .v3(let pointer, let pointerData) = current,
+              pointer.storeSchemaVersion == 2,
+              canonicalUUID(from: pointer.generationID)
+                == completed.targetGenerationID else {
+            throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+        }
+        let retiredIDs = try authority.retiredGenerationIDs()
+        let retired = RetiredPointerV1(
+            generationIDs: retiredIDs
+                .map { canonicalString(for: $0) }
+                .sorted(),
+            schemaVersion: StorePointerSchemaRegistry.retiredVersion
+        )
+        return try beginMigration(
+            sourcePointer: pointer,
+            sourcePointerData: pointerData,
+            retired: retired,
+            dataRootURL: dataRootURL,
+            store: store,
+            processID: processID
+        )
     }
 
     @MainActor
@@ -512,21 +645,37 @@ private extension StoreGenerationFactory {
         let envelope = try decodeCurrentPointer(
             at: dataRootURL.appendingPathComponent(Self.currentPointerName)
         )
-        guard case .v2(let pointer, let data) = envelope,
-              StoreMigrationCanonicalJSONV1.sha256(data)
+        guard StoreMigrationCanonicalJSONV1.sha256(envelope.data)
                 == journal.desiredPointerDigest,
-              pointer.generationID
-                == canonicalString(for: journal.targetGenerationID),
-              pointer.generationManifestSHA256
-                == journal.targetManifestDigest else {
+              envelope.generationID
+                == canonicalString(for: journal.targetGenerationID) else {
             throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
         }
-        return try openValidatedV2Current(
-            pointer: pointer,
-            dataRootURL: dataRootURL,
-            store: store,
-            identity: try compatibilityIdentity(for: pointer)
-        )
+        switch envelope {
+        case .v2(let pointer, _):
+            guard journal.targetRelease == .v2,
+                  pointer.generationManifestSHA256 == journal.targetManifestDigest else {
+                throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+            }
+            return try openValidatedV2Current(
+                pointer: pointer,
+                dataRootURL: dataRootURL,
+                store: store,
+                identity: try compatibilityIdentity(for: pointer)
+            )
+        case .v3(let pointer, _):
+            guard journal.targetRelease == .v3,
+                  pointer.generationManifestSHA256 == journal.targetManifestDigest else {
+                throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+            }
+            return try openValidatedV3Current(
+                pointer: pointer,
+                dataRootURL: dataRootURL,
+                store: store
+            )
+        case .legacy:
+            throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+        }
     }
 
     private func requireMigrationPointerState(
@@ -564,9 +713,11 @@ private extension StoreGenerationFactory {
         )
         guard manifest.generationID == journal.sourceGenerationID,
               manifest.migrationID == journal.migrationID,
-              manifest.storeSchemaRelease == .v1,
+              manifest.storeSchemaRelease == journal.sourceRelease,
               manifest.frozenIdentityDigest == journal.frozenIdentityDigest,
-              manifest.semanticSHA256 == nil else {
+              (journal.sourceRelease == .v1
+                ? manifest.semanticSHA256 == nil
+                : manifest.semanticSHA256 != nil) else {
             throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
         }
         return manifest
@@ -597,7 +748,7 @@ private extension StoreGenerationFactory {
         guard manifest.generationID == journal.targetGenerationID,
               manifest.predecessorGenerationID == journal.sourceGenerationID,
               manifest.migrationID == journal.migrationID,
-              manifest.storeSchemaRelease == .v2,
+              manifest.storeSchemaRelease == journal.targetRelease,
               manifest.semanticSHA256 == semantic else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
@@ -670,12 +821,12 @@ private extension StoreGenerationFactory {
         guard let manifestDigest = journal.targetManifestDigest else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
-        let desiredPointer = try CurrentGenerationPointerV2(
-            generationID: manifest.generationID,
-            generationManifestSHA256: manifestDigest
+        let desiredData = try desiredMigrationPointerData(
+            journal: journal,
+            manifestDigest: manifestDigest
         )
-        let desiredData = try desiredPointer.canonicalData()
-        guard try desiredPointer.canonicalSHA256() == journal.desiredPointerDigest else {
+        guard StoreMigrationCanonicalJSONV1.sha256(desiredData)
+                == journal.desiredPointerDigest else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
 
@@ -796,6 +947,49 @@ private extension StoreGenerationFactory {
         }
     }
 
+    private func desiredMigrationPointerData(
+        journal: StoreMigrationJournalV1,
+        manifestDigest: String
+    ) throws -> Data {
+        switch (journal.sourceRelease, journal.targetRelease) {
+        case (.v1, .v2):
+            return try CurrentGenerationPointerV2(
+                generationID: journal.targetGenerationID,
+                generationManifestSHA256: manifestDigest
+            ).canonicalData()
+        case (.v2, .v3):
+            let current = try decodeCurrentPointer(
+                at: dataRootURL.appendingPathComponent(Self.currentPointerName)
+            )
+            guard case .v3(let pointer, let data) = current else {
+                throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+            }
+            let digest = StoreMigrationCanonicalJSONV1.sha256(data)
+            let isSource = digest == journal.expectedPointerDigest
+                && pointer.generationID
+                    == canonicalString(for: journal.sourceGenerationID)
+                && pointer.storeSchemaVersion == 2
+            let isTarget = digest == journal.desiredPointerDigest
+                && pointer.generationID
+                    == canonicalString(for: journal.targetGenerationID)
+                && pointer.storeSchemaVersion == 3
+            guard isSource || isTarget else {
+                throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+            }
+            let identity = try pointer.identity()
+            return try CurrentGenerationPointerV3(
+                generationID: journal.targetGenerationID,
+                generationManifestSHA256: manifestDigest,
+                workspaceID: identity.workspaceID,
+                replicaID: identity.replicaID,
+                knownReplicaIDs: try pointer.knownReplicaIdentitySet(),
+                storeSchemaVersion: 3
+            ).canonicalData()
+        default:
+            throw StoreMigrationFailure.invalidContract
+        }
+    }
+
     @MainActor
     private func openValidatedV2Current(
         pointer: CurrentGenerationPointerV2,
@@ -812,7 +1006,8 @@ private extension StoreGenerationFactory {
             expectedDigest: pointer.generationManifestSHA256
         )
         guard manifest.generationID == generationID,
-              manifest.storeSchemaRelease == .v2 else {
+              manifest.storeSchemaRelease
+                == (pointer.storeSchemaVersion == 3 ? .v3 : .v2) else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
         let generationRootURL = dataRootURL
@@ -870,22 +1065,59 @@ private extension StoreGenerationFactory {
         store: StoreMigrationJournalStoreV1
     ) throws -> StoreGenerationSession {
         let identity = try pointer.identity()
-        let v2 = try CurrentGenerationPointerV2(
-            generationID: UUID(uuidString: pointer.generationID)!,
-            generationManifestSHA256: pointer.generationManifestSHA256,
-            storeSchemaVersion: pointer.storeSchemaVersion
+        if pointer.storeSchemaVersion == 2 {
+            return try openValidatedV2Current(
+                pointer: CurrentGenerationPointerV2(
+                    generationID: UUID(uuidString: pointer.generationID)!,
+                    generationManifestSHA256: pointer.generationManifestSHA256
+                ),
+                dataRootURL: dataRootURL,
+                store: store,
+                identity: identity
+            )
+        }
+        guard pointer.storeSchemaVersion == 3,
+              let generationID = canonicalUUID(from: pointer.generationID) else {
+            throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+        }
+        let manifest = try store.loadManifest(
+            targetGenerationID: generationID,
+            expectedDigest: pointer.generationManifestSHA256
         )
-        return try openValidatedV2Current(
-            pointer: v2,
-            dataRootURL: dataRootURL,
-            store: store,
-            identity: identity
+        guard manifest.storeSchemaRelease == .v3 else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        let generationRootURL = installedGenerationURL(id: generationID)
+        let modelStoreURL = generationRootURL.appendingPathComponent(Self.modelStoreName)
+        try protectGeneration(at: generationRootURL, staging: false, requireModel: true)
+        let container = try makeV3Container(at: modelStoreURL, migrate: false)
+        _ = try requireV3Marker(
+            in: container.mainContext,
+            expectedMigrationID: manifest.migrationID
+        )
+        guard manifest.semanticSHA256 == (try semanticDigest(at: modelStoreURL, release: .v3)) else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        return StoreGenerationSession(
+            generationID: generationID,
+            generationRootURL: generationRootURL,
+            workspaceIdentity: identity,
+            modelContainer: container,
+            afterSaveReproof: { [self] in
+                try self.protectGeneration(
+                    at: generationRootURL,
+                    staging: false,
+                    requireModel: true
+                )
+            }
         )
     }
 
     @MainActor
-    private func migrateAndValidateV2Clone(
+    private func migrateAndValidateClone(
         at generationRootURL: URL,
+        sourceRelease: PersistentSchemaReleaseV1,
+        targetRelease: PersistentSchemaReleaseV1,
         migrationID: UUID,
         expectedSemanticDigest: String
     ) throws -> String {
@@ -893,20 +1125,44 @@ private extension StoreGenerationFactory {
             Self.modelStoreName,
             isDirectory: false
         )
-        let semantic = try autoreleasepool { () throws -> Data in
-            let container = try makeV2Container(at: modelStoreURL, migrate: true)
-            let context = container.mainContext
-            try insertOrRequireV2Marker(
-                in: context,
-                migrationID: migrationID
+        switch (sourceRelease, targetRelease) {
+        case (.v1, .v2):
+            let semantic = try autoreleasepool { () throws -> Data in
+                let container = try makeV2Container(at: modelStoreURL, migrate: true)
+                let context = container.mainContext
+                try insertOrRequireV2Marker(
+                    in: context,
+                    migrationID: migrationID
+                )
+                return try semanticExport(in: context)
+            }
+            let digest = StoreMigrationCanonicalJSONV1.sha256(semantic)
+            guard digest == expectedSemanticDigest else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            return digest
+        case (.v2, .v3):
+            let sourceSemantic = try semanticExport(
+                at: modelStoreURL,
+                release: .v2,
+                markerMigrationID: migrationID
             )
-            return try semanticExport(in: context)
+            guard StoreMigrationCanonicalJSONV1.sha256(sourceSemantic)
+                    == expectedSemanticDigest else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+            return try autoreleasepool { () throws -> String in
+                let container = try makeV3Container(at: modelStoreURL, migrate: true)
+                let context = container.mainContext
+                try backfillV3DeletionLedger(in: context)
+                try requireV3Marker(in: context, expectedMigrationID: migrationID)
+                return StoreMigrationCanonicalJSONV1.sha256(
+                    try semanticExportV3(in: context)
+                )
+            }
+        default:
+            throw StoreMigrationFailure.invalidContract
         }
-        let digest = StoreMigrationCanonicalJSONV1.sha256(semantic)
-        guard digest == expectedSemanticDigest else {
-            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
-        }
-        return digest
     }
 
     @MainActor
@@ -929,8 +1185,16 @@ private extension StoreGenerationFactory {
                     in: container.mainContext,
                     expectedMigrationID: markerMigrationID
                 )
+            case .v3:
+                container = try makeV3Container(at: modelStoreURL, migrate: false)
+                _ = try requireV3Marker(
+                    in: container.mainContext,
+                    expectedMigrationID: markerMigrationID
+                )
             }
-            return try semanticExport(in: container.mainContext)
+            return release == .v3
+                ? try semanticExportV3(in: container.mainContext)
+                : try semanticExport(in: container.mainContext)
         }
     }
 
@@ -942,6 +1206,15 @@ private extension StoreGenerationFactory {
         )
         let records = try restore.migrationCanonicalRecords(in: context)
         return try BackupCanonicalEncoderV1().encodeRecords(records).data
+    }
+
+    @MainActor
+    private func semanticExportV3(in context: ModelContext) throws -> Data {
+        let records = try semanticExport(in: context)
+        let ledger = try DeletionLedgerStore(context: context).snapshot().canonicalData()
+        return try StoreMigrationCanonicalJSONV1.encode(
+            StoreSemanticEnvelopeV3(records: records, deletionLedger: ledger)
+        )
     }
 
     @MainActor
@@ -980,7 +1253,10 @@ private extension StoreGenerationFactory {
         at modelStoreURL: URL,
         migrate: Bool
     ) throws -> ModelContainer {
-        let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
+        let schema = Schema(
+            PersistentSchemaV2.models,
+            version: PersistentSchemaV2.versionIdentifier
+        )
         let configuration = ModelConfiguration(
             "FieldEvidenceV2",
             schema: schema,
@@ -1003,6 +1279,33 @@ private extension StoreGenerationFactory {
     }
 
     @MainActor
+    private func makeV3Container(
+        at modelStoreURL: URL,
+        migrate: Bool
+    ) throws -> ModelContainer {
+        let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
+        let configuration = ModelConfiguration(
+            "FieldEvidenceV3",
+            schema: schema,
+            url: modelStoreURL,
+            allowsSave: true,
+            cloudKitDatabase: .none
+        )
+        if migrate {
+            return try ModelContainer(
+                for: schema,
+                migrationPlan: PersistentSchemaMigrationPlanV2.self,
+                configurations: [configuration]
+            )
+        }
+        return try ModelContainer(
+            for: schema,
+            migrationPlan: nil,
+            configurations: [configuration]
+        )
+    }
+
+    @MainActor
     private func makeFreshV2Container(
         at modelStoreURL: URL,
         markerMigrationID: UUID
@@ -1013,6 +1316,95 @@ private extension StoreGenerationFactory {
             migrationID: markerMigrationID
         )
         return container
+    }
+
+    @MainActor
+    private func makeFreshV3Container(
+        at modelStoreURL: URL,
+        markerMigrationID: UUID
+    ) throws -> ModelContainer {
+        let container = try makeV3Container(at: modelStoreURL, migrate: false)
+        try insertOrRequireV3Marker(
+            in: container.mainContext,
+            migrationID: markerMigrationID
+        )
+        return container
+    }
+
+    @MainActor
+    private func insertOrRequireV3Marker(
+        in context: ModelContext,
+        migrationID: UUID
+    ) throws {
+        let markers = try context.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>())
+        if markers.isEmpty {
+            context.insert(
+                PersistentSchemaReleaseMarker(
+                    id: PersistentSchemaReleaseRegistryV1.v2MarkerID,
+                    schemaVersion: 3,
+                    releaseID: PersistentSchemaReleaseRegistryV1.v3CompatibilityID,
+                    predecessorReleaseID: PersistentSchemaReleaseRegistryV1.v2CompatibilityID,
+                    migrationID: migrationID
+                )
+            )
+            try context.save()
+        }
+        _ = try requireV3Marker(in: context, expectedMigrationID: migrationID)
+    }
+
+    @MainActor
+    @discardableResult
+    private func requireV3Marker(
+        in context: ModelContext,
+        expectedMigrationID: UUID?
+    ) throws -> PersistentSchemaReleaseMarker {
+        let markers = try context.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>())
+        guard markers.count == 1, let marker = markers.first,
+              marker.id == PersistentSchemaReleaseRegistryV1.v2MarkerID,
+              marker.schemaVersion == 3,
+              marker.releaseID == PersistentSchemaReleaseRegistryV1.v3CompatibilityID,
+              marker.predecessorReleaseID == PersistentSchemaReleaseRegistryV1.v2CompatibilityID,
+              marker.migrationID != nil,
+              expectedMigrationID.map({ marker.migrationID == $0 }) ?? true else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        return marker
+    }
+
+    @MainActor
+    private func backfillV3DeletionLedger(in context: ModelContext) throws {
+        var descriptor = FetchDescriptor<Packet>(
+            predicate: #Predicate { $0.contentDeletedAt != nil }
+        )
+        descriptor.fetchLimit = DeletionLedgerV2.maximumEntryCount + 1
+        let packets = try context.fetch(descriptor)
+        guard packets.count <= DeletionLedgerV2.maximumEntryCount else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        let store = DeletionLedgerStore(context: context)
+        var entries: [DeletionLedgerEntryV2] = []
+        for packet in packets {
+            guard let deletedAt = packet.contentDeletedAt else { continue }
+            guard packet.evaluationCounted, packet.currentRecordID == nil else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            entries.append(
+                try DeletionLedgerEntryV2(
+                    identity: DeletionIdentityV2(kind: .packet, id: packet.id),
+                    deletedAt: deletedAt
+                )
+            )
+        }
+        try store.stageUnion(entries)
+        let marker = try requireV2Marker(in: context, expectedMigrationID: nil)
+        guard let markerMigrationID = marker.migrationID else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        marker.schemaVersion = 3
+        marker.releaseID = PersistentSchemaReleaseRegistryV1.v3CompatibilityID
+        marker.predecessorReleaseID = PersistentSchemaReleaseRegistryV1.v2CompatibilityID
+        try context.save()
+        _ = try requireV3Marker(in: context, expectedMigrationID: markerMigrationID)
     }
 
     @MainActor
@@ -1213,7 +1605,8 @@ private extension StoreGenerationFactory {
             expectedDigest: pointer.generationManifestSHA256
         )
         guard manifest.generationID == generationID,
-              manifest.storeSchemaRelease == .v2 else {
+              manifest.storeSchemaRelease
+                == (pointer.storeSchemaVersion == 3 ? .v3 : .v2) else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
         return manifest
@@ -1283,15 +1676,15 @@ private extension StoreGenerationFactory {
     private func makeRestoreCurrentPointer(
         expectedOldID: UUID,
         newID: UUID
-    ) throws -> CurrentGenerationPointerV2 {
+    ) throws -> CurrentGenerationPointerV3 {
         guard try currentGenerationID() == expectedOldID else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
         let root = installedGenerationURL(id: newID)
         let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
         let markerMigrationID = try autoreleasepool { () throws -> UUID in
-            let container = try makeV2Container(at: modelStoreURL, migrate: false)
-            let marker = try requireV2Marker(
+            let container = try makeV3Container(at: modelStoreURL, migrate: false)
+            let marker = try requireV3Marker(
                 in: container.mainContext,
                 expectedMigrationID: nil
             )
@@ -1306,7 +1699,7 @@ private extension StoreGenerationFactory {
         if let existing = try store.loadManifestIfPresent(
             targetGenerationID: newID
         ) {
-            guard existing.manifest.storeSchemaRelease == .v2,
+            guard existing.manifest.storeSchemaRelease == .v3,
                   existing.manifest.migrationID == markerMigrationID else {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
@@ -1317,14 +1710,14 @@ private extension StoreGenerationFactory {
                 at: root,
                 staging: false
             )
-            return try CurrentGenerationPointerV2(
+            return try restorePointerV3(
                 generationID: newID,
-                generationManifestSHA256: existing.digest
+                manifestDigest: existing.digest
             )
         }
         let semantic = try semanticExport(
             at: modelStoreURL,
-            release: .v2,
+            release: .v3,
             markerMigrationID: markerMigrationID
         )
         try protectGeneration(at: root, staging: false, requireModel: true)
@@ -1332,15 +1725,43 @@ private extension StoreGenerationFactory {
             generationID: newID,
             predecessorGenerationID: expectedOldID,
             migrationID: markerMigrationID,
-            storeSchemaRelease: .v2,
+            storeSchemaRelease: .v3,
             semanticSHA256: StoreMigrationCanonicalJSONV1.sha256(semantic),
             frozenIdentityDigest: try frozenIdentityDigest(for: root),
             files: try generationFileDigests(at: root, durable: true)
         )
         let digest = try store.writeManifest(manifest)
-        return try CurrentGenerationPointerV2(
-            generationID: newID,
-            generationManifestSHA256: digest
+        return try restorePointerV3(generationID: newID, manifestDigest: digest)
+    }
+
+    @MainActor
+    private func restorePointerV3(
+        generationID: UUID,
+        manifestDigest: String
+    ) throws -> CurrentGenerationPointerV3 {
+        let envelope = try decodeCurrentPointer(
+            at: dataRootURL.appendingPathComponent(Self.currentPointerName)
+        )
+        let identity: WorkspaceReplicaIdentityV1
+        let history: Set<ReplicaID>
+        switch envelope {
+        case .v3(let pointer, _):
+            identity = try pointer.identity()
+            history = try pointer.knownReplicaIdentitySet()
+        case .v2(let pointer, _):
+            identity = try compatibilityIdentity(for: pointer)
+            history = [identity.replicaID]
+        case .legacy:
+            identity = pointerEnrichmentIdentity
+            history = [identity.replicaID]
+        }
+        return try CurrentGenerationPointerV3(
+            generationID: generationID,
+            generationManifestSHA256: manifestDigest,
+            workspaceID: identity.workspaceID,
+            replicaID: identity.replicaID,
+            knownReplicaIDs: history,
+            storeSchemaVersion: 3
         )
     }
 
@@ -1374,7 +1795,8 @@ private extension StoreGenerationFactory {
             generationManifestSHA256: preparedGenerationManifestSHA256,
             workspaceID: identity.workspaceID,
             replicaID: identity.replicaID,
-            knownReplicaIDs: knownReplicaIDs
+            knownReplicaIDs: knownReplicaIDs,
+            storeSchemaVersion: 3
         )
     }
 
@@ -1388,11 +1810,18 @@ private extension StoreGenerationFactory {
     ) throws {
         let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
         let markerMigrationID = try autoreleasepool { () throws -> UUID in
-            let container = try makeV2Container(at: modelStoreURL, migrate: false)
-            let marker = try requireV2Marker(
-                in: container.mainContext,
-                expectedMigrationID: manifest.migrationID
-            )
+            let context: ModelContext
+            let marker: PersistentSchemaReleaseMarker
+            switch manifest.storeSchemaRelease {
+            case .v2:
+                context = try makeV2Container(at: modelStoreURL, migrate: false).mainContext
+                marker = try requireV2Marker(in: context, expectedMigrationID: manifest.migrationID)
+            case .v3:
+                context = try makeV3Container(at: modelStoreURL, migrate: false).mainContext
+                marker = try requireV3Marker(in: context, expectedMigrationID: manifest.migrationID)
+            case .v1:
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
             guard let value = marker.migrationID else {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
@@ -1401,10 +1830,9 @@ private extension StoreGenerationFactory {
         guard manifest.generationID == generationID,
               manifest.predecessorGenerationID == expectedOldID,
               manifest.migrationID == markerMigrationID,
-              manifest.storeSchemaRelease == .v2,
               manifest.semanticSHA256 == (try semanticDigest(
                   at: modelStoreURL,
-                  release: .v2
+                  release: manifest.storeSchemaRelease
               )),
               manifest.files == (try generationFileDigests(
                   at: root,
@@ -4208,6 +4636,303 @@ struct StoreGenerationFactory {
     }
 
     @MainActor
+    func currentGenerationDeletionLedgerProof(
+        expectedPointer: RestorePointerIdentityV1,
+        authority: StoreRestoreGenerationAuthority
+    ) throws -> DeletionLedgerProofV2 {
+        let pointer = try requireCurrentPointer(expectedPointer, authority: authority)
+        let session = try openValidatedV3Current(
+            pointer: pointer,
+            dataRootURL: dataRootURL,
+            store: StoreMigrationJournalStoreV1(applicationSupportURL: applicationSupportURL)
+        )
+        return try deletionLedgerProof(in: session.modelContext)
+    }
+
+    @MainActor
+    func createEmptyEraseGeneration(
+        id: UUID,
+        expectedOldPointer: RestorePointerIdentityV1,
+        identity: WorkspaceReplicaIdentityV1,
+        authority: StoreRestoreGenerationAuthority
+    ) throws -> (pointer: RestorePointerIdentityV1, ledgerProof: DeletionLedgerProofV2) {
+        _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
+        try createEmptyInstalledGeneration(id: id, authority: authority)
+        let prepared = try makeRestoreCurrentPointer(
+            expectedOldID: expectedOldPointer.generationID,
+            newID: id
+        )
+        let pointer = try CurrentGenerationPointerV3(
+            generationID: id,
+            generationManifestSHA256: prepared.generationManifestSHA256,
+            workspaceID: identity.workspaceID,
+            replicaID: identity.replicaID,
+            knownReplicaIDs: [identity.replicaID],
+            storeSchemaVersion: 3
+        )
+        let session = try openGeneration(
+            id: id,
+            at: installedGenerationURL(id: id),
+            identity: identity
+        )
+        let proof = try deletionLedgerProof(in: session.modelContext)
+        guard proof.entryCount == 0 else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
+        return (try restorePointerIdentity(pointer), proof)
+    }
+
+    @MainActor
+    func publishEmptyEraseGeneration(
+        expectedOldPointer: RestorePointerIdentityV1,
+        targetPointer: RestorePointerIdentityV1,
+        expectedEmptyLedger: DeletionLedgerProofV2,
+        authority: StoreRestoreGenerationAuthority
+    ) throws {
+        try expectedEmptyLedger.validate()
+        guard expectedOldPointer.generationID != targetPointer.generationID,
+              expectedEmptyLedger.entryCount == 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let old = try requireCurrentPointer(expectedOldPointer, authority: authority)
+        let target = try currentPointer(from: targetPointer)
+        _ = try requireCurrentManifest(target)
+        let session = try openGeneration(
+            id: targetPointer.generationID,
+            at: installedGenerationURL(id: targetPointer.generationID),
+            identity: try target.identity()
+        )
+        guard try deletionLedgerProof(in: session.modelContext) == expectedEmptyLedger else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        try authority.switchCurrentGeneration(
+            expected: expectedOldPointer.generationID,
+            to: targetPointer.generationID,
+            pointer: target,
+            expectedCurrentPointer: old
+        )
+    }
+
+    @MainActor
+    func requirePublishedEmptyEraseGeneration(
+        oldPointer: RestorePointerIdentityV1,
+        targetPointer: RestorePointerIdentityV1,
+        expectedEmptyLedger: DeletionLedgerProofV2,
+        authority: StoreRestoreGenerationAuthority
+    ) throws -> StoreGenerationSession {
+        try expectedEmptyLedger.validate()
+        guard oldPointer.generationID != targetPointer.generationID,
+              expectedEmptyLedger.entryCount == 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let pointer = try requireCurrentPointer(targetPointer, authority: authority)
+        let session = try openValidatedV3Current(
+            pointer: pointer,
+            dataRootURL: dataRootURL,
+            store: StoreMigrationJournalStoreV1(applicationSupportURL: applicationSupportURL)
+        )
+        guard try deletionLedgerProof(in: session.modelContext) == expectedEmptyLedger else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        return session
+    }
+
+    @MainActor
+    func discardPreparedEmptyEraseGeneration(
+        expectedOldPointer: RestorePointerIdentityV1,
+        targetGenerationID: UUID,
+        targetIdentity: WorkspaceReplicaIdentityV1,
+        expectedEmptyLedger: DeletionLedgerProofV2,
+        authority: StoreRestoreGenerationAuthority
+    ) throws {
+        try expectedEmptyLedger.validate()
+        let old = try requireCurrentPointer(expectedOldPointer, authority: authority)
+        let oldIdentityValues = Set(
+            [
+                expectedOldPointer.workspaceID,
+                expectedOldPointer.replicaID,
+            ] + expectedOldPointer.knownReplicaIDs
+        )
+        let forbidden = Set(
+            [
+                expectedOldPointer.generationID,
+                expectedOldPointer.workspaceID,
+                expectedOldPointer.replicaID,
+                targetGenerationID,
+            ] + expectedOldPointer.knownReplicaIDs
+        )
+        guard old.storeSchemaVersion == 3,
+              expectedEmptyLedger.entryCount == 0,
+              targetGenerationID != expectedOldPointer.generationID,
+              !oldIdentityValues.contains(targetGenerationID),
+              targetIdentity.workspaceID != targetIdentity.replicaID,
+              !forbidden.contains(targetIdentity.workspaceID.rawValue),
+              !forbidden.contains(targetIdentity.replicaID.rawValue) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try authority.requireNoRestoreJournal()
+
+        let retired = try authority.retiredGenerationIDs()
+        guard !retired.contains(targetGenerationID),
+              try authority.restoreGenerationNames().isEmpty,
+              try authority.importStagingNames().isEmpty else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let expectedNames = Set(
+            ([expectedOldPointer.generationID] + retired).map {
+                canonicalString(for: $0)
+            }
+        )
+        let actualNames = Set(try authority.installedGenerationNames())
+        let targetName = canonicalString(for: targetGenerationID)
+        guard actualNames == expectedNames
+                || actualNames == expectedNames.union([targetName]) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let presence = try authority.presence(id: targetGenerationID)
+        guard !presence.staging,
+              presence.installed == actualNames.contains(targetName) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+
+        let store = try StoreMigrationJournalStoreV1(
+            applicationSupportURL: applicationSupportURL
+        )
+        guard presence.installed else {
+            guard try store.loadManifestIfPresent(
+                targetGenerationID: targetGenerationID
+            ) == nil else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
+            return
+        }
+
+        let root = installedGenerationURL(id: targetGenerationID)
+        let session = try openGeneration(
+            id: targetGenerationID,
+            at: root,
+            identity: targetIdentity
+        )
+        let marker = try session.modelContext.fetch(
+            FetchDescriptor<PersistentSchemaReleaseMarker>()
+        )
+        guard marker.count == 1,
+              marker.first?.schemaVersion == 3,
+              marker.first?.releaseID
+                == PersistentSchemaReleaseRegistryV1.v3CompatibilityID,
+              marker.first?.migrationID == targetGenerationID,
+              BackupRestoreService.isEmptyCurrent(session.modelContext),
+              try deletionLedgerProof(in: session.modelContext)
+                == expectedEmptyLedger else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+
+        if let prepared = try store.loadManifestIfPresent(
+            targetGenerationID: targetGenerationID
+        ) {
+            guard prepared.manifest.generationID == targetGenerationID,
+                  prepared.manifest.predecessorGenerationID
+                    == expectedOldPointer.generationID,
+                  prepared.manifest.storeSchemaRelease == .v3,
+                  prepared.manifest.migrationID == targetGenerationID else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            try requireRestoreManifestSnapshot(
+                prepared.manifest,
+                expectedOldID: expectedOldPointer.generationID,
+                generationID: targetGenerationID,
+                at: root,
+                staging: false
+            )
+            try removePreparedRestoreGenerationManifestBeforeDiscard(
+                expectedOldID: expectedOldPointer.generationID,
+                generationID: targetGenerationID,
+                expectedDigest: prepared.digest,
+                authority: authority
+            )
+        }
+
+        _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
+        try authority.removeInstalledGeneration(id: targetGenerationID)
+        let finalPresence = try authority.presence(id: targetGenerationID)
+        guard !finalPresence.staging,
+              !finalPresence.installed,
+              Set(try authority.installedGenerationNames()) == expectedNames,
+              try store.loadManifestIfPresent(
+                targetGenerationID: targetGenerationID
+              ) == nil else {
+            throw StoreMigrationFailure.maintenanceRequired(.forwardFixRequired)
+        }
+        _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
+    }
+
+    @MainActor
+    private func deletionLedgerProof(
+        in context: ModelContext
+    ) throws -> DeletionLedgerProofV2 {
+        let ledger = try DeletionLedgerStore(context: context).snapshot()
+        return try DeletionLedgerProofV2(
+            entryCount: ledger.entries.count,
+            canonicalSHA256: StoreMigrationCanonicalJSONV1.sha256(
+                try ledger.canonicalData()
+            )
+        )
+    }
+
+    private func currentPointer(
+        from identity: RestorePointerIdentityV1
+    ) throws -> CurrentGenerationPointerV3 {
+        try CurrentGenerationPointerV3(
+            generationID: identity.generationID,
+            generationManifestSHA256: identity.generationManifestSHA256,
+            workspaceID: WorkspaceID(rawValue: identity.workspaceID),
+            replicaID: ReplicaID(rawValue: identity.replicaID),
+            knownReplicaIDs: Set(identity.knownReplicaIDs.map { ReplicaID(rawValue: $0) }),
+            storeSchemaVersion: 3
+        )
+    }
+
+    @MainActor
+    private func requireCurrentPointer(
+        _ identity: RestorePointerIdentityV1,
+        authority: StoreRestoreGenerationAuthority
+    ) throws -> CurrentGenerationPointerV3 {
+        guard try authority.currentGenerationID() == identity.generationID,
+              case .v3(let actual, let data) = try decodeCurrentPointer(
+                at: dataRootURL.appendingPathComponent(Self.currentPointerName)
+              ) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let expected = try currentPointer(from: identity)
+        guard actual == expected,
+              data == (try expected.canonicalData()) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        _ = try requireCurrentManifest(actual)
+        return actual
+    }
+
+    private func restorePointerIdentity(
+        _ pointer: CurrentGenerationPointerV3
+    ) throws -> RestorePointerIdentityV1 {
+        try pointer.validate()
+        guard let generationID = canonicalUUID(from: pointer.generationID),
+              let workspaceID = canonicalUUID(from: pointer.workspaceID),
+              let replicaID = canonicalUUID(from: pointer.replicaID) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return RestorePointerIdentityV1(
+            generationID: generationID,
+            generationManifestSHA256: pointer.generationManifestSHA256,
+            knownReplicaIDs: Set(try pointer.knownReplicaIdentitySet().map(\.rawValue)),
+            workspaceID: workspaceID,
+            replicaID: replicaID
+        )
+    }
+
+    @MainActor
     func prepareRestoreStagingGenerationManifest(
         expectedOldID: UUID,
         newID: UUID,
@@ -4221,8 +4946,8 @@ struct StoreGenerationFactory {
         let root = restoreStagingGenerationURL(id: newID)
         let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
         let markerMigrationID = try autoreleasepool { () throws -> UUID in
-            let container = try makeV2Container(at: modelStoreURL, migrate: false)
-            let marker = try requireV2Marker(
+            let container = try makeV3Container(at: modelStoreURL, migrate: false)
+            let marker = try requireV3Marker(
                 in: container.mainContext,
                 expectedMigrationID: nil
             )
@@ -4249,10 +4974,10 @@ struct StoreGenerationFactory {
                 generationID: newID,
                 predecessorGenerationID: expectedOldID,
                 migrationID: markerMigrationID,
-                storeSchemaRelease: .v2,
+                storeSchemaRelease: .v3,
                 semanticSHA256: try semanticDigest(
                     at: modelStoreURL,
-                    release: .v2
+                    release: .v3
                 ),
                 frozenIdentityDigest: try frozenIdentityDigest(for: root),
                 files: try generationFileDigests(at: root, durable: true)
@@ -4461,7 +5186,7 @@ struct StoreGenerationFactory {
         do {
             try authority.createStagingGeneration(id: id)
             try autoreleasepool {
-                let container = try makeFreshV2Container(
+                let container = try makeFreshV3Container(
                     at: root.appendingPathComponent(Self.modelStoreName),
                     markerMigrationID: id
                 )
@@ -5758,10 +6483,10 @@ struct StoreGenerationFactory {
                 excluding: generationID
             ),
             migrationID: Self.bootstrapManifestMigrationID,
-            storeSchemaRelease: .v2,
+            storeSchemaRelease: .v3,
             semanticSHA256: try semanticDigest(
                 at: modelStoreURL,
-                release: .v2
+                release: .v3
             ),
             frozenIdentityDigest: try frozenIdentityDigest(
                 for: generationRootURL
@@ -5779,7 +6504,8 @@ struct StoreGenerationFactory {
             generationID: generationID,
             generationManifestSHA256: manifestDigest,
             workspaceID: pointerEnrichmentIdentity.workspaceID,
-            replicaID: pointerEnrichmentIdentity.replicaID
+            replicaID: pointerEnrichmentIdentity.replicaID,
+            storeSchemaVersion: 3
         )
         let retiredPointer = RetiredPointerV1(
             generationIDs: [],
@@ -5981,17 +6707,26 @@ struct StoreGenerationFactory {
             )
         case .v2(let pointer, _):
             let enriched = try enrichCurrentPointer(pointer)
-            return try openValidatedV3Current(
-                pointer: enriched,
+            return try beginMigration(
+                sourcePointer: enriched,
+                sourcePointerData: try enriched.canonicalData(),
+                retired: retired,
                 dataRootURL: dataRootURL,
-                store: store
+                store: store,
+                processID: processID
             )
-        case .v3(let pointer, _):
-            return try openValidatedV3Current(
-                pointer: pointer,
-                dataRootURL: dataRootURL,
-                store: store
-            )
+        case .v3(let pointer, let data):
+            if pointer.storeSchemaVersion == 2 {
+                return try beginMigration(
+                    sourcePointer: pointer,
+                    sourcePointerData: data,
+                    retired: retired,
+                    dataRootURL: dataRootURL,
+                    store: store,
+                    processID: processID
+                )
+            }
+            return try openValidatedV3Current(pointer: pointer, dataRootURL: dataRootURL, store: store)
         }
     }
 
@@ -6001,7 +6736,7 @@ struct StoreGenerationFactory {
         markerMigrationID: UUID
     ) throws {
         try autoreleasepool {
-            _ = try makeFreshV2Container(
+            _ = try makeFreshV3Container(
                 at: modelStoreURL,
                 markerMigrationID: markerMigrationID
             )
@@ -6030,11 +6765,8 @@ struct StoreGenerationFactory {
         }
         let container: ModelContainer
         do {
-            container = try makeV2Container(at: modelStoreURL, migrate: false)
-            _ = try requireV2Marker(
-                in: container.mainContext,
-                expectedMigrationID: nil
-            )
+            container = try makeV3Container(at: modelStoreURL, migrate: false)
+            _ = try requireV3Marker(in: container.mainContext, expectedMigrationID: nil)
         }
         catch { throw StoreGenerationFailure.dataPointerInvalid }
         try protectGeneration(at: generationRootURL, staging: staging, requireModel: true)
@@ -6149,6 +6881,11 @@ struct StoreGenerationFactory {
             return .typeUnknown
         }
     }
+}
+
+private struct StoreSemanticEnvelopeV3: Codable {
+    let records: Data
+    let deletionLedger: Data
 }
 
 private enum CurrentPointerEnvelopeV1 {

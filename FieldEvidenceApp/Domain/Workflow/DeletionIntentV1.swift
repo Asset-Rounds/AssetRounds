@@ -10,6 +10,7 @@ struct DeletionIntentV1: Codable, Equatable, Sendable {
     let countedPacketTombstones: [PacketPayloadV1]
     let deletionID: UUID
     let generationID: UUID
+    let ledgerEntries: [DeletionLedgerEntryV2]
     let phase: DeletionPhaseV1
     let relativePaths: [String]
     let schemaVersion: Int
@@ -20,6 +21,7 @@ struct DeletionIntentV1: Codable, Equatable, Sendable {
             countedPacketTombstones: countedPacketTombstones,
             deletionID: deletionID,
             generationID: generationID,
+            ledgerEntries: ledgerEntries,
             phase: phase,
             relativePaths: relativePaths,
             schemaVersion: schemaVersion
@@ -56,7 +58,7 @@ struct DeletionIntentEncoderV1 {
                 "stableRootID": CanonicalJSONV1.uuid(packet.stableRootID),
             ])
         }
-        let value = CanonicalJSONValueV1.object([
+        var fields: [String: CanonicalJSONValueV1] = [
             "assetID": CanonicalJSONV1.uuid(intent.assetID),
             "countedPacketTombstones": .array(tombstones),
             "deletionID": CanonicalJSONV1.uuid(intent.deletionID),
@@ -66,7 +68,20 @@ struct DeletionIntentEncoderV1 {
                 CanonicalJSONValueV1.string($0)
             }),
             "schemaVersion": .integer(intent.schemaVersion),
-        ])
+        ]
+        if intent.schemaVersion == 2 {
+            fields["ledgerEntries"] = .array(intent.ledgerEntries.map { entry in
+                CanonicalJSONValueV1.object([
+                    "deletedAt": CanonicalJSONV1.date(entry.deletedAt),
+                    "identity": .object([
+                        "id": CanonicalJSONV1.uuid(entry.identity.id),
+                        "kind": .string(entry.identity.kind.rawValue),
+                    ]),
+                    "schemaVersion": .integer(entry.schemaVersion),
+                ])
+            })
+        }
+        let value = CanonicalJSONValueV1.object(fields)
         let data = try CanonicalJSONV1.encode(value)
         return EncodedDeletionIntentV1(
             data: data,
@@ -75,7 +90,7 @@ struct DeletionIntentEncoderV1 {
     }
 
     static func valid(_ intent: DeletionIntentV1) -> Bool {
-        guard intent.schemaVersion == 1,
+        guard intent.schemaVersion == 1 || intent.schemaVersion == 2,
               unique(intent.countedPacketTombstones.map(\.id)),
               unique(intent.countedPacketTombstones.map(\.stableRootID)),
               Set(intent.countedPacketTombstones.compactMap(\.contentDeletedAt)).count <= 1,
@@ -87,13 +102,38 @@ struct DeletionIntentEncoderV1 {
               intent.relativePaths.allSatisfy(validRelativePath) else {
             return false
         }
-        return intent.countedPacketTombstones.allSatisfy { packet in
+        guard intent.countedPacketTombstones.allSatisfy({ packet in
             packet.schemaVersion == 1
                 && packet.currentRecordID == nil
                 && packet.evaluationCounted
                 && packet.contentDeletedAt != nil
                 && packet.contentDeletedAt.map({ $0 >= packet.createdAt }) == true
+        }) else { return false }
+        if intent.schemaVersion == 1 {
+            return intent.ledgerEntries.isEmpty
         }
+        return (try? DeletionLedgerV2(entries: intent.ledgerEntries)) != nil
+            && intent.ledgerEntries.map(\.identity)
+                == intent.ledgerEntries.map(\.identity).sorted()
+            && intent.ledgerEntries.allSatisfy({
+                Optional($0.deletedAt) == deletionTimestamp(intent)
+            })
+            && intent.ledgerEntries.filter({ $0.identity.kind == .asset }).map({
+                $0.identity.id
+            }) == [intent.assetID]
+            && !intent.ledgerEntries.contains(where: { $0.identity.kind == .site })
+            && Set(intent.countedPacketTombstones.map(\.id)).isSubset(of:
+                Set(intent.ledgerEntries.compactMap { entry in
+                    entry.identity.kind == .packet ? entry.identity.id : nil
+                })
+            )
+    }
+
+    private static func deletionTimestamp(_ intent: DeletionIntentV1) -> Date? {
+        let dates = Set(intent.countedPacketTombstones.compactMap(\.contentDeletedAt))
+        if let date = dates.first { return date }
+        let ledgerDates = Set(intent.ledgerEntries.map(\.deletedAt))
+        return ledgerDates.count == 1 ? ledgerDates.first : nil
     }
 
     static func validRelativePath(_ value: String) -> Bool {
@@ -156,7 +196,23 @@ struct DeletionIntentDecoderV1 {
             return date
         }
         do {
-            let intent = try decoder.decode(DeletionIntentV1.self, from: data)
+            let version = try decoder.decode(VersionProbe.self, from: data).schemaVersion
+            let intent: DeletionIntentV1
+            if version == 1 {
+                let legacy = try decoder.decode(LegacyIntent.self, from: data)
+                intent = DeletionIntentV1(
+                    assetID: legacy.assetID,
+                    countedPacketTombstones: legacy.countedPacketTombstones,
+                    deletionID: legacy.deletionID,
+                    generationID: legacy.generationID,
+                    ledgerEntries: [],
+                    phase: legacy.phase,
+                    relativePaths: legacy.relativePaths,
+                    schemaVersion: legacy.schemaVersion
+                )
+            } else {
+                intent = try decoder.decode(DeletionIntentV1.self, from: data)
+            }
             let canonical = try DeletionIntentEncoderV1().encode(intent).data
             guard canonical == data else {
                 throw DeletionIntentDecodingErrorV1.invalidCanonicalIntent
@@ -165,6 +221,20 @@ struct DeletionIntentDecoderV1 {
         } catch {
             throw DeletionIntentDecodingErrorV1.invalidCanonicalIntent
         }
+    }
+
+    private struct VersionProbe: Decodable {
+        let schemaVersion: Int
+    }
+
+    private struct LegacyIntent: Decodable {
+        let assetID: UUID
+        let countedPacketTombstones: [PacketPayloadV1]
+        let deletionID: UUID
+        let generationID: UUID
+        let phase: DeletionPhaseV1
+        let relativePaths: [String]
+        let schemaVersion: Int
     }
 
     private static func isCanonicalTimestamp(_ value: String) -> Bool {

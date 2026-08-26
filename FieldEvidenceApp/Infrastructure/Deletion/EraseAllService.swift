@@ -1,4 +1,5 @@
 import Darwin
+import CryptoKit
 import Foundation
 import SwiftData
 
@@ -151,56 +152,125 @@ final class EraseAllService {
         try auxiliary.requireNoEraseIntent()
         try auxiliary.requireNoRestoreIntent()
 
+        let oldPointer = try frozenCurrentPointer(
+            expectedGenerationID: oldGenerationID,
+            authority: generationAuthority
+        )
+        let sourceLedger = try generationFactory
+            .currentGenerationDeletionLedgerProof(
+                expectedPointer: oldPointer,
+                authority: generationAuthority
+            )
         let newGenerationID = makeUUID()
         let eraseID = makeUUID()
         let generationIDsToDelete = (priorRetired + [oldGenerationID]).sorted(
             by: Self.idOrder
         )
-        let intent = EraseIntentV1(
-            auxiliaryRoots: EraseIntentV1.canonicalAuxiliaryRoots,
-            eraseID: eraseID,
-            generationIDsToDelete: generationIDsToDelete,
-            newGenerationID: newGenerationID,
-            oldGenerationID: oldGenerationID,
-            phase: .emptyGenerationPrepared,
-            schemaVersion: 1
-        )
-        guard EraseIntentCodecV1.valid(intent),
-              newGenerationID != eraseID,
-              !generationIDsToDelete.contains(newGenerationID) else {
+        guard newGenerationID != eraseID,
+              !generationIDsToDelete.contains(newGenerationID),
+              !oldPointer.knownReplicaIDs.contains(newGenerationID),
+              !oldPointer.knownReplicaIDs.contains(eraseID),
+              newGenerationID != oldPointer.workspaceID,
+              newGenerationID != oldPointer.replicaID,
+              eraseID != oldPointer.workspaceID,
+              eraseID != oldPointer.replicaID,
+              oldPointer.generationID == oldGenerationID else {
             throw EraseAllServiceError.invalidAuthority
         }
+        let targetIdentity = try freshEraseIdentity(excluding: Set(
+            generationIDsToDelete
+                + oldPointer.knownReplicaIDs
+                + [
+                    eraseID,
+                    newGenerationID,
+                    oldPointer.workspaceID,
+                    oldPointer.replicaID,
+                ]
+        ))
+        let initialPreparation = ErasePreparationV2(
+            oldPointer: oldPointer,
+            sourceLedger: sourceLedger,
+            targetGenerationID: newGenerationID,
+            targetWorkspaceID: targetIdentity.workspaceID.rawValue,
+            targetReplicaID: targetIdentity.replicaID.rawValue,
+            targetPointer: nil
+        )
 
-        var createdNewGeneration = false
         var createdIntent = false
+        var frozenIntent: EraseIntentV1?
+        var frozenPreparation = initialPreparation
         var intentStore: EraseIntentStore?
         do {
-            createdNewGeneration = true
-            try generationFactory.createEmptyInstalledGeneration(
-                id: newGenerationID,
-                authority: generationAuthority,
-                beforeStoreCreate: {
-                    try self.inject(.afterEmptyGenerationDirectoryCreate)
-                }
-            )
-            _ = try validatedEmptySession(
-                id: newGenerationID,
-                authority: generationAuthority
-            )
-            try requirePreparedPresence(intent, authority: generationAuthority)
-            try auxiliary.requireNoEraseIntent()
-            try auxiliary.requireNoRestoreIntent()
-
-            try inject(.beforePreparedWrite)
             let store = try EraseIntentStore(
                 applicationSupportURL: applicationSupportURL,
                 fileManager: fileManager,
                 expectedApplicationSupportIdentity: applicationSupportIdentity
             )
-            guard try store.load() == nil else {
+            guard try store.load() == nil,
+                  try store.loadPreparation() == nil else {
                 throw EraseAllServiceError.recoveryRequired
             }
+            try store.createPreparation(initialPreparation)
             intentStore = store
+            let created = try generationFactory.createEmptyEraseGeneration(
+                id: newGenerationID,
+                expectedOldPointer: oldPointer,
+                identity: targetIdentity,
+                authority: generationAuthority
+            )
+            let boundPreparation = initialPreparation.binding(
+                targetPointer: created.pointer
+            )
+            try store.replacePreparation(
+                expected: initialPreparation,
+                with: boundPreparation
+            )
+            frozenPreparation = boundPreparation
+            try inject(.afterEmptyGenerationDirectoryCreate)
+            let expectedEmptyLedger = try emptyLedgerProof()
+            guard created.ledgerProof == expectedEmptyLedger,
+                  created.pointer.workspaceID
+                    == targetIdentity.workspaceID.rawValue,
+                  created.pointer.replicaID
+                    == targetIdentity.replicaID.rawValue,
+                  created.pointer.knownReplicaIDs
+                    == [targetIdentity.replicaID.rawValue] else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let intent = EraseIntentV1(
+                auxiliaryRoots: EraseIntentV1.canonicalAuxiliaryRoots,
+                eraseID: eraseID,
+                generationIDsToDelete: generationIDsToDelete,
+                newGenerationID: newGenerationID,
+                oldGenerationID: oldGenerationID,
+                phase: .emptyGenerationPrepared,
+                schemaVersion: 2,
+                oldPointer: oldPointer,
+                sourceLedger: sourceLedger,
+                targetEmptyProof: EraseEmptyGenerationProofV2(
+                    contentRecordCount: 0,
+                    deletionLedgerEntryCount: 0
+                ),
+                targetPointer: created.pointer
+            )
+            frozenIntent = intent
+            guard EraseIntentCodecV1.valid(intent) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            _ = try validatedEmptySession(
+                id: newGenerationID,
+                identity: targetIdentity,
+                expectedEmptyLedger: expectedEmptyLedger,
+                authority: generationAuthority
+            )
+            try requirePreparedPresence(intent, authority: generationAuthority)
+            try auxiliary.requireNoRestoreIntent()
+
+            try inject(.beforePreparedWrite)
+            guard try store.load() == nil,
+                  try store.loadPreparation() == frozenPreparation else {
+                throw EraseAllServiceError.recoveryRequired
+            }
             try store.create(intent)
             createdIntent = true
             try inject(.afterPreparedWrite)
@@ -245,7 +315,8 @@ final class EraseAllService {
                 if let intentStore {
                     do {
                         if let stored = try intentStore.load() {
-                            guard stored == intent else {
+                            guard let frozenIntent,
+                                  stored == frozenIntent else {
                                 throw EraseAllServiceError.recoveryRequired
                             }
                             ownsUnjournaledGeneration = false
@@ -255,13 +326,18 @@ final class EraseAllService {
                     }
                 }
                 do {
-                    if createdNewGeneration,
-                       ownsUnjournaledGeneration,
-                       try generationAuthority.installedGenerationNames()
-                        .contains(Self.canonical(newGenerationID)) {
-                        try generationAuthority.removeInstalledGeneration(
-                            id: newGenerationID
+                    if ownsUnjournaledGeneration,
+                       let intentStore,
+                       let preparation = try intentStore.loadPreparation() {
+                        guard preparation == frozenPreparation
+                                || preparation == initialPreparation else {
+                            throw EraseAllServiceError.recoveryRequired
+                        }
+                        try discardPreparation(
+                            preparation,
+                            authority: generationAuthority
                         )
+                        try intentStore.removePreparation(expected: preparation)
                     }
                     if ownsUnjournaledGeneration {
                         try auxiliary.removeEraseRootIfEmpty()
@@ -299,11 +375,35 @@ final class EraseAllService {
             expectedApplicationSupportIdentity:
                 auxiliary.applicationSupportRootIdentity
         )
-        guard let intent = try intentStore.load() else {
+        let intent = try intentStore.load()
+        let preparation = try intentStore.loadPreparation()
+        guard let intent else {
+            if let preparation {
+                let authority = try generationFactory
+                    .makeRestoreGenerationAuthority(
+                        expectedApplicationSupportIdentity:
+                            auxiliary.applicationSupportRootIdentity
+                    )
+                try auxiliary.verifyTargets()
+                try auxiliary.requireNoRestoreIntent()
+                try discardPreparation(preparation, authority: authority)
+                try intentStore.removePreparation(expected: preparation)
+            }
             try auxiliary.removeEraseRootIfEmpty()
             return nil
         }
         guard EraseIntentCodecV1.valid(intent) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        if intent.schemaVersion == 2 {
+            if let preparation {
+                guard preparation.matches(intent) else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            } else if intent.phase != .cleanupComplete {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        } else if preparation != nil {
             throw EraseAllServiceError.invalidAuthority
         }
         let authority = try generationFactory.makeRestoreGenerationAuthority(
@@ -456,6 +556,15 @@ private extension EraseAllService {
                 == priorRetiredIDs(intent) else {
             throw EraseAllServiceError.invalidAuthority
         }
+        if intent.schemaVersion == 2 {
+            try requireSourceLedgerBinding(intent, authority: authority)
+            _ = try validatedEmptySession(
+                id: intent.newGenerationID,
+                identity: try targetIdentity(intent),
+                expectedEmptyLedger: try expectedEmptyLedger(intent),
+                authority: authority
+            )
+        }
     }
 
     func requireRecoveryPresence(
@@ -481,10 +590,32 @@ private extension EraseAllService {
         case .sessionActivated, .cleanupComplete:
             break
         }
-        _ = try validatedEmptySession(
-            id: intent.newGenerationID,
+        let currentID = try generationFactory.currentGenerationID(
             authority: authority
         )
+        if intent.schemaVersion == 2 {
+            if currentID == intent.oldGenerationID {
+                try requireSourceLedgerBinding(intent, authority: authority)
+                _ = try validatedEmptySession(
+                    id: intent.newGenerationID,
+                    identity: try targetIdentity(intent),
+                    expectedEmptyLedger: try expectedEmptyLedger(intent),
+                    authority: authority
+                )
+            } else if currentID == intent.newGenerationID {
+                _ = try requirePublishedEmptySession(
+                    intent,
+                    authority: authority
+                )
+            } else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        } else {
+            _ = try validatedEmptySession(
+                id: intent.newGenerationID,
+                authority: authority
+            )
+        }
         for id in intent.generationIDsToDelete
         where installed.contains(Self.canonical(id)) {
             let session = try generationFactory.openInstalledGeneration(
@@ -532,10 +663,18 @@ private extension EraseAllService {
     ) async throws -> StoreGenerationSession {
         try normalizePointerAndRetired(switched, authority: authority)
         try requireNewCurrent(switched, authority: authority)
-        let session = try validatedEmptySession(
-            id: switched.newGenerationID,
-            authority: authority
-        )
+        let session: StoreGenerationSession
+        if switched.schemaVersion == 2 {
+            session = try requirePublishedEmptySession(
+                switched,
+                authority: authority
+            )
+        } else {
+            session = try validatedEmptySession(
+                id: switched.newGenerationID,
+                authority: authority
+            )
+        }
         try inject(.beforeSessionActivation)
         await activate(session)
         await Task.yield()
@@ -554,13 +693,29 @@ private extension EraseAllService {
     ) throws {
         let current = try generationFactory.currentGenerationID(authority: authority)
         if current == intent.oldGenerationID {
-            try generationFactory.switchCurrentGeneration(
-                expected: intent.oldGenerationID,
-                to: intent.newGenerationID,
-                authority: authority
-            )
+            if intent.schemaVersion == 2 {
+                try requireSourceLedgerBinding(intent, authority: authority)
+                guard let oldPointer = intent.oldPointer,
+                      let targetPointer = intent.targetPointer else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                try generationFactory.publishEmptyEraseGeneration(
+                    expectedOldPointer: oldPointer,
+                    targetPointer: targetPointer,
+                    expectedEmptyLedger: try expectedEmptyLedger(intent),
+                    authority: authority
+                )
+            } else {
+                try generationFactory.switchCurrentGeneration(
+                    expected: intent.oldGenerationID,
+                    to: intent.newGenerationID,
+                    authority: authority
+                )
+            }
         } else if current != intent.newGenerationID {
             throw EraseAllServiceError.invalidAuthority
+        } else if intent.schemaVersion == 2 {
+            _ = try requirePublishedEmptySession(intent, authority: authority)
         }
         let retired = try authority.retiredGenerationIDs()
         let prior = priorRetiredIDs(intent)
@@ -586,6 +741,9 @@ private extension EraseAllService {
                 == intent.generationIDsToDelete else {
             throw EraseAllServiceError.invalidAuthority
         }
+        if intent.schemaVersion == 2 {
+            _ = try requirePublishedEmptySession(intent, authority: authority)
+        }
     }
 
     func requireActivatedCurrent(
@@ -600,6 +758,9 @@ private extension EraseAllService {
               retired == intent.generationIDsToDelete
                 || (retired.isEmpty && installed == [newName]) else {
             throw EraseAllServiceError.invalidAuthority
+        }
+        if intent.schemaVersion == 2 {
+            _ = try requirePublishedEmptySession(intent, authority: authority)
         }
     }
 
@@ -621,6 +782,15 @@ private extension EraseAllService {
               session.generationID == activated.newGenerationID,
               BackupRestoreService.isEmptyCurrent(session.modelContext) else {
             throw EraseAllServiceError.invalidAuthority
+        }
+        if activated.schemaVersion == 2 {
+            let ledger = try DeletionLedgerStore(
+                context: session.modelContext
+            ).snapshot()
+            guard ledger.entries.isEmpty,
+                  try ledgerProof(ledger) == expectedEmptyLedger(activated) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
         }
 
         if value.phase != .cleanupComplete {
@@ -655,6 +825,16 @@ private extension EraseAllService {
             try inject(.beforeCleanupPhaseWrite)
             try intentStore.replace(expected: activated, with: completed)
             try inject(.afterCleanupPhaseWrite)
+        }
+        if completed.schemaVersion == 2 {
+            if let preparation = try intentStore.loadPreparation() {
+                guard preparation.matches(completed) else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                try intentStore.removePreparation(expected: preparation)
+            } else if value.phase != .cleanupComplete {
+                throw EraseAllServiceError.invalidAuthority
+            }
         }
         try inject(.beforeJournalRemoval)
         try intentStore.remove(expected: completed)
@@ -716,10 +896,18 @@ private extension EraseAllService {
         _ intent: EraseIntentV1,
         authority: StoreRestoreGenerationAuthority
     ) throws {
-        let currentSession = try generationFactory.openInstalledGeneration(
-            id: intent.newGenerationID,
-            authority: authority
-        )
+        let currentSession: StoreGenerationSession
+        if intent.schemaVersion == 2 {
+            currentSession = try requirePublishedEmptySession(
+                intent,
+                authority: authority
+            )
+        } else {
+            currentSession = try generationFactory.openInstalledGeneration(
+                id: intent.newGenerationID,
+                authority: authority
+            )
+        }
         guard try generationFactory.currentGenerationID(authority: authority)
                 == intent.newGenerationID,
               try authority.retiredGenerationIDs().isEmpty,
@@ -734,12 +922,23 @@ private extension EraseAllService {
 
     func validatedEmptySession(
         id: UUID,
+        identity: WorkspaceReplicaIdentityV1? = nil,
+        expectedEmptyLedger: DeletionLedgerProofV2? = nil,
         authority: StoreRestoreGenerationAuthority
     ) throws -> StoreGenerationSession {
-        let session = try generationFactory.openInstalledGeneration(
-            id: id,
-            authority: authority
-        )
+        let session: StoreGenerationSession
+        if let identity {
+            session = try generationFactory.openInstalledGeneration(
+                id: id,
+                identity: identity,
+                authority: authority
+            )
+        } else {
+            session = try generationFactory.openInstalledGeneration(
+                id: id,
+                authority: authority
+            )
+        }
         let tree = try authority.installedTree(id: id)
         let allowedFiles: Set<String> = [
             "model.sqlite",
@@ -751,6 +950,15 @@ private extension EraseAllService {
               tree.files.contains("model.sqlite"),
               tree.files.isSubset(of: allowedFiles) else {
             throw EraseAllServiceError.invalidAuthority
+        }
+        if let expectedEmptyLedger {
+            let ledger = try DeletionLedgerStore(
+                context: session.modelContext
+            ).snapshot()
+            guard ledger.entries.isEmpty,
+                  try ledgerProof(ledger) == expectedEmptyLedger else {
+                throw EraseAllServiceError.invalidAuthority
+            }
         }
         return session
     }
@@ -814,6 +1022,152 @@ private extension EraseAllService {
 
     func priorRetiredIDs(_ intent: EraseIntentV1) -> [UUID] {
         intent.generationIDsToDelete.filter { $0 != intent.oldGenerationID }
+    }
+
+    func frozenCurrentPointer(
+        expectedGenerationID: UUID,
+        authority: StoreRestoreGenerationAuthority
+    ) throws -> RestorePointerIdentityV1 {
+        let current = try generationFactory.currentGenerationPointerV3(
+            expectedGenerationID: expectedGenerationID,
+            authority: authority
+        )
+        guard let generationID = UUID(uuidString: current.generationID),
+              generationID == expectedGenerationID,
+              let workspaceID = UUID(uuidString: current.workspaceID),
+              let replicaID = UUID(uuidString: current.replicaID) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let knownReplicaIDs = current.knownReplicaIDs.compactMap {
+            UUID(uuidString: $0)
+        }
+        guard knownReplicaIDs.count == current.knownReplicaIDs.count else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return RestorePointerIdentityV1(
+            generationID: generationID,
+            generationManifestSHA256: current.generationManifestSHA256,
+            knownReplicaIDs: Set(knownReplicaIDs),
+            workspaceID: workspaceID,
+            replicaID: replicaID
+        )
+    }
+
+    func freshEraseIdentity(
+        excluding unavailable: Set<UUID>
+    ) throws -> WorkspaceReplicaIdentityV1 {
+        let zero = UUID(
+            uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        )
+        for _ in 0..<16 {
+            let workspaceID = makeUUID()
+            let replicaID = makeUUID()
+            guard workspaceID != zero,
+                  replicaID != zero,
+                  workspaceID != replicaID,
+                  !unavailable.contains(workspaceID),
+                  !unavailable.contains(replicaID) else {
+                continue
+            }
+            return try WorkspaceReplicaIdentityV1(
+                workspaceID: WorkspaceID(rawValue: workspaceID),
+                replicaID: ReplicaID(rawValue: replicaID)
+            )
+        }
+        throw EraseAllServiceError.invalidAuthority
+    }
+
+    func targetIdentity(
+        _ intent: EraseIntentV1
+    ) throws -> WorkspaceReplicaIdentityV1 {
+        guard let pointer = intent.targetPointer else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return try WorkspaceReplicaIdentityV1(
+            workspaceID: WorkspaceID(rawValue: pointer.workspaceID),
+            replicaID: ReplicaID(rawValue: pointer.replicaID)
+        )
+    }
+
+    func ledgerProof(_ ledger: DeletionLedgerV2) throws -> DeletionLedgerProofV2 {
+        try DeletionLedgerProofV2(
+            entryCount: ledger.entries.count,
+            canonicalSHA256: SHA256.hash(
+                data: try ledger.canonicalData()
+            ).map { String(format: "%02x", $0) }.joined()
+        )
+    }
+
+    func emptyLedgerProof() throws -> DeletionLedgerProofV2 {
+        try ledgerProof(.empty)
+    }
+
+    func expectedEmptyLedger(
+        _ intent: EraseIntentV1
+    ) throws -> DeletionLedgerProofV2 {
+        guard intent.schemaVersion == 2,
+              intent.targetEmptyProof == EraseEmptyGenerationProofV2(
+                  contentRecordCount: 0,
+                  deletionLedgerEntryCount: 0
+              ) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return try emptyLedgerProof()
+    }
+
+    func requireSourceLedgerBinding(
+        _ intent: EraseIntentV1,
+        authority: StoreRestoreGenerationAuthority
+    ) throws {
+        guard let oldPointer = intent.oldPointer,
+              let expected = intent.sourceLedger,
+              try generationFactory.currentGenerationDeletionLedgerProof(
+                  expectedPointer: oldPointer,
+                  authority: authority
+              ) == expected else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
+    func requirePublishedEmptySession(
+        _ intent: EraseIntentV1,
+        authority: StoreRestoreGenerationAuthority
+    ) throws -> StoreGenerationSession {
+        guard let oldPointer = intent.oldPointer,
+              let targetPointer = intent.targetPointer else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return try generationFactory.requirePublishedEmptyEraseGeneration(
+            oldPointer: oldPointer,
+            targetPointer: targetPointer,
+            expectedEmptyLedger: try expectedEmptyLedger(intent),
+            authority: authority
+        )
+    }
+
+    func discardPreparation(
+        _ preparation: ErasePreparationV2,
+        authority: StoreRestoreGenerationAuthority
+    ) throws {
+        guard try generationFactory.currentGenerationDeletionLedgerProof(
+            expectedPointer: preparation.oldPointer,
+            authority: authority
+        ) == preparation.sourceLedger else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let identity = try WorkspaceReplicaIdentityV1(
+            workspaceID: WorkspaceID(
+                rawValue: preparation.targetWorkspaceID
+            ),
+            replicaID: ReplicaID(rawValue: preparation.targetReplicaID)
+        )
+        try generationFactory.discardPreparedEmptyEraseGeneration(
+            expectedOldPointer: preparation.oldPointer,
+            targetGenerationID: preparation.targetGenerationID,
+            targetIdentity: identity,
+            expectedEmptyLedger: try emptyLedgerProof(),
+            authority: authority
+        )
     }
 
     func inject(_ point: EraseAllFailurePoint) throws {

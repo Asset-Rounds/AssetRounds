@@ -26,8 +26,8 @@ struct PersistentScalarReferenceRegistration: Equatable, Sendable {
 }
 
 enum PersistentApplicationDeleteDisposition: String, Equatable, Sendable {
-    case deleteOrphanSiteIfSelectedAssetWasLastSiteAsset =
-        "DELETE_ORPHAN_SITE_IF_SELECTED_ASSET_WAS_LAST_SITE_ASSET"
+    case preserveEmptySiteUnlessExplicitlyDeleted =
+        "PRESERVE_EMPTY_SITE_UNLESS_EXPLICITLY_DELETED"
     case deleteSelectedAssetAfterDependents =
         "DELETE_SELECTED_ASSET_AFTER_DEPENDENTS"
     case deleteSelectedAssetWorkflowRecords =
@@ -69,7 +69,7 @@ enum PersistentModelCatalog {
             swiftDataDeleteRuleDisposition: .noneNoSwiftDataRelationship,
             applicationDeleteRuleOwner: applicationDeleteRuleOwner,
             applicationDeleteDisposition:
-                .deleteOrphanSiteIfSelectedAssetWasLastSiteAsset
+                .preserveEmptySiteUnlessExplicitlyDeleted
         ),
         PersistentModelRegistration(
             stableName: "Asset",
@@ -252,6 +252,16 @@ enum PersistentSchemaV2: VersionedSchema {
     }
 }
 
+/// V3 adds only the privacy-minimal append-only deletion ledger. The seven
+/// content models and the V2 release marker retain their exact model types.
+enum PersistentSchemaV3: VersionedSchema {
+    static let versionIdentifier = Schema.Version(3, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        PersistentSchemaV2.models + [DeletionLedgerRow.self]
+    }
+}
+
 enum PersistentSchemaMigrationStageV1: String, Equatable, Sendable {
     case bootstrap = "BOOTSTRAP"
     case lightweight = "LIGHTWEIGHT"
@@ -263,11 +273,13 @@ enum PersistentSchemaMigrationStageV1: String, Equatable, Sendable {
 enum PersistentSchemaReleaseV1: String, Codable, Equatable, Sendable {
     case v1 = "V1"
     case v2 = "V2"
+    case v3 = "V3"
 
     var compatibilityID: String {
         switch self {
         case .v1: return "FIELD_EVIDENCE_SCHEMA_V1"
         case .v2: return "FIELD_EVIDENCE_SCHEMA_V2"
+        case .v3: return "FIELD_EVIDENCE_SCHEMA_V3_TOMBSTONES"
         }
     }
 
@@ -275,6 +287,7 @@ enum PersistentSchemaReleaseV1: String, Codable, Equatable, Sendable {
         switch self {
         case .v1: return PersistentSchemaV1.versionIdentifier
         case .v2: return PersistentSchemaV2.versionIdentifier
+        case .v3: return PersistentSchemaV3.versionIdentifier
         }
     }
 
@@ -282,6 +295,7 @@ enum PersistentSchemaReleaseV1: String, Codable, Equatable, Sendable {
         switch self {
         case .v1: return nil
         case .v2: return PersistentSchemaV1.versionIdentifier
+        case .v3: return PersistentSchemaV2.versionIdentifier
         }
     }
 
@@ -289,13 +303,14 @@ enum PersistentSchemaReleaseV1: String, Codable, Equatable, Sendable {
         switch self {
         case .v1: return PersistentSchemaV1.models
         case .v2: return PersistentSchemaV2.models
+        case .v3: return PersistentSchemaV3.models
         }
     }
 
     var migrationStage: PersistentSchemaMigrationStageV1 {
         switch self {
         case .v1: return .bootstrap
-        case .v2: return .lightweight
+        case .v2, .v3: return .lightweight
         }
     }
 }
@@ -327,19 +342,35 @@ enum PersistentSchemaMigrationPlanV1: SchemaMigrationPlan {
     }
 }
 
+enum PersistentSchemaMigrationPlanV2: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] {
+        [PersistentSchemaV2.self, PersistentSchemaV3.self]
+    }
+
+    static let migrateV2ToV3 = MigrationStage.lightweight(
+        fromVersion: PersistentSchemaV2.self,
+        toVersion: PersistentSchemaV3.self
+    )
+
+    static var stages: [MigrationStage] {
+        [migrateV2ToV3]
+    }
+}
+
 enum PersistentSchemaReleaseRegistryV1 {
     static let v1CompatibilityID = PersistentSchemaReleaseV1.v1.compatibilityID
     static let v2CompatibilityID = PersistentSchemaReleaseV1.v2.compatibilityID
+    static let v3CompatibilityID = PersistentSchemaReleaseV1.v3.compatibilityID
     static let v2MarkerIDString = "00000000-0000-0000-0000-000000000002"
     static let v2MarkerID = UUID(uuidString: v2MarkerIDString)!
 
-    static let releases: [PersistentSchemaReleaseV1] = [.v1, .v2]
+    static let releases: [PersistentSchemaReleaseV1] = [.v1, .v2, .v3]
 
-    static let activeVersionIdentifier = PersistentSchemaV2.versionIdentifier
-    static let activeCompatibilityID = v2CompatibilityID
+    static let activeVersionIdentifier = PersistentSchemaV3.versionIdentifier
+    static let activeCompatibilityID = v3CompatibilityID
 
     static var activeRelease: PersistentSchemaReleaseV1 {
-        .v2
+        .v3
     }
 
     static var activeReleaseDescriptor: PersistentSchemaReleaseV1 {
@@ -347,7 +378,7 @@ enum PersistentSchemaReleaseRegistryV1 {
     }
 
     static var activeMigrationPlan: any SchemaMigrationPlan.Type {
-        PersistentSchemaMigrationPlanV1.self
+        PersistentSchemaMigrationPlanV2.self
     }
 
     static func validate() throws {
@@ -357,7 +388,7 @@ enum PersistentSchemaReleaseRegistryV1 {
     static func validate(
         _ candidate: [PersistentSchemaReleaseV1]
     ) throws {
-        guard candidate.count == 2 else {
+        guard candidate.count == 3 else {
             throw PersistentSchemaReleaseRegistryErrorV1.invalidReleaseCount
         }
 
@@ -381,6 +412,9 @@ enum PersistentSchemaReleaseRegistryV1 {
         }
         let expectedV2ModelIDs = expectedV1ModelIDs + [
             ObjectIdentifier(PersistentSchemaReleaseMarker.self)
+        ]
+        let expectedV3ModelIDs = expectedV2ModelIDs + [
+            ObjectIdentifier(DeletionLedgerRow.self)
         ]
 
         guard candidate[0] == .v1,
@@ -415,15 +449,33 @@ enum PersistentSchemaReleaseRegistryV1 {
             throw PersistentSchemaReleaseRegistryErrorV1.invalidSuccessorRelease
         }
 
-        guard activeRelease == .v2,
-              activeVersionIdentifier == candidate[1].versionIdentifier,
-              activeCompatibilityID == candidate[1].compatibilityID,
+        guard candidate[2] == .v3,
+              candidate[2].versionIdentifier == PersistentSchemaV3.versionIdentifier,
+              candidate[2].compatibilityID == v3CompatibilityID,
+              candidate[2].predecessorVersionIdentifier == PersistentSchemaV2.versionIdentifier,
+              candidate[2].models.count == 9,
+              candidate[2].models.map({ ObjectIdentifier($0) }) == expectedV3ModelIDs,
+              Array(expectedV3ModelIDs.dropLast()) == expectedV2ModelIDs,
+              expectedV3ModelIDs.last == ObjectIdentifier(DeletionLedgerRow.self),
+              candidate[2].migrationStage == .lightweight else {
+            throw PersistentSchemaReleaseRegistryErrorV1.invalidSuccessorRelease
+        }
+
+        guard activeRelease == .v3,
+              activeVersionIdentifier == candidate[2].versionIdentifier,
+              activeCompatibilityID == candidate[2].compatibilityID,
               PersistentSchemaMigrationPlanV1.schemas.count == 2,
               ObjectIdentifier(PersistentSchemaMigrationPlanV1.schemas[0])
                   == ObjectIdentifier(PersistentSchemaV1.self),
               ObjectIdentifier(PersistentSchemaMigrationPlanV1.schemas[1])
                   == ObjectIdentifier(PersistentSchemaV2.self),
-              PersistentSchemaMigrationPlanV1.stages.count == 1 else {
+              PersistentSchemaMigrationPlanV1.stages.count == 1,
+              PersistentSchemaMigrationPlanV2.schemas.count == 2,
+              ObjectIdentifier(PersistentSchemaMigrationPlanV2.schemas[0])
+                  == ObjectIdentifier(PersistentSchemaV2.self),
+              ObjectIdentifier(PersistentSchemaMigrationPlanV2.schemas[1])
+                  == ObjectIdentifier(PersistentSchemaV3.self),
+              PersistentSchemaMigrationPlanV2.stages.count == 1 else {
             throw PersistentSchemaReleaseRegistryErrorV1.invalidActiveRelease
         }
     }
@@ -449,6 +501,6 @@ enum PersistentSchemaReleaseRegistryV1 {
 
     static func activeSchema() throws -> Schema {
         try validate()
-        return Schema(PersistentSchemaV2.models, version: PersistentSchemaV2.versionIdentifier)
+        return Schema(PersistentSchemaV3.models, version: PersistentSchemaV3.versionIdentifier)
     }
 }

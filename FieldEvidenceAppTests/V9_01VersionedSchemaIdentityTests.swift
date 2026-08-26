@@ -80,7 +80,7 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
             .applicationGovernedScalarUUID,
         ]
         let expectedDeleteDispositions: [PersistentApplicationDeleteDisposition] = [
-            .deleteOrphanSiteIfSelectedAssetWasLastSiteAsset,
+            .preserveEmptySiteUnlessExplicitlyDeleted,
             .deleteSelectedAssetAfterDependents,
             .deleteSelectedAssetWorkflowRecords,
             .deleteSelectedRecordEvidence,
@@ -142,15 +142,17 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         )
     }
 
-    func testV1AndV2RegistryKeepDistinctOrderedSchemas() throws {
+    func testV1V2AndV3RegistryKeepDistinctOrderedSchemas() throws {
         XCTAssertEqual(PersistentSchemaV1.versionIdentifier, Schema.Version(1, 0, 0))
         XCTAssertEqual(PersistentSchemaV2.versionIdentifier, Schema.Version(2, 0, 0))
+        XCTAssertEqual(PersistentSchemaV3.versionIdentifier, Schema.Version(3, 0, 0))
         XCTAssertEqual(
             modelTypeIDs(PersistentSchemaV1.models),
             modelTypeIDs(PersistentModelCatalog.models)
         )
         XCTAssertEqual(PersistentSchemaV1.models.count, 7)
         XCTAssertEqual(PersistentSchemaV2.models.count, 8)
+        XCTAssertEqual(PersistentSchemaV3.models.count, 9)
         XCTAssertEqual(
             modelTypeIDs(Array(PersistentSchemaV2.models.dropLast())),
             modelTypeIDs(PersistentModelCatalog.models)
@@ -163,15 +165,23 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
             modelTypeIDs(PersistentSchemaV1.models),
             modelTypeIDs(PersistentSchemaV2.models)
         )
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.releases, [.v1, .v2])
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v2)
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV3.models.dropLast())),
+            modelTypeIDs(PersistentSchemaV2.models)
+        )
+        XCTAssertEqual(
+            modelTypeIDs(PersistentSchemaV3.models).last,
+            ObjectIdentifier(DeletionLedgerRow.self)
+        )
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.releases, [.v1, .v2, .v3])
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v3)
         XCTAssertEqual(
             PersistentSchemaReleaseRegistryV1.activeVersionIdentifier,
-            PersistentSchemaV2.versionIdentifier
+            PersistentSchemaV3.versionIdentifier
         )
         XCTAssertEqual(
             PersistentSchemaReleaseRegistryV1.activeCompatibilityID,
-            PersistentSchemaReleaseRegistryV1.v2CompatibilityID
+            PersistentSchemaReleaseRegistryV1.v3CompatibilityID
         )
         XCTAssertNoThrow(try PersistentSchemaReleaseRegistryV1.validate())
         XCTAssertEqual(
@@ -184,6 +194,14 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
             ]
         )
         XCTAssertEqual(PersistentSchemaMigrationPlanV1.stages.count, 1)
+        XCTAssertEqual(
+            PersistentSchemaMigrationPlanV2.schemas.map { ObjectIdentifier($0) },
+            [
+                ObjectIdentifier(PersistentSchemaV2.self),
+                ObjectIdentifier(PersistentSchemaV3.self),
+            ]
+        )
+        XCTAssertEqual(PersistentSchemaMigrationPlanV2.stages.count, 1)
 
         let factorySource = try sourceText(
             "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
@@ -191,11 +209,12 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         XCTAssertTrue(factorySource.contains("PersistentSchemaV1.makeSchema()"))
         XCTAssertTrue(factorySource.contains("migrationPlan: nil"))
         XCTAssertTrue(factorySource.contains("PersistentSchemaV2"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaV3"))
         XCTAssertTrue(factorySource.contains("PersistentSchemaReleaseMarker"))
         XCTAssertTrue(factorySource.contains("migrationPlan: PersistentSchemaMigrationPlanV1.self"))
         XCTAssertEqual(
             factorySource.components(separatedBy: "cloudKitDatabase: .none").count - 1,
-            2
+            3
         )
         XCTAssertFalse(factorySource.contains("cloudKitDatabase: .automatic"))
         XCTAssertFalse(factorySource.contains("NSPersistentCloudKitContainer"))
@@ -289,6 +308,34 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
             )
         }
         XCTAssertFalse(generatedAtZeroBound)
+    }
+
+    func testDeletionLedgerV2IsClosedSortedTypedAndAppendOnlyByUnion() throws {
+        XCTAssertEqual(
+            DeletionRecordKindV2.allCases,
+            [.site, .asset, .workflowRecord, .evidenceFile, .issue, .packet, .report]
+        )
+        XCTAssertEqual(DeletionLedgerV2.maximumEntryCount, 100_000)
+        XCTAssertNil(DeletionRecordKindV2(rawValue: "tag"))
+
+        let id = fixedUUID("00000000-0000-0000-0000-000000000101")
+        let identity = try DeletionIdentityV2(kind: .packet, id: id)
+        XCTAssertEqual(identity.typedID, "packet:00000000-0000-0000-0000-000000000101")
+        XCTAssertEqual(try DeletionIdentityV2(typedID: identity.typedID), identity)
+
+        let later = try DeletionLedgerEntryV2(
+            identity: identity,
+            deletedAt: Date(timeIntervalSince1970: 20)
+        )
+        let earlier = try DeletionLedgerEntryV2(
+            identity: identity,
+            deletedAt: Date(timeIntervalSince1970: 10)
+        )
+        let union = try DeletionLedgerV2(entries: [later]).union(
+            DeletionLedgerV2(entries: [earlier])
+        )
+        XCTAssertEqual(union.entries, [earlier])
+        XCTAssertEqual(try union.canonicalData(), try union.canonicalData())
     }
 
     @MainActor

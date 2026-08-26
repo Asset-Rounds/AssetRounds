@@ -792,7 +792,19 @@ private extension BackupImportService {
         default:
             sourceIdentityIsValid = false
         }
+        let schemaPairIsValid: Bool
+        switch (
+            manifest.backupSchemaVersion,
+            manifest.source.persistentSchemaVersion,
+            manifest.source.recordsSchemaVersion
+        ) {
+        case (1, 1, 1), (2, 1, 1), (2, 3, 2):
+            schemaPairIsValid = true
+        default:
+            schemaPairIsValid = false
+        }
         guard sourceIdentityIsValid,
+              schemaPairIsValid,
               manifest.entries.count <= archiveLimits.maximumEntryCount,
               manifest.declaredPayloadByteCount >= 0 else {
             throw BackupImportServiceError.invalidSource

@@ -4,16 +4,293 @@ import Foundation
 enum EraseIntentStoreError: Error, Equatable {
     case invalidAuthority
     case invalidIntent
+    case invalidPreparation
     case intentAlreadyExists
     case intentMissing
     case intentMismatch
+    case preparationAlreadyExists
+    case preparationMissing
+    case preparationMismatch
     case writeFailed
     case cleanupFailed
 }
 
-/// Descriptor-pinned authority for the single erase journal. The canonical
-/// leaf is never followed through a symbolic link and phase replacement is an
-/// atomic exchange whose displaced bytes must equal the expected prior phase.
+struct ErasePreparationV2: Equatable, Sendable {
+    let oldPointer: RestorePointerIdentityV1
+    let sourceLedger: DeletionLedgerProofV2
+    let targetGenerationID: UUID
+    let targetWorkspaceID: UUID
+    let targetReplicaID: UUID
+    let targetPointer: RestorePointerIdentityV1?
+
+    func binding(targetPointer: RestorePointerIdentityV1) -> ErasePreparationV2 {
+        ErasePreparationV2(
+            oldPointer: oldPointer,
+            sourceLedger: sourceLedger,
+            targetGenerationID: targetGenerationID,
+            targetWorkspaceID: targetWorkspaceID,
+            targetReplicaID: targetReplicaID,
+            targetPointer: targetPointer
+        )
+    }
+
+    func matches(_ intent: EraseIntentV1) -> Bool {
+        intent.schemaVersion == 2
+            && intent.oldPointer == oldPointer
+            && intent.sourceLedger == sourceLedger
+            && intent.newGenerationID == targetGenerationID
+            && intent.targetPointer == targetPointer
+            && targetPointer != nil
+            && intent.targetPointer?.workspaceID == targetWorkspaceID
+            && intent.targetPointer?.replicaID == targetReplicaID
+    }
+}
+
+private enum ErasePreparationCodecV2 {
+    private static let keys = Set([
+        "oldPointer",
+        "schemaVersion",
+        "sourceLedger",
+        "targetGenerationID",
+        "targetPointer",
+        "targetReplicaID",
+        "targetWorkspaceID",
+    ])
+    private static let pointerKeys = Set([
+        "generationID",
+        "generationManifestSHA256",
+        "knownReplicaIDs",
+        "replicaID",
+        "workspaceID",
+    ])
+    private static let ledgerKeys = Set([
+        "canonicalSHA256",
+        "entryCount",
+    ])
+
+    static func encode(_ value: ErasePreparationV2) throws -> Data {
+        guard valid(value) else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        return try CanonicalJSONV1.encode(.object([
+            "oldPointer": pointerJSON(value.oldPointer),
+            "schemaVersion": .integer(2),
+            "sourceLedger": .object([
+                "canonicalSHA256": .string(value.sourceLedger.canonicalSHA256),
+                "entryCount": .integer(value.sourceLedger.entryCount),
+            ]),
+            "targetGenerationID": .string(canonical(value.targetGenerationID)),
+            "targetPointer": value.targetPointer.map(pointerJSON) ?? .null,
+            "targetReplicaID": .string(canonical(value.targetReplicaID)),
+            "targetWorkspaceID": .string(canonical(value.targetWorkspaceID)),
+        ]))
+    }
+
+    static func decode(_ data: Data) throws -> ErasePreparationV2 {
+        guard let object = try JSONSerialization.jsonObject(
+            with: data,
+            options: [.fragmentsAllowed]
+        ) as? [String: Any],
+              Set(object.keys) == keys,
+              object.count == keys.count,
+              let schemaVersion = canonicalInt(object["schemaVersion"]),
+              schemaVersion == 2,
+              let oldPointer = decodePointer(object["oldPointer"]),
+              let sourceLedger = decodeLedger(object["sourceLedger"]),
+              let targetGenerationID = canonicalUUID(
+                  object["targetGenerationID"]
+              ),
+              let targetReplicaID = canonicalUUID(object["targetReplicaID"]),
+              let targetWorkspaceID = canonicalUUID(
+                  object["targetWorkspaceID"]
+              ) else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        let targetPointer: RestorePointerIdentityV1?
+        if object["targetPointer"] is NSNull {
+            targetPointer = nil
+        } else {
+            guard let value = decodePointer(object["targetPointer"]) else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            targetPointer = value
+        }
+        let value = ErasePreparationV2(
+            oldPointer: oldPointer,
+            sourceLedger: sourceLedger,
+            targetGenerationID: targetGenerationID,
+            targetWorkspaceID: targetWorkspaceID,
+            targetReplicaID: targetReplicaID,
+            targetPointer: targetPointer
+        )
+        guard try encode(value) == data else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        return value
+    }
+
+    static func valid(_ value: ErasePreparationV2) -> Bool {
+        let unavailable = Set(
+            value.oldPointer.knownReplicaIDs + [
+                value.oldPointer.generationID,
+                value.oldPointer.workspaceID,
+                value.oldPointer.replicaID,
+            ]
+        )
+        guard validPointer(value.oldPointer),
+              (try? value.sourceLedger.validate()) != nil,
+              value.sourceLedger.entryCount
+                <= DeletionLedgerV2.maximumEntryCount,
+              value.targetGenerationID != zero,
+              value.targetWorkspaceID != zero,
+              value.targetReplicaID != zero,
+              value.targetGenerationID != value.targetWorkspaceID,
+              value.targetGenerationID != value.targetReplicaID,
+              value.targetWorkspaceID != value.targetReplicaID,
+              !unavailable.contains(value.targetGenerationID),
+              !unavailable.contains(value.targetWorkspaceID),
+              !unavailable.contains(value.targetReplicaID) else {
+            return false
+        }
+        guard let targetPointer = value.targetPointer else { return true }
+        return validPointer(targetPointer)
+            && targetPointer.generationID == value.targetGenerationID
+            && targetPointer.workspaceID == value.targetWorkspaceID
+            && targetPointer.replicaID == value.targetReplicaID
+            && targetPointer.knownReplicaIDs == [value.targetReplicaID]
+    }
+
+    private static func pointerJSON(
+        _ value: RestorePointerIdentityV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "generationID": .string(canonical(value.generationID)),
+            "generationManifestSHA256": .string(
+                value.generationManifestSHA256
+            ),
+            "knownReplicaIDs": .array(value.knownReplicaIDs.map {
+                .string(canonical($0))
+            }),
+            "replicaID": .string(canonical(value.replicaID)),
+            "workspaceID": .string(canonical(value.workspaceID)),
+        ])
+    }
+
+    private static func decodePointer(
+        _ raw: Any?
+    ) -> RestorePointerIdentityV1? {
+        guard let object = exactObject(raw, keys: pointerKeys),
+              let generationID = canonicalUUID(object["generationID"]),
+              let digest = object["generationManifestSHA256"] as? String,
+              let rawHistory = object["knownReplicaIDs"] as? [Any],
+              let history = canonicalUUIDs(rawHistory),
+              history == history.sorted(by: idOrder),
+              Set(history).count == history.count,
+              let replicaID = canonicalUUID(object["replicaID"]),
+              let workspaceID = canonicalUUID(object["workspaceID"]) else {
+            return nil
+        }
+        return RestorePointerIdentityV1(
+            generationID: generationID,
+            generationManifestSHA256: digest,
+            knownReplicaIDs: Set(history),
+            workspaceID: workspaceID,
+            replicaID: replicaID
+        )
+    }
+
+    private static func decodeLedger(_ raw: Any?) -> DeletionLedgerProofV2? {
+        guard let object = exactObject(raw, keys: ledgerKeys),
+              let entryCount = canonicalInt(object["entryCount"]),
+              entryCount >= 0,
+              let digest = object["canonicalSHA256"] as? String else {
+            return nil
+        }
+        return try? DeletionLedgerProofV2(
+            entryCount: entryCount,
+            canonicalSHA256: digest
+        )
+    }
+
+    private static func validPointer(_ value: RestorePointerIdentityV1) -> Bool {
+        value.generationID != zero
+            && value.workspaceID != zero
+            && value.replicaID != zero
+            && value.generationID != value.workspaceID
+            && value.generationID != value.replicaID
+            && value.workspaceID != value.replicaID
+            && !value.knownReplicaIDs.isEmpty
+            && value.knownReplicaIDs.count <= 64
+            && value.knownReplicaIDs == value.knownReplicaIDs.sorted(by: idOrder)
+            && Set(value.knownReplicaIDs).count == value.knownReplicaIDs.count
+            && value.knownReplicaIDs.contains(value.replicaID)
+            && validSHA256(value.generationManifestSHA256)
+    }
+
+    private static func exactObject(
+        _ raw: Any?,
+        keys: Set<String>
+    ) -> [String: Any]? {
+        guard let value = raw as? [String: Any],
+              Set(value.keys) == keys,
+              value.count == keys.count else {
+            return nil
+        }
+        return value
+    }
+
+    private static func canonicalInt(_ raw: Any?) -> Int? {
+        guard let number = raw as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number.doubleValue == Double(number.intValue) else {
+            return nil
+        }
+        return number.intValue
+    }
+
+    private static func canonicalUUIDs(_ values: [Any]) -> [UUID]? {
+        var result: [UUID] = []
+        for value in values {
+            guard let identifier = canonicalUUID(value) else { return nil }
+            result.append(identifier)
+        }
+        return result
+    }
+
+    private static func canonicalUUID(_ raw: Any?) -> UUID? {
+        guard let value = raw as? String,
+              value == value.lowercased(),
+              let identifier = UUID(uuidString: value),
+              canonical(identifier) == value else {
+            return nil
+        }
+        return identifier
+    }
+
+    private static func validSHA256(_ value: String) -> Bool {
+        value.count == 64
+            && value.unicodeScalars.allSatisfy {
+                (48...57).contains(Int($0.value))
+                    || (97...102).contains(Int($0.value))
+            }
+    }
+
+    private static func canonical(_ value: UUID) -> String {
+        value.uuidString.lowercased()
+    }
+
+    private static func idOrder(_ lhs: UUID, _ rhs: UUID) -> Bool {
+        canonical(lhs) < canonical(rhs)
+    }
+
+    private static let zero = UUID(
+        uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    )
+}
+
+/// Descriptor-pinned authority for the erase preparation and intent journals.
+/// Canonical leaves are never followed through symbolic links; replacement is
+/// an atomic exchange whose displaced bytes must equal the expected value.
 final class EraseIntentStore {
     private struct Identity: Equatable {
         let device: dev_t
@@ -23,6 +300,8 @@ final class EraseIntentStore {
     private static let directoryName = "FieldEvidenceErase"
     private static let intentName = "erase.json"
     private static let nextName = ".erase.json.next"
+    private static let preparationName = "preparation.json"
+    private static let preparationNextName = ".preparation.json.next"
 
     private let applicationSupportURL: URL
     private let applicationSupportDescriptor: Int32
@@ -164,6 +443,216 @@ final class EraseIntentStore {
             try removeExact(Self.nextName, expected: pending)
             return current
         }
+    }
+
+    func loadPreparation() throws -> ErasePreparationV2? {
+        try verifyAuthority()
+        try verifyExistingPolicy(.journal, name: Self.preparationName)
+        try verifyExistingPolicy(
+            .journalTemporary,
+            name: Self.preparationNextName
+        )
+        let canonical = try readIfPresent(Self.preparationName)
+        let pending = try readIfPresent(Self.preparationNextName)
+
+        switch (canonical, pending) {
+        case (nil, nil):
+            return nil
+        case (nil, let pending?):
+            let value = try decodePreparation(pending.data)
+            guard Darwin.renameatx_np(
+                eraseDescriptor,
+                Self.preparationNextName,
+                eraseDescriptor,
+                Self.preparationName,
+                UInt32(RENAME_EXCL)
+            ) == 0,
+                  Darwin.fsync(eraseDescriptor) == 0 else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            try verifyPublishedPolicy(
+                .journal,
+                name: Self.preparationName,
+                failure: .invalidPreparation,
+                expectedIdentity: pending.identity
+            )
+            guard let promoted = try readIfPresent(Self.preparationName),
+                  promoted.identity == pending.identity,
+                  promoted.data == pending.data else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            try verifyAuthority()
+            return value
+        case (let canonical?, nil):
+            return try decodePreparation(canonical.data)
+        case (let canonical?, let pending?):
+            let current = try decodePreparation(canonical.data)
+            let next = try decodePreparation(pending.data)
+            guard isPreparationTransition(current, next)
+                    || isPreparationTransition(next, current) else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            try removeExact(Self.preparationNextName, expected: pending)
+            return current
+        }
+    }
+
+    func createPreparation(_ value: ErasePreparationV2) throws {
+        try verifyAuthority()
+        try verifyExistingPolicy(.journal, name: Self.preparationName)
+        try verifyExistingPolicy(
+            .journalTemporary,
+            name: Self.preparationNextName
+        )
+        guard try readIfPresent(Self.preparationName) == nil,
+              try readIfPresent(Self.preparationNextName) == nil else {
+            throw EraseIntentStoreError.preparationAlreadyExists
+        }
+        let data = try encodePreparation(value)
+        let temporaryIdentity = try createLeaf(
+            Self.preparationNextName,
+            data: data
+        )
+        var published = false
+        do {
+            guard Darwin.renameatx_np(
+                eraseDescriptor,
+                Self.preparationNextName,
+                eraseDescriptor,
+                Self.preparationName,
+                UInt32(RENAME_EXCL)
+            ) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            published = true
+            guard Darwin.fsync(eraseDescriptor) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try verifyPublishedPolicy(
+                .journal,
+                name: Self.preparationName,
+                failure: .writeFailed,
+                expectedIdentity: temporaryIdentity
+            )
+            guard let written = try readIfPresent(Self.preparationName),
+                  written.identity == temporaryIdentity,
+                  written.data == data else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try verifyAuthority()
+        } catch {
+            if published {
+                try? removeExact(
+                    Self.preparationName,
+                    expected: (data: data, identity: temporaryIdentity)
+                )
+            }
+            throw error
+        }
+    }
+
+    func replacePreparation(
+        expected: ErasePreparationV2,
+        with replacement: ErasePreparationV2
+    ) throws {
+        try verifyAuthority()
+        try verifyExistingPolicy(.journal, name: Self.preparationName)
+        try verifyExistingPolicy(
+            .journalTemporary,
+            name: Self.preparationNextName
+        )
+        let expectedData = try encodePreparation(expected)
+        let replacementData = try encodePreparation(replacement)
+        guard isPreparationTransition(expected, replacement),
+              let current = try readIfPresent(Self.preparationName),
+              current.data == expectedData,
+              try readIfPresent(Self.preparationNextName) == nil else {
+            throw EraseIntentStoreError.preparationMismatch
+        }
+        let replacementIdentity = try createLeaf(
+            Self.preparationNextName,
+            data: replacementData
+        )
+        var swapped = false
+        do {
+            guard Darwin.renameatx_np(
+                eraseDescriptor,
+                Self.preparationNextName,
+                eraseDescriptor,
+                Self.preparationName,
+                UInt32(RENAME_SWAP)
+            ) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            swapped = true
+            guard Darwin.fsync(eraseDescriptor) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try verifyPublishedPolicy(
+                .journal,
+                name: Self.preparationName,
+                failure: .writeFailed,
+                expectedIdentity: replacementIdentity
+            )
+            try verifyPublishedPolicy(
+                .journalTemporary,
+                name: Self.preparationNextName,
+                failure: .writeFailed,
+                expectedIdentity: current.identity
+            )
+            guard let published = try readIfPresent(Self.preparationName),
+                  let displaced = try readIfPresent(Self.preparationNextName),
+                  published.identity == replacementIdentity,
+                  published.data == replacementData,
+                  displaced.identity == current.identity,
+                  displaced.data == expectedData else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try removeExact(Self.preparationNextName, expected: displaced)
+            swapped = false
+            try verifyAuthority()
+        } catch {
+            if swapped {
+                do {
+                    if let published = try readIfPresent(Self.preparationName),
+                       let displaced = try readIfPresent(Self.preparationNextName),
+                       published.identity == replacementIdentity,
+                       published.data == replacementData,
+                       displaced.identity == current.identity,
+                       displaced.data == expectedData {
+                        _ = Darwin.renameatx_np(
+                            eraseDescriptor,
+                            Self.preparationNextName,
+                            eraseDescriptor,
+                            Self.preparationName,
+                            UInt32(RENAME_SWAP)
+                        )
+                        _ = Darwin.fsync(eraseDescriptor)
+                    }
+                } catch {
+                    // Preserve uncertain state for recovery.
+                }
+            }
+            try? removeIfExact(
+                Self.preparationNextName,
+                expected: replacementIdentity
+            )
+            throw error
+        }
+    }
+
+    func removePreparation(expected: ErasePreparationV2) throws {
+        try verifyAuthority()
+        try verifyExistingPolicy(.journal, name: Self.preparationName)
+        let data = try encodePreparation(expected)
+        guard let current = try readIfPresent(Self.preparationName) else {
+            throw EraseIntentStoreError.preparationMissing
+        }
+        guard current.data == data else {
+            throw EraseIntentStoreError.preparationMismatch
+        }
+        try removeExact(Self.preparationName, expected: current)
+        try verifyAuthority()
     }
 
     func create(_ value: EraseIntentV1) throws {
@@ -481,13 +970,40 @@ private extension EraseIntentStore {
         catch { throw EraseIntentStoreError.invalidIntent }
     }
 
+    func encodePreparation(_ value: ErasePreparationV2) throws -> Data {
+        do { return try ErasePreparationCodecV2.encode(value) }
+        catch { throw EraseIntentStoreError.invalidPreparation }
+    }
+
+    func decodePreparation(_ data: Data) throws -> ErasePreparationV2 {
+        do { return try ErasePreparationCodecV2.decode(data) }
+        catch { throw EraseIntentStoreError.invalidPreparation }
+    }
+
+    func isPreparationTransition(
+        _ current: ErasePreparationV2,
+        _ next: ErasePreparationV2
+    ) -> Bool {
+        current.oldPointer == next.oldPointer
+            && current.sourceLedger == next.sourceLedger
+            && current.targetGenerationID == next.targetGenerationID
+            && current.targetWorkspaceID == next.targetWorkspaceID
+            && current.targetReplicaID == next.targetReplicaID
+            && current.targetPointer == nil
+            && next.targetPointer != nil
+    }
+
     func sameOperation(_ lhs: EraseIntentV1, _ rhs: EraseIntentV1) -> Bool {
         lhs.auxiliaryRoots == rhs.auxiliaryRoots
             && lhs.eraseID == rhs.eraseID
             && lhs.generationIDsToDelete == rhs.generationIDsToDelete
             && lhs.newGenerationID == rhs.newGenerationID
             && lhs.oldGenerationID == rhs.oldGenerationID
+            && lhs.oldPointer == rhs.oldPointer
             && lhs.schemaVersion == rhs.schemaVersion
+            && lhs.sourceLedger == rhs.sourceLedger
+            && lhs.targetEmptyProof == rhs.targetEmptyProof
+            && lhs.targetPointer == rhs.targetPointer
     }
 
     func nextPhase(after phase: EraseIntentPhaseV1) -> EraseIntentPhaseV1? {

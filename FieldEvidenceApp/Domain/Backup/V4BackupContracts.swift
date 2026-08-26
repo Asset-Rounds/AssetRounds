@@ -121,6 +121,7 @@ struct V4BackupReportDTO: Codable, Equatable, Identifiable, Sendable {
 
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let assets: [V4BackupAssetDTO]
+    let deletionLedger: DeletionLedgerV2?
     let evidenceFiles: [V4BackupEvidenceFileDTO]
     let issues: [V4BackupIssueDTO]
     let packets: [V4BackupPacketDTO]
@@ -128,6 +129,28 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let reports: [V4BackupReportDTO]
     let sites: [V4BackupSiteDTO]
     let workflowRecords: [V4BackupWorkflowRecordDTO]
+
+    init(
+        assets: [V4BackupAssetDTO],
+        deletionLedger: DeletionLedgerV2? = nil,
+        evidenceFiles: [V4BackupEvidenceFileDTO],
+        issues: [V4BackupIssueDTO],
+        packets: [V4BackupPacketDTO],
+        recordsSchemaVersion: Int,
+        reports: [V4BackupReportDTO],
+        sites: [V4BackupSiteDTO],
+        workflowRecords: [V4BackupWorkflowRecordDTO]
+    ) {
+        self.assets = assets
+        self.deletionLedger = deletionLedger
+        self.evidenceFiles = evidenceFiles
+        self.issues = issues
+        self.packets = packets
+        self.recordsSchemaVersion = recordsSchemaVersion
+        self.reports = reports
+        self.sites = sites
+        self.workflowRecords = workflowRecords
+    }
 }
 
 struct V4BackupEntryV1: Codable, Equatable, Sendable {

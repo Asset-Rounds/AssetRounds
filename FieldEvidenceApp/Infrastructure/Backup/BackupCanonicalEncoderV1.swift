@@ -15,7 +15,7 @@ struct BackupCanonicalEncoderV1 {
         guard Self.valid(records) else {
             throw BackupCanonicalEncodingErrorV1.invalidRecords
         }
-        return try encoded(.object([
+        var fields: [String: CanonicalJSONValueV1] = [
             "assets": .array(records.assets.map(Self.asset)),
             "evidenceFiles": .array(records.evidenceFiles.map(Self.evidenceFile)),
             "issues": .array(records.issues.map(Self.issue)),
@@ -24,7 +24,11 @@ struct BackupCanonicalEncoderV1 {
             "reports": .array(records.reports.map(Self.report)),
             "sites": .array(records.sites.map(Self.site)),
             "workflowRecords": .array(records.workflowRecords.map(Self.workflowRecord)),
-        ]))
+        ]
+        if let deletionLedger = records.deletionLedger {
+            fields["deletionLedger"] = Self.deletionLedger(deletionLedger)
+        }
+        return try encoded(.object(fields))
     }
 
     func encodeManifest(_ manifest: V4BackupManifestV1) throws -> EncodedBackupJSONV1 {
@@ -52,7 +56,16 @@ struct BackupCanonicalEncoderV1 {
 
 private extension BackupCanonicalEncoderV1 {
     static func valid(_ records: V4BackupRecordsV1) -> Bool {
-        records.recordsSchemaVersion == 1
+        let ledgerIsValid: Bool
+        switch (records.recordsSchemaVersion, records.deletionLedger) {
+        case (1, nil):
+            ledgerIsValid = true
+        case (2, let ledger?):
+            ledgerIsValid = (try? ledger.validate()) != nil
+        default:
+            ledgerIsValid = false
+        }
+        return ledgerIsValid
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -89,10 +102,20 @@ private extension BackupCanonicalEncoderV1 {
         default:
             sourceIdentityIsValid = false
         }
+        let schemaPairIsValid: Bool
+        switch (
+            manifest.backupSchemaVersion,
+            manifest.source.persistentSchemaVersion,
+            manifest.source.recordsSchemaVersion
+        ) {
+        case (1, 1, 1), (2, 1, 1), (2, 3, 2):
+            schemaPairIsValid = true
+        default:
+            schemaPairIsValid = false
+        }
         guard sourceIdentityIsValid,
+              schemaPairIsValid,
               manifest.declaredPayloadByteCount >= 0,
-              manifest.source.persistentSchemaVersion == 1,
-              manifest.source.recordsSchemaVersion == 1,
               !manifest.source.appBuild.isEmpty,
               !manifest.source.appVersion.isEmpty,
               sortedUniqueIDs(manifest.consumedEvaluationRootIDs),
@@ -334,6 +357,26 @@ private extension BackupCanonicalEncoderV1 {
         .object([
             "contentVersion": .integer(value.contentVersion),
             "packID": .string(value.packID),
+            "schemaVersion": .integer(value.schemaVersion),
+        ])
+    }
+
+    static func deletionLedger(_ value: DeletionLedgerV2) -> CanonicalJSONValueV1 {
+        .object([
+            "entries": .array(value.entries.map(deletionLedgerEntry)),
+            "schemaVersion": .integer(value.schemaVersion),
+        ])
+    }
+
+    static func deletionLedgerEntry(
+        _ value: DeletionLedgerEntryV2
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "deletedAt": CanonicalJSONV1.date(value.deletedAt),
+            "identity": .object([
+                "id": CanonicalJSONV1.uuid(value.identity.id),
+                "kind": .string(value.identity.kind.rawValue),
+            ]),
             "schemaVersion": .integer(value.schemaVersion),
         ])
     }
