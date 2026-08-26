@@ -10233,6 +10233,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    \"S10.4 AX-text recheck-preflight positioning failed\"\n" +
                 "                )\n" +
                 "            }\n" +
+                "            if automationSegment == .segment2 {\n" +
+                "                try diagnoseSegment2AXTextRecheckPreflightNativeContrast(in: app)\n" +
+                "            }\n" +
                 "        }\n" +
                 recheckPreflightPositioningRouteEnd
         XCTAssertEqual(
@@ -10247,6 +10250,205 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        XCTAssertEqual(
+            recheckPreflightPositioningRouteSource.components(
+                separatedBy:
+                    "diagnoseSegment2AXTextRecheckPreflightNativeContrast(in: app)"
+            ).count - 1,
+            1
+        )
+
+        let recheckPreflightNativeContrastDiagnosticStart =
+            "    @MainActor\n" +
+                "    private func diagnoseSegment2AXTextRecheckPreflightNativeContrast(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) throws {"
+        let recheckPreflightNativeContrastDiagnosticEnd =
+            "\n\n    @MainActor\n" +
+                "    private func positionRecheckPreflightContrastTargetsForAXText("
+        guard let recheckPreflightNativeContrastDiagnosticStartRange = uiSource.range(
+            of: recheckPreflightNativeContrastDiagnosticStart
+        ), let recheckPreflightNativeContrastDiagnosticEndRange = uiSource.range(
+            of: recheckPreflightNativeContrastDiagnosticEnd,
+            range: recheckPreflightNativeContrastDiagnosticStartRange.upperBound ..<
+                uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded state-27 native-contrast diagnostic")
+            return
+        }
+        let recheckPreflightNativeContrastDiagnosticSource = String(
+            uiSource[
+                recheckPreflightNativeContrastDiagnosticStartRange.lowerBound ..<
+                    recheckPreflightNativeContrastDiagnosticEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(
+            recheckPreflightNativeContrastDiagnosticSource.utf8.count,
+            10_797
+        )
+        XCTAssertEqual(
+            Data(recheckPreflightNativeContrastDiagnosticSource.utf8).sha256,
+            "A81F1140205F26B27E8AF3E2B8C414246083B453B00361E00B92D1EA7F0D9328"
+        )
+        for exactGate in [
+            #"let stateID = "state.recheck-preflight.ready""#,
+            "Self.segmentedRouteStateIDs[22..<26]",
+            #""state.issue.recheck-due""#,
+            #""state.work.validation-error""#,
+            #"shard.shardID == "s10.4.current.ax-text""#,
+            "automationSegment == .segment2",
+            "automationSegment.replayCount == 22",
+            "automationSegment.ownedStartOrdinal == 23",
+            "automationSegment.ownedCount == 28",
+            "automationSegment.finalOrdinal == 50",
+            "Self.segmentedRouteStateIDs.count == 67",
+            "Set(Self.segmentedRouteStateIDs).count == 67",
+            "Self.segmentedRouteStateIDs[26] == stateID",
+            "segmentedRouteStateCursor == 26",
+            "migratedStateIDs == expectedMigratedStateIDs",
+            "automationAXTreeDigests.keys.sorted()",
+            "automationContrastExceptions.keys.sorted()",
+            "!automatedSegmentFinished",
+            "app.state == .runningForeground",
+        ] {
+            XCTAssertTrue(
+                recheckPreflightNativeContrastDiagnosticSource.contains(exactGate),
+                exactGate
+            )
+        }
+        for queryFamily in [
+            #""preflightScreens""#,
+            #""preflightScrollViews""#,
+            #""beforeYouBeginStaticTexts""#,
+            #""navigationBars""#,
+            #""tabBars""#,
+            #""beginControls""#,
+        ] {
+            XCTAssertEqual(
+                recheckPreflightNativeContrastDiagnosticSource.components(
+                    separatedBy: queryFamily
+                ).count - 1,
+                1,
+                queryFamily
+            )
+        }
+        for publicField in [
+            #""exists""#, #""isEnabled""#, #""isHittable""#,
+            #""identifier""#, #""label""#, #""value""#,
+            #""elementTypeRawValue""#, #""elementTypeDescription""#,
+            #""frame""#, #""auditTypeRawValue""#,
+            #""compactDescription""#, #""detailedDescription""#,
+            #""elementExists": NSNull()"#, #""elementEnabled": NSNull()"#,
+            #""elementHittable": NSNull()"#,
+            #""elementIdentifier": NSNull()"#,
+            #""elementLabel": NSNull()"#, #""elementValue": NSNull()"#,
+            #""elementTypeRawValue": NSNull()"#,
+            #""elementTypeDescription": NSNull()"#,
+            #""elementFrame": NSNull()"#, #""applicationFrame""#,
+        ] {
+            XCTAssertTrue(
+                recheckPreflightNativeContrastDiagnosticSource.contains(publicField),
+                publicField
+            )
+        }
+        for contextField in [
+            #""schemaVersion": 1"#, #""acceptanceEligible": false"#,
+            #""requirementID""#, #""deviceProfileID""#,
+            #""segmentReplayCount""#, #""segmentOwnedStartOrdinal""#,
+            #""segmentOwnedCount""#, #""segmentFinalOrdinal""#,
+            #""segmentStateCursor""#, #""migratedStateIDs""#,
+            #""stateOrdinal": 27"#, #""predecessorOrdinal": 26"#,
+            #""successorOrdinal": 28"#, #""applicationState""#,
+            #""applicationStateRawValue""#, #""applicationForeground""#,
+            #""application""#, #""axTreeDigestStateIDs""#,
+            #""contrastExceptionStateIDs""#, #""queries""#,
+            #""observedIssueCount""#, #""auditedElementCount""#,
+        ] {
+            XCTAssertTrue(
+                recheckPreflightNativeContrastDiagnosticSource.contains(contextField),
+                contextField
+            )
+        }
+        XCTAssertEqual(
+            recheckPreflightNativeContrastDiagnosticSource.components(
+                separatedBy: "try app.performAccessibilityAudit(for: .contrast)"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            recheckPreflightNativeContrastDiagnosticSource.components(
+                separatedBy: "return true"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            recheckPreflightNativeContrastDiagnosticSource.components(
+                separatedBy: "XCTAttachment("
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            recheckPreflightNativeContrastDiagnosticSource.components(
+                separatedBy: ".lifetime = .keepAlways"
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            recheckPreflightNativeContrastDiagnosticSource.components(
+                separatedBy: "add("
+            ).count - 1,
+            4
+        )
+        let state27DiagnosticPrefixes = [
+            "S10_4_AX_TEXT_RECHECK_PREFLIGHT_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "S10_4_AX_TEXT_RECHECK_PREFLIGHT_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "S10_4_AX_TEXT_RECHECK_PREFLIGHT_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+        ]
+        let exactWorkerSource = try text(".github/workflows/ios-ci-worker.yml")
+        for diagnosticPrefix in state27DiagnosticPrefixes {
+            XCTAssertEqual(
+                recheckPreflightNativeContrastDiagnosticSource.components(
+                    separatedBy: diagnosticPrefix
+                ).count - 1,
+                1,
+                diagnosticPrefix
+            )
+            XCTAssertFalse(exactWorkerSource.contains(diagnosticPrefix), diagnosticPrefix)
+        }
+        var state27DiagnosticTail = recheckPreflightNativeContrastDiagnosticSource[
+            recheckPreflightNativeContrastDiagnosticSource.startIndex...
+        ]
+        for orderedToken in [
+            "let diagnosticContext: [String: Any] = [",
+            "S10_4_AX_TEXT_RECHECK_PREFLIGHT_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
+            "let contextAttachment = XCTAttachment(",
+            "try app.performAccessibilityAudit(for: .contrast)",
+            "let auditedElement = issue.element",
+            "S10_4_AX_TEXT_RECHECK_PREFLIGHT_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "screenshot: auditedElement.screenshot()",
+            "S10_4_AX_TEXT_RECHECK_PREFLIGHT_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+            "S10.4 AX-text recheck-preflight native contrast diagnostic completed nonaccepting",
+        ] {
+            let range = try XCTUnwrap(state27DiagnosticTail.range(of: orderedToken), orderedToken)
+            state27DiagnosticTail = state27DiagnosticTail[range.upperBound...]
+        }
+        for prohibited in [
+            "matchingExceptions", "accessibilityTreeDigest(",
+            "S10_4_AX_STATE", "S10_4_CONTRAST", "S10_4_CANDIDATE",
+            "S10_4_TASK", "XCUIScreen.main.screenshot()",
+            ".tap()", ".typeText(", "setToggle(", "navigateBack(",
+            "waitForExistence(", "waitForNonExistence(", "scroll(",
+            ".swipe", ".press(", "thenDragTo:",
+            "migratedStateIDs.append", "segmentedRouteStateCursor +=",
+            "automatedSegmentFinished = true",
+        ] {
+            XCTAssertFalse(
+                recheckPreflightNativeContrastDiagnosticSource.contains(prohibited),
+                prohibited
+            )
+        }
 
         let recheckPreflightPositioningHelperStart =
             "    @MainActor\n" +
