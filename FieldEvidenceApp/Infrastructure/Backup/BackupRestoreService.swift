@@ -631,6 +631,15 @@ final class BackupRestoreService {
             return newSession
         }
     }
+
+    /// Migration-only bridge to the one canonical backup-record projection.
+    /// Keeping the record construction in this file prevents schema migration
+    /// from creating a second field-by-field export authority.
+    func migrationCanonicalRecords(
+        in context: ModelContext
+    ) throws -> V4BackupRecordsV1 {
+        try records(in: context)
+    }
 }
 
 private extension BackupRestoreService {

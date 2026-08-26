@@ -1,3 +1,4 @@
+import CryptoKit
 import Darwin
 import Foundation
 import SwiftData
@@ -13,11 +14,12 @@ enum StoreGenerationFailure: Error, Equatable {
 }
 
 private enum StorePointerSchemaRegistry {
-    static let currentVersion = 1
+    static let legacyCurrentVersion = 1
+    static let currentVersion = 2
     static let retiredVersion = 1
 
     static func requireCurrent(_ version: Int) throws {
-        guard version == currentVersion else {
+        guard version == legacyCurrentVersion || version == currentVersion else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
     }
@@ -27,6 +29,1203 @@ private enum StorePointerSchemaRegistry {
             throw StoreGenerationFailure.dataPointerInvalid
         }
     }
+}
+
+private extension StoreGenerationFactory {
+    @MainActor
+    private func beginMigration(
+        sourcePointer: CurrentPointerV1,
+        sourcePointerData: Data,
+        retired: RetiredPointerV1,
+        dataRootURL: URL,
+        store: StoreMigrationJournalStoreV1,
+        processID: UUID
+    ) throws -> StoreGenerationSession {
+        guard sourcePointer.schemaVersion
+                == StorePointerSchemaRegistry.legacyCurrentVersion,
+              let sourceID = canonicalUUID(from: sourcePointer.generationID),
+              !retired.generationIDs.contains(sourcePointer.generationID) else {
+            throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+        }
+        let identities = migrationIdentitySource ?? .live
+        let migrationID = identities.makeMigrationID()
+        let targetID = identities.makeGenerationID()
+        guard migrationID != sourceID,
+              migrationID != targetID,
+              sourceID != targetID else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+
+        do {
+            let authority = try makeRestoreGenerationAuthority()
+            try authority.requireNoRestoreJournal()
+            try authority.requireNoEraseAuthority()
+            let sourceSnapshot = try authority.snapshotInstalledGeneration(id: sourceID)
+            let sourceManifest = try StoreGenerationManifestV1(
+                generationID: sourceID,
+                predecessorGenerationID: syntheticPredecessor(excluding: sourceID),
+                migrationID: migrationID,
+                storeSchemaRelease: .v1,
+                semanticSHA256: nil,
+                frozenIdentityDigest: sourceSnapshot.frozenIdentityDigest,
+                files: sourceSnapshot.files
+            )
+            let sourceManifestDigest = try sourceManifest.canonicalSHA256()
+            let pointerDigest = StoreMigrationCanonicalJSONV1.sha256(sourcePointerData)
+            let prepared = try StoreMigrationJournalV1(
+                migrationID: migrationID,
+                sourceGenerationID: sourceID,
+                targetGenerationID: targetID,
+                sourceRelease: .v1,
+                targetRelease: .v2,
+                sourcePointerDigest: pointerDigest,
+                sourceTreeDigest: sourceSnapshot.sourceTreeDigest,
+                sourceManifestDigest: sourceManifestDigest,
+                frozenIdentityDigest: sourceSnapshot.frozenIdentityDigest,
+                expectedPointerDigest: pointerDigest,
+                originatingProcessID: processID,
+                phase: .prepared,
+                targetWritePossible: false,
+                pointerPublicationAttempted: false
+            )
+            try reachMigrationBoundary(.beforePreparedJournalWrite)
+            try store.createPreparedMigration(
+                journal: prepared,
+                sourceManifest: sourceManifest
+            )
+            try reachMigrationBoundary(.afterPreparedJournalWrite)
+            return try resumeMigration(
+                prepared,
+                dataRootURL: dataRootURL,
+                store: store,
+                processID: processID
+            )
+        } catch let failure as StoreMigrationFailure {
+            throw failure
+        } catch {
+            if let reason = migrationMaintenanceReason(for: error) {
+                throw StoreMigrationFailure.maintenanceRequired(reason)
+            }
+            throw error
+        }
+    }
+
+    @MainActor
+    private func resumeMigration(
+        _ persisted: StoreMigrationJournalV1,
+        dataRootURL: URL,
+        store: StoreMigrationJournalStoreV1,
+        processID: UUID
+    ) throws -> StoreGenerationSession {
+        do {
+            return try resumeMigrationForward(
+                persisted,
+                dataRootURL: dataRootURL,
+                store: store,
+                processID: processID
+            )
+        } catch let failure as StoreMigrationFailure {
+            let effectivePhase = (try? store.loadJournal())?.phase
+                ?? persisted.phase
+            switch failure {
+            case .injectedFault, .maintenanceRequired:
+                throw failure
+            default:
+                if effectivePhase.isAtLeast(.v2WriteAuthorized) {
+                    throw StoreMigrationFailure.maintenanceRequired(
+                        .forwardFixRequired
+                    )
+                }
+                throw failure
+            }
+        } catch let failure as ProtectedFilePolicyError
+            where failure == .protectedDataUnavailable {
+            throw StoreMigrationFailure.maintenanceRequired(
+                .protectedDataUnavailable
+            )
+        } catch {
+            let effectivePhase = (try? store.loadJournal())?.phase
+                ?? persisted.phase
+            if let reason = migrationMaintenanceReason(for: error) {
+                throw StoreMigrationFailure.maintenanceRequired(reason)
+            }
+            if effectivePhase.isAtLeast(.v2WriteAuthorized) {
+                throw StoreMigrationFailure.maintenanceRequired(.forwardFixRequired)
+            }
+            throw error
+        }
+    }
+
+    private func migrationMaintenanceReason(
+        for error: Error
+    ) -> StoreMigrationMaintenanceReasonV1? {
+        var current = error as NSError
+        for _ in 0..<8 {
+            if ProtectedFilePolicyV1.isProtectedDataUnavailable(current) {
+                return .protectedDataUnavailable
+            }
+            if current.domain == NSPOSIXErrorDomain,
+               current.code == ENOSPC {
+                return .insufficientStorage
+            }
+            if current.domain == NSCocoaErrorDomain,
+               current.code == NSFileWriteOutOfSpaceError {
+                return .insufficientStorage
+            }
+            guard let underlying = current.userInfo[NSUnderlyingErrorKey]
+                    as? NSError,
+                  underlying !== current else {
+                break
+            }
+            current = underlying
+        }
+        return nil
+    }
+
+    @MainActor
+    private func resumeMigrationForward(
+        _ persisted: StoreMigrationJournalV1,
+        dataRootURL: URL,
+        store: StoreMigrationJournalStoreV1,
+        processID: UUID
+    ) throws -> StoreGenerationSession {
+        var journal = persisted
+        try journal.validate()
+        let authority = try makeRestoreGenerationAuthority()
+        try authority.requireNoRestoreJournal()
+        try authority.requireNoEraseAuthority()
+
+        while true {
+            try requireMigrationPointerState(journal)
+            switch journal.phase {
+            case .prepared:
+                let sourceManifest = try requireSourceManifest(
+                    journal,
+                    store: store
+                )
+                let sourceSnapshot = try authority.snapshotInstalledGeneration(
+                    id: journal.sourceGenerationID
+                )
+                guard sourceSnapshot.sourceTreeDigest == journal.sourceTreeDigest,
+                      sourceSnapshot.frozenIdentityDigest == journal.frozenIdentityDigest,
+                      sourceSnapshot.files == sourceManifest.files else {
+                    throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                }
+                let presence = try authority.presence(id: journal.targetGenerationID)
+                guard !presence.installed else {
+                    throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+                }
+                if presence.staging {
+                    try authority.removeStagingGeneration(id: journal.targetGenerationID)
+                }
+                try reachMigrationBoundary(.beforeSourceClone)
+                try authority.createStagingGeneration(id: journal.targetGenerationID)
+                let cloned = try authority.cloneInstalledGeneration(
+                    sourceID: journal.sourceGenerationID,
+                    toStagingGeneration: journal.targetGenerationID
+                )
+                guard cloned.sourceTreeDigest == journal.sourceTreeDigest,
+                      cloned.frozenIdentityDigest == journal.frozenIdentityDigest,
+                      cloned.files == sourceManifest.files else {
+                    throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                }
+                let sourceSemantic = try semanticExport(
+                    at: restoreStagingGenerationURL(
+                        id: journal.targetGenerationID
+                    ).appendingPathComponent(Self.modelStoreName),
+                    release: .v1,
+                    markerMigrationID: nil
+                )
+                let next = try migrationJournal(
+                    journal,
+                    phase: .sourceCloned,
+                    sourceSemanticDigest:
+                        StoreMigrationCanonicalJSONV1.sha256(sourceSemantic)
+                )
+                try store.replaceJournal(expected: journal, with: next)
+                journal = next
+                try reachMigrationBoundary(.afterSourceClone)
+
+            case .sourceCloned:
+                let targetRoot = restoreStagingGenerationURL(
+                    id: journal.targetGenerationID
+                )
+                if processID != journal.originatingProcessID {
+                    let recoveredPresence = try authority.presence(
+                        id: journal.targetGenerationID
+                    )
+                    guard !recoveredPresence.installed else {
+                        throw StoreMigrationFailure.maintenanceRequired(
+                            .targetMismatch
+                        )
+                    }
+                    if recoveredPresence.staging {
+                        try authority.removeStagingGeneration(
+                            id: journal.targetGenerationID
+                        )
+                    }
+                    try authority.createStagingGeneration(
+                        id: journal.targetGenerationID
+                    )
+                    let recoveredClone = try authority.cloneInstalledGeneration(
+                        sourceID: journal.sourceGenerationID,
+                        toStagingGeneration: journal.targetGenerationID
+                    )
+                    guard recoveredClone.sourceTreeDigest
+                            == journal.sourceTreeDigest,
+                          recoveredClone.frozenIdentityDigest
+                            == journal.frozenIdentityDigest else {
+                        throw StoreMigrationFailure.maintenanceRequired(
+                            .sourceMismatch
+                        )
+                    }
+                }
+                guard try authority.presence(id: journal.targetGenerationID).staging,
+                      try generationTreeDigest(at: targetRoot)
+                        == journal.sourceTreeDigest else {
+                    throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+                }
+                let recoveredSourceSemantic = try semanticExport(
+                    at: targetRoot.appendingPathComponent(Self.modelStoreName),
+                    release: .v1,
+                    markerMigrationID: nil
+                )
+                guard StoreMigrationCanonicalJSONV1.sha256(
+                    recoveredSourceSemantic
+                ) == journal.sourceSemanticDigest else {
+                    throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                }
+                try reachMigrationBoundary(.beforeV2WriteAuthorization)
+                let next = try migrationJournal(
+                    journal,
+                    phase: .v2WriteAuthorized,
+                    targetWritePossible: true
+                )
+                try store.replaceJournal(expected: journal, with: next)
+                journal = next
+                try reachMigrationBoundary(.afterV2WriteAuthorization)
+
+            case .v2WriteAuthorized:
+                let targetRoot = restoreStagingGenerationURL(
+                    id: journal.targetGenerationID
+                )
+                guard try authority.presence(id: journal.targetGenerationID).staging else {
+                    throw StoreMigrationFailure.maintenanceRequired(.targetUnavailable)
+                }
+                try reachMigrationBoundary(.beforeV2Validation)
+                let targetSemantic = try migrateAndValidateV2Clone(
+                    at: targetRoot,
+                    migrationID: journal.migrationID,
+                    expectedSemanticDigest: try requiredSourceSemanticDigest(
+                        journal
+                    )
+                )
+                try protectGeneration(
+                    at: targetRoot,
+                    staging: true,
+                    requireModel: true
+                )
+                let targetManifest = try StoreGenerationManifestV1(
+                    generationID: journal.targetGenerationID,
+                    predecessorGenerationID: journal.sourceGenerationID,
+                    migrationID: journal.migrationID,
+                    storeSchemaRelease: .v2,
+                    semanticSHA256: targetSemantic,
+                    frozenIdentityDigest: try frozenIdentityDigest(for: targetRoot),
+                    files: try generationFileDigests(at: targetRoot, durable: true)
+                )
+                let targetManifestDigest = try store.writeManifest(targetManifest)
+                let desiredPointer = try CurrentGenerationPointerV2(
+                    generationID: journal.targetGenerationID,
+                    generationManifestSHA256: targetManifestDigest
+                )
+                let desiredPointerDigest = try desiredPointer.canonicalSHA256()
+                let next = try migrationJournal(
+                    journal,
+                    phase: .v2Validated,
+                    targetManifestDigest: targetManifestDigest,
+                    targetSemanticDigest: targetSemantic,
+                    desiredPointerDigest: desiredPointerDigest
+                )
+                try store.replaceJournal(expected: journal, with: next)
+                journal = next
+                try reachMigrationBoundary(.afterV2Validation)
+
+            case .v2Validated:
+                let targetManifest = try requireTargetManifest(
+                    journal,
+                    store: store
+                )
+                let presence = try authority.presence(id: journal.targetGenerationID)
+                guard presence.staging != presence.installed else {
+                    throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+                }
+                if presence.staging {
+                    try requireTargetGenerationSnapshot(
+                        journal,
+                        manifest: targetManifest,
+                        at: restoreStagingGenerationURL(
+                            id: journal.targetGenerationID
+                        )
+                    )
+                    try reachMigrationBoundary(.beforeGenerationInstall)
+                    try authority.installStagingGeneration(id: journal.targetGenerationID)
+                }
+                try authority.requireInstalledGeneration(id: journal.targetGenerationID)
+                try requireTargetGenerationSnapshot(
+                    journal,
+                    manifest: targetManifest,
+                    at: installedGenerationURL(id: journal.targetGenerationID)
+                )
+                let next = try migrationJournal(
+                    journal,
+                    phase: .generationInstalled
+                )
+                try store.replaceJournal(expected: journal, with: next)
+                journal = next
+                try reachMigrationBoundary(.afterGenerationInstall)
+
+            case .generationInstalled:
+                try authority.requireInstalledGeneration(id: journal.targetGenerationID)
+                try requireTargetGenerationSnapshot(
+                    journal,
+                    manifest: try requireTargetManifest(journal, store: store),
+                    at: installedGenerationURL(id: journal.targetGenerationID)
+                )
+                if !journal.pointerPublicationAttempted {
+                    let next = try migrationJournal(
+                        journal,
+                        phase: .generationInstalled,
+                        publicationProcessID: processID,
+                        pointerPublicationAttempted: true
+                    )
+                    try store.replaceJournal(expected: journal, with: next)
+                    journal = next
+                    continue
+                }
+                try reachMigrationBoundary(.beforePointerPublication)
+                try publishMigrationPointerForwardOnly(journal, store: store)
+                let next = try migrationJournal(
+                    journal,
+                    phase: .pointerPublished
+                )
+                try store.replaceJournal(expected: journal, with: next)
+                journal = next
+                try reachMigrationBoundary(.afterPointerPublication)
+
+            case .pointerPublished:
+                try reachMigrationBoundary(.beforeFirstLaunchValidation)
+                let session = try openPublishedMigrationTarget(
+                    journal,
+                    dataRootURL: dataRootURL,
+                    store: store
+                )
+                let next = try migrationJournal(
+                    journal,
+                    phase: .firstLaunchValidated,
+                    firstValidationProcessID: processID
+                )
+                try store.replaceJournal(expected: journal, with: next)
+                try reachMigrationBoundary(.afterFirstLaunchValidation)
+                return session
+
+            case .firstLaunchValidated:
+                guard processID != journal.publicationProcessID,
+                      processID != journal.originatingProcessID,
+                      processID != journal.firstValidationProcessID else {
+                    return try openPublishedMigrationTarget(
+                        journal,
+                        dataRootURL: dataRootURL,
+                        store: store
+                    )
+                }
+                try reachMigrationBoundary(.beforeSecondLaunchValidation)
+                let session = try openPublishedMigrationTarget(
+                    journal,
+                    dataRootURL: dataRootURL,
+                    store: store
+                )
+                let next = try migrationJournal(
+                    journal,
+                    phase: .secondLaunchValidated,
+                    secondValidationProcessID: processID
+                )
+                try store.replaceJournal(expected: journal, with: next)
+                journal = next
+                try reachMigrationBoundary(.afterSecondLaunchValidation)
+                try finishMigration(
+                    journal,
+                    authority: authority,
+                    store: store
+                )
+                return session
+
+            case .secondLaunchValidated:
+                let session = try openPublishedMigrationTarget(
+                    journal,
+                    dataRootURL: dataRootURL,
+                    store: store
+                )
+                try finishMigration(
+                    journal,
+                    authority: authority,
+                    store: store
+                )
+                return session
+            }
+        }
+    }
+
+    @MainActor
+    private func finishMigration(
+        _ journal: StoreMigrationJournalV1,
+        authority: StoreRestoreGenerationAuthority,
+        store: StoreMigrationJournalStoreV1
+    ) throws {
+        let retired = try authority.retiredGenerationIDs()
+        if !retired.contains(journal.sourceGenerationID) {
+            try authority.retireGeneration(
+                oldID: journal.sourceGenerationID,
+                currentID: journal.targetGenerationID
+            )
+        }
+        try reachMigrationBoundary(.beforeJournalRemoval)
+        try store.removeJournal(expected: journal)
+        try reachMigrationBoundary(.afterJournalRemoval)
+    }
+
+    @MainActor
+    private func openPublishedMigrationTarget(
+        _ journal: StoreMigrationJournalV1,
+        dataRootURL: URL,
+        store: StoreMigrationJournalStoreV1
+    ) throws -> StoreGenerationSession {
+        let envelope = try decodeCurrentPointer(
+            at: dataRootURL.appendingPathComponent(Self.currentPointerName)
+        )
+        guard case .current(let pointer, let data) = envelope,
+              StoreMigrationCanonicalJSONV1.sha256(data)
+                == journal.desiredPointerDigest,
+              pointer.generationID
+                == canonicalString(for: journal.targetGenerationID),
+              pointer.generationManifestSHA256
+                == journal.targetManifestDigest else {
+            throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+        }
+        return try openValidatedV2Current(
+            pointer: pointer,
+            dataRootURL: dataRootURL,
+            store: store
+        )
+    }
+
+    private func requireMigrationPointerState(
+        _ journal: StoreMigrationJournalV1
+    ) throws {
+        let envelope = try decodeCurrentPointer(
+            at: dataRootURL.appendingPathComponent(Self.currentPointerName)
+        )
+        let data: Data
+        switch envelope {
+        case .legacy(_, let value), .current(_, let value): data = value
+        }
+        let digest = StoreMigrationCanonicalJSONV1.sha256(data)
+        if journal.phase.isAtLeast(.pointerPublished) {
+            guard digest == journal.desiredPointerDigest else {
+                throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+            }
+        } else if journal.phase == .generationInstalled,
+                  journal.pointerPublicationAttempted {
+            guard digest == journal.expectedPointerDigest
+                    || digest == journal.desiredPointerDigest else {
+                throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+            }
+        } else {
+            guard digest == journal.expectedPointerDigest else {
+                throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+            }
+        }
+    }
+
+    private func requireSourceManifest(
+        _ journal: StoreMigrationJournalV1,
+        store: StoreMigrationJournalStoreV1
+    ) throws -> StoreGenerationManifestV1 {
+        let manifest = try store.loadManifest(
+            targetGenerationID: journal.sourceGenerationID,
+            expectedDigest: journal.sourceManifestDigest
+        )
+        guard manifest.generationID == journal.sourceGenerationID,
+              manifest.migrationID == journal.migrationID,
+              manifest.storeSchemaRelease == .v1,
+              manifest.frozenIdentityDigest == journal.frozenIdentityDigest,
+              manifest.semanticSHA256 == nil else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        }
+        return manifest
+    }
+
+    private func requiredSourceSemanticDigest(
+        _ journal: StoreMigrationJournalV1
+    ) throws -> String {
+        guard let digest = journal.sourceSemanticDigest,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(digest) else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        }
+        return digest
+    }
+
+    private func requireTargetManifest(
+        _ journal: StoreMigrationJournalV1,
+        store: StoreMigrationJournalStoreV1
+    ) throws -> StoreGenerationManifestV1 {
+        guard let digest = journal.targetManifestDigest,
+              let semantic = journal.targetSemanticDigest else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        let manifest = try store.loadManifest(
+            targetGenerationID: journal.targetGenerationID,
+            expectedDigest: digest
+        )
+        guard manifest.generationID == journal.targetGenerationID,
+              manifest.predecessorGenerationID == journal.sourceGenerationID,
+              manifest.migrationID == journal.migrationID,
+              manifest.storeSchemaRelease == .v2,
+              manifest.semanticSHA256 == semantic else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        return manifest
+    }
+
+    private func requireTargetGenerationSnapshot(
+        _ journal: StoreMigrationJournalV1,
+        manifest: StoreGenerationManifestV1,
+        at generationRootURL: URL
+    ) throws {
+        guard manifest.generationID == journal.targetGenerationID,
+              manifest.files == generationFileDigests(
+                  at: generationRootURL,
+                  durable: true
+              ),
+              manifest.frozenIdentityDigest
+                == frozenIdentityDigest(for: generationRootURL) else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+    }
+
+    private func migrationJournal(
+        _ value: StoreMigrationJournalV1,
+        phase: StoreMigrationPhaseV1,
+        sourceSemanticDigest: String? = nil,
+        targetManifestDigest: String? = nil,
+        targetSemanticDigest: String? = nil,
+        desiredPointerDigest: String? = nil,
+        publicationProcessID: UUID? = nil,
+        firstValidationProcessID: UUID? = nil,
+        secondValidationProcessID: UUID? = nil,
+        targetWritePossible: Bool? = nil,
+        pointerPublicationAttempted: Bool? = nil
+    ) throws -> StoreMigrationJournalV1 {
+        try StoreMigrationJournalV1(
+            schemaVersion: value.schemaVersion,
+            migrationID: value.migrationID,
+            sourceGenerationID: value.sourceGenerationID,
+            targetGenerationID: value.targetGenerationID,
+            sourceRelease: value.sourceRelease,
+            targetRelease: value.targetRelease,
+            sourcePointerDigest: value.sourcePointerDigest,
+            sourceTreeDigest: value.sourceTreeDigest,
+            sourceManifestDigest: value.sourceManifestDigest,
+            sourceSemanticDigest: sourceSemanticDigest ?? value.sourceSemanticDigest,
+            targetManifestDigest: targetManifestDigest ?? value.targetManifestDigest,
+            targetSemanticDigest: targetSemanticDigest ?? value.targetSemanticDigest,
+            frozenIdentityDigest: value.frozenIdentityDigest,
+            expectedPointerDigest: value.expectedPointerDigest,
+            desiredPointerDigest: desiredPointerDigest ?? value.desiredPointerDigest,
+            originatingProcessID: value.originatingProcessID,
+            publicationProcessID: publicationProcessID ?? value.publicationProcessID,
+            firstValidationProcessID:
+                firstValidationProcessID ?? value.firstValidationProcessID,
+            secondValidationProcessID:
+                secondValidationProcessID ?? value.secondValidationProcessID,
+            phase: phase,
+            targetWritePossible: targetWritePossible ?? value.targetWritePossible,
+            pointerPublicationAttempted:
+                pointerPublicationAttempted ?? value.pointerPublicationAttempted
+        )
+    }
+
+    private func publishMigrationPointerForwardOnly(
+        _ journal: StoreMigrationJournalV1,
+        store: StoreMigrationJournalStoreV1
+    ) throws {
+        let manifest = try requireTargetManifest(journal, store: store)
+        guard let manifestDigest = journal.targetManifestDigest else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        let desiredPointer = try CurrentGenerationPointerV2(
+            generationID: manifest.generationID,
+            generationManifestSHA256: manifestDigest
+        )
+        let desiredData = try desiredPointer.canonicalData()
+        guard try desiredPointer.canonicalSHA256() == journal.desiredPointerDigest else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+
+        Self.pointerMutationLock.lock()
+        defer { Self.pointerMutationLock.unlock() }
+        let root = dataRootURL
+        let parent = try openOwnedDirectory(at: root)
+        defer { _ = Darwin.close(parent) }
+        try verifyOwnedDirectory(at: root, descriptor: parent)
+        let currentName = Self.currentPointerName
+        let temporaryName = ".current.json.migration-next"
+        let targetURL = root.appendingPathComponent(currentName, isDirectory: false)
+        let temporaryURL = root.appendingPathComponent(temporaryName, isDirectory: false)
+        try protectPointer(at: targetURL, parent: parent, root: root)
+        let current = try StoreRestoreGenerationAuthority.readRegularFileWithIdentity(
+            parent: parent,
+            name: currentName
+        )
+        let currentDigest = StoreMigrationCanonicalJSONV1.sha256(current.data)
+        if currentDigest == journal.desiredPointerDigest {
+            guard current.data == desiredData else {
+                throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+            }
+            if try StoreRestoreGenerationAuthority.itemExists(
+                parent: parent,
+                name: temporaryName
+            ) {
+                let displaced = try StoreRestoreGenerationAuthority
+                    .readRegularFileWithIdentity(
+                        parent: parent,
+                        name: temporaryName
+                    )
+                guard StoreMigrationCanonicalJSONV1.sha256(displaced.data)
+                        == journal.expectedPointerDigest else {
+                    throw StoreMigrationFailure.maintenanceRequired(
+                        .forwardFixRequired
+                    )
+                }
+                try removeOwnedEntry(parent: parent, name: temporaryName)
+            }
+            return
+        }
+        guard currentDigest == journal.expectedPointerDigest else {
+            throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+        }
+        if try StoreRestoreGenerationAuthority.itemExists(
+            parent: parent,
+            name: temporaryName
+        ) {
+            let existing = try StoreRestoreGenerationAuthority
+                .readRegularFileWithIdentity(parent: parent, name: temporaryName)
+            guard existing.data == desiredData else {
+                throw StoreMigrationFailure.maintenanceRequired(.forwardFixRequired)
+            }
+            try removeOwnedEntry(parent: parent, name: temporaryName)
+        }
+        var publicationMayHaveOccurred = false
+        do {
+            try StoreRestoreGenerationAuthority.createRegularFile(
+                parent: parent,
+                name: temporaryName,
+                data: desiredData
+            )
+            try protectPointerFile(
+                .generationPointerTemporary,
+                at: temporaryURL,
+                parent: parent,
+                root: root
+            )
+            let desiredIdentity = try StoreRestoreGenerationAuthority.regularFileIdentity(
+                parent: parent,
+                name: temporaryName
+            )
+            let currentBeforeSwap = try StoreRestoreGenerationAuthority
+                .readRegularFileWithIdentity(parent: parent, name: currentName)
+            guard currentBeforeSwap.data == current.data,
+                  currentBeforeSwap.identity == current.identity,
+                  Darwin.renameatx_np(
+                      parent,
+                      temporaryName,
+                      parent,
+                      currentName,
+                      UInt32(RENAME_SWAP)
+                  ) == 0 else {
+                throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+            }
+            publicationMayHaveOccurred = true
+            guard Darwin.fsync(parent) == 0 else {
+                throw StoreMigrationFailure.maintenanceRequired(.forwardFixRequired)
+            }
+            try protectPointer(at: targetURL, parent: parent, root: root)
+            let published = try StoreRestoreGenerationAuthority.readRegularFileWithIdentity(
+                parent: parent,
+                name: currentName
+            )
+            let displaced = try StoreRestoreGenerationAuthority.readRegularFileWithIdentity(
+                parent: parent,
+                name: temporaryName
+            )
+            guard published.data == desiredData,
+                  published.identity == desiredIdentity,
+                  displaced.data == current.data,
+                  displaced.identity == current.identity else {
+                throw StoreMigrationFailure.maintenanceRequired(.forwardFixRequired)
+            }
+            try removeOwnedEntry(parent: parent, name: temporaryName)
+        } catch {
+            if publicationMayHaveOccurred {
+                throw StoreMigrationFailure.maintenanceRequired(.forwardFixRequired)
+            }
+            if (try? StoreRestoreGenerationAuthority.itemExists(
+                parent: parent,
+                name: temporaryName
+            )) == true {
+                try? removeOwnedEntry(parent: parent, name: temporaryName)
+            }
+            throw error
+        }
+    }
+
+    @MainActor
+    private func openValidatedV2Current(
+        pointer: CurrentGenerationPointerV2,
+        dataRootURL: URL,
+        store: StoreMigrationJournalStoreV1
+    ) throws -> StoreGenerationSession {
+        try pointer.validate()
+        guard let generationID = canonicalUUID(from: pointer.generationID) else {
+            throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+        }
+        let manifest = try store.loadManifest(
+            targetGenerationID: generationID,
+            expectedDigest: pointer.generationManifestSHA256
+        )
+        guard manifest.generationID == generationID,
+              manifest.storeSchemaRelease == .v2 else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        let generationRootURL = dataRootURL
+            .appendingPathComponent(Self.generationsDirectoryName, isDirectory: true)
+            .appendingPathComponent(pointer.generationID, isDirectory: true)
+        let modelStoreURL = generationRootURL.appendingPathComponent(
+            Self.modelStoreName,
+            isDirectory: false
+        )
+        guard try itemType(at: generationRootURL) == .typeDirectory,
+              try itemType(at: modelStoreURL) == .typeRegular else {
+            throw StoreGenerationFailure.dataGenerationMissing
+        }
+        try protectGeneration(
+            at: generationRootURL,
+            staging: false,
+            requireModel: true
+        )
+        let container: ModelContainer
+        do {
+            container = try makeV2Container(at: modelStoreURL, migrate: false)
+            _ = try requireV2Marker(
+                in: container.mainContext,
+                expectedMigrationID: manifest.migrationID
+            )
+        } catch let failure as StoreMigrationFailure {
+            throw failure
+        } catch {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        try protectGeneration(
+            at: generationRootURL,
+            staging: false,
+            requireModel: true
+        )
+        return StoreGenerationSession(
+            generationID: generationID,
+            generationRootURL: generationRootURL,
+            modelContainer: container,
+            afterSaveReproof: { [self] in
+                try self.protectGeneration(
+                    at: generationRootURL,
+                    staging: false,
+                    requireModel: true
+                )
+            }
+        )
+    }
+
+    @MainActor
+    private func migrateAndValidateV2Clone(
+        at generationRootURL: URL,
+        migrationID: UUID,
+        expectedSemanticDigest: String
+    ) throws -> String {
+        let modelStoreURL = generationRootURL.appendingPathComponent(
+            Self.modelStoreName,
+            isDirectory: false
+        )
+        let semantic = try autoreleasepool { () throws -> Data in
+            let container = try makeV2Container(at: modelStoreURL, migrate: true)
+            let context = container.mainContext
+            try insertOrRequireV2Marker(
+                in: context,
+                migrationID: migrationID
+            )
+            return try semanticExport(in: context)
+        }
+        let digest = StoreMigrationCanonicalJSONV1.sha256(semantic)
+        guard digest == expectedSemanticDigest else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        return digest
+    }
+
+    @MainActor
+    private func semanticExport(
+        at modelStoreURL: URL,
+        release: PersistentSchemaReleaseV1,
+        markerMigrationID: UUID?
+    ) throws -> Data {
+        try autoreleasepool {
+            let container: ModelContainer
+            switch release {
+            case .v1:
+                guard markerMigrationID == nil else {
+                    throw StoreMigrationFailure.invalidContract
+                }
+                container = try makeV1Container(at: modelStoreURL)
+            case .v2:
+                container = try makeV2Container(at: modelStoreURL, migrate: false)
+                _ = try requireV2Marker(
+                    in: container.mainContext,
+                    expectedMigrationID: markerMigrationID
+                )
+            }
+            return try semanticExport(in: container.mainContext)
+        }
+    }
+
+    @MainActor
+    private func semanticExport(in context: ModelContext) throws -> Data {
+        let restore = try BackupRestoreService(
+            applicationSupportURL: applicationSupportURL,
+            fileManager: fileManager
+        )
+        let records = try restore.migrationCanonicalRecords(in: context)
+        return try BackupCanonicalEncoderV1().encodeRecords(records).data
+    }
+
+    @MainActor
+    private func semanticDigest(
+        at modelStoreURL: URL,
+        release: PersistentSchemaReleaseV1
+    ) throws -> String {
+        StoreMigrationCanonicalJSONV1.sha256(
+            try semanticExport(
+                at: modelStoreURL,
+                release: release,
+                markerMigrationID: nil
+            )
+        )
+    }
+
+    @MainActor
+    private func makeV1Container(at modelStoreURL: URL) throws -> ModelContainer {
+        let schema = PersistentSchemaV1.makeSchema()
+        let configuration = ModelConfiguration(
+            "FieldEvidenceV1",
+            schema: schema,
+            url: modelStoreURL,
+            allowsSave: false,
+            cloudKitDatabase: .none
+        )
+        return try ModelContainer(
+            for: schema,
+            migrationPlan: nil,
+            configurations: [configuration]
+        )
+    }
+
+    @MainActor
+    private func makeV2Container(
+        at modelStoreURL: URL,
+        migrate: Bool
+    ) throws -> ModelContainer {
+        let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
+        let configuration = ModelConfiguration(
+            "FieldEvidenceV2",
+            schema: schema,
+            url: modelStoreURL,
+            allowsSave: true,
+            cloudKitDatabase: .none
+        )
+        if migrate {
+            return try ModelContainer(
+                for: schema,
+                migrationPlan: PersistentSchemaMigrationPlanV1.self,
+                configurations: [configuration]
+            )
+        }
+        return try ModelContainer(
+            for: schema,
+            migrationPlan: nil,
+            configurations: [configuration]
+        )
+    }
+
+    @MainActor
+    private func makeFreshV2Container(
+        at modelStoreURL: URL,
+        markerMigrationID: UUID
+    ) throws -> ModelContainer {
+        let container = try makeV2Container(at: modelStoreURL, migrate: false)
+        try insertOrRequireV2Marker(
+            in: container.mainContext,
+            migrationID: markerMigrationID
+        )
+        return container
+    }
+
+    @MainActor
+    private func insertOrRequireV2Marker(
+        in context: ModelContext,
+        migrationID: UUID
+    ) throws {
+        let markers = try context.fetch(
+            FetchDescriptor<PersistentSchemaReleaseMarker>()
+        )
+        if markers.isEmpty {
+            context.insert(
+                PersistentSchemaReleaseMarker(
+                    id: PersistentSchemaReleaseRegistryV1.v2MarkerID,
+                    schemaVersion: 2,
+                    releaseID: PersistentSchemaReleaseRegistryV1.v2CompatibilityID,
+                    predecessorReleaseID:
+                        PersistentSchemaReleaseRegistryV1.v1CompatibilityID,
+                    migrationID: migrationID
+                )
+            )
+            try context.save()
+            guard !context.hasChanges else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+        }
+        _ = try requireV2Marker(
+            in: context,
+            expectedMigrationID: migrationID
+        )
+    }
+
+    @MainActor
+    private func requireV2Marker(
+        in context: ModelContext,
+        expectedMigrationID: UUID?
+    ) throws -> PersistentSchemaReleaseMarker {
+        let markers = try context.fetch(
+            FetchDescriptor<PersistentSchemaReleaseMarker>()
+        )
+        guard markers.count == 1,
+              let marker = markers.first,
+              marker.id == PersistentSchemaReleaseRegistryV1.v2MarkerID,
+              marker.schemaVersion == 2,
+              marker.releaseID == PersistentSchemaReleaseRegistryV1.v2CompatibilityID,
+              marker.predecessorReleaseID
+                == PersistentSchemaReleaseRegistryV1.v1CompatibilityID,
+              marker.migrationID != nil,
+              expectedMigrationID.map({ marker.migrationID == $0 }) ?? true else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        return marker
+    }
+
+    private func generationFileDigests(
+        at generationRootURL: URL,
+        durable: Bool
+    ) throws -> [StoreGenerationFileDigestV1] {
+        let descriptor = try openOwnedDirectory(at: generationRootURL)
+        defer { _ = Darwin.close(descriptor) }
+        let names = try StoreRestoreGenerationAuthority.exactGenerationEntries(
+            parent: descriptor,
+            requireModel: true
+        ).sorted()
+        var values = [StoreGenerationFileDigestV1]()
+        for name in names {
+            let captured = try StoreRestoreGenerationAuthority.readRegularFileWithIdentity(
+                parent: descriptor,
+                name: name
+            )
+            let kind: OwnedFileKindV1
+            switch name {
+            case Self.modelStoreName: kind = .database
+            case "\(Self.modelStoreName)-wal": kind = .databaseWAL
+            case "\(Self.modelStoreName)-shm": kind = .databaseSHM
+            default: throw StoreMigrationFailure.invalidPath
+            }
+            values.append(
+                try StoreGenerationFileDigestV1(
+                    relativePath: name,
+                    byteCount: captured.data.count,
+                    sha256: StoreMigrationCanonicalJSONV1.sha256(captured.data),
+                    kind: kind
+                )
+            )
+            if durable {
+                let file = Darwin.openat(descriptor, name, O_RDONLY | O_NOFOLLOW)
+                guard file >= 0 else {
+                    throw StoreMigrationFailure.maintenanceRequired(.targetUnavailable)
+                }
+                defer { _ = Darwin.close(file) }
+                guard Darwin.fsync(file) == 0 else {
+                    throw StoreMigrationFailure.maintenanceRequired(.targetUnavailable)
+                }
+            }
+        }
+        if durable, Darwin.fsync(descriptor) != 0 {
+            throw StoreMigrationFailure.maintenanceRequired(.targetUnavailable)
+        }
+        return values
+    }
+
+    private func generationTreeDigest(at generationRootURL: URL) throws -> String {
+        let files = try generationFileDigests(
+            at: generationRootURL,
+            durable: false
+        )
+        return StoreMigrationCanonicalJSONV1.sha256(
+            try StoreMigrationCanonicalJSONV1.encode(files)
+        )
+    }
+
+    private func frozenIdentityDigest(for generationRootURL: URL) throws -> String {
+        let descriptor = try openOwnedDirectory(at: generationRootURL)
+        defer { _ = Darwin.close(descriptor) }
+        let directory = try StoreRestoreGenerationAuthority.directoryIdentity(
+            descriptor: descriptor
+        )
+        let names = try StoreRestoreGenerationAuthority.exactGenerationEntries(
+            parent: descriptor,
+            requireModel: true
+        ).sorted()
+        var tokens = ["directory|\(directory.device)|\(directory.inode)"]
+        for name in names {
+            let identity = try StoreRestoreGenerationAuthority.regularFileIdentity(
+                parent: descriptor,
+                name: name
+            )
+            tokens.append(
+                "\(name)|\(identity.device)|\(identity.inode)|\(identity.linkCount)"
+            )
+        }
+        return StoreMigrationCanonicalJSONV1.sha256(
+            Data(tokens.joined(separator: "\n").utf8)
+        )
+    }
+
+    private func syntheticPredecessor(excluding generationID: UUID) -> UUID {
+        let first = Self.bootstrapPredecessorGenerationID
+        if first != generationID { return first }
+        return UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+    }
+
+    private func decodeCurrentPointer(at url: URL) throws -> CurrentPointerEnvelopeV1 {
+        let parentURL = url.deletingLastPathComponent()
+        let parent = try openOwnedDirectory(at: parentURL)
+        defer { _ = Darwin.close(parent) }
+        try verifyOwnedDirectory(at: parentURL, descriptor: parent)
+        let captured = try StoreRestoreGenerationAuthority.readRegularFileWithIdentity(
+            parent: parent,
+            name: url.lastPathComponent
+        )
+        let value = try CurrentPointerCodecV1.decode(captured.data)
+        guard try StoreRestoreGenerationAuthority.regularFileIdentity(
+                  parent: parent,
+                  name: url.lastPathComponent
+              ) == captured.identity else {
+            throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+        }
+        return value
+    }
+
+    @MainActor
+    private func requireCurrentManifest(
+        _ pointer: CurrentGenerationPointerV2
+    ) throws -> StoreGenerationManifestV1 {
+        try pointer.validate()
+        guard let generationID = canonicalUUID(from: pointer.generationID) else {
+            throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+        }
+        let store = try StoreMigrationJournalStoreV1(
+            applicationSupportURL: applicationSupportURL
+        )
+        let manifest = try store.loadManifest(
+            targetGenerationID: generationID,
+            expectedDigest: pointer.generationManifestSHA256
+        )
+        guard manifest.generationID == generationID,
+              manifest.storeSchemaRelease == .v2 else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        return manifest
+    }
+
+    @MainActor
+    private func makeRestoreCurrentPointer(
+        expectedOldID: UUID,
+        newID: UUID
+    ) throws -> CurrentGenerationPointerV2 {
+        guard try currentGenerationID() == expectedOldID else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let root = installedGenerationURL(id: newID)
+        let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
+        let markerMigrationID = try autoreleasepool { () throws -> UUID in
+            let container = try makeV2Container(at: modelStoreURL, migrate: false)
+            let marker = try requireV2Marker(
+                in: container.mainContext,
+                expectedMigrationID: nil
+            )
+            guard let value = marker.migrationID else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            return value
+        }
+        let store = try StoreMigrationJournalStoreV1(
+            applicationSupportURL: applicationSupportURL
+        )
+        if let existing = try store.loadManifestIfPresent(
+            targetGenerationID: newID
+        ) {
+            guard existing.manifest.storeSchemaRelease == .v2,
+                  existing.manifest.migrationID == markerMigrationID else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            return try CurrentGenerationPointerV2(
+                generationID: newID,
+                generationManifestSHA256: existing.digest
+            )
+        }
+        let semantic = try semanticExport(
+            at: modelStoreURL,
+            release: .v2,
+            markerMigrationID: markerMigrationID
+        )
+        try protectGeneration(at: root, staging: false, requireModel: true)
+        let manifest = try StoreGenerationManifestV1(
+            generationID: newID,
+            predecessorGenerationID: expectedOldID,
+            migrationID: markerMigrationID,
+            storeSchemaRelease: .v2,
+            semanticSHA256: StoreMigrationCanonicalJSONV1.sha256(semantic),
+            frozenIdentityDigest: try frozenIdentityDigest(for: root),
+            files: try generationFileDigests(at: root, durable: true)
+        )
+        let digest = try store.writeManifest(manifest)
+        return try CurrentGenerationPointerV2(
+            generationID: newID,
+            generationManifestSHA256: digest
+        )
+    }
+
 }
 
 @MainActor
@@ -121,6 +1320,30 @@ final class StoreRestoreGenerationAuthority {
         let identity: RegularFileIdentity
     }
 
+    private struct RegularFileSnapshot: Equatable {
+        let device: dev_t
+        let inode: ino_t
+        let linkCount: nlink_t
+        let type: mode_t
+        let byteCount: off_t
+    }
+
+    private struct StreamedFileDigest {
+        let byteCount: Int
+        let sha256: String
+        let snapshot: RegularFileSnapshot
+    }
+
+    private struct PinnedMigrationSourceFile {
+        let name: String
+        let descriptor: Int32
+        let snapshot: RegularFileSnapshot
+        var initialSHA256: String?
+    }
+
+    private static let migrationStreamBufferByteCount = 64 * 1024
+    private static let maximumControlFileByteCount = 4 * 1024 * 1024
+
     struct Presence {
         let staging: Bool
         let installed: Bool
@@ -129,6 +1352,16 @@ final class StoreRestoreGenerationAuthority {
     struct Tree: Equatable {
         let directories: Set<String>
         let files: Set<String>
+    }
+
+    /// Descriptor-relative, byte-stable snapshot returned by the V1 -> V2
+    /// copy-on-write clone.  The source identities are deliberately reduced to
+    /// digests before this value leaves the authority; callers never receive a
+    /// path-derived authority that could be rebound after a rename.
+    struct MigrationCloneResult {
+        let files: [StoreGenerationFileDigestV1]
+        let sourceTreeDigest: String
+        let frozenIdentityDigest: String
     }
 
     final class InstalledGenerationHandle {
@@ -680,24 +1913,40 @@ final class StoreRestoreGenerationAuthority {
 
     func currentGenerationID() throws -> UUID {
         try verify()
+        try reconcileRestorePointerTemporary(name: "current.json")
         try enforce(
             .generationPointer,
             at: dataURL.appendingPathComponent("current.json", isDirectory: false)
         )
-        let value: CurrentPointerV1 = try Self.decodeCanonicalPointer(
+        let captured = try Self.readRegularFileWithIdentity(
             parent: dataDescriptor,
             name: "current.json"
         )
-        try StorePointerSchemaRegistry.requireCurrent(value.schemaVersion)
-        guard let id = UUID(uuidString: value.generationID),
-              Self.canonical(id) == value.generationID else {
+        let envelope = try CurrentPointerCodecV1.decode(captured.data)
+        guard try Self.regularFileIdentity(
+                  parent: dataDescriptor,
+                  name: "current.json"
+              ) == captured.identity else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
-        return id
+        switch envelope {
+        case .legacy(let value, _):
+            guard let id = UUID(uuidString: value.generationID),
+                  Self.canonical(id) == value.generationID else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return id
+        case .current(let value, _):
+            guard let id = UUID(uuidString: value.generationID) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return id
+        }
     }
 
     func retiredGenerationIDs() throws -> [UUID] {
         try verify()
+        try reconcileRestorePointerTemporary(name: "retired.json")
         try enforce(
             .generationPointer,
             at: dataURL.appendingPathComponent("retired.json", isDirectory: false)
@@ -735,13 +1984,50 @@ final class StoreRestoreGenerationAuthority {
             parent: installedGenerationsDescriptor,
             name: Self.canonical(newID)
         )
+        let captured = try Self.readRegularFileWithIdentity(
+            parent: dataDescriptor,
+            name: "current.json"
+        )
+        guard case .legacy = try CurrentPointerCodecV1.decode(captured.data) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
         try replacePointer(
             name: "current.json",
             value: CurrentPointerV1(
                 generationID: Self.canonical(newID),
-                schemaVersion: StorePointerSchemaRegistry.currentVersion
+                schemaVersion: StorePointerSchemaRegistry.legacyCurrentVersion
             )
         )
+        guard try currentGenerationID() == newID else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+    }
+
+    func switchCurrentGeneration(
+        expected oldID: UUID,
+        to newID: UUID,
+        pointer: CurrentGenerationPointerV2
+    ) throws {
+        try pointer.validate()
+        guard pointer.generationID == Self.canonical(newID),
+              oldID != newID,
+              try currentGenerationID() == oldID else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        _ = try Self.requiredDirectoryIdentity(
+            parent: installedGenerationsDescriptor,
+            name: Self.canonical(oldID)
+        )
+        _ = try Self.requiredDirectoryIdentity(
+            parent: installedGenerationsDescriptor,
+            name: Self.canonical(newID)
+        )
+        let captured = try Self.readRegularFileWithIdentity(
+            parent: dataDescriptor,
+            name: "current.json"
+        )
+        _ = try CurrentPointerCodecV1.decode(captured.data)
+        try replacePointer(name: "current.json", value: pointer)
         guard try currentGenerationID() == newID else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
@@ -784,14 +2070,18 @@ final class StoreRestoreGenerationAuthority {
         try verify()
         let name = Self.canonical(id)
         guard try !Self.itemExists(parent: stagingGenerationsDescriptor, name: name),
-              try !Self.itemExists(parent: installedGenerationsDescriptor, name: name),
-              Darwin.mkdirat(
-                  stagingGenerationsDescriptor,
-                  name,
-                  mode_t(0o700)
-              ) == 0,
-              Darwin.fsync(stagingGenerationsDescriptor) == 0 else {
+              try !Self.itemExists(parent: installedGenerationsDescriptor, name: name) else {
             throw StoreGenerationFailure.dataPointerInvalid
+        }
+        guard Darwin.mkdirat(
+            stagingGenerationsDescriptor,
+            name,
+            mode_t(0o700)
+        ) == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        guard Darwin.fsync(stagingGenerationsDescriptor) == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
         }
         try verify()
         guard try Self.directoryPresence(
@@ -1035,6 +2325,459 @@ final class StoreRestoreGenerationAuthority {
         try protectInstalledGeneration(id: id, requireModel: true)
     }
 
+    /// Clones the exact SQLite file set from an installed generation into an
+    /// already-created restore staging generation.  Every source file is read
+    /// through a retained parent descriptor, reread after the clone, and
+    /// compared by both bytes and inode identity.  This is intentionally
+    /// separate from the restore pointer swap: migration publication cannot
+    /// acquire the legacy restore rollback semantics by accident.
+    func snapshotInstalledGeneration(
+        id: UUID
+    ) throws -> MigrationCloneResult {
+        try verify()
+        try requireInstalledGeneration(id: id)
+        let descriptor = Darwin.openat(
+            installedGenerationsDescriptor,
+            Self.canonical(id),
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard descriptor >= 0 else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
+        }
+        defer { _ = Darwin.close(descriptor) }
+        let directory = try Self.identity(descriptor)
+        let names = try Self.exactGenerationEntries(
+            parent: descriptor,
+            requireModel: true
+        ).sorted()
+        var files = [StoreGenerationFileDigestV1]()
+        var tokens = ["source-directory|\(directory.device)|\(directory.inode)"]
+        var pinnedSourceFiles = [PinnedMigrationSourceFile]()
+        defer {
+            pinnedSourceFiles.forEach { _ = Darwin.close($0.descriptor) }
+        }
+        for name in names {
+            let sourceDescriptor = Darwin.openat(
+                descriptor,
+                name,
+                O_RDONLY | O_NOFOLLOW
+            )
+            guard sourceDescriptor >= 0 else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
+            }
+            let sourceSnapshot: RegularFileSnapshot
+            let captured: StreamedFileDigest
+            do {
+                sourceSnapshot = try Self.regularFileSnapshot(
+                    descriptor: sourceDescriptor,
+                    mismatchReason: .sourceMismatch
+                )
+                captured = try Self.streamedDigest(
+                    descriptor: sourceDescriptor,
+                    expectedSnapshot: sourceSnapshot,
+                    mismatchReason: .sourceMismatch
+                )
+            } catch {
+                _ = Darwin.close(sourceDescriptor)
+                throw error
+            }
+            pinnedSourceFiles.append(
+                PinnedMigrationSourceFile(
+                    name: name,
+                    descriptor: sourceDescriptor,
+                    snapshot: sourceSnapshot,
+                    initialSHA256: captured.sha256
+                )
+            )
+            let kind: OwnedFileKindV1
+            switch name {
+            case "model.sqlite": kind = .database
+            case "model.sqlite-wal": kind = .databaseWAL
+            case "model.sqlite-shm": kind = .databaseSHM
+            default: throw StoreMigrationFailure.invalidPath
+            }
+            let file = try StoreGenerationFileDigestV1(
+                relativePath: name,
+                byteCount: captured.byteCount,
+                sha256: captured.sha256,
+                kind: kind
+            )
+            files.append(file)
+            tokens.append(
+                "\(name)|\(captured.snapshot.device)|\(captured.snapshot.inode)|\(captured.snapshot.linkCount)|\(file.sha256)"
+            )
+        }
+        guard try Self.exactGenerationEntries(parent: descriptor, requireModel: true)
+                == Set(names),
+              try Self.identity(descriptor) == directory,
+              try Self.requiredDirectoryIdentity(
+                  parent: installedGenerationsDescriptor,
+                  name: Self.canonical(id)
+              ) == directory else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        }
+        for pinned in pinnedSourceFiles {
+            guard let initialSHA256 = pinned.initialSHA256 else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+            let reproof = try Self.streamedDigest(
+                descriptor: pinned.descriptor,
+                expectedSnapshot: pinned.snapshot,
+                mismatchReason: .sourceMismatch
+            )
+            guard reproof.sha256 == initialSHA256,
+                  try Self.namedRegularFileSnapshot(
+                      parent: descriptor,
+                      name: pinned.name,
+                      mismatchReason: .sourceMismatch
+                  ) == pinned.snapshot else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+        }
+        guard try Self.exactGenerationEntries(parent: descriptor, requireModel: true)
+                == Set(names),
+              try Self.identity(descriptor) == directory,
+              try Self.requiredDirectoryIdentity(
+                  parent: installedGenerationsDescriptor,
+                  name: Self.canonical(id)
+              ) == directory else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        }
+        let treeData = try StoreMigrationCanonicalJSONV1.encode(files)
+        let identityData = Data(tokens.sorted().joined(separator: "\n").utf8)
+        return MigrationCloneResult(
+            files: files,
+            sourceTreeDigest: StoreMigrationCanonicalJSONV1.sha256(treeData),
+            frozenIdentityDigest: StoreMigrationCanonicalJSONV1.sha256(identityData)
+        )
+    }
+
+    func cloneInstalledGeneration(
+        sourceID: UUID,
+        toStagingGeneration targetID: UUID
+    ) throws -> MigrationCloneResult {
+        try verify()
+        try requireInstalledGeneration(id: sourceID)
+        try requireStagingGeneration(id: targetID)
+
+        let sourceName = Self.canonical(sourceID)
+        let targetName = Self.canonical(targetID)
+        let source = Darwin.openat(
+            installedGenerationsDescriptor,
+            sourceName,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard source >= 0 else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
+        }
+        let target = Darwin.openat(
+            stagingGenerationsDescriptor,
+            targetName,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard target >= 0 else {
+            _ = Darwin.close(source)
+            throw StoreMigrationFailure.maintenanceRequired(.targetUnavailable)
+        }
+        defer {
+            _ = Darwin.close(target)
+            _ = Darwin.close(source)
+        }
+
+        let sourceIdentity = try Self.identity(source)
+        let targetIdentity = try Self.identity(target)
+        guard try Self.exactGenerationEntries(parent: target, requireModel: false).isEmpty else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        let sourceNames = try Self.exactGenerationEntries(parent: source, requireModel: true).sorted()
+        var fileDigests = [StoreGenerationFileDigestV1]()
+        var identityTokens = [
+            "source-directory|\(sourceIdentity.device)|\(sourceIdentity.inode)"
+        ]
+        var pinnedSourceFiles = [PinnedMigrationSourceFile]()
+        defer {
+            pinnedSourceFiles.forEach { _ = Darwin.close($0.descriptor) }
+        }
+
+        for name in sourceNames {
+            let sourceDescriptor = Darwin.openat(
+                source,
+                name,
+                O_RDONLY | O_NOFOLLOW
+            )
+            guard sourceDescriptor >= 0 else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
+            }
+            let sourceSnapshot: RegularFileSnapshot
+            do {
+                sourceSnapshot = try Self.regularFileSnapshot(
+                    descriptor: sourceDescriptor,
+                    mismatchReason: .sourceMismatch
+                )
+            } catch {
+                _ = Darwin.close(sourceDescriptor)
+                throw error
+            }
+            pinnedSourceFiles.append(
+                PinnedMigrationSourceFile(
+                    name: name,
+                    descriptor: sourceDescriptor,
+                    snapshot: sourceSnapshot,
+                    initialSHA256: nil
+                )
+            )
+            let kind: OwnedFileKindV1
+            switch name {
+            case "model.sqlite": kind = .database
+            case "model.sqlite-wal": kind = .databaseWAL
+            case "model.sqlite-shm": kind = .databaseSHM
+            default: throw StoreMigrationFailure.invalidPath
+            }
+            let copied = try createProtectedStagingFile(
+                targetID: targetID,
+                parent: target,
+                name: name,
+                sourceDescriptor: sourceDescriptor,
+                sourceSnapshot: sourceSnapshot
+            )
+            pinnedSourceFiles[pinnedSourceFiles.count - 1].initialSHA256 =
+                copied.sha256
+            let digest = try StoreGenerationFileDigestV1(
+                relativePath: name,
+                byteCount: copied.byteCount,
+                sha256: copied.sha256,
+                kind: kind
+            )
+            fileDigests.append(digest)
+            identityTokens.append(
+                "\(name)|\(sourceSnapshot.device)|\(sourceSnapshot.inode)|\(sourceSnapshot.linkCount)|\(digest.sha256)"
+            )
+        }
+
+        guard try Self.exactGenerationEntries(parent: target, requireModel: true)
+            == Set(sourceNames) else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        guard try Self.identity(target) == targetIdentity,
+              try Self.requiredDirectoryIdentity(
+                  parent: stagingGenerationsDescriptor,
+                  name: targetName
+              ) == targetIdentity else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        guard Darwin.fsync(target) == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        guard Darwin.fsync(stagingGenerationsDescriptor) == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        try protectStagingGeneration(id: targetID, requireModel: true)
+        try verify()
+        guard try Self.exactGenerationEntries(parent: source, requireModel: true)
+                == Set(sourceNames),
+              try Self.identity(source) == sourceIdentity,
+              try Self.requiredDirectoryIdentity(
+                  parent: installedGenerationsDescriptor,
+                  name: sourceName
+              ) == sourceIdentity else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        }
+        for pinned in pinnedSourceFiles {
+            guard let initialSHA256 = pinned.initialSHA256 else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+            let reproof = try Self.streamedDigest(
+                descriptor: pinned.descriptor,
+                expectedSnapshot: pinned.snapshot,
+                mismatchReason: .sourceMismatch
+            )
+            guard reproof.sha256 == initialSHA256,
+                  try Self.namedRegularFileSnapshot(
+                      parent: source,
+                      name: pinned.name,
+                      mismatchReason: .sourceMismatch
+                  ) == pinned.snapshot else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+        }
+        guard try Self.exactGenerationEntries(parent: source, requireModel: true)
+                == Set(sourceNames),
+              try Self.identity(source) == sourceIdentity,
+              try Self.requiredDirectoryIdentity(
+                  parent: installedGenerationsDescriptor,
+                  name: sourceName
+              ) == sourceIdentity else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        }
+        let identityData = Data(identityTokens.sorted().joined(separator: "\n").utf8)
+        let treeData = try StoreMigrationCanonicalJSONV1.encode(fileDigests)
+        return MigrationCloneResult(
+            files: fileDigests,
+            sourceTreeDigest: StoreMigrationCanonicalJSONV1.sha256(treeData),
+            frozenIdentityDigest: StoreMigrationCanonicalJSONV1.sha256(identityData)
+        )
+    }
+
+    private func createProtectedStagingFile(
+        targetID: UUID,
+        parent: Int32,
+        name: String,
+        sourceDescriptor: Int32,
+        sourceSnapshot: RegularFileSnapshot
+    ) throws -> StreamedFileDigest {
+        try Self.requireSafeBasename(name)
+        let descriptor = Darwin.openat(
+            parent,
+            name,
+            O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW,
+            mode_t(0o600)
+        )
+        guard descriptor >= 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        defer { _ = Darwin.close(descriptor) }
+        let createdSnapshot = try Self.regularFileSnapshot(
+            descriptor: descriptor,
+            mismatchReason: .targetMismatch
+        )
+        guard createdSnapshot.byteCount == 0 else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        var removeCreated = true
+        defer {
+            if removeCreated,
+               let namedSnapshot = try? Self.namedRegularFileSnapshot(
+                   parent: parent,
+                   name: name,
+                   mismatchReason: .targetMismatch
+               ),
+               namedSnapshot.device == createdSnapshot.device,
+               namedSnapshot.inode == createdSnapshot.inode {
+                _ = Darwin.unlinkat(parent, name, 0)
+                _ = Darwin.fsync(parent)
+            }
+        }
+        let root = stagingGenerationsURL.appendingPathComponent(
+            Self.canonical(targetID),
+            isDirectory: true
+        )
+        try enforceGenerationFile(
+            descriptor: parent,
+            root: root,
+            name: name,
+            kind: .stagingFile
+        )
+        guard Darwin.lseek(sourceDescriptor, 0, SEEK_SET) == 0 else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
+        }
+        var sourceHasher = SHA256()
+        var copiedByteCount = 0
+        var buffer = [UInt8](
+            repeating: 0,
+            count: Self.migrationStreamBufferByteCount
+        )
+        while true {
+            let count = buffer.withUnsafeMutableBytes {
+                Darwin.read(sourceDescriptor, $0.baseAddress, $0.count)
+            }
+            if count == 0 { break }
+            guard count > 0 else {
+                if errno == EINTR { continue }
+                throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
+            }
+            let (nextCount, overflow) = copiedByteCount.addingReportingOverflow(count)
+            guard !overflow, off_t(nextCount) <= sourceSnapshot.byteCount else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+            copiedByteCount = nextCount
+            let chunk = Data(buffer.prefix(count))
+            sourceHasher.update(data: chunk)
+            try chunk.withUnsafeBytes { raw in
+                var offset = 0
+                while offset < raw.count {
+                    let written = Darwin.write(
+                        descriptor,
+                        raw.baseAddress?.advanced(by: offset),
+                        raw.count - offset
+                    )
+                    if written > 0 {
+                        offset += written
+                    } else if written < 0, errno == EINTR {
+                        continue
+                    } else {
+                        throw NSError(
+                            domain: NSPOSIXErrorDomain,
+                            code: Int(errno)
+                        )
+                    }
+                }
+            }
+        }
+        guard copiedByteCount == Int(sourceSnapshot.byteCount),
+              try Self.regularFileSnapshot(
+                  descriptor: sourceDescriptor,
+                  mismatchReason: .sourceMismatch
+              ) == sourceSnapshot else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        }
+        guard Darwin.fsync(descriptor) == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        guard Darwin.fsync(parent) == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        let targetSnapshot = try Self.regularFileSnapshot(
+            descriptor: descriptor,
+            mismatchReason: .targetMismatch
+        )
+        guard targetSnapshot.device == createdSnapshot.device,
+              targetSnapshot.inode == createdSnapshot.inode,
+              targetSnapshot.linkCount == 1,
+              targetSnapshot.type == S_IFREG,
+              targetSnapshot.byteCount == off_t(copiedByteCount),
+              try Self.namedRegularFileSnapshot(
+                  parent: parent,
+                  name: name,
+                  mismatchReason: .targetMismatch
+              ) == targetSnapshot else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        let targetDigest = try Self.streamedDigest(
+            descriptor: descriptor,
+            expectedSnapshot: targetSnapshot,
+            mismatchReason: .targetMismatch
+        )
+        let sourceDigest = Self.hexDigest(sourceHasher.finalize())
+        guard targetDigest.byteCount == copiedByteCount,
+              targetDigest.sha256 == sourceDigest,
+              targetDigest.snapshot == targetSnapshot else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        try enforceGenerationFile(
+            descriptor: parent,
+            root: root,
+            name: name,
+            kind: .stagingFile
+        )
+        guard try Self.regularFileSnapshot(
+                  descriptor: descriptor,
+                  mismatchReason: .targetMismatch
+              ) == targetSnapshot,
+              try Self.namedRegularFileSnapshot(
+                  parent: parent,
+                  name: name,
+                  mismatchReason: .targetMismatch
+              ) == targetSnapshot else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        removeCreated = false
+        return StreamedFileDigest(
+            byteCount: copiedByteCount,
+            sha256: sourceDigest,
+            snapshot: sourceSnapshot
+        )
+    }
+
     func requireStagingGeneration(id: UUID) throws {
         try verify()
         _ = try Self.requiredDirectoryIdentity(
@@ -1116,6 +2859,87 @@ final class StoreRestoreGenerationAuthority {
     func removeImportStagingPackage(name: String) throws {
         try Self.requireSafeBasename(name)
         try removeDirectory(parent: importStagingDescriptor, name: name)
+    }
+
+    private func reconcileRestorePointerTemporary(name: String) throws {
+        let temporary = ".\(name).restore-next"
+        guard try Self.itemExists(
+            parent: dataDescriptor,
+            name: temporary
+        ) else {
+            return
+        }
+
+        Self.pointerMutationLock.lock()
+        defer { Self.pointerMutationLock.unlock() }
+        guard try Self.itemExists(
+            parent: dataDescriptor,
+            name: temporary
+        ) else {
+            return
+        }
+        try verify()
+        try enforce(
+            .generationPointer,
+            at: dataURL.appendingPathComponent(name, isDirectory: false)
+        )
+        try enforce(
+            .generationPointerTemporary,
+            at: dataURL.appendingPathComponent(temporary, isDirectory: false)
+        )
+        let current = try Self.readRegularFileWithIdentity(
+            parent: dataDescriptor,
+            name: name
+        )
+        let candidate = try Self.readRegularFileWithIdentity(
+            parent: dataDescriptor,
+            name: temporary
+        )
+        switch name {
+        case "current.json":
+            _ = try CurrentPointerCodecV1.decode(current.data)
+            _ = try CurrentPointerCodecV1.decode(candidate.data)
+        case "retired.json":
+            let currentValue = try JSONDecoder().decode(
+                RetiredPointerV1.self,
+                from: current.data
+            )
+            let candidateValue = try JSONDecoder().decode(
+                RetiredPointerV1.self,
+                from: candidate.data
+            )
+            guard try Self.canonicalData(currentValue) == current.data,
+                  try Self.canonicalData(candidateValue) == candidate.data else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            try StorePointerSchemaRegistry.requireRetired(
+                currentValue.schemaVersion
+            )
+            try StorePointerSchemaRegistry.requireRetired(
+                candidateValue.schemaVersion
+            )
+        default:
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        guard current.identity.linkCount == 1,
+              candidate.identity.linkCount == 1,
+              try Self.regularFileIdentity(
+                  parent: dataDescriptor,
+                  name: name
+              ) == current.identity,
+              try Self.regularFileIdentity(
+                  parent: dataDescriptor,
+                  name: temporary
+              ) == candidate.identity,
+              Darwin.unlinkat(dataDescriptor, temporary, 0) == 0,
+              Darwin.fsync(dataDescriptor) == 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try verify()
+        try enforce(
+            .generationPointer,
+            at: dataURL.appendingPathComponent(name, isDirectory: false)
+        )
     }
 
     private func replacePointer<Value: Encodable>(
@@ -1642,6 +3466,92 @@ final class StoreRestoreGenerationAuthority {
         return descriptor
     }
 
+    private static func regularFileSnapshot(
+        descriptor: Int32,
+        mismatchReason: StoreMigrationMaintenanceReasonV1
+    ) throws -> RegularFileSnapshot {
+        var information = stat()
+        guard Darwin.fstat(descriptor, &information) == 0,
+              (information.st_mode & S_IFMT) == S_IFREG,
+              information.st_nlink == 1,
+              information.st_size >= 0,
+              information.st_size <= off_t(Int.max) else {
+            throw StoreMigrationFailure.maintenanceRequired(mismatchReason)
+        }
+        return RegularFileSnapshot(
+            device: information.st_dev,
+            inode: information.st_ino,
+            linkCount: information.st_nlink,
+            type: information.st_mode & S_IFMT,
+            byteCount: information.st_size
+        )
+    }
+
+    private static func namedRegularFileSnapshot(
+        parent: Int32,
+        name: String,
+        mismatchReason: StoreMigrationMaintenanceReasonV1
+    ) throws -> RegularFileSnapshot {
+        try requireSafeBasename(name)
+        let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
+        guard descriptor >= 0 else {
+            throw StoreMigrationFailure.maintenanceRequired(mismatchReason)
+        }
+        defer { _ = Darwin.close(descriptor) }
+        return try regularFileSnapshot(
+            descriptor: descriptor,
+            mismatchReason: mismatchReason
+        )
+    }
+
+    private static func streamedDigest(
+        descriptor: Int32,
+        expectedSnapshot: RegularFileSnapshot,
+        mismatchReason: StoreMigrationMaintenanceReasonV1
+    ) throws -> StreamedFileDigest {
+        guard Darwin.lseek(descriptor, 0, SEEK_SET) == 0 else {
+            throw StoreMigrationFailure.maintenanceRequired(mismatchReason)
+        }
+        var hasher = SHA256()
+        var byteCount = 0
+        var buffer = [UInt8](
+            repeating: 0,
+            count: migrationStreamBufferByteCount
+        )
+        while true {
+            let count = buffer.withUnsafeMutableBytes {
+                Darwin.read(descriptor, $0.baseAddress, $0.count)
+            }
+            if count == 0 { break }
+            guard count > 0 else {
+                if errno == EINTR { continue }
+                throw StoreMigrationFailure.maintenanceRequired(mismatchReason)
+            }
+            let (nextCount, overflow) = byteCount.addingReportingOverflow(count)
+            guard !overflow, off_t(nextCount) <= expectedSnapshot.byteCount else {
+                throw StoreMigrationFailure.maintenanceRequired(mismatchReason)
+            }
+            byteCount = nextCount
+            hasher.update(data: Data(buffer.prefix(count)))
+        }
+        guard byteCount == Int(expectedSnapshot.byteCount),
+              try regularFileSnapshot(
+                  descriptor: descriptor,
+                  mismatchReason: mismatchReason
+              ) == expectedSnapshot else {
+            throw StoreMigrationFailure.maintenanceRequired(mismatchReason)
+        }
+        return StreamedFileDigest(
+            byteCount: byteCount,
+            sha256: hexDigest(hasher.finalize()),
+            snapshot: expectedSnapshot
+        )
+    }
+
+    private static func hexDigest(_ digest: SHA256.Digest) -> String {
+        digest.map { String(format: "%02x", $0) }.joined()
+    }
+
     fileprivate static func readRegularFileWithIdentity(
         parent: Int32,
         name: String
@@ -1653,7 +3563,9 @@ final class StoreRestoreGenerationAuthority {
         var before = stat()
         guard Darwin.fstat(descriptor, &before) == 0,
               (before.st_mode & S_IFMT) == S_IFREG,
-              before.st_nlink == 1 else {
+              before.st_nlink == 1,
+              before.st_size >= 0,
+              before.st_size <= off_t(Self.maximumControlFileByteCount) else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
         var data = Data()
@@ -1905,41 +3817,88 @@ struct StoreGenerationFactory {
     private static let currentPointerName = "current.json"
     private static let retiredPointerName = "retired.json"
     private static let modelStoreName = "model.sqlite"
+    private static let bootstrapManifestMigrationID = UUID(
+        uuidString: "00000000-0000-0000-0000-000000000003"
+    )!
+    private static let bootstrapPredecessorGenerationID = UUID(
+        uuidString: "00000000-0000-0000-0000-000000000001"
+    )!
     private static let pointerMutationLock = NSLock()
 
     private let applicationSupportURL: URL
     private let fileManager: FileManager
+    private let migrationIdentitySource: StoreMigrationIdentitySourceV1?
+#if DEBUG
+    private let migrationFailureInjection: StoreMigrationFailureInjection?
+#endif
 
     init(
         applicationSupportURL: URL,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        migrationIdentitySource: StoreMigrationIdentitySourceV1? = nil
     ) {
         self.applicationSupportURL = applicationSupportURL
         self.fileManager = fileManager
+        self.migrationIdentitySource = migrationIdentitySource
+        #if DEBUG
+        self.migrationFailureInjection = nil
+        #endif
+    }
+
+#if DEBUG
+    init(
+        applicationSupportURL: URL,
+        fileManager: FileManager = .default,
+        migrationIdentitySource: StoreMigrationIdentitySourceV1? = nil,
+        migrationFailureInjection: StoreMigrationFailureInjection
+    ) {
+        self.applicationSupportURL = applicationSupportURL
+        self.fileManager = fileManager
+        self.migrationIdentitySource = migrationIdentitySource
+        self.migrationFailureInjection = migrationFailureInjection
+    }
+#endif
+
+    private func reachMigrationBoundary(
+        _ boundary: StoreMigrationFaultBoundaryV1
+    ) throws {
+#if DEBUG
+        try migrationFailureInjection?.reach(boundary)
+#else
+        _ = boundary
+#endif
     }
 
     var restoreApplicationSupportURL: URL {
         applicationSupportURL
     }
 
+    @MainActor
     func currentGenerationID() throws -> UUID {
-        try protectPointer(
-            at: dataRootURL.appendingPathComponent(Self.currentPointerName, isDirectory: false)
-        )
-        let pointer: CurrentPointerV1 = try decodeCanonicalPointer(
-            at: dataRootURL.appendingPathComponent(Self.currentPointerName)
-        )
-        try StorePointerSchemaRegistry.requireCurrent(pointer.schemaVersion)
-        guard let value = canonicalUUID(from: pointer.generationID) else {
-            throw StoreGenerationFailure.dataPointerInvalid
-        }
-        return value
+        let authority = try makeRestoreGenerationAuthority()
+        return try currentGenerationID(authority: authority)
     }
 
+    @MainActor
     func currentGenerationID(
         authority: StoreRestoreGenerationAuthority
     ) throws -> UUID {
-        try authority.currentGenerationID()
+        let authorityValue = try authority.currentGenerationID()
+        let envelope = try decodeCurrentPointer(
+            at: dataRootURL.appendingPathComponent(Self.currentPointerName)
+        )
+        switch envelope {
+        case .legacy(let pointer, _):
+            guard canonicalUUID(from: pointer.generationID) == authorityValue else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        case .current(let pointer, _):
+            guard canonicalUUID(from: pointer.generationID) == authorityValue else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            _ = try requireCurrentManifest(pointer)
+        }
+        return authorityValue
     }
 
     func restoreStagingGenerationURL(id: UUID) -> URL {
@@ -1982,8 +3941,9 @@ struct StoreGenerationFactory {
         do {
             try authority.createStagingGeneration(id: id)
             try autoreleasepool {
-                let container = try makeContainer(
-                    at: root.appendingPathComponent(Self.modelStoreName)
+                let container = try makeFreshV2Container(
+                    at: root.appendingPathComponent(Self.modelStoreName),
+                    markerMigrationID: id
                 )
                 let context = container.mainContext
                 try populate(context)
@@ -2029,7 +3989,8 @@ struct StoreGenerationFactory {
                 at: try authority.modelStoreURL(
                     for: created,
                     name: Self.modelStoreName
-                )
+                ),
+                markerMigrationID: id
             )
             try authority.protectInstalledGeneration(id: id)
             try authority.requireRegularFile(
@@ -2062,14 +4023,43 @@ struct StoreGenerationFactory {
         try authority.removeInstalledGeneration(id: id)
     }
 
+    @MainActor
     func switchCurrentGeneration(
         expected oldID: UUID,
         to newID: UUID,
         authority: StoreRestoreGenerationAuthority
     ) throws {
-        try authority.switchCurrentGeneration(expected: oldID, to: newID)
+        let envelope = try decodeCurrentPointer(
+            at: dataRootURL.appendingPathComponent(Self.currentPointerName)
+        )
+        switch envelope {
+        case .legacy:
+            let pointer = try makeRestoreCurrentPointer(
+                expectedOldID: oldID,
+                newID: newID
+            )
+            try authority.switchCurrentGeneration(
+                expected: oldID,
+                to: newID,
+                pointer: pointer
+            )
+        case .current:
+            let pointer = try makeRestoreCurrentPointer(
+                expectedOldID: oldID,
+                newID: newID
+            )
+            try authority.switchCurrentGeneration(
+                expected: oldID,
+                to: newID,
+                pointer: pointer
+            )
+        }
+        guard try currentGenerationID(authority: authority) == newID else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
     }
 
+    @MainActor
     func switchCurrentGeneration(expected oldID: UUID, to newID: UUID) throws {
         guard oldID != newID,
               try currentGenerationID() == oldID,
@@ -2077,11 +4067,26 @@ struct StoreGenerationFactory {
               try itemType(at: installedGenerationURL(id: newID)) == .typeDirectory else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
-        let pointer = CurrentPointerV1(
-            generationID: canonicalString(for: newID),
-            schemaVersion: StorePointerSchemaRegistry.currentVersion
-        )
-        try replacePointer(name: Self.currentPointerName, value: pointer)
+        switch try decodeCurrentPointer(
+            at: dataRootURL.appendingPathComponent(Self.currentPointerName)
+        ) {
+        case .legacy:
+            try replacePointer(
+                name: Self.currentPointerName,
+                value: try makeRestoreCurrentPointer(
+                    expectedOldID: oldID,
+                    newID: newID
+                )
+            )
+        case .current:
+            try replacePointer(
+                name: Self.currentPointerName,
+                value: try makeRestoreCurrentPointer(
+                    expectedOldID: oldID,
+                    newID: newID
+                )
+            )
+        }
         guard try currentGenerationID() == newID else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
@@ -2108,6 +4113,7 @@ struct StoreGenerationFactory {
         )
     }
 
+    @MainActor
     func retireGeneration(oldID: UUID, currentID: UUID) throws {
         guard oldID != currentID,
               try currentGenerationID() == currentID,
@@ -2133,22 +4139,8 @@ struct StoreGenerationFactory {
     }
 
     func retiredGenerationIDs() throws -> [UUID] {
-        try protectPointer(
-            at: dataRootURL.appendingPathComponent(Self.retiredPointerName, isDirectory: false)
-        )
-        let pointer: RetiredPointerV1 = try decodeCanonicalPointer(
-            at: dataRootURL.appendingPathComponent(Self.retiredPointerName)
-        )
-        try StorePointerSchemaRegistry.requireRetired(pointer.schemaVersion)
-        guard pointer.generationIDs == pointer.generationIDs.sorted(),
-              Set(pointer.generationIDs).count == pointer.generationIDs.count else {
-            throw StoreGenerationFailure.dataPointerInvalid
-        }
-        let values = pointer.generationIDs.compactMap(canonicalUUID)
-        guard values.count == pointer.generationIDs.count else {
-            throw StoreGenerationFailure.dataPointerInvalid
-        }
-        return values
+        let authority = try makeRestoreGenerationAuthority()
+        return try authority.retiredGenerationIDs()
     }
 
     @MainActor
@@ -2908,6 +4900,7 @@ struct StoreGenerationFactory {
 
     @MainActor
     func openOrBootstrapCurrent() throws -> StoreGenerationSession {
+        try PersistentSchemaReleaseRegistryV1.validate()
         let dataRootURL = applicationSupportURL.appendingPathComponent(
             Self.dataDirectoryName,
             isDirectory: true
@@ -2922,7 +4915,36 @@ struct StoreGenerationFactory {
             throw StoreGenerationFailure.dataPointerInvalid
         }
 
-        return try openCurrent(in: dataRootURL)
+        let pointerAuthority = try makeRestoreGenerationAuthority()
+        _ = try pointerAuthority.currentGenerationID()
+        _ = try pointerAuthority.retiredGenerationIDs()
+
+        do {
+            let migrationStore = try StoreMigrationJournalStoreV1(
+                applicationSupportURL: applicationSupportURL
+            )
+            let processID = (migrationIdentitySource ?? .live).makeProcessID()
+            if let journal = try migrationStore.loadJournal() {
+                return try resumeMigration(
+                    journal,
+                    dataRootURL: dataRootURL,
+                    store: migrationStore,
+                    processID: processID
+                )
+            }
+            return try openCurrent(
+                in: dataRootURL,
+                store: migrationStore,
+                processID: processID
+            )
+        } catch let failure as StoreMigrationFailure {
+            throw failure
+        } catch {
+            if let reason = migrationMaintenanceReason(for: error) {
+                throw StoreMigrationFailure.maintenanceRequired(reason)
+            }
+            throw error
+        }
     }
 
     @MainActor
@@ -2959,7 +4981,7 @@ struct StoreGenerationFactory {
             )
         }
 
-        let generationID = UUID()
+        let generationID = migrationIdentitySource?.makeGenerationID() ?? UUID()
         let generationName = canonicalString(for: generationID)
         let bootstrapDescriptor = try createOwnedDirectory(
             parent: applicationSupportDescriptor,
@@ -2992,16 +5014,42 @@ struct StoreGenerationFactory {
             Self.modelStoreName,
             isDirectory: false
         )
-        try createAndReleaseEmptyContainer(at: modelStoreURL)
+        try createAndReleaseEmptyContainer(
+            at: modelStoreURL,
+            markerMigrationID: Self.bootstrapManifestMigrationID
+        )
 
         guard try itemType(at: modelStoreURL) == .typeRegular else {
             throw StoreGenerationFailure.dataGenerationMissing
         }
         try protectGeneration(at: generationRootURL, staging: false, requireModel: true)
 
-        let currentPointer = CurrentPointerV1(
-            generationID: generationName,
-            schemaVersion: StorePointerSchemaRegistry.currentVersion
+        let manifest = try StoreGenerationManifestV1(
+            generationID: generationID,
+            predecessorGenerationID: syntheticPredecessor(
+                excluding: generationID
+            ),
+            migrationID: Self.bootstrapManifestMigrationID,
+            storeSchemaRelease: .v2,
+            semanticSHA256: try semanticDigest(
+                at: modelStoreURL,
+                release: .v2
+            ),
+            frozenIdentityDigest: try frozenIdentityDigest(
+                for: generationRootURL
+            ),
+            files: try generationFileDigests(
+                at: generationRootURL,
+                durable: true
+            )
+        )
+        let migrationStore = try StoreMigrationJournalStoreV1(
+            applicationSupportURL: applicationSupportURL
+        )
+        let manifestDigest = try migrationStore.writeManifest(manifest)
+        let currentPointer = try CurrentGenerationPointerV2(
+            generationID: generationID,
+            generationManifestSHA256: manifestDigest
         )
         let retiredPointer = RetiredPointerV1(
             generationIDs: [],
@@ -3077,7 +5125,11 @@ struct StoreGenerationFactory {
     }
 
     @MainActor
-    private func openCurrent(in dataRootURL: URL) throws -> StoreGenerationSession {
+    private func openCurrent(
+        in dataRootURL: URL,
+        store: StoreMigrationJournalStoreV1,
+        processID: UUID
+    ) throws -> StoreGenerationSession {
         try protect(.durableDirectory, at: dataRootURL)
         let generationsRoot = dataRootURL.appendingPathComponent(
             Self.generationsDirectoryName,
@@ -3099,15 +5151,29 @@ struct StoreGenerationFactory {
         try protectPointer(at: currentURL)
         try protectPointer(at: retiredURL)
 
-        let current: CurrentPointerV1 = try decodeCanonicalPointer(at: currentURL)
+        let current = try decodeCurrentPointer(at: currentURL)
         let retired: RetiredPointerV1 = try decodeCanonicalPointer(at: retiredURL)
-        try StorePointerSchemaRegistry.requireCurrent(current.schemaVersion)
         try StorePointerSchemaRegistry.requireRetired(retired.schemaVersion)
-        guard let currentID = canonicalUUID(from: current.generationID),
-              retired.generationIDs.allSatisfy({ canonicalUUID(from: $0) != nil }),
+        let currentName: String
+        let currentID: UUID
+        switch current {
+        case .legacy(let pointer, _):
+            currentName = pointer.generationID
+            guard let identifier = canonicalUUID(from: currentName) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            currentID = identifier
+        case .current(let pointer, _):
+            currentName = pointer.generationID
+            guard let identifier = canonicalUUID(from: currentName) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            currentID = identifier
+        }
+        guard retired.generationIDs.allSatisfy({ canonicalUUID(from: $0) != nil }),
               retired.generationIDs == retired.generationIDs.sorted(),
               Set(retired.generationIDs).count == retired.generationIDs.count,
-              !retired.generationIDs.contains(current.generationID) else {
+              !retired.generationIDs.contains(currentName) else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
 
@@ -3120,7 +5186,7 @@ struct StoreGenerationFactory {
         }
 
         let expectedGenerationNames = Set(
-            [current.generationID] + retired.generationIDs
+            [currentName] + retired.generationIDs
         )
         let actualGenerationNames: Set<String>
         do {
@@ -3152,7 +5218,7 @@ struct StoreGenerationFactory {
         }
 
         let generationRootURL = generationsURL.appendingPathComponent(
-            current.generationID,
+            currentName,
             isDirectory: true
         )
         let modelStoreURL = generationRootURL.appendingPathComponent(
@@ -3167,30 +5233,36 @@ struct StoreGenerationFactory {
         }
         try protectGeneration(at: generationRootURL, staging: false, requireModel: true)
 
-        let container: ModelContainer
-        do {
-            container = try makeContainer(at: modelStoreURL)
-        } catch {
-            throw StoreGenerationFailure.dataPointerInvalid
+        switch current {
+        case .legacy(let pointer, let data):
+            return try beginMigration(
+                sourcePointer: pointer,
+                sourcePointerData: data,
+                retired: retired,
+                dataRootURL: dataRootURL,
+                store: store,
+                processID: processID
+            )
+        case .current(let pointer, _):
+            return try openValidatedV2Current(
+                pointer: pointer,
+                dataRootURL: dataRootURL,
+                store: store
+            )
         }
-        try protectGeneration(at: generationRootURL, staging: false, requireModel: true)
-        return StoreGenerationSession(
-            generationID: currentID,
-            generationRootURL: generationRootURL,
-            modelContainer: container,
-            afterSaveReproof: { [self] in
-                try self.protectGeneration(
-                    at: generationRootURL,
-                    staging: false,
-                    requireModel: true
-                )
-            }
-        )
     }
 
     @MainActor
-    private func createAndReleaseEmptyContainer(at modelStoreURL: URL) throws {
-        _ = try makeContainer(at: modelStoreURL)
+    private func createAndReleaseEmptyContainer(
+        at modelStoreURL: URL,
+        markerMigrationID: UUID
+    ) throws {
+        try autoreleasepool {
+            _ = try makeFreshV2Container(
+                at: modelStoreURL,
+                markerMigrationID: markerMigrationID
+            )
+        }
     }
 
     @MainActor
@@ -3213,7 +5285,13 @@ struct StoreGenerationFactory {
             throw StoreGenerationFailure.dataGenerationMissing
         }
         let container: ModelContainer
-        do { container = try makeContainer(at: modelStoreURL) }
+        do {
+            container = try makeV2Container(at: modelStoreURL, migrate: false)
+            _ = try requireV2Marker(
+                in: container.mainContext,
+                expectedMigrationID: nil
+            )
+        }
         catch { throw StoreGenerationFailure.dataPointerInvalid }
         try protectGeneration(at: generationRootURL, staging: staging, requireModel: true)
         return StoreGenerationSession(
@@ -3250,23 +5328,6 @@ struct StoreGenerationFactory {
         ) else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
-    }
-
-    @MainActor
-    private func makeContainer(at modelStoreURL: URL) throws -> ModelContainer {
-        let schema = PersistentSchemaV1.makeSchema()
-        let configuration = ModelConfiguration(
-            "FieldEvidenceV1",
-            schema: schema,
-            url: modelStoreURL,
-            allowsSave: true,
-            cloudKitDatabase: .none
-        )
-        return try ModelContainer(
-            for: schema,
-            migrationPlan: nil,
-            configurations: [configuration]
-        )
     }
 
     private func decodeCanonicalPointer<Value: Decodable & Encodable>(
@@ -3344,6 +5405,11 @@ struct StoreGenerationFactory {
     }
 }
 
+private enum CurrentPointerEnvelopeV1 {
+    case legacy(CurrentPointerV1, Data)
+    case current(CurrentGenerationPointerV2, Data)
+}
+
 private struct CurrentPointerV1: Codable {
     let generationID: String
     let schemaVersion: Int
@@ -3352,4 +5418,37 @@ private struct CurrentPointerV1: Codable {
 private struct RetiredPointerV1: Codable {
     let generationIDs: [String]
     let schemaVersion: Int
+}
+
+private enum CurrentPointerCodecV1 {
+    private struct VersionProbe: Decodable {
+        let schemaVersion: Int
+    }
+
+    static func decode(_ data: Data) throws -> CurrentPointerEnvelopeV1 {
+        do {
+            let probe = try JSONDecoder().decode(VersionProbe.self, from: data)
+            switch probe.schemaVersion {
+            case StorePointerSchemaRegistry.legacyCurrentVersion:
+                let value = try JSONDecoder().decode(CurrentPointerV1.self, from: data)
+                guard value.schemaVersion
+                        == StorePointerSchemaRegistry.legacyCurrentVersion,
+                      try StoreMigrationCanonicalJSONV1.encode(value) == data,
+                      let identifier = UUID(uuidString: value.generationID),
+                      identifier.uuidString.lowercased() == value.generationID else {
+                    throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+                }
+                return .legacy(value, data)
+            case StorePointerSchemaRegistry.currentVersion:
+                let value = try CurrentGenerationPointerV2.decodeCanonical(from: data)
+                return .current(value, data)
+            default:
+                throw StoreMigrationFailure.maintenanceRequired(.futureVersion)
+            }
+        } catch let failure as StoreMigrationFailure {
+            throw failure
+        } catch {
+            throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+        }
+    }
 }

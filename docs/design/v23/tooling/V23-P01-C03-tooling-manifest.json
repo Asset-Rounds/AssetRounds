@@ -1,0 +1,352 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "acceptedS10_6Blocker": true,
+  "adoptionEnabled": false,
+  "artifactCount": 7,
+  "artifactDigest": "3b921b3e300623df01d8dce1fbe219570afa6f48d50741834174fca877dda1d9",
+  "artifacts": [
+    {
+      "bytes": 31673,
+      "path": "Scripts/v23/p01_c03_contracts.py",
+      "sha256": "97357c6528eea7dbb0f066a3b745607ff7ed2c6ff8fec70604334a62e1e72098"
+    },
+    {
+      "bytes": 1697,
+      "path": "Scripts/v23/generate_p01_c03_contracts.py",
+      "sha256": "f2d7f524501fd9b22c0f405b050ff9e4c61b3549fe48622db212b16ec7801b86"
+    },
+    {
+      "bytes": 18706,
+      "path": "Scripts/v23/verify_p01_c03_contracts.py",
+      "sha256": "cac5dbe2dbf6464bb267ea7764126f85189fb92f62e5f92f3704b97b9fb428cb"
+    },
+    {
+      "bytes": 120749,
+      "path": "Scripts/v23/migration-recovery.schema.json",
+      "sha256": "5e561f4a64f4895f79e7d3b450154509e271dae7624864302d72704cd29c9467"
+    },
+    {
+      "bytes": 58716,
+      "path": "Scripts/v23/persistent-schema-release-registry.schema.json",
+      "sha256": "1fc4c934df293483b1de9e02ca839317a11ecd0db375cdc8eafeb47c57aedbb3"
+    },
+    {
+      "bytes": 37522,
+      "path": "docs/design/v23/tooling/V23P01C03MigrationRecoveryContractV1.json",
+      "sha256": "9ee484122ca44645df88152656a7c5f6cdef08dde0644b7eda58a778c25adb27"
+    },
+    {
+      "bytes": 19376,
+      "path": "docs/design/v23/tooling/PersistentSchemaReleaseRegistryV1.json",
+      "sha256": "ce5d076340c893de0e37e9f1642101365f2f532f705dc53e9f6957376e026c35"
+    }
+  ],
+  "authority": {
+    "acceptedS10_6SeedBlocker": "PENDING_ACCEPTED_S10_6_PREV21_COMPATIBILITY_SEED",
+    "acceptedS10_6SeedDigest": null,
+    "authorizedPriorFenceOverlapCount": 4,
+    "baseHead": "977fe7814ce80f1994b4c158a1be6b27b7b60c3e",
+    "baseTree": "41fe77d371a3eba5cacea3f993434f6e250e1228",
+    "branch": "phase/v23-expansion",
+    "contextDigest": "d07e06cf4965fdea35cc24d0e60bdf7b10e8effb607d9fc572dda7d96596c1c9",
+    "coordinationAuthorityHead": "0b773d4337a84096e63b533414ff1ad20ebb5263",
+    "coordinationCASSequence": 62,
+    "coordinationLedgerDigest": "e714392955aae61bbebac18023576f8c6df0750b24cfe67dd5fadaf4caa38486",
+    "coordinationLedgerSequence": 62,
+    "deterministicEvidenceIDs": [
+      "V23-P01-C03-G01",
+      "V23-P01-C03-A01",
+      "V23-P01-C03-H01",
+      "V23-P01-C03-I01",
+      "V23-P01-C03-R01"
+    ],
+    "directPrerequisite": {
+      "candidateHead": "977fe7814ce80f1994b4c158a1be6b27b7b60c3e",
+      "candidateTree": "41fe77d371a3eba5cacea3f993434f6e250e1228",
+      "cardID": "V23-P01-C02",
+      "checkpointDigest": "d63cd3a6050d4c4b6506c0c95560857e2e81960f8bb366e7157b7f135440c436",
+      "contextDigest": "156b0f066a284225ee2a7a569d70b57d8495427f45660c29efc308e3e09eaaee",
+      "ownedFilePrivacyInventoryDigest": "fa47493f286d967ffffe10329684a197da3b9298c1a84c70e1a4642df5851be1",
+      "ownedFileProtectionContractDigest": "82cfa6e86cb89a2b8f80ca6dca00dae9e1d2a7fdd200ccdd467bebb8282f8203",
+      "pathFenceDigest": "516df34be4e6c68ff8a6d1737c8ced37e2eb1b5ebfd6110542a60b9579c36809",
+      "toolingManifestDigest": "2bcd15b356fdb0b2fc641ba1fb42429562fb3b853b49b27eefc19ca962b66570",
+      "verificationReceiptDigest": "b36371b428371d4fa6ec0ab4dbe8f0f76498ed375d8e374227f882348b3f1b55"
+    },
+    "dossierDigest": "dad1c6971c71aae28187d8a7a290f5a8c47cc6d9fb541f87a2ba487cbe3a40f8",
+    "foundationDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "hydrationCorrectionReceiptDigest": "8bae45e3cb2603d363daddce3504a2b7659d35e0957960a11a8226974884f09e",
+    "inheritedV21BlockDigest": "e37c99074d86754086f5b7de3d148a2d3da6145b7d87dc2402bac8e679d568d0",
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "overlapEvidence": [
+      {
+        "candidateHead": "fd303030608600443c8a0151f8f93c27e5cc928e",
+        "candidateTree": "cb5f5fc41379e61ed51dc1b3890ad55c63e98433",
+        "cardID": "V23-P01-C01",
+        "checkpointDigest": "4692d9b02b90bb779e3d775c6e15abcaa1a53a20bff18234ff531d6ed9107589",
+        "contextDigest": "7e182eeb0787008de8c3ebeb5b575d1138dda4c7c2be6198c41e1ae671b3377b",
+        "pathFenceDigest": "26f81fe92663d9450a2292347eaf85dfcf49ac0f7323123995cf6cb07993271b",
+        "schemaIdentityContractDigest": "2344be8d2a2a21a155d2457196d658828e437204a5cfb8d55088802a947a6501",
+        "toolingManifestDigest": "af0e6868894a30b535b358fc0d4d62dd8415725fa326443d11fa2262e6ba4ead",
+        "verificationReceiptDigest": "4d4b4b6d30ea0f32d1b2564d5be0519727daa5859e9ea205967b1fc94b2d017d"
+      },
+      {
+        "candidateHead": "977fe7814ce80f1994b4c158a1be6b27b7b60c3e",
+        "candidateTree": "41fe77d371a3eba5cacea3f993434f6e250e1228",
+        "cardID": "V23-P01-C02",
+        "checkpointDigest": "d63cd3a6050d4c4b6506c0c95560857e2e81960f8bb366e7157b7f135440c436",
+        "contextDigest": "156b0f066a284225ee2a7a569d70b57d8495427f45660c29efc308e3e09eaaee",
+        "ownedFilePrivacyInventoryDigest": "fa47493f286d967ffffe10329684a197da3b9298c1a84c70e1a4642df5851be1",
+        "ownedFileProtectionContractDigest": "82cfa6e86cb89a2b8f80ca6dca00dae9e1d2a7fdd200ccdd467bebb8282f8203",
+        "pathFenceDigest": "516df34be4e6c68ff8a6d1737c8ced37e2eb1b5ebfd6110542a60b9579c36809",
+        "toolingManifestDigest": "2bcd15b356fdb0b2fc641ba1fb42429562fb3b853b49b27eefc19ca962b66570",
+        "verificationReceiptDigest": "b36371b428371d4fa6ec0ab4dbe8f0f76498ed375d8e374227f882348b3f1b55"
+      }
+    ],
+    "pathFenceDigest": "33ac4424b2bebeaea61ef58953f4fdca129815e939ac5981802ccf27280b1015",
+    "provisionalPrerequisiteDigest": "2c9767afd35e005803081f6bae77d85508f42d20cb446f149bd3235fc95295c2",
+    "registerRowDigest": "e714392955aae61bbebac18023576f8c6df0750b24cfe67dd5fadaf4caa38486"
+  },
+  "cardID": "V23-P01-C03",
+  "claims": [
+    {
+      "assertions": [
+        "PREPARE_BINDS_JOURNAL_AND_SOURCE_MANIFEST_DIGESTS_BEFORE_MUTATION",
+        "SOURCE_MANIFEST_SEMANTIC_SHA256_MAY_BE_NIL_UNTIL_SOURCE_CLONED",
+        "TEMPORARY_ENVELOPE_IS_CANONICAL_READ_BACK_AND_IDENTITY_REPROVED",
+        "ENVELOPE_COMMIT_IS_RENAME_EXCL_FSYNC_AND_PAIR_REPROOF",
+        "STARTUP_RECONCILES_ENVELOPE_BEFORE_JOURNAL_ACCESS",
+        "ENVELOPE_IS_REMOVED_ONLY_AFTER_PERSISTED_PAIR_REPROOF"
+      ],
+      "id": "PREPARED_ENVELOPE",
+      "sourceRequirements": [
+        {
+          "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift",
+          "requiredSymbols": [
+            "PreparedMigrationEnvelopeV1",
+            "createPreparedMigration",
+            "preparedEnvelopeName",
+            "preparedEnvelopeTemporaryName",
+            "reconcilePreparedEnvelopeIfPresent",
+            "RENAME_EXCL"
+          ]
+        }
+      ],
+      "status": "SOURCE_BOUND_BEHAVIORAL_CLAIM_NOT_ACCEPTANCE"
+    },
+    {
+      "assertions": [
+        "SOURCE_BYTES_ARE_READ_IN_BOUNDED_64_KIB_STREAM_CHUNKS",
+        "INITIAL_DIGEST_AND_FILE_IDENTITY_ARE_CAPTURED_BEFORE_CLONE",
+        "SOURCE_DIRECTORY_AND_FILE_SET_ARE_REPROVED_AFTER_CLONE",
+        "CLONED_STAGING_V1_CANONICAL_EXPORT_FREEZES_SOURCE_SEMANTIC_DIGEST",
+        "V2_TARGET_SEMANTIC_DIGEST_IS_REQUIRED_AND_COMPARED_TO_FROZEN_SOURCE_DIGEST",
+        "STREAMED_REPROOF_REJECTS_BYTES_SIZE_OR_IDENTITY_DRIFT_AS_SOURCE_MISMATCH"
+      ],
+      "id": "BOUNDED_STREAMING_SOURCE_REPROOF",
+      "sourceRequirements": [
+        {
+          "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+          "requiredSymbols": [
+            "migrationStreamBufferByteCount",
+            "streamedDigest",
+            "snapshotInstalledGeneration",
+            "cloneInstalledGeneration",
+            "sourceMismatch"
+          ]
+        },
+        {
+          "path": "FieldEvidenceAppTests/V9_03MigrationRecoveryTests.swift",
+          "requiredSymbols": [
+            "semanticData",
+            "sourceSemanticDigest"
+          ]
+        }
+      ],
+      "status": "SOURCE_BOUND_BEHAVIORAL_CLAIM_NOT_ACCEPTANCE"
+    },
+    {
+      "assertions": [
+        "POINTER_REPLACEMENT_WRITES_AND_PROTECTS_A_TEMPORARY_BEFORE_SWAP",
+        "SWAP_REPROVES_CURRENT_AND_DISPLACED_IDENTITIES_AFTER_FSYNC",
+        "RELAUNCH_RECONCILES_TEMPORARY_ONLY_OR_POST_SWAP_RESIDUE",
+        "MISMATCHED_TEMPORARY_BYTES_FAIL_CLOSED_WITHOUT_REOPENING_V1"
+      ],
+      "id": "POINTER_SWAP_TEMP_RECONCILIATION",
+      "sourceRequirements": [
+        {
+          "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+          "requiredSymbols": [
+            "replacePointer",
+            "RENAME_SWAP",
+            "restore-next",
+            "pointerMutationLock"
+          ]
+        },
+        {
+          "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift",
+          "requiredSymbols": [
+            "reconcileJournalTemporaryIfPresent",
+            "RENAME_SWAP",
+            "RENAME_EXCL"
+          ]
+        }
+      ],
+      "status": "SOURCE_BOUND_BEHAVIORAL_CLAIM_NOT_ACCEPTANCE"
+    },
+    {
+      "assertions": [
+        "ENOSPC_AND_PROTECTED_DATA_MAP_TO_EXPLICIT_MAINTENANCE_REASONS",
+        "PRE_PUBLICATION_FAILURE_RETAINS_V1_AND_DISCARDS_ONLY_STAGING",
+        "AFTER_V2_WRITE_AUTHORIZATION_UNCLASSIFIED_FAILURES_REQUIRE_FORWARD_FIX",
+        "PROTECTED_DATA_DENIAL_IS_NEVER_REPORTED_AS_SUCCESS_OR_ROLLBACK_CREDIT"
+      ],
+      "id": "PHASE_AWARE_ENOSPC_PROTECTED_CLASSIFICATION",
+      "sourceRequirements": [
+        {
+          "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+          "requiredSymbols": [
+            "migrationMaintenanceReason",
+            "ENOSPC",
+            "NSFileWriteOutOfSpaceError",
+            "protectedDataUnavailable",
+            "v2WriteAuthorized",
+            "forwardFixRequired"
+          ]
+        }
+      ],
+      "status": "SOURCE_BOUND_BEHAVIORAL_CLAIM_NOT_ACCEPTANCE"
+    },
+    {
+      "assertions": [
+        "FAULT_HOOKS_ARE_COMPILED_ONLY_UNDER_DEBUG",
+        "INJECTION_IS_FAIL_ONCE_AND_BOUND_TO_DECLARED_PHASE_BOUNDARIES",
+        "RELEASE_OR_PRODUCTION_EVIDENCE_MUST_NOT_CREDIT_INJECTED_FAULTS"
+      ],
+      "id": "DEBUG_ONLY_FAULT_INJECTION",
+      "sourceRequirements": [
+        {
+          "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift",
+          "requiredSymbols": [
+            "#if DEBUG",
+            "StoreMigrationFailureInjection",
+            "injectedFault"
+          ]
+        },
+        {
+          "path": "FieldEvidenceAppTests/V9_03MigrationRecoveryTests.swift",
+          "requiredSymbols": [
+            "#if DEBUG",
+            "testEveryFaultBoundaryUsesPreWriteFallbackOrPostWriteForwardRecovery",
+            "StoreMigrationFailureInjection"
+          ]
+        }
+      ],
+      "status": "SOURCE_BOUND_BEHAVIORAL_CLAIM_NOT_ACCEPTANCE"
+    }
+  ],
+  "fullCardFence": [
+    "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift",
+    "FieldEvidenceAppTests/V9_01VersionedSchemaIdentityTests.swift",
+    "FieldEvidenceAppTests/V9_03MigrationRecoveryTests.swift",
+    "Scripts/v23/p01_c03_contracts.py",
+    "Scripts/v23/generate_p01_c03_contracts.py",
+    "Scripts/v23/verify_p01_c03_contracts.py",
+    "Scripts/v23/migration-recovery.schema.json",
+    "Scripts/v23/persistent-schema-release-registry.schema.json",
+    "docs/design/v23/tooling/V23P01C03MigrationRecoveryContractV1.json",
+    "docs/design/v23/tooling/PersistentSchemaReleaseRegistryV1.json",
+    "docs/design/v23/tooling/V23-P01-C03-tooling-manifest.json"
+  ],
+  "hostedDispatchRan": false,
+  "hostileChecks": [
+    {
+      "claimID": "PREPARED_ENVELOPE",
+      "expectedOutcome": "REJECT_INVALID_CONTRACT_OR_FORWARD_FIX_REQUIRED",
+      "id": "PREPARED_ENVELOPE_TAMPER",
+      "mutation": "change_envelope_digest_or_regular_file_identity"
+    },
+    {
+      "claimID": "BOUNDED_STREAMING_SOURCE_REPROOF",
+      "expectedOutcome": "ALLOW_PREPARED_NIL_THEN_REQUIRE_AND_FREEZE_AT_SOURCE_CLONED",
+      "id": "PREPARED_SEMANTIC_DIGEST_STATE",
+      "mutation": "require_or_fabricate_source_semantic_digest_before_source_cloned"
+    },
+    {
+      "claimID": "BOUNDED_STREAMING_SOURCE_REPROOF",
+      "expectedOutcome": "REJECT_TARGET_MISMATCH_OR_FORWARD_FIX_REQUIRED",
+      "id": "TARGET_SEMANTIC_DIGEST_MISMATCH",
+      "mutation": "change_v2_target_semantic_digest_or_journal_source_digest"
+    },
+    {
+      "claimID": "BOUNDED_STREAMING_SOURCE_REPROOF",
+      "expectedOutcome": "REJECT_SOURCE_MISMATCH",
+      "id": "SOURCE_STREAM_DRIFT",
+      "mutation": "change_source_bytes_size_or_inode_between_reads"
+    },
+    {
+      "claimID": "POINTER_SWAP_TEMP_RECONCILIATION",
+      "expectedOutcome": "REJECT_FAIL_CLOSED_NO_POINTER_CREDIT",
+      "id": "POINTER_TEMP_RESIDUE",
+      "mutation": "retain_mismatched_or_unowned_pointer_swap_temporary"
+    },
+    {
+      "claimID": "PHASE_AWARE_ENOSPC_PROTECTED_CLASSIFICATION",
+      "expectedOutcome": "CLASSIFY_REASON_AND_APPLY_PHASE_BOUND_FORWARD_POLICY",
+      "id": "PHASE_AWARE_STORAGE_PROTECTED",
+      "mutation": "raise_enospc_or_protected_data_at_each_phase"
+    },
+    {
+      "claimID": "DEBUG_ONLY_FAULT_INJECTION",
+      "expectedOutcome": "REJECT_RELEASE_SURFACE_AND_ACCEPTANCE_OVERCLAIM",
+      "id": "RELEASE_FAULT_HOOK_ESCAPE",
+      "mutation": "expose_fault_injection_outside_debug_or_credit_injected_success"
+    }
+  ],
+  "lifecycle": {
+    "backupCompatibilityRequired": true,
+    "deleteCompatibilityRequired": true,
+    "exportCompatibilityRequired": true,
+    "interruption": "FAIL_CLOSED_WITH_PHASE_BOUND_RECOVERY",
+    "migrationDelta": true,
+    "mode": "NEW_SCHEMA_VERSION",
+    "recovery": "PRE_PUBLICATION_DISCARD_OR_POST_PUBLICATION_FORWARD_FIX",
+    "restoreCompatibilityRequired": true,
+    "schemaDelta": true,
+    "successorTriggers": [
+      "SOURCE_CHANGE",
+      "SCHEMA_RELEASE_CHANGE",
+      "MIGRATION_PHASE_CHANGE",
+      "FAULT_MATRIX_CHANGE",
+      "SEED_CHANGE",
+      "EVIDENCE_CHANGE"
+    ],
+    "supersession": "APPEND_SUCCESSOR_NEVER_REWRITE_ACCEPTED_ARTIFACT"
+  },
+  "nativeCompileRan": false,
+  "pathFence": [
+    "Scripts/v23/p01_c03_contracts.py",
+    "Scripts/v23/generate_p01_c03_contracts.py",
+    "Scripts/v23/verify_p01_c03_contracts.py",
+    "Scripts/v23/migration-recovery.schema.json",
+    "Scripts/v23/persistent-schema-release-registry.schema.json",
+    "docs/design/v23/tooling/V23P01C03MigrationRecoveryContractV1.json",
+    "docs/design/v23/tooling/PersistentSchemaReleaseRegistryV1.json",
+    "docs/design/v23/tooling/V23-P01-C03-tooling-manifest.json"
+  ],
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P01C03ToolingManifestV1",
+  "schemaVersion": 1,
+  "sourceBindingComplete": true,
+  "sourceBindingCount": 7,
+  "toolingPathCount": 8
+}

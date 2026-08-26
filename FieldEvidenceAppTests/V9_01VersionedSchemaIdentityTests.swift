@@ -142,27 +142,60 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         )
     }
 
-    func testV1IsActiveAndV2RemainsDeclarationOnly() throws {
+    func testV1AndV2RegistryKeepDistinctOrderedSchemas() throws {
         XCTAssertEqual(PersistentSchemaV1.versionIdentifier, Schema.Version(1, 0, 0))
         XCTAssertEqual(PersistentSchemaV2.versionIdentifier, Schema.Version(2, 0, 0))
         XCTAssertEqual(
             modelTypeIDs(PersistentSchemaV1.models),
             modelTypeIDs(PersistentModelCatalog.models)
         )
+        XCTAssertEqual(PersistentSchemaV1.models.count, 7)
+        XCTAssertEqual(PersistentSchemaV2.models.count, 8)
         XCTAssertEqual(
-            modelTypeIDs(PersistentSchemaV2.models),
+            modelTypeIDs(Array(PersistentSchemaV2.models.dropLast())),
             modelTypeIDs(PersistentModelCatalog.models)
         )
+        XCTAssertEqual(
+            modelTypeIDs(PersistentSchemaV2.models).last,
+            ObjectIdentifier(PersistentSchemaReleaseMarker.self)
+        )
+        XCTAssertNotEqual(
+            modelTypeIDs(PersistentSchemaV1.models),
+            modelTypeIDs(PersistentSchemaV2.models)
+        )
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.releases, [.v1, .v2])
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v2)
+        XCTAssertEqual(
+            PersistentSchemaReleaseRegistryV1.activeVersionIdentifier,
+            PersistentSchemaV2.versionIdentifier
+        )
+        XCTAssertEqual(
+            PersistentSchemaReleaseRegistryV1.activeCompatibilityID,
+            PersistentSchemaReleaseRegistryV1.v2CompatibilityID
+        )
+        XCTAssertNoThrow(try PersistentSchemaReleaseRegistryV1.validate())
+        XCTAssertEqual(
+            PersistentSchemaMigrationPlanV1.schemas.map {
+                ObjectIdentifier($0)
+            },
+            [
+                ObjectIdentifier(PersistentSchemaV1.self),
+                ObjectIdentifier(PersistentSchemaV2.self),
+            ]
+        )
+        XCTAssertEqual(PersistentSchemaMigrationPlanV1.stages.count, 1)
 
         let factorySource = try sourceText(
             "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
         )
         XCTAssertTrue(factorySource.contains("PersistentSchemaV1.makeSchema()"))
         XCTAssertTrue(factorySource.contains("migrationPlan: nil"))
-        XCTAssertFalse(factorySource.contains("PersistentSchemaV2"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaV2"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaReleaseMarker"))
+        XCTAssertTrue(factorySource.contains("migrationPlan: PersistentSchemaMigrationPlanV1.self"))
         XCTAssertEqual(
             factorySource.components(separatedBy: "cloudKitDatabase: .none").count - 1,
-            1
+            2
         )
         XCTAssertFalse(factorySource.contains("cloudKitDatabase: .automatic"))
         XCTAssertFalse(factorySource.contains("NSPersistentCloudKitContainer"))
@@ -259,95 +292,121 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
     }
 
     @MainActor
-    func testUnknownCurrentAndRetiredPointerVersionsPrecedeModelStoreInspection() throws {
-        let cases: [(String, (URL, UUID) throws -> Void)] = [
-            ("current", { root, generationID in
-                let pointer = "{\"generationID\":\"\(generationID.uuidString.lowercased())\",\"schemaVersion\":2}"
-                try Data(pointer.utf8).write(
-                    to: self.currentPointerURL(in: root),
-                    options: .atomic
-                )
-            }),
-            ("retired", { root, _ in
-                try Data("{\"generationIDs\":[],\"schemaVersion\":2}".utf8)
-                    .write(to: self.retiredPointerURL(in: root), options: .atomic)
-            }),
+    func testFutureAndMalformedV2PointersFailBeforeModelStoreInspection() throws {
+        let cases: [(String, (UUID) throws -> Data, StoreMigrationFailure)] = [
+            (
+                "future",
+                { generationID in
+                    try StoreMigrationCanonicalJSONV1.encode(
+                        FuturePointer(schemaVersion: 3)
+                    )
+                },
+                StoreMigrationFailure.maintenanceRequired(.futureVersion)
+            ),
+            (
+                "malformed-v2",
+                { generationID in
+                    try StoreMigrationCanonicalJSONV1.encode(
+                        MalformedV2Pointer(
+                            generationID: generationID.uuidString.lowercased(),
+                            generationManifestSHA256: "not-a-digest"
+                        )
+                    )
+                },
+                StoreMigrationFailure.invalidDigest
+            ),
         ]
 
-        for (name, mutate) in cases {
-            let root = try makeTemporaryApplicationSupportURL()
+        for (name, makePointer, expectedError) in cases {
+            let root = try makeTemporaryApplicationSupportURL(
+                suffix: "Pointer-\(name)"
+            )
             defer { try? fileManager.removeItem(at: root) }
             let (factory, generationID, modelURL) = try bootstrapGeneration(at: root)
             try fileManager.removeItem(at: modelURL)
-            try mutate(root, generationID)
+            try makePointer(generationID).write(
+                to: currentPointerURL(in: root),
+                options: .atomic
+            )
 
             XCTAssertThrowsError(try factory.openOrBootstrapCurrent(), name) { error in
-                XCTAssertEqual(error as? StoreGenerationFailure, .dataPointerInvalid, name)
+                XCTAssertEqual(error as? StoreMigrationFailure, expectedError, name)
             }
             XCTAssertFalse(fileManager.fileExists(atPath: modelURL.path), name)
         }
     }
 
     @MainActor
-    func testLegacyV1BootstrapAndReopenPreserveTheSameGenerationAndModels() throws {
-        let root = try makeTemporaryApplicationSupportURL()
+    func testFutureRetiredPointerFailsBeforeModelStoreInspection() throws {
+        let root = try makeTemporaryApplicationSupportURL(
+            suffix: "RetiredPointer-future"
+        )
+        defer { try? fileManager.removeItem(at: root) }
+        let (factory, _, modelURL) = try bootstrapGeneration(at: root)
+        try fileManager.removeItem(at: modelURL)
+        try StoreMigrationCanonicalJSONV1.encode(
+            FutureRetiredPointer(generationIDs: [], schemaVersion: 3)
+        ).write(to: retiredPointerURL(in: root), options: .atomic)
+
+        XCTAssertThrowsError(try factory.openOrBootstrapCurrent()) { error in
+            XCTAssertEqual(error as? StoreGenerationFailure, .dataPointerInvalid)
+        }
+        XCTAssertFalse(fileManager.fileExists(atPath: modelURL.path))
+    }
+
+    @MainActor
+    func testV2BootstrapAndReopenPersistPointerManifestAndMarker() throws {
+        let root = try makeTemporaryApplicationSupportURL(suffix: "V2Bootstrap")
         defer { try? fileManager.removeItem(at: root) }
         let factory = StoreGenerationFactory(applicationSupportURL: root)
-        let siteID = fixedUUID("11111111-2222-3333-4444-555555555555")
-        let assetID = fixedUUID("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")
-        let createdAt = Date(timeIntervalSince1970: 1_700_000_001)
-        let generationID: UUID
+        var opened: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
+        let generationID = try XCTUnwrap(opened).generationID
+        let pointerData = try Data(contentsOf: currentPointerURL(in: root))
+        let pointer = try CurrentGenerationPointerV2.decodeCanonical(from: pointerData)
+        XCTAssertEqual(pointer.generationID, generationID.uuidString.lowercased())
+        XCTAssertEqual(pointer.schemaVersion, 2)
+        XCTAssertEqual(pointer.storeSchemaVersion, 2)
 
-        do {
-            var session: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
-            let opened = try XCTUnwrap(session)
-            generationID = opened.generationID
-            opened.modelContext.insert(
-                Site(
-                    id: siteID,
-                    label: "Legacy Site",
-                    address: "1 Main Street",
-                    timeZoneID: "America/New_York",
-                    createdAt: createdAt,
-                    updatedAt: createdAt
-                )
-            )
-            opened.modelContext.insert(
-                Asset(
-                    id: assetID,
-                    siteID: siteID,
-                    packID: "field.evidence.illuminated_sign.v1",
-                    packSchemaVersion: 1,
-                    packContentVersion: 1,
-                    label: "Legacy Asset",
-                    createdAt: createdAt,
-                    updatedAt: createdAt
-                )
-            )
-            try opened.modelContext.save()
-            session = nil
-        }
+        let migrationStore = try StoreMigrationJournalStoreV1(
+            applicationSupportURL: root
+        )
+        let manifest = try migrationStore.loadManifest(
+            targetGenerationID: generationID,
+            expectedDigest: pointer.generationManifestSHA256
+        )
+        XCTAssertEqual(manifest.storeSchemaRelease, .v2)
+        XCTAssertEqual(manifest.generationID, generationID)
+        XCTAssertTrue(manifest.files.contains { $0.relativePath == "model.sqlite" })
 
-        do {
-            let reopened = try factory.openOrBootstrapCurrent()
-            XCTAssertEqual(reopened.generationID, generationID)
-            XCTAssertEqual(
-                try Data(contentsOf: currentPointerURL(in: root)),
-                Data("{\"generationID\":\"\(generationID.uuidString.lowercased())\",\"schemaVersion\":1}".utf8)
-            )
-            XCTAssertEqual(
-                try Data(contentsOf: retiredPointerURL(in: root)),
-                Data("{\"generationIDs\":[],\"schemaVersion\":1}".utf8)
-            )
+        let markers = try XCTUnwrap(opened).modelContext.fetch(
+            FetchDescriptor<PersistentSchemaReleaseMarker>()
+        )
+        let marker = try XCTUnwrap(markers.first)
+        XCTAssertEqual(markers.count, 1)
+        XCTAssertEqual(marker.id, PersistentSchemaReleaseRegistryV1.v2MarkerID)
+        XCTAssertEqual(marker.schemaVersion, 2)
+        XCTAssertEqual(
+            marker.releaseID,
+            PersistentSchemaReleaseRegistryV1.v2CompatibilityID
+        )
+        XCTAssertEqual(
+            marker.predecessorReleaseID,
+            PersistentSchemaReleaseRegistryV1.v1CompatibilityID
+        )
+        XCTAssertNotNil(marker.migrationID)
+        let markerMigrationID = marker.migrationID
+        opened = nil
 
-            let sites = try reopened.modelContext.fetch(FetchDescriptor<Site>())
-            let assets = try reopened.modelContext.fetch(FetchDescriptor<Asset>())
-            XCTAssertEqual(sites.count, 1)
-            XCTAssertEqual(assets.count, 1)
-            XCTAssertEqual(try XCTUnwrap(sites.first).id, siteID)
-            XCTAssertEqual(try XCTUnwrap(assets.first).id, assetID)
-            XCTAssertEqual(try XCTUnwrap(assets.first).siteID, siteID)
-        }
+        let reopened = try factory.openOrBootstrapCurrent()
+        XCTAssertEqual(reopened.generationID, generationID)
+        let reopenedMarkers = try reopened.modelContext.fetch(
+            FetchDescriptor<PersistentSchemaReleaseMarker>()
+        )
+        XCTAssertEqual(reopenedMarkers.count, 1)
+        XCTAssertEqual(
+            try XCTUnwrap(reopenedMarkers.first).migrationID,
+            markerMigrationID
+        )
     }
 
     private struct ProductionSource {
@@ -413,11 +472,30 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         return (factory, generationID, modelURL)
     }
 
-    private func makeTemporaryApplicationSupportURL() throws -> URL {
+    private struct FuturePointer: Codable {
+        let schemaVersion: Int
+    }
+
+    private struct MalformedV2Pointer: Codable {
+        let generationID: String
+        let generationManifestSHA256: String
+        let storeSchemaVersion: Int = 2
+        let schemaVersion: Int = 2
+    }
+
+    private struct FutureRetiredPointer: Codable {
+        let generationIDs: [String]
+        let schemaVersion: Int
+    }
+
+    private func makeTemporaryApplicationSupportURL(
+        suffix: String = UUID().uuidString
+    ) throws -> URL {
         let root = fileManager.temporaryDirectory.appendingPathComponent(
-            "V9_01VersionedSchemaIdentityTests-\(UUID().uuidString)",
+            "V9_01VersionedSchemaIdentityTests-\(suffix)",
             isDirectory: true
         )
+        try? fileManager.removeItem(at: root)
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
         return root
     }
