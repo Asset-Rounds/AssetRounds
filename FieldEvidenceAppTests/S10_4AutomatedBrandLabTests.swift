@@ -9300,10 +9300,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_446)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_461)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "EB987FE672AE2804733C3E0428CD68E7F072307531C415C550EB90D679919ABC"
+            "3CA42F8D3D5A4231652F7031E1A9334779B9E2FF48D3DE87FB7CD323A5670E35"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
