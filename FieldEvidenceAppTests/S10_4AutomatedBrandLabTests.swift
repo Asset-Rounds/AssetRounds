@@ -3224,10 +3224,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     reportComparisonRouteStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 38_718)
+        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 38_410)
         XCTAssertEqual(
             Data(workValidationPositioningHelperSource.utf8).sha256,
-            "2E2056B8C559EB62BAA8002E22EEE0078DBFCDD7831ADC8934EA962901A11DA2"
+            "4E58B3F40BF8BF929DDED878009617B1169A4055E21568DF719B0EF2E480F2E2"
         )
 
         let signDetailPositioningGate =
@@ -3843,30 +3843,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 lock
             )
         }
-        let k148ExactValueQuerySource = try boundedSource(
-            workValidationPositioningHelperSource,
-            from:
-                "        let exactShortDescriptionValuePredicate = NSPredicate(",
-            before: "        let validationLabels ="
-        )
-        XCTAssertEqual(k148ExactValueQuerySource.utf8.count, 797)
-        XCTAssertEqual(
-            Data(k148ExactValueQuerySource.utf8).sha256,
-            "04B237158A468749A6E1621D2B1CEA0DE9A1189F610AD6CC0B88E01625545BCA"
-        )
-        for exactValueQueryLock in [
-            #"format: "value == %@""#,
-            #""Short description""#,
-            "let descriptionFieldsWithExactValue = descriptionFields.matching(",
-            "let focusedDescriptionFieldsWithExactValue =",
-            "focusedDescriptionFields.matching(",
-        ] {
-            XCTAssertTrue(
-                k148ExactValueQuerySource.contains(exactValueQueryLock),
-                exactValueQueryLock
-            )
-        }
-
         let workValidationAuthorityLocks = [
             "        let fieldLabelExceptionIssueID =\n" +
                 "            \"S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION\"",
@@ -3923,6 +3899,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before:
                 "        let stablePrePositionFramesAreValid: () -> Bool = {"
         )
+        XCTAssertEqual(workValidationFinalSemanticSource.utf8.count, 4_402)
+        XCTAssertEqual(
+            Data(workValidationFinalSemanticSource.utf8).sha256,
+            "353E7DC794A4437CB36105D2D2D3EC43C4862CD3EC78921B77426C1D1B395BF1"
+        )
         for stableLock in [
             #"("applicationForeground", app.state == .runningForeground)"#,
             #"("workScreensCountOne", workScreens.count == 1)"#,
@@ -3976,12 +3957,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"("workScreenHittable", workScreen.isHittable)"#,
             #"descriptionField.label == "Short description""#,
             #"descriptionFields.count == 1"#,
-            #"descriptionFieldsWithExactValue.count == 1"#,
+            #"descriptionFields.element(boundBy: 0).value as? String"#,
             #"("descriptionFieldEnabled", descriptionField.isEnabled)"#,
             #"("descriptionFieldHittable", descriptionField.isHittable)"#,
             #"focusedDescriptionField.label == "Short description""#,
             #"focusedDescriptionFields.count == 1"#,
-            #"focusedDescriptionFieldsWithExactValue.count == 1"#,
+            #"focusedDescriptionFields.element(boundBy: 0).value"#,
+            #"as? String) == "Short description""#,
             #"focusedDescriptionField.isEnabled"#,
             #"focusedDescriptionField.isHittable"#,
             #"validationLabel.label == "Short description""#,
@@ -4022,13 +4004,33 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "shortDescriptionFieldLabel.isHittable"
             )
         )
-        for removedDirectValueCast in [
+        for removedStoredFirstMatchValueCast in [
             "descriptionField.value as? String",
             "focusedDescriptionField.value as? String",
         ] {
             XCTAssertFalse(
-                workValidationFinalSemanticSource.contains(removedDirectValueCast),
-                removedDirectValueCast
+                workValidationFinalSemanticSource.contains(
+                    removedStoredFirstMatchValueCast
+                ),
+                removedStoredFirstMatchValueCast
+            )
+        }
+        XCTAssertEqual(
+            workValidationFinalSemanticSource.components(
+                separatedBy: "element(boundBy: 0).value"
+            ).count - 1,
+            2
+        )
+        for removedK148ValuePredicateForm in [
+            "exactShortDescriptionValuePredicate",
+            "FieldsWithExactValue",
+            #"format: "value == %@""#,
+        ] {
+            XCTAssertFalse(
+                workValidationPositioningHelperSource.contains(
+                    removedK148ValuePredicateForm
+                ),
+                removedK148ValuePredicateForm
             )
         }
         let k144WorkValidationDiagnosticSource = try boundedSource(

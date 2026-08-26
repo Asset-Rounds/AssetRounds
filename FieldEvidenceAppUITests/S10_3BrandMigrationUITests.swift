@@ -6005,10 +6005,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let focusedPredicate = NSPredicate(
             format: "hasKeyboardFocus == true"
         )
-        let exactShortDescriptionValuePredicate = NSPredicate(
-            format: "value == %@",
-            "Short description"
-        )
         let workScreens = app.descendants(matching: .any).matching(
             identifier: "s5.1.work.screen"
         )
@@ -6018,13 +6014,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let focusedDescriptionFields = descriptionFields.matching(
             focusedPredicate
         )
-        let descriptionFieldsWithExactValue = descriptionFields.matching(
-            exactShortDescriptionValuePredicate
-        )
-        let focusedDescriptionFieldsWithExactValue =
-            focusedDescriptionFields.matching(
-                exactShortDescriptionValuePredicate
-            )
         let validationLabels = app.descendants(matching: .any).matching(
             identifier: "s5.1.work.validation"
         )
@@ -6209,7 +6198,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 (
                     "descriptionFieldValue",
                     descriptionFields.count == 1
-                        && descriptionFieldsWithExactValue.count == 1
+                        && (descriptionFields.element(boundBy: 0).value as? String)
+                            == "Short description"
                 ),
                 ("descriptionFieldEnabled", descriptionField.isEnabled),
                 ("descriptionFieldHittable", descriptionField.isHittable),
@@ -6220,7 +6210,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 (
                     "focusedDescriptionFieldValue",
                     focusedDescriptionFields.count == 1
-                        && focusedDescriptionFieldsWithExactValue.count == 1
+                        && (focusedDescriptionFields.element(boundBy: 0).value
+                            as? String) == "Short description"
                 ),
                 (
                     "focusedDescriptionFieldEnabled",
