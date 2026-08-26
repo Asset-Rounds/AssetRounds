@@ -187,6 +187,43 @@ struct StoragePreflightService {
         )
     }
 
+    func scratchRequiredBytes(requestedByteCount: UInt64) throws -> Int64 {
+        guard requestedByteCount > 0,
+              requestedByteCount <= UInt64(Int64.max) else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        let requested = Int64(requestedByteCount)
+        let (required, overflow) = requested.addingReportingOverflow(
+            Self.reserveBytes
+        )
+        guard !overflow, required > 0 else {
+            throw StoragePreflightError.capacityEstimateOverflow
+        }
+        return required
+    }
+
+    func checkScratchLease(
+        requestedByteCount: UInt64,
+        onVolumeContaining scratchRootURL: URL
+    ) throws {
+        try check(
+            requiredBytes: scratchRequiredBytes(
+                requestedByteCount: requestedByteCount
+            ),
+            onVolumeContaining: scratchRootURL
+        )
+    }
+
+    func checkDeviceOperationalWrite(
+        byteCount: UInt64,
+        onVolumeContaining operationalRootURL: URL
+    ) throws {
+        try check(
+            requiredBytes: scratchRequiredBytes(requestedByteCount: byteCount),
+            onVolumeContaining: operationalRootURL
+        )
+    }
+
     private func check(requiredBytes: Int64, onVolumeContaining targetURL: URL) throws {
         guard let availableBytes = try capacityProvider(targetURL) else {
             throw StoragePreflightError.capacityUnavailable

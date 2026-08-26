@@ -125,9 +125,15 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "DiagnosticExportV1",
         "DiagnosticsLogEvent",
         "DiagnosticsV1",
+        "DeviceOperationalSupportSnapshotV2",
+        "DeviceOperationalSupportStoreV1",
+        "DeviceOperationalSupportStoreV2",
         "LaunchTimeMillisecondsV1",
         "MetricKitSummaryV1",
+        "OperationalFailureV1",
         "PurchaseResultHistogram",
+        "ScratchDataLeaseStoreV1",
+        "SystemHealthDiagnosticsV1",
         "diagnosticCounters",
     ]
 
@@ -372,6 +378,38 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
               recordsRoute.portableExport == .portableCanonical else {
             throw CurrentSyncClassificationCatalogFailureV1.invalidLifecycleRoute
         }
+
+        // Card 28 support state is device-operational, never workspace truth.
+        // Its concrete store/projections and scratch-lease adapter must remain
+        // local-device authorities and ineligible for Cloud transport, backup,
+        // or portable export. The generic owned scratch/diagnostics file kinds
+        // are independently required to stay excluded from transport and
+        // filesystem backup.
+        for name in Self.diagnosticNames {
+            let subject = try Self.subject(category: .diagnostic, name: name)
+            let registration = try registration(for: subject)
+            let route = try lifecycleRoute(for: subject)
+            guard registration.classification == .privateDeviceOnly,
+                  registration.replicationPolicy.authority == .localDevice,
+                  registration.replicationPolicy.transport == .excluded,
+                  registration.replicationPolicy.bootstrap == .destinationLocal,
+                  route.filesystemBackup == .notApplicable,
+                  route.semanticBackup == .exclude,
+                  route.portableExport == .exclude else {
+                throw CurrentSyncClassificationCatalogFailureV1.invalidLifecycleRoute
+            }
+        }
+        for name in ["diagnostics", "scratch"] {
+            let subject = try Self.subject(category: .ownedFileClass, name: name)
+            let registration = try registration(for: subject)
+            let route = try lifecycleRoute(for: subject)
+            guard registration.replicationPolicy.transport == .excluded,
+                  route.filesystemBackup == .excluded,
+                  route.semanticBackup == .exclude,
+                  route.portableExport == .exclude else {
+                throw CurrentSyncClassificationCatalogFailureV1.invalidLifecycleRoute
+            }
+        }
     }
 }
 
@@ -384,7 +422,6 @@ private extension CurrentSyncClassificationCatalogV1 {
         case replicatedMutationHistory
         case recoveryJournal
         case privateDiagnostic
-        case reviewedDiagnosticExport
     }
 
     struct AdditionalSpec {
@@ -449,16 +486,13 @@ private extension CurrentSyncClassificationCatalogV1 {
             ))
         }
         for name in diagnosticNames {
-            let profile: AdditionalProfile
-            if name == "DiagnosticExportV1" {
-                profile = .reviewedDiagnosticExport
-            } else {
-                profile = .privateDiagnostic
-            }
+            // DiagnosticExportV1 is the bounded in-app preparation, not the
+            // user-directed external Files/share effect. It remains device
+            // local and is never a sync or portable-semantic-export subject.
             specs.append(AdditionalSpec(
                 category: .diagnostic,
                 name: name,
-                profile: profile,
+                profile: .privateDiagnostic,
                 dependencies: []
             ))
         }
@@ -581,7 +615,12 @@ private extension CurrentSyncClassificationCatalogV1 {
         case .privateDiagnostic:
             classification = .privateDeviceOnly
             authority = .localDevice
-            persistence = subject.stableName == "DiagnosticsV1" ? .ownedFile : .nonpersistent
+            persistence = [
+                "DiagnosticsV1",
+                "DeviceOperationalSupportStoreV1",
+                "DeviceOperationalSupportStoreV2",
+                "ScratchDataLeaseStoreV1",
+            ].contains(subject.stableName) ? .ownedFile : .nonpersistent
             transport = .excluded
             bootstrap = .destinationLocal
             privacy = .noncustomerDiagnostic
@@ -589,20 +628,6 @@ private extension CurrentSyncClassificationCatalogV1 {
             backup = .exclude
             export = .exclude
             deletion = .localAuthority
-            erase = .localAuthority
-            rule = .localOnly
-            maximumBytes = 4_194_304
-        case .reviewedDiagnosticExport:
-            classification = .localOnly
-            authority = .localDevice
-            persistence = .nonpersistent
-            transport = .excluded
-            bootstrap = .excluded
-            privacy = .noncustomerDiagnostic
-            retention = .operationScoped
-            backup = .exclude
-            export = .portableCanonical
-            deletion = .operationCleanup
             erase = .localAuthority
             rule = .localOnly
             maximumBytes = 4_194_304

@@ -1,0 +1,808 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "ce94b692f7a71b087f12a7703530abeaa10d775e1fbdef8611c4400ba220036e",
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "5f4259dc9d46090203d59273f0c35b1ab1ee6a0d",
+    "appBaseTree": "198e918442229b3a64dd854bc8f3ae9ee9922092",
+    "attemptID": 1,
+    "authorityReceiptDigest": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752",
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C08",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "f4c82433da05626667d4ae8f47f3fa639eb59bdd529be0557e2f1db983e235e0",
+    "coordinationAuthorityHead": "9a1219ffe4cf56855c47c44a85b7fb3f46b1c799",
+    "coordinationAuthorityTree": "062078b5cc177851c1e297b4d493ddd93054f1ad",
+    "coordinationCASSequence": 119,
+    "coordinationLedgerDigest": "8933be2a9f9f79faa2fe9736be7eb9762564145258685e34303dbb87d9d98",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P02-C08-G01",
+      "V23-P02-C08-A01",
+      "V23-P02-C08-H01",
+      "V23-P02-C08-I01",
+      "V23-P02-C08-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P02-C07"
+    ],
+    "dossierDigest": "efc49f07fbae9a5d819e2baf4761092413d2fb870ab5e9e98ff489798268e05d",
+    "dossierLength": 7086,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "6c21bb0bdee6ef786abb8c8eb22e0be8171ba09c93c35fe40c68b6451273fe7d",
+    "hydrationTransitionDigest": "70e17d89ed8cda171a10839958d44fea9130d40dcee7f585fb8fac83230e4e12",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "53d746da0409703496b1f34ba921456717c914288c93e02550d7698d6f77d7f1",
+    "inheritedV21BlockLength": 15097,
+    "invalidationConsumers": [
+      "V23-P02-C09",
+      "V23-P02-C10"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P02-C08",
+    "ownerParallelOverrideAuthorityReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "pathFenceDigest": "486696b004021f1a5095fd41de92b1a4b9a6692cd98a4e463fe09c7ace6f2ce5",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "762869613302e037463d122dcebf50ed34fa68bce4d211524f1198aed7d9acdf",
+    "registerOrdinal": 28,
+    "registerRowDigest": "246a85c06cbc8174e3e096f26a3f7b87df76f51fb84491402913939ffb08cf1c",
+    "registerRowLength": 316,
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "System health, operational failures, workflow friction, protected scratch, MetricKit compatibility, and explicit support export"
+  },
+  "backupBehaviorDelta": true,
+  "cardID": "V23-P02-C08",
+  "customerDataPresent": false,
+  "deleteBehaviorDelta": true,
+  "evidence": [
+    {
+      "evidenceID": "V23-P02-C08-G01",
+      "family": "G01",
+      "testMethod": "testV9_12G01BoundedSystemHealthAndSingleMetricSource"
+    },
+    {
+      "evidenceID": "V23-P02-C08-A01",
+      "family": "A01",
+      "testMethod": "testV9_12A01OperationalFailureRegistryAndDefaultOffFrictionAreClosed"
+    },
+    {
+      "evidenceID": "V23-P02-C08-H01",
+      "family": "H01",
+      "testMethod": "testV9_12H01SupportExportRejectsCustomerDataAndSourceScratch"
+    },
+    {
+      "evidenceID": "V23-P02-C08-I01",
+      "family": "I01",
+      "testMethod": "testV9_12I01StoreScratchAndSupportExportRecoverWithoutDuplicateEffects"
+    },
+    {
+      "evidenceID": "V23-P02-C08-R01",
+      "family": "R01",
+      "testMethod": "testV9_12R01MigrationResetEraseAndBootstrapRemainDeviceLocal"
+    }
+  ],
+  "evidenceIDs": [
+    "V23-P02-C08-G01",
+    "V23-P02-C08-A01",
+    "V23-P02-C08-H01",
+    "V23-P02-C08-I01",
+    "V23-P02-C08-R01"
+  ],
+  "exactFiveTestMethods": true,
+  "exportBehaviorDelta": true,
+  "fixtureFailureCodes": [
+    "BACKUP_EXPORT_FAILED",
+    "BACKUP_RESTORE_FAILED",
+    "BACKUP_SOURCE_CHANGED",
+    "CAPABILITY_UNAVAILABLE",
+    "CONCURRENT_OPERATION",
+    "CONTENT_READ_FAILED",
+    "COMMERCE_UNAVAILABLE",
+    "CORRUPT_OPERATIONAL_STORE",
+    "DIAGNOSTICS_WRITE_FAILED",
+    "EXPORT_CANCELLED",
+    "EXPORT_FAILED",
+    "INTERRUPTED",
+    "PARTIAL_SAFE_STATE",
+    "PERMISSION_DENIED",
+    "PERSISTENCE_MIGRATION_REQUIRED",
+    "PROTECTED_DATA_UNAVAILABLE",
+    "REPORT_RENDER_FAILED",
+    "REPORT_UNAVAILABLE",
+    "REQUIRED_FILE_MISSING",
+    "RESTART_REQUIRED",
+    "RESUME_REQUIRED",
+    "STORAGE_CAPACITY_INSUFFICIENT",
+    "STORAGE_WRITE_FAILED",
+    "UNKNOWN",
+    "USER_CANCELLED"
+  ],
+  "fixtureFrictionStates": [
+    "APP_LAUNCH",
+    "CHECK_DRAFT",
+    "FINALIZATION",
+    "REPORT_DELIVERY",
+    "RESTORE",
+    "SUPPORT_EXPORT"
+  ],
+  "fixtureGeneratedByTooling": false,
+  "fixtureHealthStates": [
+    "DEGRADED",
+    "HEALTHY",
+    "UNAVAILABLE",
+    "UNKNOWN"
+  ],
+  "fixtureIdentity": "V21-P02-C08-SYSTEM-HEALTH-OPERATIONAL-DIAGNOSTICS-CORPUS-V1",
+  "fixtureInterruptionBoundaries": [
+    "before_atomic_commit",
+    "after_canonical_effect_before_receipt",
+    "after_receipt"
+  ],
+  "fixturePath": "FieldEvidenceAppTests/Fixtures/V21/Diagnostics/V21P02C08SystemHealthOperationalDiagnosticsCorpusV1.json",
+  "fixtureRequiredScratchCleanup": [
+    "CANCELLED",
+    "COMPLETED",
+    "FAILED",
+    "EXPIRED"
+  ],
+  "fixtureSchema": "V21P02C08SystemHealthOperationalDiagnosticsCorpusV1",
+  "fixtureSchemaVersion": 1,
+  "fixtureScratchPurposes": [
+    "SUPPORT_EXPORT",
+    "CAPTURE",
+    "IMPORT",
+    "SOURCE"
+  ],
+  "fixtureStoreCases": [
+    {
+      "expected": "CREATED_V2",
+      "id": "absent"
+    },
+    {
+      "expected": "MIGRATED_V1_TO_V2",
+      "id": "upgrade-v1"
+    },
+    {
+      "expected": "FORWARD_FIX_REQUIRED",
+      "id": "skipped-version"
+    },
+    {
+      "expected": "QUARANTINED_AND_RECREATED",
+      "id": "corrupt"
+    },
+    {
+      "expected": "BLOCKED_PROTECTED_DATA",
+      "id": "protected-data"
+    },
+    {
+      "expected": "REFUSED_BEFORE_WRITE",
+      "id": "low-storage"
+    },
+    {
+      "expected": "RELAUNCH_RECOVERS_ONCE",
+      "id": "kill-after-stage"
+    },
+    {
+      "expected": "LIMIT_EXCEEDED",
+      "id": "record-bound"
+    },
+    {
+      "expected": "LIMIT_EXCEEDED",
+      "id": "total-bound"
+    },
+    {
+      "expected": "LIMIT_EXCEEDED",
+      "id": "count-bound"
+    }
+  ],
+  "fixtureSupportAllowlist": [
+    "appBuild",
+    "appVersion",
+    "archiveBuildUUIDs",
+    "generatedAt",
+    "healthClasses",
+    "operationalCodeCounts",
+    "schemaVersions"
+  ],
+  "fixtureTopLevelFields": [
+    "schemaVersion",
+    "fixtureIdentity",
+    "clock",
+    "bounds",
+    "metricCompatibility",
+    "health",
+    "failureCodes",
+    "unknownFailure",
+    "typedErrorMapping",
+    "supportExport",
+    "storeCases",
+    "scratchIsolation",
+    "workflowFriction",
+    "logging",
+    "resetErase"
+  ],
+  "fixtureTypedErrorMapping": {
+    "cases": [
+      {
+        "boundary": "PERSISTENCE",
+        "expectedCode": "PERSISTENCE_MIGRATION_REQUIRED",
+        "expectedPrimaryAction": "RESTART",
+        "expectedPrivacyClass": "AGGREGATE",
+        "expectedRetryability": "NOT_RETRYABLE",
+        "id": "persistence-invalid-digest",
+        "typedError": "StoreMigrationFailure.invalidDigest"
+      },
+      {
+        "boundary": "CONTENT",
+        "expectedCode": "CONTENT_READ_FAILED",
+        "expectedPrimaryAction": "RETRY",
+        "expectedPrivacyClass": "AGGREGATE",
+        "expectedRetryability": "RETRY_IMMEDIATELY",
+        "id": "content-malformed-source",
+        "typedError": "MediaImportErrorV1.malformedSource"
+      },
+      {
+        "boundary": "REPORT",
+        "expectedCode": "REPORT_RENDER_FAILED",
+        "expectedPrimaryAction": "RETRY",
+        "expectedPrivacyClass": "AGGREGATE",
+        "expectedRetryability": "RETRY_IMMEDIATELY",
+        "id": "report-write-failed",
+        "typedError": "ReportRenderServiceError.writeFailed"
+      },
+      {
+        "boundary": "BACKUP",
+        "expectedCode": "BACKUP_SOURCE_CHANGED",
+        "expectedPrimaryAction": "RETRY",
+        "expectedPrivacyClass": "AGGREGATE",
+        "expectedRetryability": "RETRY_AFTER_CONDITION_CHANGES",
+        "id": "backup-source-changed",
+        "typedError": "BackupExportServiceError.sourceChanged"
+      },
+      {
+        "boundary": "PERMISSION_FILE_AUTHORITY",
+        "expectedCode": "PERMISSION_DENIED",
+        "expectedPrimaryAction": "OPEN_SETTINGS",
+        "expectedPrivacyClass": "AGGREGATE",
+        "expectedRetryability": "RETRY_AFTER_CONDITION_CHANGES",
+        "id": "permission-invalid-file-authority",
+        "typedError": "ApplicationFileAuthorityErrorV1.invalidComponent"
+      },
+      {
+        "boundary": "COMMERCE",
+        "expectedCode": "COMMERCE_UNAVAILABLE",
+        "expectedPrimaryAction": "RETRY",
+        "expectedPrivacyClass": "AGGREGATE",
+        "expectedRetryability": "RETRY_AFTER_CONDITION_CHANGES",
+        "id": "commerce-product-unavailable",
+        "typedError": "StoreKitProductLoaderError.unavailable"
+      },
+      {
+        "boundary": "PERSISTENCE",
+        "expectedCode": "UNKNOWN",
+        "expectedPrimaryAction": "CONTACT_SUPPORT",
+        "expectedPrivacyClass": "AGGREGATE",
+        "expectedRetryability": "NOT_RETRYABLE",
+        "id": "unrecognized-fails-closed",
+        "typedError": "OperationalDiagnosticsValidationFailureV1.invalidValue"
+      }
+    ],
+    "provisionalKernelOnly": true,
+    "shippingBoundaryAdoption": "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION",
+    "storeWriteFailurePropagates": true,
+    "underlyingFailureCanBecomeEmptySuccess": false
+  },
+  "fixtureTypedErrorMappingPolicy": {
+    "boundaryCases": [
+      "PERSISTENCE",
+      "CONTENT",
+      "REPORT",
+      "BACKUP",
+      "PERMISSION_FILE_AUTHORITY",
+      "COMMERCE"
+    ],
+    "boundaryType": "OperationalFailureBoundaryV1",
+    "failureOnlyAPI": "recordAndRethrowOperationalFailure",
+    "mapperType": "OperationalFailureMapperV1",
+    "mapsByTypedBoundaryOnly": true,
+    "provisionalKernelOnly": true,
+    "shippingBoundaryAdoption": "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION",
+    "underlyingDescriptionConsulted": false,
+    "unknownFallbackCode": "UNKNOWN",
+    "usesLocalizedStrings": false,
+    "usesNSErrorCodes": false,
+    "usesReflection": false
+  },
+  "hostedDispatchRan": false,
+  "hostileCases": [
+    "unknown raw error",
+    "unknown MetricKit payload class",
+    "duplicate subscriber",
+    "corrupt operational store",
+    "SDK availability mismatch",
+    "customer data in support export",
+    "source scratch in support export",
+    "support output bypasses lease",
+    "workflow friction write while OFF",
+    "canonical store opened during bootstrap"
+  ],
+  "migrationBehaviorDelta": true,
+  "nativeCompileRan": false,
+  "nativeOrHostedEvidenceClaimed": false,
+  "persistentChangeMode": "NEW_SCHEMA_VERSION",
+  "persistentSchema": "DeviceOperationalSupportStoreSchemaV2",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "prohibitedTokens": [
+    "customerText",
+    "customerMedia",
+    "customerNote",
+    "address",
+    "preciseLocation",
+    "entityID",
+    "workspaceID",
+    "localPath",
+    "secret",
+    "credential",
+    "rawLog",
+    "rawMetricPayload",
+    "automaticUpload",
+    "CloudKit",
+    "CKRecord",
+    "MetricManager",
+    "sessionReplay",
+    "analytics"
+  ],
+  "provisional": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiredCoverage": {
+    "A01": [
+      "ALL_OPERATIONAL_CODES_HAVE_DESCRIPTOR",
+      "TYPED_ERROR_NEVER_EMPTY_SUCCESS",
+      "TYPED_ERROR_BOUNDARY_MAPPING_IS_CLOSED",
+      "NO_REFLECTION_OR_LOCALIZED_ERROR_MAPPING",
+      "WORKFLOW_FRICTION_DEFAULT_OFF_ZERO_WRITES",
+      "UNKNOWN_FAILURE_FAILS_CLOSED"
+    ],
+    "G01": [
+      "BOUNDED_SYSTEM_HEALTH_SUMMARY",
+      "ONE_MXMETRIC_MANAGER_SOURCE",
+      "IOS18_FALLBACK_RETAINED",
+      "NO_RAW_PAYLOAD"
+    ],
+    "H01": [
+      "SUPPORT_ALLOWLIST_REJECTS_CUSTOMER_DATA",
+      "CAPTURE_IMPORT_SOURCE_ISOLATED",
+      "PROTECTED_LOW_STORAGE_OFFLINE_AND_SHARE_DENIED",
+      "HOSTILE_RAW_LOG_AND_SECRET_REJECTION",
+      "SCRATCH_TOMBSTONE_IDENTITY_COLLISION_FAIL_CLOSED"
+    ],
+    "I01": [
+      "STORE_ABSENT_UPGRADE_CORRUPT_QUARANTINE",
+      "LEASE_TERMINAL_CLEANUP_AND_RELAUNCH",
+      "EFFECT_RECEIPT_INTERRUPTION_NO_DUPLICATE_EFFECT",
+      "TERMINAL_REPLAY_RETRYABLE_SAME_DISPOSITION",
+      "ERASE_RESET_RECONCILES_DEVICE_LOCAL_STATE"
+    ],
+    "R01": [
+      "BOOTSTRAP_WITHOUT_CANONICAL_STORE_OPEN",
+      "DEVICE_OPERATIONAL_SCHEMA_V2_BOUNDS",
+      "INJECTED_CLOCK_EXPIRY_AND_RECOVERY",
+      "NO_BACKUP_SYNC_REPORT_SEARCH_LEAK"
+    ]
+  },
+  "requiresAcceptedS10_6Reconciliation": true,
+  "restoreBehaviorDelta": true,
+  "s2PersistenceRegression": {
+    "path": "FieldEvidenceAppTests/S2PersistenceLedgerTests.swift",
+    "proofs": [
+      "exact-zero-canonical-bytes",
+      "reloads-every-counter-and-bucket",
+      "int64-saturation-without-overflow",
+      "malformed-input-resets-only-diagnostics",
+      "write-failure-is-non-gating",
+      "operational-support-snapshot-reloads"
+    ],
+    "requiredMethods": [
+      "testDiagnosticsCreatesExactZeroBytesAndReloadsEveryCounterAndBucket",
+      "testDiagnosticsCountersAndPurchaseBucketsSaturateAtInt64Max",
+      "testMalformedDiagnosticsResetOnlyDiagnosticsAndPreserveDomainSentinels",
+      "testDiagnosticsWriteFailureIsNonGatingAndDoesNotInventAnIncrement"
+    ],
+    "storeSchema": "DeviceOperationalSupportStoreSchemaV2"
+  },
+  "schema": "V23P02C08SystemHealthDiagnosticsCorpusManifestV1",
+  "schemaBehaviorDelta": true,
+  "schemaVersion": 1,
+  "secretsPresent": false,
+  "sourceBindings": [
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift",
+      "requiredTokens": [
+        "DiagnosticsStore",
+        "DiagnosticsV1",
+        "operationalSupportSnapshot",
+        "DeviceOperationalSupportStoreV2",
+        "DeviceOperationalSupportEnvelopeV2",
+        "PinnedDiagnosticsAuthority",
+        "canonicalData",
+        "canonicalRecordData",
+        "persist",
+        "resetOperationalSupport",
+        "isExactlyZero",
+        "OperationalFailureBoundaryV1",
+        "OperationalFailureMapperV1",
+        "recordAndRethrowOperationalFailure",
+        "at boundary:"
+      ],
+      "symbols": [
+        "DiagnosticsStore",
+        "DiagnosticsV1",
+        "DeviceOperationalSupportStoreV2",
+        "DeviceOperationalSupportEnvelopeV2",
+        "PinnedDiagnosticsAuthority"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift",
+      "requiredTokens": [
+        "DiagnosticExportV1",
+        "MetricKitSummaryV1",
+        "canonical",
+        "generatedAt",
+        "SupportBundleBuilderV1",
+        "SupportBundleBuilderFailureV1",
+        "alreadyFinished",
+        "finish(",
+        "prepared"
+      ],
+      "symbols": [
+        "DiagnosticExportV1",
+        "MetricKitSummaryV1",
+        "SupportBundleBuilderV1",
+        "SupportBundleBuilderFailureV1",
+        "SupportExportResultV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsLogger.swift",
+      "requiredTokens": [
+        "DiagnosticsLogger",
+        "DiagnosticsLogEvent",
+        "SUPPORT_EXPORT_FAILED",
+        "privacy"
+      ],
+      "symbols": [
+        "DiagnosticsLogger",
+        "DiagnosticsLogEvent"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/MetricKitDiagnosticsAdapter.swift",
+      "requiredTokens": [
+        "MetricKitDiagnosticsAdapter",
+        "MetricKitReportingSourceV1",
+        "MXMetricManager",
+        "MetricReportingSource",
+        "MetricReportingSourceContractV1",
+        "sourceCount",
+        "permitsSecondReportingSource",
+        "registrationLock",
+        "NSLock",
+        "desiredRegistration",
+        "appliedRegistration",
+        "isDrivingRegistration",
+        "requestRegistration",
+        "start()",
+        "stop()",
+        "shared"
+      ],
+      "symbols": [
+        "MetricKitDiagnosticsAdapter",
+        "MetricKitReportingSourceV1",
+        "MXMetricManagerSubscriber"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift",
+      "requiredTokens": [
+        "StoragePreflightService",
+        "StoragePreflightError",
+        "insufficientCapacity",
+        "capacityUnavailable",
+        "requiredBytes",
+        "availableBytes"
+      ],
+      "symbols": [
+        "StoragePreflightService"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
+      "requiredTokens": [
+        "OwnedStorageLedgerV1",
+        "snapshot",
+        "reserve",
+        "release",
+        "reconcile",
+        "reservationLimitExceeded",
+        "maximumActiveReservationCount",
+        "attemptCollision",
+        "adoptExistingFileIfIdentical",
+        "recoverScratchLeases",
+        "eraseScratchData",
+        "invalidLease"
+      ],
+      "symbols": [
+        "OwnedStorageLedgerV1",
+        "OwnedStorageLedgerFailureV1",
+        "OwnedStorageSnapshotV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/DeviceLifecycleCoordinatorV1.swift",
+      "requiredTokens": [
+        "DeviceLifecycleCoordinatorV1",
+        "DeviceLifecycleReducerV1",
+        "ProtectedDataLifecycleStateV1",
+        "SceneLifecycleStateV1",
+        "DeviceLifecycleEventV1",
+        "DeviceLifecycleActionV1",
+        "DeviceLifecycleTransitionV1",
+        "initiallyConservative",
+        "suspendForLifecycle",
+        "resumeAfterLifecycle",
+        "resetDeviceLocalState",
+        "recoverScratchLeases",
+        "pendingActions"
+      ],
+      "symbols": [
+        "DeviceLifecycleCoordinatorV1",
+        "DeviceLifecycleReducerV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "requiredTokens": [
+        "EraseAllService",
+        "EraseAllFailurePoint",
+        "EraseGenerationDrainProof",
+        "erase(",
+        "completeCleanup",
+        "eraseScratchData",
+        "resetOperationalSupport",
+        "canonicalDiagnosticsZero",
+        "acceptDescriptorErasedZero",
+        "isExactlyZero"
+      ],
+      "symbols": [
+        "EraseAllService"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift",
+      "requiredTokens": [
+        "CurrentSyncClassificationCatalogV1",
+        "CurrentSyncLifecycleRouteV1",
+        "CurrentReplayDispositionV1",
+        "diagnostic",
+        "diagnosticNames",
+        "diagnosticSubjects",
+        "lifecycleRoutes",
+        "lifecycleRoute",
+        "makeAdditionalRegistrations",
+        "validate",
+        "portableExport",
+        "semanticBackup",
+        "erase",
+        "replay",
+        "searchImplementationPresent"
+      ],
+      "symbols": [
+        "CurrentSyncClassificationCatalogV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
+      "requiredTokens": [
+        "S6_6EraseRecoveryTests",
+        "testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState",
+        "testEveryInterruptionRecoversOldOrFullyErasedNew",
+        "testMalformedAuxiliaryTreeFailsBeforeAnyDeletion",
+        "testReplacedGenerationAncestorFailsClosedWithoutDeletingEitherTree",
+        "EraseAllFailurePoint",
+        "EraseAllService",
+        "erase(",
+        "cleanupDeferred",
+        "generationID",
+        "currentGenerationID",
+        "retiredGenerationIDs",
+        "canonicalOperationalSupportData",
+        "DeviceOperationalSupportSnapshotV2",
+        "injectedFailure",
+        "invalidAuthority"
+      ],
+      "symbols": [
+        "S6_6EraseRecoveryTests"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceAppTests/V10_03ReplicationConflictRegistryTests.swift",
+      "requiredTokens": [
+        "V10_03ReplicationConflictRegistryTests",
+        "testV10_03G01CatalogCompletenessAndLifecycleRouting",
+        "testV10_03A01SixRuleMatrixAndPermutationIdentity",
+        "testV10_03H01UnknownLimitsPrivacyDependencyLeakAndCollisionRejection",
+        "testV10_03I01NamedInputsDeferredAndInterruptionBoundaries",
+        "testV10_03R01FrozenBasisRelaunchIdempotencyAndLateCompetitor",
+        "CurrentSyncClassificationCatalogV1",
+        "registrations",
+        "persistentModelSubjects",
+        "ownedFileClassSubjects",
+        "portableContentProjectionSubjects",
+        "derivedIndexProjectionSubjects",
+        "journalRecoverySubjects",
+        "diagnosticSubjects",
+        "lifecycleRoute",
+        "validate",
+        "searchImplementationPresent",
+        "keychainUsageDeclared",
+        "ConflictRuleV1",
+        "ReplicationPolicyV1",
+        "privateDeviceOnly",
+        "noncustomerDiagnostic"
+      ],
+      "symbols": [
+        "V10_03ReplicationConflictRegistryTests",
+        "CurrentSyncClassificationCatalogV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceAppTests/S2PersistenceLedgerTests.swift",
+      "requiredTokens": [
+        "testDiagnosticsCreatesExactZeroBytesAndReloadsEveryCounterAndBucket",
+        "testDiagnosticsCountersAndPurchaseBucketsSaturateAtInt64Max",
+        "testMalformedDiagnosticsResetOnlyDiagnosticsAndPreserveDomainSentinels",
+        "testDiagnosticsWriteFailureIsNonGatingAndDoesNotInventAnIncrement",
+        "DeviceOperationalSupportSnapshotV2",
+        "operationalSupportSnapshot",
+        "canonicalOperationalSupportData",
+        "canonicalDiagnosticsData",
+        "exactZeroDiagnosticsData"
+      ],
+      "symbols": [
+        "S2PersistenceLedgerTests",
+        "DeviceOperationalSupportSnapshotV2"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/SystemHealthContractsV1.swift",
+      "requiredTokens": [
+        "SystemHealthDiagnosticsV1",
+        "OperationalFailureV1",
+        "OperationalFailureRegistryV1",
+        "DeviceOperationalSupportStoreSchemaV2",
+        "OperationalFailureBoundaryV1",
+        "OperationalFailureMapperV1",
+        "maximumRecordBytes",
+        "maximumTotalBytes",
+        "maximumRecords",
+        "ScratchDataLeaseV1",
+        "SUPPORT_EXPORT",
+        "CAPTURE",
+        "IMPORT",
+        "SOURCE",
+        "bootstrapOnly",
+        "containsCustomerContent",
+        "permitsAutomaticUpload",
+        "COMPLETE",
+        "SupportExportTerminalTokenV1",
+        "terminalToken",
+        "beginTerminalDisposition",
+        "rollbackTerminalDisposition",
+        "commitTerminalDisposition",
+        "available",
+        "inProgress",
+        "retryable",
+        "finished",
+        "switch boundary",
+        "return .unknown"
+      ],
+      "symbols": [
+        "SystemHealthDiagnosticsV1",
+        "OperationalFailureV1",
+        "OperationalFailureRegistryV1",
+        "DeviceOperationalSupportStoreSchemaV2",
+        "OperationalFailureBoundaryV1",
+        "OperationalFailureMapperV1",
+        "ScratchDataLeaseV1",
+        "SupportBundleManifestV1",
+        "SupportExportResultV1",
+        "WorkflowFrictionProfileV1",
+        "LocalDiagnosticsPreferenceV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests.swift",
+      "requiredTokens": [
+        "testV9_12G01BoundedSystemHealthAndSingleMetricSource",
+        "testV9_12A01OperationalFailureRegistryAndDefaultOffFrictionAreClosed",
+        "testV9_12H01SupportExportRejectsCustomerDataAndSourceScratch",
+        "testV9_12I01StoreScratchAndSupportExportRecoverWithoutDuplicateEffects",
+        "testV9_12R01MigrationResetEraseAndBootstrapRemainDeviceLocal",
+        "XCTAssertEqual",
+        "XCTAssertFalse",
+        "XCTAssertThrowsError",
+        "canonicalOpenCount",
+        "networkRequestCount",
+        "SupportBundleBuilderV1",
+        "bootstrapOnly",
+        "eraseScratchData",
+        "DeviceOperationalSupportStoreSchemaV2",
+        "operationalSupportSnapshot",
+        "resetOperationalSupport",
+        ".complete",
+        "OperationalFailureBoundaryV1",
+        "OperationalFailureMapperV1",
+        "recordAndRethrowOperationalFailure",
+        "typedErrorMapping",
+        "provisionalKernelOnly",
+        "shippingBoundaryAdoption"
+      ],
+      "symbols": [
+        "Card28EvidenceTests"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Diagnostics/V21P02C08SystemHealthOperationalDiagnosticsCorpusV1.json",
+      "requiredTokens": [
+        "schemaVersion",
+        "fixtureIdentity",
+        "clock",
+        "bounds",
+        "metricCompatibility",
+        "health",
+        "failureCodes",
+        "unknownFailure",
+        "typedErrorMapping",
+        "supportExport",
+        "storeCases",
+        "scratchIsolation",
+        "workflowFriction",
+        "logging",
+        "resetErase"
+      ],
+      "symbols": [
+        "V21P02C08SystemHealthOperationalDiagnosticsCorpusV1"
+      ]
+    }
+  ]
+}

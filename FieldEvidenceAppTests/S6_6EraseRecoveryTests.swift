@@ -74,6 +74,30 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             ))
         ))
         XCTAssertNotNil(try writer.durableReceipt(mutationID: mutationID))
+        try await harness.diagnostics.recordOperationalFailure(try OperationalFailureV1(
+            code: .interrupted,
+            occurredAt: Date(timeIntervalSince1970: 1_786_800_011)
+        ))
+        let diagnosticBeforeErase = try await harness.diagnostics.operationalSupportSnapshot()
+        XCTAssertEqual(diagnosticBeforeErase.health.failures.count, 1)
+        let scratch = try ScratchDataLeaseStoreV1(
+            applicationSupportURL: harness.support,
+            clock: { Date(timeIntervalSince1970: 1_786_800_012) },
+            capacityProvider: { _ in Int64.max }
+        )
+        let scratchRequest = try ScratchDataLeaseRequestV1(
+            leaseID: uuid("66000000-0000-0000-0000-000000000103"),
+            purpose: .supportExport,
+            owner: .supportExport,
+            ownerOperationID: uuid("66000000-0000-0000-0000-000000000104"),
+            requestedByteCount: 16,
+            createdAt: Date(timeIntervalSince1970: 1_786_800_012),
+            expiresAt: Date(timeIntervalSince1970: 1_786_800_912)
+        )
+        let scratchLease = try await scratch.acquireScratchLease(scratchRequest)
+        _ = try await scratch.writeScratchData(
+            Data("erase scratch".utf8), named: "support.json", lease: scratchLease
+        )
         let newID = uuid("66000000-0000-0000-0000-000000000101")
         let service = EraseAllService(
             applicationSupportURL: harness.support,
@@ -118,6 +142,22 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         )
         let diagnosticsAfterErase = await harness.diagnostics.snapshot()
         XCTAssertEqual(diagnosticsAfterErase, .zero)
+        let operationalAfterErase = try await harness.diagnostics.operationalSupportSnapshot()
+        XCTAssertEqual(operationalAfterErase.schemaVersion, 2)
+        XCTAssertEqual(operationalAfterErase.counters, .zero)
+        XCTAssertTrue(operationalAfterErase.health.failures.isEmpty)
+        let diagnosticsURL = harness.support
+            .appendingPathComponent("FieldEvidenceDiagnostics", isDirectory: true)
+            .appendingPathComponent("counters.json")
+        XCTAssertEqual(
+            try Data(contentsOf: diagnosticsURL),
+            try canonicalOperationalSupportData(operationalAfterErase)
+        )
+        XCTAssertFalse(fileManager.fileExists(
+            atPath: harness.support
+                .appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
+                .appendingPathComponent("ScratchDataV1", isDirectory: true).path
+        ))
         XCTAssertTrue(
             (harness.defaults.persistentDomain(forName: bundleID) ?? [:]).isEmpty
         )
@@ -740,6 +780,14 @@ private extension S6_6EraseRecoveryTests {
                 line: line
             )
         }
+    }
+
+    func canonicalOperationalSupportData(
+        _ value: DeviceOperationalSupportSnapshotV2
+    ) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(value)
     }
 
     func cleanup(_ harness: Harness) {

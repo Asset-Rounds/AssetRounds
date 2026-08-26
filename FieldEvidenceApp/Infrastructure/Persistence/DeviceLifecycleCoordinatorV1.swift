@@ -40,6 +40,10 @@ enum DeviceLifecycleActionV1: Equatable, Hashable, Sendable {
     case resume(LocalJobLifecycleSuspensionReasonV1)
 }
 
+enum DeviceLifecycleRecoveryFailureV1: Error, Equatable, Sendable {
+    case missingDeviceLocalAuthority
+}
+
 struct DeviceLifecycleTransitionV1: Equatable, Sendable {
     let previous: DeviceLifecycleStateV1
     let current: DeviceLifecycleStateV1
@@ -105,15 +109,24 @@ enum DeviceLifecycleReducerV1 {
 /// protected-data notification wiring remains reserved for S10.6 adoption.
 actor DeviceLifecycleCoordinatorV1 {
     private let jobs: any ResumableLocalJobLifecyclePortV1
+    private let operationalSupportStore: (any DeviceOperationalSupportStoreV2)?
+    private let scratchDataLeaseStore: (any ScratchDataLeasePortV1)?
     private var state: DeviceLifecycleStateV1
     private var pendingActions: Set<DeviceLifecycleActionV1> = []
+    private var deviceLocalRecoveryPending: Bool
 
     private init(
         jobs: any ResumableLocalJobLifecyclePortV1,
+        operationalSupportStore: (any DeviceOperationalSupportStoreV2)?,
+        scratchDataLeaseStore: (any ScratchDataLeasePortV1)?,
         initialState: DeviceLifecycleStateV1
     ) {
         self.jobs = jobs
+        self.operationalSupportStore = operationalSupportStore
+        self.scratchDataLeaseStore = scratchDataLeaseStore
         state = initialState
+        deviceLocalRecoveryPending = operationalSupportStore != nil
+            || scratchDataLeaseStore != nil
     }
 
     /// Applies fail-closed initial suspension before the coordinator is
@@ -130,8 +143,42 @@ actor DeviceLifecycleCoordinatorV1 {
         }
         return DeviceLifecycleCoordinatorV1(
             jobs: jobs,
+            operationalSupportStore: nil,
+            scratchDataLeaseStore: nil,
             initialState: initialState
         )
+    }
+
+    /// Relaunch recovery for device-local support state. This overload does
+    /// not receive or open canonical storage. When protected data is not yet
+    /// available it returns suspended and defers all support-store access
+    /// until the availability edge. Corrupt support bytes or scratch cleanup
+    /// failures (including protected-data/storage failures) are propagated,
+    /// so jobs cannot resume on an unverified bootstrap.
+    static func bootstrap(
+        jobs: any ResumableLocalJobLifecyclePortV1,
+        operationalSupportStore: any DeviceOperationalSupportStoreV2,
+        scratchDataLeaseStore: any ScratchDataLeasePortV1,
+        initialState: DeviceLifecycleStateV1 = .initiallyConservative
+    ) async throws -> DeviceLifecycleCoordinatorV1 {
+        // Use the existing durable protected-data suspension as the bootstrap
+        // gate even when availability was already observed. A failed support
+        // or scratch recovery therefore leaves jobs suspended across relaunch.
+        try await jobs.suspendForLifecycle(.protectedDataUnavailable)
+        if initialState.scene == .background {
+            try await jobs.suspendForLifecycle(.sceneBackground)
+        }
+        let coordinator = DeviceLifecycleCoordinatorV1(
+            jobs: jobs,
+            operationalSupportStore: operationalSupportStore,
+            scratchDataLeaseStore: scratchDataLeaseStore,
+            initialState: initialState
+        )
+        if initialState.protectedData == .available {
+            try await coordinator.recoverDeviceLocalStateIfNeeded()
+            try await jobs.resumeAfterLifecycle(.protectedDataUnavailable)
+        }
+        return coordinator
     }
 
     func currentState() -> DeviceLifecycleStateV1 {
@@ -146,7 +193,15 @@ actor DeviceLifecycleCoordinatorV1 {
         // Observed device state remains truthful even when durable recovery is
         // blocked. A retry of the same edge is performed by an explicit event.
         state = transition.current
+        if event == .protectedDataBecameUnavailable {
+            // Every lock edge invalidates the prior recovery proof. The next
+            // availability edge must re-open support state and reconcile
+            // scratch before protected-data jobs are allowed to resume.
+            deviceLocalRecoveryPending = operationalSupportStore != nil
+                || scratchDataLeaseStore != nil
+        }
         enqueue(transition.action)
+        try await recoverDeviceLocalStateIfNeeded()
         for action in eligiblePendingActions() {
             switch action {
             case .none:
@@ -159,6 +214,31 @@ actor DeviceLifecycleCoordinatorV1 {
             pendingActions.remove(action)
         }
         return transition
+    }
+
+    /// Clears reset-scoped operational history and every scratch lease while
+    /// leaving canonical workspace deletion to its existing authority.
+    func resetDeviceLocalState() async throws {
+        guard let operationalSupportStore, let scratchDataLeaseStore else {
+            throw DeviceLifecycleRecoveryFailureV1.missingDeviceLocalAuthority
+        }
+        try await scratchDataLeaseStore.resetScratchData()
+        try await operationalSupportStore.resetOperationalSupport()
+        deviceLocalRecoveryPending = false
+    }
+
+    private func recoverDeviceLocalStateIfNeeded() async throws {
+        guard deviceLocalRecoveryPending,
+              state.protectedData == .available else {
+            return
+        }
+        if let operationalSupportStore {
+            _ = try await operationalSupportStore.operationalSupportSnapshot()
+        }
+        if let scratchDataLeaseStore {
+            _ = try await scratchDataLeaseStore.recoverScratchLeases()
+        }
+        deviceLocalRecoveryPending = false
     }
 
     private func enqueue(_ action: DeviceLifecycleActionV1) {

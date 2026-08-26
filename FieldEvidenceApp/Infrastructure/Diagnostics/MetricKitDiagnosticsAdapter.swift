@@ -1,53 +1,128 @@
 import Foundation
 import MetricKit
 
-final class MetricKitDiagnosticsAdapter: NSObject, MXMetricManagerSubscriber {
-    private let lock = NSLock()
-    private let manager: MXMetricManager?
+protocol MetricReportingSourceV1: AnyObject, Sendable {
+    func add(_ subscriber: any MXMetricManagerSubscriber)
+    func remove(_ subscriber: any MXMetricManagerSubscriber)
+}
+
+final class MetricKitReportingSourceV1: MetricReportingSourceV1,
+    @unchecked Sendable {
+    static let shared = MetricKitReportingSourceV1(manager: .shared)
+
+    private let manager: MXMetricManager
+
+    init(manager: MXMetricManager) {
+        self.manager = manager
+    }
+
+    func add(_ subscriber: any MXMetricManagerSubscriber) {
+        manager.add(subscriber)
+    }
+
+    func remove(_ subscriber: any MXMetricManagerSubscriber) {
+        manager.remove(subscriber)
+    }
+}
+
+enum MetricReportingSourceContractV1 {
+    static let sourceCount = 1
+    static let retainedSource = "IOS18_METRICKIT_FALLBACK"
+    static let permitsBetaOnlyAPI = false
+    static let permitsSecondReportingSource = false
+}
+
+final class MetricKitDiagnosticsAdapter: NSObject, MXMetricManagerSubscriber,
+    @unchecked Sendable {
+    private let registrationLock = NSLock()
+    private let summaryLock = NSLock()
+    private let reportingSource: (any MetricReportingSourceV1)?
     private let logger: DiagnosticsLogger
     private var retainedSummary: MetricKitSummaryV1?
-    private var isStarted = false
+    private var desiredRegistration = false
+    private var appliedRegistration = false
+    private var isDrivingRegistration = false
+
+    init(logger: DiagnosticsLogger = .live) {
+        reportingSource = MetricKitReportingSourceV1.shared
+        self.logger = logger
+        super.init()
+    }
+
+    /// Compatibility/testing seam. Passing nil intentionally disables source
+    /// registration; production's no-argument initializer retains the sole
+    /// shared MetricKit source above.
+    init(manager: MXMetricManager?, logger: DiagnosticsLogger = .live) {
+        reportingSource = manager.map(MetricKitReportingSourceV1.init(manager:))
+        self.logger = logger
+        super.init()
+    }
 
     init(
-        manager: MXMetricManager? = .shared,
+        reportingSource: (any MetricReportingSourceV1)?,
         logger: DiagnosticsLogger = .live
     ) {
-        self.manager = manager
+        self.reportingSource = reportingSource
         self.logger = logger
         super.init()
     }
 
     deinit {
-        if isStarted {
-            manager?.remove(self)
-        }
+        registrationLock.lock()
+        let mustRemove = appliedRegistration
+        desiredRegistration = false
+        appliedRegistration = false
+        registrationLock.unlock()
+        if mustRemove { reportingSource?.remove(self) }
     }
 
     func start() {
-        lock.lock()
-        guard !isStarted else {
-            lock.unlock()
-            return
-        }
-        isStarted = true
-        lock.unlock()
-        manager?.add(self)
+        requestRegistration(true)
     }
 
     func stop() {
-        lock.lock()
-        guard isStarted else {
-            lock.unlock()
+        requestRegistration(false)
+    }
+
+    /// One caller drives the external source while every caller may update the
+    /// desired state. External add/remove is never invoked under our lock, so a
+    /// synchronous callback can safely request another transition. The driver
+    /// repeats until applied state matches the latest desired state.
+    private func requestRegistration(_ desired: Bool) {
+        registrationLock.lock()
+        desiredRegistration = desired
+        guard !isDrivingRegistration else {
+            registrationLock.unlock()
             return
         }
-        isStarted = false
-        lock.unlock()
-        manager?.remove(self)
+        isDrivingRegistration = true
+        registrationLock.unlock()
+
+        while true {
+            registrationLock.lock()
+            guard appliedRegistration != desiredRegistration else {
+                isDrivingRegistration = false
+                registrationLock.unlock()
+                return
+            }
+            let nextAppliedState = desiredRegistration
+            registrationLock.unlock()
+
+            if nextAppliedState {
+                reportingSource?.add(self)
+            } else {
+                reportingSource?.remove(self)
+            }
+
+            registrationLock.lock()
+            appliedRegistration = nextAppliedState
+            registrationLock.unlock()
+        }
     }
 
     func snapshot() -> MetricKitSummaryV1? {
-        lock.lock()
-        defer { lock.unlock() }
+        summaryLock.lock()
+        defer { summaryLock.unlock() }
         return retainedSummary
     }
 
@@ -108,8 +183,8 @@ final class MetricKitDiagnosticsAdapter: NSObject, MXMetricManagerSubscriber {
     }
 
     private func merge(_ incoming: MetricKitSummaryV1) {
-        lock.lock()
-        defer { lock.unlock() }
+        summaryLock.lock()
+        defer { summaryLock.unlock() }
 
         guard let current = retainedSummary else {
             retainedSummary = incoming

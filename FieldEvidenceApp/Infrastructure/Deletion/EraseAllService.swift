@@ -815,10 +815,39 @@ private extension EraseAllService {
             activated.advancing(to: .cleanupComplete),
             authority: authority
         )
+        // Canonical generation deletion remains the Erase authority above.
+        // Device-operational history and operation-scoped scratch are local
+        // auxiliary state: clear them explicitly and fail closed before the
+        // intent can advance to cleanupComplete. Reconstructing the scratch
+        // adapter on retry keeps this step idempotent after an interruption.
+        let scratchDataLeaseStore = try ScratchDataLeaseStoreV1(
+            applicationSupportURL: applicationSupportURL,
+            fileManager: fileManager,
+            clock: Date.init
+        )
+        try await scratchDataLeaseStore.eraseScratchData()
         try auxiliary.removeFrozenTargets()
         userDefaults.removePersistentDomain(forName: bundleIdentifier)
-        let diagnosticsZero = try canonicalDiagnosticsZero()
-        try auxiliary.createZeroDiagnostics(data: diagnosticsZero)
+        // Recreate through a fresh adapter after removing the old anchored
+        // directory. This publishes the canonical V2 operational envelope;
+        // writing DiagnosticsV1.zero directly would leave legacy bytes for a
+        // later migration and would not prove the Erase result at this edge.
+        let replacementDiagnosticsStore = DiagnosticsStore(
+            applicationSupportURL: applicationSupportURL,
+            fileManager: fileManager
+        )
+        try await replacementDiagnosticsStore.resetOperationalSupport()
+        let diagnosticsZeroSnapshot = try await replacementDiagnosticsStore
+            .operationalSupportSnapshot()
+        guard diagnosticsZeroSnapshot.schemaVersion
+                == DeviceOperationalSupportStoreSchemaV2.version,
+              diagnosticsZeroSnapshot.counters == .zero,
+              diagnosticsZeroSnapshot.health.failures.isEmpty else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let diagnosticsZero = try canonicalDiagnosticsZero(
+            diagnosticsZeroSnapshot
+        )
         await diagnosticsStore.acceptDescriptorErasedZero()
         guard await diagnosticsStore.isExactlyZero(),
               (userDefaults.persistentDomain(forName: bundleIdentifier) ?? [:])
@@ -1204,10 +1233,12 @@ private extension EraseAllService {
         }
     }
 
-    func canonicalDiagnosticsZero() throws -> Data {
+    func canonicalDiagnosticsZero(
+        _ snapshot: DeviceOperationalSupportSnapshotV2
+    ) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        return try encoder.encode(DiagnosticsV1.zero)
+        return try encoder.encode(snapshot)
     }
 
     static func canonical(_ id: UUID) -> String {

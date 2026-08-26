@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 1,
+  "fixtureIdentity": "V21-P02-C08-SYSTEM-HEALTH-OPERATIONAL-DIAGNOSTICS-CORPUS-V1",
+  "clock": {
+    "createdAtUTC": "2026-08-26T20:00:00Z",
+    "previewedAtUTC": "2026-08-26T20:00:05Z",
+    "sharedAtUTC": "2026-08-26T20:00:10Z",
+    "expiredAtUTC": "2026-08-26T20:15:01Z"
+  },
+  "bounds": {
+    "supportStoreRecordBytes": 16384,
+    "supportStoreTotalBytes": 524288,
+    "supportStoreRecordCount": 128,
+    "supportBundleBytes": 524288,
+    "scratch": [
+      { "purpose": "SUPPORT_EXPORT", "maximumBytes": 1048576, "maximumLifetimeSeconds": 900 },
+      { "purpose": "CAPTURE", "maximumBytes": 536870912, "maximumLifetimeSeconds": 7200 },
+      { "purpose": "IMPORT", "maximumBytes": 4294967296, "maximumLifetimeSeconds": 14400 },
+      { "purpose": "SOURCE", "maximumBytes": 4294967296, "maximumLifetimeSeconds": 14400 }
+    ]
+  },
+  "metricCompatibility": {
+    "activeSource": "MXMETRIC_MANAGER_IOS18_FALLBACK",
+    "activeSourceCount": 1,
+    "betaMetricManagerAdopted": false,
+    "futureStableSourceMaySubstitute": true,
+    "buildUUID": "11111111-2222-4333-8444-555555555555"
+  },
+  "health": {
+    "state": "DEGRADED",
+    "crashCount": 2,
+    "hangCount": 3,
+    "peakMemoryBytes": 67108864,
+    "launchBuckets": [4, 3, 2, 1]
+  },
+  "failureCodes": [
+    "BACKUP_EXPORT_FAILED",
+    "BACKUP_RESTORE_FAILED",
+    "BACKUP_SOURCE_CHANGED",
+    "CAPABILITY_UNAVAILABLE",
+    "CONCURRENT_OPERATION",
+    "CONTENT_READ_FAILED",
+    "COMMERCE_UNAVAILABLE",
+    "CORRUPT_OPERATIONAL_STORE",
+    "DIAGNOSTICS_WRITE_FAILED",
+    "EXPORT_CANCELLED",
+    "EXPORT_FAILED",
+    "INTERRUPTED",
+    "PARTIAL_SAFE_STATE",
+    "PERMISSION_DENIED",
+    "PERSISTENCE_MIGRATION_REQUIRED",
+    "PROTECTED_DATA_UNAVAILABLE",
+    "REPORT_RENDER_FAILED",
+    "REPORT_UNAVAILABLE",
+    "REQUIRED_FILE_MISSING",
+    "RESTART_REQUIRED",
+    "RESUME_REQUIRED",
+    "STORAGE_CAPACITY_INSUFFICIENT",
+    "STORAGE_WRITE_FAILED",
+    "UNKNOWN",
+    "USER_CANCELLED"
+  ],
+  "unknownFailure": {
+    "code": "UNKNOWN",
+    "primaryAction": "CONTACT_SUPPORT",
+    "fallbackAction": null,
+    "destructiveAutomaticRetryAllowed": false
+  },
+  "typedErrorMapping": {
+    "provisionalKernelOnly": true,
+    "shippingBoundaryAdoption": "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION",
+    "underlyingFailureCanBecomeEmptySuccess": false,
+    "storeWriteFailurePropagates": true,
+    "cases": [
+      {
+        "id": "persistence-invalid-digest",
+        "boundary": "PERSISTENCE",
+        "typedError": "StoreMigrationFailure.invalidDigest",
+        "expectedCode": "PERSISTENCE_MIGRATION_REQUIRED",
+        "expectedPrimaryAction": "RESTART",
+        "expectedRetryability": "NOT_RETRYABLE",
+        "expectedPrivacyClass": "AGGREGATE"
+      },
+      {
+        "id": "content-malformed-source",
+        "boundary": "CONTENT",
+        "typedError": "MediaImportErrorV1.malformedSource",
+        "expectedCode": "CONTENT_READ_FAILED",
+        "expectedPrimaryAction": "RETRY",
+        "expectedRetryability": "RETRY_IMMEDIATELY",
+        "expectedPrivacyClass": "AGGREGATE"
+      },
+      {
+        "id": "report-write-failed",
+        "boundary": "REPORT",
+        "typedError": "ReportRenderServiceError.writeFailed",
+        "expectedCode": "REPORT_RENDER_FAILED",
+        "expectedPrimaryAction": "RETRY",
+        "expectedRetryability": "RETRY_IMMEDIATELY",
+        "expectedPrivacyClass": "AGGREGATE"
+      },
+      {
+        "id": "backup-source-changed",
+        "boundary": "BACKUP",
+        "typedError": "BackupExportServiceError.sourceChanged",
+        "expectedCode": "BACKUP_SOURCE_CHANGED",
+        "expectedPrimaryAction": "RETRY",
+        "expectedRetryability": "RETRY_AFTER_CONDITION_CHANGES",
+        "expectedPrivacyClass": "AGGREGATE"
+      },
+      {
+        "id": "permission-invalid-file-authority",
+        "boundary": "PERMISSION_FILE_AUTHORITY",
+        "typedError": "ApplicationFileAuthorityErrorV1.invalidComponent",
+        "expectedCode": "PERMISSION_DENIED",
+        "expectedPrimaryAction": "OPEN_SETTINGS",
+        "expectedRetryability": "RETRY_AFTER_CONDITION_CHANGES",
+        "expectedPrivacyClass": "AGGREGATE"
+      },
+      {
+        "id": "commerce-product-unavailable",
+        "boundary": "COMMERCE",
+        "typedError": "StoreKitProductLoaderError.unavailable",
+        "expectedCode": "COMMERCE_UNAVAILABLE",
+        "expectedPrimaryAction": "RETRY",
+        "expectedRetryability": "RETRY_AFTER_CONDITION_CHANGES",
+        "expectedPrivacyClass": "AGGREGATE"
+      },
+      {
+        "id": "unrecognized-fails-closed",
+        "boundary": "PERSISTENCE",
+        "typedError": "OperationalDiagnosticsValidationFailureV1.invalidValue",
+        "expectedCode": "UNKNOWN",
+        "expectedPrimaryAction": "CONTACT_SUPPORT",
+        "expectedRetryability": "NOT_RETRYABLE",
+        "expectedPrivacyClass": "AGGREGATE"
+      }
+    ]
+  },
+  "supportExport": {
+    "operationID": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    "allowlist": [
+      "appBuild",
+      "appVersion",
+      "archiveBuildUUIDs",
+      "generatedAt",
+      "healthClasses",
+      "operationalCodeCounts",
+      "schemaVersions"
+    ],
+    "forbiddenValues": [
+      "Customer note: gate code 4815",
+      "photo-private.jpg",
+      "14 Example Street",
+      "40.7128,-74.0060",
+      "asset:00000000-0000-0000-0000-000000000101",
+      "C:\\Users\\operator\\private",
+      "secret-token-abc123"
+    ],
+    "terminalCases": [
+      "CANCELLED",
+      "SHARE_COMPLETED",
+      "EXPIRED",
+      "FAILED"
+    ],
+    "offlineAllowed": true,
+    "networkRequestCount": 0,
+    "automaticUploadAllowed": false,
+    "externalShareRecallable": false,
+    "bootstrapCanonicalStoreOpenCount": 0
+  },
+  "storeCases": [
+    { "id": "absent", "expected": "CREATED_V2" },
+    { "id": "upgrade-v1", "expected": "MIGRATED_V1_TO_V2" },
+    { "id": "skipped-version", "expected": "FORWARD_FIX_REQUIRED" },
+    { "id": "corrupt", "expected": "QUARANTINED_AND_RECREATED" },
+    { "id": "protected-data", "expected": "BLOCKED_PROTECTED_DATA" },
+    { "id": "low-storage", "expected": "REFUSED_BEFORE_WRITE" },
+    { "id": "kill-after-stage", "expected": "RELAUNCH_RECOVERS_ONCE" },
+    { "id": "record-bound", "expected": "LIMIT_EXCEEDED" },
+    { "id": "total-bound", "expected": "LIMIT_EXCEEDED" },
+    { "id": "count-bound", "expected": "LIMIT_EXCEEDED" }
+  ],
+  "scratchIsolation": {
+    "supportPurpose": "SUPPORT_EXPORT",
+    "rejectedSourcePurposes": ["CAPTURE", "IMPORT", "SOURCE"],
+    "terminalCleanupCount": 4,
+    "backupExcluded": true,
+    "protectedUntilFirstUnlock": true
+  },
+  "workflowFriction": {
+    "profileID": "workflow.friction.fixture.v1",
+    "declaredStates": [
+      "APP_LAUNCH",
+      "CHECK_DRAFT",
+      "FINALIZATION",
+      "REPORT_DELIVERY",
+      "RESTORE",
+      "SUPPORT_EXPORT"
+    ],
+    "enabledByDefault": false,
+    "productionWriteCount": 0,
+    "networkRequestCount": 0,
+    "customerContentAllowed": false
+  },
+  "logging": {
+    "allowedCodes": ["SUPPORT_EXPORT_BEGIN", "SUPPORT_EXPORT_END", "SUPPORT_EXPORT_FAILED"],
+    "forbiddenMessage": "Customer note: gate code 4815",
+    "beginCount": 2,
+    "endCount": 2
+  },
+  "resetErase": {
+    "operationalRowsAfterReset": 0,
+    "operationalRowsAfterErase": 0,
+    "scratchRowsAfterErase": 0,
+    "canonicalWorkspaceMutationCount": 0
+  }
+}

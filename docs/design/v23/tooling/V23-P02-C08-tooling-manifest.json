@@ -1,0 +1,363 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "acceptanceOrReleaseClaimed": false,
+  "adoptionEnabled": false,
+  "artifactCount": 26,
+  "artifactDigest": "c97ee83315e4482f207cc5faf730fb11e5792670921f01e6a9a9f59e024d57af",
+  "artifactSetDigest": "9b308587988734ff05a36ad9fa6979cc550417d5497dc904cbed1d882efe276e",
+  "artifacts": [
+    {
+      "bytes": 51056,
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift",
+      "sha256": "a4842f64ea57cdcc59af02a41454d51e9b31c1e43c9b767f37c6acae313b59ac"
+    },
+    {
+      "bytes": 17140,
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift",
+      "sha256": "c3455be5df0649330d74c3f74f0c4992854e09f10b2c09e78c1292d5759c3f15"
+    },
+    {
+      "bytes": 13466,
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsLogger.swift",
+      "sha256": "5b512111d3e56dd571272b51e58165cacb13b1b4d033b48319fef491402205b3"
+    },
+    {
+      "bytes": 10328,
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/MetricKitDiagnosticsAdapter.swift",
+      "sha256": "5c45e3d384ae32627e75a1c49dbafdd1c806e7eccd7fa1324ad7e79541c466f5"
+    },
+    {
+      "bytes": 8778,
+      "path": "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift",
+      "sha256": "154113360527b2f5de2c2207d37cba7bc6eec7e518c2a65a9f071232c04ca5c4"
+    },
+    {
+      "bytes": 62865,
+      "path": "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
+      "sha256": "9d5e477b2978943552539d91059ad52d8c85b89a1242d3fb6ac4fa0b12d8335e"
+    },
+    {
+      "bytes": 10632,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/DeviceLifecycleCoordinatorV1.swift",
+      "sha256": "93aaaea6f4747c8d72c6503b3d6fdc995ba0da19dbdea2f20e165265d61a534d"
+    },
+    {
+      "bytes": 78418,
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "sha256": "bd0058db42eb227fbb5743666da85a8a4a1e8b1311e6251be71913262679b579"
+    },
+    {
+      "bytes": 35611,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift",
+      "sha256": "d8dece23b146325285cb014e125b7ca7d5dc6b3745609907da471f13c9eaf372"
+    },
+    {
+      "bytes": 37869,
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/SystemHealthContractsV1.swift",
+      "sha256": "426a0643e09bc7449252c73daaf54edd060fd37c6e3789436dd74fc53e5ae29e"
+    },
+    {
+      "bytes": 34747,
+      "path": "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
+      "sha256": "54a1bc625242109731568d5ec820d20efa760e9f98c95d77f91272c42d11e860"
+    },
+    {
+      "bytes": 26609,
+      "path": "FieldEvidenceAppTests/V10_03ReplicationConflictRegistryTests.swift",
+      "sha256": "38635bbc254023e66347abdf43670e0ab737b981652ddebaaa72952658d3cfc5"
+    },
+    {
+      "bytes": 30879,
+      "path": "FieldEvidenceAppTests/S2PersistenceLedgerTests.swift",
+      "sha256": "56bd52362f9ca8c5216ff3980d7821188d16af28b566daba595a02c41e33ecc6"
+    },
+    {
+      "bytes": 57434,
+      "path": "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests.swift",
+      "sha256": "e377ca50f25267829312f8659e3c90e9b48c0e26dd5ed10c525bcf3733a96226"
+    },
+    {
+      "bytes": 7324,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Diagnostics/V21P02C08SystemHealthOperationalDiagnosticsCorpusV1.json",
+      "sha256": "e02ff6a40ccbf9721b4eeb0a9638aa03f280ce8bc227bb1d79b86a300bc1f9b7"
+    },
+    {
+      "bytes": 49514,
+      "path": "Scripts/v23/p02_c08_contracts.py",
+      "sha256": "76918981be922ebb3bbdcabdf74bdb60698372e8923a4d1a0982fc2075857dfe"
+    },
+    {
+      "bytes": 1343,
+      "path": "Scripts/v23/generate_p02_c08_contracts.py",
+      "sha256": "14fe65f41cdfce0f78e21fb6061e5cc77706aa3ff0782b36baa2ea0beb17c9d8"
+    },
+    {
+      "bytes": 30581,
+      "path": "Scripts/v23/verify_p02_c08_contracts.py",
+      "sha256": "46434919f3b39ad74839017f0b1598a32ea2038d4bfb9ba551327d9b659a2857"
+    },
+    {
+      "bytes": 88129,
+      "path": "Scripts/v23/system-health.schema.json",
+      "sha256": "8538865cc6496e7326839241cc684a4ab7d9faf2e7a7e7a282b211b4018c59c8"
+    },
+    {
+      "bytes": 64360,
+      "path": "Scripts/v23/operational-failure.schema.json",
+      "sha256": "d24a7770a248de4dd7600654c466b1111c0553b2a7e66978d6a844664a1711b6"
+    },
+    {
+      "bytes": 59207,
+      "path": "Scripts/v23/workflow-friction.schema.json",
+      "sha256": "d6b60129056d1ed2c074d75f5c20491da91f3f089ea0e6057cd71ed495130cdb"
+    },
+    {
+      "bytes": 77220,
+      "path": "Scripts/v23/support-export.schema.json",
+      "sha256": "9cb14d077e5f42795d5451077910430aa097151c370b23ee63c62d362d0d845c"
+    },
+    {
+      "bytes": 28441,
+      "path": "docs/design/v23/tooling/V23P02C08SystemHealthContractV1.json",
+      "sha256": "dbc3eb397074f5242cd7e5d33c6b0b5154af4475c41aaf54c5c1cf39e9f5f535"
+    },
+    {
+      "bytes": 21209,
+      "path": "docs/design/v23/tooling/V23P02C08OperationalDiagnosticsLifecycleContractV1.json",
+      "sha256": "8f1be43377e837ff4663a2c0c379701d517a8c8df9baa3d9ad586a68a594bea5"
+    },
+    {
+      "bytes": 19849,
+      "path": "docs/design/v23/tooling/V23P02C08SupportExportContractV1.json",
+      "sha256": "e07f7bea8d79c1b48c716075fd4fa8ce029ba87ad7bd2836c0d76614539719eb"
+    },
+    {
+      "bytes": 26057,
+      "path": "docs/design/v23/tooling/V23P02C08SystemHealthDiagnosticsCorpusManifestV1.json",
+      "sha256": "afe39fc34bf4a93d16e81acbc0784eb5e795d1ce1ecb679a6ae7675a2d2efa82"
+    }
+  ],
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "5f4259dc9d46090203d59273f0c35b1ab1ee6a0d",
+    "appBaseTree": "198e918442229b3a64dd854bc8f3ae9ee9922092",
+    "attemptID": 1,
+    "authorityReceiptDigest": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752",
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C08",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "f4c82433da05626667d4ae8f47f3fa639eb59bdd529be0557e2f1db983e235e0",
+    "coordinationAuthorityHead": "9a1219ffe4cf56855c47c44a85b7fb3f46b1c799",
+    "coordinationAuthorityTree": "062078b5cc177851c1e297b4d493ddd93054f1ad",
+    "coordinationCASSequence": 119,
+    "coordinationLedgerDigest": "8933be2a9f9f79faa2fe9736be7eb9762564145258685e34303dbb87d9d98",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P02-C08-G01",
+      "V23-P02-C08-A01",
+      "V23-P02-C08-H01",
+      "V23-P02-C08-I01",
+      "V23-P02-C08-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P02-C07"
+    ],
+    "dossierDigest": "efc49f07fbae9a5d819e2baf4761092413d2fb870ab5e9e98ff489798268e05d",
+    "dossierLength": 7086,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "6c21bb0bdee6ef786abb8c8eb22e0be8171ba09c93c35fe40c68b6451273fe7d",
+    "hydrationTransitionDigest": "70e17d89ed8cda171a10839958d44fea9130d40dcee7f585fb8fac83230e4e12",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "53d746da0409703496b1f34ba921456717c914288c93e02550d7698d6f77d7f1",
+    "inheritedV21BlockLength": 15097,
+    "invalidationConsumers": [
+      "V23-P02-C09",
+      "V23-P02-C10"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P02-C08",
+    "ownerParallelOverrideAuthorityReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "pathFenceDigest": "486696b004021f1a5095fd41de92b1a4b9a6692cd98a4e463fe09c7ace6f2ce5",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "762869613302e037463d122dcebf50ed34fa68bce4d211524f1198aed7d9acdf",
+    "registerOrdinal": 28,
+    "registerRowDigest": "246a85c06cbc8174e3e096f26a3f7b87df76f51fb84491402913939ffb08cf1c",
+    "registerRowLength": 316,
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "System health, operational failures, workflow friction, protected scratch, MetricKit compatibility, and explicit support export"
+  },
+  "backupBehaviorDelta": true,
+  "cardID": "V23-P02-C08",
+  "deleteBehaviorDelta": true,
+  "evidenceIDs": [
+    "V23-P02-C08-G01",
+    "V23-P02-C08-A01",
+    "V23-P02-C08-H01",
+    "V23-P02-C08-I01",
+    "V23-P02-C08-R01"
+  ],
+  "existingPaths": [
+    "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift",
+    "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift",
+    "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsLogger.swift",
+    "FieldEvidenceApp/Infrastructure/Diagnostics/MetricKitDiagnosticsAdapter.swift",
+    "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift",
+    "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/DeviceLifecycleCoordinatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift",
+    "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
+    "FieldEvidenceAppTests/V10_03ReplicationConflictRegistryTests.swift",
+    "FieldEvidenceAppTests/S2PersistenceLedgerTests.swift"
+  ],
+  "exportBehaviorDelta": true,
+  "fenceProof": {
+    "activeS10Overlap": false,
+    "activeS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "addedPaths": [
+      "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
+      "FieldEvidenceAppTests/V10_03ReplicationConflictRegistryTests.swift"
+    ],
+    "allowedDeletePaths": [],
+    "allowedRenamePaths": [],
+    "authorizedPriorFenceOverlapCount": 18,
+    "baseHead": "5f4259dc9d46090203d59273f0c35b1ab1ee6a0d",
+    "baseTree": "198e918442229b3a64dd854bc8f3ae9ee9922092",
+    "correctionReceiptDigest": "de1d8aa1617b8e965c2b39c498d079a6c2a08d791d8149118244fc1530600b77",
+    "correctionTransitionDigest": "70e17d89ed8cda171a10839958d44fea9130d40dcee7f585fb8fac83230e4e12",
+    "pathCount": 27,
+    "pathFenceDigest": "486696b004021f1a5095fd41de92b1a4b9a6692cd98a4e463fe09c7ace6f2ce5",
+    "priorFenceOverlapCount": 18,
+    "priorPathCount": 25,
+    "priorPathFenceDigest": "2734abad6ebb9e8d98f09ce92e3d4eb00267f8040b9870419eeed84efd5ebc96",
+    "unauthorizedPriorFenceOverlapCount": 0
+  },
+  "generatedPaths": [
+    "Scripts/v23/system-health.schema.json",
+    "Scripts/v23/operational-failure.schema.json",
+    "Scripts/v23/workflow-friction.schema.json",
+    "Scripts/v23/support-export.schema.json",
+    "docs/design/v23/tooling/V23P02C08SystemHealthContractV1.json",
+    "docs/design/v23/tooling/V23P02C08OperationalDiagnosticsLifecycleContractV1.json",
+    "docs/design/v23/tooling/V23P02C08SupportExportContractV1.json",
+    "docs/design/v23/tooling/V23P02C08SystemHealthDiagnosticsCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P02-C08-tooling-manifest.json"
+  ],
+  "generator": {
+    "seed": 230208,
+    "version": "p02-c08-contracts-v1"
+  },
+  "hostedDispatchRan": false,
+  "migrationBehaviorDelta": true,
+  "nativeCompileRan": false,
+  "nativeOrHostedEvidenceClaimed": false,
+  "newPaths": [
+    "FieldEvidenceApp/Infrastructure/Diagnostics/SystemHealthContractsV1.swift",
+    "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Diagnostics/V21P02C08SystemHealthOperationalDiagnosticsCorpusV1.json",
+    "Scripts/v23/p02_c08_contracts.py",
+    "Scripts/v23/generate_p02_c08_contracts.py",
+    "Scripts/v23/verify_p02_c08_contracts.py",
+    "Scripts/v23/system-health.schema.json",
+    "Scripts/v23/operational-failure.schema.json",
+    "Scripts/v23/workflow-friction.schema.json",
+    "Scripts/v23/support-export.schema.json",
+    "docs/design/v23/tooling/V23P02C08SystemHealthContractV1.json",
+    "docs/design/v23/tooling/V23P02C08OperationalDiagnosticsLifecycleContractV1.json",
+    "docs/design/v23/tooling/V23P02C08SupportExportContractV1.json",
+    "docs/design/v23/tooling/V23P02C08SystemHealthDiagnosticsCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P02-C08-tooling-manifest.json"
+  ],
+  "noCausalWallClockOrdering": true,
+  "noNetwork": true,
+  "noPersistedMonotonicTicks": true,
+  "pathFence": [
+    "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift",
+    "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift",
+    "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsLogger.swift",
+    "FieldEvidenceApp/Infrastructure/Diagnostics/MetricKitDiagnosticsAdapter.swift",
+    "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift",
+    "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/DeviceLifecycleCoordinatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift",
+    "FieldEvidenceApp/Infrastructure/Diagnostics/SystemHealthContractsV1.swift",
+    "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
+    "FieldEvidenceAppTests/V10_03ReplicationConflictRegistryTests.swift",
+    "FieldEvidenceAppTests/S2PersistenceLedgerTests.swift",
+    "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Diagnostics/V21P02C08SystemHealthOperationalDiagnosticsCorpusV1.json",
+    "Scripts/v23/p02_c08_contracts.py",
+    "Scripts/v23/generate_p02_c08_contracts.py",
+    "Scripts/v23/verify_p02_c08_contracts.py",
+    "Scripts/v23/system-health.schema.json",
+    "Scripts/v23/operational-failure.schema.json",
+    "Scripts/v23/workflow-friction.schema.json",
+    "Scripts/v23/support-export.schema.json",
+    "docs/design/v23/tooling/V23P02C08SystemHealthContractV1.json",
+    "docs/design/v23/tooling/V23P02C08OperationalDiagnosticsLifecycleContractV1.json",
+    "docs/design/v23/tooling/V23P02C08SupportExportContractV1.json",
+    "docs/design/v23/tooling/V23P02C08SystemHealthDiagnosticsCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P02-C08-tooling-manifest.json"
+  ],
+  "pathFenceCount": 27,
+  "pendingArtifactCount": 0,
+  "pendingFencePaths": [],
+  "persistentChangeMode": "NEW_SCHEMA_VERSION",
+  "persistentSchemaActivatedByTooling": false,
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "privacyAllowlistOnly": true,
+  "provisional": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "restoreBehaviorDelta": true,
+  "schema": "V23-P02-C08-tooling-manifest",
+  "schemaBehaviorDelta": true,
+  "schemaVersion": 1,
+  "sourcePathCount": 15,
+  "sourcePaths": [
+    "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift",
+    "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift",
+    "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsLogger.swift",
+    "FieldEvidenceApp/Infrastructure/Diagnostics/MetricKitDiagnosticsAdapter.swift",
+    "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift",
+    "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/DeviceLifecycleCoordinatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift",
+    "FieldEvidenceApp/Infrastructure/Diagnostics/SystemHealthContractsV1.swift",
+    "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
+    "FieldEvidenceAppTests/V10_03ReplicationConflictRegistryTests.swift",
+    "FieldEvidenceAppTests/S2PersistenceLedgerTests.swift",
+    "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Diagnostics/V21P02C08SystemHealthOperationalDiagnosticsCorpusV1.json"
+  ],
+  "toolingPathCount": 12,
+  "toolingPaths": [
+    "Scripts/v23/p02_c08_contracts.py",
+    "Scripts/v23/generate_p02_c08_contracts.py",
+    "Scripts/v23/verify_p02_c08_contracts.py",
+    "Scripts/v23/system-health.schema.json",
+    "Scripts/v23/operational-failure.schema.json",
+    "Scripts/v23/workflow-friction.schema.json",
+    "Scripts/v23/support-export.schema.json",
+    "docs/design/v23/tooling/V23P02C08SystemHealthContractV1.json",
+    "docs/design/v23/tooling/V23P02C08OperationalDiagnosticsLifecycleContractV1.json",
+    "docs/design/v23/tooling/V23P02C08SupportExportContractV1.json",
+    "docs/design/v23/tooling/V23P02C08SystemHealthDiagnosticsCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P02-C08-tooling-manifest.json"
+  ]
+}

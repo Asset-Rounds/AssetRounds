@@ -388,11 +388,11 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
             category: .diagnostic,
             stableName: "DiagnosticExportV1"
         ))
-        XCTAssertEqual(reviewedDiagnostic.classification, .localOnly)
+        XCTAssertEqual(reviewedDiagnostic.classification, .privateDeviceOnly)
         XCTAssertEqual(reviewedDiagnostic.replicationPolicy.privacy, .noncustomerDiagnostic)
         XCTAssertEqual(reviewedDiagnostic.replicationPolicy.transport, .excluded)
         XCTAssertEqual(reviewedDiagnostic.replicationPolicy.backup, .exclude)
-        XCTAssertEqual(reviewedDiagnostic.replicationPolicy.export, .portableCanonical)
+        XCTAssertEqual(reviewedDiagnostic.replicationPolicy.export, .exclude)
         let dependencyA = try SyncSubjectIdentityV1(category: .projection, stableName: "zeta")
         let dependencyB = try SyncSubjectIdentityV1(category: .projection, stableName: "alpha")
         XCTAssertThrowsError(try ReplicationPolicyV1(

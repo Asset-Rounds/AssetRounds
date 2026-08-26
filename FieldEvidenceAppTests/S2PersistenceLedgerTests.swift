@@ -242,12 +242,20 @@ final class S2PersistenceLedgerTests: XCTestCase {
         let root = try makeTemporaryApplicationSupportURL()
         defer { try? fileManager.removeItem(at: root) }
         let countersURL = diagnosticsCountersURL(in: root)
-        let store = DiagnosticsStore(applicationSupportURL: root)
+        let now = Date(timeIntervalSince1970: 1_777_777_777)
+        let store = DiagnosticsStore(applicationSupportURL: root, now: { now })
 
         await store.prepare()
         let initialSnapshot = await store.snapshot()
         XCTAssertEqual(initialSnapshot, .zero)
-        XCTAssertEqual(try Data(contentsOf: countersURL), exactZeroDiagnosticsData)
+        let initialOperationalSnapshot = try await store.operationalSupportSnapshot()
+        XCTAssertEqual(initialOperationalSnapshot.schemaVersion, 2)
+        XCTAssertEqual(initialOperationalSnapshot.counters, .zero)
+        XCTAssertEqual(initialOperationalSnapshot.health.generatedAt, now)
+        XCTAssertEqual(
+            try Data(contentsOf: countersURL),
+            try canonicalOperationalSupportData(initialOperationalSnapshot)
+        )
 
         for counter in allCounters {
             await store.increment(counter)
@@ -276,10 +284,17 @@ final class S2PersistenceLedgerTests: XCTestCase {
         XCTAssertEqual(incrementedSnapshot, expected)
 
         let persistedBytes = try Data(contentsOf: countersURL)
-        XCTAssertEqual(persistedBytes, try canonicalDiagnosticsData(expected))
-        let reloaded = DiagnosticsStore(applicationSupportURL: root)
+        let incrementedOperationalSnapshot = try await store.operationalSupportSnapshot()
+        XCTAssertEqual(incrementedOperationalSnapshot.counters, expected)
+        XCTAssertEqual(
+            persistedBytes,
+            try canonicalOperationalSupportData(incrementedOperationalSnapshot)
+        )
+        let reloaded = DiagnosticsStore(applicationSupportURL: root, now: { now })
         let reloadedSnapshot = await reloaded.snapshot()
         XCTAssertEqual(reloadedSnapshot, expected)
+        let reloadedOperationalSnapshot = try await reloaded.operationalSupportSnapshot()
+        XCTAssertEqual(reloadedOperationalSnapshot, incrementedOperationalSnapshot)
         XCTAssertEqual(try Data(contentsOf: countersURL), persistedBytes)
     }
 
@@ -312,7 +327,8 @@ final class S2PersistenceLedgerTests: XCTestCase {
         let maximumBytes = try canonicalDiagnosticsData(maximumValue)
         try maximumBytes.write(to: countersURL, options: .atomic)
 
-        let store = DiagnosticsStore(applicationSupportURL: root)
+        let now = Date(timeIntervalSince1970: 1_777_777_778)
+        let store = DiagnosticsStore(applicationSupportURL: root, now: { now })
         for counter in allCounters {
             await store.increment(counter)
         }
@@ -322,11 +338,20 @@ final class S2PersistenceLedgerTests: XCTestCase {
 
         let saturatedSnapshot = await store.snapshot()
         XCTAssertEqual(saturatedSnapshot, maximumValue)
-        XCTAssertEqual(try Data(contentsOf: countersURL), maximumBytes)
+        let migrated = try await store.operationalSupportSnapshot()
+        XCTAssertEqual(migrated.schemaVersion, 2)
+        XCTAssertEqual(migrated.counters, maximumValue)
+        XCTAssertEqual(migrated.health.generatedAt, now)
+        XCTAssertNotEqual(try Data(contentsOf: countersURL), maximumBytes)
+        XCTAssertEqual(
+            try Data(contentsOf: countersURL),
+            try canonicalOperationalSupportData(migrated)
+        )
     }
 
     func testMalformedDiagnosticsResetOnlyDiagnosticsAndPreserveDomainSentinels() async throws {
         let canonicalZero = exactZeroDiagnosticsData
+        let now = Date(timeIntervalSince1970: 1_777_777_779)
         let malformedCases: [(name: String, data: Data)] = [
             ("malformed", Data("{".utf8)),
             ("unknown top-level key", inserting("\"unknown\":0,", after: "{", in: canonicalZero)),
@@ -372,13 +397,41 @@ final class S2PersistenceLedgerTests: XCTestCase {
             try modelSentinel.write(to: modelURL)
             try testCase.data.write(to: countersURL)
 
-            let store = DiagnosticsStore(applicationSupportURL: root)
-            let resetSnapshot = await store.snapshot()
-            XCTAssertEqual(resetSnapshot, .zero, testCase.name)
-            XCTAssertEqual(try Data(contentsOf: countersURL), canonicalZero, testCase.name)
+            let store = DiagnosticsStore(applicationSupportURL: root, now: { now })
+            let resetSnapshot = try await store.operationalSupportSnapshot()
+            XCTAssertEqual(resetSnapshot.schemaVersion, 2, testCase.name)
+            XCTAssertEqual(resetSnapshot.counters, .zero, testCase.name)
+            XCTAssertEqual(resetSnapshot.health.generatedAt, now, testCase.name)
+            XCTAssertEqual(
+                try Data(contentsOf: countersURL),
+                try canonicalOperationalSupportData(resetSnapshot),
+                testCase.name
+            )
             XCTAssertEqual(try Data(contentsOf: currentURL), currentSentinel, testCase.name)
             XCTAssertEqual(try Data(contentsOf: retiredURL), retiredSentinel, testCase.name)
             XCTAssertEqual(try Data(contentsOf: modelURL), modelSentinel, testCase.name)
+        }
+
+        let forwardRoot = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: forwardRoot) }
+        let seed = DiagnosticsStore(applicationSupportURL: forwardRoot, now: { now })
+        let released = try await seed.operationalSupportSnapshot()
+        let releasedBytes = try canonicalOperationalSupportData(released)
+        let forwardBytes = replacing(
+            "\"schemaVersion\":2",
+            with: "\"schemaVersion\":3",
+            in: releasedBytes
+        )
+        try forwardBytes.write(to: diagnosticsCountersURL(in: forwardRoot), options: .atomic)
+        let forwardStore = DiagnosticsStore(applicationSupportURL: forwardRoot, now: { now })
+        do {
+            _ = try await forwardStore.operationalSupportSnapshot()
+            XCTFail("Expected the future diagnostics envelope to fail closed")
+        } catch {
+            XCTAssertEqual(
+                try Data(contentsOf: diagnosticsCountersURL(in: forwardRoot)),
+                forwardBytes
+            )
         }
     }
 
@@ -584,6 +637,14 @@ final class S2PersistenceLedgerTests: XCTestCase {
     }
 
     private func canonicalDiagnosticsData(_ value: DiagnosticsV1) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(value)
+    }
+
+    private func canonicalOperationalSupportData(
+        _ value: DeviceOperationalSupportSnapshotV2
+    ) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         return try encoder.encode(value)

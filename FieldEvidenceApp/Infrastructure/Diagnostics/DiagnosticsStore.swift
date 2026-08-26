@@ -82,7 +82,34 @@ struct DiagnosticsV1: Codable, Equatable, Sendable {
     }
 }
 
-actor DiagnosticsStore {
+private struct DeviceOperationalSupportEnvelopeV2: Codable, Equatable, Sendable {
+    static let schemaVersion = 2
+    let schemaVersion: Int
+    let health: SystemHealthDiagnosticsV1
+    let counters: DiagnosticsV1
+
+    init(health: SystemHealthDiagnosticsV1, counters: DiagnosticsV1) throws {
+        schemaVersion = Self.schemaVersion
+        self.health = health
+        self.counters = counters
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion, counters.isValid else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        try health.validate()
+    }
+}
+
+actor DiagnosticsStore: DeviceOperationalSupportStoreV2 {
+    static let maximumOperationalRecordBytes =
+        DeviceOperationalSupportStoreSchemaV2.maximumRecordBytes
+    static let maximumOperationalTotalBytes =
+        DeviceOperationalSupportStoreSchemaV2.maximumTotalBytes
+    static let maximumOperationalRecords =
+        DeviceOperationalSupportStoreSchemaV2.maximumRecords
     private struct FileIdentity: Equatable {
         let device: UInt64
         let inode: UInt64
@@ -304,19 +331,30 @@ actor DiagnosticsStore {
 
     private static let temporaryName = ".counters.json.next"
     private static let backupName = ".counters.json.previous"
+    private static let quarantineName = ".counters.json.quarantine"
 
     private let applicationSupportURL: URL
     private let directoryURL: URL
     private let countersURL: URL
     private let fileManager: FileManager
     private let logger: DiagnosticsLogger
+    private let now: @Sendable () -> Date
+    private let storagePreflight: StoragePreflightService
     private var counters = DiagnosticsV1.zero
+    private var health: SystemHealthDiagnosticsV1?
     private var isPrepared = false
+    private var preparationFailure: DiagnosticsFailure?
 
     init(
         applicationSupportURL: URL,
         fileManager: FileManager = .default,
-        logger: DiagnosticsLogger = .live
+        logger: DiagnosticsLogger = .live,
+        now: @escaping @Sendable () -> Date = Date.init,
+        capacityProvider: @escaping StoragePreflightService.CapacityProvider = {
+            try $0.resourceValues(
+                forKeys: [.volumeAvailableCapacityForImportantUsageKey]
+            ).volumeAvailableCapacityForImportantUsage
+        }
     ) {
         let directoryURL = applicationSupportURL.appendingPathComponent(
             "FieldEvidenceDiagnostics",
@@ -330,6 +368,11 @@ actor DiagnosticsStore {
         )
         self.fileManager = fileManager
         self.logger = logger
+        self.now = now
+        self.storagePreflight = StoragePreflightService(
+            capacityProvider: capacityProvider
+        )
+        self.health = nil
     }
 
     func prepare() {
@@ -347,6 +390,7 @@ actor DiagnosticsStore {
                 guard persist(.zero) else { return }
                 counters = .zero
                 isPrepared = true
+                preparationFailure = nil
                 return
             }
             let authorityCheck = { try authority.verify() }
@@ -358,6 +402,7 @@ actor DiagnosticsStore {
                 guard persist(.zero) else { return }
                 counters = .zero
                 isPrepared = true
+                preparationFailure = nil
                 return
             }
             do {
@@ -371,7 +416,7 @@ actor DiagnosticsStore {
                     expected: identity,
                     authorityCheck: authorityCheck
                 )
-                let decoded = try decodeDiagnostics(data)
+                let decoded = try decodeOperationalStore(data)
                 try ProtectedFilePolicyV1.applyAndVerify(
                     .diagnostics,
                     at: countersURL,
@@ -382,8 +427,16 @@ actor DiagnosticsStore {
                     expected: identity,
                     authorityCheck: authorityCheck
                 )
-                counters = decoded
+                counters = decoded.counters
+                health = decoded.health
                 isPrepared = true
+                preparationFailure = nil
+                if !isV2Envelope(data) {
+                    guard persist(counters, health: decoded.health) else {
+                        isPrepared = false
+                        return
+                    }
+                }
                 return
             }
             let data = try readData(
@@ -391,17 +444,34 @@ actor DiagnosticsStore {
                 expected: identity,
                 authorityCheck: authorityCheck
             )
-            let decoded = try decodeDiagnostics(data)
-            counters = decoded
+            let decoded = try decodeOperationalStore(data)
+            counters = decoded.counters
+            health = decoded.health
             isPrepared = true
+            preparationFailure = nil
+            if !isV2Envelope(data) {
+                guard persist(counters, health: decoded.health) else {
+                    isPrepared = false
+                    return
+                }
+            }
         } catch let failure as ProtectedFilePolicyError
             where failure == .protectedDataUnavailable {
+            preparationFailure = .protectedDataUnavailable
+            logger.record(.countersWriteFailed)
+        } catch DiagnosticsFailure.unsupportedVersion {
+            // A newer writer owns these bytes. Downgrade never destroys or
+            // rewrites them; a compatible forward upgrade is required.
+            preparationFailure = .unsupportedVersion
             logger.record(.countersWriteFailed)
         } catch {
             logger.record(.invalidCountersReset)
             if persist(.zero, repairExisting: true) {
                 counters = .zero
                 isPrepared = true
+                preparationFailure = nil
+            } else {
+                preparationFailure = .invalidFile
             }
         }
     }
@@ -413,16 +483,125 @@ actor DiagnosticsStore {
 
     func acceptDescriptorErasedZero() {
         counters = .zero
-        isPrepared = true
+        do {
+            health = try emptyHealth()
+            isPrepared = true
+            preparationFailure = nil
+        } catch {
+            health = nil
+            isPrepared = false
+            preparationFailure = .invalidFile
+        }
     }
 
     func isExactlyZero() -> Bool {
         prepare()
         return counters == .zero
+            && health?.state == .unknown
+            && health?.failures.isEmpty == true
+            && health?.metricKit == nil
+    }
+
+    func operationalSupportSnapshot() async throws -> DeviceOperationalSupportSnapshotV2 {
+        prepare()
+        guard isPrepared, let health else {
+            throw preparationFailure ?? DiagnosticsFailure.invalidFile
+        }
+        return try DeviceOperationalSupportSnapshotV2(health: health, counters: counters)
+    }
+
+    func recordOperationalFailure(_ failure: OperationalFailureV1) async throws {
+        prepare()
+        guard isPrepared, let health else {
+            throw preparationFailure ?? DiagnosticsFailure.invalidFile
+        }
+        try failure.validate()
+        let recordBytes = try canonicalRecordData(failure)
+        guard recordBytes.count <= Self.maximumOperationalRecordBytes else {
+            throw DiagnosticsFailure.sizeLimitExceeded
+        }
+        var failures = health.failures
+        failures.append(failure)
+        if failures.count > Self.maximumOperationalRecords {
+            failures.removeFirst(failures.count - Self.maximumOperationalRecords)
+        }
+        let candidate = try SystemHealthDiagnosticsV1(
+            generatedAt: now(),
+            state: .degraded,
+            failures: failures,
+            metricKit: health.metricKit
+        )
+        guard persist(counters, health: candidate) else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        health = candidate
+    }
+
+    /// Runs an operation whose declared result is `Never`, records its typed
+    /// failure, then rethrows it. A diagnostics-write failure is propagated
+    /// instead, so neither the underlying operation nor persistence failure can
+    /// be converted into an empty success.
+    func recordAndRethrowOperationalFailure(
+        at boundary: OperationalFailureBoundaryV1,
+        occurrenceCount: Int64 = 1,
+        facts: [OperationalFailureFactV1] = [],
+        appVersion: String? = nil,
+        appBuild: String? = nil,
+        packageVersion: String? = nil,
+        operation: @Sendable () async throws -> Never
+    ) async throws -> Never {
+        do {
+            return try await operation()
+        } catch {
+            let failure = try OperationalFailureMapperV1.failure(
+                for: error,
+                at: boundary,
+                occurredAt: now(),
+                occurrenceCount: occurrenceCount,
+                facts: facts,
+                appVersion: appVersion,
+                appBuild: appBuild,
+                packageVersion: packageVersion
+            )
+            try await recordOperationalFailure(failure)
+            throw error
+        }
+    }
+
+    func replaceSystemHealth(_ candidate: SystemHealthDiagnosticsV1) async throws {
+        prepare()
+        guard isPrepared else { throw preparationFailure ?? DiagnosticsFailure.invalidFile }
+        try candidate.validate()
+        for failure in candidate.failures {
+            guard try canonicalRecordData(failure).count
+                    <= Self.maximumOperationalRecordBytes else {
+                throw DiagnosticsFailure.sizeLimitExceeded
+            }
+        }
+        guard persist(counters, health: candidate) else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        health = candidate
+    }
+
+    func resetOperationalSupport() async throws {
+        prepare()
+        guard isPrepared else {
+            throw preparationFailure ?? DiagnosticsFailure.invalidFile
+        }
+        let candidate = try emptyHealth()
+        guard persist(.zero, health: candidate) else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        counters = .zero
+        health = candidate
+        isPrepared = true
+        preparationFailure = nil
     }
 
     func increment(_ counter: Counter) {
         prepare()
+        guard isPrepared else { return }
         var candidate = counters
 
         switch counter {
@@ -450,6 +629,7 @@ actor DiagnosticsStore {
 
     func incrementPurchaseResult(_ result: PurchaseResult) {
         prepare()
+        guard isPrepared else { return }
         var candidate = counters
 
         switch result {
@@ -483,6 +663,7 @@ actor DiagnosticsStore {
 
     private func persist(
         _ candidate: DiagnosticsV1,
+        health healthCandidate: SystemHealthDiagnosticsV1? = nil,
         repairExisting: Bool = false
     ) -> Bool {
         let temporaryURL = directoryURL.appendingPathComponent(
@@ -491,6 +672,10 @@ actor DiagnosticsStore {
         )
         let backupURL = directoryURL.appendingPathComponent(
             Self.backupName,
+            isDirectory: false
+        )
+        let quarantineURL = directoryURL.appendingPathComponent(
+            Self.quarantineName,
             isDirectory: false
         )
         var temporaryIdentity: FileIdentity?
@@ -515,7 +700,18 @@ actor DiagnosticsStore {
                 at: directoryURL,
                 authorityCheck: authorityCheck
             )
-            let data = try canonicalData(for: candidate)
+            let state = try DeviceOperationalSupportEnvelopeV2(
+                health: try resolvedHealth(healthCandidate),
+                counters: candidate
+            )
+            let data = try canonicalData(for: state)
+            guard data.count <= Self.maximumOperationalTotalBytes else {
+                throw DiagnosticsFailure.sizeLimitExceeded
+            }
+            try storagePreflight.checkDeviceOperationalWrite(
+                byteCount: UInt64(data.count),
+                onVolumeContaining: directoryURL
+            )
 
             if let existing = try fileIdentityIfPresent(
                 at: temporaryURL,
@@ -539,9 +735,12 @@ actor DiagnosticsStore {
                 at: temporaryURL,
                 authorityCheck: authorityCheck
             )
+            guard let temporaryIdentity else {
+                throw DiagnosticsFailure.invalidFile
+            }
             try syncFile(
                 at: temporaryURL,
-                expected: temporaryIdentity!,
+                expected: temporaryIdentity,
                 authorityCheck: authorityCheck
             )
             try ProtectedFilePolicyV1.applyAndVerify(
@@ -551,7 +750,7 @@ actor DiagnosticsStore {
             )
             try syncFile(
                 at: temporaryURL,
-                expected: temporaryIdentity!,
+                expected: temporaryIdentity,
                 authorityCheck: authorityCheck
             )
 
@@ -626,6 +825,9 @@ actor DiagnosticsStore {
                 at: countersURL,
                 authorityCheck: authorityCheck
             )
+            guard let replacementIdentity else {
+                throw DiagnosticsFailure.invalidFile
+            }
             try ProtectedFilePolicyV1.applyAndVerify(
                 .diagnostics,
                 at: countersURL,
@@ -633,12 +835,12 @@ actor DiagnosticsStore {
             )
             try syncFile(
                 at: countersURL,
-                expected: replacementIdentity!,
+                expected: replacementIdentity,
                 authorityCheck: authorityCheck
             )
             guard try readData(
                 at: countersURL,
-                expected: replacementIdentity!,
+                expected: replacementIdentity,
                 authorityCheck: authorityCheck
             ) == data,
                   try fileIdentityIfPresent(
@@ -652,11 +854,49 @@ actor DiagnosticsStore {
                    at: backupURL,
                    authorityCheck: authorityCheck
                ) {
-                try removeOwnedFile(
-                    at: backupURL,
-                    expected: backupIdentity,
-                    authorityCheck: authorityCheck
-                )
+                if repairExisting {
+                    if let staleQuarantine = try fileIdentityIfPresent(
+                        at: quarantineURL,
+                        authorityCheck: authorityCheck
+                    ) {
+                        try removeOwnedFile(
+                            at: quarantineURL,
+                            expected: staleQuarantine,
+                            authorityCheck: authorityCheck
+                        )
+                    }
+                    guard try fileIdentityIfPresent(
+                        at: backupURL,
+                        authorityCheck: authorityCheck
+                    ) == backupIdentity else {
+                        throw DiagnosticsFailure.invalidFile
+                    }
+                    try fileManager.moveItem(at: backupURL, to: quarantineURL)
+                    try ProtectedFilePolicyV1.applyAndVerify(
+                        .diagnostics,
+                        at: quarantineURL,
+                        authorityCheck: authorityCheck
+                    )
+                    try ProtectedFilePolicyV1.verify(
+                        .diagnostics,
+                        at: quarantineURL
+                    )
+                    let quarantineIdentity = try fileIdentity(
+                        at: quarantineURL,
+                        authorityCheck: authorityCheck
+                    )
+                    try syncFile(
+                        at: quarantineURL,
+                        expected: quarantineIdentity,
+                        authorityCheck: authorityCheck
+                    )
+                } else {
+                    try removeOwnedFile(
+                        at: backupURL,
+                        expected: backupIdentity,
+                        authorityCheck: authorityCheck
+                    )
+                }
                 try syncDirectory(authorityCheck: authorityCheck)
             }
             try syncDirectory(authorityCheck: authorityCheck)
@@ -1055,18 +1295,99 @@ actor DiagnosticsStore {
         }
     }
 
-    private func canonicalData(for value: DiagnosticsV1) throws -> Data {
+    private func canonicalData<T: Encodable>(for value: T) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         return try encoder.encode(value)
     }
 
-    private func decodeDiagnostics(_ data: Data) throws -> DiagnosticsV1 {
-        let value = try JSONDecoder().decode(DiagnosticsV1.self, from: data)
-        guard value.isValid, try canonicalData(for: value) == data else {
+    private func decodeOperationalStore(
+        _ data: Data
+    ) throws -> DeviceOperationalSupportEnvelopeV2 {
+        do {
+            let object = try JSONSerialization.jsonObject(with: data)
+            if let dictionary = object as? [String: Any],
+               let version = dictionary["schemaVersion"] as? NSNumber,
+               version.intValue > DeviceOperationalSupportStoreSchemaV2.version {
+                throw DiagnosticsFailure.unsupportedVersion
+            }
+        } catch DiagnosticsFailure.unsupportedVersion {
+            throw DiagnosticsFailure.unsupportedVersion
+        } catch {
+            // Canonical decoding below owns the visible corruption outcome.
+        }
+        do {
+            let value = try JSONDecoder().decode(
+                DeviceOperationalSupportEnvelopeV2.self,
+                from: data
+            )
+            try value.validate()
+            guard try canonicalData(for: value) == data,
+                  data.count <= Self.maximumOperationalTotalBytes else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            return value
+        } catch DiagnosticsFailure.invalidFile {
+            throw DiagnosticsFailure.invalidFile
+        } catch {
+            // A released DiagnosticsV1 document is the sole older format.
+        }
+        let legacy = try JSONDecoder().decode(DiagnosticsV1.self, from: data)
+        guard legacy.isValid, try canonicalData(for: legacy) == data else {
             throw DiagnosticsFailure.invalidFile
         }
-        return value
+        let migrated = try DeviceOperationalSupportEnvelopeV2(
+            health: try emptyHealth(),
+            counters: legacy
+        )
+        return migrated
+    }
+
+    private func isV2Envelope(_ data: Data) -> Bool {
+        let object: Any
+        do {
+            object = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            return false
+        }
+        guard let dictionary = object as? [String: Any],
+              let version = dictionary["schemaVersion"] as? NSNumber else {
+            return false
+        }
+        return version.intValue == DeviceOperationalSupportEnvelopeV2.schemaVersion
+            && dictionary["health"] != nil
+            && dictionary["counters"] != nil
+    }
+
+    private func canonicalRecordData(_ value: OperationalFailureV1) throws -> Data {
+        let data = try canonicalData(for: value)
+        guard data.count <= Self.maximumOperationalRecordBytes else {
+            throw DiagnosticsFailure.sizeLimitExceeded
+        }
+        return data
+    }
+
+    private func emptyHealth() throws -> SystemHealthDiagnosticsV1 {
+        try Self.makeEmptyHealth(at: now())
+    }
+
+    private static func makeEmptyHealth(
+        at date: Date
+    ) throws -> SystemHealthDiagnosticsV1 {
+        try SystemHealthDiagnosticsV1(
+            generatedAt: date,
+            state: .unknown,
+            failures: [],
+            metricKit: nil
+        )
+    }
+
+    private func resolvedHealth(
+        _ candidate: SystemHealthDiagnosticsV1?
+    ) throws -> SystemHealthDiagnosticsV1 {
+        if let candidate { return candidate }
+        if let health { return health }
+        return try emptyHealth()
     }
 
     private func incremented(_ value: Int64) -> Int64 {
@@ -1076,4 +1397,9 @@ actor DiagnosticsStore {
 
 private enum DiagnosticsFailure: Error {
     case invalidFile
+    case protectedDataUnavailable
+    case sizeLimitExceeded
+    case unsupportedVersion
 }
+
+typealias DeviceOperationalSupportStoreV1 = DiagnosticsStore
