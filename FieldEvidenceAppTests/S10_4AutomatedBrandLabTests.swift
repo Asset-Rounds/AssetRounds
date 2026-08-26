@@ -10499,7 +10499,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "    ) -> Bool {"
         let recheckPreflightPositioningHelperEnd =
             "\n\n    @MainActor\n" +
-                "    private func shouldDiagnoseAXTextReportCorrectionCompletedFrontier("
+                "    private func positionReportCorrectionCompletedForAXText("
         guard let recheckPreflightPositioningHelperStartRange = uiSource.range(
             of: recheckPreflightPositioningHelperStart
         ), let recheckPreflightPositioningHelperEndRange = uiSource.range(
@@ -18988,222 +18988,195 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(uiSource.contains(removedK128FrontierForm), removedK128FrontierForm)
         }
         let restoredReportCorrectionRoute =
-            "        try captureReportComparisonAndCorrectionStates(in: app)\n" +
+            "        captureReportComparisonAndCorrectionStates(in: app)\n" +
                 "        captureUnavailablePaywallAndFeedbackReview(in: app)"
         XCTAssertEqual(
             uiSource.components(separatedBy: restoredReportCorrectionRoute).count - 1,
             1
         )
 
-        let k132State56RouteSource = try boundedSource(
+        let k134State56RouteSource = try boundedSource(
             uiSource,
             from: #"        XCTAssertTrue(element("s4.5.correction.ready", in: app)"#,
             before:
                 "\n" +
                 #"        let currentReport = element("s4.5.correction.current-report", in: app)"#
         )
-        XCTAssertEqual(k132State56RouteSource.utf8.count, 336)
+        XCTAssertEqual(k134State56RouteSource.utf8.count, 259)
         XCTAssertEqual(
-            Data(k132State56RouteSource.utf8).sha256,
-            "5A9AE701006E4315D05F04B1AACA209C8554740C2DCD5EC9B27FE1AB7A810E8D"
+            Data(k134State56RouteSource.utf8).sha256,
+            "0F42A7A36C8F359792A0A3B05DEFF9583CCB19EFAF832F951BF133C84E03C018"
         )
-        var k132RouteTail = k132State56RouteSource[k132State56RouteSource.startIndex...]
+        var k134RouteTail = k134State56RouteSource[k134State56RouteSource.startIndex...]
         for token in [
             #".waitForExistence(timeout: 40)"#,
-            "if shouldDiagnoseAXTextReportCorrectionCompletedFrontier(in: app)",
-            "try diagnoseAXTextReportCorrectionCompletedFrontier(in: app)",
+            "guard positionReportCorrectionCompletedForAXText(in: app) else { return }",
             #"captureBaseline("state.report-correction.completed", in: app)"#,
         ] {
-            let range = try XCTUnwrap(k132RouteTail.range(of: token), token)
-            k132RouteTail = k132RouteTail[range.upperBound...]
+            let range = try XCTUnwrap(k134RouteTail.range(of: token), token)
+            k134RouteTail = k134RouteTail[range.upperBound...]
         }
 
-        let k132State56GateSource = try boundedSource(
+        let k134State56HelperSource = try boundedSource(
             uiSource,
             from:
                 "    @MainActor\n" +
-                "    private func shouldDiagnoseAXTextReportCorrectionCompletedFrontier(",
-            before:
-                "\n\n    @MainActor\n" +
-                "    private func diagnoseAXTextReportCorrectionCompletedFrontier("
+                "    private func positionReportCorrectionCompletedForAXText(",
+            before: "\n    @MainActor\n    private func captureBaseline("
         )
-        XCTAssertEqual(k132State56GateSource.utf8.count, 1_411)
+        XCTAssertEqual(k134State56HelperSource.utf8.count, 15_451)
         XCTAssertEqual(
-            Data(k132State56GateSource.utf8).sha256,
-            "E1C0245D4A2646A10613DB1B9480C1593EB0B4700B0092C20D2BB6F83B8342DD"
+            Data(k134State56HelperSource.utf8).sha256,
+            "24433611E4C96478F11C95EFB123E8A797FC7387297AB653F425C98814B89761"
         )
         for exact in [
-            "guard automationSegment == .segment3 else { return false }",
-            "automationShard?.shardID == \"s10.4.current.ax-text\"",
-            "Self.segmentedRouteStateIDs.count == 67",
-            "Set(Self.segmentedRouteStateIDs).count == 67",
-            "automationSegment.replayCount == 50",
-            "automationSegment.ownedCount == 17",
-            "automationSegment.finalOrdinal == 67",
-            "segmentedRouteStateCursor == 55",
-            "Array(Self.segmentedRouteStateIDs[50..<55])",
-            "migratedStateIDs == expectedOwnedStateIDs",
-            "!automatedSegmentFinished",
+            #"automationShard?.shardID == "s10.4.current.ax-text""#,
+            #"for: "state.report-correction.completed""#,
             "app.state == .runningForeground",
+            "let hasExactRoute: () -> Bool",
+            "let hasStableRoute: () -> Bool",
+            "let visualClearance: CGFloat = 8",
+            "let receiverInset: CGFloat = 24",
+            "let minimumGestureDistance: CGFloat = 44",
+            "let maximumGestureCount = 2",
+            "func liveComposition()",
+            "let safeTop = max(scrollFrame.minY, navigationFrame.maxY)",
+            "let safeBottom = min(scrollFrame.maxY, tabFrame.minY)",
+            "let minimumShift = max(",
+            "let maximumShift = min(",
+            "minimumShift <= maximumShift",
+            "func isAcceptingComposition(",
+            "while completedGestureCount < maximumGestureCount",
+            "let targetDistance = (",
+            "let direction: CGFloat = targetDistance > 0 ? 1 : -1",
+            "positioningDirection == direction",
+            "receiverCapacity >= minimumGestureDistance",
+            "abs(targetDistance) + measuredUndertravel",
+            "dragStart.press(",
+            "completedGestureCount += 1",
+            "readyShift * dragDistance > 0",
+            "priorShift * dragDistance > 0",
+            "currentShift * dragDistance > 0",
+            "measuredUndertravel = max(",
+            "guard let finalGeometry = liveComposition()",
+            "isAcceptingComposition(finalGeometry)",
         ] {
-            XCTAssertTrue(k132State56GateSource.contains(exact), exact)
+            XCTAssertTrue(k134State56HelperSource.contains(exact), exact)
+        }
+        for queryCardinality in [
+            "screenElements.count == 1",
+            "readyElements.count == 1",
+            "priorReportButtons.count == 1",
+            "currentReportButtons.count == 1",
+            "currentReportScrollViews.count == 1",
+            "navigationBars.count == 1",
+            "tabBars.count == 1",
+            "keyboards.count == 0",
+            "inputViews.count == 0",
+        ] {
+            XCTAssertEqual(
+                k134State56HelperSource.components(
+                    separatedBy: queryCardinality
+                ).count - 1,
+                1,
+                queryCardinality
+            )
+        }
+        for identityAndActionability in [
+            #"screen.identifier == "s4.5.correction.screen""#,
+            "screen.elementType == .scrollView",
+            "screen.isEnabled", "screen.isHittable",
+            #"ready.identifier == "s4.5.correction.ready""#,
+            #"== "The prior report and evidence remain unchanged.""#,
+            "ready.elementType == .staticText",
+            "ready.isEnabled", "ready.isHittable",
+            #"priorReport.identifier == "s4.5.correction.prior-report""#,
+            #"priorReport.label == "View prior report""#,
+            "priorReport.elementType == .button",
+            "priorReport.isEnabled", "priorReport.isHittable",
+            #"currentReport.identifier == "s4.5.correction.current-report""#,
+            #"currentReport.label == "View corrected report""#,
+            "currentReport.elementType == .button",
+            "currentReport.isEnabled", "currentReport.isHittable",
+            #"navigationBar.identifier == "Correct report""#,
+            "navigationBar.elementType == .navigationBar",
+            #"tabBar.label == "Tab Bar""#,
+            "tabBar.elementType == .tabBar",
+        ] {
+            XCTAssertTrue(
+                k134State56HelperSource.contains(identityAndActionability),
+                identityAndActionability
+            )
+        }
+        for containmentAndOrder in [
+            "geometry.readyFrame.minY >= geometry.safeTop",
+            "geometry.readyFrame.maxY <= geometry.safeBottom",
+            "geometry.priorFrame.minY >= geometry.safeTop",
+            "geometry.priorFrame.maxY <= geometry.safeBottom",
+            "geometry.currentFrame.minY >= geometry.safeTop",
+            "geometry.currentFrame.maxY <= geometry.safeBottom",
+            "geometry.readyFrame.maxY <= geometry.priorFrame.minY",
+            "geometry.priorFrame.maxY <= geometry.currentFrame.minY",
+            "geometry.priorFrame.width >= minimumGestureDistance",
+            "geometry.priorFrame.height >= minimumGestureDistance",
+            "geometry.currentFrame.width >= minimumGestureDistance",
+            "geometry.currentFrame.height >= minimumGestureDistance",
+        ] {
+            XCTAssertTrue(k134State56HelperSource.contains(containmentAndOrder), containmentAndOrder)
         }
         XCTAssertEqual(
-            k132State56GateSource.components(separatedBy: "return false").count - 1,
+            k134State56HelperSource.components(separatedBy: "dragStart.press(").count - 1,
             1
         )
         XCTAssertEqual(
-            k132State56GateSource.components(separatedBy: "return true").count - 1,
-            2
+            k134State56HelperSource.components(separatedBy: "return false").count - 1,
+            1
         )
-
-        let k132State56DiagnosticSource = try boundedSource(
-            uiSource,
-            from:
-                "    @MainActor\n" +
-                "    private func diagnoseAXTextReportCorrectionCompletedFrontier(",
-            before: "\n    @MainActor\n    private func captureBaseline("
-        )
-        XCTAssertEqual(k132State56DiagnosticSource.utf8.count, 9_725)
         XCTAssertEqual(
-            Data(k132State56DiagnosticSource.utf8).sha256,
-            "F70CDA8CF562E55CFE7F0B99D40BDA5127479F58D94C5EDAE48BADB5C3B7EDDF"
+            k134State56HelperSource.components(separatedBy: "return true").count - 1,
+            4
         )
-        for exact in [
-            #"let targetStateID = "state.report-correction.completed""#,
-            "automationSegment == .segment3",
-            "shard.shardID == \"s10.4.current.ax-text\"",
-            "automationSegment.replayCount == 50",
-            "automationSegment.ownedCount == 17",
-            "automationSegment.finalOrdinal == 67",
-            "segmentedRouteStateCursor == 55",
-            "Array(Self.segmentedRouteStateIDs[50..<55])",
-            "migratedStateIDs == expectedOwnedStateIDs",
-            "!automatedSegmentFinished",
-            "app.state == .runningForeground",
-            "let actualCount = binding.query.count",
-            "for index in 0..<actualCount",
-            "binding.query.element(boundBy: index)",
-            "\"applicationForeground\": app.state == .runningForeground",
-            "\"application\": diagnosticElementObject(app)",
-            "performAccessibilityAudit(for: .contrast)",
-            "auditedElementCount += 1",
-            "\"auditedElementCount\": auditedElementCount",
-            "return false",
-        ] {
-            XCTAssertTrue(k132State56DiagnosticSource.contains(exact), exact)
-        }
-        for queryName in [
-            "screen", "ready", "currentReport", "currentReportScrollView",
-            "navigationBar", "tabBar", "keyboard", "inputView",
+        for receiverContainment in [
+            "isInsideSafeReceiver(dragStartPoint)",
+            "isInsideSafeReceiver(dragEndPoint)",
         ] {
             XCTAssertEqual(
-                k132State56DiagnosticSource.components(
-                    separatedBy: "(\"\(queryName)\","
+                k134State56HelperSource.components(
+                    separatedBy: receiverContainment
                 ).count - 1,
                 1,
-                queryName
+                receiverContainment
             )
         }
-        for issueField in [
-            "issueOrdinal", "auditTypeRawValue", "compactDescription",
-            "detailedDescription", "elementIdentifier", "elementLabel",
-            "elementValue", "elementTypeRawValue", "elementTypeDescription",
-            "elementFrame", "applicationFrame",
-        ] {
-            XCTAssertTrue(k132State56DiagnosticSource.contains("\"\(issueField)\""), issueField)
-        }
-        for nullableIssueDefault in [
-            "elementIdentifier", "elementLabel", "elementValue",
-            "elementTypeRawValue", "elementTypeDescription", "elementFrame",
-        ] {
-            XCTAssertTrue(
-                k132State56DiagnosticSource.contains(
-                    "\"\(nullableIssueDefault)\": NSNull()"
-                ),
-                nullableIssueDefault
-            )
-        }
-        for nodeField in [
-            "\"identifier\": element.identifier",
-            "\"label\": element.label",
-            "\"value\": valueObject",
-            "\"elementTypeRawValue\": element.elementType.rawValue",
-            "\"elementTypeDescription\": String(",
-            "\"frame\": self.auditFrameObject(element.frame)",
-            "\"exists\": element.exists",
-            "\"isEnabled\": element.isEnabled",
-            "\"isHittable\": element.isHittable",
-        ] {
-            XCTAssertTrue(k132State56DiagnosticSource.contains(nodeField), nodeField)
-        }
-        XCTAssertTrue(k132State56DiagnosticSource.contains("valueObject = NSNull()"))
-        for contextField in [
-            "schemaVersion", "acceptanceEligible", "shardID", "requirementID",
-            "deviceProfileID", "segmentID", "stateID", "stateOrdinal",
-            "predecessorStateID", "predecessorOrdinal", "successorStateID",
-            "successorOrdinal", "segmentReplayCount", "segmentOwnedCount",
-            "segmentFinalOrdinal", "segmentStateCursor", "migratedStateIDs",
-            "applicationState", "applicationStateRawValue", "applicationForeground",
-            "applicationFrame", "application", "queries",
-        ] {
-            XCTAssertTrue(k132State56DiagnosticSource.contains("\"\(contextField)\""), contextField)
-        }
-        XCTAssertTrue(k132State56DiagnosticSource.contains("options: [.sortedKeys]"))
-        for (token, expectedCount) in [
-            ("performAccessibilityAudit(for: .contrast)", 1),
-            ("XCTAttachment(", 4),
-            (".lifetime = .keepAlways", 4),
-            ("add(appAttachment)", 1),
-            ("add(treeAttachment)", 1),
-            ("add(contextAttachment)", 1),
-            ("self.add(issueAttachment)", 1),
-            ("\"acceptanceEligible\": false", 3),
+        for targetExclusion in [
+            "!geometry.readyFrame.contains(dragStartPoint)",
+            "!geometry.readyFrame.contains(dragEndPoint)",
+            "!geometry.priorFrame.contains(dragStartPoint)",
+            "!geometry.priorFrame.contains(dragEndPoint)",
+            "!geometry.currentFrame.contains(dragStartPoint)",
+            "!geometry.currentFrame.contains(dragEndPoint)",
         ] {
             XCTAssertEqual(
-                k132State56DiagnosticSource.components(separatedBy: token).count - 1,
-                expectedCount,
-                token
+                k134State56HelperSource.components(
+                    separatedBy: targetExclusion
+                ).count - 1,
+                1,
+                targetExclusion
             )
-        }
-        var k132DiagnosticTail =
-            k132State56DiagnosticSource[k132State56DiagnosticSource.startIndex...]
-        for token in [
-            "let context: [String: Any] = [",
-            "let contextData = try JSONSerialization.data(",
-            "S10_4_AX_TEXT_REPORT_CORRECTION_COMPLETED_FRONTIER_DIAGNOSTIC",
-            "let appAttachment = XCTAttachment(",
-            "let treeAttachment = XCTAttachment(",
-            "let contextAttachment = XCTAttachment(",
-            "try app.performAccessibilityAudit(for: .contrast)",
-            "observedIssueCount += 1",
-            "if let auditedElement = issue.element",
-            "let issueAttachment = XCTAttachment(",
-            "S10_4_AX_TEXT_REPORT_CORRECTION_COMPLETED_FRONTIER_AUDIT",
-            "S10_4_AX_TEXT_REPORT_CORRECTION_COMPLETED_FRONTIER_AUDIT_COUNT",
-            "throw AutomationConfigurationError.invalid(",
-        ] {
-            let range = try XCTUnwrap(k132DiagnosticTail.range(of: token), token)
-            k132DiagnosticTail = k132DiagnosticTail[range.upperBound...]
         }
         for prohibited in [
-            ".tap()", ".typeText(", "setToggle(", "navigateBack(",
-            "waitForExistence(", "captureBaseline(", "S10_MIGRATION_STATE",
-            "S10_4_AX_STATE", "S10_4_CONTRAST", "migratedStateIDs.append",
+            "shouldDiagnoseAXTextReportCorrectionCompletedFrontier",
+            "diagnoseAXTextReportCorrectionCompletedFrontier",
+            "S10_4_AX_TEXT_REPORT_CORRECTION_COMPLETED_FRONTIER",
+            "performAccessibilityAudit", "XCTAttachment(", "printJSONLine(",
+            "captureBaseline(", "S10_MIGRATION_STATE", "S10_4_AX_STATE",
+            "S10_4_CONTRAST", ".tap()", ".typeText(", "setToggle(",
+            "navigateBack(", "waitForExistence(", ".swipe", "sleep(",
+            "NotificationCenter", "migratedStateIDs.append",
             "segmentedRouteStateCursor +=", "automatedSegmentFinished = true",
-            "ContrastAuditExceptionSignature", "ignoredAuditIssues", "scroll(",
-            ".swipe", ".press(", "sleep(", "NotificationCenter", ".post(",
         ] {
-            XCTAssertFalse(k132State56DiagnosticSource.contains(prohibited), prohibited)
+            XCTAssertFalse(k134State56HelperSource.contains(prohibited), prohibited)
         }
-        XCTAssertTrue(
-            k132State56DiagnosticSource.hasSuffix(
-                "        throw AutomationConfigurationError.invalid(\n" +
-                    "            \"S10.4 AX-text Report-correction-completed frontier diagnostic completed nonaccepting\"\n" +
-                    "        )\n" +
-                    "    }\n"
-            )
-        )
 
         let captureSource = try boundedSource(
             uiSource,
@@ -19310,6 +19283,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "state.recheck-outcome.different-issue",
             "state.paywall.available",
             "state.paywall.purchase-complete",
+            "state.report-correction.completed",
         ])
         for (ordinal, stateID) in [
             (6, "state.new-sign.validation-error"),
@@ -19326,6 +19300,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (39, "state.paywall.available"),
             (40, "state.paywall.purchase-complete"),
             (48, "state.recheck-outcome.different-issue"),
+            (56, "state.report-correction.completed"),
         ] {
             XCTAssertEqual(orderedStateIDs[ordinal - 1], stateID)
         }
@@ -19343,11 +19318,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
             XCTAssertLessThan(gateRange.lowerBound, captureRange.lowerBound, stateID)
         }
-        XCTAssertEqual(
-            uiSource.components(separatedBy: "shouldPrepareNormalEvidence(").count - 1,
-            15
-        )
-
         let preparationGateSliceLocks: [(String, String, Int, String)] = [
             ("        if shouldPrepareNormalEvidence(\n            for: \"state.new-sign.validation-error\",",
              "        let keyboard = app.keyboards.firstMatch", 124,

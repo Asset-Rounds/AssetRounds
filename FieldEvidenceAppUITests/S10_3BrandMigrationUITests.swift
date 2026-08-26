@@ -788,7 +788,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         app.terminate()
         app.launch()
         recoverInjectedPDFFailureAtXXXL(in: app)
-        try captureReportComparisonAndCorrectionStates(in: app)
+        captureReportComparisonAndCorrectionStates(in: app)
         captureUnavailablePaywallAndFeedbackReview(in: app)
         try assertMonthlyPaywallAtXXXL(in: app)
         eraseLocalDataAndCaptureNoEntitlement(in: app)
@@ -6547,7 +6547,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func captureReportComparisonAndCorrectionStates(
         in app: XCUIApplication
-    ) throws {
+    ) {
         let history = element("s4.4.sign-detail.report-history", in: app)
         scroll(history, in: app)
         assertControl(history, label: "Report history")
@@ -6816,9 +6816,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         captureBaseline("state.report-correction.saving", in: app)
         XCTAssertTrue(element("s4.5.correction.ready", in: app)
             .waitForExistence(timeout: 40))
-        if shouldDiagnoseAXTextReportCorrectionCompletedFrontier(in: app) {
-            try diagnoseAXTextReportCorrectionCompletedFrontier(in: app)
-        }
+        guard positionReportCorrectionCompletedForAXText(in: app) else { return }
         captureBaseline("state.report-correction.completed", in: app)
         let currentReport = element("s4.5.correction.current-report", in: app)
         scroll(currentReport, in: app)
@@ -8590,70 +8588,17 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func shouldDiagnoseAXTextReportCorrectionCompletedFrontier(
-        in app: XCUIApplication,
-        file: StaticString = #filePath,
-        line: UInt = #line
+    private func positionReportCorrectionCompletedForAXText(
+        in app: XCUIApplication
     ) -> Bool {
-        guard automationSegment == .segment3 else { return false }
-        let expectedOwnedStateIDs = [
-            "state.report-pdf.failed",
-            "state.report-comparison.ready",
-            "state.report-correction.editing",
-            "state.report-correction.validation-error",
-            "state.report-correction.saving",
-        ]
-        guard automationShard?.shardID == "s10.4.current.ax-text",
-              Self.segmentedRouteStateIDs.count == 67,
-              Set(Self.segmentedRouteStateIDs).count == 67,
-              automationSegment.replayCount == 50,
-              automationSegment.ownedCount == 17,
-              automationSegment.finalOrdinal == 67,
-              segmentedRouteStateCursor == 55,
-              Array(Self.segmentedRouteStateIDs[50..<55])
-                == expectedOwnedStateIDs,
-              migratedStateIDs == expectedOwnedStateIDs,
-              !automatedSegmentFinished,
-              app.state == .runningForeground else {
-            XCTFail(
-                "S10.4 AX-text Report-correction-completed frontier drifted",
-                file: file,
-                line: line
-            )
+        guard automationShard?.shardID == "s10.4.current.ax-text" else {
             return true
         }
-        return true
-    }
-
-    @MainActor
-    private func diagnoseAXTextReportCorrectionCompletedFrontier(
-        in app: XCUIApplication
-    ) throws {
-        let targetStateID = "state.report-correction.completed"
-        let expectedOwnedStateIDs = [
-            "state.report-pdf.failed",
-            "state.report-comparison.ready",
-            "state.report-correction.editing",
-            "state.report-correction.validation-error",
-            "state.report-correction.saving",
-        ]
-        guard automationSegment == .segment3,
-              let shard = automationShard,
-              shard.shardID == "s10.4.current.ax-text",
-              Self.segmentedRouteStateIDs.count == 67,
-              Set(Self.segmentedRouteStateIDs).count == 67,
-              automationSegment.replayCount == 50,
-              automationSegment.ownedCount == 17,
-              automationSegment.finalOrdinal == 67,
-              segmentedRouteStateCursor == 55,
-              Array(Self.segmentedRouteStateIDs[50..<55])
-                == expectedOwnedStateIDs,
-              migratedStateIDs == expectedOwnedStateIDs,
-              !automatedSegmentFinished,
-              app.state == .runningForeground else {
-            throw AutomationConfigurationError.invalid(
-                "S10.4 AX-text Report-correction-completed frontier context drifted"
-            )
+        guard shouldPrepareNormalEvidence(
+            for: "state.report-correction.completed",
+            in: app
+        ) else {
+            return true
         }
 
         let screenElements = app.descendants(matching: .any).matching(
@@ -8662,7 +8607,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let readyElements = app.descendants(matching: .any).matching(
             identifier: "s4.5.correction.ready"
         )
-        let currentReportElements = app.descendants(matching: .any).matching(
+        let priorReportButtons = app.buttons.matching(
+            identifier: "s4.5.correction.prior-report"
+        )
+        let currentReportButtons = app.buttons.matching(
             identifier: "s4.5.correction.current-report"
         )
         let currentReportScrollViews = app.scrollViews.containing(
@@ -8675,176 +8623,341 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let inputViews = app.otherElements.matching(
             NSPredicate(format: "identifier == %@", "inputView")
         )
-        let queryBindings: [(name: String, query: XCUIElementQuery)] = [
-            ("screen", screenElements),
-            ("ready", readyElements),
-            ("currentReport", currentReportElements),
-            ("currentReportScrollView", currentReportScrollViews),
-            ("navigationBar", navigationBars),
-            ("tabBar", tabBars),
-            ("keyboard", keyboards),
-            ("inputView", inputViews),
-        ]
-        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
-            element in
-            let valueObject: Any
-            if let value = element.value as? String {
-                valueObject = value
-            } else {
-                valueObject = NSNull()
-            }
-            return [
-                "identifier": element.identifier,
-                "label": element.label,
-                "value": valueObject,
-                "elementTypeRawValue": element.elementType.rawValue,
-                "elementTypeDescription": String(
-                    describing: element.elementType
-                ),
-                "frame": self.auditFrameObject(element.frame),
-                "exists": element.exists,
-                "isEnabled": element.isEnabled,
-                "isHittable": element.isHittable,
-            ]
+        let screen = screenElements.firstMatch
+        let ready = readyElements.firstMatch
+        let priorReport = priorReportButtons.firstMatch
+        let currentReport = currentReportButtons.firstMatch
+        let scrollView = currentReportScrollViews.firstMatch
+        let navigationBar = navigationBars.firstMatch
+        let tabBar = tabBars.firstMatch
+        let fail: (String) -> Bool = { message in
+            XCTFail(message)
+            return false
         }
-        var queryObjects: [String: Any] = [:]
-        for binding in queryBindings {
-            let actualCount = binding.query.count
-            var elementObjects: [[String: Any]] = []
-            for index in 0..<actualCount {
-                let element = binding.query.element(boundBy: index)
-                elementObjects.append(diagnosticElementObject(element))
-            }
-            queryObjects[binding.name] = [
-                "count": actualCount,
-                "elements": elementObjects,
-            ]
+        let isValidFrame: (CGRect) -> Bool = { frame in
+            !frame.isNull
+                && !frame.isEmpty
+                && !frame.isInfinite
+                && frame.origin.x.isFinite
+                && frame.origin.y.isFinite
+                && frame.size.width.isFinite
+                && frame.size.height.isFinite
+        }
+        let hasExactRoute: () -> Bool = {
+            app.state == .runningForeground
+                && screenElements.count == 1
+                && readyElements.count == 1
+                && priorReportButtons.count == 1
+                && currentReportButtons.count == 1
+                && currentReportScrollViews.count == 1
+                && navigationBars.count == 1
+                && tabBars.count == 1
+                && keyboards.count == 0
+                && inputViews.count == 0
+                && screen.exists
+                && ready.exists
+                && priorReport.exists
+                && currentReport.exists
+                && scrollView.exists
+                && navigationBar.exists
+                && tabBar.exists
+                && screen.elementType == .scrollView
+                && screen.identifier == "s4.5.correction.screen"
+                && screen.label == ""
+                && (screen.value as? String) == ""
+                && screen.isEnabled
+                && screen.isHittable
+                && scrollView.elementType == .scrollView
+                && scrollView.identifier == "s4.5.correction.screen"
+                && scrollView.label == ""
+                && (scrollView.value as? String) == ""
+                && scrollView.isEnabled
+                && scrollView.isHittable
+                && navigationBar.elementType == .navigationBar
+                && navigationBar.identifier == "Correct report"
+                && navigationBar.label == ""
+                && (navigationBar.value as? String) == ""
+                && navigationBar.isEnabled
+                && navigationBar.isHittable
+                && tabBar.elementType == .tabBar
+                && tabBar.identifier == ""
+                && tabBar.label == "Tab Bar"
+                && (tabBar.value as? String) == ""
+                && tabBar.isEnabled
+                && tabBar.isHittable
+                && ready.elementType == .staticText
+                && ready.identifier == "s4.5.correction.ready"
+                && ready.label
+                    == "The prior report and evidence remain unchanged."
+                && (ready.value as? String) == ""
+                && ready.isEnabled
+                && ready.isHittable
+                && priorReport.elementType == .button
+                && priorReport.identifier == "s4.5.correction.prior-report"
+                && priorReport.label == "View prior report"
+                && (priorReport.value as? String) == ""
+                && priorReport.isEnabled
+                && currentReport.elementType == .button
+                && currentReport.identifier == "s4.5.correction.current-report"
+                && currentReport.label == "View corrected report"
+                && (currentReport.value as? String) == ""
+                && currentReport.isEnabled
+        }
+        guard hasExactRoute() else {
+            return fail("AX-text Report-correction-completed route is ambiguous.")
+        }
+        let frozenApplicationFrame = app.frame
+        let frozenScreenFrame = screen.frame
+        let frozenScrollFrame = scrollView.frame
+        let frozenNavigationFrame = navigationBar.frame
+        let frozenTabFrame = tabBar.frame
+        guard [
+            frozenApplicationFrame,
+            frozenScreenFrame,
+            frozenScrollFrame,
+            frozenNavigationFrame,
+            frozenTabFrame,
+        ].allSatisfy(isValidFrame) else {
+            return fail(
+                "AX-text Report-correction-completed container frames are invalid."
+            )
+        }
+        let hasStableRoute: () -> Bool = {
+            hasExactRoute()
+                && app.frame == frozenApplicationFrame
+                && screen.frame == frozenScreenFrame
+                && scrollView.frame == frozenScrollFrame
+                && navigationBar.frame == frozenNavigationFrame
+                && tabBar.frame == frozenTabFrame
         }
 
-        let context: [String: Any] = [
-            "schemaVersion": 1,
-            "acceptanceEligible": false,
-            "shardID": shard.shardID,
-            "requirementID": shard.requirementID,
-            "deviceProfileID": shard.deviceProfileID,
-            "segmentID": automationSegment.rawValue,
-            "stateID": targetStateID,
-            "stateOrdinal": 56,
-            "predecessorStateID": "state.report-correction.saving",
-            "predecessorOrdinal": 55,
-            "successorStateID": "state.paywall.unavailable",
-            "successorOrdinal": 57,
-            "segmentReplayCount": automationSegment.replayCount,
-            "segmentOwnedCount": automationSegment.ownedCount,
-            "segmentFinalOrdinal": automationSegment.finalOrdinal,
-            "segmentStateCursor": segmentedRouteStateCursor,
-            "migratedStateIDs": migratedStateIDs,
-            "applicationState": String(describing: app.state),
-            "applicationStateRawValue": app.state.rawValue,
-            "applicationForeground": app.state == .runningForeground,
-            "applicationFrame": auditFrameObject(app.frame),
-            "application": diagnosticElementObject(app),
-            "queries": queryObjects,
-        ]
-        let contextData = try JSONSerialization.data(
-            withJSONObject: context,
-            options: [.sortedKeys]
-        )
-        let contextString = String(decoding: contextData, as: UTF8.self)
-        print(
-            "S10_4_AX_TEXT_REPORT_CORRECTION_COMPLETED_FRONTIER_DIAGNOSTIC "
-                + contextString
-        )
+        let visualClearance: CGFloat = 8
+        let receiverInset: CGFloat = 24
+        let minimumGestureDistance: CGFloat = 44
+        let maximumGestureCount = 2
+        var measuredUndertravel: CGFloat = 0
+        var positioningDirection: CGFloat?
+        var completedGestureCount = 0
 
-        let appAttachment = XCTAttachment(screenshot: app.screenshot())
-        appAttachment.name =
-            "S10.4 AX-text Report-correction-completed frontier app"
-        appAttachment.lifetime = .keepAlways
-        add(appAttachment)
-        let treeAttachment = XCTAttachment(string: app.debugDescription)
-        treeAttachment.name =
-            "S10.4 AX-text Report-correction-completed frontier tree"
-        treeAttachment.lifetime = .keepAlways
-        add(treeAttachment)
-        let contextAttachment = XCTAttachment(string: contextString)
-        contextAttachment.name =
-            "S10.4 AX-text Report-correction-completed frontier context"
-        contextAttachment.lifetime = .keepAlways
-        add(contextAttachment)
+        func liveComposition() -> (
+            scrollFrame: CGRect,
+            safeTop: CGFloat,
+            safeBottom: CGFloat,
+            readyFrame: CGRect,
+            priorFrame: CGRect,
+            currentFrame: CGRect,
+            minimumShift: CGFloat,
+            maximumShift: CGFloat
+        )? {
+            guard hasStableRoute() else { return nil }
+            let scrollFrame = scrollView.frame
+            let navigationFrame = navigationBar.frame
+            let tabFrame = tabBar.frame
+            let readyFrame = ready.frame
+            let priorFrame = priorReport.frame
+            let currentFrame = currentReport.frame
+            guard [
+                scrollFrame,
+                navigationFrame,
+                tabFrame,
+                readyFrame,
+                priorFrame,
+                currentFrame,
+            ].allSatisfy(isValidFrame) else {
+                return nil
+            }
+            let safeTop = max(scrollFrame.minY, navigationFrame.maxY)
+                + visualClearance
+            let safeBottom = min(scrollFrame.maxY, tabFrame.minY)
+                - visualClearance
+            let minimumShift = max(
+                safeTop - readyFrame.minY,
+                safeTop - currentFrame.minY
+            )
+            let maximumShift = min(
+                safeBottom - readyFrame.maxY,
+                safeBottom - currentFrame.maxY
+            )
+            guard safeTop.isFinite,
+                  safeBottom.isFinite,
+                  safeTop < safeBottom,
+                  minimumShift.isFinite,
+                  maximumShift.isFinite,
+                  minimumShift <= maximumShift,
+                  readyFrame.maxY <= priorFrame.minY,
+                  priorFrame.maxY <= currentFrame.minY else {
+                return nil
+            }
+            return (
+                scrollFrame,
+                safeTop,
+                safeBottom,
+                readyFrame,
+                priorFrame,
+                currentFrame,
+                minimumShift,
+                maximumShift
+            )
+        }
 
-        var observedIssueCount = 0
-        var auditedElementCount = 0
-        var auditErrorDescription: Any = NSNull()
-        do {
-            try app.performAccessibilityAudit(for: .contrast) { issue in
-                observedIssueCount += 1
-                var diagnostic: [String: Any] = [
-                    "schemaVersion": 1,
-                    "acceptanceEligible": false,
-                    "shardID": shard.shardID,
-                    "stateID": targetStateID,
-                    "issueOrdinal": observedIssueCount,
-                    "auditTypeRawValue": String(issue.auditType.rawValue),
-                    "compactDescription": issue.compactDescription,
-                    "detailedDescription": issue.detailedDescription,
-                    "elementIdentifier": NSNull(),
-                    "elementLabel": NSNull(),
-                    "elementValue": NSNull(),
-                    "elementTypeRawValue": NSNull(),
-                    "elementTypeDescription": NSNull(),
-                    "elementFrame": NSNull(),
-                    "applicationFrame": self.auditFrameObject(app.frame),
-                ]
-                if let auditedElement = issue.element {
-                    auditedElementCount += 1
-                    diagnostic["elementIdentifier"] = auditedElement.identifier
-                    diagnostic["elementLabel"] = auditedElement.label
-                    if let value = auditedElement.value as? String {
-                        diagnostic["elementValue"] = value
-                    }
-                    diagnostic["elementTypeRawValue"] =
-                        auditedElement.elementType.rawValue
-                    diagnostic["elementTypeDescription"] = String(
-                        describing: auditedElement.elementType
-                    )
-                    diagnostic["elementFrame"] = self.auditFrameObject(
-                        auditedElement.frame
-                    )
-                    let issueAttachment = XCTAttachment(
-                        screenshot: auditedElement.screenshot()
-                    )
-                    issueAttachment.name =
-                        "S10.4 AX-text Report-correction-completed frontier audit issue "
-                            + String(observedIssueCount)
-                    issueAttachment.lifetime = .keepAlways
-                    self.add(issueAttachment)
-                }
-                self.printJSONLine(
-                    prefix:
-                        "S10_4_AX_TEXT_REPORT_CORRECTION_COMPLETED_FRONTIER_AUDIT",
-                    object: diagnostic
+        func isAcceptingComposition(
+            _ geometry: (
+                scrollFrame: CGRect,
+                safeTop: CGFloat,
+                safeBottom: CGFloat,
+                readyFrame: CGRect,
+                priorFrame: CGRect,
+                currentFrame: CGRect,
+                minimumShift: CGFloat,
+                maximumShift: CGFloat
+            )
+        ) -> Bool {
+            hasStableRoute()
+                && geometry.readyFrame.minY >= geometry.safeTop
+                && geometry.readyFrame.maxY <= geometry.safeBottom
+                && geometry.priorFrame.minY >= geometry.safeTop
+                && geometry.priorFrame.maxY <= geometry.safeBottom
+                && geometry.currentFrame.minY >= geometry.safeTop
+                && geometry.currentFrame.maxY <= geometry.safeBottom
+                && geometry.readyFrame.maxY <= geometry.priorFrame.minY
+                && geometry.priorFrame.maxY <= geometry.currentFrame.minY
+                && geometry.priorFrame.width >= minimumGestureDistance
+                && geometry.priorFrame.height >= minimumGestureDistance
+                && geometry.currentFrame.width >= minimumGestureDistance
+                && geometry.currentFrame.height >= minimumGestureDistance
+                && priorReport.isEnabled
+                && priorReport.isHittable
+                && currentReport.isEnabled
+                && currentReport.isHittable
+        }
+
+        while completedGestureCount < maximumGestureCount {
+            guard let geometry = liveComposition() else {
+                return fail(
+                    "AX-text Report-correction-completed interval is infeasible."
                 )
-                return false
             }
-        } catch {
-            auditErrorDescription = String(describing: error)
+            if isAcceptingComposition(geometry) {
+                return true
+            }
+            guard !(geometry.minimumShift <= 0
+                        && geometry.maximumShift >= 0) else {
+                return fail(
+                    "AX-text Report-correction-completed composition is incomplete inside its feasible interval."
+                )
+            }
+
+            let targetDistance = (
+                geometry.minimumShift + geometry.maximumShift
+            ) / 2
+            let direction: CGFloat = targetDistance > 0 ? 1 : -1
+            if let positioningDirection {
+                guard positioningDirection == direction else {
+                    return fail(
+                        "AX-text Report-correction-completed positioning reversed direction."
+                    )
+                }
+            } else {
+                positioningDirection = direction
+            }
+            let receiverTop = geometry.safeTop + receiverInset
+            let receiverBottom = geometry.safeBottom - receiverInset
+            let receiverCapacity = receiverBottom - receiverTop
+            guard receiverCapacity >= minimumGestureDistance else {
+                return fail(
+                    "AX-text Report-correction-completed gesture receiver is too small."
+                )
+            }
+            let requestedMagnitude = max(
+                abs(targetDistance) + measuredUndertravel,
+                minimumGestureDistance
+            )
+            let dragMagnitude = min(requestedMagnitude, receiverCapacity)
+            let dragDistance = direction * dragMagnitude
+            let dragStartY = direction > 0 ? receiverTop : receiverBottom
+            let dragStartPoint = CGPoint(
+                x: geometry.scrollFrame.minX + receiverInset,
+                y: dragStartY
+            )
+            let dragEndPoint = CGPoint(
+                x: dragStartPoint.x,
+                y: dragStartPoint.y + dragDistance
+            )
+            let isInsideSafeReceiver: (CGPoint) -> Bool = { point in
+                geometry.scrollFrame.contains(point)
+                    && point.x >= geometry.scrollFrame.minX
+                    && point.x <= geometry.scrollFrame.maxX
+                    && point.y >= receiverTop
+                    && point.y <= receiverBottom
+            }
+            guard isInsideSafeReceiver(dragStartPoint),
+                  isInsideSafeReceiver(dragEndPoint),
+                  !geometry.readyFrame.contains(dragStartPoint),
+                  !geometry.readyFrame.contains(dragEndPoint),
+                  !geometry.priorFrame.contains(dragStartPoint),
+                  !geometry.priorFrame.contains(dragEndPoint),
+                  !geometry.currentFrame.contains(dragStartPoint),
+                  !geometry.currentFrame.contains(dragEndPoint) else {
+                return fail(
+                    "AX-text Report-correction-completed gesture left the safe receiver or intersected a target."
+                )
+            }
+            let applicationOrigin = app.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStart = applicationOrigin.withOffset(
+                CGVector(
+                    dx: dragStartPoint.x - frozenApplicationFrame.minX,
+                    dy: dragStartPoint.y - frozenApplicationFrame.minY
+                )
+            )
+            let dragEnd = applicationOrigin.withOffset(
+                CGVector(
+                    dx: dragEndPoint.x - frozenApplicationFrame.minX,
+                    dy: dragEndPoint.y - frozenApplicationFrame.minY
+                )
+            )
+            let readyBeforeDrag = geometry.readyFrame.minY
+            let priorBeforeDrag = geometry.priorFrame.minY
+            let currentBeforeDrag = geometry.currentFrame.minY
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            completedGestureCount += 1
+
+            guard let afterDrag = liveComposition() else {
+                return fail(
+                    "AX-text Report-correction-completed route changed after positioning."
+                )
+            }
+            let readyShift = afterDrag.readyFrame.minY - readyBeforeDrag
+            let priorShift = afterDrag.priorFrame.minY - priorBeforeDrag
+            let currentShift = afterDrag.currentFrame.minY - currentBeforeDrag
+            guard readyShift * dragDistance > 0,
+                  priorShift * dragDistance > 0,
+                  currentShift * dragDistance > 0,
+                  abs(readyShift - priorShift) <= 1,
+                  abs(readyShift - currentShift) <= 1 else {
+                return fail(
+                    "AX-text Report-correction-completed gesture made no rigid signed progress."
+                )
+            }
+            measuredUndertravel = max(
+                0,
+                abs(dragDistance) - abs(currentShift)
+            )
         }
-        printJSONLine(
-            prefix:
-                "S10_4_AX_TEXT_REPORT_CORRECTION_COMPLETED_FRONTIER_AUDIT_COUNT",
-            object: [
-                "schemaVersion": 1,
-                "acceptanceEligible": false,
-                "shardID": shard.shardID,
-                "stateID": targetStateID,
-                "issueCount": observedIssueCount,
-                "auditedElementCount": auditedElementCount,
-                "auditError": auditErrorDescription,
-            ]
-        )
-        throw AutomationConfigurationError.invalid(
-            "S10.4 AX-text Report-correction-completed frontier diagnostic completed nonaccepting"
-        )
+
+        guard let finalGeometry = liveComposition(),
+              isAcceptingComposition(finalGeometry) else {
+            return fail(
+                "AX-text Report-correction-completed final composition is unsafe."
+            )
+        }
+        return true
     }
 
     @MainActor
