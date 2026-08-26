@@ -19309,14 +19309,28 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             let captureToken = stateID == "state.sign-detail.delete-confirmation"
                 ? "captureBaseline(deleteConfirmationStateID, in: app)"
                 : "captureBaseline(\"\(stateID)\", in: app)"
+            let captureSearchRange: Range<String.Index>
+            let captureSearchOptions: String.CompareOptions
+            if stateID == "state.report-correction.completed" {
+                captureSearchRange = uiSource.startIndex..<gateRange.lowerBound
+                captureSearchOptions = .backwards
+            } else {
+                captureSearchRange = gateRange.upperBound..<uiSource.endIndex
+                captureSearchOptions = []
+            }
             let captureRange = try XCTUnwrap(
                 uiSource.range(
                     of: captureToken,
-                    range: gateRange.upperBound..<uiSource.endIndex
+                    options: captureSearchOptions,
+                    range: captureSearchRange
                 ),
                 stateID
             )
-            XCTAssertLessThan(gateRange.lowerBound, captureRange.lowerBound, stateID)
+            if stateID == "state.report-correction.completed" {
+                XCTAssertLessThan(captureRange.lowerBound, gateRange.lowerBound, stateID)
+            } else {
+                XCTAssertLessThan(gateRange.lowerBound, captureRange.lowerBound, stateID)
+            }
         }
         let preparationGateSliceLocks: [(String, String, Int, String)] = [
             ("        if shouldPrepareNormalEvidence(\n            for: \"state.new-sign.validation-error\",",
