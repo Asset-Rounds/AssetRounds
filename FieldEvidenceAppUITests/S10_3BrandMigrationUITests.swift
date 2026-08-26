@@ -10839,7 +10839,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         return true
     }
 
-+    @MainActor
+    @MainActor
     private func diagnoseSegment2AXTextIssueResolvedNativeContrast(
         in app: XCUIApplication
     ) throws {
