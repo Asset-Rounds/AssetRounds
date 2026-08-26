@@ -10143,7 +10143,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 diagnostic["elementTypeDescription"] = String(
                     describing: auditedElement.elementType
                 )
-                diagnostic["elementFrame"] = auditFrameObject(
+                diagnostic["elementFrame"] = self.auditFrameObject(
                     auditedElement.frame
                 )
                 let issueAttachment = XCTAttachment(

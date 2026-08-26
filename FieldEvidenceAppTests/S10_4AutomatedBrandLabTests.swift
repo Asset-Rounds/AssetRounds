@@ -4711,11 +4711,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             k136WorkValidationNativeContrastDiagnosticSource.utf8.count,
-            10_594
+            10_599
         )
         XCTAssertEqual(
             Data(k136WorkValidationNativeContrastDiagnosticSource.utf8).sha256,
-            "0E34380600A2C4D8761796775AA9C945FFE894922BD700DC47E3DEEA851F3B89"
+            "9FCC5CE5C37C52BB772478A4642CADCFB04A6B11E03BE54BBB34022650364BAB"
         )
         XCTAssertEqual(
             uiSource.components(
