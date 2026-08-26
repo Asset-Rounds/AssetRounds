@@ -1,0 +1,339 @@
+{
+  "artifactDigest": "b133c7f27c8209676f4a5dad1f36eeca5333da6cf040ec30508c01969bb3b278",
+  "authority": {
+    "acceptanceEnabled": false,
+    "adoptionEnabled": false,
+    "appBaseHead": "1c8b3d99826a207d3b18b3e0429231c31804f317",
+    "appBaseTree": "3107903158238e5e5eaed78322c3564b06c648e2",
+    "attemptID": 1,
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C10",
+    "classification": "IMPLEMENT_NOW",
+    "contextDigest": "30e8590878c7ebf335245cbc37e160523194a0be0cef648c125eda46e2aa294e",
+    "coordinationCASSequence": 126,
+    "coordinationHead": "229ce1e9c7071d392760192875c6af23600b32fc",
+    "coordinationLedgerDigest": "e68b44ec70e97dc820772c54439507d28239d7f64c580bcb56c1f44cbccdfad6",
+    "coordinationTree": "cf1009737e0d90a9063a4bc20b77731d6ec219ba",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P02-C09"
+    ],
+    "dossierDigest": "007c51ae082a6d427490bea4e4e5722153ce02fb3f468802fd40dda71c3d3be7",
+    "dossierLength": 7206,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "67d5181c69e6410e40a5bb8d5cc9e87a44cd1f4e4d027bfdc800924e6e245765",
+    "inheritedV21BlockLength": 19063,
+    "invalidationConsumers": [
+      "V23-P02-C11",
+      "V23-P03-C09"
+    ],
+    "lineage": "REFINED_WITHOUT_LOSS",
+    "lineageSource": "V21-P02-C10",
+    "nativeOrHostedEvidenceClaimed": false,
+    "pathFenceDigest": "9d402508388e16f092697f74de5bdc56fbe8eee6934bfa40c5eeb12675d905d7",
+    "phase10PollingDuringParallelExecution": false,
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "1a7d61ef7f4ceef1870050720df9ad977d35c2c48f9b0959ac613bf88526d38d",
+    "registerOrdinal": 30,
+    "registerRowDigest": "687fc037e858db407a047219a3005292a3939c0a61e111c4ebe23f5af36e55bf",
+    "registerSectionDigest": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "registerSectionLength": 44217,
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "releaseCredit": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Typed settings, permissions, capability availability, fallback, privacy, and scratch-data lifecycle boundary"
+  },
+  "availability": {
+    "blocksOnlyNewOperation": true,
+    "essentialOperationsPreserved": [
+      "READ",
+      "EXPORT",
+      "BACKUP",
+      "RESTORE",
+      "RECOVERY",
+      "DELETE",
+      "ERASE"
+    ],
+    "historicTruthPreserved": true,
+    "manualFallbackWhenApplicable": true,
+    "nextActionPerReason": true,
+    "reasons": [
+      "AVAILABLE",
+      "PACKAGE_NOT_ENABLED",
+      "NOT_ENTITLED",
+      "UNSUPPORTED_OS_OR_DEVICE",
+      "PERMISSION_NOT_DETERMINED",
+      "PERMISSION_LIMITED",
+      "PERMISSION_DENIED",
+      "PERMISSION_RESTRICTED",
+      "OFFLINE_CONTENT_MISSING",
+      "RECOVERY_BLOCKED",
+      "WORKSPACE_POLICY_DISABLED",
+      "PACKAGE_RETIRED",
+      "TEMPORARILY_UNAVAILABLE"
+    ]
+  },
+  "capability": {
+    "activeIndicator": "FULL_CAPTURE_DURATION",
+    "capabilityAwareFallbackValidation": true,
+    "capabilityIDs": [
+      "AUDIO_CAPTURE",
+      "CAMERA",
+      "DIAGNOSTICS",
+      "FILES_AND_SHARE",
+      "HAPTICS",
+      "LOCATION",
+      "MICROPHONE",
+      "NOTIFICATIONS",
+      "PHOTO_LIBRARY",
+      "REMINDERS",
+      "SCAN_OCR",
+      "SPEECH_DICTATION",
+      "VIDEO_CAPTURE"
+    ],
+    "capabilityStates": [
+      "AVAILABLE",
+      "INTERRUPTED",
+      "UNAVAILABLE",
+      "UNSUPPORTED"
+    ],
+    "capturePhases": [
+      "AWAITING_EXPLICIT_CONSENT",
+      "CONSENTED_NOT_CAPTURING",
+      "CAPTURING_INDICATOR_VISIBLE",
+      "STOPPED",
+      "INTERRUPTED"
+    ],
+    "explicitConsentRequired": true,
+    "fallbackRegistry": "PermissionFallbackRegistryV1",
+    "firstUseOnly": true,
+    "neverBackgroundPreflightPrompt": true,
+    "neverFirstLaunchPrompt": true,
+    "neverInstallPrompt": true,
+    "neverRestorePrompt": true,
+    "notificationRequestTiming": "EXPLICIT_USER_INITIATED_FEATURE_BOUNDARY",
+    "permissionIsNotConsent": true,
+    "permissionRequestTimings": [
+      "EXPLICIT_USER_INITIATED_FEATURE_BOUNDARY",
+      "NEVER_REQUESTED"
+    ],
+    "permissionStates": [
+      "AUTHORIZED",
+      "DENIED",
+      "LIMITED",
+      "NOT_DETERMINED",
+      "NOT_REQUIRED",
+      "RESTRICTED"
+    ],
+    "purposeStringRequired": true,
+    "revocationPreservesDraft": true,
+    "revocationPublishesCanonical": false,
+    "scratchAdapter": "ScratchDataLeaseV1",
+    "scratchConsumers": [
+      "CANONICAL_CONTENT_ACCEPTANCE",
+      "BACKUP",
+      "SEARCH",
+      "REPORT",
+      "SUPPORT_EXPORT",
+      "DIAGNOSTICS"
+    ],
+    "scratchPublicationDispositions": [
+      "ACCEPTED_INTO_IMMUTABLE_CONTENT",
+      "REJECTED",
+      "CANCELLED",
+      "EXPIRED",
+      "FAILED"
+    ]
+  },
+  "cardID": "V23-P02-C10",
+  "exactFiveTests": {
+    "count": 5,
+    "methods": [
+      "testV9_14G01TypedSettingsScopesMigrationAndLifecycle",
+      "testV9_14A01AvailabilityReasonsPreserveHistoricEssentialOperations",
+      "testV9_14H01CapabilityPermissionsConsentFallbackAndScratchAreClosed",
+      "testV9_14I01InterruptionRecoveryIsIdempotentAndCreatesNoCanonicalLeak",
+      "testV9_14R01HapticsAndEntryAssistRemainPrivateBoundedAndRecoverable"
+    ],
+    "required": true
+  },
+  "generatorSeed": 230210,
+  "generatorVersion": "p02-c10-contracts-v1",
+  "owner": "FeatureAvailabilityPolicyV1",
+  "pathFence": {
+    "count": 24,
+    "digest": "9d402508388e16f092697f74de5bdc56fbe8eee6934bfa40c5eeb12675d905d7",
+    "paths": [
+      "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+      "FieldEvidenceApp/Domain/Capability/CapabilityAvailabilityContractsV1.swift",
+      "FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift",
+      "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+      "FieldEvidenceApp/Infrastructure/Settings/FeaturePolicyLoaderV1.swift",
+      "FieldEvidenceApp/Infrastructure/System/SystemCapabilityAdaptersV1.swift",
+      "FieldEvidenceApp/Resources/FeaturePolicyV1.json",
+      "FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V21/Settings/V21P02C10SettingsCapabilityCorpusV1.json",
+      "Scripts/v23/p02_c10_contracts.py",
+      "Scripts/v23/generate_p02_c10_contracts.py",
+      "Scripts/v23/verify_p02_c10_contracts.py",
+      "Scripts/v23/settings-registry.schema.json",
+      "Scripts/v23/feature-availability.schema.json",
+      "Scripts/v23/capability-permission-matrix.schema.json",
+      "Scripts/v23/feature-policy.schema.json",
+      "Scripts/v23/entry-assist-policy.schema.json",
+      "Scripts/v23/typed-availability-fallback-receipt.schema.json",
+      "docs/design/v23/tooling/V23P02C10SettingsLifecycleContractV1.json",
+      "docs/design/v23/tooling/V23P02C10CapabilityAvailabilityContractV1.json",
+      "docs/design/v23/tooling/V23P02C10FeaturePolicyRegistryV1.json",
+      "docs/design/v23/tooling/V23P02C10EntryAssistPrivacyContractV1.json",
+      "docs/design/v23/tooling/V23P02C10SettingsCapabilityEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23-P02-C10-tooling-manifest.json"
+    ],
+    "s10Overlap": false
+  },
+  "permissionFallback": {
+    "capturePurposes": [
+      "CAPTURE",
+      "IMPORT",
+      "SOURCE"
+    ],
+    "fallbackNeverSatisfiesMediaRequirement": true,
+    "manualPathRequiredWhenProviderUnavailable": true,
+    "oneLocalizedPurposePerCapability": true,
+    "providerFailurePreservesDraft": true,
+    "registry": "PermissionFallbackRegistryV1",
+    "supportOutputPurpose": "SUPPORT_EXPORT"
+  },
+  "provisional": {
+    "acceptanceCredit": false,
+    "acceptanceEnabled": false,
+    "adoptionEnabled": false,
+    "hostedDispatchRan": false,
+    "nativeCompileRan": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidenceComplete": false,
+    "releaseCredit": false,
+    "releaseReady": false,
+    "requiresAcceptedS10_6Reconciliation": true
+  },
+  "registerOrdinal": 30,
+  "schema": "V23P02C10CapabilityAvailabilityContractV1",
+  "schemaVersion": 1,
+  "scratch": {
+    "canonicalPublicationRequiresExplicitAcceptance": true,
+    "capturePhases": [
+      "AWAITING_EXPLICIT_CONSENT",
+      "CONSENTED_NOT_CAPTURING",
+      "CAPTURING_INDICATOR_VISIBLE",
+      "STOPPED",
+      "INTERRUPTED"
+    ],
+    "consumers": [
+      "CANONICAL_CONTENT_ACCEPTANCE",
+      "BACKUP",
+      "SEARCH",
+      "REPORT",
+      "SUPPORT_EXPORT",
+      "DIAGNOSTICS"
+    ],
+    "finishAndRecoveryRejectActiveWrites": true,
+    "isolationPolicy": "ScratchIsolationPolicyV1",
+    "maximumActiveLeaseCount": 128,
+    "owner": "P02-C08_SOLE_SHARED_SCRATCH_ROOT",
+    "publicationDispositions": [
+      "ACCEPTED_INTO_IMMUTABLE_CONTENT",
+      "REJECTED",
+      "CANCELLED",
+      "EXPIRED",
+      "FAILED"
+    ],
+    "purposes": [
+      "CAPTURE",
+      "IMPORT",
+      "SOURCE",
+      "SUPPORT_EXPORT"
+    ],
+    "recoveryPort": "CapabilityScratchLeasePortV1.recoverAfterInterruption",
+    "sourcePurposesExcludedFrom": [
+      "BACKUP",
+      "SEARCH",
+      "REPORT",
+      "SUPPORT_EXPORT",
+      "DIAGNOSTICS"
+    ],
+    "supportExportRequiresDistinctLease": true,
+    "terminalCleanup": [
+      "ACCEPT",
+      "REJECT",
+      "CANCEL",
+      "EXPIRY",
+      "CRASH_RECOVERY",
+      "PROTECTED_DATA_LOSS",
+      "FAILED_PUBLICATION"
+    ],
+    "writeReservationPerLease": true
+  },
+  "sourceBindings": [
+    {
+      "bytes": 26005,
+      "path": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+      "present": true,
+      "sha256": "597ea58e51b54c801c3eb3d01a2a00914c2d3a08cd1b11de058d5fc9a2936cf8"
+    },
+    {
+      "bytes": 33239,
+      "path": "FieldEvidenceApp/Domain/Capability/CapabilityAvailabilityContractsV1.swift",
+      "present": true,
+      "sha256": "de17063a518afc4e5109d14a1d247888dc377b7206d6a1c82b6afccfb60588ee"
+    },
+    {
+      "bytes": 6608,
+      "path": "FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift",
+      "present": true,
+      "sha256": "b74747a21fe974e1a864129bd72081d0ee14e0412350faa55cb658aa731cd2ba"
+    },
+    {
+      "bytes": 14126,
+      "path": "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+      "present": true,
+      "sha256": "391d5a59683b85600d53e47da1b329596b398868e4019c976e6d873fa4fdc264"
+    },
+    {
+      "bytes": 3984,
+      "path": "FieldEvidenceApp/Infrastructure/Settings/FeaturePolicyLoaderV1.swift",
+      "present": true,
+      "sha256": "12584ca133acb8591abeafd9a3caadfb33dd8155354018ef249eec71a5539ccb"
+    },
+    {
+      "bytes": 10136,
+      "path": "FieldEvidenceApp/Infrastructure/System/SystemCapabilityAdaptersV1.swift",
+      "present": true,
+      "sha256": "21f19e538bddfafd260239622ecf24e618e239dd55ff8f3379b8f8cd05b519b5"
+    },
+    {
+      "bytes": 1340,
+      "path": "FieldEvidenceApp/Resources/FeaturePolicyV1.json",
+      "present": true,
+      "sha256": "5f6f781a3a8ead62cb7d108de688cf801a01d58802cc909e4ee118c09c029fa6"
+    },
+    {
+      "bytes": 61903,
+      "path": "FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests.swift",
+      "present": true,
+      "sha256": "03fdf7a1542f76a5caeb576f746465ac37b47ef2f8798bf2768b9f1eebe654fe"
+    },
+    {
+      "bytes": 6450,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Settings/V21P02C10SettingsCapabilityCorpusV1.json",
+      "present": true,
+      "sha256": "a3e0656f028fb9212966cd6c5c16c94ffbce73fe69d4874f0767b3798cfeb9f8"
+    }
+  ],
+  "title": "Typed settings, permissions, capability availability, fallback, privacy, and scratch-data lifecycle boundary"
+}
