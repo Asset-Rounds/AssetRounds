@@ -1775,7 +1775,7 @@ jobs:
                     elementLabel: "Short description",
                     elementType: "XCUIElementType(rawValue: 48)",
                     elementFrame: {
-                      x: 30.333333333333332,
+                      x: 29.333333333333332,
                       y: 36.666666666666686,
                       width: 333.66666666666663,
                       height: 51.333333333333314

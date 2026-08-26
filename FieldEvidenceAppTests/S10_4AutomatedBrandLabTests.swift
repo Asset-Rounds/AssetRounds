@@ -114,7 +114,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             workflowPath,
             byteCount: 184_704,
-            sha256: "4A35748C05C5B2A007CD4CBB2F42DC65238E2FACD2560D87B5F8B6691B4D1136"
+            sha256: "4F668499FBD08BC147D348371CBC9EA8778BD57BABCDB5C2FA8E70CD0BB2A401"
         )
         let workflowSource = try text(workflowPath)
         let workerCallHeader =
@@ -3199,8 +3199,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
              "BE69C6C019B926DE04A7504C4E21296EC2334482485DCF1A9076ABEB354AFDE4"),
             (workValidationGateSource, 466,
              "2902A778908209C97C3B4F1508040331BB439B49C5D8187E47D46CFE79D18453"),
-            (workValidationTailSource, 341,
-             "4E65944FC549A70B43FAB0DC375CA5E4ED0F1A776EA7917A307D1E154238F9DF"),
+            (workValidationTailSource, 100,
+             "78916F4E8E45F55480C1109D672BD7C4C03F53EC47126FFEF602D3F5A2239D04"),
         ] {
             XCTAssertEqual(source.utf8.count, bytes)
             XCTAssertEqual(Data(source.utf8).sha256, sha256)
@@ -4429,6 +4429,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4 AX-text work-validation route diagnostic context",
             "shouldDiagnoseAXTextWorkValidationNativeContrastEvidence",
             "diagnoseAXTextWorkValidationNativeContrastEvidence",
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+            "S10.4 AX-text work-validation native contrast diagnostic app",
+            "S10.4 AX-text work-validation native contrast diagnostic tree",
+            "S10.4 AX-text work-validation native contrast diagnostic context",
+            "S10.4 AX-text work-validation native contrast diagnostic audited element",
             "S10.4 AX-text work-validation native contrast diagnostic is nonaccepting",
         ] {
             XCTAssertEqual(
@@ -9293,10 +9300,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 20_441)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_071)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "20D4B8465F4C6A93DDC71BEEBA9336D85BE33A43434649EF7AAEFB483179E87F"
+            "A769FFC8EA01F8ED562B1D599CF92A1A759782E295F5F2731CCE7D837F2A6252"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
@@ -15296,7 +15303,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"            elementLabel: "Short description","# + "\n" +
                 #"            elementTypeDescription: "XCUIElementType(rawValue: 48)","# + "\n" +
                 "            elementFrame: CGRect(\n" +
-                "                x: 30.333333333333332,\n" +
+                "                x: 29.333333333333332,\n" +
                 "                y: 36.666666666666686,\n" +
                 "                width: 333.66666666666663,\n" +
                 "                height: 51.333333333333314\n" +
@@ -15321,7 +15328,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                    elementLabel: "Short description","# + "\n" +
                 #"                    elementType: "XCUIElementType(rawValue: 48)","# + "\n" +
                 "                    elementFrame: {\n" +
-                "                      x: 30.333333333333332,\n" +
+                "                      x: 29.333333333333332,\n" +
                 "                      y: 36.666666666666686,\n" +
                 "                      width: 333.66666666666663,\n" +
                 "                      height: 51.333333333333314\n" +
@@ -15411,8 +15418,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "wrong x",
-                "                x: 30.333333333333332,",
-                "                x: 30.333333333333333,"
+                "                x: 29.333333333333332,",
+                "                x: 29.333333333333333,"
             ),
             (
                 "wrong y",
@@ -15483,8 +15490,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "wrong x",
-                "                      x: 30.333333333333332,",
-                "                      x: 30.333333333333333,"
+                "                      x: 29.333333333333332,",
+                "                      x: 29.333333333333333,"
             ),
             (
                 "wrong y",
@@ -19671,10 +19678,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 20_426)
+        XCTAssertEqual(captureSource.utf8.count, 8_056)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "E216462A65F19C9A80F81F2772B35E9EBB5DBB0FFA93444BBC257C3A1B91BDC1"
+            "8EACDB3319DD0672D4A9414B8A9F0E0ECD9FD1CA3E0F2AC6C2E68A2CE6367D16"
         )
         let captureReplayGateSource = try boundedSource(
             captureSource,
@@ -19700,205 +19707,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(captureSource.contains("printJSONLine(prefix: \"S10_4_CONTRAST\""))
         XCTAssertTrue(captureSource.contains("XCUIScreen.main.screenshot().pngRepresentation"))
         XCTAssertFalse(captureSource.contains("segmentedRouteStateCursor += 1"))
-
-        let k154WorkValidationNativeContrastDiagnosticSource = try boundedSource(
-            captureSource,
-            from: "            let capturesWorkValidationNativeContrastDiagnostic =",
-            before: "            let stateIssueLimit ="
-        )
-        XCTAssertEqual(
-            k154WorkValidationNativeContrastDiagnosticSource.utf8.count,
-            12_370
-        )
-        XCTAssertEqual(
-            Data(k154WorkValidationNativeContrastDiagnosticSource.utf8).sha256,
-            "DDCB36C2BEB3CBD30FFF14022D8CC91A4CEB584DE1437FBAC41582857BAB47ED"
-        )
-        for exactGate in [
-            "automationSegment == .segment2",
-            #"shard.shardID == "s10.4.current.ax-text""#,
-            #"stateID == "state.work.validation-error""#,
-            "automationSegment.replayCount == 22",
-            "automationSegment.ownedStartOrdinal == 23",
-            "automationSegment.ownedCount == 28",
-            "automationSegment.finalOrdinal == 50",
-            "segmentedRouteStateCursor == 23",
-            "migratedStateIDs == [stateID]",
-            "automationAXTreeDigests.isEmpty",
-            "automationContrastExceptions.isEmpty",
-            "!automatedSegmentFinished",
-            "!automationDiagnosticTerminationRequested",
-            "app.state == .runningForeground",
-        ] {
-            XCTAssertTrue(
-                k154WorkValidationNativeContrastDiagnosticSource.contains(exactGate),
-                exactGate
-            )
-        }
-        for queryFamily in [
-            #""workScreens""#, #""descriptionFields""#,
-            #""focusedDescriptionFields""#, #""validationLabels""#,
-            #""shortDescriptionStaticTexts""#,
-            #""shortDescriptionFieldLabels""#,
-            #""descriptionScrollViews""#, #""navigationBars""#,
-            #""tabBars""#, #""keyboards""#,
-        ] {
-            XCTAssertEqual(
-                k154WorkValidationNativeContrastDiagnosticSource.components(
-                    separatedBy: queryFamily
-                ).count - 1,
-                1,
-                queryFamily
-            )
-        }
-        for publicField in [
-            #""exists""#, #""isEnabled""#, #""isHittable""#,
-            #""identifier""#, #""label""#, #""value""#,
-            #""elementTypeRawValue""#, #""elementTypeDescription""#,
-            #""frame""#, #""auditTypeRawValue""#,
-            #""compactDescription""#, #""detailedDescription""#,
-            #""elementExists": NSNull()"#, #""elementEnabled": NSNull()"#,
-            #""elementHittable": NSNull()"#,
-            #""elementIdentifier": NSNull()"#,
-            #""elementLabel": NSNull()"#, #""elementValue": NSNull()"#,
-            #""elementTypeRawValue": NSNull()"#,
-            #""elementTypeDescription": NSNull()"#,
-            #""elementFrame": NSNull()"#, #""applicationFrame""#,
-        ] {
-            XCTAssertTrue(
-                k154WorkValidationNativeContrastDiagnosticSource.contains(publicField),
-                publicField
-            )
-        }
-        for contextField in [
-            #""schemaVersion": 1"#, #""acceptanceEligible": false"#,
-            #""requirementID""#, #""deviceProfileID""#,
-            #""segmentReplayCount""#, #""segmentOwnedStartOrdinal""#,
-            #""segmentOwnedCount""#, #""segmentFinalOrdinal""#,
-            #""segmentStateCursor""#, #""migratedStateIDs""#,
-            #""stateOrdinal": 23"#, #""predecessorOrdinal": 22"#,
-            #""successorOrdinal": 24"#, #""applicationState""#,
-            #""applicationStateRawValue""#, #""applicationForeground""#,
-            #""application""#, #""eligibleExceptionCount""#,
-            #""axTreeDigestStateIDs""#, #""contrastExceptionStateIDs""#,
-            #""queries""#, #""observedIssueCount""#,
-            #""auditedElementCount""#,
-        ] {
-            XCTAssertTrue(
-                k154WorkValidationNativeContrastDiagnosticSource.contains(contextField),
-                contextField
-            )
-        }
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy:
-                    "    private var automationDiagnosticTerminationRequested = false"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: "automationDiagnosticTerminationRequested = false"
-            ).count - 1,
-            2
-        )
-        XCTAssertEqual(
-            k154WorkValidationNativeContrastDiagnosticSource.components(
-                separatedBy: "automationDiagnosticTerminationRequested = true"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            k154WorkValidationNativeContrastDiagnosticSource.components(
-                separatedBy: "try app.performAccessibilityAudit(for: .contrast)"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            k154WorkValidationNativeContrastDiagnosticSource.components(
-                separatedBy: "return true"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            k154WorkValidationNativeContrastDiagnosticSource.components(
-                separatedBy: "XCTAttachment("
-            ).count - 1,
-            4
-        )
-        XCTAssertEqual(
-            k154WorkValidationNativeContrastDiagnosticSource.components(
-                separatedBy: ".lifetime = .keepAlways"
-            ).count - 1,
-            4
-        )
-        XCTAssertEqual(
-            k154WorkValidationNativeContrastDiagnosticSource.components(
-                separatedBy: "add("
-            ).count - 1,
-            4
-        )
-        let k154WorkflowSource = try text(".github/workflows/ios-ci-worker.yml")
-        for diagnosticPrefix in [
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
-        ] {
-            XCTAssertEqual(
-                k154WorkValidationNativeContrastDiagnosticSource.components(
-                    separatedBy: diagnosticPrefix
-                ).count - 1,
-                1,
-                diagnosticPrefix
-            )
-            XCTAssertFalse(k154WorkflowSource.contains(diagnosticPrefix), diagnosticPrefix)
-        }
-        var k154DiagnosticTail = k154WorkValidationNativeContrastDiagnosticSource[
-            k154WorkValidationNativeContrastDiagnosticSource.startIndex...
-        ]
-        for orderedToken in [
-            "automationDiagnosticTerminationRequested = true",
-            "let diagnosticContext: [String: Any] = [",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
-            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
-            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
-            "let contextAttachment = XCTAttachment(",
-            "try app.performAccessibilityAudit(for: .contrast)",
-            "let auditedElement = issue.element",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
-            "screenshot: auditedElement.screenshot()",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
-            "return",
-        ] {
-            let range = try XCTUnwrap(k154DiagnosticTail.range(of: orderedToken), orderedToken)
-            k154DiagnosticTail = k154DiagnosticTail[range.upperBound...]
-        }
-        for prohibited in [
-            "matchingExceptions", "accessibilityTreeDigest(",
-            "S10_4_AX_STATE", "S10_4_CONTRAST", "S10_4_CANDIDATE",
-            "S10_4_TASK", "XCUIScreen.main.screenshot()",
-            ".tap()", ".typeText(", "setToggle(", "navigateBack(",
-            "waitForExistence(", "waitForNonExistence(", "scroll(",
-            "migratedStateIDs.append", "segmentedRouteStateCursor +=",
-            "automatedSegmentFinished = true",
-        ] {
-            XCTAssertFalse(
-                k154WorkValidationNativeContrastDiagnosticSource.contains(prohibited),
-                prohibited
-            )
-        }
-        let k154CallerGuard =
-            #"        captureBaseline("state.work.validation-error", in: app)"# + "\n" +
-                "        guard !automationDiagnosticTerminationRequested else {\n" +
-                "            throw AutomationConfigurationError.invalid(\n" +
-                #"                "S10.4 AX-text work-validation native contrast diagnostic completed nonaccepting""# + "\n" +
-                "            )\n" +
-                "        }\n" +
-                "        scroll(description, in: app)"
-        XCTAssertEqual(
-            uiSource.components(separatedBy: k154CallerGuard).count - 1,
-            1
-        )
 
         let preparationPredicateSource = try boundedSource(
             uiSource,
