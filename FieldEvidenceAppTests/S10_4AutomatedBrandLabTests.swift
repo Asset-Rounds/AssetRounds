@@ -10257,6 +10257,242 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(uiSource.contains(consumedState27Diagnostic))
             XCTAssertFalse(workflowSource.contains(consumedState27Diagnostic))
         }
+
+        let recheckCaptureWideReadyRouteStart =
+            "        XCTAssertTrue(element(\"s3.capture.screen\", in: app)\n" +
+                "            .waitForExistence(timeout: 20))"
+        let recheckCaptureWideReadyRouteEnd =
+            #"        captureBaseline("state.recheck-capture.wide-ready", in: app)"#
+        guard let recheckCaptureWideReadyRouteStartRange = uiSource.range(
+            of: recheckCaptureWideReadyRouteStart,
+            range: recheckPreflightPositioningRouteEndRange.upperBound..<uiSource.endIndex
+        ), let recheckCaptureWideReadyRouteEndRange = uiSource.range(
+            of: recheckCaptureWideReadyRouteEnd,
+            range: recheckCaptureWideReadyRouteStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded state-28 diagnostic caller route")
+            return
+        }
+        let recheckCaptureWideReadyRouteSource = String(
+            uiSource[
+                recheckCaptureWideReadyRouteStartRange.lowerBound..<
+                    recheckCaptureWideReadyRouteEndRange.upperBound
+            ]
+        )
+        XCTAssertEqual(recheckCaptureWideReadyRouteSource.utf8.count, 311)
+        XCTAssertEqual(
+            Data(recheckCaptureWideReadyRouteSource.utf8).sha256,
+            "4994E7C510CE18A9D347AE28D165CFAEB53F8E1CB422B27E9A5F01253302E3BC"
+        )
+        let recheckCaptureWideReadyCallerLock =
+            recheckCaptureWideReadyRouteStart + "\n" +
+                "        if automationSegment == .segment2 {\n" +
+                "            try diagnoseSegment2AXTextRecheckCaptureWideReadyNativeContrast(in: app)\n" +
+                "        }\n" +
+                recheckCaptureWideReadyRouteEnd
+        XCTAssertEqual(
+            recheckCaptureWideReadyRouteSource.components(
+                separatedBy: recheckCaptureWideReadyCallerLock
+            ).count - 1,
+            1
+        )
+
+        let recheckCaptureWideReadyDiagnosticStart =
+            "    @MainActor\n" +
+                "    private func diagnoseSegment2AXTextRecheckCaptureWideReadyNativeContrast(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) throws {"
+        let recheckCaptureWideReadyDiagnosticEnd =
+            "\n\n    @MainActor\n" +
+                "    private func positionRecheckPreflightContrastTargetsForAXText("
+        guard let recheckCaptureWideReadyDiagnosticStartRange = uiSource.range(
+            of: recheckCaptureWideReadyDiagnosticStart
+        ), let recheckCaptureWideReadyDiagnosticEndRange = uiSource.range(
+            of: recheckCaptureWideReadyDiagnosticEnd,
+            range: recheckCaptureWideReadyDiagnosticStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the bounded state-28 native-contrast diagnostic")
+            return
+        }
+        let recheckCaptureWideReadyDiagnosticSource = String(
+            uiSource[
+                recheckCaptureWideReadyDiagnosticStartRange.lowerBound..<
+                    recheckCaptureWideReadyDiagnosticEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(recheckCaptureWideReadyDiagnosticSource.utf8.count, 11_879)
+        XCTAssertEqual(
+            Data(recheckCaptureWideReadyDiagnosticSource.utf8).sha256,
+            "88B97E68BF4FFCFF9BB665E189C2A1D6B115F01DE58D8F6EE76E1730E9F3F434"
+        )
+        for exactGate in [
+            #"let stateID = "state.recheck-capture.wide-ready""#,
+            "Self.segmentedRouteStateIDs[22..<27]",
+            #""state.issue.recheck-due""#,
+            #""state.recheck-preflight.ready""#,
+            #""state.work.validation-error""#,
+            #"shard.shardID == "s10.4.current.ax-text""#,
+            "automationSegment == .segment2",
+            "automationSegment.replayCount == 22",
+            "automationSegment.ownedStartOrdinal == 23",
+            "automationSegment.ownedCount == 28",
+            "automationSegment.finalOrdinal == 50",
+            "Self.segmentedRouteStateIDs.count == 67",
+            "Set(Self.segmentedRouteStateIDs).count == 67",
+            "Self.segmentedRouteStateIDs[27] == stateID",
+            "segmentedRouteStateCursor == 27",
+            "migratedStateIDs == expectedMigratedStateIDs",
+            "automationAXTreeDigests.keys.sorted()",
+            "automationContrastExceptions.keys.sorted()",
+            "!automatedSegmentFinished",
+            "app.state == .runningForeground",
+        ] {
+            XCTAssertTrue(
+                recheckCaptureWideReadyDiagnosticSource.contains(exactGate),
+                exactGate
+            )
+        }
+        for queryFamily in [
+            #""captureScreens""#, #""captureScrollViews""#,
+            #""captureHeadings""#, #""takePhotoControls""#,
+            #""choosePhotosControls""#, #""cannotCompleteControls""#,
+            #""importFixtureControls""#, #""capturePreviews""#,
+            #""navigationBars""#, #""tabBars""#,
+            #""keyboards""#, #""inputViews""#,
+        ] {
+            XCTAssertEqual(
+                recheckCaptureWideReadyDiagnosticSource.components(
+                    separatedBy: queryFamily
+                ).count - 1,
+                1,
+                queryFamily
+            )
+        }
+        for exactQueryToken in [
+            #"identifier: "s3.capture.screen""#,
+            #"identifier: "s3.capture.heading""#,
+            #"identifier: "s3.capture.take-photo""#,
+            #"identifier: "s3.capture.choose-photos""#,
+            #"identifier: "s3.capture.cannot-complete""#,
+            #"identifier: "s3.capture.import-fixture""#,
+            #"identifier: "s3.capture.preview""#,
+            #"NSPredicate(format: "identifier == %@", "inputView")"#,
+            "let count = query.count",
+            "for index in 0..<count",
+            "query.element(boundBy: index)",
+        ] {
+            XCTAssertTrue(
+                recheckCaptureWideReadyDiagnosticSource.contains(exactQueryToken),
+                exactQueryToken
+            )
+        }
+        for publicField in [
+            #""exists""#, #""isEnabled""#, #""isHittable""#,
+            #""identifier""#, #""label""#, #""value""#,
+            #""elementTypeRawValue""#, #""elementTypeDescription""#,
+            #""frame""#, #""auditTypeRawValue""#,
+            #""compactDescription""#, #""detailedDescription""#,
+            #""elementExists": NSNull()"#, #""elementEnabled": NSNull()"#,
+            #""elementHittable": NSNull()"#,
+            #""elementIdentifier": NSNull()"#,
+            #""elementLabel": NSNull()"#, #""elementValue": NSNull()"#,
+            #""elementTypeRawValue": NSNull()"#,
+            #""elementTypeDescription": NSNull()"#,
+            #""elementFrame": NSNull()"#, #""applicationFrame""#,
+        ] {
+            XCTAssertTrue(
+                recheckCaptureWideReadyDiagnosticSource.contains(publicField),
+                publicField
+            )
+        }
+        for contextField in [
+            #""schemaVersion": 1"#, #""acceptanceEligible": false"#,
+            #""requirementID""#, #""deviceProfileID""#,
+            #""segmentReplayCount""#, #""segmentOwnedStartOrdinal""#,
+            #""segmentOwnedCount""#, #""segmentFinalOrdinal""#,
+            #""segmentStateCursor""#, #""migratedStateIDs""#,
+            #""stateOrdinal": 28"#, #""predecessorOrdinal": 27"#,
+            #""successorOrdinal": 29"#, #""applicationState""#,
+            #""applicationStateRawValue""#, #""applicationForeground""#,
+            #""application""#, #""axTreeDigestStateIDs""#,
+            #""contrastExceptionStateIDs""#, #""queries""#,
+            #""observedIssueCount""#, #""auditedElementCount""#,
+        ] {
+            XCTAssertTrue(
+                recheckCaptureWideReadyDiagnosticSource.contains(contextField),
+                contextField
+            )
+        }
+        XCTAssertEqual(
+            recheckCaptureWideReadyDiagnosticSource.components(
+                separatedBy: "try app.performAccessibilityAudit(for: .contrast)"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            recheckCaptureWideReadyDiagnosticSource.components(
+                separatedBy: "return true"
+            ).count - 1,
+            1
+        )
+        for exactAttachmentToken in ["XCTAttachment(", ".lifetime = .keepAlways", "add("] {
+            XCTAssertEqual(
+                recheckCaptureWideReadyDiagnosticSource.components(
+                    separatedBy: exactAttachmentToken
+                ).count - 1,
+                4,
+                exactAttachmentToken
+            )
+        }
+        let state28DiagnosticPrefixes = [
+            "S10_4_AX_TEXT_RECHECK_CAPTURE_WIDE_READY_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "S10_4_AX_TEXT_RECHECK_CAPTURE_WIDE_READY_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "S10_4_AX_TEXT_RECHECK_CAPTURE_WIDE_READY_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+        ]
+        for diagnosticPrefix in state28DiagnosticPrefixes {
+            XCTAssertEqual(
+                recheckCaptureWideReadyDiagnosticSource.components(
+                    separatedBy: diagnosticPrefix
+                ).count - 1,
+                1,
+                diagnosticPrefix
+            )
+            XCTAssertFalse(workflowSource.contains(diagnosticPrefix), diagnosticPrefix)
+        }
+        var state28DiagnosticTail = recheckCaptureWideReadyDiagnosticSource[
+            recheckCaptureWideReadyDiagnosticSource.startIndex...
+        ]
+        for orderedToken in [
+            "let diagnosticContext: [String: Any] = [",
+            state28DiagnosticPrefixes[0],
+            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
+            "let contextAttachment = XCTAttachment(",
+            "try app.performAccessibilityAudit(for: .contrast)",
+            "let auditedElement = issue.element",
+            state28DiagnosticPrefixes[1],
+            "screenshot: auditedElement.screenshot()",
+            state28DiagnosticPrefixes[2],
+            "S10.4 AX-text recheck-capture wide-ready native contrast diagnostic completed nonaccepting",
+        ] {
+            let range = try XCTUnwrap(state28DiagnosticTail.range(of: orderedToken), orderedToken)
+            state28DiagnosticTail = state28DiagnosticTail[range.upperBound...]
+        }
+        for prohibited in [
+            "matchingExceptions", "eligibleExceptions", "accessibilityTreeDigest(",
+            "S10_4_AX_STATE", "S10_4_CONTRAST", "S10_4_CANDIDATE", "S10_4_TASK",
+            "XCUIScreen.main.screenshot()", ".tap()", ".typeText(", "setToggle(",
+            "navigateBack(", "waitForExistence(", "waitForNonExistence(", "scroll(",
+            ".swipe", ".press(", "thenDragTo:", "Thread.sleep", "usleep",
+            "migratedStateIDs.append", "segmentedRouteStateCursor +=",
+            "automationContrastExceptions[", "automationAXTreeDigests[",
+            "automatedSegmentFinished = true", "segment-receipt",
+        ] {
+            XCTAssertFalse(
+                recheckCaptureWideReadyDiagnosticSource.contains(prohibited),
+                prohibited
+            )
+        }
         let recheckPreflightPositioningHelperStart =
             "    @MainActor\n" +
                 "    private func positionRecheckPreflightContrastTargetsForAXText(\n" +
