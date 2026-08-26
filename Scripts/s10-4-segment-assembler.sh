@@ -92,13 +92,46 @@ jq -e --arg kernel "$evidence_kernel_sha256" '
   and (.orderedStateIDs | unique | length) == 67
   and [.segments[].segmentID] == ["segment-1", "segment-2", "segment-3"]
   and [.segments[].stateCount] == [22, 28, 17]
-  and [.segments[].replayCount] == [0, 22, 50]
+  and [.segments[].replayCount] == [0, 22, 22]
+  and [.segments[].resumeMode] == ["none", "route-replay", "local-replay-plus-ui-prerequisite"]
+  and [.segments[].dependencySegmentIDs] == [[], [], ["segment-1", "segment-2"]]
+  and [.segments[].dependencyOwnedStateCount] == [0, 0, 50]
+  and [.segments[].dependencyOwnedStateSHA256] == [
+    "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+    "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+    "80397ABF11A3622661E301900B7A23D0398FBF292CEEE29E1E9FA1E7A8EDA0A4"
+  ]
   and .segments[0].ownedStateIDs == .orderedStateIDs[0:22]
   and .segments[1].ownedStateIDs == .orderedStateIDs[22:50]
   and .segments[2].ownedStateIDs == .orderedStateIDs[50:67]
   and .segments[0].replayStateIDs == []
   and .segments[1].replayStateIDs == .orderedStateIDs[0:22]
-  and .segments[2].replayStateIDs == .orderedStateIDs[0:50]
+  and .segments[2].replayStateIDs == .orderedStateIDs[0:22]
+  and .segments[0].dependencyOwnedStateIDs == []
+  and .segments[1].dependencyOwnedStateIDs == []
+  and .segments[2].dependencyOwnedStateIDs == .orderedStateIDs[0:50]
+  and .segments[0].resumeSetup == null
+  and .segments[1].resumeSetup == null
+  and .segments[2].resumeSetup == {
+    setupID: "segment-3-report-pdf-failed-v1",
+    rowCount: 1,
+    localReplayCount: 22,
+    sourceOrdinal: 22,
+    sourceStateID: "state.sign-detail.open-issue",
+    skippedStartOrdinal: 23,
+    skippedEndOrdinal: 50,
+    targetOrdinal: 51,
+    targetStateID: "state.report-pdf.failed",
+    cursorBeforeResume: 22,
+    cursorAfterResume: 50,
+    dependencyOwnedStateSHA256:
+      "80397ABF11A3622661E301900B7A23D0398FBF292CEEE29E1E9FA1E7A8EDA0A4",
+    applicationForeground: true,
+    purchaseVerified: true,
+    pendingDifferentIssueReceiptVerified: true,
+    reportFailureRouteVerified: true,
+    renderFailureArgumentCount: 1
+  }
   and (.exceptionAuthorities | length) == 9
   and ([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 9
   and all(.exceptionAuthorities[];
@@ -146,6 +179,7 @@ for source_dir in "${source_dirs[@]}"; do
   segment_json="$(jq -cer --arg id "$segment_id" '.segments[] | select(.segmentID == $id)' "$plan_path")"
   state_count="$(jq -r '.stateCount' <<< "$segment_json")"
   replay_count="$(jq -r '.replayCount' <<< "$segment_json")"
+  resume_setup_count="$(jq -r '.resumeSetup.rowCount // 0' <<< "$segment_json")"
 
   jq -e \
     --arg segment "$segment_id" \
@@ -186,12 +220,19 @@ for source_dir in "${source_dirs[@]}"; do
       and .endOrdinal == $expected.endOrdinal
       and .stateCount == $expected.stateCount
       and .replayCount == $expected.replayCount
+      and .resumeMode == $expected.resumeMode
+      and .dependencySegmentIDs == $expected.dependencySegmentIDs
+      and .dependencyOwnedStateCount == $expected.dependencyOwnedStateCount
+      and .dependencyOwnedStateIDs == $expected.dependencyOwnedStateIDs
+      and .dependencyOwnedStateSHA256 == $expected.dependencyOwnedStateSHA256
+      and .resumeSetup == $expected.resumeSetup
       and .ownedStateIDs == $expected.ownedStateIDs
       and .replayStateIDs == $expected.replayStateIDs
       and .ownedStateSHA256 == $expected.ownedStateSHA256
       and .replayStateSHA256 == $expected.replayStateSHA256
       and .markerCount == $expected.stateCount
       and .replayRowCount == $expected.replayCount
+      and .resumeSetupRowCount == ($expected.resumeSetup.rowCount // 0)
       and .diagnosticCount == 0
       and .attachmentCount == ($expected.stateCount + 1)
       and .segmentTerminalAttachmentCount == 1
@@ -279,11 +320,49 @@ for source_dir in "${source_dirs[@]}"; do
   test "$(jq 'length' "$shard_source/candidate-exports.json")" -eq "$state_count"
   test "$(jq 'length' "$shard_source/candidate-files.json")" -eq "$state_count"
   test "$(jq 'length' "$shard_source/replay-rows.json")" -eq "$replay_count"
+  test "$(jq 'length' "$shard_source/resume-setup-rows.json")" -eq "$resume_setup_count"
   jq -e --arg shard "$shard_id" --arg segment "$segment_id" --argjson expected "$segment_json" '
     [.[].stateID] == $expected.replayStateIDs
     and [.[].ordinal] == (if $expected.replayCount == 0 then [] else [range(1; $expected.replayCount + 1)] end)
     and all(.[]; .shardID == $shard and .segmentID == $segment)
   ' "$shard_source/replay-rows.json" > /dev/null
+  jq -e --arg shard "$shard_id" --arg segment "$segment_id" \
+    --argjson expected "$segment_json" --argjson replayCount "$replay_count" \
+    --argjson setupCount "$resume_setup_count" '
+      length == $setupCount
+      and if $setupCount == 0 then
+        . == [] and $expected.resumeSetup == null
+      else
+        $setupCount == 1
+        and .[0] == {
+          schemaVersion: 1,
+          acceptanceEligible: false,
+          shardID: $shard,
+          segmentID: $segment,
+          setupID: $expected.resumeSetup.setupID,
+          sourceOrdinal: $expected.resumeSetup.sourceOrdinal,
+          sourceStateID: $expected.resumeSetup.sourceStateID,
+          skippedStartOrdinal: $expected.resumeSetup.skippedStartOrdinal,
+          skippedEndOrdinal: $expected.resumeSetup.skippedEndOrdinal,
+          targetOrdinal: $expected.resumeSetup.targetOrdinal,
+          targetStateID: $expected.resumeSetup.targetStateID,
+          cursorBeforeResume: $expected.resumeSetup.cursorBeforeResume,
+          cursorAfterResume: $expected.resumeSetup.cursorAfterResume,
+          localReplayCount: $replayCount,
+          dependencyOwnedStateSHA256:
+            $expected.resumeSetup.dependencyOwnedStateSHA256,
+          applicationForeground:
+            $expected.resumeSetup.applicationForeground,
+          purchaseVerified: $expected.resumeSetup.purchaseVerified,
+          pendingDifferentIssueReceiptVerified:
+            $expected.resumeSetup.pendingDifferentIssueReceiptVerified,
+          reportFailureRouteVerified:
+            $expected.resumeSetup.reportFailureRouteVerified,
+          renderFailureArgumentCount:
+            $expected.resumeSetup.renderFailureArgumentCount
+        }
+      end
+    ' "$shard_source/resume-setup-rows.json" > /dev/null
   jq -e --argjson expected "$segment_json" '[.[].stateID] == $expected.ownedStateIDs' "$shard_source/state-ax.json" > /dev/null
   jq -e --argjson expected "$segment_json" '[.[].stateID] == $expected.ownedStateIDs' "$shard_source/contrast.json" > /dev/null
   jq -e --argjson expected "$segment_json" '
@@ -362,6 +441,65 @@ done
 
 test "${#seen_segments[@]}" -eq 3
 test "${#seen_sessions[@]}" -eq 3
+jq -e --slurpfile plan "$plan_path" '
+  . as $receipts
+  | ($plan[0].segments[] | select(.segmentID == "segment-3")) as $segment3
+  | ([
+      $segment3.dependencySegmentIDs[] as $dependencyID
+      | $receipts[]
+      | select(.segmentID == $dependencyID)
+    ]) as $dependencies
+  | ($receipts | length) == 3
+    and ([$receipts[].segmentID] | unique | length) == 3
+    and ([$dependencies[].segmentID] == $segment3.dependencySegmentIDs)
+    and ($dependencies | length) == 2
+    and all($dependencies[];
+      .receiptKind == "s10.4-segment"
+      and .complete == true
+      and .finalAcceptanceEligible == false
+      and .productHead == $receipts[0].productHead
+      and .ref == $receipts[0].ref
+      and .runID == $receipts[0].runID
+      and .runAttempt == $receipts[0].runAttempt
+      and .segmentPlanSHA256 == $receipts[0].segmentPlanSHA256
+      and .evidenceKernelSHA256 == $receipts[0].evidenceKernelSHA256
+      and .xcodeVersion == $receipts[0].xcodeVersion
+      and .xcodeBuild == $receipts[0].xcodeBuild
+      and .sdkName == $receipts[0].sdkName
+      and .sdkBuild == $receipts[0].sdkBuild)
+    and ([$dependencies[].ownedStateIDs[]] == $segment3.dependencyOwnedStateIDs)
+    and (([$dependencies[].ownedStateIDs[]] | length) == $segment3.dependencyOwnedStateCount)
+    and ([$receipts[].ownedStateIDs[]] == $plan[0].orderedStateIDs)
+    and (([$receipts[].ownedStateIDs[]] | unique | length) == 67)
+' "$combined_shard/source-segment-receipts.json" > /dev/null
+dependency_state_text="$(jq -r --slurpfile plan "$plan_path" '
+  ($plan[0].segments[] | select(.segmentID == "segment-3")) as $segment3
+  | . as $receipts
+  | $segment3.dependencySegmentIDs[] as $dependencyID
+  | $receipts[]
+  | select(.segmentID == $dependencyID)
+  | .ownedStateIDs[]
+' "$combined_shard/source-segment-receipts.json")"
+test "$(sha256_text "$dependency_state_text")" = \
+  "$(jq -r '.segments[] | select(.segmentID == "segment-3") | .dependencyOwnedStateSHA256' "$plan_path")"
+jq -n --slurpfile plan "$plan_path" \
+  --slurpfile receipts "$combined_shard/source-segment-receipts.json" '
+    ($plan[0].segments[] | select(.segmentID == "segment-3")) as $segment3
+    | ($receipts[0]) as $sourceReceipts
+    | ([
+        $segment3.dependencySegmentIDs[] as $dependencyID
+        | $sourceReceipts[]
+        | select(.segmentID == $dependencyID)
+      ]) as $dependencies
+    | {
+        requiredSegmentIDs: $segment3.dependencySegmentIDs,
+        resolvedSegmentIDs: [$dependencies[].segmentID],
+        resolvedStateCount: ([$dependencies[].ownedStateIDs[]] | length),
+        resolvedStateSHA256: $segment3.dependencyOwnedStateSHA256,
+        sourceSegmentReceiptKinds: [$dependencies[].receiptKind],
+        complete: true
+      }
+' > "$combined_shard/segment-dependency-resolution.json"
 jq -s '.' "$combined_shard/state-ax.ndjson" > "$combined_shard/state-ax.json"
 jq -s '.' "$combined_shard/contrast.ndjson" > "$combined_shard/contrast.json"
 jq -e --slurpfile plan "$plan_path" '[.[].stateID] == $plan[0].orderedStateIDs and length == 67' "$combined_shard/state-ax.json" > /dev/null
@@ -535,14 +673,16 @@ jq -n \
   --arg shardID "$shard_id" --arg requirementID "$requirement_id" --arg profile "$profile_id" \
   --arg head "$common_head" --arg ref "$common_ref" --arg run "$common_run" --arg attempt "$common_attempt" \
   --arg planSHA256 "$plan_sha256" --arg evidenceKernelSHA256 "$evidence_kernel_sha256" \
-  --slurpfile receipts "$combined_shard/source-segment-receipts.json" '
+  --slurpfile receipts "$combined_shard/source-segment-receipts.json" \
+  --slurpfile dependency "$combined_shard/segment-dependency-resolution.json" '
     {schemaVersion:1,receiptKind:"s10.4-segment-aggregation",complete:true,
       finalAcceptanceEligible:true,shardID:$shardID,requirementID:$requirementID,
       deviceProfileID:$profile,productHead:$head,ref:$ref,runID:$run,runAttempt:$attempt,
       segmentPlanSHA256:$planSHA256,evidenceKernelSHA256:$evidenceKernelSHA256,
       segmentIDs:["segment-1","segment-2","segment-3"],segmentCount:3,
       distinctSessionCount:3,candidateCount:67,stateAXRowCount:67,
-      contrastRowCount:67,accessibilityRowCount:6,sourceSegmentReceipts:$receipts[0]}' \
+      contrastRowCount:67,accessibilityRowCount:6,
+      dependencyResolution:$dependency[0],sourceSegmentReceipts:$receipts[0]}' \
   > "$combined_shard/segment-aggregation.json"
 
 cp "$plan_path" "$combined_shard/s10-4-segment-plan.json"

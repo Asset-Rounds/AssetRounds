@@ -113,8 +113,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 178_482,
-            sha256: "7F47F443280A1D93CA99A8B0759D754026DA5EA143FCDBF8BF3452FBFE290831"
+            byteCount: 184_704,
+            sha256: "4A35748C05C5B2A007CD4CBB2F42DC65238E2FACD2560D87B5F8B6691B4D1136"
         )
         let workflowSource = try text(workflowPath)
         let workerCallHeader =
@@ -517,6 +517,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
+        )
+        XCTAssertEqual(workerExecutionSource.utf8.count, 77_245)
+        XCTAssertEqual(
+            Data(workerExecutionSource.utf8).sha256,
+            "2C1221E2849046EB63E80BE943A8C096C0AD55897F8B1625E3E29006032AE775"
         )
         let warpScopeSource = String(
             warpJobSource[warpScopeStart.lowerBound..<warpExecutionStart.lowerBound]
@@ -12215,6 +12220,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let availablePurchaseFunctionStart =
             "    @MainActor\n" +
                 "    private func captureAvailablePaywallAndPurchase(\n" +
+                "        emitsEvidence: Bool = true,\n" +
                 "        in app: XCUIApplication\n" +
                 "    ) -> Bool {\n" +
                 "        var usedSettingsRetry = false"
@@ -12252,6 +12258,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "    ) {",
             "        let usedSettingsRetry = captureAvailablePaywallAndPurchase(in: app)",
             "    private func captureAvailablePaywallAndPurchase(\n" +
+                "        emitsEvidence: Bool = true,\n" +
                 "        in app: XCUIApplication\n" +
                 "    ) -> Bool {",
         ] {
@@ -12274,6 +12281,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "    ) throws {",
             "        let usedSettingsRetry = try captureAvailablePaywallAndPurchase(in: app)",
             "    private func captureAvailablePaywallAndPurchase(\n" +
+                "        emitsEvidence: Bool = true,\n" +
                 "        in app: XCUIApplication\n" +
                 "    ) throws -> Bool {",
         ] {
@@ -12301,7 +12309,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             availablePurchaseFunctionSource.components(
                 separatedBy: "return usedSettingsRetry"
             ).count - 1,
-            13
+            14
         )
         XCTAssertFalse(availablePurchaseFunctionSource.contains("\n            return\n"))
         XCTAssertFalse(availablePurchaseFunctionSource.contains("\n                    return\n"))
@@ -18481,8 +18489,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let planSource = try text(planPath)
         try assertFile(
             planPath,
-            byteCount: 14_170,
-            sha256: "B67DBE85CA50538E519AA60F18E0C951B0B4C54FBB6247FAD815B6DAECF59287"
+            byteCount: 16_648,
+            sha256: "455D3F6A8F9FC0FC31530FA8AC56CFC5AF4F47ADD33B2E7BA215E1916D83C4A1"
         )
         XCTAssertFalse(planSource.contains("\r"))
         XCTAssertEqual(try int(plan, "schemaVersion"), 1)
@@ -18591,7 +18599,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let expectedStarts = [1, 23, 51]
         let expectedEnds = [22, 50, 67]
         let expectedOwnedCounts = [22, 28, 17]
-        let expectedReplayCounts = [0, 22, 50]
+        let expectedReplayCounts = [0, 22, 22]
+        let expectedResumeModes = [
+            "none", "route-replay", "local-replay-plus-ui-prerequisite",
+        ]
+        let expectedDependencySegmentIDs = [[], [], ["segment-1", "segment-2"]]
+        let expectedDependencyOwnedCounts = [0, 0, 50]
+        let expectedDependencyDigests = [
+            "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+            "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+            "80397ABF11A3622661E301900B7A23D0398FBF292CEEE29E1E9FA1E7A8EDA0A4",
+        ]
         let expectedOwnedDigests = [
             "8BB0F12120AD78E23B90091E70E8B8C98418A111B2328CE2411981D1AB40F1C3",
             "AE2041547A2B421AE0C2424FE8BB25B2FE2901C4385F0009E65E406CAE25392B",
@@ -18600,7 +18618,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let expectedReplayDigests = [
             "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
             "8BB0F12120AD78E23B90091E70E8B8C98418A111B2328CE2411981D1AB40F1C3",
-            "80397ABF11A3622661E301900B7A23D0398FBF292CEEE29E1E9FA1E7A8EDA0A4",
+            "8BB0F12120AD78E23B90091E70E8B8C98418A111B2328CE2411981D1AB40F1C3",
         ]
         var combinedOwnedStateIDs: [String] = []
         var priorOwnedStateIDs = Set<String>()
@@ -18613,6 +18631,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertEqual(try int(segment, "endOrdinal"), expectedEnds[index])
             XCTAssertEqual(try int(segment, "stateCount"), expectedOwnedCounts[index])
             XCTAssertEqual(try int(segment, "replayCount"), expectedReplayCounts[index])
+            XCTAssertEqual(try string(segment, "resumeMode"), expectedResumeModes[index])
+            XCTAssertEqual(
+                try strings(segment, "dependencySegmentIDs"),
+                expectedDependencySegmentIDs[index]
+            )
+            XCTAssertEqual(
+                try int(segment, "dependencyOwnedStateCount"),
+                expectedDependencyOwnedCounts[index]
+            )
+            XCTAssertEqual(
+                try string(segment, "dependencyOwnedStateSHA256"),
+                expectedDependencyDigests[index]
+            )
             XCTAssertEqual(ownedStateIDs.count, expectedOwnedCounts[index])
             XCTAssertEqual(replayStateIDs.count, expectedReplayCounts[index])
             XCTAssertEqual(
@@ -18641,11 +18672,68 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 try string(segment, "replayStateSHA256"),
                 expectedReplayDigests[index]
             )
+            let dependencyOwnedStateIDs = try strings(
+                segment,
+                "dependencyOwnedStateIDs"
+            )
+            XCTAssertEqual(
+                dependencyOwnedStateIDs,
+                index == 2 ? Array(orderedStateIDs.prefix(50)) : []
+            )
+            XCTAssertEqual(
+                Data(dependencyOwnedStateIDs.joined(separator: "\n").utf8).sha256,
+                expectedDependencyDigests[index]
+            )
+            if index < 2 {
+                XCTAssertTrue(segment["resumeSetup"] is NSNull)
+            }
             combinedOwnedStateIDs.append(contentsOf: ownedStateIDs)
             priorOwnedStateIDs.formUnion(ownedStateIDs)
         }
         XCTAssertEqual(combinedOwnedStateIDs, orderedStateIDs)
         XCTAssertEqual(Set(combinedOwnedStateIDs), Set(orderedStateIDs))
+        let segment3ResumeSetup = try XCTUnwrap(
+            segments[2]["resumeSetup"] as? [String: Any]
+        )
+        XCTAssertEqual(Set(segment3ResumeSetup.keys), Set([
+            "setupID", "rowCount", "localReplayCount", "sourceOrdinal",
+            "sourceStateID", "skippedStartOrdinal", "skippedEndOrdinal",
+            "targetOrdinal", "targetStateID", "cursorBeforeResume",
+            "cursorAfterResume", "dependencyOwnedStateSHA256",
+            "applicationForeground", "purchaseVerified",
+            "pendingDifferentIssueReceiptVerified", "reportFailureRouteVerified",
+            "renderFailureArgumentCount",
+        ]))
+        XCTAssertEqual(
+            try string(segment3ResumeSetup, "setupID"),
+            "segment-3-report-pdf-failed-v1"
+        )
+        for (key, value) in [
+            ("rowCount", 1), ("localReplayCount", 22), ("sourceOrdinal", 22),
+            ("skippedStartOrdinal", 23), ("skippedEndOrdinal", 50),
+            ("targetOrdinal", 51), ("cursorBeforeResume", 22),
+            ("cursorAfterResume", 50), ("renderFailureArgumentCount", 1),
+        ] {
+            XCTAssertEqual(try int(segment3ResumeSetup, key), value, key)
+        }
+        XCTAssertEqual(
+            try string(segment3ResumeSetup, "sourceStateID"),
+            "state.sign-detail.open-issue"
+        )
+        XCTAssertEqual(
+            try string(segment3ResumeSetup, "targetStateID"),
+            "state.report-pdf.failed"
+        )
+        XCTAssertEqual(
+            try string(segment3ResumeSetup, "dependencyOwnedStateSHA256"),
+            expectedDependencyDigests[2]
+        )
+        for key in [
+            "applicationForeground", "purchaseVerified",
+            "pendingDifferentIssueReceiptVerified", "reportFailureRouteVerified",
+        ] {
+            XCTAssertEqual(segment3ResumeSetup[key] as? Bool, true, key)
+        }
 
         let evidenceKernelKeys = [
             "productHead", "selectorSHA256", "shardContractSHA256",
@@ -18678,6 +18766,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private enum AutomationSegment: String {",
             before: "\n\n    private static let segmentedRouteStateIDs = ["
         )
+        XCTAssertEqual(segmentEnum.utf8.count, 905)
+        XCTAssertEqual(
+            Data(segmentEnum.utf8).sha256,
+            "047742B15D8639D000577630E55ED932A4BB61692E9B471F8AF104C79A06ECAA"
+        )
         for exact in [
             "case none",
             "case segment1 = \"segment-1\"",
@@ -18685,12 +18778,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "case segment3 = \"segment-3\"",
             "case .none, .segment1: return 0",
             "case .segment2: return 22",
-            "case .segment3: return 50",
+            "case .segment3: return 22",
+            "case .none, .segment1: return 1",
+            "case .segment2: return 23",
+            "case .segment3: return 51",
             "case .none: return 67",
             "case .segment1: return 22",
             "case .segment2: return 28",
             "case .segment3: return 17",
-            "replayCount + ownedCount",
+            "ownedStartOrdinal + ownedCount - 1",
         ] {
             XCTAssertTrue(segmentEnum.contains(exact), exact)
         }
@@ -18730,9 +18826,262 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "automationSegment = segment",
             "segmentedRouteStateCursor = 0",
             "automatedSegmentFinished = false",
+            "segment3ResumePrepared = false",
         ] {
             XCTAssertTrue(configureSegmentSource.contains(exact), exact)
         }
+
+        let segment3ResumeCallSource = try boundedSource(
+            uiSource,
+            from: #"        captureBaseline("state.sign-detail.open-issue", in: app)"#,
+            before:
+                #"        let recordWork = element("s5.1.sign-detail.record-work", in: app)"#
+        )
+        XCTAssertEqual(segment3ResumeCallSource.utf8.count, 281)
+        XCTAssertEqual(
+            Data(segment3ResumeCallSource.utf8).sha256,
+            "B67AEE18F7E01E196BFDB50A147F968283B656B82D9DB6F81101A10C3CD8F800"
+        )
+        var segment3ResumeCallTail = segment3ResumeCallSource[
+            segment3ResumeCallSource.startIndex...
+        ]
+        for token in [
+            #"captureBaseline("state.sign-detail.open-issue", in: app)"#,
+            "finishAutomatedSegmentIfNeeded(after: 22, in: app)",
+            "try prepareSegment3ResumeAtReportFailureIfNeeded(in: app)",
+            "segment3ResumePrepared = true",
+            "return",
+        ] {
+            let range = try XCTUnwrap(segment3ResumeCallTail.range(of: token), token)
+            segment3ResumeCallTail = segment3ResumeCallTail[range.upperBound...]
+        }
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy:
+                    "private func prepareSegment3ResumeAtReportFailureIfNeeded("
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy:
+                    "try prepareSegment3ResumeAtReportFailureIfNeeded(in: app)"
+            ).count - 1,
+            1
+        )
+        let segment3ResumeMainBranch = try boundedSource(
+            uiSource,
+            from: "        if automatedSegmentFinished { return }\n" +
+                "        if !segment3ResumePrepared {",
+            before: "        recoverInjectedPDFFailureAtXXXL(in: app)"
+        )
+        for preservedOrdinaryRoute in [
+            "captureAlternativeCompletedCheckStates(in: app)",
+            "captureDifferentIssueStatesBeforeRecovery(in: app)",
+            "if automatedSegmentFinished { return }",
+            "app.terminate()",
+            "app.launch()",
+        ] {
+            XCTAssertTrue(segment3ResumeMainBranch.contains(preservedOrdinaryRoute))
+        }
+        XCTAssertEqual(
+            segment3ResumeMainBranch.components(
+                separatedBy: "if !segment3ResumePrepared {"
+            ).count - 1,
+            1
+        )
+
+        let segment3ResumeSource = try boundedSource(
+            uiSource,
+            from:
+                "    @MainActor\n" +
+                    "    private func purchaseSubscriptionWithoutBaseline(",
+            before:
+                "\n    @MainActor\n" +
+                    "    @discardableResult\n" +
+                    "    private func performAlternativeRecheck("
+        )
+        XCTAssertEqual(segment3ResumeSource.utf8.count, 10_883)
+        XCTAssertEqual(
+            Data(segment3ResumeSource.utf8).sha256,
+            "35F39D4B749ACAAB1A30777747D2F342E668BAAA8D63BCC21800ECC6338987D7"
+        )
+        for exactResumeGuard in [
+            "guard automationSegment == .segment3 else { return false }",
+            #"shard.shardID == "s10.4.current.ax-text""#,
+            "automationSegment.replayCount == 22",
+            "automationSegment.ownedStartOrdinal == 51",
+            "automationSegment.ownedCount == 17",
+            "automationSegment.finalOrdinal == 67",
+            "segmentedRouteStateCursor == 22",
+            "migratedStateIDs.isEmpty",
+            "automationAXTreeDigests.isEmpty",
+            "automationContrastExceptions.isEmpty",
+            #"identifier: "s2.sign-detail.screen""#,
+            #"identifier: "s5.1.sign-detail.record-work""#,
+            "recordWorkWithoutBaseline(in: app)",
+            #"identifier: "s5.1.sign-detail.recheck-due""#,
+            "try purchaseSubscriptionWithoutBaseline(in: app)",
+            #"emitsEvidence: false"#,
+            "pendingDifferentIssueReceiptVerified",
+            #"identifier: "s5.2.sign-detail.resolved""#,
+            "resumedStateIDs.first == \"state.work.validation-error\"",
+            "resumedStateIDs.last == \"state.issue.different-open\"",
+            "dependencyStateIDs.count == 50",
+            #"identifier: "s4.pdf-failure.screen""#,
+            #"identifier: "s4.pdf-failure.headline""#,
+            #"identifier: "s4.pdf-failure.retry""#,
+            "segmentedRouteStateCursor = 50",
+            "automationSegment.ownedStartOrdinal - 1",
+        ] {
+            XCTAssertTrue(segment3ResumeSource.contains(exactResumeGuard), exactResumeGuard)
+        }
+        let segment3ResumeRowSource = try boundedSource(
+            segment3ResumeSource,
+            from:
+                #"        printJSONLine(prefix: "S10_4_SEGMENT_RESUME_SETUP""#,
+            before: "        segmentedRouteStateCursor = 50"
+        )
+        XCTAssertEqual(segment3ResumeRowSource.utf8.count, 1_024)
+        XCTAssertEqual(
+            Data(segment3ResumeRowSource.utf8).sha256,
+            "F206B6137EE2A2A342511F27D536299E6F8CF7F00498C46A4552399BDD9A2479"
+        )
+        let resumeFieldExpression = try NSRegularExpression(
+            pattern: #"(?m)^\s+"([A-Za-z0-9]+)":"#
+        )
+        let resumeFieldRange = NSRange(
+            segment3ResumeRowSource.startIndex..<segment3ResumeRowSource.endIndex,
+            in: segment3ResumeRowSource
+        )
+        let resumeFieldNames = resumeFieldExpression.matches(
+            in: segment3ResumeRowSource,
+            range: resumeFieldRange
+        ).compactMap { match -> String? in
+            guard let range = Range(match.range(at: 1), in: segment3ResumeRowSource)
+            else { return nil }
+            return String(segment3ResumeRowSource[range])
+        }
+        XCTAssertEqual(resumeFieldNames, [
+            "schemaVersion", "acceptanceEligible", "shardID", "segmentID",
+            "setupID", "sourceOrdinal", "sourceStateID", "skippedStartOrdinal",
+            "skippedEndOrdinal", "targetOrdinal", "targetStateID",
+            "cursorBeforeResume", "cursorAfterResume", "localReplayCount",
+            "dependencyOwnedStateSHA256", "applicationForeground",
+            "purchaseVerified", "pendingDifferentIssueReceiptVerified",
+            "reportFailureRouteVerified", "renderFailureArgumentCount",
+        ])
+        for prohibitedResumeEvidence in [
+            "captureBaseline(", "performAccessibilityAudit", "attachCandidate(",
+            "S10_MIGRATION_STATE", "S10_4_AX_STATE", "S10_4_CONTRAST",
+            "S10_4_CANDIDATE", "S10_4_TASK", "migratedStateIDs.append",
+        ] {
+            XCTAssertFalse(
+                segment3ResumeSource.contains(prohibitedResumeEvidence),
+                prohibitedResumeEvidence
+            )
+        }
+
+        let alternativeRecheckSource = try boundedSource(
+            uiSource,
+            from:
+                "    @MainActor\n" +
+                    "    @discardableResult\n" +
+                    "    private func performAlternativeRecheck(",
+            before:
+                "\n    @MainActor\n" +
+                    "    private func captureDifferentIssueStatesBeforeRecovery("
+        )
+        XCTAssertEqual(alternativeRecheckSource.utf8.count, 8_265)
+        XCTAssertEqual(
+            Data(alternativeRecheckSource.utf8).sha256,
+            "8DB985F14D144326276BC8A606351CD03AB778EFFDE6EEB42742592604330545"
+        )
+        for exact in [
+            "emitsEvidence: Bool = true",
+            "if emitsEvidence && shouldPrepareNormalEvidence(",
+            #"for: "state.recheck-outcome.different-issue""#,
+            #"captureBaseline("state.recheck-outcome.different-issue", in: app)"#,
+            #"captureBaseline("state.recheck-review.different-issue", in: app)"#,
+            "savedValues.count == 1",
+            "preparingValues.count == 1",
+            "viewReportValues.count == 0",
+            "return true",
+            "return false",
+        ] {
+            XCTAssertTrue(alternativeRecheckSource.contains(exact), exact)
+        }
+        for preservedResumeRouteAction in [
+            "due.tap()", "start.tap()", "value.tap()", "label.tap()",
+            "continueToReview(in: app)", "save.tap()", "done.tap()",
+            "navigateBack(in: app)",
+        ] {
+            XCTAssertTrue(
+                alternativeRecheckSource.contains(preservedResumeRouteAction),
+                preservedResumeRouteAction
+            )
+        }
+        XCTAssertEqual(
+            alternativeRecheckSource.components(
+                separatedBy: "if emitsEvidence"
+            ).count - 1,
+            3
+        )
+
+        let availablePaywallSource = try boundedSource(
+            uiSource,
+            from:
+                "    @MainActor\n" +
+                    "    private func captureAvailablePaywallAndPurchase(",
+            before:
+                "\n    @MainActor\n" +
+                    "    private func positionAXTextPurchaseCompleteViewport("
+        )
+        XCTAssertEqual(availablePaywallSource.utf8.count, 12_120)
+        XCTAssertEqual(
+            Data(availablePaywallSource.utf8).sha256,
+            "5E49ECFBAC50A1B9D3865A23469EFB3C7B5782FB42404F3B9D28D63200D6815B"
+        )
+        for exact in [
+            "emitsEvidence: Bool = true",
+            "let preparesPaywallAvailableEvidence = emitsEvidence",
+            #"for: "state.paywall.available""#,
+            #"captureBaseline("state.paywall.available", in: app)"#,
+            "purchase.tap()",
+            "waitForLocalizedLabel(",
+            "if !emitsEvidence {",
+            "return usedSettingsRetry",
+            #"for: "state.paywall.purchase-complete""#,
+            #"captureBaseline("state.paywall.purchase-complete", in: app)"#,
+        ] {
+            XCTAssertTrue(availablePaywallSource.contains(exact), exact)
+        }
+        let purchaseAction = try XCTUnwrap(
+            availablePaywallSource.range(of: "        purchase.tap()")
+        )
+        let suppressedPurchaseEvidenceReturn = try XCTUnwrap(
+            availablePaywallSource.range(
+                of: "        if !emitsEvidence {\n            return usedSettingsRetry\n        }",
+                range: purchaseAction.upperBound..<availablePaywallSource.endIndex
+            )
+        )
+        let normalPurchaseCompleteCapture = try XCTUnwrap(
+            availablePaywallSource.range(
+                of: #"captureBaseline("state.paywall.purchase-complete", in: app)"#,
+                range: suppressedPurchaseEvidenceReturn.upperBound..<availablePaywallSource.endIndex
+            )
+        )
+        XCTAssertLessThan(purchaseAction.lowerBound, suppressedPurchaseEvidenceReturn.lowerBound)
+        XCTAssertLessThan(
+            suppressedPurchaseEvidenceReturn.lowerBound,
+            normalPurchaseCompleteCapture.lowerBound
+        )
+        XCTAssertEqual(
+            segment3ResumeSource.components(
+                separatedBy: "emitsEvidence: false"
+            ).count - 1,
+            2
+        )
 
         for removedK128FrontierForm in [
             "axTextReportCorrectionFrontierReplayCount",
@@ -19060,15 +19409,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "        func diagnoseSegment3FinalComposition(\n",
             before: "\n        while completedGestureCount < maximumGestureCount {"
         )
-        XCTAssertEqual(k141State56DiagnosticSource.utf8.count, 8_242)
+        XCTAssertEqual(k141State56DiagnosticSource.utf8.count, 8_303)
         XCTAssertEqual(
             Data(k141State56DiagnosticSource.utf8).sha256,
-            "EF9A4D11AB918990802AEFBEF1D759CBF3590290077AE3985646D935B1592EE0"
+            "0AF78573D90B958C158B14991838A9D320C35BE00FCB092056CA88B4F290C40D"
         )
         for diagnosticContext in [
             "guard automationSegment == .segment3",
             #"shard.shardID == "s10.4.current.ax-text""#,
-            "automationSegment.replayCount == 50",
+            "automationSegment.replayCount == 22",
+            "automationSegment.ownedStartOrdinal == 51",
             "automationSegment.ownedCount == 17",
             "automationSegment.finalOrdinal == 67",
             "segmentedRouteStateCursor == 55",
@@ -19254,10 +19604,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    @MainActor\n    private func shouldPrepareNormalEvidence(",
             before: "\n\n    @MainActor\n    private func replaySegmentPrefixIfNeeded("
         )
-        XCTAssertEqual(preparationPredicateSource.utf8.count, 1_646)
+        XCTAssertEqual(preparationPredicateSource.utf8.count, 2_038)
         XCTAssertEqual(
             Data(preparationPredicateSource.utf8).sha256,
-            "E5C14136950646A12636AD5F5CAB03EB8A44FB4D0FDC8C4958D8DA456E0538CC"
+            "101E690E6D0ACF6F011600CAAB8651C31F7E4A222F7816786B5A39D4BE46AF7D"
         )
         for exact in [
             "guard automationSegment != .none else { return true }",
@@ -19266,6 +19616,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "Set(Self.segmentedRouteStateIDs).count == 67",
             "segmentedRouteStateCursor < Self.segmentedRouteStateIDs.count",
             "Self.segmentedRouteStateIDs[segmentedRouteStateCursor] == stateID",
+            "segmentedRouteStateCursor < automationSegment.replayCount",
+            "segmentedRouteStateCursor >= automationSegment.ownedStartOrdinal - 1",
+            "Segmented evidence preparation entered an unowned resume gap",
             "app.state == .runningForeground",
             "return segmentedRouteStateCursor >= automationSegment.replayCount",
         ] {
@@ -19285,11 +19638,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             preparationPredicateSource.components(separatedBy: "return false").count - 1,
-            4
+            5
         )
         XCTAssertEqual(
             preparationPredicateSource.components(separatedBy: "XCTFail(").count - 1,
-            4
+            5
         )
 
         let preparationGateExpression = try NSRegularExpression(
@@ -19376,12 +19729,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "           shouldPrepareNormalEvidence(\n               for: \"state.capture.wide-ready\",",
              "            let captureScrollViews", 190,
              "03F7CD28CDC055AEC10026669C77B122F2DA80C98A0F30D9677228FA4C5488CD"),
-            ("        let preparesPaywallAvailableEvidence =", "        let productName", 196,
-             "82366CC1C409D6E177EC11709EE7C6E1E22352EC4D0EA166E3194FC695B19CF2"),
-            ("                if shouldPrepareNormalEvidence(\n" +
+            ("        let preparesPaywallAvailableEvidence =", "        let productName", 237,
+             "B52C609F5071CA8B02ACBED4A4CD46D95160799F2661660444B4232D06260C2B"),
+            ("                if emitsEvidence && shouldPrepareNormalEvidence(\n" +
                 "                    for: \"state.recheck-outcome.different-issue\",",
-             "                let navigationBottom", 162,
-             "03B5D49311C7F58EE4B7C8FF49AF79AE7FAA94A347F3DE1ED4A237B9C66EF0A1"),
+             "                let navigationBottom", 179,
+             "998ADDD8ABD3F4BC6F10519774D497CB889AA236BBF35522914ACA9E94437B74"),
         ]
         for (start, end, bytes, sha256) in preparationGateSliceLocks {
             let source = try boundedSource(uiSource, from: start, before: end)
@@ -19399,10 +19752,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             guard let range = Range(match.range, in: uiSource) else { return nil }
             return String(uiSource[range]).trimmingCharacters(in: .whitespacesAndNewlines)
         }.joined(separator: "\n")
-        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 440)
+        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 450)
         XCTAssertEqual(
             Data(routeActionLedger.utf8).sha256,
-            "BC0F10ACF65552D89E9642156CA24A94077DD6913D8C86FF49F8F0D1FB1FFDDE"
+            "E7CE19D37D7C16CCD542E498A28D84A4D64A2C83BFAE9494624C5EDA1EEDFC51"
         )
         let captureLedgerExpression = try NSRegularExpression(
             pattern: #"(?m)^\s*captureBaseline\(\"[^\"]+\", in: [^)]+\)"#
@@ -19448,10 +19801,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func replaySegmentPrefixIfNeeded(\n",
             before: "\n\n    @MainActor\n    private func finishAutomatedSegmentIfNeeded("
         )
-        XCTAssertEqual(replaySource.utf8.count, 2_715)
+        XCTAssertEqual(replaySource.utf8.count, 3_072)
         XCTAssertEqual(
             Data(replaySource.utf8).sha256,
-            "7FEC2E34333BD2AF2170700F3887F62D79ACCF9C4FD64FC1E7B30527A12A9C0E"
+            "0AEF0C45CA77F3A0850AB63DCF70D7870CA4A6E0F1DCD063167554DC0ACA1870"
         )
         XCTAssertEqual(
             uiSource.components(
@@ -19470,10 +19823,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let segmentedReplaySource = String(
             replaySource[segmentedReplayStart.lowerBound...]
         )
-        XCTAssertEqual(segmentedReplaySource.utf8.count, 2_483)
+        XCTAssertEqual(segmentedReplaySource.utf8.count, 2_840)
         XCTAssertEqual(
             Data(segmentedReplaySource.utf8).sha256,
-            "AD9A8FAD9E4D7A14F012443445880997BE8AAAEBD354C1E4280F2A28F44565DF"
+            "542F757C04B099DDD836272DAD173FCC557D4019E8132C4AC4C25FE49FF9FCEF"
         )
         for exact in [
             "shard.shardID == \"s10.4.current.ax-text\"",
@@ -19484,6 +19837,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "segmentedRouteStateCursor += 1",
             "segmentedRouteStateCursor <= automationSegment.finalOrdinal",
             "segmentedRouteStateCursor <= automationSegment.replayCount",
+            "segmentedRouteStateCursor >= automationSegment.ownedStartOrdinal",
+            "The segmented route entered an unowned resume gap",
             "printJSONLine(prefix: \"S10_4_SEGMENT_REPLAY\"",
         ] {
             XCTAssertTrue(segmentedReplaySource.contains(exact), exact)
@@ -19507,6 +19862,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func finishAutomatedSegmentIfNeeded(\n",
             before: "\n\n    @MainActor\n    private func positionIssueRecheckDueDescriptionForAXText("
         )
+        XCTAssertEqual(finalizerSource.utf8.count, 2_150)
+        XCTAssertEqual(
+            Data(finalizerSource.utf8).sha256,
+            "DE8AC9E4C2054217950A5098CD63198B9B317E9EC7A31E9893D755F0806F74E4"
+        )
         for exact in [
             "guard automationSegment != .none,",
             "ordinal == automationSegment.finalOrdinal",
@@ -19514,7 +19874,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "automationShard?.shardID == \"s10.4.current.ax-text\"",
             "segmentedRouteStateCursor == ordinal",
             "app.state == .runningForeground",
-            "automationSegment.replayCount..<automationSegment.finalOrdinal",
+            "(automationSegment.ownedStartOrdinal - 1)..<automationSegment.finalOrdinal",
             "expectedOwnedStateIDs.count == automationSegment.ownedCount",
             "Set(expectedOwnedStateIDs).count == automationSegment.ownedCount",
             "migratedStateIDs == expectedOwnedStateIDs",
@@ -19730,6 +20090,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "cmp -s \"$expected_owned_path\" \"$observed_marker_path\"",
             "cmp -s \"$expected_replay_path\"",
             "S10_4_SEGMENT_REPLAY",
+            "S10_4_SEGMENT_RESUME_SETUP",
+            "resume-setup-rows.json",
+            ".resumeMode == $segmentPlan.resumeMode",
+            ".dependencySegmentIDs == $segmentPlan.dependencySegmentIDs",
+            ".dependencyOwnedStateCount == $segmentPlan.dependencyOwnedStateCount",
+            ".dependencyOwnedStateIDs == $segmentPlan.dependencyOwnedStateIDs",
+            ".dependencyOwnedStateSHA256 == $segmentPlan.dependencyOwnedStateSHA256",
+            ".resumeSetup == $segmentPlan.resumeSetup",
+            ".resumeSetupRowCount == $resumeSetupRowCount",
             "^S10_4_.*DIAGNOSTIC",
             "Lost connection to testmanagerd|XCTHTestOperationCoordinatorErrorDomain",
             ".suggestedHumanReadableName == \"UI Snapshot\"",
@@ -19773,6 +20142,40 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "test ! -e \"$shard_evidence_path/shard-receipt.json\"",
         ] {
             XCTAssertTrue(retainSegmentSource.contains(exact), exact)
+        }
+        let workerResumeValidationSource = try boundedSource(
+            retainSegmentSource,
+            from:
+                "          resume_setup_ndjson_path=\"$RUNNER_TEMP/s10-4-segment-resume-setup.ndjson\"",
+            before:
+                "          diagnostic_count="
+        )
+        XCTAssertEqual(workerResumeValidationSource.utf8.count, 2_675)
+        XCTAssertEqual(
+            Data(workerResumeValidationSource.utf8).sha256,
+            "CD346479470F33C76F9053E05B761508466C84A99B51FA9F432037B5E53FDB1A"
+        )
+        for exact in [
+            "length == $setupCount",
+            ". == [] and $expected.resumeSetup == null",
+            "$setupCount == 1",
+            "acceptanceEligible: false",
+            "setupID: $expected.resumeSetup.setupID",
+            "sourceOrdinal: $expected.resumeSetup.sourceOrdinal",
+            "skippedStartOrdinal: $expected.resumeSetup.skippedStartOrdinal",
+            "skippedEndOrdinal: $expected.resumeSetup.skippedEndOrdinal",
+            "targetOrdinal: $expected.resumeSetup.targetOrdinal",
+            "cursorBeforeResume: $expected.resumeSetup.cursorBeforeResume",
+            "cursorAfterResume: $expected.resumeSetup.cursorAfterResume",
+            "localReplayCount: $replayCount",
+            "dependencyOwnedStateSHA256:",
+            "applicationForeground:",
+            "purchaseVerified: $expected.resumeSetup.purchaseVerified",
+            "pendingDifferentIssueReceiptVerified:",
+            "reportFailureRouteVerified:",
+            "renderFailureArgumentCount:",
+        ] {
+            XCTAssertTrue(workerResumeValidationSource.contains(exact), exact)
         }
         let candidateCanonicalizationSource = try boundedSource(
             retainSegmentSource,
@@ -19920,8 +20323,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let assemblerSource = try text(assemblerPath)
         try assertFile(
             assemblerPath,
-            byteCount: 28_953,
-            sha256: "3AC4BC121339A6D89D5FD4F77215137E88A9673939BB66A67D1CF2898FC2CE50"
+            byteCount: 35_682,
+            sha256: "FDD2ABA03B25D83F5D2683EE60EEA1108C9CBCF3DB3D89B0E3E3C5C677E6CBDB"
         )
         XCTAssertFalse(assemblerSource.contains("\r"))
         XCTAssertTrue(
@@ -20000,8 +20403,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ".replayStateIDs == $expected.replayStateIDs",
             ".ownedStateSHA256 == $expected.ownedStateSHA256",
             ".replayStateSHA256 == $expected.replayStateSHA256",
+            ".resumeMode == $expected.resumeMode",
+            ".dependencySegmentIDs == $expected.dependencySegmentIDs",
+            ".dependencyOwnedStateCount == $expected.dependencyOwnedStateCount",
+            ".dependencyOwnedStateIDs == $expected.dependencyOwnedStateIDs",
+            ".dependencyOwnedStateSHA256 == $expected.dependencyOwnedStateSHA256",
+            ".resumeSetup == $expected.resumeSetup",
             ".markerCount == $expected.stateCount",
             ".replayRowCount == $expected.replayCount",
+            ".resumeSetupRowCount == ($expected.resumeSetup.rowCount // 0)",
             ".diagnosticCount == 0",
             ".attachmentCount == ($expected.stateCount + 1)",
             ".segmentTerminalAttachmentCount == 1",
@@ -20012,6 +20422,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "test ! -e \"$shard_source/shard-receipt.json\"",
             "test ! -e \"$source_dir/accessibility/$shard_id\"",
             "test \"$(jq 'length' \"$shard_source/candidate-exports.json\")\" -eq \"$state_count\"",
+            "test \"$(jq 'length' \"$shard_source/resume-setup-rows.json\")\" -eq \"$resume_setup_count\"",
             "[.[].stateID] == $expected.replayStateIDs",
             "[.[].stateID] == $expected.ownedStateIDs",
             "(.exportedFileName | type == \"string\")",
@@ -20090,6 +20501,75 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
 
+        let assemblerResumeValidationSource = try boundedSource(
+            assemblerSourceLoop,
+            from:
+                "  jq -e --arg shard \"$shard_id\" --arg segment \"$segment_id\" \\\n" +
+                    "    --argjson expected \"$segment_json\" --argjson replayCount \"$replay_count\" \\\n" +
+                    "    --argjson setupCount \"$resume_setup_count\" '",
+            before:
+                "  jq -e --argjson expected \"$segment_json\" '[.[].stateID] == $expected.ownedStateIDs' \"$shard_source/state-ax.json\" > /dev/null"
+        )
+        XCTAssertEqual(assemblerResumeValidationSource.utf8.count, 1_764)
+        XCTAssertEqual(
+            Data(assemblerResumeValidationSource.utf8).sha256,
+            "2A5FB368B3C7BE2CF1FC19C9AFCBFEAA4F1E06AA4FD184B11677EF7D912CC57C"
+        )
+        for exact in [
+            "length == $setupCount",
+            ". == [] and $expected.resumeSetup == null",
+            "$setupCount == 1",
+            "acceptanceEligible: false",
+            "setupID: $expected.resumeSetup.setupID",
+            "cursorBeforeResume: $expected.resumeSetup.cursorBeforeResume",
+            "cursorAfterResume: $expected.resumeSetup.cursorAfterResume",
+            "localReplayCount: $replayCount",
+            "dependencyOwnedStateSHA256:",
+            "pendingDifferentIssueReceiptVerified:",
+            "reportFailureRouteVerified:",
+            "renderFailureArgumentCount:",
+            "$shard_source/resume-setup-rows.json",
+        ] {
+            XCTAssertTrue(assemblerResumeValidationSource.contains(exact), exact)
+        }
+
+        let assemblerDependencySource = try boundedSource(
+            assemblerSource,
+            from:
+                "jq -e --slurpfile plan \"$plan_path\" '\n" +
+                    "  . as $receipts\n" +
+                    "  | ($plan[0].segments[] | select(.segmentID == \"segment-3\")) as $segment3",
+            before:
+                "\njq -s '.' \"$combined_shard/state-ax.ndjson\" > \"$combined_shard/state-ax.json\""
+        )
+        XCTAssertEqual(assemblerDependencySource.utf8.count, 2_790)
+        XCTAssertEqual(
+            Data(assemblerDependencySource.utf8).sha256,
+            "64E56050FA5ED52BA7F98A3E60E2DFFA0107D700A43387C8644FB9437F8493B3"
+        )
+        for exact in [
+            #"select(.segmentID == "segment-3")"#,
+            "$segment3.dependencySegmentIDs[] as $dependencyID",
+            "([$dependencies[].segmentID] == $segment3.dependencySegmentIDs)",
+            "($dependencies | length) == 2",
+            #".receiptKind == "s10.4-segment""#,
+            ".complete == true",
+            ".finalAcceptanceEligible == false",
+            "([$dependencies[].ownedStateIDs[]] == $segment3.dependencyOwnedStateIDs)",
+            "([$dependencies[].ownedStateIDs[]] | length) == $segment3.dependencyOwnedStateCount",
+            "sha256_text \"$dependency_state_text\"",
+            ".dependencyOwnedStateSHA256",
+            "requiredSegmentIDs: $segment3.dependencySegmentIDs",
+            "resolvedSegmentIDs: [$dependencies[].segmentID]",
+            "resolvedStateCount: ([$dependencies[].ownedStateIDs[]] | length)",
+            "resolvedStateSHA256: $segment3.dependencyOwnedStateSHA256",
+            "sourceSegmentReceiptKinds: [$dependencies[].receiptKind]",
+            "complete: true",
+            #"> "$combined_shard/segment-dependency-resolution.json""#,
+        ] {
+            XCTAssertTrue(assemblerDependencySource.contains(exact), exact)
+        }
+
         for exact in [
             "[.[].stateID] == $plan[0].orderedStateIDs and length == 67",
             ".capture == \"XCUIApplication.debugDescription\"",
@@ -20131,7 +20611,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "segmentIDs:[\"segment-1\",\"segment-2\",\"segment-3\"]",
             "segmentCount:3",
             "distinctSessionCount:3",
+            "dependencyResolution:$dependency[0]",
             "sourceSegmentReceipts:$receipts[0]",
+            "segment-dependency-resolution.json",
             "find . -type f ! -name 'SHA256SUMS.txt*' -print0",
             "LC_ALL=C sort -z",
             "shasum -a 256 -c SHA256SUMS.txt",

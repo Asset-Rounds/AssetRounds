@@ -504,7 +504,23 @@ jobs:
                 and ([.segments[].startOrdinal] == [1, 23, 51])
                 and ([.segments[].endOrdinal] == [22, 50, 67])
                 and ([.segments[].stateCount] == [22, 28, 17])
-                and ([.segments[].replayCount] == [0, 22, 50])
+                and ([.segments[].replayCount] == [0, 22, 22])
+                and ([.segments[].resumeMode] == [
+                  "none",
+                  "route-replay",
+                  "local-replay-plus-ui-prerequisite"
+                ])
+                and ([.segments[].dependencySegmentIDs] == [
+                  [],
+                  [],
+                  ["segment-1", "segment-2"]
+                ])
+                and ([.segments[].dependencyOwnedStateCount] == [0, 0, 50])
+                and ([.segments[].dependencyOwnedStateSHA256] == [
+                  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                  "80397ABF11A3622661E301900B7A23D0398FBF292CEEE29E1E9FA1E7A8EDA0A4"
+                ])
                 and ([.segments[].ownedStateSHA256] == [
                   "8BB0F12120AD78E23B90091E70E8B8C98418A111B2328CE2411981D1AB40F1C3",
                   "AE2041547A2B421AE0C2424FE8BB25B2FE2901C4385F0009E65E406CAE25392B",
@@ -513,14 +529,39 @@ jobs:
                 and ([.segments[].replayStateSHA256] == [
                   "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
                   "8BB0F12120AD78E23B90091E70E8B8C98418A111B2328CE2411981D1AB40F1C3",
-                  "80397ABF11A3622661E301900B7A23D0398FBF292CEEE29E1E9FA1E7A8EDA0A4"
+                  "8BB0F12120AD78E23B90091E70E8B8C98418A111B2328CE2411981D1AB40F1C3"
                 ])
                 and (.segments[0].ownedStateIDs == .orderedStateIDs[0:22])
                 and (.segments[1].ownedStateIDs == .orderedStateIDs[22:50])
                 and (.segments[2].ownedStateIDs == .orderedStateIDs[50:67])
                 and (.segments[0].replayStateIDs == [])
                 and (.segments[1].replayStateIDs == .orderedStateIDs[0:22])
-                and (.segments[2].replayStateIDs == .orderedStateIDs[0:50])
+                and (.segments[2].replayStateIDs == .orderedStateIDs[0:22])
+                and (.segments[0].dependencyOwnedStateIDs == [])
+                and (.segments[1].dependencyOwnedStateIDs == [])
+                and (.segments[2].dependencyOwnedStateIDs == .orderedStateIDs[0:50])
+                and (.segments[0].resumeSetup == null)
+                and (.segments[1].resumeSetup == null)
+                and (.segments[2].resumeSetup == {
+                  setupID: "segment-3-report-pdf-failed-v1",
+                  rowCount: 1,
+                  localReplayCount: 22,
+                  sourceOrdinal: 22,
+                  sourceStateID: "state.sign-detail.open-issue",
+                  skippedStartOrdinal: 23,
+                  skippedEndOrdinal: 50,
+                  targetOrdinal: 51,
+                  targetStateID: "state.report-pdf.failed",
+                  cursorBeforeResume: 22,
+                  cursorAfterResume: 50,
+                  dependencyOwnedStateSHA256:
+                    "80397ABF11A3622661E301900B7A23D0398FBF292CEEE29E1E9FA1E7A8EDA0A4",
+                  applicationForeground: true,
+                  purchaseVerified: true,
+                  pendingDifferentIssueReceiptVerified: true,
+                  reportFailureRouteVerified: true,
+                  renderFailureArgumentCount: 1
+                })
                 and any(.segments[]; .segmentID == $segment)
               ' Scripts/s10-4-segment-plan.json > /dev/null
             evidence_kernel_json="$(jq -cS '
@@ -948,6 +989,7 @@ jobs:
             Scripts/s10-4-segment-plan.json)"
           expected_state_count="$(jq -r '.stateCount' <<< "$segment_json")"
           expected_replay_count="$(jq -r '.replayCount' <<< "$segment_json")"
+          expected_resume_setup_count="$(jq -r '.resumeSetup.rowCount // 0' <<< "$segment_json")"
           expected_owned_path="$RUNNER_TEMP/s10-4-segment-owned.json"
           expected_replay_path="$RUNNER_TEMP/s10-4-segment-replay.json"
           jq -c '.ownedStateIDs' <<< "$segment_json" > "$expected_owned_path"
@@ -980,6 +1022,51 @@ jobs:
                 and (.value.ordinal | type == "number" and floor == .)
                 and .value.ordinal == (.key + 1))
             ' "$RUNNER_TEMP/s10-4-segment-replay-rows.json" > /dev/null
+
+          resume_setup_ndjson_path="$RUNNER_TEMP/s10-4-segment-resume-setup.ndjson"
+          resume_setup_rows_path="$RUNNER_TEMP/s10-4-segment-resume-setup-rows.json"
+          sed -n 's/^S10_4_SEGMENT_RESUME_SETUP //p' "$CI_ARTIFACT_DIR/ui-smoke.log" \
+            > "$resume_setup_ndjson_path"
+          jq -s '.' "$resume_setup_ndjson_path" > "$resume_setup_rows_path"
+          jq -e --arg shard "$CI_S10_4_SHARD_ID" \
+            --arg segment "$CI_S10_4_SEGMENT_ID" \
+            --argjson expected "$segment_json" \
+            --argjson replayCount "$expected_replay_count" \
+            --argjson setupCount "$expected_resume_setup_count" '
+              length == $setupCount
+              and if $setupCount == 0 then
+                . == [] and $expected.resumeSetup == null
+              else
+                $setupCount == 1
+                and .[0] == {
+                  schemaVersion: 1,
+                  acceptanceEligible: false,
+                  shardID: $shard,
+                  segmentID: $segment,
+                  setupID: $expected.resumeSetup.setupID,
+                  sourceOrdinal: $expected.resumeSetup.sourceOrdinal,
+                  sourceStateID: $expected.resumeSetup.sourceStateID,
+                  skippedStartOrdinal: $expected.resumeSetup.skippedStartOrdinal,
+                  skippedEndOrdinal: $expected.resumeSetup.skippedEndOrdinal,
+                  targetOrdinal: $expected.resumeSetup.targetOrdinal,
+                  targetStateID: $expected.resumeSetup.targetStateID,
+                  cursorBeforeResume: $expected.resumeSetup.cursorBeforeResume,
+                  cursorAfterResume: $expected.resumeSetup.cursorAfterResume,
+                  localReplayCount: $replayCount,
+                  dependencyOwnedStateSHA256:
+                    $expected.resumeSetup.dependencyOwnedStateSHA256,
+                  applicationForeground:
+                    $expected.resumeSetup.applicationForeground,
+                  purchaseVerified: $expected.resumeSetup.purchaseVerified,
+                  pendingDifferentIssueReceiptVerified:
+                    $expected.resumeSetup.pendingDifferentIssueReceiptVerified,
+                  reportFailureRouteVerified:
+                    $expected.resumeSetup.reportFailureRouteVerified,
+                  renderFailureArgumentCount:
+                    $expected.resumeSetup.renderFailureArgumentCount
+                }
+              end
+            ' "$resume_setup_rows_path" > /dev/null
 
           test "$(grep -Ec '^S10_4_AX ' "$CI_ARTIFACT_DIR/ui-smoke.log" || true)" -eq 0
           test "$(grep -Ec '^S10_4_FRONTIER_REPLAY ' "$CI_ARTIFACT_DIR/ui-smoke.log" || true)" -eq 0
@@ -1038,6 +1125,8 @@ jobs:
           cp "$observed_marker_path" "$shard_evidence_path/owned-state-ids.json"
           cp "$RUNNER_TEMP/s10-4-segment-replay-rows.json" \
             "$shard_evidence_path/replay-rows.json"
+          cp "$resume_setup_rows_path" \
+            "$shard_evidence_path/resume-setup-rows.json"
 
           candidate_prefix="S10.4 candidate $CI_S10_4_SHARD_ID "
           jq -e --arg prefix "$candidate_prefix" --argjson expected "$expected_state_count" \
@@ -1297,6 +1386,7 @@ jobs:
             --argjson uiExecutedTestCount "$ui_executed_test_count" \
             --argjson attachmentCount "$attachment_count" \
             --argjson diagnosticCount "$diagnostic_count" \
+            --argjson resumeSetupRowCount "$expected_resume_setup_count" \
             --argjson segment "$segment_json" '
               {
                 schemaVersion: 1,
@@ -1319,6 +1409,12 @@ jobs:
                 endOrdinal: $segment.endOrdinal,
                 stateCount: $segment.stateCount,
                 replayCount: $segment.replayCount,
+                resumeMode: $segment.resumeMode,
+                dependencySegmentIDs: $segment.dependencySegmentIDs,
+                dependencyOwnedStateCount: $segment.dependencyOwnedStateCount,
+                dependencyOwnedStateIDs: $segment.dependencyOwnedStateIDs,
+                dependencyOwnedStateSHA256: $segment.dependencyOwnedStateSHA256,
+                resumeSetup: $segment.resumeSetup,
                 ownedStateIDs: $segment.ownedStateIDs,
                 replayStateIDs: $segment.replayStateIDs,
                 ownedStateSHA256: $segment.ownedStateSHA256,
@@ -1355,6 +1451,7 @@ jobs:
                 segmentTerminalAttachmentCount: 1,
                 markerCount: $segment.stateCount,
                 replayRowCount: $segment.replayCount,
+                resumeSetupRowCount: $resumeSetupRowCount,
                 diagnosticCount: $diagnosticCount,
                 candidateCount: $segment.stateCount,
                 stateAXRowCount: $segment.stateCount,
@@ -2776,6 +2873,7 @@ jobs:
                   Scripts/s10-4-segment-plan.json)"
                 expected_state_count="$(jq -r '.stateCount' <<< "$segment_json")"
                 expected_replay_count="$(jq -r '.replayCount' <<< "$segment_json")"
+                expected_resume_setup_count="$(jq -r '.resumeSetup.rowCount // 0' <<< "$segment_json")"
                 expected_plan_sha256="$(shasum -a 256 Scripts/s10-4-segment-plan.json | awk '{print toupper($1)}')"
                 expected_evidence_kernel_sha256="$(jq -r '.evidenceKernelSHA256' Scripts/s10-4-segment-plan.json)"
                 expected_selector_sha256="$(shasum -a 256 Scripts/ci-selection.json | awk '{print toupper($1)}')"
@@ -2808,6 +2906,7 @@ jobs:
                 test -s "$shard_evidence_path/contrast.ndjson"
                 test -s "$shard_evidence_path/contrast.json"
                 test -s "$shard_evidence_path/replay-rows.json"
+                test -s "$shard_evidence_path/resume-setup-rows.json"
                 test -s "$shard_evidence_path/segment-receipt.pending.json"
                 test ! -e "$shard_evidence_path/segment-receipt.json"
                 test ! -e "$shard_evidence_path/shard-receipt.json"
@@ -2819,6 +2918,8 @@ jobs:
                   -eq "$expected_state_count"
                 test "$(jq 'length' "$shard_evidence_path/replay-rows.json")" \
                   -eq "$expected_replay_count"
+                test "$(jq 'length' "$shard_evidence_path/resume-setup-rows.json")" \
+                  -eq "$expected_resume_setup_count"
                 state_ax_path="$CI_ARTIFACT_DIR/ax/$CI_S10_4_SHARD_ID"
                 state_contrast_path="$CI_ARTIFACT_DIR/contrast/$CI_S10_4_SHARD_ID"
                 require_nonempty_directory "$state_ax_path"
@@ -2845,7 +2946,8 @@ jobs:
                   --argjson attachmentCount "$expected_attachment_count" \
                   --argjson segmentPlan "$segment_json" \
                   --argjson stateCount "$expected_state_count" \
-                  --argjson replayCount "$expected_replay_count" '
+                  --argjson replayCount "$expected_replay_count" \
+                  --argjson resumeSetupRowCount "$expected_resume_setup_count" '
                     .schemaVersion == 1
                     and .receiptKind == "s10.4-segment-pending"
                     and .complete == false
@@ -2885,6 +2987,12 @@ jobs:
                     and .ordinal == $segmentPlan.ordinal
                     and .startOrdinal == $segmentPlan.startOrdinal
                     and .endOrdinal == $segmentPlan.endOrdinal
+                    and .resumeMode == $segmentPlan.resumeMode
+                    and .dependencySegmentIDs == $segmentPlan.dependencySegmentIDs
+                    and .dependencyOwnedStateCount == $segmentPlan.dependencyOwnedStateCount
+                    and .dependencyOwnedStateIDs == $segmentPlan.dependencyOwnedStateIDs
+                    and .dependencyOwnedStateSHA256 == $segmentPlan.dependencyOwnedStateSHA256
+                    and .resumeSetup == $segmentPlan.resumeSetup
                     and .ownedStateIDs == $segmentPlan.ownedStateIDs
                     and .replayStateIDs == $segmentPlan.replayStateIDs
                     and .ownedStateSHA256 == $segmentPlan.ownedStateSHA256
@@ -2893,6 +3001,7 @@ jobs:
                     and .replayCount == $replayCount
                     and .markerCount == $stateCount
                     and .replayRowCount == $replayCount
+                    and .resumeSetupRowCount == $resumeSetupRowCount
                     and .diagnosticCount == 0
                     and .candidateCount == $stateCount
                     and .stateAXRowCount == $stateCount

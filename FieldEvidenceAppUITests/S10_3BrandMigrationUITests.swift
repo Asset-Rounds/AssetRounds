@@ -98,7 +98,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             switch self {
             case .none, .segment1: return 0
             case .segment2: return 22
-            case .segment3: return 50
+            case .segment3: return 22
+            }
+        }
+
+        var ownedStartOrdinal: Int {
+            switch self {
+            case .none, .segment1: return 1
+            case .segment2: return 23
+            case .segment3: return 51
             }
         }
 
@@ -112,7 +120,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
 
         var finalOrdinal: Int {
-            replayCount + ownedCount
+            ownedStartOrdinal + ownedCount - 1
         }
     }
 
@@ -645,6 +653,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     private var automationSegment = AutomationSegment.none
     private var segmentedRouteStateCursor = 0
     private var automatedSegmentFinished = false
+    private var segment3ResumePrepared = false
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -706,6 +715,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         pseudoLabelSentinelValidated = false
         segmentedRouteStateCursor = 0
         automatedSegmentFinished = false
+        segment3ResumePrepared = false
     }
 
     @MainActor
@@ -782,11 +792,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         try completeWorkAndResolvedRecheckAtXXXL(in: app)
         if automatedSegmentFinished { return }
-        captureAlternativeCompletedCheckStates(in: app)
-        captureDifferentIssueStatesBeforeRecovery(in: app)
-        if automatedSegmentFinished { return }
-        app.terminate()
-        app.launch()
+        if !segment3ResumePrepared {
+            captureAlternativeCompletedCheckStates(in: app)
+            captureDifferentIssueStatesBeforeRecovery(in: app)
+            if automatedSegmentFinished { return }
+            app.terminate()
+            app.launch()
+        }
         recoverInjectedPDFFailureAtXXXL(in: app)
         captureReportComparisonAndCorrectionStates(in: app)
         captureUnavailablePaywallAndFeedbackReview(in: app)
@@ -4470,6 +4482,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         captureBaseline("state.sign-detail.open-issue", in: app)
         if finishAutomatedSegmentIfNeeded(after: 22, in: app) { return }
+        if try prepareSegment3ResumeAtReportFailureIfNeeded(in: app) {
+            segment3ResumePrepared = true
+            return
+        }
 
         let recordWork = element("s5.1.sign-detail.record-work", in: app)
         scroll(recordWork, in: app)
@@ -5793,11 +5809,254 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
+    private func purchaseSubscriptionWithoutBaseline(
+        in app: XCUIApplication
+    ) throws {
+        let settings = element("s1.settings.button", in: app)
+        assertControl(settings, label: "Settings")
+        settings.tap()
+        guard element("s1.settings.screen", in: app)
+            .waitForExistence(timeout: 20) else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume could not open Settings for purchase setup"
+            )
+        }
+        let paywall = element("s7.2.settings.paywall", in: app)
+        scroll(paywall, in: app)
+        assertControl(paywall, label: "View subscription")
+        paywall.tap()
+        guard element("s7.2.paywall.screen", in: app)
+            .waitForExistence(timeout: 30) else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume could not open the purchase route"
+            )
+        }
+        _ = captureAvailablePaywallAndPurchase(
+            emitsEvidence: false,
+            in: app
+        )
+        let purchaseState = element("s7.2.paywall.purchase-state", in: app)
+        guard purchaseState.exists,
+              purchaseState.label.contains(
+                "Purchase verified. Subscription access is ready."
+              ) else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume did not verify the purchase prerequisite"
+            )
+        }
+        let close = element("s7.2.paywall.close", in: app)
+        scrollDown(close, in: app)
+        assertControl(close, label: "Close")
+        close.tap()
+        guard element("s1.settings.screen", in: app)
+            .waitForExistence(timeout: 20) else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume did not return to Settings after purchase"
+            )
+        }
+        navigateBack(in: app)
+        guard element("s2.sign-detail.screen", in: app)
+            .waitForExistence(timeout: 20) else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume did not return to Sign detail after purchase"
+            )
+        }
+    }
+
+    @MainActor
+    private func prepareSegment3ResumeAtReportFailureIfNeeded(
+        in app: XCUIApplication
+    ) throws -> Bool {
+        guard automationSegment == .segment3 else { return false }
+        guard let shard = automationShard,
+              shard.shardID == "s10.4.current.ax-text",
+              Self.segmentedRouteStateIDs.count == 67,
+              Set(Self.segmentedRouteStateIDs).count == 67,
+              automationSegment.replayCount == 22,
+              automationSegment.ownedStartOrdinal == 51,
+              automationSegment.ownedCount == 17,
+              automationSegment.finalOrdinal == 67,
+              segmentedRouteStateCursor == 22,
+              migratedStateIDs.isEmpty,
+              automationAXTreeDigests.isEmpty,
+              automationContrastExceptions.isEmpty,
+              !automatedSegmentFinished,
+              app.state == .runningForeground,
+              app.descendants(matching: .any)
+                .matching(identifier: "s2.sign-detail.screen").count == 1,
+              app.descendants(matching: .any)
+                .matching(identifier: "s5.1.sign-detail.record-work").count == 1,
+              !app.launchArguments.contains(
+                "--s4-2-ui-test-render-failure-once"
+              ) else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume did not begin at the exact state-22 boundary"
+            )
+        }
+
+        recordWorkWithoutBaseline(in: app)
+        guard segmentedRouteStateCursor == 22,
+              migratedStateIDs.isEmpty,
+              app.state == .runningForeground,
+              app.descendants(matching: .any)
+                .matching(identifier: "s2.sign-detail.screen").count == 1,
+              app.descendants(matching: .any)
+                .matching(identifier: "s5.1.sign-detail.recheck-due").count == 1 else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume did not create the recheck-due prerequisite"
+            )
+        }
+
+        try purchaseSubscriptionWithoutBaseline(in: app)
+        guard segmentedRouteStateCursor == 22,
+              migratedStateIDs.isEmpty,
+              app.state == .runningForeground,
+              app.descendants(matching: .any)
+                .matching(identifier: "s2.sign-detail.screen").count == 1,
+              app.descendants(matching: .any)
+                .matching(identifier: "s5.1.sign-detail.recheck-due").count == 1 else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume purchase changed the recheck-due route"
+            )
+        }
+
+        app.terminate()
+        app.launchArguments.append("--s4-2-ui-test-render-failure-once")
+        guard app.launchArguments.filter({
+            $0 == "--s4-2-ui-test-render-failure-once"
+        }).count == 1 else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume render-failure argument is not unique"
+            )
+        }
+        app.launch()
+        guard element("s2.sign-detail.screen", in: app)
+            .waitForExistence(timeout: 30),
+              app.state == .runningForeground,
+              segmentedRouteStateCursor == 22 else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume did not relaunch the recheck-due route"
+            )
+        }
+        let pendingDifferentIssueReceiptVerified = performAlternativeRecheck(
+            .differentIssue,
+            leavesPendingReceipt: true,
+            emitsEvidence: false,
+            in: app
+        )
+
+        let signDetailScreens = app.descendants(matching: .any)
+            .matching(identifier: "s2.sign-detail.screen")
+        let resolvedIssueActions = app.descendants(matching: .any)
+            .matching(identifier: "s5.2.sign-detail.resolved")
+        let recheckDueActions = app.descendants(matching: .any)
+            .matching(identifier: "s5.1.sign-detail.recheck-due")
+        guard segmentedRouteStateCursor == 22,
+              migratedStateIDs.isEmpty,
+              automationAXTreeDigests.isEmpty,
+              automationContrastExceptions.isEmpty,
+              pendingDifferentIssueReceiptVerified,
+              app.state == .runningForeground,
+              signDetailScreens.count == 1,
+              signDetailScreens.firstMatch.exists,
+              signDetailScreens.firstMatch.elementType == .scrollView,
+              signDetailScreens.firstMatch.identifier == "s2.sign-detail.screen",
+              resolvedIssueActions.count == 1,
+              resolvedIssueActions.firstMatch.exists,
+              resolvedIssueActions.firstMatch.isEnabled,
+              resolvedIssueActions.firstMatch.label == "Resolved",
+              recheckDueActions.count == 0 else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume did not prove the pending different-issue receipt route"
+            )
+        }
+
+        let resumedStateIDs = Array(Self.segmentedRouteStateIDs[22..<50])
+        let dependencyStateIDs = Array(Self.segmentedRouteStateIDs.prefix(50))
+        let dependencyOwnedStateSHA256 = SHA256.hash(
+            data: Data(dependencyStateIDs.joined(separator: "\n").utf8)
+        ).map { String(format: "%02X", $0) }.joined()
+        guard resumedStateIDs.count == 28,
+              Set(resumedStateIDs).count == 28,
+              resumedStateIDs.first == "state.work.validation-error",
+              resumedStateIDs.last == "state.issue.different-open",
+              dependencyStateIDs.count == 50,
+              Set(dependencyStateIDs).count == 50,
+              dependencyOwnedStateSHA256
+                == "80397ABF11A3622661E301900B7A23D0398FBF292CEEE29E1E9FA1E7A8EDA0A4" else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume state closure differs from the frozen inventory"
+            )
+        }
+        app.terminate()
+        app.launch()
+        let failureScreens = app.descendants(matching: .any)
+            .matching(identifier: "s4.pdf-failure.screen")
+        let failureHeadlines = app.descendants(matching: .any)
+            .matching(identifier: "s4.pdf-failure.headline")
+        let failureRetries = app.descendants(matching: .any)
+            .matching(identifier: "s4.pdf-failure.retry")
+        guard failureScreens.firstMatch.waitForExistence(timeout: 30),
+              failureScreens.count == 1,
+              failureScreens.firstMatch.identifier == "s4.pdf-failure.screen",
+              failureHeadlines.count == 1,
+              failureHeadlines.firstMatch.exists,
+              failureHeadlines.firstMatch.label
+                == "This report was saved, but its PDF is not available.",
+              failureRetries.count == 1,
+              failureRetries.firstMatch.exists,
+              failureRetries.firstMatch.isEnabled,
+              failureRetries.firstMatch.label == "Retry report",
+              segmentedRouteStateCursor == 22,
+              migratedStateIDs.isEmpty,
+              app.launchArguments.filter({
+                $0 == "--s4-2-ui-test-render-failure-once"
+              }).count == 1,
+              app.state == .runningForeground else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume did not reach the report-failure route"
+            )
+        }
+        printJSONLine(prefix: "S10_4_SEGMENT_RESUME_SETUP", object: [
+            "schemaVersion": 1,
+            "acceptanceEligible": false,
+            "shardID": shard.shardID,
+            "segmentID": automationSegment.rawValue,
+            "setupID": "segment-3-report-pdf-failed-v1",
+            "sourceOrdinal": 22,
+            "sourceStateID": "state.sign-detail.open-issue",
+            "skippedStartOrdinal": 23,
+            "skippedEndOrdinal": 50,
+            "targetOrdinal": 51,
+            "targetStateID": "state.report-pdf.failed",
+            "cursorBeforeResume": segmentedRouteStateCursor,
+            "cursorAfterResume": 50,
+            "localReplayCount": automationSegment.replayCount,
+            "dependencyOwnedStateSHA256": dependencyOwnedStateSHA256,
+            "applicationForeground": true,
+            "purchaseVerified": true,
+            "pendingDifferentIssueReceiptVerified": true,
+            "reportFailureRouteVerified": true,
+            "renderFailureArgumentCount": 1,
+        ])
+        segmentedRouteStateCursor = 50
+        guard segmentedRouteStateCursor
+                == automationSegment.ownedStartOrdinal - 1 else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume cursor did not reach the state-51 frontier"
+            )
+        }
+        return true
+    }
+
+    @MainActor
+    @discardableResult
     private func performAlternativeRecheck(
         _ outcome: AlternativeRecheckOutcome,
         leavesPendingReceipt: Bool = false,
+        emitsEvidence: Bool = true,
         in app: XCUIApplication
-    ) {
+    ) -> Bool {
         let due = element("s5.1.sign-detail.recheck-due", in: app)
         scroll(due, in: app)
         assertControl(due, label: "Recheck due")
@@ -5856,7 +6115,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 scroll(label, in: app)
                 assertControl(label, label: "Visible physical damage")
                 label.tap()
-                if shouldPrepareNormalEvidence(
+                if emitsEvidence && shouldPrepareNormalEvidence(
                     for: "state.recheck-outcome.different-issue",
                     in: app
                 ) {
@@ -5905,7 +6164,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTAssertTrue(value.isHittable)
                 XCTAssertTrue(label.isHittable)
                 }
-                captureBaseline("state.recheck-outcome.different-issue", in: app)
+                if emitsEvidence {
+                    captureBaseline("state.recheck-outcome.different-issue", in: app)
+                }
             case .couldNotVerify:
                 XCTFail("Handled by the partial-evidence branch")
             }
@@ -5920,7 +6181,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         case .issueStillVisible:
             captureBaseline("state.recheck-review.issue-still-visible", in: app)
         case .differentIssue:
-            captureBaseline("state.recheck-review.different-issue", in: app)
+            if emitsEvidence {
+                captureBaseline("state.recheck-review.different-issue", in: app)
+            }
         }
         let save = element("s3.review.save-report", in: app)
         scroll(save, in: app)
@@ -5929,12 +6192,24 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(element("s3.receipt.screen", in: app)
             .waitForExistence(timeout: 40))
         if leavesPendingReceipt {
-            let saved = element("s3.receipt.saved", in: app)
-            XCTAssertTrue(saved.waitForExistence(timeout: 15))
+            let savedValues = app.descendants(matching: .any)
+                .matching(identifier: "s3.receipt.saved")
+            let preparingValues = app.descendants(matching: .any)
+                .matching(identifier: "s4.3.receipt.preparing")
+            let viewReportValues = app.descendants(matching: .any)
+                .matching(identifier: "s3.receipt.view-report")
+            let saved = savedValues.firstMatch
+            guard saved.waitForExistence(timeout: 15),
+                  savedValues.count == 1,
+                  preparingValues.firstMatch.waitForExistence(timeout: 10),
+                  preparingValues.count == 1,
+                  viewReportValues.count == 0 else {
+                XCTFail(
+                    "The pending different-issue receipt prerequisite is ambiguous"
+                )
+                return false
+            }
             assertLocalizedLabel(saved, equals: "Report saved on this device.")
-            XCTAssertTrue(element("s4.3.receipt.preparing", in: app)
-                .waitForExistence(timeout: 10))
-            XCTAssertFalse(element("s3.receipt.view-report", in: app).exists)
             let done = element("s3.receipt.done", in: app)
             scroll(done, in: app)
             assertControl(done, label: "Done")
@@ -5944,7 +6219,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             navigateBack(in: app)
             XCTAssertTrue(element("s2.sign-detail.screen", in: app)
                 .waitForExistence(timeout: 25))
-            return
+            return true
         }
         XCTAssertTrue(element("s3.receipt.view-report", in: app)
             .waitForExistence(timeout: 30))
@@ -5960,6 +6235,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         navigateBack(in: app)
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
             .waitForExistence(timeout: 25))
+        return false
     }
 
     @MainActor
@@ -7215,13 +7491,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
     @MainActor
     private func captureAvailablePaywallAndPurchase(
+        emitsEvidence: Bool = true,
         in app: XCUIApplication
     ) -> Bool {
         var usedSettingsRetry = false
-        let preparesPaywallAvailableEvidence = shouldPrepareNormalEvidence(
-            for: "state.paywall.available",
-            in: app
-        )
+        let preparesPaywallAvailableEvidence = emitsEvidence
+            && shouldPrepareNormalEvidence(
+                for: "state.paywall.available",
+                in: app
+            )
         if preparesPaywallAvailableEvidence {
         let productName = element("s7.2.paywall.product-name", in: app)
         let duration = element("s7.2.paywall.duration", in: app)
@@ -7249,7 +7527,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         assertText("s7.2.paywall.price", equals: "$59.99", in: app)
         assertText("s7.2.paywall.trial", equals: "14 days free", in: app)
         }
-        captureBaseline("state.paywall.available", in: app)
+        if emitsEvidence {
+            captureBaseline("state.paywall.available", in: app)
+        }
         if preparesPaywallAvailableEvidence {
         let renewal = element("s7.2.paywall.renewal", in: app)
         scroll(renewal, in: app)
@@ -7357,6 +7637,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             containing: "Purchase verified. Subscription access is ready.",
             timeout: 45
         )
+        if !emitsEvidence {
+            return usedSettingsRetry
+        }
         let terms = element("s7.2.paywall.terms", in: app)
         let privacy = element("s7.2.paywall.privacy", in: app)
         let support = element("s7.2.paywall.support", in: app)
@@ -9249,7 +9532,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             guard automationSegment == .segment3,
                   let shard = automationShard,
                   shard.shardID == "s10.4.current.ax-text",
-                  automationSegment.replayCount == 50,
+                  automationSegment.replayCount == 22,
+                  automationSegment.ownedStartOrdinal == 51,
                   automationSegment.ownedCount == 17,
                   automationSegment.finalOrdinal == 67,
                   segmentedRouteStateCursor == 55,
@@ -9756,6 +10040,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
             return false
         }
+        guard segmentedRouteStateCursor < automationSegment.replayCount
+                || segmentedRouteStateCursor
+                    >= automationSegment.ownedStartOrdinal - 1 else {
+            XCTFail(
+                "Segmented evidence preparation entered an unowned resume gap",
+                file: file,
+                line: line
+            )
+            return false
+        }
         guard app.state == .runningForeground else {
             XCTFail(
                 "Segmented evidence preparation requires the foreground route",
@@ -9831,6 +10125,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
             return true
         }
+        guard segmentedRouteStateCursor <= automationSegment.replayCount
+                || segmentedRouteStateCursor >= automationSegment.ownedStartOrdinal else {
+            XCTFail(
+                "The segmented route entered an unowned resume gap",
+                file: file,
+                line: line
+            )
+            return true
+        }
         guard segmentedRouteStateCursor <= automationSegment.replayCount else {
             return false
         }
@@ -9883,7 +10186,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         let expectedOwnedStateIDs = Array(
             Self.segmentedRouteStateIDs[
-                automationSegment.replayCount..<automationSegment.finalOrdinal
+                (automationSegment.ownedStartOrdinal - 1)..<automationSegment.finalOrdinal
             ]
         )
         guard expectedOwnedStateIDs.count == automationSegment.ownedCount,
