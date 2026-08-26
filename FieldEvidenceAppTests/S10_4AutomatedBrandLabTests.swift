@@ -19107,7 +19107,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
 
-        let k152FeedbackReviewSource = try boundedSource(
+        let k153FeedbackReviewSource = try boundedSource(
             uiSource,
             from:
                 "    @MainActor\n" +
@@ -19116,20 +19116,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n    @MainActor\n" +
                     "    private func captureAvailablePaywallAndPurchase("
         )
-        XCTAssertEqual(k152FeedbackReviewSource.utf8.count, 7_249)
+        XCTAssertEqual(k153FeedbackReviewSource.utf8.count, 7_526)
         XCTAssertEqual(
-            Data(k152FeedbackReviewSource.utf8).sha256,
-            "A1671A834C3585E2307990049830FDC86760907E01E8A7E8AED864C7E7492130"
+            Data(k153FeedbackReviewSource.utf8).sha256,
+            "37C1067EC08DC6FD3EEC8300F58E620AAD554BBEF593695FC5C606A4C146F327"
         )
-        let k152FeedbackCorrectionSource = try boundedSource(
-            k152FeedbackReviewSource,
+        let k153FeedbackCorrectionSource = try boundedSource(
+            k153FeedbackReviewSource,
             from: "        let topClearance: CGFloat = 24",
             before: #"        captureBaseline("state.feedback.review-ready", in: app)"#
         )
-        XCTAssertEqual(k152FeedbackCorrectionSource.utf8.count, 4_011)
+        XCTAssertEqual(k153FeedbackCorrectionSource.utf8.count, 4_288)
         XCTAssertEqual(
-            Data(k152FeedbackCorrectionSource.utf8).sha256,
-            "BBA61090944DE2A8F1BD9A069109FD8FFBB4A7B18A83C60714D657B4D2F9CE9F"
+            Data(k153FeedbackCorrectionSource.utf8).sha256,
+            "E9CF0A018148352B59C78764ACD4974A2F3EFEC49C77D53B7105C73702F7CEA8"
         )
         for exact in [
             "automationSegment == .segment3",
@@ -19147,6 +19147,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "var usedSegment3DisjointFeedbackCorrection = false",
             "for _ in 0..<4",
             "if maximumShift < minimumShift",
+            "if usesSegment3AXTextFeedbackCorrection,",
+            "maximumShift >= 0",
+            "appMetadata.frame.maxY <= navigationBar.frame.minY {",
             "guard usesSegment3AXTextFeedbackCorrection,",
             "maximumShift < 0",
             "targetDistance = maximumShift",
@@ -19166,13 +19169,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "saveDiagnostics.frame.maxY",
             "signsTab.frame.minY - bottomClearance",
         ] {
-            XCTAssertTrue(k152FeedbackCorrectionSource.contains(exact), exact)
+            XCTAssertTrue(k153FeedbackCorrectionSource.contains(exact), exact)
         }
-        var k152FeedbackTail = k152FeedbackCorrectionSource[
-            k152FeedbackCorrectionSource.startIndex...
+        var k153FeedbackTail = k153FeedbackCorrectionSource[
+            k153FeedbackCorrectionSource.startIndex...
         ]
         for token in [
             "if maximumShift < minimumShift",
+            "if usesSegment3AXTextFeedbackCorrection,",
+            "maximumShift >= 0",
+            "appMetadata.frame.maxY",
+            "navigationBar.frame.minY",
+            "usedSegment3DisjointFeedbackCorrection = true",
+            "break",
+            "guard usesSegment3AXTextFeedbackCorrection,",
             "maximumShift < 0",
             "usedSegment3DisjointFeedbackCorrection = true",
             "targetDistance = maximumShift",
@@ -19184,8 +19194,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "saveDiagnostics.frame.maxY",
             "signsTab.frame.minY - bottomClearance",
         ] {
-            let range = try XCTUnwrap(k152FeedbackTail.range(of: token), token)
-            k152FeedbackTail = k152FeedbackTail[range.upperBound...]
+            let range = try XCTUnwrap(k153FeedbackTail.range(of: token), token)
+            k153FeedbackTail = k153FeedbackTail[range.upperBound...]
         }
         for prohibited in [
             "performAccessibilityAudit", "matchingExceptions",
@@ -19194,10 +19204,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10_4_CONTRAST", "S10_4_CANDIDATE", "S10_4_TASK",
             "migratedStateIDs.append", "segmentedRouteStateCursor +=",
         ] {
-            XCTAssertFalse(k152FeedbackCorrectionSource.contains(prohibited), prohibited)
+            XCTAssertFalse(k153FeedbackCorrectionSource.contains(prohibited), prohibited)
         }
         XCTAssertTrue(
-            k152FeedbackReviewSource.contains(
+            k153FeedbackReviewSource.contains(
                 #"captureBaseline("state.feedback.review-ready", in: app)"#
             )
         )

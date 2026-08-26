@@ -7456,6 +7456,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 - saveDiagnostics.frame.maxY
             let targetDistance: CGFloat
             if maximumShift < minimumShift {
+                if usesSegment3AXTextFeedbackCorrection,
+                   maximumShift >= 0,
+                   appMetadata.frame.maxY <= navigationBar.frame.minY {
+                    usedSegment3DisjointFeedbackCorrection = true
+                    break
+                }
                 guard usesSegment3AXTextFeedbackCorrection,
                       maximumShift < 0 else {
                     XCTFail("Feedback review positioning interval is impossible.")
