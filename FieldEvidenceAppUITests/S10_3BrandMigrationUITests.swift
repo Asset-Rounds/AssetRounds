@@ -4497,9 +4497,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 )
             }
         }
-        if shouldDiagnoseAXTextWorkValidationNativeContrastEvidence(in: app) {
-            try diagnoseAXTextWorkValidationNativeContrastEvidence(in: app)
-        }
         captureBaseline("state.work.validation-error", in: app)
         scroll(description, in: app)
         assertMinimumGeometry(description)
@@ -6001,6 +5998,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             format: "identifier == '' AND label == %@",
             "Short description"
         )
+        let notePredicate = NSPredicate(
+            format: "identifier == '' AND label == %@",
+            "Note"
+        )
         let focusedPredicate = NSPredicate(
             format: "hasKeyboardFocus == true"
         )
@@ -6022,6 +6023,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let shortDescriptionFieldLabels = app.staticTexts.matching(
             emptyShortDescriptionPredicate
         )
+        let noteStaticTexts = app.staticTexts.matching(notePredicate)
         let descriptionScrollViews = app.scrollViews.containing(
             .textField,
             identifier: "s5.1.work.description"
@@ -6037,6 +6039,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               validationLabels.count == 1,
               shortDescriptionStaticTexts.count == 2,
               shortDescriptionFieldLabels.count == 1,
+              noteStaticTexts.count == 1,
               descriptionScrollViews.count == 1,
               navigationBars.count == 1,
               tabBars.count == 1,
@@ -6049,10 +6052,32 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let focusedDescriptionField = focusedDescriptionFields.firstMatch
         let validationLabel = validationLabels.firstMatch
         let shortDescriptionFieldLabel = shortDescriptionFieldLabels.firstMatch
+        let noteStaticText = noteStaticTexts.firstMatch
         let descriptionScrollView = descriptionScrollViews.firstMatch
         let navigationBar = navigationBars.firstMatch
         let tabBar = tabBars.firstMatch
         let keyboard = keyboards.firstMatch
+        let fieldLabelExceptionIssueID =
+            "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION"
+        let activeFieldLabelExceptions = Self.contrastAuditExceptionSignatures.filter {
+            $0.issueID == fieldLabelExceptionIssueID
+                && $0.shardID == "s10.4.current.ax-text"
+                && $0.stateID == "state.work.validation-error"
+                && isActive($0)
+        }
+        guard activeFieldLabelExceptions.count == 1,
+              let activeFieldLabelException = activeFieldLabelExceptions.first else {
+            XCTFail("AX-text work-validation field-label authority is ambiguous or expired.")
+            return false
+        }
+        guard let frozenDescriptionValue = descriptionField.value as? String,
+              let frozenFocusedDescriptionValue =
+                focusedDescriptionField.value as? String,
+              frozenDescriptionValue == "Short description",
+              frozenFocusedDescriptionValue == frozenDescriptionValue else {
+            XCTFail("AX-text work-validation initial description values are invalid.")
+            return false
+        }
         let isValidFrame: (CGRect) -> Bool = { frame in
             !frame.isNull
                 && !frame.isEmpty
@@ -6080,6 +6105,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         "shortDescriptionFieldLabelsCountOne",
                         shortDescriptionFieldLabels.count == 1
                     ),
+                    ("noteStaticTextsCountOne", noteStaticTexts.count == 1),
                     (
                         "descriptionScrollViewsCountOne",
                         descriptionScrollViews.count == 1
@@ -6168,6 +6194,20 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         "shortDescriptionFieldLabelValueEmpty",
                         (shortDescriptionFieldLabel.value as? String) == ""
                     ),
+                    ("noteStaticTextExists", noteStaticText.exists),
+                    (
+                        "noteStaticTextTypeStaticText",
+                        noteStaticText.elementType == .staticText
+                    ),
+                    (
+                        "noteStaticTextIdentifierEmpty",
+                        noteStaticText.identifier.isEmpty
+                    ),
+                    ("noteStaticTextLabel", noteStaticText.label == "Note"),
+                    (
+                        "noteStaticTextValueEmpty",
+                        (noteStaticText.value as? String) == ""
+                    ),
                     ("descriptionScrollViewExists", descriptionScrollView.exists),
                     (
                         "descriptionScrollViewTypeScrollView",
@@ -6222,11 +6262,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             [
                 (
                     "descriptionFieldValue",
-                    (descriptionField.value as? String) == ""
+                    (descriptionField.value as? String) == frozenDescriptionValue
                 ),
                 (
                     "focusedDescriptionFieldValue",
-                    (focusedDescriptionField.value as? String) == ""
+                    (focusedDescriptionField.value as? String)
+                        == frozenFocusedDescriptionValue
                 ),
             ]
         }
@@ -6240,6 +6281,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && isValidFrame(shortDescriptionFieldLabel.frame)
                 && isValidFrame(descriptionField.frame)
                 && isValidFrame(validationLabel.frame)
+                && isValidFrame(noteStaticText.frame)
         }
         let hasStablePrePositionRoute: () -> Bool = {
             stablePrePositionRouteRelations().allSatisfy { relation in relation.1 }
@@ -6251,13 +6293,125 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         let frozenApplicationFrame = app.frame
         let frozenKeyboardFrame = keyboard.frame
+        let frozenFieldLabelFrame = shortDescriptionFieldLabel.frame
+        let frozenDescriptionFrame = descriptionField.frame
+        let frozenValidationFrame = validationLabel.frame
+        let frozenNoteFrame = noteStaticText.frame
+        let targetFieldLabelMinY = activeFieldLabelException.elementFrame.minY
         let verticalInset: CGFloat = 16
         let receiverInset: CGFloat = 24
         let minimumGestureDistance: CGFloat = 44
-        var previousFieldLabelMinYAfterDrag: CGFloat?
-        var previousDescriptionMinYAfterDrag: CGFloat?
-        var previousValidationMinYAfterDrag: CGFloat?
+        let hasFrozenHorizontalGeometry: (CGRect, CGRect) -> Bool = {
+            liveFrame, frozenFrame in
+            liveFrame.minX == frozenFrame.minX
+                && liveFrame.width == frozenFrame.width
+                && liveFrame.height == frozenFrame.height
+        }
+        let hasFinalComposition: () -> Bool = {
+            guard hasStablePrePositionRoute(),
+                  finalStrictValueRelations().allSatisfy({ relation in relation.1 }) else {
+                return false
+            }
+            let applicationFrame = app.frame
+            let screenFrame = workScreen.frame
+            let scrollFrame = descriptionScrollView.frame
+            let navigationFrame = navigationBar.frame
+            let tabFrame = tabBar.frame
+            let keyboardFrame = keyboard.frame
+            let fieldLabelFrame = shortDescriptionFieldLabel.frame
+            let descriptionFrame = descriptionField.frame
+            let focusedDescriptionFrame = focusedDescriptionField.frame
+            let validationFrame = validationLabel.frame
+            let noteFrame = noteStaticText.frame
+            let framesAreValid = isValidFrame(applicationFrame)
+                && isValidFrame(screenFrame)
+                && isValidFrame(scrollFrame)
+                && isValidFrame(navigationFrame)
+                && isValidFrame(tabFrame)
+                && isValidFrame(keyboardFrame)
+                && isValidFrame(fieldLabelFrame)
+                && isValidFrame(descriptionFrame)
+                && isValidFrame(focusedDescriptionFrame)
+                && isValidFrame(validationFrame)
+                && isValidFrame(noteFrame)
+            guard framesAreValid,
+                  screenFrame == scrollFrame,
+                  applicationFrame == frozenApplicationFrame,
+                  applicationFrame == activeFieldLabelException.applicationFrame,
+                  keyboardFrame == frozenKeyboardFrame,
+                  focusedDescriptionFrame == descriptionFrame,
+                  hasFrozenHorizontalGeometry(fieldLabelFrame, frozenFieldLabelFrame),
+                  hasFrozenHorizontalGeometry(descriptionFrame, frozenDescriptionFrame),
+                  hasFrozenHorizontalGeometry(validationFrame, frozenValidationFrame),
+                  hasFrozenHorizontalGeometry(noteFrame, frozenNoteFrame) else {
+                return false
+            }
+            let rigidShift = fieldLabelFrame.minY - frozenFieldLabelFrame.minY
+            guard descriptionFrame.minY - frozenDescriptionFrame.minY == rigidShift,
+                  validationFrame.minY - frozenValidationFrame.minY == rigidShift,
+                  noteFrame.minY - frozenNoteFrame.minY == rigidShift,
+                  fieldLabelFrame.minY == targetFieldLabelMinY else {
+                return false
+            }
+            let liveScrollFrame = scrollFrame.intersection(applicationFrame)
+            guard isValidFrame(liveScrollFrame) else { return false }
+            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)
+            let liveBottom = min(
+                liveScrollFrame.maxY,
+                min(
+                    applicationFrame.maxY,
+                    min(keyboardFrame.minY, tabFrame.minY)
+                )
+            )
+            let safeTop = liveTop + verticalInset
+            let safeBottom = liveBottom - verticalInset
+            let visibleDescriptionFrame = descriptionFrame.intersection(
+                CGRect(
+                    x: liveScrollFrame.minX,
+                    y: liveTop,
+                    width: liveScrollFrame.width,
+                    height: liveBottom - liveTop
+                )
+            )
+            return liveTop.isFinite
+                && liveBottom.isFinite
+                && safeTop.isFinite
+                && safeBottom.isFinite
+                && liveTop <= liveBottom
+                && safeTop <= safeBottom
+                && isValidFrame(visibleDescriptionFrame)
+                && visibleDescriptionFrame.width >= minimumGestureDistance
+                && visibleDescriptionFrame.height >= minimumGestureDistance
+                && applicationFrame.contains(fieldLabelFrame)
+                && applicationFrame.contains(descriptionFrame)
+                && applicationFrame.contains(validationFrame)
+                && applicationFrame.contains(noteFrame)
+                && liveScrollFrame.contains(fieldLabelFrame)
+                && liveScrollFrame.contains(descriptionFrame)
+                && liveScrollFrame.contains(validationFrame)
+                && liveScrollFrame.contains(noteFrame)
+                && descriptionFrame.maxY <= safeBottom
+                && validationFrame.minY >= safeTop
+                && validationFrame.maxY <= safeBottom
+                && noteFrame.minY >= safeTop
+                && noteFrame.maxY <= safeBottom
+                && fieldLabelFrame.maxY <= descriptionFrame.minY
+                && descriptionFrame.maxY <= validationFrame.minY
+                && validationFrame.maxY <= noteFrame.minY
+                && shortDescriptionFieldLabel.isEnabled
+                && descriptionField.isEnabled
+                && focusedDescriptionField.isEnabled
+                && validationLabel.isEnabled
+                && noteStaticText.isEnabled
+                && descriptionField.isHittable
+                && focusedDescriptionField.isHittable
+                && validationLabel.isHittable
+                && noteStaticText.isHittable
+        }
+        var restorationDirection: CGFloat?
+        var previousRemainingDistance: CGFloat?
         for _ in 0..<4 {
+            if hasFinalComposition() { return true }
             guard hasStablePrePositionRoute() else {
                 XCTFail("AX-text work-validation positioning route or focus changed.")
                 return false
@@ -6271,6 +6425,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let fieldLabelFrame = shortDescriptionFieldLabel.frame
             let descriptionFrame = descriptionField.frame
             let validationFrame = validationLabel.frame
+            let noteFrame = noteStaticText.frame
             let liveFramesAreValid = isValidFrame(applicationFrame)
                 && isValidFrame(screenFrame)
                 && isValidFrame(scrollFrame)
@@ -6280,6 +6435,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && isValidFrame(fieldLabelFrame)
                 && isValidFrame(descriptionFrame)
                 && isValidFrame(validationFrame)
+                && isValidFrame(noteFrame)
             var liveScrollFrame = CGRect.null
             if liveFramesAreValid {
                 liveScrollFrame = scrollFrame.intersection(applicationFrame)
@@ -6307,29 +6463,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let receiverLeft = liveScrollFrame.minX + receiverInset
             let receiverRight = liveScrollFrame.maxX - receiverInset
             let receiverCapacity = receiverBottom - receiverTop
-            let fieldLabelIsContained = fieldLabelFrame.minY >= safeTop
-                && fieldLabelFrame.maxY <= safeBottom
-            let descriptionIsContained = descriptionFrame.minY >= safeTop
-                && descriptionFrame.maxY <= safeBottom
-            let validationIsContained = validationFrame.minY >= safeTop
-                && validationFrame.maxY <= safeBottom
-            let allTargetsAreContained = fieldLabelIsContained
-                && descriptionIsContained
-                && validationIsContained
-            let minimumShift = max(
-                safeTop - fieldLabelFrame.minY,
-                max(
-                    safeTop - descriptionFrame.minY,
-                    safeTop - validationFrame.minY
-                )
-            )
-            let maximumShift = min(
-                safeBottom - fieldLabelFrame.maxY,
-                min(
-                    safeBottom - descriptionFrame.maxY,
-                    safeBottom - validationFrame.maxY
-                )
-            )
+            let remainingShift = targetFieldLabelMinY - fieldLabelFrame.minY
+            let remainingDistance = abs(remainingShift)
             guard safeTop.isFinite,
                   safeBottom.isFinite,
                   receiverTop.isFinite,
@@ -6337,50 +6472,51 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   receiverLeft.isFinite,
                   receiverRight.isFinite,
                   receiverCapacity.isFinite,
-                  minimumShift.isFinite,
-                  maximumShift.isFinite,
+                  remainingShift.isFinite,
+                  remainingDistance.isFinite,
                   safeTop <= safeBottom,
                   receiverLeft <= receiverRight,
                   receiverTop <= receiverBottom,
                   receiverCapacity >= minimumGestureDistance,
-                  minimumShift <= maximumShift,
-                  allTargetsAreContained || minimumShift > 0 else {
-                XCTFail("AX-text work-validation composition has no supported downward interval.")
+                  remainingShift != 0,
+                  remainingDistance >= minimumGestureDistance else {
+                XCTFail("AX-text work-validation live restoration interval is invalid.")
                 return false
             }
-            if allTargetsAreContained { break }
-
-            let dragDistance: CGFloat
-            if minimumShift <= receiverCapacity {
-                let recognizedMinimum = max(
-                    minimumShift,
-                    minimumGestureDistance
-                )
-                let recognizedMaximum = min(
-                    maximumShift,
-                    receiverCapacity
-                )
-                guard recognizedMinimum <= recognizedMaximum else {
-                    XCTFail("AX-text work-validation direct interval is not recognizable.")
+            if let previousRemainingDistance {
+                guard remainingDistance < previousRemainingDistance else {
+                    XCTFail("AX-text work-validation restoration made no progress.")
                     return false
                 }
-                dragDistance = recognizedMaximum
+            }
+            let liveDirection: CGFloat = remainingShift > 0 ? 1 : -1
+            if let restorationDirection {
+                guard liveDirection == restorationDirection else {
+                    XCTFail("AX-text work-validation restoration reversed direction.")
+                    return false
+                }
+            } else {
+                restorationDirection = liveDirection
+            }
+            previousRemainingDistance = remainingDistance
+
+            let requestedDistance: CGFloat
+            if remainingDistance <= receiverCapacity {
+                requestedDistance = remainingDistance
             } else {
                 let stagedDistance = min(
                     receiverCapacity,
-                    minimumShift - minimumGestureDistance
+                    remainingDistance - minimumGestureDistance
                 )
                 guard stagedDistance >= minimumGestureDistance else {
                     XCTFail("AX-text work-validation staged remainder is not recognizable.")
                     return false
                 }
-                dragDistance = stagedDistance
+                requestedDistance = stagedDistance
             }
-            guard dragDistance > 0,
-                  dragDistance >= minimumGestureDistance else {
-                XCTFail("AX-text work-validation drag direction is invalid.")
-                return false
-            }
+            let dragDistance = remainingShift > 0
+                ? requestedDistance
+                : -requestedDistance
             let receiverFrame = CGRect(
                 x: receiverLeft,
                 y: receiverTop,
@@ -6389,7 +6525,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
             let startPoint = CGPoint(
                 x: receiverRight,
-                y: receiverTop
+                y: dragDistance > 0 ? receiverTop : receiverBottom
             )
             let endPoint = CGPoint(
                 x: startPoint.x,
@@ -6411,7 +6547,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   !descriptionFrame.contains(startPoint),
                   !descriptionFrame.contains(endPoint),
                   !validationFrame.contains(startPoint),
-                  !validationFrame.contains(endPoint) else {
+                  !validationFrame.contains(endPoint),
+                  !noteFrame.contains(startPoint),
+                  !noteFrame.contains(endPoint) else {
                 XCTFail("AX-text work-validation drag receiver is obstructed.")
                 return false
             }
@@ -6433,6 +6571,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let fieldLabelBeforeDrag = fieldLabelFrame.minY
             let descriptionBeforeDrag = descriptionFrame.minY
             let validationBeforeDrag = validationFrame.minY
+            let noteBeforeDrag = noteFrame.minY
             startCoordinate.press(
                 forDuration: 0.2,
                 thenDragTo: endCoordinate,
@@ -6448,99 +6587,35 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let fieldLabelAfterDrag = shortDescriptionFieldLabel.frame
             let descriptionAfterDrag = descriptionField.frame
             let validationAfterDrag = validationLabel.frame
+            let noteAfterDrag = noteStaticText.frame
             var observedFieldLabelShift: CGFloat?
             var observedDescriptionShift: CGFloat?
             var observedValidationShift: CGFloat?
+            var observedNoteShift: CGFloat?
             if isValidFrame(fieldLabelAfterDrag),
                isValidFrame(descriptionAfterDrag),
-               isValidFrame(validationAfterDrag) {
+               isValidFrame(validationAfterDrag),
+               isValidFrame(noteAfterDrag) {
                 observedFieldLabelShift = fieldLabelAfterDrag.minY - fieldLabelBeforeDrag
                 observedDescriptionShift = descriptionAfterDrag.minY - descriptionBeforeDrag
                 observedValidationShift = validationAfterDrag.minY - validationBeforeDrag
+                observedNoteShift = noteAfterDrag.minY - noteBeforeDrag
             }
             guard let observedFieldLabelShift,
                   let observedDescriptionShift,
                   let observedValidationShift,
-                  observedFieldLabelShift > 0,
-                  observedDescriptionShift > 0,
-                  observedValidationShift > 0,
+                  let observedNoteShift,
                   observedFieldLabelShift * dragDistance > 0,
                   observedDescriptionShift * dragDistance > 0,
-                  observedValidationShift * dragDistance > 0 else {
-                XCTFail("AX-text work-validation gesture made no signed triple-node progress.")
+                  observedValidationShift * dragDistance > 0,
+                  observedNoteShift * dragDistance > 0,
+                  abs(targetFieldLabelMinY - fieldLabelAfterDrag.minY)
+                    < remainingDistance else {
+                XCTFail("AX-text work-validation gesture made no signed four-node progress.")
                 return false
             }
-            if let previousFieldLabelMinYAfterDrag,
-               let previousDescriptionMinYAfterDrag,
-               let previousValidationMinYAfterDrag {
-                guard fieldLabelAfterDrag.minY > previousFieldLabelMinYAfterDrag,
-                      descriptionAfterDrag.minY > previousDescriptionMinYAfterDrag,
-                      validationAfterDrag.minY > previousValidationMinYAfterDrag else {
-                    XCTFail("AX-text work-validation positioning reversed direction.")
-                    return false
-                }
-            }
-            previousFieldLabelMinYAfterDrag = fieldLabelAfterDrag.minY
-            previousDescriptionMinYAfterDrag = descriptionAfterDrag.minY
-            previousValidationMinYAfterDrag = validationAfterDrag.minY
         }
-        let finalApplicationFrame = app.frame
-        let finalScreenFrame = workScreen.frame
-        let finalScrollFrame = descriptionScrollView.frame
-        let finalNavigationFrame = navigationBar.frame
-        let finalTabFrame = tabBar.frame
-        let finalKeyboardFrame = keyboard.frame
-        let finalFieldLabelFrame = shortDescriptionFieldLabel.frame
-        let finalDescriptionFrame = descriptionField.frame
-        let finalValidationFrame = validationLabel.frame
-        let finalFramesAreValid = isValidFrame(finalApplicationFrame)
-            && isValidFrame(finalScreenFrame)
-            && isValidFrame(finalScrollFrame)
-            && isValidFrame(finalNavigationFrame)
-            && isValidFrame(finalTabFrame)
-            && isValidFrame(finalKeyboardFrame)
-            && isValidFrame(finalFieldLabelFrame)
-            && isValidFrame(finalDescriptionFrame)
-            && isValidFrame(finalValidationFrame)
-            && finalScreenFrame == finalScrollFrame
-            && finalApplicationFrame == frozenApplicationFrame
-            && finalKeyboardFrame == frozenKeyboardFrame
-        var finalCompositionIsSafe = false
-        if finalFramesAreValid {
-            let finalLiveScrollFrame = finalScrollFrame.intersection(
-                finalApplicationFrame
-            )
-            if isValidFrame(finalLiveScrollFrame) {
-                let finalSafeTop = max(
-                    finalLiveScrollFrame.minY,
-                    finalNavigationFrame.maxY
-                ) + verticalInset
-                let finalSafeBottom = min(
-                    finalLiveScrollFrame.maxY,
-                    min(
-                        finalApplicationFrame.maxY,
-                        min(finalKeyboardFrame.minY, finalTabFrame.minY)
-                    )
-                ) - verticalInset
-                finalCompositionIsSafe = finalSafeTop.isFinite
-                    && finalSafeBottom.isFinite
-                    && finalSafeTop <= finalSafeBottom
-                    && finalFieldLabelFrame.minY >= finalSafeTop
-                    && finalFieldLabelFrame.maxY <= finalSafeBottom
-                    && finalDescriptionFrame.minY >= finalSafeTop
-                    && finalDescriptionFrame.maxY <= finalSafeBottom
-                    && finalValidationFrame.minY >= finalSafeTop
-                    && finalValidationFrame.maxY <= finalSafeBottom
-                    && shortDescriptionFieldLabel.isHittable
-                    && descriptionField.isHittable
-                    && validationLabel.isHittable
-            }
-        }
-        let finalStrictComposition = hasStablePrePositionRoute()
-            && finalStrictValueRelations().allSatisfy { relation in relation.1 }
-            && finalFramesAreValid
-            && finalCompositionIsSafe
-        guard finalStrictComposition else {
+        guard hasFinalComposition() else {
             XCTFail("AX-text work-validation final composition is unsafe.")
             return false
         }
@@ -9913,270 +9988,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             "elementFrame": auditFrameObject(signature.elementFrame),
             "applicationFrame": auditFrameObject(signature.applicationFrame),
         ]
-    }
-
-    @MainActor
-    private func shouldDiagnoseAXTextWorkValidationNativeContrastEvidence(
-        in app: XCUIApplication,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) -> Bool {
-        guard automationSegment == .segment2,
-              automationShard?.shardID == "s10.4.current.ax-text" else {
-            return false
-        }
-        guard automationSegment.replayCount == 22,
-              automationSegment.ownedCount == 28,
-              automationSegment.finalOrdinal == 50,
-              segmentedRouteStateCursor == 22,
-              migratedStateIDs.isEmpty,
-              !automatedSegmentFinished,
-              app.state == .runningForeground else {
-            XCTFail(
-                "S10.4 AX-text work-validation native contrast diagnostic context drifted",
-                file: file,
-                line: line
-            )
-            return true
-        }
-        return true
-    }
-
-    @MainActor
-    private func diagnoseAXTextWorkValidationNativeContrastEvidence(
-        in app: XCUIApplication
-    ) throws {
-        let targetStateID = "state.work.validation-error"
-        guard automationSegment == .segment2,
-              let shard = automationShard,
-              shard.shardID == "s10.4.current.ax-text",
-              automationSegment.replayCount == 22,
-              automationSegment.ownedCount == 28,
-              automationSegment.finalOrdinal == 50,
-              segmentedRouteStateCursor == 22,
-              migratedStateIDs.isEmpty,
-              !automatedSegmentFinished,
-              app.state == .runningForeground else {
-            throw AutomationConfigurationError.invalid(
-                "S10.4 AX-text work-validation native contrast diagnostic context invalid"
-            )
-        }
-
-        let shortDescriptionPredicate = NSPredicate(
-            format: "label == %@",
-            "Short description"
-        )
-        let emptyShortDescriptionPredicate = NSPredicate(
-            format: "identifier == '' AND label == %@",
-            "Short description"
-        )
-        let focusedPredicate = NSPredicate(
-            format: "hasKeyboardFocus == true"
-        )
-        let queryBindings: [(name: String, query: XCUIElementQuery)] = [
-            (
-                "workScreens",
-                app.descendants(matching: .any).matching(
-                    identifier: "s5.1.work.screen"
-                )
-            ),
-            (
-                "descriptionFields",
-                app.descendants(matching: .any).matching(
-                    identifier: "s5.1.work.description"
-                )
-            ),
-            (
-                "focusedDescriptionFields",
-                app.descendants(matching: .any).matching(
-                    identifier: "s5.1.work.description"
-                ).matching(focusedPredicate)
-            ),
-            (
-                "validationLabels",
-                app.descendants(matching: .any).matching(
-                    identifier: "s5.1.work.validation"
-                )
-            ),
-            (
-                "shortDescriptionStaticTexts",
-                app.staticTexts.matching(shortDescriptionPredicate)
-            ),
-            (
-                "shortDescriptionFieldLabels",
-                app.staticTexts.matching(emptyShortDescriptionPredicate)
-            ),
-            (
-                "descriptionScrollViews",
-                app.scrollViews.containing(
-                    .textField,
-                    identifier: "s5.1.work.description"
-                )
-            ),
-            (
-                "navigationBars",
-                app.navigationBars.matching(identifier: "Record work")
-            ),
-            ("tabBars", app.tabBars),
-            ("keyboards", app.keyboards),
-        ]
-        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
-            element in
-            let valueObject: Any
-            if let value = element.value as? String {
-                valueObject = value
-            } else {
-                valueObject = NSNull()
-            }
-            return [
-                "exists": element.exists,
-                "isEnabled": element.isEnabled,
-                "isHittable": element.isHittable,
-                "identifier": element.identifier,
-                "label": element.label,
-                "value": valueObject,
-                "elementTypeRawValue": element.elementType.rawValue,
-                "elementTypeDescription": String(
-                    describing: element.elementType
-                ),
-                "frame": self.auditFrameObject(element.frame),
-            ]
-        }
-        var queryObjects: [String: Any] = [:]
-        for binding in queryBindings {
-            let actualCount = binding.query.count
-            var elementObjects: [[String: Any]] = []
-            for index in 0..<actualCount {
-                elementObjects.append(
-                    diagnosticElementObject(
-                        binding.query.element(boundBy: index)
-                    )
-                )
-            }
-            queryObjects[binding.name] = [
-                "count": actualCount,
-                "elements": elementObjects,
-            ]
-        }
-        let context: [String: Any] = [
-            "schemaVersion": 1,
-            "acceptanceEligible": false,
-            "shardID": shard.shardID,
-            "requirementID": shard.requirementID,
-            "deviceProfileID": shard.deviceProfileID,
-            "segmentID": automationSegment.rawValue,
-            "stateID": targetStateID,
-            "stateOrdinal": 23,
-            "predecessorStateID": "state.sign-detail.open-issue",
-            "predecessorOrdinal": 22,
-            "successorStateID": "state.work.editing",
-            "successorOrdinal": 24,
-            "segmentReplayCount": automationSegment.replayCount,
-            "segmentOwnedCount": automationSegment.ownedCount,
-            "segmentFinalOrdinal": automationSegment.finalOrdinal,
-            "segmentStateCursor": segmentedRouteStateCursor,
-            "migratedStateIDs": migratedStateIDs,
-            "applicationState": String(describing: app.state),
-            "applicationStateRawValue": app.state.rawValue,
-            "applicationForeground": app.state == .runningForeground,
-            "applicationFrame": auditFrameObject(app.frame),
-            "application": diagnosticElementObject(app),
-            "queries": queryObjects,
-        ]
-        printJSONLine(
-            prefix:
-                "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
-            object: context
-        )
-
-        let appAttachment = XCTAttachment(screenshot: app.screenshot())
-        appAttachment.name =
-            "S10.4 AX-text work-validation native contrast context app"
-        appAttachment.lifetime = .keepAlways
-        add(appAttachment)
-        let treeAttachment = XCTAttachment(string: app.debugDescription)
-        treeAttachment.name =
-            "S10.4 AX-text work-validation native contrast context tree"
-        treeAttachment.lifetime = .keepAlways
-        add(treeAttachment)
-        let contextData = try JSONSerialization.data(
-            withJSONObject: context,
-            options: [.prettyPrinted, .sortedKeys]
-        )
-        let contextString = String(decoding: contextData, as: UTF8.self)
-        let contextAttachment = XCTAttachment(string: contextString)
-        contextAttachment.name =
-            "S10.4 AX-text work-validation native contrast context JSON"
-        contextAttachment.lifetime = .keepAlways
-        add(contextAttachment)
-
-        var observedIssueCount = 0
-        var auditedElementCount = 0
-        try app.performAccessibilityAudit(for: .contrast) { issue in
-            observedIssueCount += 1
-            var diagnostic: [String: Any] = [
-                "schemaVersion": 1,
-                "acceptanceEligible": false,
-                "shardID": shard.shardID,
-                "stateID": targetStateID,
-                "issueOrdinal": observedIssueCount,
-                "auditTypeRawValue": String(issue.auditType.rawValue),
-                "compactDescription": issue.compactDescription,
-                "detailedDescription": issue.detailedDescription,
-                "elementIdentifier": NSNull(),
-                "elementLabel": NSNull(),
-                "elementValue": NSNull(),
-                "elementTypeRawValue": NSNull(),
-                "elementTypeDescription": NSNull(),
-                "elementFrame": NSNull(),
-                "applicationFrame": self.auditFrameObject(app.frame),
-            ]
-            if let auditedElement = issue.element {
-                auditedElementCount += 1
-                diagnostic["elementIdentifier"] = auditedElement.identifier
-                diagnostic["elementLabel"] = auditedElement.label
-                if let value = auditedElement.value as? String {
-                    diagnostic["elementValue"] = value
-                }
-                diagnostic["elementTypeRawValue"] =
-                    auditedElement.elementType.rawValue
-                diagnostic["elementTypeDescription"] = String(
-                    describing: auditedElement.elementType
-                )
-                diagnostic["elementFrame"] = self.auditFrameObject(
-                    auditedElement.frame
-                )
-                let issueAttachment = XCTAttachment(
-                    screenshot: auditedElement.screenshot()
-                )
-                issueAttachment.name =
-                    "S10.4 AX-text work-validation native contrast issue "
-                        + String(observedIssueCount)
-                issueAttachment.lifetime = .keepAlways
-                self.add(issueAttachment)
-            }
-            self.printJSONLine(
-                prefix:
-                    "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
-                object: diagnostic
-            )
-            return true
-        }
-        printJSONLine(
-            prefix:
-                "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
-            object: [
-                "schemaVersion": 1,
-                "acceptanceEligible": false,
-                "shardID": shard.shardID,
-                "stateID": targetStateID,
-                "observedIssueCount": observedIssueCount,
-                "auditedElementCount": auditedElementCount,
-            ]
-        )
-        throw AutomationConfigurationError.invalid(
-            "S10.4 AX-text work-validation native contrast diagnostic completed nonaccepting"
-        )
     }
 
     private func auditFrameObject(_ frame: CGRect) -> [String: Double] {
