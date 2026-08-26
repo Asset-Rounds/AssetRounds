@@ -1,0 +1,3685 @@
+{
+  "$id": "https://assetrounds.invalid/v23/V23P02C09LifecycleCoverageManifestV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateAcceptanceMemberships": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "AutonomousRequiredAcceptedSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "appBaseHead": {
+          "const": "c5aaa2a6b6f4a1c900e5743648b66252d19f5ef7"
+        },
+        "appBaseTree": {
+          "const": "e766971b63c90fa1f112862b526b908d094fff3d"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P02-C09"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "coordinationCASSequence": {
+          "const": 122
+        },
+        "coordinationLedgerDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "dependencyDispositionDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C09-G01"
+            },
+            {
+              "const": "V23-P02-C09-A01"
+            },
+            {
+              "const": "V23-P02-C09-H01"
+            },
+            {
+              "const": "V23-P02-C09-I01"
+            },
+            {
+              "const": "V23-P02-C09-R01"
+            }
+          ],
+          "type": "array"
+        },
+        "directGraphDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C08"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "dossierLength": {
+          "const": 7012
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "foundationRegisterDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "frozenS10ReservationDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "impactManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "inheritedV21BlockDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "inheritedV21BlockLength": {
+          "const": 10359
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C10"
+            },
+            {
+              "const": "V23-P03-C01"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "REFINED_WITHOUT_LOSS"
+        },
+        "lineageSource": {
+          "const": "V21-P02-C09"
+        },
+        "pathFenceDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registerOrdinal": {
+          "const": 29
+        },
+        "registerRowDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registerSectionDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registerSectionLength": {
+          "const": 44217
+        },
+        "relationManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "selectorManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "title": {
+          "const": "Persistent-kind lifecycle, data-handling, Erase, compatibility, and complete coverage gate"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "lineageSource",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "registerSectionDigest",
+        "registerSectionLength",
+        "registerRowDigest",
+        "dossierDigest",
+        "dossierLength",
+        "inheritedV21BlockDigest",
+        "inheritedV21BlockLength",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "aggregateAcceptanceMemberships",
+        "conformanceSubjects",
+        "deterministicEvidenceIDs"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P02-C09"
+    },
+    "evidenceIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "V23-P02-C09-G01"
+        },
+        {
+          "const": "V23-P02-C09-A01"
+        },
+        {
+          "const": "V23-P02-C09-H01"
+        },
+        {
+          "const": "V23-P02-C09-I01"
+        },
+        {
+          "const": "V23-P02-C09-R01"
+        }
+      ],
+      "type": "array"
+    },
+    "fixtureBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "declaredKindIDsKey": {
+          "const": "declaredKindIDs"
+        },
+        "declaredKindIDsMustMatchDerivedUniverse": {
+          "const": true
+        },
+        "fixtureIdentity": {
+          "const": "V21-P02-C09-PERSISTENT-KIND-LIFECYCLE-COVERAGE-CORPUS-V1"
+        },
+        "path": {
+          "const": "FieldEvidenceAppTests/Fixtures/V21/Lifecycle/V21P02C09PersistentKindLifecycleCoverageCorpusV1.json"
+        },
+        "requiredClassifications": {
+          "items": false,
+          "maxItems": 7,
+          "minItems": 7,
+          "prefixItems": [
+            {
+              "const": "CANONICAL"
+            },
+            {
+              "const": "CONTENT"
+            },
+            {
+              "const": "DECLARATION"
+            },
+            {
+              "const": "DERIVED"
+            },
+            {
+              "const": "IMMUTABLE"
+            },
+            {
+              "const": "NONPERSISTENT"
+            },
+            {
+              "const": "WIRE"
+            }
+          ],
+          "type": "array"
+        },
+        "requiredCompatibilityCases": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "caseID": {
+                  "const": "PRE_ACTIVATION_INTERRUPTION"
+                },
+                "expectedDisposition": {
+                  "const": "DISCARD_STAGING"
+                },
+                "rewritesReleasedHistory": {
+                  "const": false
+                }
+              },
+              "required": [
+                "caseID",
+                "expectedDisposition",
+                "rewritesReleasedHistory"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "caseID": {
+                  "const": "POST_ACTIVATION_INTERRUPTION"
+                },
+                "expectedDisposition": {
+                  "const": "APPEND_VERSIONED_SUCCESSOR_AND_FORWARD_FIX"
+                },
+                "rewritesReleasedHistory": {
+                  "const": false
+                }
+              },
+              "required": [
+                "caseID",
+                "expectedDisposition",
+                "rewritesReleasedHistory"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "caseID": {
+                  "const": "FUTURE_POLICY_VERSION"
+                },
+                "expectedDisposition": {
+                  "const": "QUARANTINE_AND_REQUIRE_FORWARD_FIX"
+                },
+                "rewritesReleasedHistory": {
+                  "const": false
+                }
+              },
+              "required": [
+                "caseID",
+                "expectedDisposition",
+                "rewritesReleasedHistory"
+              ],
+              "type": "object"
+            }
+          ],
+          "type": "array"
+        },
+        "requiredHandlingActions": {
+          "items": false,
+          "maxItems": 6,
+          "minItems": 6,
+          "prefixItems": [
+            {
+              "const": "CONTENT_MANAGED"
+            },
+            {
+              "const": "DENIED"
+            },
+            {
+              "const": "IMMUTABLE"
+            },
+            {
+              "const": "NOT_APPLICABLE"
+            },
+            {
+              "const": "REBUILDABLE"
+            },
+            {
+              "const": "SUPPORTED"
+            }
+          ],
+          "type": "array"
+        },
+        "requiredHostileCases": {
+          "items": false,
+          "maxItems": 17,
+          "minItems": 17,
+          "prefixItems": [
+            {
+              "const": "BACKUP_WITHOUT_RESTORE"
+            },
+            {
+              "const": "DENIED_KIND_ENTERS_EXPORT"
+            },
+            {
+              "const": "DENIED_KIND_ENTERS_REPORT"
+            },
+            {
+              "const": "DUPLICATE_KIND"
+            },
+            {
+              "const": "DUPLICATE_OWNER"
+            },
+            {
+              "const": "ERASE_DESTROYS_IMMUTABLE_TRUTH"
+            },
+            {
+              "const": "ERASE_LEAVES_ERASABLE_ORPHAN"
+            },
+            {
+              "const": "MISSING_KIND"
+            },
+            {
+              "const": "OWNER_IMPLEMENTATION_CONFLICT"
+            },
+            {
+              "const": "TEMPORALLY_IMPOSSIBLE_WRITER"
+            },
+            {
+              "const": "MISSING_TEMPORAL_PROVENANCE"
+            },
+            {
+              "const": "DUPLICATE_TEMPORAL_PROVENANCE"
+            },
+            {
+              "const": "WRONG_LATER_CARD_PROVENANCE"
+            },
+            {
+              "const": "IMPOSSIBLE_TEMPORAL_CHRONOLOGY"
+            },
+            {
+              "const": "UNKNOWN_ACTION"
+            },
+            {
+              "const": "UNKNOWN_CLASSIFICATION"
+            },
+            {
+              "const": "UNKNOWN_POLICY_VERSION"
+            }
+          ],
+          "type": "array"
+        },
+        "requiredInterruptionBoundaries": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "const": "BEFORE_POLICY_STAGING"
+            },
+            {
+              "const": "AFTER_POLICY_STAGING_BEFORE_ACTIVATION"
+            },
+            {
+              "const": "AFTER_ACTIVATION_BEFORE_RECEIPT"
+            },
+            {
+              "const": "AFTER_RECEIPT_BEFORE_CLEANUP"
+            }
+          ],
+          "type": "array"
+        },
+        "requiredLifecycleDimensions": {
+          "items": false,
+          "maxItems": 28,
+          "minItems": 28,
+          "prefixItems": [
+            {
+              "const": "ACCESSIBILITY"
+            },
+            {
+              "const": "CANONICAL_QUERY"
+            },
+            {
+              "const": "CLONE"
+            },
+            {
+              "const": "COMPATIBILITY"
+            },
+            {
+              "const": "DELETE"
+            },
+            {
+              "const": "DOWNGRADE"
+            },
+            {
+              "const": "ERASE"
+            },
+            {
+              "const": "EXPORT"
+            },
+            {
+              "const": "FILESYSTEM_BACKUP"
+            },
+            {
+              "const": "FORK"
+            },
+            {
+              "const": "FORWARD_FIX"
+            },
+            {
+              "const": "FUTURE_REPLICATION"
+            },
+            {
+              "const": "IDEMPOTENT_RECEIPT"
+            },
+            {
+              "const": "IMPORT"
+            },
+            {
+              "const": "INTERRUPTION_RECOVERY"
+            },
+            {
+              "const": "JOURNAL"
+            },
+            {
+              "const": "LOCALIZATION"
+            },
+            {
+              "const": "MIGRATION"
+            },
+            {
+              "const": "PRIVACY"
+            },
+            {
+              "const": "REBUILD"
+            },
+            {
+              "const": "REPLACE_RESTORE"
+            },
+            {
+              "const": "REPLAY"
+            },
+            {
+              "const": "REPORT"
+            },
+            {
+              "const": "RETENTION"
+            },
+            {
+              "const": "SCHEMA_AND_VERSION"
+            },
+            {
+              "const": "SEARCH"
+            },
+            {
+              "const": "SEMANTIC_BACKUP"
+            },
+            {
+              "const": "WRITER_COMMAND"
+            }
+          ],
+          "type": "array"
+        },
+        "requiredUniverseSources": {
+          "items": false,
+          "maxItems": 7,
+          "minItems": 7,
+          "prefixItems": [
+            {
+              "const": "ACCEPTED_FIXTURE_DECLARATION"
+            },
+            {
+              "const": "ARCHIVE_EXPORT_REPORT_PACKAGE_EXCHANGE_REGISTRY"
+            },
+            {
+              "const": "JOURNAL_CHECKPOINT_PROJECTION_REGISTRY"
+            },
+            {
+              "const": "OWNED_FILE_POLICY"
+            },
+            {
+              "const": "PERSISTENT_SCHEMA"
+            },
+            {
+              "const": "SYNC_CLASSIFICATION_CATALOG"
+            },
+            {
+              "const": "TEMPORAL_PROVENANCE_REGISTRY"
+            }
+          ],
+          "type": "array"
+        },
+        "requiresBrandImpactManifest": {
+          "const": true
+        },
+        "requiresExpectedAudit": {
+          "const": true
+        },
+        "topLevelFields": {
+          "items": false,
+          "maxItems": 17,
+          "minItems": 17,
+          "prefixItems": [
+            {
+              "const": "authority"
+            },
+            {
+              "const": "brandImpact"
+            },
+            {
+              "const": "classifications"
+            },
+            {
+              "const": "compatibilityCases"
+            },
+            {
+              "const": "declaredKindIDs"
+            },
+            {
+              "const": "durableFirstWriteKindIDs"
+            },
+            {
+              "const": "eraseExpectations"
+            },
+            {
+              "const": "expectedAudit"
+            },
+            {
+              "const": "fixtureIdentity"
+            },
+            {
+              "const": "handlingActions"
+            },
+            {
+              "const": "hostileCases"
+            },
+            {
+              "const": "interruptionBoundaries"
+            },
+            {
+              "const": "lifecycleDimensions"
+            },
+            {
+              "const": "representativePolicies"
+            },
+            {
+              "const": "schemaVersion"
+            },
+            {
+              "const": "temporalProvenance"
+            },
+            {
+              "const": "universeSources"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": [
+        "path",
+        "fixtureIdentity",
+        "topLevelFields",
+        "requiredUniverseSources",
+        "requiredClassifications",
+        "requiredHandlingActions",
+        "requiredLifecycleDimensions",
+        "requiredHostileCases",
+        "requiredInterruptionBoundaries",
+        "requiredCompatibilityCases",
+        "declaredKindIDsKey",
+        "declaredKindIDsMustMatchDerivedUniverse",
+        "requiresBrandImpactManifest",
+        "requiresExpectedAudit"
+      ],
+      "type": "object"
+    },
+    "gapSets": {
+      "items": false,
+      "maxItems": 14,
+      "minItems": 14,
+      "prefixItems": [
+        {
+          "const": "missingKindIDs"
+        },
+        {
+          "const": "duplicateKindIDs"
+        },
+        {
+          "const": "conflictingKindIDs"
+        },
+        {
+          "const": "unknownKindIDs"
+        },
+        {
+          "const": "ownershipGapKindIDs"
+        },
+        {
+          "const": "temporalConflictKindIDs"
+        },
+        {
+          "const": "backupRestoreGapKindIDs"
+        },
+        {
+          "const": "eraseGapKindIDs"
+        },
+        {
+          "const": "exportReportGapKindIDs"
+        },
+        {
+          "const": "searchAbsenceGapKindIDs"
+        },
+        {
+          "const": "rebuildDependencyGapKindIDs"
+        },
+        {
+          "const": "replayGapKindIDs"
+        },
+        {
+          "const": "unresolvedAuthorityKindIDs"
+        },
+        {
+          "const": "sourceDriftIDs"
+        }
+      ],
+      "type": "array"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "manifest": {
+      "additionalProperties": false,
+      "properties": {
+        "backupRestoreGapKindIDs": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "candidateHead": {
+          "const": "c5aaa2a6b6f4a1c900e5743648b66252d19f5ef7"
+        },
+        "conflictingKindIDs": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "dataHandlingPolicyKindIDs": {
+          "items": false,
+          "maxItems": 100,
+          "minItems": 100,
+          "prefixItems": [
+            {
+              "const": "DIAGNOSTIC:DeviceOperationalSupportSnapshotV2"
+            },
+            {
+              "const": "DIAGNOSTIC:DeviceOperationalSupportStoreV1"
+            },
+            {
+              "const": "DIAGNOSTIC:DeviceOperationalSupportStoreV2"
+            },
+            {
+              "const": "DIAGNOSTIC:DiagnosticExportV1"
+            },
+            {
+              "const": "DIAGNOSTIC:DiagnosticsLogEvent"
+            },
+            {
+              "const": "DIAGNOSTIC:DiagnosticsV1"
+            },
+            {
+              "const": "DIAGNOSTIC:LaunchTimeMillisecondsV1"
+            },
+            {
+              "const": "DIAGNOSTIC:MetricKitSummaryV1"
+            },
+            {
+              "const": "DIAGNOSTIC:OperationalFailureV1"
+            },
+            {
+              "const": "DIAGNOSTIC:PurchaseResultHistogram"
+            },
+            {
+              "const": "DIAGNOSTIC:ScratchDataLeaseStoreV1"
+            },
+            {
+              "const": "DIAGNOSTIC:SystemHealthDiagnosticsV1"
+            },
+            {
+              "const": "DIAGNOSTIC:diagnosticCounters"
+            },
+            {
+              "const": "INDEX:ReportHistoryIndexValue"
+            },
+            {
+              "const": "INDEX:reportHistoryChronology"
+            },
+            {
+              "const": "JOURNAL:CurrentGenerationPointerV2"
+            },
+            {
+              "const": "JOURNAL:CurrentGenerationPointerV3"
+            },
+            {
+              "const": "JOURNAL:DeletionIntentV1"
+            },
+            {
+              "const": "JOURNAL:EraseIntentV1"
+            },
+            {
+              "const": "JOURNAL:ErasePreparationV2"
+            },
+            {
+              "const": "JOURNAL:FinalizationIntentV1"
+            },
+            {
+              "const": "JOURNAL:MutationEnvelopeV1"
+            },
+            {
+              "const": "JOURNAL:MutationHistoryQuarantineRecordV1"
+            },
+            {
+              "const": "JOURNAL:MutationReceiptV1"
+            },
+            {
+              "const": "JOURNAL:PreparedMigrationEnvelopeV1"
+            },
+            {
+              "const": "JOURNAL:RestoreIntentV1"
+            },
+            {
+              "const": "JOURNAL:ReversalBasisV1"
+            },
+            {
+              "const": "JOURNAL:SemanticReversalReceiptV1"
+            },
+            {
+              "const": "JOURNAL:StoreGenerationManifestV1"
+            },
+            {
+              "const": "JOURNAL:StoreMigrationJournalV1"
+            },
+            {
+              "const": "JOURNAL:deletionIntent"
+            },
+            {
+              "const": "JOURNAL:eraseIntent"
+            },
+            {
+              "const": "JOURNAL:finalizationIntent"
+            },
+            {
+              "const": "JOURNAL:mutationReceipt"
+            },
+            {
+              "const": "JOURNAL:restoreIntent"
+            },
+            {
+              "const": "JOURNAL:storeMigration"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:cache"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:commerceEntitlementCache"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:database"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:databaseSHM"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:databaseWAL"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:diagnostics"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:durableDirectory"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseControl"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseControlTemporary"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseDirectory"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseOwnerLock"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationPointer"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationPointerTemporary"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:journal"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:journalTemporary"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:mediaOriginal"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:mediaThumbnail"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:reportPDF"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:reportSnapshot"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:restoreStaging"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:scratch"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:stagingDirectory"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:stagingFile"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:temporaryFile"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Asset"
+            },
+            {
+              "const": "PERSISTENT_MODEL:DeletionLedgerRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:EntityMutationRevisionRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:EvidenceFile"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Issue"
+            },
+            {
+              "const": "PERSISTENT_MODEL:MutationQuarantineRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:MutationReceiptRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:ObservationAndTimeRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Packet"
+            },
+            {
+              "const": "PERSISTENT_MODEL:PersistentSchemaReleaseMarker"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Report"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Site"
+            },
+            {
+              "const": "PERSISTENT_MODEL:WorkflowRecord"
+            },
+            {
+              "const": "PERSISTENT_MODEL:WorkspaceMutationStateRow"
+            },
+            {
+              "const": "PROJECTION:DeletionLedgerV2"
+            },
+            {
+              "const": "PROJECTION:EntityMutationRevisionSemanticV1"
+            },
+            {
+              "const": "PROJECTION:MutationHistorySnapshotV1"
+            },
+            {
+              "const": "PROJECTION:MutationQuarantineSemanticV1"
+            },
+            {
+              "const": "PROJECTION:MutationReceiptSemanticV1"
+            },
+            {
+              "const": "PROJECTION:ObservationAndTimeMigrationReceiptV1"
+            },
+            {
+              "const": "PROJECTION:ObservationAndTimeSemanticV1"
+            },
+            {
+              "const": "PROJECTION:ObservationBasisV1"
+            },
+            {
+              "const": "PROJECTION:ReportSnapshotV1"
+            },
+            {
+              "const": "PROJECTION:StoreSemanticEnvelopeV3"
+            },
+            {
+              "const": "PROJECTION:StoreSemanticEnvelopeV4"
+            },
+            {
+              "const": "PROJECTION:StoreSemanticEnvelopeV5"
+            },
+            {
+              "const": "PROJECTION:StreamingArchiveIndexV1"
+            },
+            {
+              "const": "PROJECTION:TemporalContextV1"
+            },
+            {
+              "const": "PROJECTION:V4BackupAssetDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupEvidenceFileDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupIssueDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupManifestV1"
+            },
+            {
+              "const": "PROJECTION:V4BackupPacketDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupRecordsV1"
+            },
+            {
+              "const": "PROJECTION:V4BackupReportDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupSiteDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupWorkflowRecordDTO"
+            },
+            {
+              "const": "PROJECTION:WorkspaceMutationStateSemanticV1"
+            },
+            {
+              "const": "PROJECTION:entityMutationRevision"
+            },
+            {
+              "const": "PROJECTION:workspaceMutationState"
+            }
+          ],
+          "type": "array"
+        },
+        "descriptorKindIDs": {
+          "items": false,
+          "maxItems": 100,
+          "minItems": 100,
+          "prefixItems": [
+            {
+              "const": "DIAGNOSTIC:DeviceOperationalSupportSnapshotV2"
+            },
+            {
+              "const": "DIAGNOSTIC:DeviceOperationalSupportStoreV1"
+            },
+            {
+              "const": "DIAGNOSTIC:DeviceOperationalSupportStoreV2"
+            },
+            {
+              "const": "DIAGNOSTIC:DiagnosticExportV1"
+            },
+            {
+              "const": "DIAGNOSTIC:DiagnosticsLogEvent"
+            },
+            {
+              "const": "DIAGNOSTIC:DiagnosticsV1"
+            },
+            {
+              "const": "DIAGNOSTIC:LaunchTimeMillisecondsV1"
+            },
+            {
+              "const": "DIAGNOSTIC:MetricKitSummaryV1"
+            },
+            {
+              "const": "DIAGNOSTIC:OperationalFailureV1"
+            },
+            {
+              "const": "DIAGNOSTIC:PurchaseResultHistogram"
+            },
+            {
+              "const": "DIAGNOSTIC:ScratchDataLeaseStoreV1"
+            },
+            {
+              "const": "DIAGNOSTIC:SystemHealthDiagnosticsV1"
+            },
+            {
+              "const": "DIAGNOSTIC:diagnosticCounters"
+            },
+            {
+              "const": "INDEX:ReportHistoryIndexValue"
+            },
+            {
+              "const": "INDEX:reportHistoryChronology"
+            },
+            {
+              "const": "JOURNAL:CurrentGenerationPointerV2"
+            },
+            {
+              "const": "JOURNAL:CurrentGenerationPointerV3"
+            },
+            {
+              "const": "JOURNAL:DeletionIntentV1"
+            },
+            {
+              "const": "JOURNAL:EraseIntentV1"
+            },
+            {
+              "const": "JOURNAL:ErasePreparationV2"
+            },
+            {
+              "const": "JOURNAL:FinalizationIntentV1"
+            },
+            {
+              "const": "JOURNAL:MutationEnvelopeV1"
+            },
+            {
+              "const": "JOURNAL:MutationHistoryQuarantineRecordV1"
+            },
+            {
+              "const": "JOURNAL:MutationReceiptV1"
+            },
+            {
+              "const": "JOURNAL:PreparedMigrationEnvelopeV1"
+            },
+            {
+              "const": "JOURNAL:RestoreIntentV1"
+            },
+            {
+              "const": "JOURNAL:ReversalBasisV1"
+            },
+            {
+              "const": "JOURNAL:SemanticReversalReceiptV1"
+            },
+            {
+              "const": "JOURNAL:StoreGenerationManifestV1"
+            },
+            {
+              "const": "JOURNAL:StoreMigrationJournalV1"
+            },
+            {
+              "const": "JOURNAL:deletionIntent"
+            },
+            {
+              "const": "JOURNAL:eraseIntent"
+            },
+            {
+              "const": "JOURNAL:finalizationIntent"
+            },
+            {
+              "const": "JOURNAL:mutationReceipt"
+            },
+            {
+              "const": "JOURNAL:restoreIntent"
+            },
+            {
+              "const": "JOURNAL:storeMigration"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:cache"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:commerceEntitlementCache"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:database"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:databaseSHM"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:databaseWAL"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:diagnostics"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:durableDirectory"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseControl"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseControlTemporary"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseDirectory"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseOwnerLock"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationPointer"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationPointerTemporary"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:journal"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:journalTemporary"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:mediaOriginal"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:mediaThumbnail"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:reportPDF"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:reportSnapshot"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:restoreStaging"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:scratch"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:stagingDirectory"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:stagingFile"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:temporaryFile"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Asset"
+            },
+            {
+              "const": "PERSISTENT_MODEL:DeletionLedgerRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:EntityMutationRevisionRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:EvidenceFile"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Issue"
+            },
+            {
+              "const": "PERSISTENT_MODEL:MutationQuarantineRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:MutationReceiptRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:ObservationAndTimeRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Packet"
+            },
+            {
+              "const": "PERSISTENT_MODEL:PersistentSchemaReleaseMarker"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Report"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Site"
+            },
+            {
+              "const": "PERSISTENT_MODEL:WorkflowRecord"
+            },
+            {
+              "const": "PERSISTENT_MODEL:WorkspaceMutationStateRow"
+            },
+            {
+              "const": "PROJECTION:DeletionLedgerV2"
+            },
+            {
+              "const": "PROJECTION:EntityMutationRevisionSemanticV1"
+            },
+            {
+              "const": "PROJECTION:MutationHistorySnapshotV1"
+            },
+            {
+              "const": "PROJECTION:MutationQuarantineSemanticV1"
+            },
+            {
+              "const": "PROJECTION:MutationReceiptSemanticV1"
+            },
+            {
+              "const": "PROJECTION:ObservationAndTimeMigrationReceiptV1"
+            },
+            {
+              "const": "PROJECTION:ObservationAndTimeSemanticV1"
+            },
+            {
+              "const": "PROJECTION:ObservationBasisV1"
+            },
+            {
+              "const": "PROJECTION:ReportSnapshotV1"
+            },
+            {
+              "const": "PROJECTION:StoreSemanticEnvelopeV3"
+            },
+            {
+              "const": "PROJECTION:StoreSemanticEnvelopeV4"
+            },
+            {
+              "const": "PROJECTION:StoreSemanticEnvelopeV5"
+            },
+            {
+              "const": "PROJECTION:StreamingArchiveIndexV1"
+            },
+            {
+              "const": "PROJECTION:TemporalContextV1"
+            },
+            {
+              "const": "PROJECTION:V4BackupAssetDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupEvidenceFileDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupIssueDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupManifestV1"
+            },
+            {
+              "const": "PROJECTION:V4BackupPacketDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupRecordsV1"
+            },
+            {
+              "const": "PROJECTION:V4BackupReportDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupSiteDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupWorkflowRecordDTO"
+            },
+            {
+              "const": "PROJECTION:WorkspaceMutationStateSemanticV1"
+            },
+            {
+              "const": "PROJECTION:entityMutationRevision"
+            },
+            {
+              "const": "PROJECTION:workspaceMutationState"
+            }
+          ],
+          "type": "array"
+        },
+        "duplicateKindIDs": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "eraseGapKindIDs": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "exportReportGapKindIDs": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "fixtureDeclarationExact": {
+          "const": true
+        },
+        "fixtureDeclarationPresent": {
+          "const": true
+        },
+        "fixtureDeclaredKindIDs": {
+          "items": false,
+          "maxItems": 100,
+          "minItems": 100,
+          "prefixItems": [
+            {
+              "const": "DIAGNOSTIC:DeviceOperationalSupportSnapshotV2"
+            },
+            {
+              "const": "DIAGNOSTIC:DeviceOperationalSupportStoreV1"
+            },
+            {
+              "const": "DIAGNOSTIC:DeviceOperationalSupportStoreV2"
+            },
+            {
+              "const": "DIAGNOSTIC:DiagnosticExportV1"
+            },
+            {
+              "const": "DIAGNOSTIC:DiagnosticsLogEvent"
+            },
+            {
+              "const": "DIAGNOSTIC:DiagnosticsV1"
+            },
+            {
+              "const": "DIAGNOSTIC:LaunchTimeMillisecondsV1"
+            },
+            {
+              "const": "DIAGNOSTIC:MetricKitSummaryV1"
+            },
+            {
+              "const": "DIAGNOSTIC:OperationalFailureV1"
+            },
+            {
+              "const": "DIAGNOSTIC:PurchaseResultHistogram"
+            },
+            {
+              "const": "DIAGNOSTIC:ScratchDataLeaseStoreV1"
+            },
+            {
+              "const": "DIAGNOSTIC:SystemHealthDiagnosticsV1"
+            },
+            {
+              "const": "DIAGNOSTIC:diagnosticCounters"
+            },
+            {
+              "const": "INDEX:ReportHistoryIndexValue"
+            },
+            {
+              "const": "INDEX:reportHistoryChronology"
+            },
+            {
+              "const": "JOURNAL:CurrentGenerationPointerV2"
+            },
+            {
+              "const": "JOURNAL:CurrentGenerationPointerV3"
+            },
+            {
+              "const": "JOURNAL:DeletionIntentV1"
+            },
+            {
+              "const": "JOURNAL:EraseIntentV1"
+            },
+            {
+              "const": "JOURNAL:ErasePreparationV2"
+            },
+            {
+              "const": "JOURNAL:FinalizationIntentV1"
+            },
+            {
+              "const": "JOURNAL:MutationEnvelopeV1"
+            },
+            {
+              "const": "JOURNAL:MutationHistoryQuarantineRecordV1"
+            },
+            {
+              "const": "JOURNAL:MutationReceiptV1"
+            },
+            {
+              "const": "JOURNAL:PreparedMigrationEnvelopeV1"
+            },
+            {
+              "const": "JOURNAL:RestoreIntentV1"
+            },
+            {
+              "const": "JOURNAL:ReversalBasisV1"
+            },
+            {
+              "const": "JOURNAL:SemanticReversalReceiptV1"
+            },
+            {
+              "const": "JOURNAL:StoreGenerationManifestV1"
+            },
+            {
+              "const": "JOURNAL:StoreMigrationJournalV1"
+            },
+            {
+              "const": "JOURNAL:deletionIntent"
+            },
+            {
+              "const": "JOURNAL:eraseIntent"
+            },
+            {
+              "const": "JOURNAL:finalizationIntent"
+            },
+            {
+              "const": "JOURNAL:mutationReceipt"
+            },
+            {
+              "const": "JOURNAL:restoreIntent"
+            },
+            {
+              "const": "JOURNAL:storeMigration"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:cache"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:commerceEntitlementCache"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:database"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:databaseSHM"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:databaseWAL"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:diagnostics"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:durableDirectory"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseControl"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseControlTemporary"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseDirectory"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseOwnerLock"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationPointer"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationPointerTemporary"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:journal"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:journalTemporary"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:mediaOriginal"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:mediaThumbnail"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:reportPDF"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:reportSnapshot"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:restoreStaging"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:scratch"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:stagingDirectory"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:stagingFile"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:temporaryFile"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Asset"
+            },
+            {
+              "const": "PERSISTENT_MODEL:DeletionLedgerRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:EntityMutationRevisionRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:EvidenceFile"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Issue"
+            },
+            {
+              "const": "PERSISTENT_MODEL:MutationQuarantineRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:MutationReceiptRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:ObservationAndTimeRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Packet"
+            },
+            {
+              "const": "PERSISTENT_MODEL:PersistentSchemaReleaseMarker"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Report"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Site"
+            },
+            {
+              "const": "PERSISTENT_MODEL:WorkflowRecord"
+            },
+            {
+              "const": "PERSISTENT_MODEL:WorkspaceMutationStateRow"
+            },
+            {
+              "const": "PROJECTION:DeletionLedgerV2"
+            },
+            {
+              "const": "PROJECTION:EntityMutationRevisionSemanticV1"
+            },
+            {
+              "const": "PROJECTION:MutationHistorySnapshotV1"
+            },
+            {
+              "const": "PROJECTION:MutationQuarantineSemanticV1"
+            },
+            {
+              "const": "PROJECTION:MutationReceiptSemanticV1"
+            },
+            {
+              "const": "PROJECTION:ObservationAndTimeMigrationReceiptV1"
+            },
+            {
+              "const": "PROJECTION:ObservationAndTimeSemanticV1"
+            },
+            {
+              "const": "PROJECTION:ObservationBasisV1"
+            },
+            {
+              "const": "PROJECTION:ReportSnapshotV1"
+            },
+            {
+              "const": "PROJECTION:StoreSemanticEnvelopeV3"
+            },
+            {
+              "const": "PROJECTION:StoreSemanticEnvelopeV4"
+            },
+            {
+              "const": "PROJECTION:StoreSemanticEnvelopeV5"
+            },
+            {
+              "const": "PROJECTION:StreamingArchiveIndexV1"
+            },
+            {
+              "const": "PROJECTION:TemporalContextV1"
+            },
+            {
+              "const": "PROJECTION:V4BackupAssetDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupEvidenceFileDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupIssueDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupManifestV1"
+            },
+            {
+              "const": "PROJECTION:V4BackupPacketDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupRecordsV1"
+            },
+            {
+              "const": "PROJECTION:V4BackupReportDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupSiteDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupWorkflowRecordDTO"
+            },
+            {
+              "const": "PROJECTION:WorkspaceMutationStateSemanticV1"
+            },
+            {
+              "const": "PROJECTION:entityMutationRevision"
+            },
+            {
+              "const": "PROJECTION:workspaceMutationState"
+            }
+          ],
+          "type": "array"
+        },
+        "fixtureUniverseMismatch": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "independentCrossChecks": {
+          "additionalProperties": false,
+          "properties": {
+            "ownedFileKindV1": {
+              "additionalProperties": false,
+              "properties": {
+                "declaration": {
+                  "const": "OwnedFileKindV1.allCases"
+                },
+                "matchesCatalog": {
+                  "const": true
+                },
+                "names": {
+                  "items": false,
+                  "maxItems": 24,
+                  "minItems": 24,
+                  "prefixItems": [
+                    {
+                      "const": "durableDirectory"
+                    },
+                    {
+                      "const": "stagingDirectory"
+                    },
+                    {
+                      "const": "restoreStaging"
+                    },
+                    {
+                      "const": "stagingFile"
+                    },
+                    {
+                      "const": "temporaryFile"
+                    },
+                    {
+                      "const": "database"
+                    },
+                    {
+                      "const": "databaseWAL"
+                    },
+                    {
+                      "const": "databaseSHM"
+                    },
+                    {
+                      "const": "generationPointer"
+                    },
+                    {
+                      "const": "generationPointerTemporary"
+                    },
+                    {
+                      "const": "generationLeaseDirectory"
+                    },
+                    {
+                      "const": "generationLeaseControl"
+                    },
+                    {
+                      "const": "generationLeaseControlTemporary"
+                    },
+                    {
+                      "const": "generationLeaseOwnerLock"
+                    },
+                    {
+                      "const": "journal"
+                    },
+                    {
+                      "const": "journalTemporary"
+                    },
+                    {
+                      "const": "mediaOriginal"
+                    },
+                    {
+                      "const": "mediaThumbnail"
+                    },
+                    {
+                      "const": "reportSnapshot"
+                    },
+                    {
+                      "const": "reportPDF"
+                    },
+                    {
+                      "const": "diagnostics"
+                    },
+                    {
+                      "const": "commerceEntitlementCache"
+                    },
+                    {
+                      "const": "cache"
+                    },
+                    {
+                      "const": "scratch"
+                    }
+                  ],
+                  "type": "array"
+                },
+                "path": {
+                  "const": "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
+                }
+              },
+              "required": [
+                "path",
+                "declaration",
+                "names",
+                "matchesCatalog"
+              ],
+              "type": "object"
+            },
+            "persistentSchemaV5": {
+              "additionalProperties": false,
+              "properties": {
+                "declaration": {
+                  "const": "PersistentSchemaV5.models"
+                },
+                "matchesCatalog": {
+                  "const": true
+                },
+                "names": {
+                  "items": false,
+                  "maxItems": 14,
+                  "minItems": 14,
+                  "prefixItems": [
+                    {
+                      "const": "Asset"
+                    },
+                    {
+                      "const": "DeletionLedgerRow"
+                    },
+                    {
+                      "const": "EntityMutationRevisionRow"
+                    },
+                    {
+                      "const": "EvidenceFile"
+                    },
+                    {
+                      "const": "Issue"
+                    },
+                    {
+                      "const": "MutationQuarantineRow"
+                    },
+                    {
+                      "const": "MutationReceiptRow"
+                    },
+                    {
+                      "const": "ObservationAndTimeRow"
+                    },
+                    {
+                      "const": "Packet"
+                    },
+                    {
+                      "const": "PersistentSchemaReleaseMarker"
+                    },
+                    {
+                      "const": "Report"
+                    },
+                    {
+                      "const": "Site"
+                    },
+                    {
+                      "const": "WorkflowRecord"
+                    },
+                    {
+                      "const": "WorkspaceMutationStateRow"
+                    }
+                  ],
+                  "type": "array"
+                },
+                "path": {
+                  "const": "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift"
+                }
+              },
+              "required": [
+                "path",
+                "declaration",
+                "names",
+                "matchesCatalog"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "persistentSchemaV5",
+            "ownedFileKindV1"
+          ],
+          "type": "object"
+        },
+        "isComplete": {
+          "const": true
+        },
+        "kindCountDerived": {
+          "const": 100
+        },
+        "lifecyclePolicyKindIDs": {
+          "items": false,
+          "maxItems": 100,
+          "minItems": 100,
+          "prefixItems": [
+            {
+              "const": "DIAGNOSTIC:DeviceOperationalSupportSnapshotV2"
+            },
+            {
+              "const": "DIAGNOSTIC:DeviceOperationalSupportStoreV1"
+            },
+            {
+              "const": "DIAGNOSTIC:DeviceOperationalSupportStoreV2"
+            },
+            {
+              "const": "DIAGNOSTIC:DiagnosticExportV1"
+            },
+            {
+              "const": "DIAGNOSTIC:DiagnosticsLogEvent"
+            },
+            {
+              "const": "DIAGNOSTIC:DiagnosticsV1"
+            },
+            {
+              "const": "DIAGNOSTIC:LaunchTimeMillisecondsV1"
+            },
+            {
+              "const": "DIAGNOSTIC:MetricKitSummaryV1"
+            },
+            {
+              "const": "DIAGNOSTIC:OperationalFailureV1"
+            },
+            {
+              "const": "DIAGNOSTIC:PurchaseResultHistogram"
+            },
+            {
+              "const": "DIAGNOSTIC:ScratchDataLeaseStoreV1"
+            },
+            {
+              "const": "DIAGNOSTIC:SystemHealthDiagnosticsV1"
+            },
+            {
+              "const": "DIAGNOSTIC:diagnosticCounters"
+            },
+            {
+              "const": "INDEX:ReportHistoryIndexValue"
+            },
+            {
+              "const": "INDEX:reportHistoryChronology"
+            },
+            {
+              "const": "JOURNAL:CurrentGenerationPointerV2"
+            },
+            {
+              "const": "JOURNAL:CurrentGenerationPointerV3"
+            },
+            {
+              "const": "JOURNAL:DeletionIntentV1"
+            },
+            {
+              "const": "JOURNAL:EraseIntentV1"
+            },
+            {
+              "const": "JOURNAL:ErasePreparationV2"
+            },
+            {
+              "const": "JOURNAL:FinalizationIntentV1"
+            },
+            {
+              "const": "JOURNAL:MutationEnvelopeV1"
+            },
+            {
+              "const": "JOURNAL:MutationHistoryQuarantineRecordV1"
+            },
+            {
+              "const": "JOURNAL:MutationReceiptV1"
+            },
+            {
+              "const": "JOURNAL:PreparedMigrationEnvelopeV1"
+            },
+            {
+              "const": "JOURNAL:RestoreIntentV1"
+            },
+            {
+              "const": "JOURNAL:ReversalBasisV1"
+            },
+            {
+              "const": "JOURNAL:SemanticReversalReceiptV1"
+            },
+            {
+              "const": "JOURNAL:StoreGenerationManifestV1"
+            },
+            {
+              "const": "JOURNAL:StoreMigrationJournalV1"
+            },
+            {
+              "const": "JOURNAL:deletionIntent"
+            },
+            {
+              "const": "JOURNAL:eraseIntent"
+            },
+            {
+              "const": "JOURNAL:finalizationIntent"
+            },
+            {
+              "const": "JOURNAL:mutationReceipt"
+            },
+            {
+              "const": "JOURNAL:restoreIntent"
+            },
+            {
+              "const": "JOURNAL:storeMigration"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:cache"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:commerceEntitlementCache"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:database"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:databaseSHM"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:databaseWAL"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:diagnostics"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:durableDirectory"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseControl"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseControlTemporary"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseDirectory"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseOwnerLock"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationPointer"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationPointerTemporary"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:journal"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:journalTemporary"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:mediaOriginal"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:mediaThumbnail"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:reportPDF"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:reportSnapshot"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:restoreStaging"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:scratch"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:stagingDirectory"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:stagingFile"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:temporaryFile"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Asset"
+            },
+            {
+              "const": "PERSISTENT_MODEL:DeletionLedgerRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:EntityMutationRevisionRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:EvidenceFile"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Issue"
+            },
+            {
+              "const": "PERSISTENT_MODEL:MutationQuarantineRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:MutationReceiptRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:ObservationAndTimeRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Packet"
+            },
+            {
+              "const": "PERSISTENT_MODEL:PersistentSchemaReleaseMarker"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Report"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Site"
+            },
+            {
+              "const": "PERSISTENT_MODEL:WorkflowRecord"
+            },
+            {
+              "const": "PERSISTENT_MODEL:WorkspaceMutationStateRow"
+            },
+            {
+              "const": "PROJECTION:DeletionLedgerV2"
+            },
+            {
+              "const": "PROJECTION:EntityMutationRevisionSemanticV1"
+            },
+            {
+              "const": "PROJECTION:MutationHistorySnapshotV1"
+            },
+            {
+              "const": "PROJECTION:MutationQuarantineSemanticV1"
+            },
+            {
+              "const": "PROJECTION:MutationReceiptSemanticV1"
+            },
+            {
+              "const": "PROJECTION:ObservationAndTimeMigrationReceiptV1"
+            },
+            {
+              "const": "PROJECTION:ObservationAndTimeSemanticV1"
+            },
+            {
+              "const": "PROJECTION:ObservationBasisV1"
+            },
+            {
+              "const": "PROJECTION:ReportSnapshotV1"
+            },
+            {
+              "const": "PROJECTION:StoreSemanticEnvelopeV3"
+            },
+            {
+              "const": "PROJECTION:StoreSemanticEnvelopeV4"
+            },
+            {
+              "const": "PROJECTION:StoreSemanticEnvelopeV5"
+            },
+            {
+              "const": "PROJECTION:StreamingArchiveIndexV1"
+            },
+            {
+              "const": "PROJECTION:TemporalContextV1"
+            },
+            {
+              "const": "PROJECTION:V4BackupAssetDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupEvidenceFileDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupIssueDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupManifestV1"
+            },
+            {
+              "const": "PROJECTION:V4BackupPacketDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupRecordsV1"
+            },
+            {
+              "const": "PROJECTION:V4BackupReportDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupSiteDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupWorkflowRecordDTO"
+            },
+            {
+              "const": "PROJECTION:WorkspaceMutationStateSemanticV1"
+            },
+            {
+              "const": "PROJECTION:entityMutationRevision"
+            },
+            {
+              "const": "PROJECTION:workspaceMutationState"
+            }
+          ],
+          "type": "array"
+        },
+        "maximumKindCount": {
+          "const": 128
+        },
+        "missingKindIDs": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "noHandwrittenCountAuthority": {
+          "const": true
+        },
+        "ownershipGapKindIDs": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "rebuildDependencyGapKindIDs": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "replayGapKindIDs": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "searchAbsenceGapKindIDs": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "sourceDriftIDs": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "temporalConflictKindIDs": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "type": {
+          "const": "LifecycleCoverageManifestV1"
+        },
+        "universeKindIDs": {
+          "items": false,
+          "maxItems": 100,
+          "minItems": 100,
+          "prefixItems": [
+            {
+              "const": "DIAGNOSTIC:DeviceOperationalSupportSnapshotV2"
+            },
+            {
+              "const": "DIAGNOSTIC:DeviceOperationalSupportStoreV1"
+            },
+            {
+              "const": "DIAGNOSTIC:DeviceOperationalSupportStoreV2"
+            },
+            {
+              "const": "DIAGNOSTIC:DiagnosticExportV1"
+            },
+            {
+              "const": "DIAGNOSTIC:DiagnosticsLogEvent"
+            },
+            {
+              "const": "DIAGNOSTIC:DiagnosticsV1"
+            },
+            {
+              "const": "DIAGNOSTIC:LaunchTimeMillisecondsV1"
+            },
+            {
+              "const": "DIAGNOSTIC:MetricKitSummaryV1"
+            },
+            {
+              "const": "DIAGNOSTIC:OperationalFailureV1"
+            },
+            {
+              "const": "DIAGNOSTIC:PurchaseResultHistogram"
+            },
+            {
+              "const": "DIAGNOSTIC:ScratchDataLeaseStoreV1"
+            },
+            {
+              "const": "DIAGNOSTIC:SystemHealthDiagnosticsV1"
+            },
+            {
+              "const": "DIAGNOSTIC:diagnosticCounters"
+            },
+            {
+              "const": "INDEX:ReportHistoryIndexValue"
+            },
+            {
+              "const": "INDEX:reportHistoryChronology"
+            },
+            {
+              "const": "JOURNAL:CurrentGenerationPointerV2"
+            },
+            {
+              "const": "JOURNAL:CurrentGenerationPointerV3"
+            },
+            {
+              "const": "JOURNAL:DeletionIntentV1"
+            },
+            {
+              "const": "JOURNAL:EraseIntentV1"
+            },
+            {
+              "const": "JOURNAL:ErasePreparationV2"
+            },
+            {
+              "const": "JOURNAL:FinalizationIntentV1"
+            },
+            {
+              "const": "JOURNAL:MutationEnvelopeV1"
+            },
+            {
+              "const": "JOURNAL:MutationHistoryQuarantineRecordV1"
+            },
+            {
+              "const": "JOURNAL:MutationReceiptV1"
+            },
+            {
+              "const": "JOURNAL:PreparedMigrationEnvelopeV1"
+            },
+            {
+              "const": "JOURNAL:RestoreIntentV1"
+            },
+            {
+              "const": "JOURNAL:ReversalBasisV1"
+            },
+            {
+              "const": "JOURNAL:SemanticReversalReceiptV1"
+            },
+            {
+              "const": "JOURNAL:StoreGenerationManifestV1"
+            },
+            {
+              "const": "JOURNAL:StoreMigrationJournalV1"
+            },
+            {
+              "const": "JOURNAL:deletionIntent"
+            },
+            {
+              "const": "JOURNAL:eraseIntent"
+            },
+            {
+              "const": "JOURNAL:finalizationIntent"
+            },
+            {
+              "const": "JOURNAL:mutationReceipt"
+            },
+            {
+              "const": "JOURNAL:restoreIntent"
+            },
+            {
+              "const": "JOURNAL:storeMigration"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:cache"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:commerceEntitlementCache"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:database"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:databaseSHM"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:databaseWAL"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:diagnostics"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:durableDirectory"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseControl"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseControlTemporary"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseDirectory"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationLeaseOwnerLock"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationPointer"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:generationPointerTemporary"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:journal"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:journalTemporary"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:mediaOriginal"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:mediaThumbnail"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:reportPDF"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:reportSnapshot"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:restoreStaging"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:scratch"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:stagingDirectory"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:stagingFile"
+            },
+            {
+              "const": "OWNED_FILE_CLASS:temporaryFile"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Asset"
+            },
+            {
+              "const": "PERSISTENT_MODEL:DeletionLedgerRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:EntityMutationRevisionRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:EvidenceFile"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Issue"
+            },
+            {
+              "const": "PERSISTENT_MODEL:MutationQuarantineRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:MutationReceiptRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:ObservationAndTimeRow"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Packet"
+            },
+            {
+              "const": "PERSISTENT_MODEL:PersistentSchemaReleaseMarker"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Report"
+            },
+            {
+              "const": "PERSISTENT_MODEL:Site"
+            },
+            {
+              "const": "PERSISTENT_MODEL:WorkflowRecord"
+            },
+            {
+              "const": "PERSISTENT_MODEL:WorkspaceMutationStateRow"
+            },
+            {
+              "const": "PROJECTION:DeletionLedgerV2"
+            },
+            {
+              "const": "PROJECTION:EntityMutationRevisionSemanticV1"
+            },
+            {
+              "const": "PROJECTION:MutationHistorySnapshotV1"
+            },
+            {
+              "const": "PROJECTION:MutationQuarantineSemanticV1"
+            },
+            {
+              "const": "PROJECTION:MutationReceiptSemanticV1"
+            },
+            {
+              "const": "PROJECTION:ObservationAndTimeMigrationReceiptV1"
+            },
+            {
+              "const": "PROJECTION:ObservationAndTimeSemanticV1"
+            },
+            {
+              "const": "PROJECTION:ObservationBasisV1"
+            },
+            {
+              "const": "PROJECTION:ReportSnapshotV1"
+            },
+            {
+              "const": "PROJECTION:StoreSemanticEnvelopeV3"
+            },
+            {
+              "const": "PROJECTION:StoreSemanticEnvelopeV4"
+            },
+            {
+              "const": "PROJECTION:StoreSemanticEnvelopeV5"
+            },
+            {
+              "const": "PROJECTION:StreamingArchiveIndexV1"
+            },
+            {
+              "const": "PROJECTION:TemporalContextV1"
+            },
+            {
+              "const": "PROJECTION:V4BackupAssetDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupEvidenceFileDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupIssueDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupManifestV1"
+            },
+            {
+              "const": "PROJECTION:V4BackupPacketDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupRecordsV1"
+            },
+            {
+              "const": "PROJECTION:V4BackupReportDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupSiteDTO"
+            },
+            {
+              "const": "PROJECTION:V4BackupWorkflowRecordDTO"
+            },
+            {
+              "const": "PROJECTION:WorkspaceMutationStateSemanticV1"
+            },
+            {
+              "const": "PROJECTION:entityMutationRevision"
+            },
+            {
+              "const": "PROJECTION:workspaceMutationState"
+            }
+          ],
+          "type": "array"
+        },
+        "unknownKindIDs": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "unresolvedAuthorityKindIDs": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "schemaVersion",
+        "candidateHead",
+        "universeKindIDs",
+        "descriptorKindIDs",
+        "lifecyclePolicyKindIDs",
+        "dataHandlingPolicyKindIDs",
+        "missingKindIDs",
+        "duplicateKindIDs",
+        "conflictingKindIDs",
+        "unknownKindIDs",
+        "ownershipGapKindIDs",
+        "temporalConflictKindIDs",
+        "backupRestoreGapKindIDs",
+        "eraseGapKindIDs",
+        "exportReportGapKindIDs",
+        "searchAbsenceGapKindIDs",
+        "rebuildDependencyGapKindIDs",
+        "replayGapKindIDs",
+        "unresolvedAuthorityKindIDs",
+        "sourceDriftIDs",
+        "isComplete",
+        "maximumKindCount",
+        "kindCountDerived",
+        "noHandwrittenCountAuthority",
+        "fixtureUniverseMismatch",
+        "fixtureDeclaredKindIDs",
+        "fixtureDeclarationPresent",
+        "fixtureDeclarationExact",
+        "independentCrossChecks"
+      ],
+      "type": "object"
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "noNewSwiftDataV6Entity": {
+      "const": true
+    },
+    "owner": {
+      "const": "CurrentPersistentKindLifecycleCatalogV1"
+    },
+    "persistentChangeMode": {
+      "const": "NEW_SCHEMA_VERSION"
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "provisionalKernelOnly": {
+      "const": true
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "schema": {
+      "const": "V23P02C09LifecycleCoverageManifestV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "shippingBoundaryAdoption": {
+      "const": "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION"
+    },
+    "sourceBindings": {
+      "items": false,
+      "maxItems": 9,
+      "minItems": 9,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C09"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Compatibility/ReleasedDataCompatibilityPolicyV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 7,
+              "minItems": 7,
+              "prefixItems": [
+                {
+                  "const": "currentSupportTable"
+                },
+                {
+                  "const": "supportedUpgradePaths"
+                },
+                {
+                  "const": "validateReadableVersion"
+                },
+                {
+                  "const": "validateWriterVersion"
+                },
+                {
+                  "const": "forwardUpgradeTransitions"
+                },
+                {
+                  "const": "archive1-backup4-persistent5-records4"
+                },
+                {
+                  "const": "snapshot2"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "ReleasedDataCompatibilityPolicyV1"
+                },
+                {
+                  "const": "DataCompatibilityManifestV1"
+                },
+                {
+                  "const": "SupportedUpgradePathV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C03"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Replication/SyncClassificationRegistryV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 8,
+              "minItems": 8,
+              "prefixItems": [
+                {
+                  "const": "persistentModelNames"
+                },
+                {
+                  "const": "ownedFileClassNames"
+                },
+                {
+                  "const": "generationLeaseDirectory"
+                },
+                {
+                  "const": "generationLeaseControl"
+                },
+                {
+                  "const": "generationLeaseControlTemporary"
+                },
+                {
+                  "const": "generationLeaseOwnerLock"
+                },
+                {
+                  "const": "declaredSecretSubjects"
+                },
+                {
+                  "const": "makeRegistrations"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "SyncClassificationRegistryV1"
+                },
+                {
+                  "const": "SyncSubjectIdentityV1"
+                },
+                {
+                  "const": "SyncClassificationRegistrationV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C09"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 16,
+              "minItems": 16,
+              "prefixItems": [
+                {
+                  "const": "CurrentSyncClassificationCatalogV1"
+                },
+                {
+                  "const": "persistentModelNames"
+                },
+                {
+                  "const": "ownedFileClassNames"
+                },
+                {
+                  "const": "portableContentProjectionNames"
+                },
+                {
+                  "const": "derivedIndexNames"
+                },
+                {
+                  "const": "derivedProjectionNames"
+                },
+                {
+                  "const": "journalRecoveryNames"
+                },
+                {
+                  "const": "diagnosticNames"
+                },
+                {
+                  "const": "declaredSearchImplementationPresent"
+                },
+                {
+                  "const": "secretNames"
+                },
+                {
+                  "const": "declaredKeychainUsage"
+                },
+                {
+                  "const": "mutationHistoryRepresentationRules"
+                },
+                {
+                  "const": "diagnosticRepresentationRules"
+                },
+                {
+                  "const": "static var current"
+                },
+                {
+                  "const": "registrations"
+                },
+                {
+                  "const": "lifecycleRoutes"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "CurrentSyncClassificationCatalogV1"
+                },
+                {
+                  "const": "CurrentRepresentationRuleV1"
+                },
+                {
+                  "const": "CurrentSyncLifecycleRouteV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P01-C03"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 6,
+              "minItems": 6,
+              "prefixItems": [
+                {
+                  "const": "PersistentSchemaV5"
+                },
+                {
+                  "const": "PersistentSchemaV4"
+                },
+                {
+                  "const": "ObservationAndTimeRow"
+                },
+                {
+                  "const": "versionIdentifier"
+                },
+                {
+                  "const": "models"
+                },
+                {
+                  "const": "PersistentSchemaV5.models"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 6,
+              "minItems": 6,
+              "prefixItems": [
+                {
+                  "const": "PersistentSchemaV1"
+                },
+                {
+                  "const": "PersistentSchemaV2"
+                },
+                {
+                  "const": "PersistentSchemaV3"
+                },
+                {
+                  "const": "PersistentSchemaV4"
+                },
+                {
+                  "const": "PersistentSchemaV5"
+                },
+                {
+                  "const": "ObservationAndTimeRow"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P01-C02"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 10,
+              "minItems": 10,
+              "prefixItems": [
+                {
+                  "const": "OwnedFileKindV1"
+                },
+                {
+                  "const": "CaseIterable"
+                },
+                {
+                  "const": "generationLeaseDirectory"
+                },
+                {
+                  "const": "generationLeaseControl"
+                },
+                {
+                  "const": "generationLeaseControlTemporary"
+                },
+                {
+                  "const": "generationLeaseOwnerLock"
+                },
+                {
+                  "const": "mediaThumbnail"
+                },
+                {
+                  "const": "isExcludedFromBackup"
+                },
+                {
+                  "const": "countsTowardOwnedStorage"
+                },
+                {
+                  "const": "permitsAutomaticStoragePressureDeletion"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "OwnedFileKindV1"
+                },
+                {
+                  "const": "ProtectedFilePolicyV1"
+                },
+                {
+                  "const": "OwnedFileProtectionDispositionV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C09"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Replication/PersistentKindLifecycleRegistryV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 32,
+              "minItems": 32,
+              "prefixItems": [
+                {
+                  "const": "PersistentKindDescriptorV1"
+                },
+                {
+                  "const": "PersistentKindClassificationV1"
+                },
+                {
+                  "const": "PersistentKindTemporalDispositionV1"
+                },
+                {
+                  "const": "PersistentKindTemporalEvidenceV1"
+                },
+                {
+                  "const": "PersistentLifecyclePolicyV1"
+                },
+                {
+                  "const": "PersistentLifecycleActionV1"
+                },
+                {
+                  "const": "PersistentLifecycleActionPolicyV1"
+                },
+                {
+                  "const": "DataHandlingPolicyV1"
+                },
+                {
+                  "const": "LifecycleCoverageManifestV1"
+                },
+                {
+                  "const": "compileCoverage"
+                },
+                {
+                  "const": "kindClassification"
+                },
+                {
+                  "const": "replicationClassification"
+                },
+                {
+                  "const": "temporalEvidence"
+                },
+                {
+                  "const": "representationSourceCard"
+                },
+                {
+                  "const": "representationSourceOrdinal"
+                },
+                {
+                  "const": "firstWriteVersion"
+                },
+                {
+                  "const": "lifecycleEnrollmentVersion"
+                },
+                {
+                  "const": "forwardFixVersion"
+                },
+                {
+                  "const": "firstWriteOrdinal"
+                },
+                {
+                  "const": "lifecycleEnrollmentOrdinal"
+                },
+                {
+                  "const": "forwardFixOrdinal"
+                },
+                {
+                  "const": "temporalProvenanceCanonicalMembers"
+                },
+                {
+                  "const": "requiredUniverseSourceIDs"
+                },
+                {
+                  "const": "declarationOwner"
+                },
+                {
+                  "const": "currentImplementationOwner"
+                },
+                {
+                  "const": "ownerRequired"
+                },
+                {
+                  "const": "unknownKindIDs"
+                },
+                {
+                  "const": "conflictingKindIDs"
+                },
+                {
+                  "const": "temporalConflictKindIDs"
+                },
+                {
+                  "const": "provisionalKernelOnly"
+                },
+                {
+                  "const": "shippingBoundaryAdoption"
+                },
+                {
+                  "const": "PersistentKindLifecycleValidationV1"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 5,
+              "minItems": 5,
+              "prefixItems": [
+                {
+                  "const": "PersistentKindLifecycleRegistryV1"
+                },
+                {
+                  "const": "PersistentKindDescriptorV1"
+                },
+                {
+                  "const": "PersistentLifecyclePolicyV1"
+                },
+                {
+                  "const": "DataHandlingPolicyV1"
+                },
+                {
+                  "const": "LifecycleCoverageManifestV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C09"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Persistence/CurrentPersistentKindLifecycleCatalogV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 25,
+              "minItems": 25,
+              "prefixItems": [
+                {
+                  "const": "CurrentPersistentKindLifecycleCatalogV1"
+                },
+                {
+                  "const": "static func compile"
+                },
+                {
+                  "const": "PersistentLifecycleContractReleaseRegistryV1"
+                },
+                {
+                  "const": "ReleasedDataCompatibilityPolicyV1.exactHead"
+                },
+                {
+                  "const": "CurrentSyncClassificationCatalogV1.current"
+                },
+                {
+                  "const": "descriptors"
+                },
+                {
+                  "const": "lifecyclePolicies"
+                },
+                {
+                  "const": "dataHandlingPolicies"
+                },
+                {
+                  "const": "coverageManifest"
+                },
+                {
+                  "const": "implementationOwnerPrefix"
+                },
+                {
+                  "const": "PersistentKindLifecycleRegistryV1.declarationOwner"
+                },
+                {
+                  "const": "TemporalOriginV1"
+                },
+                {
+                  "const": "baselineTemporalOrigin"
+                },
+                {
+                  "const": "laterTemporalOrigins"
+                },
+                {
+                  "const": "acceptedTemporalUniverseDigest"
+                },
+                {
+                  "const": "temporalProvenance"
+                },
+                {
+                  "const": "storageDisposition"
+                },
+                {
+                  "const": "temporalEvidence"
+                },
+                {
+                  "const": "representationSourceCard"
+                },
+                {
+                  "const": "representationSourceOrdinal"
+                },
+                {
+                  "const": "firstWriteVersion"
+                },
+                {
+                  "const": "lifecycleEnrollmentVersion"
+                },
+                {
+                  "const": "forwardFixVersion"
+                },
+                {
+                  "const": "auditErase"
+                },
+                {
+                  "const": "expectedEraseDisposition"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "const": "CurrentPersistentKindLifecycleCatalogV1"
+                },
+                {
+                  "const": "CurrentPersistentKindLifecycleCatalogFailureV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C09"
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/V9_13PersistentKindLifecycleCoverageTests.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 13,
+              "minItems": 13,
+              "prefixItems": [
+                {
+                  "const": "testV9_13G01ClosedUniverseAndCoverageManifestAreComplete"
+                },
+                {
+                  "const": "testV9_13A01EveryLifecycleActionAndDataHandlingClassificationIsExplicit"
+                },
+                {
+                  "const": "testV9_13H01DuplicateConflictingAndUnsafePoliciesFailClosed"
+                },
+                {
+                  "const": "testV9_13I01InterruptedLifecycleTransitionsExposeNoPartialAcceptance"
+                },
+                {
+                  "const": "testV9_13R01EraseCompatibilityForwardFixAndFixtureBindingRemainClosed"
+                },
+                {
+                  "const": "XCTestCase"
+                },
+                {
+                  "const": "PersistentKindLifecycleRegistryV1"
+                },
+                {
+                  "const": "CurrentPersistentKindLifecycleCatalogV1"
+                },
+                {
+                  "const": "corpus.temporalProvenance"
+                },
+                {
+                  "const": "corpus.durableFirstWriteKindIDs"
+                },
+                {
+                  "const": "provenancePartition"
+                },
+                {
+                  "const": "PERSISTENT_MODEL:ObservationAndTimeRow"
+                },
+                {
+                  "const": "DIAGNOSTIC:DeviceOperationalSupportStoreV2"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "V9_13PersistentKindLifecycleCoverageTests"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C09"
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/Fixtures/V21/Lifecycle/V21P02C09PersistentKindLifecycleCoverageCorpusV1.json"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 17,
+              "minItems": 17,
+              "prefixItems": [
+                {
+                  "const": "fixtureIdentity"
+                },
+                {
+                  "const": "declaredKindIDs"
+                },
+                {
+                  "const": "durableFirstWriteKindIDs"
+                },
+                {
+                  "const": "temporalProvenance"
+                },
+                {
+                  "const": "representationSourceCard"
+                },
+                {
+                  "const": "representationSourceOrdinal"
+                },
+                {
+                  "const": "universeSources"
+                },
+                {
+                  "const": "classifications"
+                },
+                {
+                  "const": "handlingActions"
+                },
+                {
+                  "const": "lifecycleDimensions"
+                },
+                {
+                  "const": "hostileCases"
+                },
+                {
+                  "const": "interruptionBoundaries"
+                },
+                {
+                  "const": "compatibilityCases"
+                },
+                {
+                  "const": "eraseExpectations"
+                },
+                {
+                  "const": "brandImpact"
+                },
+                {
+                  "const": "expectedAudit"
+                },
+                {
+                  "const": "representativePolicies"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "V21P02C09PersistentKindLifecycleCoverageCorpusV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "sourceUniverse": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalRowsAndPortableProjectionsDistinct": {
+          "const": true
+        },
+        "keychainUsageDeclared": {
+          "const": false
+        },
+        "requiredSources": {
+          "items": false,
+          "maxItems": 7,
+          "minItems": 7,
+          "prefixItems": [
+            {
+              "const": "ACCEPTED_FIXTURE_DECLARATION"
+            },
+            {
+              "const": "ARCHIVE_EXPORT_REPORT_PACKAGE_EXCHANGE_REGISTRY"
+            },
+            {
+              "const": "JOURNAL_CHECKPOINT_PROJECTION_REGISTRY"
+            },
+            {
+              "const": "OWNED_FILE_POLICY"
+            },
+            {
+              "const": "PERSISTENT_SCHEMA"
+            },
+            {
+              "const": "SYNC_CLASSIFICATION_CATALOG"
+            },
+            {
+              "const": "TEMPORAL_PROVENANCE_REGISTRY"
+            }
+          ],
+          "type": "array"
+        },
+        "searchImplementationPresent": {
+          "const": false
+        },
+        "secretNames": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "MutationHistorySnapshotV1"
+            },
+            {
+              "const": "EntityMutationRevisionRow"
+            },
+            {
+              "const": "MutationQuarantineRow"
+            },
+            {
+              "const": "MutationReceiptRow"
+            },
+            {
+              "const": "WorkspaceMutationStateRow"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": [
+        "requiredSources",
+        "searchImplementationPresent",
+        "secretNames",
+        "keychainUsageDeclared",
+        "canonicalRowsAndPortableProjectionsDistinct"
+      ],
+      "type": "object"
+    },
+    "temporalBoundaries": {
+      "additionalProperties": false,
+      "properties": {
+        "enrollment": {
+          "additionalProperties": false,
+          "properties": {
+            "evidence": {
+              "const": "ENROLLED_BEFORE_FIRST_WRITE"
+            },
+            "required": {
+              "const": true
+            },
+            "rule": {
+              "const": "LIFECYCLE_ENROLLMENT_PRECEDES_WRITER"
+            }
+          },
+          "required": [
+            "required",
+            "evidence",
+            "rule"
+          ],
+          "type": "object"
+        },
+        "firstWrite": {
+          "additionalProperties": false,
+          "properties": {
+            "evidence": {
+              "const": "ENROLLED_BEFORE_FIRST_WRITE"
+            },
+            "required": {
+              "const": true
+            },
+            "rule": {
+              "const": "FIRST_WRITE_REQUIRES_LIFECYCLE_ENROLLMENT"
+            },
+            "scope": {
+              "const": "FUTURE_OR_UNWRITTEN_KINDS"
+            }
+          },
+          "required": [
+            "required",
+            "evidence",
+            "rule",
+            "scope"
+          ],
+          "type": "object"
+        },
+        "forwardFix": {
+          "additionalProperties": false,
+          "properties": {
+            "evidence": {
+              "const": "PREEXISTING_BOUND_FORWARD_FIX"
+            },
+            "required": {
+              "const": true
+            },
+            "rule": {
+              "const": "FORWARD_FIX_ONLY_AFTER_ACTIVATION"
+            },
+            "scope": {
+              "const": "CURRENT_65_DURABLE_REPRESENTATIONS"
+            }
+          },
+          "required": [
+            "required",
+            "evidence",
+            "rule",
+            "scope"
+          ],
+          "type": "object"
+        },
+        "nonpersistent": {
+          "additionalProperties": false,
+          "properties": {
+            "evidence": {
+              "const": "NONPERSISTENT_NO_CANONICAL_WRITE"
+            },
+            "firstWriteVersion": {
+              "const": "NOT_APPLICABLE"
+            },
+            "forwardFixVersion": {
+              "const": "NOT_APPLICABLE"
+            }
+          },
+          "required": [
+            "evidence",
+            "firstWriteVersion",
+            "forwardFixVersion"
+          ],
+          "type": "object"
+        },
+        "temporalConflictGapField": {
+          "const": "temporalConflictKindIDs"
+        }
+      },
+      "required": [
+        "firstWrite",
+        "enrollment",
+        "forwardFix",
+        "temporalConflictGapField",
+        "nonpersistent"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "evidenceIDs",
+    "provisionalKernelOnly",
+    "shippingBoundaryAdoption",
+    "persistentChangeMode",
+    "noNewSwiftDataV6Entity",
+    "phase10PollingDuringParallelExecution",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "releaseReady",
+    "acceptanceCredit",
+    "releaseCredit",
+    "requiresAcceptedS10_6Reconciliation",
+    "owner",
+    "manifest",
+    "sourceUniverse",
+    "fixtureBinding",
+    "gapSets",
+    "temporalBoundaries",
+    "sourceBindings",
+    "artifactDigest"
+  ],
+  "title": "V23P02C09LifecycleCoverageManifestV1",
+  "type": "object"
+}

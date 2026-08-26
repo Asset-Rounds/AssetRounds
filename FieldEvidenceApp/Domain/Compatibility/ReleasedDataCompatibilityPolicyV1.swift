@@ -319,6 +319,18 @@ struct ReleasedDataCompatibilityPolicyV1: Codable, Equatable, Sendable {
         )
     )
 
+    /// Exact-head successor used by Card 29 and later compilers. `current`
+    /// remains the immutable released C07 policy so its corpus and observable
+    /// API are not rewritten in place.
+    static func exactHead(candidateHead: String) -> ReleasedDataCompatibilityPolicyV1 {
+        ReleasedDataCompatibilityPolicyV1(
+            dataManifest: DataCompatibilityManifestV1(
+                candidateHead: candidateHead,
+                supportedUpgradePaths: exactHeadSupportTable
+            )
+        )
+    }
+
     func validate() throws {
         guard schemaVersion == Self.currentSchemaVersion,
               skippedReleaseStoreMigrationRequired,
@@ -392,6 +404,35 @@ struct ReleasedDataCompatibilityPolicyV1: Codable, Equatable, Sendable {
         path(.eraseIntent, .internalRecovery, ["1", "2"], "2", search: .notApplicable, rebuild: .notApplicable),
         path(.restoreIntent, .internalRecovery, ["1", "2"], "2", search: .notApplicable, rebuild: .notApplicable),
     ]
+
+    private static let exactHeadSupportTable: [SupportedUpgradePathV1] =
+        currentSupportTable.map { value in
+            switch value.family {
+            case .liveStore:
+                return path(.liveStore, .publiclyPersisted, [
+                    "1.0.0", "2.0.0", "3.0.0", "4.0.0", "5.0.0",
+                ], "5.0.0", transitions: [
+                    .init(fromVersion: "1.0.0", toVersion: "2.0.0"),
+                    .init(fromVersion: "2.0.0", toVersion: "3.0.0"),
+                    .init(fromVersion: "3.0.0", toVersion: "4.0.0"),
+                    .init(fromVersion: "4.0.0", toVersion: "5.0.0"),
+                ], search: .unavailableAtThisHead, rebuild: .available)
+            case .backupPackage:
+                return path(.backupPackage, .publiclyPersisted, [
+                    "archive1-backup2-persistent1-records1",
+                    "archive1-backup2-persistent3-records2",
+                    "archive1-backup4-persistent5-records4",
+                    "directory-v4-backup1-persistent1-records1",
+                ], "archive1-backup4-persistent5-records4",
+                search: .notApplicable, rebuild: .notApplicable)
+            case .reportOpenJSON:
+                return path(.reportOpenJSON, .publiclyPersisted,
+                    ["snapshot1", "snapshot2"], "snapshot2",
+                    search: .deferredToV23P03C09, rebuild: .notApplicable)
+            default:
+                return value
+            }
+        }
 
     private static func path(
         _ family: CompatibilityArtifactFamilyV1,

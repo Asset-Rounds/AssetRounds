@@ -1,0 +1,455 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "59a043ffd9deefc158d274991efbf678bcc671125709d90dd6710468834ba844",
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "c5aaa2a6b6f4a1c900e5743648b66252d19f5ef7",
+    "appBaseTree": "e766971b63c90fa1f112862b526b908d094fff3d",
+    "attemptID": 1,
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C09",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "6f233d87250cb79dd3d435728e500f19bde24eb1cac5cccfa070a23df6b233c2",
+    "coordinationCASSequence": 122,
+    "coordinationLedgerDigest": "3db240dbe762efb5cc844f7337e21007661086a6d5895cb8a73f9de34111e6b1",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P02-C09-G01",
+      "V23-P02-C09-A01",
+      "V23-P02-C09-H01",
+      "V23-P02-C09-I01",
+      "V23-P02-C09-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P02-C08"
+    ],
+    "dossierDigest": "fa36c072ca2bfc52e05bb65ceaa3717a49d33a1f0101596e9eac357d0e19f062",
+    "dossierLength": 7012,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "1c2fabdf5f1b1a4264f34c8e7e41492a396839935602b25a6af8eb3075c6a14e",
+    "inheritedV21BlockLength": 10359,
+    "invalidationConsumers": [
+      "V23-P02-C10",
+      "V23-P03-C01"
+    ],
+    "lineage": "REFINED_WITHOUT_LOSS",
+    "lineageSource": "V21-P02-C09",
+    "pathFenceDigest": "a0e33d073d2dfa406b9540ea18c52e36286d28bce93500cf2640357c56d61171",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "d997906102bbee16cfde08059e030b30ede4a32f453c6cc1245f8bf75e12bd26",
+    "registerOrdinal": 29,
+    "registerRowDigest": "ee7af19fb47c90dcab6376b6fa508ca9e1967ab89481dd980a6884d2f13a2a8b",
+    "registerSectionDigest": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "registerSectionLength": 44217,
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Persistent-kind lifecycle, data-handling, Erase, compatibility, and complete coverage gate"
+  },
+  "cardID": "V23-P02-C09",
+  "compatibilityCases": [
+    {
+      "caseID": "PRE_ACTIVATION_INTERRUPTION",
+      "expectedDisposition": "DISCARD_STAGING",
+      "rewritesReleasedHistory": false
+    },
+    {
+      "caseID": "POST_ACTIVATION_INTERRUPTION",
+      "expectedDisposition": "APPEND_VERSIONED_SUCCESSOR_AND_FORWARD_FIX",
+      "rewritesReleasedHistory": false
+    },
+    {
+      "caseID": "FUTURE_POLICY_VERSION",
+      "expectedDisposition": "QUARANTINE_AND_REQUIRE_FORWARD_FIX",
+      "rewritesReleasedHistory": false
+    }
+  ],
+  "evidence": [
+    {
+      "evidenceID": "V23-P02-C09-G01",
+      "family": "G01",
+      "testMethod": "testV9_13G01ClosedUniverseAndCoverageManifestAreComplete"
+    },
+    {
+      "evidenceID": "V23-P02-C09-A01",
+      "family": "A01",
+      "testMethod": "testV9_13A01EveryLifecycleActionAndDataHandlingClassificationIsExplicit"
+    },
+    {
+      "evidenceID": "V23-P02-C09-H01",
+      "family": "H01",
+      "testMethod": "testV9_13H01DuplicateConflictingAndUnsafePoliciesFailClosed"
+    },
+    {
+      "evidenceID": "V23-P02-C09-I01",
+      "family": "I01",
+      "testMethod": "testV9_13I01InterruptedLifecycleTransitionsExposeNoPartialAcceptance"
+    },
+    {
+      "evidenceID": "V23-P02-C09-R01",
+      "family": "R01",
+      "testMethod": "testV9_13R01EraseCompatibilityForwardFixAndFixtureBindingRemainClosed"
+    }
+  ],
+  "evidenceIDs": [
+    "V23-P02-C09-G01",
+    "V23-P02-C09-A01",
+    "V23-P02-C09-H01",
+    "V23-P02-C09-I01",
+    "V23-P02-C09-R01"
+  ],
+  "exactFiveTests": true,
+  "families": {
+    "A01": {
+      "kind": "ALTERNATE",
+      "required": [
+        "EVERY_28_ACTION_EXPLICIT",
+        "EVERY_DATA_HANDLING_FIELD_EXPLICIT",
+        "BACKUP_RESTORE_PAIR",
+        "ERASE_RECONCILIATION",
+        "COMPATIBILITY_FORWARD_FIX"
+      ]
+    },
+    "G01": {
+      "kind": "GOLDEN",
+      "required": [
+        "CLOSED_UNIVERSE",
+        "EXACT_OWNER_PAIR",
+        "ONE_POLICY_PER_KIND",
+        "ZERO_GAPS",
+        "EXACT_BRAND_IMPACT"
+      ]
+    },
+    "H01": {
+      "kind": "HOSTILE",
+      "required": [
+        "DUPLICATE_KIND",
+        "CONFLICTING_OWNER",
+        "UNKNOWN_ACTION",
+        "UNKNOWN_CLASSIFICATION",
+        "DENIED_EXPORT_REPORT",
+        "IMMUTABLE_ERASE",
+        "TEMPORAL_WRITER"
+      ]
+    },
+    "I01": {
+      "kind": "INTERRUPTION",
+      "required": [
+        "EVERY_DURABLE_BOUNDARY",
+        "NO_PARTIAL_ACCEPTANCE",
+        "DISCARD_PRE_ACTIVATION",
+        "SUCCESSOR_POST_ACTIVATION",
+        "RELAUNCH_IDEMPOTENT"
+      ]
+    },
+    "R01": {
+      "kind": "RECOVERY",
+      "required": [
+        "MIGRATION_FORWARD_FIX",
+        "BACKUP_RESTORE_RECONCILIATION",
+        "ZERO_ORPHANS",
+        "ROW_PROJECTION_SEPARATION",
+        "SEARCH_ABSENCE_PROOF"
+      ]
+    }
+  },
+  "hostedDispatchRan": false,
+  "hostileCases": [
+    "BACKUP_WITHOUT_RESTORE",
+    "DENIED_KIND_ENTERS_EXPORT",
+    "DENIED_KIND_ENTERS_REPORT",
+    "DUPLICATE_KIND",
+    "DUPLICATE_OWNER",
+    "ERASE_DESTROYS_IMMUTABLE_TRUTH",
+    "ERASE_LEAVES_ERASABLE_ORPHAN",
+    "MISSING_KIND",
+    "OWNER_IMPLEMENTATION_CONFLICT",
+    "TEMPORALLY_IMPOSSIBLE_WRITER",
+    "MISSING_TEMPORAL_PROVENANCE",
+    "DUPLICATE_TEMPORAL_PROVENANCE",
+    "WRONG_LATER_CARD_PROVENANCE",
+    "IMPOSSIBLE_TEMPORAL_CHRONOLOGY",
+    "UNKNOWN_ACTION",
+    "UNKNOWN_CLASSIFICATION",
+    "UNKNOWN_POLICY_VERSION"
+  ],
+  "interruptionBoundaries": [
+    "BEFORE_POLICY_STAGING",
+    "AFTER_POLICY_STAGING_BEFORE_ACTIVATION",
+    "AFTER_ACTIVATION_BEFORE_RECEIPT",
+    "AFTER_RECEIPT_BEFORE_CLEANUP"
+  ],
+  "nativeCompileRan": false,
+  "noNewSwiftDataV6Entity": true,
+  "owner": "V9_13PersistentKindLifecycleCoverageTests",
+  "persistentChangeMode": "NEW_SCHEMA_VERSION",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "prohibitedTokens": [
+    "SwiftDataV6",
+    "SwiftDataV6Entity",
+    "tenant",
+    "account",
+    "credential",
+    "signedURL",
+    "fakeOutbox",
+    "CloudKit",
+    "CKRecord",
+    "URLSession",
+    "Keychain",
+    "searchStore"
+  ],
+  "provisionalKernelOnly": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P02C09LifecycleHostileMatrixV1",
+  "schemaVersion": 1,
+  "shippingBoundaryAdoption": "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION",
+  "sourceBindings": [
+    {
+      "owner": "V23-P02-C09",
+      "path": "FieldEvidenceApp/Domain/Compatibility/ReleasedDataCompatibilityPolicyV1.swift",
+      "requiredTokens": [
+        "currentSupportTable",
+        "supportedUpgradePaths",
+        "validateReadableVersion",
+        "validateWriterVersion",
+        "forwardUpgradeTransitions",
+        "archive1-backup4-persistent5-records4",
+        "snapshot2"
+      ],
+      "symbols": [
+        "ReleasedDataCompatibilityPolicyV1",
+        "DataCompatibilityManifestV1",
+        "SupportedUpgradePathV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C03",
+      "path": "FieldEvidenceApp/Domain/Replication/SyncClassificationRegistryV1.swift",
+      "requiredTokens": [
+        "persistentModelNames",
+        "ownedFileClassNames",
+        "generationLeaseDirectory",
+        "generationLeaseControl",
+        "generationLeaseControlTemporary",
+        "generationLeaseOwnerLock",
+        "declaredSecretSubjects",
+        "makeRegistrations"
+      ],
+      "symbols": [
+        "SyncClassificationRegistryV1",
+        "SyncSubjectIdentityV1",
+        "SyncClassificationRegistrationV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C09",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift",
+      "requiredTokens": [
+        "CurrentSyncClassificationCatalogV1",
+        "persistentModelNames",
+        "ownedFileClassNames",
+        "portableContentProjectionNames",
+        "derivedIndexNames",
+        "derivedProjectionNames",
+        "journalRecoveryNames",
+        "diagnosticNames",
+        "declaredSearchImplementationPresent",
+        "secretNames",
+        "declaredKeychainUsage",
+        "mutationHistoryRepresentationRules",
+        "diagnosticRepresentationRules",
+        "static var current",
+        "registrations",
+        "lifecycleRoutes"
+      ],
+      "symbols": [
+        "CurrentSyncClassificationCatalogV1",
+        "CurrentRepresentationRuleV1",
+        "CurrentSyncLifecycleRouteV1"
+      ]
+    },
+    {
+      "owner": "V23-P01-C03",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift",
+      "requiredTokens": [
+        "PersistentSchemaV5",
+        "PersistentSchemaV4",
+        "ObservationAndTimeRow",
+        "versionIdentifier",
+        "models",
+        "PersistentSchemaV5.models"
+      ],
+      "symbols": [
+        "PersistentSchemaV1",
+        "PersistentSchemaV2",
+        "PersistentSchemaV3",
+        "PersistentSchemaV4",
+        "PersistentSchemaV5",
+        "ObservationAndTimeRow"
+      ]
+    },
+    {
+      "owner": "V23-P01-C02",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+      "requiredTokens": [
+        "OwnedFileKindV1",
+        "CaseIterable",
+        "generationLeaseDirectory",
+        "generationLeaseControl",
+        "generationLeaseControlTemporary",
+        "generationLeaseOwnerLock",
+        "mediaThumbnail",
+        "isExcludedFromBackup",
+        "countsTowardOwnedStorage",
+        "permitsAutomaticStoragePressureDeletion"
+      ],
+      "symbols": [
+        "OwnedFileKindV1",
+        "ProtectedFilePolicyV1",
+        "OwnedFileProtectionDispositionV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C09",
+      "path": "FieldEvidenceApp/Domain/Replication/PersistentKindLifecycleRegistryV1.swift",
+      "requiredTokens": [
+        "PersistentKindDescriptorV1",
+        "PersistentKindClassificationV1",
+        "PersistentKindTemporalDispositionV1",
+        "PersistentKindTemporalEvidenceV1",
+        "PersistentLifecyclePolicyV1",
+        "PersistentLifecycleActionV1",
+        "PersistentLifecycleActionPolicyV1",
+        "DataHandlingPolicyV1",
+        "LifecycleCoverageManifestV1",
+        "compileCoverage",
+        "kindClassification",
+        "replicationClassification",
+        "temporalEvidence",
+        "representationSourceCard",
+        "representationSourceOrdinal",
+        "firstWriteVersion",
+        "lifecycleEnrollmentVersion",
+        "forwardFixVersion",
+        "firstWriteOrdinal",
+        "lifecycleEnrollmentOrdinal",
+        "forwardFixOrdinal",
+        "temporalProvenanceCanonicalMembers",
+        "requiredUniverseSourceIDs",
+        "declarationOwner",
+        "currentImplementationOwner",
+        "ownerRequired",
+        "unknownKindIDs",
+        "conflictingKindIDs",
+        "temporalConflictKindIDs",
+        "provisionalKernelOnly",
+        "shippingBoundaryAdoption",
+        "PersistentKindLifecycleValidationV1"
+      ],
+      "symbols": [
+        "PersistentKindLifecycleRegistryV1",
+        "PersistentKindDescriptorV1",
+        "PersistentLifecyclePolicyV1",
+        "DataHandlingPolicyV1",
+        "LifecycleCoverageManifestV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C09",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/CurrentPersistentKindLifecycleCatalogV1.swift",
+      "requiredTokens": [
+        "CurrentPersistentKindLifecycleCatalogV1",
+        "static func compile",
+        "PersistentLifecycleContractReleaseRegistryV1",
+        "ReleasedDataCompatibilityPolicyV1.exactHead",
+        "CurrentSyncClassificationCatalogV1.current",
+        "descriptors",
+        "lifecyclePolicies",
+        "dataHandlingPolicies",
+        "coverageManifest",
+        "implementationOwnerPrefix",
+        "PersistentKindLifecycleRegistryV1.declarationOwner",
+        "TemporalOriginV1",
+        "baselineTemporalOrigin",
+        "laterTemporalOrigins",
+        "acceptedTemporalUniverseDigest",
+        "temporalProvenance",
+        "storageDisposition",
+        "temporalEvidence",
+        "representationSourceCard",
+        "representationSourceOrdinal",
+        "firstWriteVersion",
+        "lifecycleEnrollmentVersion",
+        "forwardFixVersion",
+        "auditErase",
+        "expectedEraseDisposition"
+      ],
+      "symbols": [
+        "CurrentPersistentKindLifecycleCatalogV1",
+        "CurrentPersistentKindLifecycleCatalogFailureV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C09",
+      "path": "FieldEvidenceAppTests/V9_13PersistentKindLifecycleCoverageTests.swift",
+      "requiredTokens": [
+        "testV9_13G01ClosedUniverseAndCoverageManifestAreComplete",
+        "testV9_13A01EveryLifecycleActionAndDataHandlingClassificationIsExplicit",
+        "testV9_13H01DuplicateConflictingAndUnsafePoliciesFailClosed",
+        "testV9_13I01InterruptedLifecycleTransitionsExposeNoPartialAcceptance",
+        "testV9_13R01EraseCompatibilityForwardFixAndFixtureBindingRemainClosed",
+        "XCTestCase",
+        "PersistentKindLifecycleRegistryV1",
+        "CurrentPersistentKindLifecycleCatalogV1",
+        "corpus.temporalProvenance",
+        "corpus.durableFirstWriteKindIDs",
+        "provenancePartition",
+        "PERSISTENT_MODEL:ObservationAndTimeRow",
+        "DIAGNOSTIC:DeviceOperationalSupportStoreV2"
+      ],
+      "symbols": [
+        "V9_13PersistentKindLifecycleCoverageTests"
+      ]
+    },
+    {
+      "owner": "V23-P02-C09",
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Lifecycle/V21P02C09PersistentKindLifecycleCoverageCorpusV1.json",
+      "requiredTokens": [
+        "fixtureIdentity",
+        "declaredKindIDs",
+        "durableFirstWriteKindIDs",
+        "temporalProvenance",
+        "representationSourceCard",
+        "representationSourceOrdinal",
+        "universeSources",
+        "classifications",
+        "handlingActions",
+        "lifecycleDimensions",
+        "hostileCases",
+        "interruptionBoundaries",
+        "compatibilityCases",
+        "eraseExpectations",
+        "brandImpact",
+        "expectedAudit",
+        "representativePolicies"
+      ],
+      "symbols": [
+        "V21P02C09PersistentKindLifecycleCoverageCorpusV1"
+      ]
+    }
+  ]
+}

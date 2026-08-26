@@ -157,7 +157,9 @@ enum SyncClassificationRegistryV1 {
 
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
-        "diagnostics", "durableDirectory", "generationPointer", "generationPointerTemporary",
+        "diagnostics", "durableDirectory", "generationLeaseControl",
+        "generationLeaseControlTemporary", "generationLeaseDirectory",
+        "generationLeaseOwnerLock", "generationPointer", "generationPointerTemporary",
         "journal", "journalTemporary", "mediaOriginal", "mediaThumbnail", "reportPDF",
         "reportSnapshot", "restoreStaging", "scratch", "stagingDirectory", "stagingFile",
         "temporaryFile",
@@ -241,16 +243,18 @@ enum SyncClassificationRegistryV1 {
         forStableName name: String
     ) throws -> (classification: SyncClassificationV1, conflictRule: ConflictRuleV1) {
         switch name {
-        case "mediaOriginal", "reportPDF", "reportSnapshot":
+        case "mediaOriginal", "mediaThumbnail", "reportPDF", "reportSnapshot":
             return (.contentBlob, .immutableVersion)
-        case "mediaThumbnail", "cache", "scratch":
+        case "cache":
             return (.derivedRebuildable, .derivedRebuild)
         case "diagnostics", "commerceEntitlementCache":
             return (.privateDeviceOnly, .localOnly)
         case "database", "databaseSHM", "databaseWAL", "durableDirectory",
              "generationPointer", "generationPointerTemporary", "journal",
+             "generationLeaseControl", "generationLeaseControlTemporary",
+             "generationLeaseDirectory", "generationLeaseOwnerLock",
              "journalTemporary", "restoreStaging", "stagingDirectory", "stagingFile",
-             "temporaryFile":
+             "temporaryFile", "scratch":
             return (.localOnly, .localOnly)
         default:
             throw SyncClassificationRegistryFailureV1.incompleteInventory

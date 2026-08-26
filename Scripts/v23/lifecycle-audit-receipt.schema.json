@@ -1,0 +1,1314 @@
+{
+  "$id": "https://assetrounds.invalid/v23/V23P02C09LifecycleAuditReceiptV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "audit": {
+      "additionalProperties": false,
+      "properties": {
+        "complete": {
+          "const": true
+        },
+        "conflictingCount": {
+          "const": 0
+        },
+        "duplicateCount": {
+          "const": 0
+        },
+        "exactHeadDerived": {
+          "const": true
+        },
+        "handwrittenCountAuthority": {
+          "const": false
+        },
+        "missingCount": {
+          "const": 0
+        },
+        "orphanedOwnerCount": {
+          "const": 0
+        },
+        "stalePolicyRevisionCount": {
+          "const": 0
+        },
+        "unknownCount": {
+          "const": 0
+        }
+      },
+      "required": [
+        "missingCount",
+        "duplicateCount",
+        "conflictingCount",
+        "unknownCount",
+        "orphanedOwnerCount",
+        "stalePolicyRevisionCount",
+        "complete",
+        "exactHeadDerived",
+        "handwrittenCountAuthority"
+      ],
+      "type": "object"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateAcceptanceMemberships": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "AutonomousRequiredAcceptedSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "appBaseHead": {
+          "const": "c5aaa2a6b6f4a1c900e5743648b66252d19f5ef7"
+        },
+        "appBaseTree": {
+          "const": "e766971b63c90fa1f112862b526b908d094fff3d"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P02-C09"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "coordinationCASSequence": {
+          "const": 122
+        },
+        "coordinationLedgerDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "dependencyDispositionDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C09-G01"
+            },
+            {
+              "const": "V23-P02-C09-A01"
+            },
+            {
+              "const": "V23-P02-C09-H01"
+            },
+            {
+              "const": "V23-P02-C09-I01"
+            },
+            {
+              "const": "V23-P02-C09-R01"
+            }
+          ],
+          "type": "array"
+        },
+        "directGraphDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C08"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "dossierLength": {
+          "const": 7012
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "foundationRegisterDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "frozenS10ReservationDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "impactManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "inheritedV21BlockDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "inheritedV21BlockLength": {
+          "const": 10359
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C10"
+            },
+            {
+              "const": "V23-P03-C01"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "REFINED_WITHOUT_LOSS"
+        },
+        "lineageSource": {
+          "const": "V21-P02-C09"
+        },
+        "pathFenceDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registerOrdinal": {
+          "const": 29
+        },
+        "registerRowDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registerSectionDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registerSectionLength": {
+          "const": 44217
+        },
+        "relationManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "selectorManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "title": {
+          "const": "Persistent-kind lifecycle, data-handling, Erase, compatibility, and complete coverage gate"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "lineageSource",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "registerSectionDigest",
+        "registerSectionLength",
+        "registerRowDigest",
+        "dossierDigest",
+        "dossierLength",
+        "inheritedV21BlockDigest",
+        "inheritedV21BlockLength",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "aggregateAcceptanceMemberships",
+        "conformanceSubjects",
+        "deterministicEvidenceIDs"
+      ],
+      "type": "object"
+    },
+    "brandImpact": {
+      "additionalProperties": false,
+      "properties": {
+        "affectedConsumers": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C10"
+            },
+            {
+              "const": "V23-P03-C01"
+            }
+          ],
+          "type": "array"
+        },
+        "changedScreens": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "changedStates": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "completenessRationale": {
+          "const": "No rendered surface or state changed; the two invalidation consumers are closed explicitly."
+        },
+        "digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "manifestCount": {
+          "const": 1
+        },
+        "manifestType": {
+          "const": "BrandImpactManifestV1"
+        }
+      },
+      "required": [
+        "manifestType",
+        "manifestCount",
+        "changedScreens",
+        "changedStates",
+        "affectedConsumers",
+        "digest",
+        "completenessRationale"
+      ],
+      "type": "object"
+    },
+    "brandImpactManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "affectedConsumers": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C10"
+            },
+            {
+              "const": "V23-P03-C01"
+            }
+          ],
+          "type": "array"
+        },
+        "artifactDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "cardID": {
+          "const": "V23-P02-C09"
+        },
+        "changedScreens": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "changedStates": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        },
+        "completenessRationale": {
+          "const": "Lifecycle policy/tooling changes have no rendered-screen or state change; downstream consumer closure is explicit."
+        },
+        "schema": {
+          "const": "BrandImpactManifestV1"
+        },
+        "schemaVersion": {
+          "const": 1
+        }
+      },
+      "required": [
+        "schema",
+        "schemaVersion",
+        "cardID",
+        "changedScreens",
+        "changedStates",
+        "affectedConsumers",
+        "completenessRationale",
+        "artifactDigest"
+      ],
+      "type": "object"
+    },
+    "candidateHead": {
+      "const": "c5aaa2a6b6f4a1c900e5743648b66252d19f5ef7"
+    },
+    "cardID": {
+      "const": "V23-P02-C09"
+    },
+    "coverageManifestDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "evidenceIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "V23-P02-C09-G01"
+        },
+        {
+          "const": "V23-P02-C09-A01"
+        },
+        {
+          "const": "V23-P02-C09-H01"
+        },
+        {
+          "const": "V23-P02-C09-I01"
+        },
+        {
+          "const": "V23-P02-C09-R01"
+        }
+      ],
+      "type": "array"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "noNewSwiftDataV6Entity": {
+      "const": true
+    },
+    "owner": {
+      "const": "V9_13PersistentKindLifecycleCoverageTests"
+    },
+    "persistentChangeMode": {
+      "const": "NEW_SCHEMA_VERSION"
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "provisionalDisposition": {
+      "const": "PROVISIONAL_KERNEL_ONLY_REQUIRES_ACCEPTED_S10_6_RECONCILIATION"
+    },
+    "provisionalKernelOnly": {
+      "const": true
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "schema": {
+      "const": "V23P02C09LifecycleAuditReceiptV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "shippingBoundaryAdoption": {
+      "const": "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION"
+    },
+    "sourceBindings": {
+      "items": false,
+      "maxItems": 9,
+      "minItems": 9,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C09"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Compatibility/ReleasedDataCompatibilityPolicyV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 7,
+              "minItems": 7,
+              "prefixItems": [
+                {
+                  "const": "currentSupportTable"
+                },
+                {
+                  "const": "supportedUpgradePaths"
+                },
+                {
+                  "const": "validateReadableVersion"
+                },
+                {
+                  "const": "validateWriterVersion"
+                },
+                {
+                  "const": "forwardUpgradeTransitions"
+                },
+                {
+                  "const": "archive1-backup4-persistent5-records4"
+                },
+                {
+                  "const": "snapshot2"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "ReleasedDataCompatibilityPolicyV1"
+                },
+                {
+                  "const": "DataCompatibilityManifestV1"
+                },
+                {
+                  "const": "SupportedUpgradePathV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C03"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Replication/SyncClassificationRegistryV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 8,
+              "minItems": 8,
+              "prefixItems": [
+                {
+                  "const": "persistentModelNames"
+                },
+                {
+                  "const": "ownedFileClassNames"
+                },
+                {
+                  "const": "generationLeaseDirectory"
+                },
+                {
+                  "const": "generationLeaseControl"
+                },
+                {
+                  "const": "generationLeaseControlTemporary"
+                },
+                {
+                  "const": "generationLeaseOwnerLock"
+                },
+                {
+                  "const": "declaredSecretSubjects"
+                },
+                {
+                  "const": "makeRegistrations"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "SyncClassificationRegistryV1"
+                },
+                {
+                  "const": "SyncSubjectIdentityV1"
+                },
+                {
+                  "const": "SyncClassificationRegistrationV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C09"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 16,
+              "minItems": 16,
+              "prefixItems": [
+                {
+                  "const": "CurrentSyncClassificationCatalogV1"
+                },
+                {
+                  "const": "persistentModelNames"
+                },
+                {
+                  "const": "ownedFileClassNames"
+                },
+                {
+                  "const": "portableContentProjectionNames"
+                },
+                {
+                  "const": "derivedIndexNames"
+                },
+                {
+                  "const": "derivedProjectionNames"
+                },
+                {
+                  "const": "journalRecoveryNames"
+                },
+                {
+                  "const": "diagnosticNames"
+                },
+                {
+                  "const": "declaredSearchImplementationPresent"
+                },
+                {
+                  "const": "secretNames"
+                },
+                {
+                  "const": "declaredKeychainUsage"
+                },
+                {
+                  "const": "mutationHistoryRepresentationRules"
+                },
+                {
+                  "const": "diagnosticRepresentationRules"
+                },
+                {
+                  "const": "static var current"
+                },
+                {
+                  "const": "registrations"
+                },
+                {
+                  "const": "lifecycleRoutes"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "CurrentSyncClassificationCatalogV1"
+                },
+                {
+                  "const": "CurrentRepresentationRuleV1"
+                },
+                {
+                  "const": "CurrentSyncLifecycleRouteV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P01-C03"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 6,
+              "minItems": 6,
+              "prefixItems": [
+                {
+                  "const": "PersistentSchemaV5"
+                },
+                {
+                  "const": "PersistentSchemaV4"
+                },
+                {
+                  "const": "ObservationAndTimeRow"
+                },
+                {
+                  "const": "versionIdentifier"
+                },
+                {
+                  "const": "models"
+                },
+                {
+                  "const": "PersistentSchemaV5.models"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 6,
+              "minItems": 6,
+              "prefixItems": [
+                {
+                  "const": "PersistentSchemaV1"
+                },
+                {
+                  "const": "PersistentSchemaV2"
+                },
+                {
+                  "const": "PersistentSchemaV3"
+                },
+                {
+                  "const": "PersistentSchemaV4"
+                },
+                {
+                  "const": "PersistentSchemaV5"
+                },
+                {
+                  "const": "ObservationAndTimeRow"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P01-C02"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 10,
+              "minItems": 10,
+              "prefixItems": [
+                {
+                  "const": "OwnedFileKindV1"
+                },
+                {
+                  "const": "CaseIterable"
+                },
+                {
+                  "const": "generationLeaseDirectory"
+                },
+                {
+                  "const": "generationLeaseControl"
+                },
+                {
+                  "const": "generationLeaseControlTemporary"
+                },
+                {
+                  "const": "generationLeaseOwnerLock"
+                },
+                {
+                  "const": "mediaThumbnail"
+                },
+                {
+                  "const": "isExcludedFromBackup"
+                },
+                {
+                  "const": "countsTowardOwnedStorage"
+                },
+                {
+                  "const": "permitsAutomaticStoragePressureDeletion"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "OwnedFileKindV1"
+                },
+                {
+                  "const": "ProtectedFilePolicyV1"
+                },
+                {
+                  "const": "OwnedFileProtectionDispositionV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C09"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Replication/PersistentKindLifecycleRegistryV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 32,
+              "minItems": 32,
+              "prefixItems": [
+                {
+                  "const": "PersistentKindDescriptorV1"
+                },
+                {
+                  "const": "PersistentKindClassificationV1"
+                },
+                {
+                  "const": "PersistentKindTemporalDispositionV1"
+                },
+                {
+                  "const": "PersistentKindTemporalEvidenceV1"
+                },
+                {
+                  "const": "PersistentLifecyclePolicyV1"
+                },
+                {
+                  "const": "PersistentLifecycleActionV1"
+                },
+                {
+                  "const": "PersistentLifecycleActionPolicyV1"
+                },
+                {
+                  "const": "DataHandlingPolicyV1"
+                },
+                {
+                  "const": "LifecycleCoverageManifestV1"
+                },
+                {
+                  "const": "compileCoverage"
+                },
+                {
+                  "const": "kindClassification"
+                },
+                {
+                  "const": "replicationClassification"
+                },
+                {
+                  "const": "temporalEvidence"
+                },
+                {
+                  "const": "representationSourceCard"
+                },
+                {
+                  "const": "representationSourceOrdinal"
+                },
+                {
+                  "const": "firstWriteVersion"
+                },
+                {
+                  "const": "lifecycleEnrollmentVersion"
+                },
+                {
+                  "const": "forwardFixVersion"
+                },
+                {
+                  "const": "firstWriteOrdinal"
+                },
+                {
+                  "const": "lifecycleEnrollmentOrdinal"
+                },
+                {
+                  "const": "forwardFixOrdinal"
+                },
+                {
+                  "const": "temporalProvenanceCanonicalMembers"
+                },
+                {
+                  "const": "requiredUniverseSourceIDs"
+                },
+                {
+                  "const": "declarationOwner"
+                },
+                {
+                  "const": "currentImplementationOwner"
+                },
+                {
+                  "const": "ownerRequired"
+                },
+                {
+                  "const": "unknownKindIDs"
+                },
+                {
+                  "const": "conflictingKindIDs"
+                },
+                {
+                  "const": "temporalConflictKindIDs"
+                },
+                {
+                  "const": "provisionalKernelOnly"
+                },
+                {
+                  "const": "shippingBoundaryAdoption"
+                },
+                {
+                  "const": "PersistentKindLifecycleValidationV1"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 5,
+              "minItems": 5,
+              "prefixItems": [
+                {
+                  "const": "PersistentKindLifecycleRegistryV1"
+                },
+                {
+                  "const": "PersistentKindDescriptorV1"
+                },
+                {
+                  "const": "PersistentLifecyclePolicyV1"
+                },
+                {
+                  "const": "DataHandlingPolicyV1"
+                },
+                {
+                  "const": "LifecycleCoverageManifestV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C09"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Persistence/CurrentPersistentKindLifecycleCatalogV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 25,
+              "minItems": 25,
+              "prefixItems": [
+                {
+                  "const": "CurrentPersistentKindLifecycleCatalogV1"
+                },
+                {
+                  "const": "static func compile"
+                },
+                {
+                  "const": "PersistentLifecycleContractReleaseRegistryV1"
+                },
+                {
+                  "const": "ReleasedDataCompatibilityPolicyV1.exactHead"
+                },
+                {
+                  "const": "CurrentSyncClassificationCatalogV1.current"
+                },
+                {
+                  "const": "descriptors"
+                },
+                {
+                  "const": "lifecyclePolicies"
+                },
+                {
+                  "const": "dataHandlingPolicies"
+                },
+                {
+                  "const": "coverageManifest"
+                },
+                {
+                  "const": "implementationOwnerPrefix"
+                },
+                {
+                  "const": "PersistentKindLifecycleRegistryV1.declarationOwner"
+                },
+                {
+                  "const": "TemporalOriginV1"
+                },
+                {
+                  "const": "baselineTemporalOrigin"
+                },
+                {
+                  "const": "laterTemporalOrigins"
+                },
+                {
+                  "const": "acceptedTemporalUniverseDigest"
+                },
+                {
+                  "const": "temporalProvenance"
+                },
+                {
+                  "const": "storageDisposition"
+                },
+                {
+                  "const": "temporalEvidence"
+                },
+                {
+                  "const": "representationSourceCard"
+                },
+                {
+                  "const": "representationSourceOrdinal"
+                },
+                {
+                  "const": "firstWriteVersion"
+                },
+                {
+                  "const": "lifecycleEnrollmentVersion"
+                },
+                {
+                  "const": "forwardFixVersion"
+                },
+                {
+                  "const": "auditErase"
+                },
+                {
+                  "const": "expectedEraseDisposition"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "const": "CurrentPersistentKindLifecycleCatalogV1"
+                },
+                {
+                  "const": "CurrentPersistentKindLifecycleCatalogFailureV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C09"
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/V9_13PersistentKindLifecycleCoverageTests.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 13,
+              "minItems": 13,
+              "prefixItems": [
+                {
+                  "const": "testV9_13G01ClosedUniverseAndCoverageManifestAreComplete"
+                },
+                {
+                  "const": "testV9_13A01EveryLifecycleActionAndDataHandlingClassificationIsExplicit"
+                },
+                {
+                  "const": "testV9_13H01DuplicateConflictingAndUnsafePoliciesFailClosed"
+                },
+                {
+                  "const": "testV9_13I01InterruptedLifecycleTransitionsExposeNoPartialAcceptance"
+                },
+                {
+                  "const": "testV9_13R01EraseCompatibilityForwardFixAndFixtureBindingRemainClosed"
+                },
+                {
+                  "const": "XCTestCase"
+                },
+                {
+                  "const": "PersistentKindLifecycleRegistryV1"
+                },
+                {
+                  "const": "CurrentPersistentKindLifecycleCatalogV1"
+                },
+                {
+                  "const": "corpus.temporalProvenance"
+                },
+                {
+                  "const": "corpus.durableFirstWriteKindIDs"
+                },
+                {
+                  "const": "provenancePartition"
+                },
+                {
+                  "const": "PERSISTENT_MODEL:ObservationAndTimeRow"
+                },
+                {
+                  "const": "DIAGNOSTIC:DeviceOperationalSupportStoreV2"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "V9_13PersistentKindLifecycleCoverageTests"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C09"
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/Fixtures/V21/Lifecycle/V21P02C09PersistentKindLifecycleCoverageCorpusV1.json"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 17,
+              "minItems": 17,
+              "prefixItems": [
+                {
+                  "const": "fixtureIdentity"
+                },
+                {
+                  "const": "declaredKindIDs"
+                },
+                {
+                  "const": "durableFirstWriteKindIDs"
+                },
+                {
+                  "const": "temporalProvenance"
+                },
+                {
+                  "const": "representationSourceCard"
+                },
+                {
+                  "const": "representationSourceOrdinal"
+                },
+                {
+                  "const": "universeSources"
+                },
+                {
+                  "const": "classifications"
+                },
+                {
+                  "const": "handlingActions"
+                },
+                {
+                  "const": "lifecycleDimensions"
+                },
+                {
+                  "const": "hostileCases"
+                },
+                {
+                  "const": "interruptionBoundaries"
+                },
+                {
+                  "const": "compatibilityCases"
+                },
+                {
+                  "const": "eraseExpectations"
+                },
+                {
+                  "const": "brandImpact"
+                },
+                {
+                  "const": "expectedAudit"
+                },
+                {
+                  "const": "representativePolicies"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "V21P02C09PersistentKindLifecycleCoverageCorpusV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "evidenceIDs",
+    "provisionalKernelOnly",
+    "shippingBoundaryAdoption",
+    "persistentChangeMode",
+    "noNewSwiftDataV6Entity",
+    "phase10PollingDuringParallelExecution",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "releaseReady",
+    "acceptanceCredit",
+    "releaseCredit",
+    "requiresAcceptedS10_6Reconciliation",
+    "owner",
+    "coverageManifestDigest",
+    "candidateHead",
+    "audit",
+    "brandImpactManifest",
+    "brandImpact",
+    "provisionalDisposition",
+    "sourceBindings",
+    "artifactDigest"
+  ],
+  "title": "V23P02C09LifecycleAuditReceiptV1",
+  "type": "object"
+}

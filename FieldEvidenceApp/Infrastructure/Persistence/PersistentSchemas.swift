@@ -294,6 +294,33 @@ enum PersistentSchemaMigrationStageV1: String, Equatable, Sendable {
     case custom = "CUSTOM"
 }
 
+/// Card 29 versions the lifecycle-policy contract independently from the
+/// SwiftData model universe. It intentionally binds V1 policy to store V5 and
+/// does not invent a V6 schema or entity.
+enum PersistentLifecycleContractReleaseV1: String, Codable, Equatable, Sendable {
+    case v1 = "PERSISTENT_LIFECYCLE_POLICY_V1"
+
+    var schemaVersion: Int { 1 }
+    var boundStoreRelease: PersistentSchemaReleaseV1 { .v5 }
+    var predecessor: PersistentLifecycleContractReleaseV1? { nil }
+}
+
+enum PersistentLifecycleContractReleaseRegistryV1 {
+    static let releases: [PersistentLifecycleContractReleaseV1] = [.v1]
+    static let activeRelease: PersistentLifecycleContractReleaseV1 = .v1
+
+    static func validate() throws {
+        guard releases == [.v1],
+              activeRelease == .v1,
+              activeRelease.schemaVersion == PersistentKindLifecycleRegistryV1.schemaVersion,
+              activeRelease.rawValue == PersistentKindLifecycleRegistryV1.schemaID,
+              activeRelease.boundStoreRelease == .v5,
+              activeRelease.predecessor == nil else {
+            throw PersistentSchemaReleaseRegistryErrorV1.invalidActiveRelease
+        }
+    }
+}
+
 /// Stable release identity used by manifests/journals as well as the runtime
 /// registry. The descriptor values are computed from the canonical schemas so
 /// a persisted release cannot silently acquire a second source of truth.
@@ -465,6 +492,7 @@ enum PersistentSchemaReleaseRegistryV1 {
     }
 
     static func validate() throws {
+        try PersistentLifecycleContractReleaseRegistryV1.validate()
         try validate(releases)
     }
 

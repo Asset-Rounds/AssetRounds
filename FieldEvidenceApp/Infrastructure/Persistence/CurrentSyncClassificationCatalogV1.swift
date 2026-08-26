@@ -30,6 +30,22 @@ struct CurrentSyncLifecycleRouteV1: Equatable, Sendable {
     let replay: CurrentReplayDispositionV1
 }
 
+enum CurrentRepresentationAuthorityV1: String, Equatable, Sendable {
+    case canonicalRow = "CANONICAL_ROW"
+    case derivedPersistedRow = "DERIVED_PERSISTED_ROW"
+    case localRecoveryRow = "LOCAL_RECOVERY_ROW"
+    case portableProjection = "PORTABLE_PROJECTION"
+    case persistedDeviceStore = "PERSISTED_DEVICE_STORE"
+    case nonpersistentView = "NONPERSISTENT_VIEW"
+}
+
+struct CurrentRepresentationRuleV1: Equatable, Sendable {
+    let source: SyncSubjectIdentityV1
+    let representation: SyncSubjectIdentityV1
+    let sourceAuthority: CurrentRepresentationAuthorityV1
+    let representationAuthority: CurrentRepresentationAuthorityV1
+}
+
 enum CurrentSyncClassificationCatalogFailureV1: Error, Equatable {
     case invalidInventory
     case invalidBaseline
@@ -54,7 +70,9 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
 
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
-        "diagnostics", "durableDirectory", "generationPointer", "generationPointerTemporary",
+        "diagnostics", "durableDirectory", "generationLeaseControl",
+        "generationLeaseControlTemporary", "generationLeaseDirectory",
+        "generationLeaseOwnerLock", "generationPointer", "generationPointerTemporary",
         "journal", "journalTemporary", "mediaOriginal", "mediaThumbnail", "reportPDF",
         "reportSnapshot", "restoreStaging", "scratch", "stagingDirectory", "stagingFile",
         "temporaryFile",
@@ -145,6 +163,53 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     /// application has no Keychain-backed secret at this head.
     static let secretNames: [String] = []
     static let declaredKeychainUsage = false
+
+    /// Canonical mutation rows and their portable snapshot are distinct
+    /// representations. Export never promotes the projection into row truth.
+    static var mutationHistoryRepresentationRules: [CurrentRepresentationRuleV1] {
+        get throws {
+            let projection = try subject(
+                category: .projection,
+                name: "MutationHistorySnapshotV1"
+            )
+            return try [
+                ("EntityMutationRevisionRow", CurrentRepresentationAuthorityV1.derivedPersistedRow),
+                ("MutationQuarantineRow", CurrentRepresentationAuthorityV1.localRecoveryRow),
+                ("MutationReceiptRow", CurrentRepresentationAuthorityV1.canonicalRow),
+                ("WorkspaceMutationStateRow", CurrentRepresentationAuthorityV1.derivedPersistedRow),
+            ].map { name, authority in
+                CurrentRepresentationRuleV1(
+                    source: try subject(category: .persistentModel, name: name),
+                    representation: projection,
+                    sourceAuthority: authority,
+                    representationAuthority: .portableProjection
+                )
+            }
+        }
+    }
+
+    /// The V1 name is a legacy schema/interface declaration. V2 is the sole
+    /// persisted operational-support store kind; bounded snapshots, failures,
+    /// exports, counters, and summaries are nonpersistent views.
+    static var diagnosticRepresentationRules: [CurrentRepresentationRuleV1] {
+        get throws {
+            let store = try subject(
+                category: .diagnostic,
+                name: "DeviceOperationalSupportStoreV2"
+            )
+            return try diagnosticNames
+                .filter { $0 != "DeviceOperationalSupportStoreV2"
+                          && $0 != "ScratchDataLeaseStoreV1" }
+                .map {
+                    CurrentRepresentationRuleV1(
+                        source: store,
+                        representation: try subject(category: .diagnostic, name: $0),
+                        sourceAuthority: .persistedDeviceStore,
+                        representationAuthority: .nonpersistentView
+                    )
+                }
+        }
+    }
 
     let registrations: [SyncClassificationRegistrationV1]
     let lifecycleRoutes: [CurrentSyncLifecycleRouteV1]
@@ -360,6 +425,43 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
             } else if route.filesystemBackup != .notApplicable {
                 throw CurrentSyncClassificationCatalogFailureV1.invalidLifecycleRoute
             }
+        }
+
+        let mutationRules = try Self.mutationHistoryRepresentationRules
+        guard mutationRules.count == 4,
+              Set(mutationRules.map(\.source)).count == mutationRules.count,
+              mutationRules.allSatisfy({ rule in
+                  rule.sourceAuthority == .canonicalRow
+                      || rule.sourceAuthority == .derivedPersistedRow
+                      || rule.sourceAuthority == .localRecoveryRow
+              }),
+              mutationRules.allSatisfy({
+                  $0.representationAuthority == .portableProjection
+              }) else {
+            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+        }
+        let diagnosticRules = try Self.diagnosticRepresentationRules
+        let diagnosticViewNames = Set(diagnosticRules.map { $0.representation.stableName })
+        guard diagnosticViewNames == Set(Self.diagnosticNames).subtracting([
+            "DeviceOperationalSupportStoreV2", "ScratchDataLeaseStoreV1",
+        ]) else {
+            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+        }
+        let supportStore = try Self.subject(
+            category: .diagnostic,
+            name: "DeviceOperationalSupportStoreV2"
+        )
+        let scratchStore = try Self.subject(
+            category: .diagnostic,
+            name: "ScratchDataLeaseStoreV1"
+        )
+        guard try registration(for: supportStore).replicationPolicy.persistence == .ownedFile,
+              try registration(for: scratchStore).replicationPolicy.persistence == .ownedFile,
+              try diagnosticRules.allSatisfy({ rule in
+                  try registration(for: rule.representation)
+                      .replicationPolicy.persistence == .nonpersistent
+              }) else {
+            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
 
         // These two assertions prevent filesystem-backup eligibility from
@@ -616,8 +718,6 @@ private extension CurrentSyncClassificationCatalogV1 {
             classification = .privateDeviceOnly
             authority = .localDevice
             persistence = [
-                "DiagnosticsV1",
-                "DeviceOperationalSupportStoreV1",
                 "DeviceOperationalSupportStoreV2",
                 "ScratchDataLeaseStoreV1",
             ].contains(subject.stableName) ? .ownedFile : .nonpersistent
