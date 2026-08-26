@@ -6005,6 +6005,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let focusedPredicate = NSPredicate(
             format: "hasKeyboardFocus == true"
         )
+        let exactShortDescriptionValuePredicate = NSPredicate(
+            format: "value == %@",
+            "Short description"
+        )
         let workScreens = app.descendants(matching: .any).matching(
             identifier: "s5.1.work.screen"
         )
@@ -6014,6 +6018,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let focusedDescriptionFields = descriptionFields.matching(
             focusedPredicate
         )
+        let descriptionFieldsWithExactValue = descriptionFields.matching(
+            exactShortDescriptionValuePredicate
+        )
+        let focusedDescriptionFieldsWithExactValue =
+            focusedDescriptionFields.matching(
+                exactShortDescriptionValuePredicate
+            )
         let validationLabels = app.descendants(matching: .any).matching(
             identifier: "s5.1.work.validation"
         )
@@ -6197,7 +6208,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 ),
                 (
                     "descriptionFieldValue",
-                    (descriptionField.value as? String) == "Short description"
+                    descriptionFields.count == 1
+                        && descriptionFieldsWithExactValue.count == 1
                 ),
                 ("descriptionFieldEnabled", descriptionField.isEnabled),
                 ("descriptionFieldHittable", descriptionField.isHittable),
@@ -6207,8 +6219,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 ),
                 (
                     "focusedDescriptionFieldValue",
-                    (focusedDescriptionField.value as? String)
-                        == "Short description"
+                    focusedDescriptionFields.count == 1
+                        && focusedDescriptionFieldsWithExactValue.count == 1
                 ),
                 (
                     "focusedDescriptionFieldEnabled",
@@ -6785,49 +6797,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             XCTFail("AX-text work-validation final composition is unsafe.")
             return false
         }
-        let initialFinalSemanticRelations = finalStrictSemanticRelations()
-        if initialFinalSemanticRelations.allSatisfy({ relation in relation.1 }) {
-            return true
-        }
-        let initialFailedFinalSemanticRelationNames =
-            initialFinalSemanticRelations.compactMap { relation in
-                relation.1 ? nil : relation.0
+        let finalSemanticRelations = finalStrictSemanticRelations()
+        guard finalSemanticRelations.allSatisfy({ relation in relation.1 }) else {
+            if automationSegment == .segment2 {
+                return diagnoseSegment2FinalSemantics(finalSemanticRelations)
             }
-        if initialFailedFinalSemanticRelationNames == [
-            "descriptionFieldValue",
-            "focusedDescriptionFieldValue",
-        ] {
-            let exactDescriptionValuePredicate = NSPredicate(
-                format: "value == %@",
-                "Short description"
-            )
-            let descriptionValueExpectation = XCTNSPredicateExpectation(
-                predicate: exactDescriptionValuePredicate,
-                object: descriptionField
-            )
-            let focusedDescriptionValueExpectation = XCTNSPredicateExpectation(
-                predicate: exactDescriptionValuePredicate,
-                object: focusedDescriptionField
-            )
-            _ = XCTWaiter.wait(
-                for: [
-                    descriptionValueExpectation,
-                    focusedDescriptionValueExpectation,
-                ],
-                timeout: 1
-            )
-            let stabilizedFinalSemanticRelations = finalStrictSemanticRelations()
-            if stabilizedFinalSemanticRelations.allSatisfy({ relation in
-                relation.1
-            }) {
-                return true
-            }
+            XCTFail("AX-text work-validation final semantics are invalid.")
+            return false
         }
-        if automationSegment == .segment2 {
-            return diagnoseSegment2FinalSemantics(initialFinalSemanticRelations)
-        }
-        XCTFail("AX-text work-validation final semantics are invalid.")
-        return false
+        return true
     }
 
     @MainActor

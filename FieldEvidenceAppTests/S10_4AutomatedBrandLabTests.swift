@@ -3224,10 +3224,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     reportComparisonRouteStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 39_554)
+        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 38_718)
         XCTAssertEqual(
             Data(workValidationPositioningHelperSource.utf8).sha256,
-            "67AD91900C4395556A85029B8ED72D3A0D715055D42B6B6B98235669751D3B74"
+            "2E2056B8C559EB62BAA8002E22EEE0078DBFCDD7831ADC8934EA962901A11DA2"
         )
 
         let signDetailPositioningGate =
@@ -3843,6 +3843,29 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 lock
             )
         }
+        let k148ExactValueQuerySource = try boundedSource(
+            workValidationPositioningHelperSource,
+            from:
+                "        let exactShortDescriptionValuePredicate = NSPredicate(",
+            before: "        let validationLabels ="
+        )
+        XCTAssertEqual(k148ExactValueQuerySource.utf8.count, 797)
+        XCTAssertEqual(
+            Data(k148ExactValueQuerySource.utf8).sha256,
+            "04B237158A468749A6E1621D2B1CEA0DE9A1189F610AD6CC0B88E01625545BCA"
+        )
+        for exactValueQueryLock in [
+            #"format: "value == %@""#,
+            #""Short description""#,
+            "let descriptionFieldsWithExactValue = descriptionFields.matching(",
+            "let focusedDescriptionFieldsWithExactValue =",
+            "focusedDescriptionFields.matching(",
+        ] {
+            XCTAssertTrue(
+                k148ExactValueQuerySource.contains(exactValueQueryLock),
+                exactValueQueryLock
+            )
+        }
 
         let workValidationAuthorityLocks = [
             "        let fieldLabelExceptionIssueID =\n" +
@@ -3952,12 +3975,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"("workScreenEnabled", workScreen.isEnabled)"#,
             #"("workScreenHittable", workScreen.isHittable)"#,
             #"descriptionField.label == "Short description""#,
-            #"(descriptionField.value as? String) == "Short description""#,
+            #"descriptionFields.count == 1"#,
+            #"descriptionFieldsWithExactValue.count == 1"#,
             #"("descriptionFieldEnabled", descriptionField.isEnabled)"#,
             #"("descriptionFieldHittable", descriptionField.isHittable)"#,
             #"focusedDescriptionField.label == "Short description""#,
-            #"(focusedDescriptionField.value as? String)"#,
-            #"== "Short description""#,
+            #"focusedDescriptionFields.count == 1"#,
+            #"focusedDescriptionFieldsWithExactValue.count == 1"#,
             #"focusedDescriptionField.isEnabled"#,
             #"focusedDescriptionField.isHittable"#,
             #"validationLabel.label == "Short description""#,
@@ -3998,6 +4022,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "shortDescriptionFieldLabel.isHittable"
             )
         )
+        for removedDirectValueCast in [
+            "descriptionField.value as? String",
+            "focusedDescriptionField.value as? String",
+        ] {
+            XCTAssertFalse(
+                workValidationFinalSemanticSource.contains(removedDirectValueCast),
+                removedDirectValueCast
+            )
+        }
         let k144WorkValidationDiagnosticSource = try boundedSource(
             workValidationPositioningHelperSource,
             from: "        func diagnoseSegment2FinalSemantics(\n",
@@ -4206,23 +4239,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                  observedValidationShift * dragDistance > 0,",
             "                  observedNoteShift * dragDistance > 0,",
             "        guard hasFinalPositionComposition() else {",
-            "        let initialFinalSemanticRelations = finalStrictSemanticRelations()",
-            "        if initialFinalSemanticRelations.allSatisfy({ relation in relation.1 }) {",
-            "        let initialFailedFinalSemanticRelationNames =",
-            "        if initialFailedFinalSemanticRelationNames == [",
-            "            \"descriptionFieldValue\",",
-            "            \"focusedDescriptionFieldValue\",",
-            "            let exactDescriptionValuePredicate = NSPredicate(",
-            "                format: \"value == %@\",",
-            "            let descriptionValueExpectation = XCTNSPredicateExpectation(",
-            "            let focusedDescriptionValueExpectation = XCTNSPredicateExpectation(",
-            "            _ = XCTWaiter.wait(",
-            "                timeout: 1",
-            "            let stabilizedFinalSemanticRelations = finalStrictSemanticRelations()",
-            "            if stabilizedFinalSemanticRelations.allSatisfy({ relation in",
-            "        if automationSegment == .segment2 {",
-            "            return diagnoseSegment2FinalSemantics(initialFinalSemanticRelations)",
-            "        XCTFail(\"AX-text work-validation final semantics are invalid.\")",
+            "        let finalSemanticRelations = finalStrictSemanticRelations()",
+            "        guard finalSemanticRelations.allSatisfy({ relation in relation.1 }) else {",
+            "            if automationSegment == .segment2 {",
+            "                return diagnoseSegment2FinalSemantics(finalSemanticRelations)",
+            "            XCTFail(\"AX-text work-validation final semantics are invalid.\")",
         ] {
             XCTAssertTrue(
                 workValidationPositioningHelperSource.contains(
@@ -4237,9 +4258,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("withVelocity: .slow", 1),
             ("for _ in 0..<4", 1),
             ("hasFinalPositionComposition()", 2),
-            ("finalStrictSemanticRelations()", 2),
-            ("XCTNSPredicateExpectation(", 2),
-            ("XCTWaiter.wait(", 1),
+            ("finalStrictSemanticRelations()", 1),
+            ("XCTNSPredicateExpectation(", 0),
+            ("XCTWaiter.wait(", 0),
         ] {
             XCTAssertEqual(
                 workValidationPositioningHelperSource.components(
@@ -4249,18 +4270,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 token
             )
         }
-        let k145FinalSemanticStabilizationSource = try boundedSource(
+        let k148FinalSemanticSource = try boundedSource(
             workValidationPositioningHelperSource,
             from:
-                "        let initialFinalSemanticRelations = finalStrictSemanticRelations()",
+                "        let finalSemanticRelations = finalStrictSemanticRelations()",
             before: "\n    }\n\n"
         )
-        XCTAssertEqual(k145FinalSemanticStabilizationSource.utf8.count, 1_758)
+        XCTAssertEqual(k148FinalSemanticSource.utf8.count, 421)
         XCTAssertEqual(
-            Data(k145FinalSemanticStabilizationSource.utf8).sha256,
-            "9C0A192F998DC150584C22200DDFD96E2438F9B146FAB8BAC75CF17080179809"
+            Data(k148FinalSemanticSource.utf8).sha256,
+            "BD39F9DCD25D6FEF4B688866B3754A6D7862F9C077FEBD8616DF72D06E2102A9"
         )
-        for prohibitedStabilizationForm in [
+        for prohibitedFinalSemanticForm in [
             "NSString",
             "String(describing:",
             ".trimmingCharacters(",
@@ -4277,10 +4298,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "printJSONLine(",
         ] {
             XCTAssertFalse(
-                k145FinalSemanticStabilizationSource.contains(
-                    prohibitedStabilizationForm
+                k148FinalSemanticSource.contains(
+                    prohibitedFinalSemanticForm
                 ),
-                prohibitedStabilizationForm
+                prohibitedFinalSemanticForm
             )
         }
 
@@ -4320,11 +4341,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     workValidationPositioningHelperSource.endIndex
             )
         )
-        let workValidationFinalSemanticStabilizationRange = try XCTUnwrap(
+        let workValidationFinalSemanticGuardRange = try XCTUnwrap(
             workValidationPositioningHelperSource.range(
                 of:
-                    "        let initialFinalSemanticRelations = finalStrictSemanticRelations()\n" +
-                    "        if initialFinalSemanticRelations.allSatisfy({ relation in relation.1 }) {",
+                    "        let finalSemanticRelations = finalStrictSemanticRelations()\n" +
+                    "        guard finalSemanticRelations.allSatisfy({ relation in relation.1 }) else {",
                 range:
                     workValidationFinalGeometryGuardRange.upperBound ..<
                     workValidationPositioningHelperSource.endIndex
@@ -4334,7 +4355,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workValidationPositioningHelperSource.range(
                 of: "        XCTFail(\"AX-text work-validation final semantics are invalid.\")",
                 range:
-                    workValidationFinalSemanticStabilizationRange.upperBound ..<
+                    workValidationFinalSemanticGuardRange.upperBound ..<
                     workValidationPositioningHelperSource.endIndex
             )
         )
@@ -4348,10 +4369,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertLessThan(
             workValidationFinalGeometryGuardRange.lowerBound,
-            workValidationFinalSemanticStabilizationRange.lowerBound
+            workValidationFinalSemanticGuardRange.lowerBound
         )
         XCTAssertLessThan(
-            workValidationFinalSemanticStabilizationRange.lowerBound,
+            workValidationFinalSemanticGuardRange.lowerBound,
             workValidationOrdinaryFailureRange.lowerBound
         )
         for prohibitedWorkValidationPositioningForm in [
