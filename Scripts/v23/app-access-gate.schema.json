@@ -1,0 +1,1334 @@
+{
+  "$id": "https://assetrounds.invalid/v23/app-access-gate.schema.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "accessStates": {
+      "items": false,
+      "maxItems": 6,
+      "minItems": 6,
+      "prefixItems": [
+        {
+          "const": "AUTHENTICATING"
+        },
+        {
+          "const": "CONFIGURATION_UNKNOWN_LOCKED"
+        },
+        {
+          "const": "DISABLED"
+        },
+        {
+          "const": "INTERRUPTED_LOCKED"
+        },
+        {
+          "const": "LOCKED"
+        },
+        {
+          "const": "UNLOCKED_FOREGROUND"
+        }
+      ],
+      "type": "array"
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "appBaseHead": {
+          "const": "3acab655d53f76f2f2b2e3fc5c27464b4d385ac5"
+        },
+        "appBaseTree": {
+          "const": "d897c15c99f82b993bd3072caf3ce7e937c224c5"
+        },
+        "cardID": {
+          "const": "V23-P02-C11"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            },
+            {
+              "const": "FJ10"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C10"
+            }
+          ],
+          "type": "array"
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "V23-P04-C14"
+            },
+            {
+              "const": "V23-P04-C16"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "ADDED_V23"
+        },
+        "pathFenceDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "provisionalPrerequisiteDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registerOrdinal": {
+          "const": 31
+        }
+      },
+      "required": [
+        "cardID",
+        "registerOrdinal",
+        "appBaseHead",
+        "appBaseTree",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "lineage",
+        "conformanceSubjects"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P02-C11"
+    },
+    "enums": {
+      "additionalProperties": false,
+      "properties": {
+        "AppLockLifecycleEventV1": {
+          "items": false,
+          "maxItems": 8,
+          "minItems": 8,
+          "prefixItems": [
+            {
+              "const": "COLD_LAUNCH"
+            },
+            {
+              "const": "SCENE_INACTIVE"
+            },
+            {
+              "const": "SCENE_BACKGROUND"
+            },
+            {
+              "const": "SCENE_ACTIVE"
+            },
+            {
+              "const": "PROTECTED_DATA_UNAVAILABLE"
+            },
+            {
+              "const": "LOCK_NOW"
+            },
+            {
+              "const": "TERMINATION"
+            },
+            {
+              "const": "ERASE"
+            }
+          ],
+          "type": "array"
+        },
+        "AppLockNotificationPrivacyDispositionV1": {
+          "items": false,
+          "maxItems": 8,
+          "minItems": 8,
+          "prefixItems": [
+            {
+              "const": "UNCHANGED_DISABLED"
+            },
+            {
+              "const": "ENABLING_PREPARED"
+            },
+            {
+              "const": "GENERIC_PROJECTION_APPLIED"
+            },
+            {
+              "const": "GENERIC_PROJECTION_ADOPTED"
+            },
+            {
+              "const": "DISABLING_PREPARED"
+            },
+            {
+              "const": "PRIOR_POLICY_REBUILT"
+            },
+            {
+              "const": "INTERRUPTED_RECOVERY_REQUIRED"
+            },
+            {
+              "const": "ERASED"
+            }
+          ],
+          "type": "array"
+        },
+        "AppLockReasonV1": {
+          "items": false,
+          "maxItems": 12,
+          "minItems": 12,
+          "prefixItems": [
+            {
+              "const": "COLD_LAUNCH"
+            },
+            {
+              "const": "RETURNED_FROM_BACKGROUND"
+            },
+            {
+              "const": "MANUAL_LOCK"
+            },
+            {
+              "const": "AUTHENTICATION_CANCELLED"
+            },
+            {
+              "const": "AUTHENTICATION_FAILED"
+            },
+            {
+              "const": "AUTHENTICATION_LOCKED_OUT"
+            },
+            {
+              "const": "PASSCODE_REMOVED"
+            },
+            {
+              "const": "BIOMETRY_NOT_ENROLLED"
+            },
+            {
+              "const": "BIOMETRY_CHANGED"
+            },
+            {
+              "const": "PROTECTED_DATA_UNAVAILABLE"
+            },
+            {
+              "const": "PENDING_RECOVERY"
+            },
+            {
+              "const": "INTERRUPTED"
+            }
+          ],
+          "type": "array"
+        },
+        "AppLockRecoveryDispositionV1": {
+          "items": false,
+          "maxItems": 7,
+          "minItems": 7,
+          "prefixItems": [
+            {
+              "const": "NO_RECOVERY_REQUIRED"
+            },
+            {
+              "const": "RESUMED_TO_LOCKED"
+            },
+            {
+              "const": "ADOPTED_COMPLETED_EFFECT"
+            },
+            {
+              "const": "ROLLED_BACK_PRE_EFFECT"
+            },
+            {
+              "const": "EXPIRED_INGRESS_REMOVED"
+            },
+            {
+              "const": "AMBIGUOUS_STATE_LOCKED"
+            },
+            {
+              "const": "ERASED"
+            }
+          ],
+          "type": "array"
+        },
+        "LocalAuthenticationAvailabilityStatusV1": {
+          "items": false,
+          "maxItems": 6,
+          "minItems": 6,
+          "prefixItems": [
+            {
+              "const": "AVAILABLE"
+            },
+            {
+              "const": "DEVICE_PASSCODE_NOT_SET"
+            },
+            {
+              "const": "BIOMETRY_NOT_ENROLLED"
+            },
+            {
+              "const": "BIOMETRY_LOCKED_OUT"
+            },
+            {
+              "const": "UNSUPPORTED"
+            },
+            {
+              "const": "TEMPORARILY_UNAVAILABLE"
+            }
+          ],
+          "type": "array"
+        },
+        "LocalAuthenticationBiometryV1": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "const": "NONE"
+            },
+            {
+              "const": "FACE_ID"
+            },
+            {
+              "const": "TOUCH_ID"
+            },
+            {
+              "const": "UNAVAILABLE_UNKNOWN"
+            }
+          ],
+          "type": "array"
+        },
+        "LocalAuthenticationOutcomeV1": {
+          "items": false,
+          "maxItems": 11,
+          "minItems": 11,
+          "prefixItems": [
+            {
+              "const": "AUTHENTICATED"
+            },
+            {
+              "const": "USER_CANCELLED"
+            },
+            {
+              "const": "APP_CANCELLED"
+            },
+            {
+              "const": "SYSTEM_CANCELLED"
+            },
+            {
+              "const": "AUTHENTICATION_FAILED"
+            },
+            {
+              "const": "BIOMETRY_LOCKED_OUT"
+            },
+            {
+              "const": "BIOMETRY_NOT_ENROLLED"
+            },
+            {
+              "const": "BIOMETRY_CHANGED"
+            },
+            {
+              "const": "DEVICE_PASSCODE_NOT_SET"
+            },
+            {
+              "const": "UNAVAILABLE"
+            },
+            {
+              "const": "INTERRUPTED"
+            }
+          ],
+          "type": "array"
+        },
+        "LocalAuthenticationTriggerV1": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "const": "UNLOCK"
+            },
+            {
+              "const": "ENABLE_APP_LOCK"
+            },
+            {
+              "const": "DISABLE_APP_LOCK"
+            },
+            {
+              "const": "REPAIR_CONFIGURATION"
+            }
+          ],
+          "type": "array"
+        },
+        "LockedIngressDispositionV1": {
+          "items": false,
+          "maxItems": 11,
+          "minItems": 11,
+          "prefixItems": [
+            {
+              "const": "STAGED_PROTECTED_PENDING_AUTHENTICATION"
+            },
+            {
+              "const": "DUPLICATE_ADOPTED"
+            },
+            {
+              "const": "REJECTED_UNSUPPORTED_KIND"
+            },
+            {
+              "const": "REJECTED_SIZE"
+            },
+            {
+              "const": "REJECTED_STORAGE"
+            },
+            {
+              "const": "REJECTED_PROTECTED_DATA"
+            },
+            {
+              "const": "DEFERRED_AMBIGUOUS_OWNERSHIP"
+            },
+            {
+              "const": "READY_FOR_AUTHENTICATED_VALIDATION"
+            },
+            {
+              "const": "EXPIRED_DELETED"
+            },
+            {
+              "const": "CONSUMED"
+            },
+            {
+              "const": "ERASED"
+            }
+          ],
+          "type": "array"
+        },
+        "LockedIngressKindV1": {
+          "items": false,
+          "maxItems": 17,
+          "minItems": 17,
+          "prefixItems": [
+            {
+              "const": "APP_INTENT"
+            },
+            {
+              "const": "BACKUP_FILE"
+            },
+            {
+              "const": "CSV_FILE"
+            },
+            {
+              "const": "DOCUMENT"
+            },
+            {
+              "const": "EXPORT"
+            },
+            {
+              "const": "PROTECTED_INGRESS"
+            },
+            {
+              "const": "REMINDER_NOTIFICATION"
+            },
+            {
+              "const": "RESTORATION"
+            },
+            {
+              "const": "REVIEW_FILE"
+            },
+            {
+              "const": "ROOT_ROUTE"
+            },
+            {
+              "const": "SCAN"
+            },
+            {
+              "const": "SHARE"
+            },
+            {
+              "const": "SHARE_FILE"
+            },
+            {
+              "const": "SHORTCUT"
+            },
+            {
+              "const": "SPOTLIGHT"
+            },
+            {
+              "const": "SUPPORT_RECOVERY"
+            },
+            {
+              "const": "THIRD_PARTY_ADAPTER_FILE"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": [
+        "AppLockReasonV1",
+        "LocalAuthenticationBiometryV1",
+        "LocalAuthenticationAvailabilityStatusV1",
+        "LocalAuthenticationTriggerV1",
+        "LocalAuthenticationOutcomeV1",
+        "LockedIngressKindV1",
+        "LockedIngressDispositionV1",
+        "AppLockRecoveryDispositionV1",
+        "AppLockNotificationPrivacyDispositionV1",
+        "AppLockLifecycleEventV1"
+      ],
+      "type": "object"
+    },
+    "exactFiveTests": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "const": 5
+        },
+        "methods": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "testV9_15G01OptInAccessGateUsesFreshDeviceOwnerAuthentication"
+            },
+            {
+              "const": "testV9_15A01LockedIngressAndNotificationsRemainContentBlind"
+            },
+            {
+              "const": "testV9_15H01CorruptSettingsAndAuthenticationFailuresFailLocked"
+            },
+            {
+              "const": "testV9_15I01BackgroundTerminationAndJournalInterruptionRecoverLocked"
+            },
+            {
+              "const": "testV9_15R01EraseClearsDeviceLocalLockAndProtectedIngress"
+            }
+          ],
+          "type": "array"
+        },
+        "required": {
+          "const": true
+        }
+      },
+      "required": [
+        "required",
+        "methods",
+        "count"
+      ],
+      "type": "object"
+    },
+    "lifecycleEvents": {
+      "items": false,
+      "maxItems": 8,
+      "minItems": 8,
+      "prefixItems": [
+        {
+          "const": "COLD_LAUNCH"
+        },
+        {
+          "const": "ERASE"
+        },
+        {
+          "const": "LOCK_NOW"
+        },
+        {
+          "const": "PROTECTED_DATA_UNAVAILABLE"
+        },
+        {
+          "const": "SCENE_ACTIVE"
+        },
+        {
+          "const": "SCENE_BACKGROUND"
+        },
+        {
+          "const": "SCENE_INACTIVE"
+        },
+        {
+          "const": "TERMINATION"
+        }
+      ],
+      "type": "array"
+    },
+    "lifecycleMatrix": {
+      "items": false,
+      "maxItems": 6,
+      "minItems": 6,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "cancelsAttempt": {
+              "const": false
+            },
+            "enabled": {
+              "const": true
+            },
+            "event": {
+              "const": "COLD_LAUNCH"
+            },
+            "expectedState": {
+              "const": "LOCKED"
+            },
+            "invalidatesSession": {
+              "const": true
+            }
+          },
+          "required": [
+            "event",
+            "enabled",
+            "expectedState",
+            "invalidatesSession",
+            "cancelsAttempt"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "cancelsAttempt": {
+              "const": true
+            },
+            "enabled": {
+              "const": true
+            },
+            "event": {
+              "const": "LOCK_NOW"
+            },
+            "expectedState": {
+              "const": "LOCKED"
+            },
+            "invalidatesSession": {
+              "const": true
+            }
+          },
+          "required": [
+            "event",
+            "enabled",
+            "expectedState",
+            "invalidatesSession",
+            "cancelsAttempt"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "cancelsAttempt": {
+              "const": true
+            },
+            "enabled": {
+              "const": true
+            },
+            "event": {
+              "const": "REAL_BACKGROUND"
+            },
+            "expectedState": {
+              "const": "LOCKED"
+            },
+            "invalidatesSession": {
+              "const": true
+            }
+          },
+          "required": [
+            "event",
+            "enabled",
+            "expectedState",
+            "invalidatesSession",
+            "cancelsAttempt"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "cancelsAttempt": {
+              "const": true
+            },
+            "enabled": {
+              "const": true
+            },
+            "event": {
+              "const": "TERMINATED"
+            },
+            "expectedState": {
+              "const": "LOCKED"
+            },
+            "invalidatesSession": {
+              "const": true
+            }
+          },
+          "required": [
+            "event",
+            "enabled",
+            "expectedState",
+            "invalidatesSession",
+            "cancelsAttempt"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "cancelsAttempt": {
+              "const": false
+            },
+            "enabled": {
+              "const": true
+            },
+            "event": {
+              "const": "TRANSIENT_INACTIVE_SYSTEM_SHEET"
+            },
+            "expectedState": {
+              "const": "UNCHANGED_WITH_PRIVACY_COVER"
+            },
+            "invalidatesSession": {
+              "const": false
+            }
+          },
+          "required": [
+            "event",
+            "enabled",
+            "expectedState",
+            "invalidatesSession",
+            "cancelsAttempt"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "cancelsAttempt": {
+              "const": false
+            },
+            "enabled": {
+              "const": false
+            },
+            "event": {
+              "const": "COLD_LAUNCH"
+            },
+            "expectedState": {
+              "const": "DISABLED"
+            },
+            "invalidatesSession": {
+              "const": true
+            }
+          },
+          "required": [
+            "event",
+            "enabled",
+            "expectedState",
+            "invalidatesSession",
+            "cancelsAttempt"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "lockReasons": {
+      "items": false,
+      "maxItems": 12,
+      "minItems": 12,
+      "prefixItems": [
+        {
+          "const": "AUTHENTICATION_CANCELLED"
+        },
+        {
+          "const": "AUTHENTICATION_FAILED"
+        },
+        {
+          "const": "AUTHENTICATION_LOCKED_OUT"
+        },
+        {
+          "const": "BIOMETRY_CHANGED"
+        },
+        {
+          "const": "BIOMETRY_NOT_ENROLLED"
+        },
+        {
+          "const": "COLD_LAUNCH"
+        },
+        {
+          "const": "INTERRUPTED"
+        },
+        {
+          "const": "DEVICE_PASSCODE_REMOVED"
+        },
+        {
+          "const": "LOCK_NOW"
+        },
+        {
+          "const": "PENDING_RECOVERY"
+        },
+        {
+          "const": "PROTECTED_DATA_UNAVAILABLE"
+        },
+        {
+          "const": "RETURNED_FROM_BACKGROUND"
+        }
+      ],
+      "type": "array"
+    },
+    "owner": {
+      "const": "AppAccessGateV1"
+    },
+    "pathFence": {
+      "additionalProperties": false,
+      "properties": {
+        "authorizedPriorOverlap": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "boundEvidence": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "attemptID": {
+                      "const": 1
+                    },
+                    "candidateHead": {
+                      "const": "3acab655d53f76f2f2b2e3fc5c27464b4d385ac5"
+                    },
+                    "candidateTree": {
+                      "const": "d897c15c99f82b993bd3072caf3ce7e937c224c5"
+                    },
+                    "cardID": {
+                      "const": "V23-P02-C10"
+                    },
+                    "checkpointDigest": {
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "contextDigest": {
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "pathFenceDigest": {
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "verificationReceiptDigest": {
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "cardID",
+                    "attemptID",
+                    "candidateHead",
+                    "candidateTree",
+                    "contextDigest",
+                    "pathFenceDigest",
+                    "verificationReceiptDigest",
+                    "checkpointDigest"
+                  ],
+                  "type": "object"
+                },
+                "disposition": {
+                  "const": "AUTHORIZED_SEMANTIC_EXTENSION_OF_DEVICE_LOCAL_TYPED_SETTING_REGISTRY_FOR_APP_LOCK_WITH_PREDECESSOR_EVIDENCE_BOUND"
+                },
+                "path": {
+                  "const": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift"
+                },
+                "priorCardID": {
+                  "const": "V23-P02-C10"
+                },
+                "priorFenceDigest": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "priorCardID",
+                "priorFenceDigest",
+                "disposition",
+                "boundEvidence"
+              ],
+              "type": "object"
+            }
+          ],
+          "type": "array"
+        },
+        "count": {
+          "const": 24
+        },
+        "digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "paths": {
+          "items": false,
+          "maxItems": 24,
+          "minItems": 24,
+          "prefixItems": [
+            {
+              "const": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Domain/Security/AppAccessContractsV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Application/Ports/AppAccessPortsV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Infrastructure/Security/SystemLocalAuthenticationClientV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Infrastructure/Security/AppAccessGateV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Infrastructure/Security/ProtectedIngressCoordinatorV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Infrastructure/Security/AppLockLifecycleCoordinatorV1.swift"
+            },
+            {
+              "const": "FieldEvidenceAppTests/V9_15AppLockLifecycleTests.swift"
+            },
+            {
+              "const": "FieldEvidenceAppTests/Fixtures/V23/AppLock/V23P02C11AppLockLifecycleCorpusV1.json"
+            },
+            {
+              "const": "Scripts/v23/p02_c11_contracts.py"
+            },
+            {
+              "const": "Scripts/v23/generate_p02_c11_contracts.py"
+            },
+            {
+              "const": "Scripts/v23/verify_p02_c11_contracts.py"
+            },
+            {
+              "const": "Scripts/v23/device-local-app-lock-setting.schema.json"
+            },
+            {
+              "const": "Scripts/v23/app-access-gate.schema.json"
+            },
+            {
+              "const": "Scripts/v23/local-authentication-policy.schema.json"
+            },
+            {
+              "const": "Scripts/v23/protected-ingress.schema.json"
+            },
+            {
+              "const": "Scripts/v23/app-lock-access-lifecycle.schema.json"
+            },
+            {
+              "const": "Scripts/v23/app-lock-evidence-receipt.schema.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23P02C11DeviceLocalAppLockSettingContractV1.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23P02C11AppAccessGateContractV1.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23P02C11LocalAuthenticationPolicyContractV1.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23P02C11ProtectedIngressLifecycleContractV1.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23P02C11AppLockEvidenceReceiptV1.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23-P02-C11-tooling-manifest.json"
+            }
+          ],
+          "type": "array"
+        },
+        "s10Overlap": {
+          "const": false
+        }
+      },
+      "required": [
+        "paths",
+        "count",
+        "digest",
+        "s10Overlap",
+        "authorizedPriorOverlap"
+      ],
+      "type": "object"
+    },
+    "policy": {
+      "additionalProperties": false,
+      "properties": {
+        "backgroundDuringAuthenticationCancels": {
+          "const": true
+        },
+        "coldBackgroundTerminationLockNowLock": {
+          "const": true
+        },
+        "disableSettingFalseBeforePriorPolicyRebuild": {
+          "const": true
+        },
+        "eraseDelegatesToClaimedErase": {
+          "const": true
+        },
+        "exactTerminalNotificationAdoption": {
+          "const": true
+        },
+        "freshAttemptRequired": {
+          "const": true
+        },
+        "handleDoesNotClaimConfigurationOperation": {
+          "const": true
+        },
+        "lifecycleDeclarationExactFieldFreeze": {
+          "const": true
+        },
+        "noPersistedUnlock": {
+          "const": true
+        },
+        "ordinaryLifecycleEventsPreemptConfiguration": {
+          "const": true
+        },
+        "shippingAdoption": {
+          "const": "DEFERRED_UNTIL_ACCEPTED_S10_6_COMPOSITION"
+        },
+        "transientSystemSheetDoesNotRelock": {
+          "const": true
+        }
+      },
+      "required": [
+        "freshAttemptRequired",
+        "noPersistedUnlock",
+        "coldBackgroundTerminationLockNowLock",
+        "transientSystemSheetDoesNotRelock",
+        "backgroundDuringAuthenticationCancels",
+        "ordinaryLifecycleEventsPreemptConfiguration",
+        "handleDoesNotClaimConfigurationOperation",
+        "eraseDelegatesToClaimedErase",
+        "disableSettingFalseBeforePriorPolicyRebuild",
+        "exactTerminalNotificationAdoption",
+        "lifecycleDeclarationExactFieldFreeze",
+        "shippingAdoption"
+      ],
+      "type": "object"
+    },
+    "provisional": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptanceCredit": {
+          "const": false
+        },
+        "acceptanceEnabled": {
+          "const": false
+        },
+        "adoptionEnabled": {
+          "const": false
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "hostedDispatchEnabled": {
+          "const": false
+        },
+        "nativeCompileRan": {
+          "const": false
+        },
+        "phase10PollingDuringParallelExecution": {
+          "const": false
+        },
+        "physicalEvidenceComplete": {
+          "const": false
+        },
+        "physicalLockedState": {
+          "const": "REQUIRED_PENDING_OWNER"
+        },
+        "provisionalKernelOnly": {
+          "const": true
+        },
+        "releaseCredit": {
+          "const": false
+        },
+        "requiresAcceptedS10_6Reconciliation": {
+          "const": true
+        }
+      },
+      "required": [
+        "executionMode",
+        "provisionalKernelOnly",
+        "nativeCompileRan",
+        "hostedDispatchEnabled",
+        "physicalEvidenceComplete",
+        "physicalLockedState",
+        "adoptionEnabled",
+        "acceptanceEnabled",
+        "acceptanceCredit",
+        "releaseCredit",
+        "phase10PollingDuringParallelExecution",
+        "requiresAcceptedS10_6Reconciliation"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "const": "V23P02C11AppAccessGateContractV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sourceBindings": {
+      "items": false,
+      "maxItems": 9,
+      "minItems": 9,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 26819
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 26761
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Security/AppAccessContractsV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 13002
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Application/Ports/AppAccessPortsV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 5319
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Security/SystemLocalAuthenticationClientV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 9065
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Security/AppAccessGateV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 13629
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Security/ProtectedIngressCoordinatorV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 24977
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Security/AppLockLifecycleCoordinatorV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 53831
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/V9_15AppLockLifecycleTests.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 8437
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/Fixtures/V23/AppLock/V23P02C11AppLockLifecycleCorpusV1.json"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "pathFence",
+    "provisional",
+    "exactFiveTests",
+    "sourceBindings",
+    "schema",
+    "owner",
+    "accessStates",
+    "lockReasons",
+    "lifecycleMatrix",
+    "lifecycleEvents",
+    "enums",
+    "policy",
+    "artifactDigest"
+  ],
+  "title": "app-access-gate.schema",
+  "type": "object"
+}

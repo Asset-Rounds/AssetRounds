@@ -645,8 +645,26 @@ struct SettingsRegistryV1: Sendable {
         let haptic = try CompatibilityCanonicalV1.encode(
             HapticFeedbackPreferenceV1.logicalDefault.isEnabled
         )
+        let appLock = try CompatibilityCanonicalV1.encode(
+            DeviceLocalAppLockSettingV1.disabled.isEnabled
+        )
         let recent = try CompatibilityCanonicalV1.encode(RecentInputMemoryV1())
         return try SettingsRegistryV1(descriptors: [
+            try SettingDescriptorV1(
+                key: DeviceLocalAppLockSettingV1.key,
+                valueKind: .boolean,
+                scope: .deviceLocal,
+                storage: .soleDevicePreferencesAdapter,
+                defaultCanonicalValue: appLock,
+                maximumCanonicalBytes: 16,
+                migrationVersion: DeviceLocalAppLockSettingV1.schemaVersion,
+                backup: .excludedDeviceLocal,
+                reset: .restoreDefault,
+                erase: .restoreDefault,
+                privacy: .devicePreferenceNoCustomerData,
+                localizationKey: "settings.appLock",
+                changesHistoricOutput: false
+            ),
             try SettingDescriptorV1(
                 key: HapticFeedbackPreferenceV1.key,
                 valueKind: .boolean,

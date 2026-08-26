@@ -1,0 +1,326 @@
+{
+  "artifactDigest": "b712034bbb0fbc45157a78a1262518da36cc94c7c31d166461679ef95ddb6b0f",
+  "authority": {
+    "appBaseHead": "3acab655d53f76f2f2b2e3fc5c27464b4d385ac5",
+    "appBaseTree": "d897c15c99f82b993bd3072caf3ce7e937c224c5",
+    "cardID": "V23-P02-C11",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1",
+      "FJ10"
+    ],
+    "contextDigest": "b864682eb37661d7b0316331e9f53de201b7027cc4f8363e130ce5ee66015469",
+    "directPrerequisites": [
+      "V23-P02-C10"
+    ],
+    "invalidationConsumers": [
+      "V23-P04-C14",
+      "V23-P04-C16"
+    ],
+    "lineage": "ADDED_V23",
+    "pathFenceDigest": "c9bef9203b66eea8e816413a646ee5f3ef530ca3d1d5797be43c8f05314207a5",
+    "provisionalPrerequisiteDigest": "1b8045783e35c40f4068db8e692c81751c1d76f58760572a680c699c1ffb4195",
+    "registerOrdinal": 31
+  },
+  "cardID": "V23-P02-C11",
+  "exactFiveTests": {
+    "count": 5,
+    "methods": [
+      "testV9_15G01OptInAccessGateUsesFreshDeviceOwnerAuthentication",
+      "testV9_15A01LockedIngressAndNotificationsRemainContentBlind",
+      "testV9_15H01CorruptSettingsAndAuthenticationFailuresFailLocked",
+      "testV9_15I01BackgroundTerminationAndJournalInterruptionRecoverLocked",
+      "testV9_15R01EraseClearsDeviceLocalLockAndProtectedIngress"
+    ],
+    "required": true
+  },
+  "gateBefore": [
+    "PARSE",
+    "PREVIEW",
+    "INDEX",
+    "RESOLUTION",
+    "RENDER",
+    "MUTATION"
+  ],
+  "gatedEntryPoints": [
+    "APP_INTENT",
+    "BACKUP_FILE",
+    "CSV_FILE",
+    "DOCUMENT",
+    "EXPORT",
+    "PROTECTED_INGRESS",
+    "REMINDER_NOTIFICATION",
+    "RESTORATION",
+    "REVIEW_FILE",
+    "ROOT_ROUTE",
+    "SCAN",
+    "SHARE",
+    "SHARE_FILE",
+    "SHORTCUT",
+    "SPOTLIGHT",
+    "SUPPORT_RECOVERY",
+    "THIRD_PARTY_ADAPTER_FILE"
+  ],
+  "ingressKinds": [
+    "APP_INTENT",
+    "BACKUP_FILE",
+    "CSV_FILE",
+    "DOCUMENT",
+    "EXPORT",
+    "PROTECTED_INGRESS",
+    "REMINDER_NOTIFICATION",
+    "RESTORATION",
+    "REVIEW_FILE",
+    "ROOT_ROUTE",
+    "SCAN",
+    "SHARE",
+    "SHARE_FILE",
+    "SHORTCUT",
+    "SPOTLIGHT",
+    "SUPPORT_RECOVERY",
+    "THIRD_PARTY_ADAPTER_FILE"
+  ],
+  "lockedIngress": {
+    "allowedOperations": [
+      "BOUNDED_SIZE_PREFLIGHT",
+      "PROTECTED_STAGING_COPY"
+    ],
+    "forbiddenOperations": [
+      "APPLY",
+      "CANONICAL_WRITE",
+      "DECRYPT",
+      "DERIVE_CUSTOMER_FACTS",
+      "DESERIALIZE",
+      "INDEX",
+      "PARSE",
+      "PREVIEW",
+      "RENDER",
+      "RESOLVE_NOTIFICATION_TOKEN"
+    ],
+    "hostileCases": [
+      "AMBIGUOUS_OWNERSHIP",
+      "EXPIRED",
+      "OVERSIZED",
+      "PATH_TRAVERSAL",
+      "STALE_REVISION",
+      "SYMLINK",
+      "TOKEN_COLLISION",
+      "UNKNOWN_SCHEMA",
+      "WRONG_WORKSPACE"
+    ],
+    "pendingIntentAllowedFields": [
+      "correlationToken",
+      "expiresAt",
+      "ingressKind",
+      "payloadByteCount",
+      "payloadSHA256",
+      "schemaVersion"
+    ],
+    "pendingIntentForbiddenFields": [
+      "assetID",
+      "customerName",
+      "locationID",
+      "note",
+      "routeID",
+      "scheduleTitle",
+      "siteID",
+      "workID",
+      "workspaceID"
+    ]
+  },
+  "notificationPrivacy": {
+    "canonicalScheduleIsTruth": true,
+    "disableJournalPhases": [
+      "PREPARED",
+      "GENERIC_REQUESTS_CANCELLED",
+      "CANONICAL_POLICY_REBUILT",
+      "COMPLETED"
+    ],
+    "enableJournalPhases": [
+      "PREPARED",
+      "PRIVATE_REQUESTS_CANCELLED",
+      "DELIVERED_REMOVED",
+      "GENERIC_REQUESTS_PROJECTED",
+      "COMPLETED"
+    ],
+    "enabledDisposition": "GENERIC_ONLY",
+    "mixedPrivateAndGenericAllowed": false,
+    "notificationIsCanonicalTruth": false,
+    "payloadAllowedFields": [
+      "correlationToken"
+    ],
+    "payloadForbiddenFields": [
+      "assetID",
+      "customerName",
+      "locationID",
+      "note",
+      "routeID",
+      "scheduleTitle",
+      "siteID",
+      "workID",
+      "workspaceID"
+    ],
+    "tapOrder": [
+      "GATE",
+      "AUTHENTICATE",
+      "RESOLVE_TOKEN",
+      "VALIDATE_EXPIRY",
+      "VALIDATE_WORKSPACE",
+      "VALIDATE_REVISION",
+      "ROUTE"
+    ]
+  },
+  "owner": "ProtectedIngressLifecycleV1",
+  "pathFence": {
+    "authorizedPriorOverlap": [
+      {
+        "boundEvidence": {
+          "attemptID": 1,
+          "candidateHead": "3acab655d53f76f2f2b2e3fc5c27464b4d385ac5",
+          "candidateTree": "d897c15c99f82b993bd3072caf3ce7e937c224c5",
+          "cardID": "V23-P02-C10",
+          "checkpointDigest": "d34b2c65f7bda83e42d01efee9f846d99d4b20893ef30668316b83d25a208820",
+          "contextDigest": "30e8590878c7ebf335245cbc37e160523194a0be0cef648c125eda46e2aa294e",
+          "pathFenceDigest": "9d402508388e16f092697f74de5bdc56fbe8eee6934bfa40c5eeb12675d905d7",
+          "verificationReceiptDigest": "5cbe13f4521b03cf3a7b2793715373f0ec4f36be9adbcdf6a0cf0fca5f851ed4"
+        },
+        "disposition": "AUTHORIZED_SEMANTIC_EXTENSION_OF_DEVICE_LOCAL_TYPED_SETTING_REGISTRY_FOR_APP_LOCK_WITH_PREDECESSOR_EVIDENCE_BOUND",
+        "path": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+        "priorCardID": "V23-P02-C10",
+        "priorFenceDigest": "9d402508388e16f092697f74de5bdc56fbe8eee6934bfa40c5eeb12675d905d7"
+      }
+    ],
+    "count": 24,
+    "digest": "c9bef9203b66eea8e816413a646ee5f3ef530ca3d1d5797be43c8f05314207a5",
+    "paths": [
+      "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+      "FieldEvidenceApp/Domain/Security/AppAccessContractsV1.swift",
+      "FieldEvidenceApp/Application/Ports/AppAccessPortsV1.swift",
+      "FieldEvidenceApp/Infrastructure/Security/SystemLocalAuthenticationClientV1.swift",
+      "FieldEvidenceApp/Infrastructure/Security/AppAccessGateV1.swift",
+      "FieldEvidenceApp/Infrastructure/Security/ProtectedIngressCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Security/AppLockLifecycleCoordinatorV1.swift",
+      "FieldEvidenceAppTests/V9_15AppLockLifecycleTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/AppLock/V23P02C11AppLockLifecycleCorpusV1.json",
+      "Scripts/v23/p02_c11_contracts.py",
+      "Scripts/v23/generate_p02_c11_contracts.py",
+      "Scripts/v23/verify_p02_c11_contracts.py",
+      "Scripts/v23/device-local-app-lock-setting.schema.json",
+      "Scripts/v23/app-access-gate.schema.json",
+      "Scripts/v23/local-authentication-policy.schema.json",
+      "Scripts/v23/protected-ingress.schema.json",
+      "Scripts/v23/app-lock-access-lifecycle.schema.json",
+      "Scripts/v23/app-lock-evidence-receipt.schema.json",
+      "docs/design/v23/tooling/V23P02C11DeviceLocalAppLockSettingContractV1.json",
+      "docs/design/v23/tooling/V23P02C11AppAccessGateContractV1.json",
+      "docs/design/v23/tooling/V23P02C11LocalAuthenticationPolicyContractV1.json",
+      "docs/design/v23/tooling/V23P02C11ProtectedIngressLifecycleContractV1.json",
+      "docs/design/v23/tooling/V23P02C11AppLockEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23-P02-C11-tooling-manifest.json"
+    ],
+    "s10Overlap": false
+  },
+  "provisional": {
+    "acceptanceCredit": false,
+    "acceptanceEnabled": false,
+    "adoptionEnabled": false,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "hostedDispatchEnabled": false,
+    "nativeCompileRan": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidenceComplete": false,
+    "physicalLockedState": "REQUIRED_PENDING_OWNER",
+    "provisionalKernelOnly": true,
+    "releaseCredit": false,
+    "requiresAcceptedS10_6Reconciliation": true
+  },
+  "schema": "V23P02C11ProtectedIngressLifecycleContractV1",
+  "schemaVersion": 1,
+  "scratch": {
+    "ambiguousWaitsForAuthentication": true,
+    "contentBlind": true,
+    "trustedPathOwnershipProtectionAgeOnly": true
+  },
+  "sourceBindings": [
+    {
+      "bytes": 26819,
+      "path": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+      "present": true,
+      "sha256": "db43077c8664af775dfc758938fc27989f93474056696ea877fad7da57b5853a"
+    },
+    {
+      "bytes": 26761,
+      "path": "FieldEvidenceApp/Domain/Security/AppAccessContractsV1.swift",
+      "present": true,
+      "sha256": "18822f3884487965e73bc5f215350bcc76f6b110c53e0877c5686e8eaddb1961"
+    },
+    {
+      "bytes": 13002,
+      "path": "FieldEvidenceApp/Application/Ports/AppAccessPortsV1.swift",
+      "present": true,
+      "sha256": "eb9165f2c390f8d471973a8de6715bf004d1688d93da8ab31e96b01f2a3ad1f2"
+    },
+    {
+      "bytes": 5319,
+      "path": "FieldEvidenceApp/Infrastructure/Security/SystemLocalAuthenticationClientV1.swift",
+      "present": true,
+      "sha256": "54ffc00a39fb1588d37509e17331aa4157236e28c055e40aaf6207f793ca1df6"
+    },
+    {
+      "bytes": 9065,
+      "path": "FieldEvidenceApp/Infrastructure/Security/AppAccessGateV1.swift",
+      "present": true,
+      "sha256": "3dac91ae70977df5554bc7c211528609965277d7b0e4279e0add35367edc6595"
+    },
+    {
+      "bytes": 13629,
+      "path": "FieldEvidenceApp/Infrastructure/Security/ProtectedIngressCoordinatorV1.swift",
+      "present": true,
+      "sha256": "a4f24b44a211c840a19c89c7523da743b45770d054a34835c51b9845d3516652"
+    },
+    {
+      "bytes": 24977,
+      "path": "FieldEvidenceApp/Infrastructure/Security/AppLockLifecycleCoordinatorV1.swift",
+      "present": true,
+      "sha256": "4677a04ce0daa3cda948488eff0a7e7f99c7385859f3b937ca8dd47398ecc696"
+    },
+    {
+      "bytes": 53831,
+      "path": "FieldEvidenceAppTests/V9_15AppLockLifecycleTests.swift",
+      "present": true,
+      "sha256": "d9cb436a9472c19ab6f0d71a29e6d9c4033dc4faf99d73ed3ec3d4f9980cebec"
+    },
+    {
+      "bytes": 8437,
+      "path": "FieldEvidenceAppTests/Fixtures/V23/AppLock/V23P02C11AppLockLifecycleCorpusV1.json",
+      "present": true,
+      "sha256": "3d8ad0dd0c5ba45168b80821dad8a706308c67f2212d3a4aa6169ef59a3fb04f"
+    }
+  ],
+  "startupHygiene": {
+    "activePersistedDispositions": [
+      "STAGED_PROTECTED_PENDING_AUTHENTICATION",
+      "READY_FOR_AUTHENTICATED_VALIDATION",
+      "DEFERRED_AMBIGUOUS_OWNERSHIP"
+    ],
+    "ambiguousOwnershipDisposition": "CONFIGURATION_UNKNOWN_LOCKED",
+    "contentRead": false,
+    "deferredAuthenticatedTransition": "EXACT_CAS_TO_READY_FOR_AUTHENTICATED_VALIDATION",
+    "deferredTransitionPayloadRead": false,
+    "exactReceiptReadbackRequired": true,
+    "maximumInspectedCount": 128,
+    "metadataOnly": true,
+    "removesOnlyKnownOwnedExpiredOrInterrupted": true,
+    "runsBeforeGateConstruction": true,
+    "terminalPersistedDispositionsRejected": [
+      "DUPLICATE_ADOPTED",
+      "REJECTED_UNSUPPORTED_KIND",
+      "REJECTED_SIZE",
+      "REJECTED_STORAGE",
+      "REJECTED_PROTECTED_DATA",
+      "EXPIRED_DELETED",
+      "CONSUMED",
+      "ERASED"
+    ],
+    "typedPendingReadbackCount": "RETAINED_VALID_PLUS_DEFERRED_AMBIGUOUS"
+  }
+}

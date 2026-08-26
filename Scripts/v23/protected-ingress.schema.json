@@ -1,0 +1,1210 @@
+{
+  "$id": "https://assetrounds.invalid/v23/protected-ingress.schema.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "appBaseHead": {
+          "const": "3acab655d53f76f2f2b2e3fc5c27464b4d385ac5"
+        },
+        "appBaseTree": {
+          "const": "d897c15c99f82b993bd3072caf3ce7e937c224c5"
+        },
+        "cardID": {
+          "const": "V23-P02-C11"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            },
+            {
+              "const": "FJ10"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C10"
+            }
+          ],
+          "type": "array"
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "V23-P04-C14"
+            },
+            {
+              "const": "V23-P04-C16"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "ADDED_V23"
+        },
+        "pathFenceDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "provisionalPrerequisiteDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registerOrdinal": {
+          "const": 31
+        }
+      },
+      "required": [
+        "cardID",
+        "registerOrdinal",
+        "appBaseHead",
+        "appBaseTree",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "lineage",
+        "conformanceSubjects"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P02-C11"
+    },
+    "exactFiveTests": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "const": 5
+        },
+        "methods": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "testV9_15G01OptInAccessGateUsesFreshDeviceOwnerAuthentication"
+            },
+            {
+              "const": "testV9_15A01LockedIngressAndNotificationsRemainContentBlind"
+            },
+            {
+              "const": "testV9_15H01CorruptSettingsAndAuthenticationFailuresFailLocked"
+            },
+            {
+              "const": "testV9_15I01BackgroundTerminationAndJournalInterruptionRecoverLocked"
+            },
+            {
+              "const": "testV9_15R01EraseClearsDeviceLocalLockAndProtectedIngress"
+            }
+          ],
+          "type": "array"
+        },
+        "required": {
+          "const": true
+        }
+      },
+      "required": [
+        "required",
+        "methods",
+        "count"
+      ],
+      "type": "object"
+    },
+    "gateBefore": {
+      "items": false,
+      "maxItems": 6,
+      "minItems": 6,
+      "prefixItems": [
+        {
+          "const": "PARSE"
+        },
+        {
+          "const": "PREVIEW"
+        },
+        {
+          "const": "INDEX"
+        },
+        {
+          "const": "RESOLUTION"
+        },
+        {
+          "const": "RENDER"
+        },
+        {
+          "const": "MUTATION"
+        }
+      ],
+      "type": "array"
+    },
+    "gatedEntryPoints": {
+      "items": false,
+      "maxItems": 17,
+      "minItems": 17,
+      "prefixItems": [
+        {
+          "const": "APP_INTENT"
+        },
+        {
+          "const": "BACKUP_FILE"
+        },
+        {
+          "const": "CSV_FILE"
+        },
+        {
+          "const": "DOCUMENT"
+        },
+        {
+          "const": "EXPORT"
+        },
+        {
+          "const": "PROTECTED_INGRESS"
+        },
+        {
+          "const": "REMINDER_NOTIFICATION"
+        },
+        {
+          "const": "RESTORATION"
+        },
+        {
+          "const": "REVIEW_FILE"
+        },
+        {
+          "const": "ROOT_ROUTE"
+        },
+        {
+          "const": "SCAN"
+        },
+        {
+          "const": "SHARE"
+        },
+        {
+          "const": "SHARE_FILE"
+        },
+        {
+          "const": "SHORTCUT"
+        },
+        {
+          "const": "SPOTLIGHT"
+        },
+        {
+          "const": "SUPPORT_RECOVERY"
+        },
+        {
+          "const": "THIRD_PARTY_ADAPTER_FILE"
+        }
+      ],
+      "type": "array"
+    },
+    "ingressKinds": {
+      "items": false,
+      "maxItems": 17,
+      "minItems": 17,
+      "prefixItems": [
+        {
+          "const": "APP_INTENT"
+        },
+        {
+          "const": "BACKUP_FILE"
+        },
+        {
+          "const": "CSV_FILE"
+        },
+        {
+          "const": "DOCUMENT"
+        },
+        {
+          "const": "EXPORT"
+        },
+        {
+          "const": "PROTECTED_INGRESS"
+        },
+        {
+          "const": "REMINDER_NOTIFICATION"
+        },
+        {
+          "const": "RESTORATION"
+        },
+        {
+          "const": "REVIEW_FILE"
+        },
+        {
+          "const": "ROOT_ROUTE"
+        },
+        {
+          "const": "SCAN"
+        },
+        {
+          "const": "SHARE"
+        },
+        {
+          "const": "SHARE_FILE"
+        },
+        {
+          "const": "SHORTCUT"
+        },
+        {
+          "const": "SPOTLIGHT"
+        },
+        {
+          "const": "SUPPORT_RECOVERY"
+        },
+        {
+          "const": "THIRD_PARTY_ADAPTER_FILE"
+        }
+      ],
+      "type": "array"
+    },
+    "lockedIngress": {
+      "additionalProperties": false,
+      "properties": {
+        "allowedOperations": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "BOUNDED_SIZE_PREFLIGHT"
+            },
+            {
+              "const": "PROTECTED_STAGING_COPY"
+            }
+          ],
+          "type": "array"
+        },
+        "forbiddenOperations": {
+          "items": false,
+          "maxItems": 10,
+          "minItems": 10,
+          "prefixItems": [
+            {
+              "const": "APPLY"
+            },
+            {
+              "const": "CANONICAL_WRITE"
+            },
+            {
+              "const": "DECRYPT"
+            },
+            {
+              "const": "DERIVE_CUSTOMER_FACTS"
+            },
+            {
+              "const": "DESERIALIZE"
+            },
+            {
+              "const": "INDEX"
+            },
+            {
+              "const": "PARSE"
+            },
+            {
+              "const": "PREVIEW"
+            },
+            {
+              "const": "RENDER"
+            },
+            {
+              "const": "RESOLVE_NOTIFICATION_TOKEN"
+            }
+          ],
+          "type": "array"
+        },
+        "hostileCases": {
+          "items": false,
+          "maxItems": 9,
+          "minItems": 9,
+          "prefixItems": [
+            {
+              "const": "AMBIGUOUS_OWNERSHIP"
+            },
+            {
+              "const": "EXPIRED"
+            },
+            {
+              "const": "OVERSIZED"
+            },
+            {
+              "const": "PATH_TRAVERSAL"
+            },
+            {
+              "const": "STALE_REVISION"
+            },
+            {
+              "const": "SYMLINK"
+            },
+            {
+              "const": "TOKEN_COLLISION"
+            },
+            {
+              "const": "UNKNOWN_SCHEMA"
+            },
+            {
+              "const": "WRONG_WORKSPACE"
+            }
+          ],
+          "type": "array"
+        },
+        "pendingIntentAllowedFields": {
+          "items": false,
+          "maxItems": 6,
+          "minItems": 6,
+          "prefixItems": [
+            {
+              "const": "correlationToken"
+            },
+            {
+              "const": "expiresAt"
+            },
+            {
+              "const": "ingressKind"
+            },
+            {
+              "const": "payloadByteCount"
+            },
+            {
+              "const": "payloadSHA256"
+            },
+            {
+              "const": "schemaVersion"
+            }
+          ],
+          "type": "array"
+        },
+        "pendingIntentForbiddenFields": {
+          "items": false,
+          "maxItems": 9,
+          "minItems": 9,
+          "prefixItems": [
+            {
+              "const": "assetID"
+            },
+            {
+              "const": "customerName"
+            },
+            {
+              "const": "locationID"
+            },
+            {
+              "const": "note"
+            },
+            {
+              "const": "routeID"
+            },
+            {
+              "const": "scheduleTitle"
+            },
+            {
+              "const": "siteID"
+            },
+            {
+              "const": "workID"
+            },
+            {
+              "const": "workspaceID"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": [
+        "allowedOperations",
+        "forbiddenOperations",
+        "pendingIntentAllowedFields",
+        "pendingIntentForbiddenFields",
+        "hostileCases"
+      ],
+      "type": "object"
+    },
+    "notificationPrivacy": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalScheduleIsTruth": {
+          "const": true
+        },
+        "disableJournalPhases": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "const": "PREPARED"
+            },
+            {
+              "const": "GENERIC_REQUESTS_CANCELLED"
+            },
+            {
+              "const": "CANONICAL_POLICY_REBUILT"
+            },
+            {
+              "const": "COMPLETED"
+            }
+          ],
+          "type": "array"
+        },
+        "enableJournalPhases": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "PREPARED"
+            },
+            {
+              "const": "PRIVATE_REQUESTS_CANCELLED"
+            },
+            {
+              "const": "DELIVERED_REMOVED"
+            },
+            {
+              "const": "GENERIC_REQUESTS_PROJECTED"
+            },
+            {
+              "const": "COMPLETED"
+            }
+          ],
+          "type": "array"
+        },
+        "enabledDisposition": {
+          "const": "GENERIC_ONLY"
+        },
+        "mixedPrivateAndGenericAllowed": {
+          "const": false
+        },
+        "notificationIsCanonicalTruth": {
+          "const": false
+        },
+        "payloadAllowedFields": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "correlationToken"
+            }
+          ],
+          "type": "array"
+        },
+        "payloadForbiddenFields": {
+          "items": false,
+          "maxItems": 9,
+          "minItems": 9,
+          "prefixItems": [
+            {
+              "const": "assetID"
+            },
+            {
+              "const": "customerName"
+            },
+            {
+              "const": "locationID"
+            },
+            {
+              "const": "note"
+            },
+            {
+              "const": "routeID"
+            },
+            {
+              "const": "scheduleTitle"
+            },
+            {
+              "const": "siteID"
+            },
+            {
+              "const": "workID"
+            },
+            {
+              "const": "workspaceID"
+            }
+          ],
+          "type": "array"
+        },
+        "tapOrder": {
+          "items": false,
+          "maxItems": 7,
+          "minItems": 7,
+          "prefixItems": [
+            {
+              "const": "GATE"
+            },
+            {
+              "const": "AUTHENTICATE"
+            },
+            {
+              "const": "RESOLVE_TOKEN"
+            },
+            {
+              "const": "VALIDATE_EXPIRY"
+            },
+            {
+              "const": "VALIDATE_WORKSPACE"
+            },
+            {
+              "const": "VALIDATE_REVISION"
+            },
+            {
+              "const": "ROUTE"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": [
+        "enabledDisposition",
+        "payloadAllowedFields",
+        "payloadForbiddenFields",
+        "tapOrder",
+        "enableJournalPhases",
+        "disableJournalPhases",
+        "mixedPrivateAndGenericAllowed",
+        "canonicalScheduleIsTruth",
+        "notificationIsCanonicalTruth"
+      ],
+      "type": "object"
+    },
+    "owner": {
+      "const": "ProtectedIngressLifecycleV1"
+    },
+    "pathFence": {
+      "additionalProperties": false,
+      "properties": {
+        "authorizedPriorOverlap": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "boundEvidence": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "attemptID": {
+                      "const": 1
+                    },
+                    "candidateHead": {
+                      "const": "3acab655d53f76f2f2b2e3fc5c27464b4d385ac5"
+                    },
+                    "candidateTree": {
+                      "const": "d897c15c99f82b993bd3072caf3ce7e937c224c5"
+                    },
+                    "cardID": {
+                      "const": "V23-P02-C10"
+                    },
+                    "checkpointDigest": {
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "contextDigest": {
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "pathFenceDigest": {
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "verificationReceiptDigest": {
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "cardID",
+                    "attemptID",
+                    "candidateHead",
+                    "candidateTree",
+                    "contextDigest",
+                    "pathFenceDigest",
+                    "verificationReceiptDigest",
+                    "checkpointDigest"
+                  ],
+                  "type": "object"
+                },
+                "disposition": {
+                  "const": "AUTHORIZED_SEMANTIC_EXTENSION_OF_DEVICE_LOCAL_TYPED_SETTING_REGISTRY_FOR_APP_LOCK_WITH_PREDECESSOR_EVIDENCE_BOUND"
+                },
+                "path": {
+                  "const": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift"
+                },
+                "priorCardID": {
+                  "const": "V23-P02-C10"
+                },
+                "priorFenceDigest": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "priorCardID",
+                "priorFenceDigest",
+                "disposition",
+                "boundEvidence"
+              ],
+              "type": "object"
+            }
+          ],
+          "type": "array"
+        },
+        "count": {
+          "const": 24
+        },
+        "digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "paths": {
+          "items": false,
+          "maxItems": 24,
+          "minItems": 24,
+          "prefixItems": [
+            {
+              "const": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Domain/Security/AppAccessContractsV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Application/Ports/AppAccessPortsV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Infrastructure/Security/SystemLocalAuthenticationClientV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Infrastructure/Security/AppAccessGateV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Infrastructure/Security/ProtectedIngressCoordinatorV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Infrastructure/Security/AppLockLifecycleCoordinatorV1.swift"
+            },
+            {
+              "const": "FieldEvidenceAppTests/V9_15AppLockLifecycleTests.swift"
+            },
+            {
+              "const": "FieldEvidenceAppTests/Fixtures/V23/AppLock/V23P02C11AppLockLifecycleCorpusV1.json"
+            },
+            {
+              "const": "Scripts/v23/p02_c11_contracts.py"
+            },
+            {
+              "const": "Scripts/v23/generate_p02_c11_contracts.py"
+            },
+            {
+              "const": "Scripts/v23/verify_p02_c11_contracts.py"
+            },
+            {
+              "const": "Scripts/v23/device-local-app-lock-setting.schema.json"
+            },
+            {
+              "const": "Scripts/v23/app-access-gate.schema.json"
+            },
+            {
+              "const": "Scripts/v23/local-authentication-policy.schema.json"
+            },
+            {
+              "const": "Scripts/v23/protected-ingress.schema.json"
+            },
+            {
+              "const": "Scripts/v23/app-lock-access-lifecycle.schema.json"
+            },
+            {
+              "const": "Scripts/v23/app-lock-evidence-receipt.schema.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23P02C11DeviceLocalAppLockSettingContractV1.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23P02C11AppAccessGateContractV1.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23P02C11LocalAuthenticationPolicyContractV1.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23P02C11ProtectedIngressLifecycleContractV1.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23P02C11AppLockEvidenceReceiptV1.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23-P02-C11-tooling-manifest.json"
+            }
+          ],
+          "type": "array"
+        },
+        "s10Overlap": {
+          "const": false
+        }
+      },
+      "required": [
+        "paths",
+        "count",
+        "digest",
+        "s10Overlap",
+        "authorizedPriorOverlap"
+      ],
+      "type": "object"
+    },
+    "provisional": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptanceCredit": {
+          "const": false
+        },
+        "acceptanceEnabled": {
+          "const": false
+        },
+        "adoptionEnabled": {
+          "const": false
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "hostedDispatchEnabled": {
+          "const": false
+        },
+        "nativeCompileRan": {
+          "const": false
+        },
+        "phase10PollingDuringParallelExecution": {
+          "const": false
+        },
+        "physicalEvidenceComplete": {
+          "const": false
+        },
+        "physicalLockedState": {
+          "const": "REQUIRED_PENDING_OWNER"
+        },
+        "provisionalKernelOnly": {
+          "const": true
+        },
+        "releaseCredit": {
+          "const": false
+        },
+        "requiresAcceptedS10_6Reconciliation": {
+          "const": true
+        }
+      },
+      "required": [
+        "executionMode",
+        "provisionalKernelOnly",
+        "nativeCompileRan",
+        "hostedDispatchEnabled",
+        "physicalEvidenceComplete",
+        "physicalLockedState",
+        "adoptionEnabled",
+        "acceptanceEnabled",
+        "acceptanceCredit",
+        "releaseCredit",
+        "phase10PollingDuringParallelExecution",
+        "requiresAcceptedS10_6Reconciliation"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "const": "V23P02C11ProtectedIngressLifecycleContractV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "scratch": {
+      "additionalProperties": false,
+      "properties": {
+        "ambiguousWaitsForAuthentication": {
+          "const": true
+        },
+        "contentBlind": {
+          "const": true
+        },
+        "trustedPathOwnershipProtectionAgeOnly": {
+          "const": true
+        }
+      },
+      "required": [
+        "contentBlind",
+        "trustedPathOwnershipProtectionAgeOnly",
+        "ambiguousWaitsForAuthentication"
+      ],
+      "type": "object"
+    },
+    "sourceBindings": {
+      "items": false,
+      "maxItems": 9,
+      "minItems": 9,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 26819
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 26761
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Security/AppAccessContractsV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 13002
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Application/Ports/AppAccessPortsV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 5319
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Security/SystemLocalAuthenticationClientV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 9065
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Security/AppAccessGateV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 13629
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Security/ProtectedIngressCoordinatorV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 24977
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Security/AppLockLifecycleCoordinatorV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 53831
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/V9_15AppLockLifecycleTests.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 8437
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/Fixtures/V23/AppLock/V23P02C11AppLockLifecycleCorpusV1.json"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "startupHygiene": {
+      "additionalProperties": false,
+      "properties": {
+        "activePersistedDispositions": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "STAGED_PROTECTED_PENDING_AUTHENTICATION"
+            },
+            {
+              "const": "READY_FOR_AUTHENTICATED_VALIDATION"
+            },
+            {
+              "const": "DEFERRED_AMBIGUOUS_OWNERSHIP"
+            }
+          ],
+          "type": "array"
+        },
+        "ambiguousOwnershipDisposition": {
+          "const": "CONFIGURATION_UNKNOWN_LOCKED"
+        },
+        "contentRead": {
+          "const": false
+        },
+        "deferredAuthenticatedTransition": {
+          "const": "EXACT_CAS_TO_READY_FOR_AUTHENTICATED_VALIDATION"
+        },
+        "deferredTransitionPayloadRead": {
+          "const": false
+        },
+        "exactReceiptReadbackRequired": {
+          "const": true
+        },
+        "maximumInspectedCount": {
+          "const": 128
+        },
+        "metadataOnly": {
+          "const": true
+        },
+        "removesOnlyKnownOwnedExpiredOrInterrupted": {
+          "const": true
+        },
+        "runsBeforeGateConstruction": {
+          "const": true
+        },
+        "terminalPersistedDispositionsRejected": {
+          "items": false,
+          "maxItems": 8,
+          "minItems": 8,
+          "prefixItems": [
+            {
+              "const": "DUPLICATE_ADOPTED"
+            },
+            {
+              "const": "REJECTED_UNSUPPORTED_KIND"
+            },
+            {
+              "const": "REJECTED_SIZE"
+            },
+            {
+              "const": "REJECTED_STORAGE"
+            },
+            {
+              "const": "REJECTED_PROTECTED_DATA"
+            },
+            {
+              "const": "EXPIRED_DELETED"
+            },
+            {
+              "const": "CONSUMED"
+            },
+            {
+              "const": "ERASED"
+            }
+          ],
+          "type": "array"
+        },
+        "typedPendingReadbackCount": {
+          "const": "RETAINED_VALID_PLUS_DEFERRED_AMBIGUOUS"
+        }
+      },
+      "required": [
+        "runsBeforeGateConstruction",
+        "metadataOnly",
+        "contentRead",
+        "maximumInspectedCount",
+        "removesOnlyKnownOwnedExpiredOrInterrupted",
+        "ambiguousOwnershipDisposition",
+        "exactReceiptReadbackRequired",
+        "typedPendingReadbackCount",
+        "deferredAuthenticatedTransition",
+        "deferredTransitionPayloadRead",
+        "activePersistedDispositions",
+        "terminalPersistedDispositionsRejected"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "pathFence",
+    "provisional",
+    "exactFiveTests",
+    "sourceBindings",
+    "schema",
+    "owner",
+    "ingressKinds",
+    "lockedIngress",
+    "notificationPrivacy",
+    "gatedEntryPoints",
+    "scratch",
+    "startupHygiene",
+    "gateBefore",
+    "artifactDigest"
+  ],
+  "title": "protected-ingress.schema",
+  "type": "object"
+}
