@@ -10275,7 +10275,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let recheckCaptureWideReadyRouteSource = String(
             uiSource[
-                recheckCaptureWideReadyRouteStartRange.lowerBound..<
+                recheckCaptureWideReadyRouteStartRange.lowerBound ..<
                     recheckCaptureWideReadyRouteEndRange.upperBound
             ]
         )
@@ -10316,7 +10316,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let recheckCaptureWideReadyDiagnosticSource = String(
             uiSource[
-                recheckCaptureWideReadyDiagnosticStartRange.lowerBound..<
+                recheckCaptureWideReadyDiagnosticStartRange.lowerBound ..<
                     recheckCaptureWideReadyDiagnosticEndRange.lowerBound
             ]
         )
