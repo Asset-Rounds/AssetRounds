@@ -1,0 +1,236 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "artifactDigest": "46565bc1e62190e71e0511240052343fdae7987a4c7a9a14e686956a0f306380",
+  "authority": {
+    "acceptedS10_6BaselineDigest": null,
+    "activeS10OverlapCount": 0,
+    "authorizedPriorFenceOverlap": {
+      "cardID": "V23-P01-C02",
+      "disposition": "DIRECT_INVALIDATION_AND_REPROOF",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+      "pathFenceDigest": "516df34be4e6c68ff8a6d1737c8ced37e2eb1b5ebfd6110542a60b9579c36809"
+    },
+    "baseHead": "989d73460e4614e3bbea6c1dc20a9da0a1e5f660",
+    "baseTree": "8759c54dec2273b0e22a8caefb06cb0e0141657a",
+    "branch": "phase/v23-expansion",
+    "conformanceSubjectSet": "KernelConformanceSubjectSetV1",
+    "contextDigest": "b0a25f7dbfa1d1f6120f3fb7c5531b23189c26754c599cbf7e134d78755dbe29",
+    "coordinationAuthorityHead": "c7b9eaa18849af12b21ceddcaa14cd07596edc43",
+    "coordinationCASSequence": 66,
+    "coordinationLedgerDigest": "cf2376b9b9cc71f6fc15cbba80e8063dac9e8b3558ce95fbe074a567e0ffe045",
+    "coordinationLedgerSequence": 66,
+    "deterministicEvidenceIDs": [
+      "V23-P01-C04-G01",
+      "V23-P01-C04-A01",
+      "V23-P01-C04-H01",
+      "V23-P01-C04-I01",
+      "V23-P01-C04-R01"
+    ],
+    "directPrerequisite": {
+      "candidateHead": "989d73460e4614e3bbea6c1dc20a9da0a1e5f660",
+      "candidateTree": "8759c54dec2273b0e22a8caefb06cb0e0141657a",
+      "cardID": "V23-P01-C03",
+      "disposition": "CURRENT_CANDIDATE_COMPATIBLE_PROVISIONAL",
+      "migrationRecoveryContractDigest": "47b94e525443d748f01daf806dcfb4644533cb37cc98e0ce29f19e322333305e",
+      "persistentSchemaReleaseRegistryDigest": "e3223bf2f3b71095386ff5190d95d94aece9ead8ae9655ba8a0d6e843466733c",
+      "toolingManifestDigest": "3b921b3e300623df01d8dce1fbe219570afa6f48d50741834174fca877dda1d9"
+    },
+    "dossierDigest": "ec8ddc55bc2aec1cdeb41722004482ca345bd12b009032f3dadf29d297e56c5f",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationTransitionDigest": "0240584c291d45fbd15b750ca9070f02aed10b5f132f8c963498e081f2f3f0fe",
+    "inheritedV21BlockDigest": "3ff603dbc402208da26a1adb455028e82afb69de5e1d05874e6a8a58a8749414",
+    "invalidationConsumer": "V23-P01-C05",
+    "lineage": "REFINED_WITHOUT_LOSS",
+    "pathFenceDigest": "5ca647e7d47e14b1f758d06092df208626bbd8c4eac6dec3a83de0521800b51f",
+    "provisionalPrerequisiteDigest": "96436edd25b1792b918b4869b28e4cd6786dc2d6628285f56efea694e5d7d7b6",
+    "registerRowDigest": "f7c40a2bf9ea670923489e8f0aec0d1dfae1cf9a9bcad2bf20d2ce4f5bad5556",
+    "reservationOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452"
+  },
+  "cardID": "V23-P01-C04",
+  "cases": [
+    {
+      "class": "GOLDEN",
+      "evidenceID": "V23-P01-C04-G01",
+      "expectedOutcome": "BYTE_IDENTICAL_EXPORTS_AND_VALID_IMPORT",
+      "id": "VALID_STREAMING_DETERMINISTIC_REPEAT"
+    },
+    {
+      "class": "GOLDEN",
+      "evidenceID": "V23-P01-C04-G01",
+      "expectedOutcome": "VALIDATED_BY_EXPLICIT_V4_READER",
+      "id": "VALID_V4_LEGACY_DISPATCH"
+    },
+    {
+      "class": "ALTERNATE",
+      "evidenceID": "V23-P01-C04-A01",
+      "expectedOutcome": "SUCCEED_WITHIN_ALL_DECLARED_LIMITS",
+      "id": "BOUNDED_MAXIMUM_FIXTURE"
+    },
+    {
+      "class": "RECOVERY",
+      "evidenceID": "V23-P01-C04-R01",
+      "expectedOutcome": "STREAMING_WRITER_DISABLED_V4_READ_EXPORT_RETAINED",
+      "id": "WRITER_INVALIDATION_READER_RETENTION"
+    },
+    {
+      "class": "HOSTILE",
+      "evidenceID": "V23-P01-C04-H01",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "ABSOLUTE_PATH"
+    },
+    {
+      "class": "HOSTILE",
+      "evidenceID": "V23-P01-C04-H01",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "TRAVERSAL_PATH"
+    },
+    {
+      "class": "HOSTILE",
+      "evidenceID": "V23-P01-C04-H01",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "BACKSLASH_OR_DRIVE_PATH"
+    },
+    {
+      "class": "HOSTILE",
+      "evidenceID": "V23-P01-C04-H01",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "LINK_OR_REPARSE"
+    },
+    {
+      "class": "HOSTILE",
+      "evidenceID": "V23-P01-C04-H01",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "DUPLICATE_PATH"
+    },
+    {
+      "class": "HOSTILE",
+      "evidenceID": "V23-P01-C04-H01",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "CASE_COLLISION"
+    },
+    {
+      "class": "HOSTILE",
+      "evidenceID": "V23-P01-C04-H01",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "UNICODE_COLLISION"
+    },
+    {
+      "class": "HOSTILE",
+      "evidenceID": "V23-P01-C04-H01",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "ACTIVE_CONTENT"
+    },
+    {
+      "class": "HOSTILE",
+      "evidenceID": "V23-P01-C04-H01",
+      "expectedOutcome": "REJECT_AND_CLEAN_OWNED_STAGING",
+      "id": "ENTRY_COUNT_LIMIT"
+    },
+    {
+      "class": "HOSTILE",
+      "evidenceID": "V23-P01-C04-H01",
+      "expectedOutcome": "REJECT_AND_CLEAN_OWNED_STAGING",
+      "id": "PATH_BYTE_LIMIT"
+    },
+    {
+      "class": "HOSTILE",
+      "evidenceID": "V23-P01-C04-H01",
+      "expectedOutcome": "REJECT_AND_CLEAN_OWNED_STAGING",
+      "id": "ENTRY_SIZE_LIMIT"
+    },
+    {
+      "class": "HOSTILE",
+      "evidenceID": "V23-P01-C04-H01",
+      "expectedOutcome": "REJECT_AND_CLEAN_OWNED_STAGING",
+      "id": "COMPRESSED_AGGREGATE_LIMIT"
+    },
+    {
+      "class": "HOSTILE",
+      "evidenceID": "V23-P01-C04-H01",
+      "expectedOutcome": "REJECT_AND_CLEAN_OWNED_STAGING",
+      "id": "UNCOMPRESSED_AGGREGATE_LIMIT"
+    },
+    {
+      "class": "HOSTILE",
+      "evidenceID": "V23-P01-C04-H01",
+      "expectedOutcome": "REJECT_DURING_STREAM_AND_CLEAN_OWNED_STAGING",
+      "id": "COMPRESSION_BOMB"
+    },
+    {
+      "class": "HOSTILE",
+      "evidenceID": "V23-P01-C04-H01",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "TAMPERED_DIGEST"
+    },
+    {
+      "class": "INTERRUPTION",
+      "evidenceID": "V23-P01-C04-I01",
+      "expectedOutcome": "ABORT_NO_SUCCESS_RECEIPT",
+      "id": "CHANGING_SOURCE"
+    },
+    {
+      "class": "INTERRUPTION",
+      "evidenceID": "V23-P01-C04-I01",
+      "expectedOutcome": "ABORT_AND_CLEAN_OWNED_STAGING",
+      "id": "CANCELLATION"
+    },
+    {
+      "class": "INTERRUPTION",
+      "evidenceID": "V23-P01-C04-I01",
+      "expectedOutcome": "FAIL_VISIBLE_AND_CLEAN_OWNED_STAGING",
+      "id": "LOW_STORAGE"
+    },
+    {
+      "class": "INTERRUPTION",
+      "evidenceID": "V23-P01-C04-I01",
+      "expectedOutcome": "FAIL_VISIBLE_NO_UNOWNED_CLEANUP",
+      "id": "PERMISSION_DENIAL"
+    },
+    {
+      "class": "HOSTILE",
+      "evidenceID": "V23-P01-C04-H01",
+      "expectedOutcome": "REJECT_WITHOUT_LEGACY_FALLTHROUGH",
+      "id": "UNKNOWN_VERSION"
+    }
+  ],
+  "coverage": {
+    "allLimitDimensionsCovered": true,
+    "allPathClassesCovered": true,
+    "alternateCaseCount": 1,
+    "caseCount": 24,
+    "deterministicRepeatCovered": true,
+    "goldenCaseCount": 2,
+    "hostileCaseCount": 16,
+    "interruptionCaseCount": 4,
+    "legacyV4Covered": true,
+    "recoveryCaseCount": 1
+  },
+  "fixtureBinding": {
+    "bytes": 7204,
+    "path": "FieldEvidenceAppTests/Fixtures/V21/Archives/V21P01C04ArchiveCorpusV1.json",
+    "sha256": "bdc3f92d595bdb21ed465660c9f2e45196dc5271302dcb2e604f57513defec84"
+  },
+  "hostedDispatchRan": false,
+  "limits": {
+    "bufferByteCount": 65536,
+    "maximumCompressionRatio": 100,
+    "maximumEntryCount": 10000,
+    "maximumIndexByteCount": 4194304,
+    "maximumPathUTF8ByteCount": 512,
+    "maximumStoredAggregateByteCount": 4294967296,
+    "maximumStoredEntryByteCount": 536870912,
+    "maximumUncompressedAggregateByteCount": 4294967296,
+    "maximumUncompressedEntryByteCount": 536870912,
+    "stagingReserveByteCount": 67108864
+  },
+  "nativeCompileRan": false,
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P01C04ArchiveCorpusManifestV1",
+  "schemaVersion": 1
+}

@@ -1,0 +1,193 @@
+import Foundation
+
+enum StreamingArchiveCompressionV1: String, Codable, CaseIterable, Sendable {
+    case stored
+    case zlib
+}
+
+struct StreamingArchiveLimitsV1: Codable, Equatable, Sendable {
+    static let card17 = StreamingArchiveLimitsV1(
+        maximumIndexByteCount: 4 * 1_048_576,
+        maximumEntryCount: 10_000,
+        maximumPathUTF8ByteCount: 512,
+        maximumStoredEntryByteCount: 512 * 1_048_576,
+        maximumUncompressedEntryByteCount: 512 * 1_048_576,
+        maximumStoredAggregateByteCount: 4 * 1_073_741_824,
+        maximumUncompressedAggregateByteCount: 4 * 1_073_741_824,
+        maximumCompressionRatio: 100,
+        bufferByteCount: 64 * 1_024,
+        stagingReserveByteCount: 64 * 1_048_576
+    )
+
+    let maximumIndexByteCount: Int
+    let maximumEntryCount: Int
+    let maximumPathUTF8ByteCount: Int
+    let maximumStoredEntryByteCount: Int64
+    let maximumUncompressedEntryByteCount: Int64
+    let maximumStoredAggregateByteCount: Int64
+    let maximumUncompressedAggregateByteCount: Int64
+    let maximumCompressionRatio: Int64
+    let bufferByteCount: Int
+    let stagingReserveByteCount: Int64
+
+    func validate() throws {
+        guard maximumIndexByteCount > 0,
+              maximumEntryCount > 0,
+              maximumPathUTF8ByteCount > 0,
+              maximumStoredEntryByteCount > 0,
+              maximumUncompressedEntryByteCount > 0,
+              maximumStoredAggregateByteCount > 0,
+              maximumUncompressedAggregateByteCount > 0,
+              maximumCompressionRatio > 0,
+              bufferByteCount >= 4_096,
+              bufferByteCount <= 1_048_576,
+              stagingReserveByteCount >= 0 else {
+            throw StreamingArchiveFailureV1.invalidLimits
+        }
+    }
+}
+
+struct StreamingArchiveEntryV1: Codable, Equatable, Sendable {
+    let path: String
+    let mimeType: String
+    let compression: StreamingArchiveCompressionV1
+    let storedByteCount: Int64
+    let uncompressedByteCount: Int64
+    let storedSHA256: String
+    let contentSHA256: String
+}
+
+struct StreamingArchiveIndexV1: Codable, Equatable, Sendable {
+    static let currentSchemaVersion = 1
+
+    let archiveSchemaVersion: Int
+    let entries: [StreamingArchiveEntryV1]
+    let storedPayloadByteCount: Int64
+    let uncompressedPayloadByteCount: Int64
+}
+
+struct StreamingArchiveWriteEntryV1: Equatable, Sendable {
+    let path: String
+    let mimeType: String
+    let sourceRootURL: URL
+    let sourceRelativePath: String
+    let expectedSourceRootIdentity: StreamingArchiveRootIdentityV1
+    let expectedUncompressedByteCount: Int64
+    let expectedContentSHA256: String
+    let compression: StreamingArchiveCompressionV1
+
+    init(
+        path: String,
+        mimeType: String,
+        sourceRootURL: URL,
+        sourceRelativePath: String,
+        expectedSourceRootIdentity: StreamingArchiveRootIdentityV1,
+        expectedUncompressedByteCount: Int64,
+        expectedContentSHA256: String,
+        compression: StreamingArchiveCompressionV1
+    ) {
+        self.path = path
+        self.mimeType = mimeType
+        self.sourceRootURL = sourceRootURL
+        self.sourceRelativePath = sourceRelativePath
+        self.expectedSourceRootIdentity = expectedSourceRootIdentity
+        self.expectedUncompressedByteCount = expectedUncompressedByteCount
+        self.expectedContentSHA256 = expectedContentSHA256
+        self.compression = compression
+    }
+}
+
+struct StreamingArchiveRootIdentityV1: Equatable, Sendable {
+    let device: UInt64
+    let inode: UInt64
+
+    init(device: UInt64, inode: UInt64) {
+        self.device = device
+        self.inode = inode
+    }
+}
+
+struct StreamingArchiveWritePlanV1: Equatable, Sendable {
+    let entries: [StreamingArchiveWriteEntryV1]
+    let stagingDirectoryURL: URL
+
+    init(entries: [StreamingArchiveWriteEntryV1], stagingDirectoryURL: URL) {
+        self.entries = entries
+        self.stagingDirectoryURL = stagingDirectoryURL
+    }
+}
+
+struct StreamingArchiveSourceSnapshotV1: Equatable, Sendable {
+    let device: UInt64
+    let inode: UInt64
+    let linkCount: UInt64
+    let byteCount: Int64
+    let modifiedSeconds: Int64
+    let modifiedNanoseconds: Int64
+    let changedSeconds: Int64
+    let changedNanoseconds: Int64
+}
+
+struct StreamingArchiveWriteReceiptV1: Equatable, Sendable {
+    let archiveURL: URL
+    let archiveByteCount: Int64
+    let archiveSHA256: String
+    let index: StreamingArchiveIndexV1
+}
+
+struct StreamingArchiveExtractionV1: Equatable, Sendable {
+    let archiveURL: URL
+    let extractedDirectoryURL: URL
+    let archiveSHA256: String
+    let index: StreamingArchiveIndexV1
+}
+
+struct StreamingArchiveCancellationV1: @unchecked Sendable {
+    let checkpoint: () throws -> Void
+
+    init(checkpoint: @escaping () throws -> Void) {
+        self.checkpoint = checkpoint
+    }
+
+    static let none = StreamingArchiveCancellationV1(checkpoint: {})
+
+    static let task = StreamingArchiveCancellationV1 {
+        if Task.isCancelled {
+            throw StreamingArchiveFailureV1.cancelled
+        }
+    }
+}
+
+enum StreamingArchiveFailureV1: Error, Equatable, Sendable {
+    case invalidLimits
+    case invalidPlan
+    case invalidDestination
+    case destinationExists
+    case invalidArchive
+    case unsupportedFormat
+    case hostilePath
+    case duplicatePath
+    case entryLimitExceeded
+    case storedLimitExceeded
+    case uncompressedLimitExceeded
+    case compressionRatioExceeded
+    case sourceChanged
+    case contentMismatch
+    case insufficientStorage
+    case protectedDataUnavailable
+    case cancelled
+    case cleanupFailed
+    case ioFailure
+}
+
+enum StreamingArchiveFormatV1 {
+    static let magic = Data([0x41, 0x53, 0x52, 0x42, 0x41, 0x31, 0x0d, 0x0a])
+    static let version: UInt16 = 1
+    static let flags: UInt16 = 0
+    static let digestByteCount = 32
+    static let headerByteCount = 8 + 2 + 2 + 8 + digestByteCount
+
+    static func hasMagic(_ prefix: Data) -> Bool {
+        prefix.count >= magic.count && prefix.prefix(magic.count) == magic
+    }
+}

@@ -22,8 +22,39 @@ struct ValidatedV4BackupPackageV1: Equatable, Sendable {
     let stagedPackageURL: URL
     let manifest: V4BackupManifestV1
     let records: V4BackupRecordsV1
-    let members: [String: Data]
+    let members: ValidatedV4BackupMembersV1
     let summary: BackupValidationSummaryV1
+}
+
+struct ValidatedV4BackupMembersV1: Equatable, @unchecked Sendable {
+    struct Descriptor: Equatable, Sendable {
+        let byteCount: Int64
+        let sha256: String
+    }
+
+    let rootURL: URL
+    let rootIdentity: BackupPackageRootIdentity
+    let descriptors: [String: Descriptor]
+    let maximumMemberByteCount: Int64
+
+    var keys: Set<String> { Set(descriptors.keys) }
+
+    subscript(path: String) -> Data? {
+        guard let descriptor = descriptors[path],
+              descriptor.byteCount >= 0,
+              descriptor.byteCount <= maximumMemberByteCount,
+              let data = try? BackupPackageAnchoredFile.readRegularFile(
+                  path,
+                  within: rootURL,
+                  rootIdentity: rootIdentity,
+                  expectedByteCount: descriptor.byteCount,
+                  maximumByteCount: maximumMemberByteCount
+              ),
+              CanonicalJSONV1.sha256(data) == descriptor.sha256 else {
+            return nil
+        }
+        return data
+    }
 }
 
 struct BackupPackageRootIdentity: Equatable {
@@ -41,7 +72,9 @@ enum BackupPackageAnchoredFile {
     static func readRegularFile(
         _ relativePath: String,
         within rootURL: URL,
-        rootIdentity: BackupPackageRootIdentity
+        rootIdentity: BackupPackageRootIdentity,
+        expectedByteCount: Int64? = nil,
+        maximumByteCount: Int64 = Int64.max
     ) throws -> Data {
         let components = relativePath.split(
             separator: "/",
@@ -88,10 +121,41 @@ enum BackupPackageAnchoredFile {
         var information = stat()
         guard Darwin.fstat(fileDescriptor, &information) == 0,
               (information.st_mode & S_IFMT) == S_IFREG,
-              information.st_nlink == 1 else {
+              information.st_nlink == 1,
+              information.st_size >= 0,
+              information.st_size <= maximumByteCount,
+              expectedByteCount.map({ $0 == information.st_size }) ?? true,
+              information.st_size <= Int64(Int.max) else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
-        return try handle.readToEnd() ?? Data()
+        var data = Data()
+        let bufferByteCount = 64 * 1_024
+        while data.count < Int(information.st_size) {
+            let remaining = Int(information.st_size) - data.count
+            guard let chunk = try handle.read(
+                upToCount: min(bufferByteCount, remaining)
+            ), !chunk.isEmpty else {
+                throw BackupPackageValidationErrorV1.invalidPackage
+            }
+            data.append(chunk)
+        }
+        guard data.count == Int(information.st_size),
+              try handle.read(upToCount: 1)?.isEmpty != false else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+        var finalInformation = stat()
+        guard Darwin.fstat(fileDescriptor, &finalInformation) == 0,
+              finalInformation.st_dev == information.st_dev,
+              finalInformation.st_ino == information.st_ino,
+              finalInformation.st_nlink == information.st_nlink,
+              finalInformation.st_size == information.st_size,
+              finalInformation.st_mtimespec.tv_sec == information.st_mtimespec.tv_sec,
+              finalInformation.st_mtimespec.tv_nsec == information.st_mtimespec.tv_nsec,
+              finalInformation.st_ctimespec.tv_sec == information.st_ctimespec.tv_sec,
+              finalInformation.st_ctimespec.tv_nsec == information.st_ctimespec.tv_nsec else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+        return data
     }
 
     private static func openRoot(_ rootURL: URL) throws -> Int32 {
@@ -123,18 +187,30 @@ enum BackupPackageAnchoredFile {
 struct BackupPackageValidatorV1 {
     private let fileManager: FileManager
     private let signPack: SignPack
+    private let limits: StreamingArchiveLimitsV1
 
     init(
         fileManager: FileManager = .default,
-        signPack: SignPack = .illuminatedSignV1
+        signPack: SignPack = .illuminatedSignV1,
+        limits: StreamingArchiveLimitsV1 = .card17
     ) {
         self.fileManager = fileManager
         self.signPack = signPack
+        self.limits = limits
     }
 
-    func validate(stagedPackageURL: URL) throws -> ValidatedV4BackupPackageV1 {
+    func validate(
+        stagedPackageURL: URL,
+        cancellation: StreamingArchiveCancellationV1 = .none
+    ) throws -> ValidatedV4BackupPackageV1 {
         do {
-            return try validatePackage(stagedPackageURL: stagedPackageURL)
+            return try validatePackage(
+                stagedPackageURL: stagedPackageURL,
+                cancellation: cancellation
+            )
+        } catch let failure as StreamingArchiveFailureV1
+            where failure == .cancelled {
+            throw failure
         } catch {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
@@ -142,7 +218,11 @@ struct BackupPackageValidatorV1 {
 }
 
 private extension BackupPackageValidatorV1 {
-    func validatePackage(stagedPackageURL: URL) throws -> ValidatedV4BackupPackageV1 {
+    func validatePackage(
+        stagedPackageURL: URL,
+        cancellation: StreamingArchiveCancellationV1
+    ) throws -> ValidatedV4BackupPackageV1 {
+        try cancellation.checkpoint()
         let root = stagedPackageURL.standardizedFileURL
         guard stagedPackageURL.isFileURL,
               root.pathExtension == "fieldrecordbackup",
@@ -151,13 +231,28 @@ private extension BackupPackageValidatorV1 {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
         let rootIdentity = try BackupPackageAnchoredFile.rootIdentity(at: root)
-        let manifestData = try anchoredRead(
-            "manifest.json",
-            root: root,
-            identity: rootIdentity
-        )
         let decoder = BackupCanonicalDecoderV1()
-        let manifest = try decoder.decodeManifest(manifestData)
+        let manifestValue: (
+            manifest: V4BackupManifestV1,
+            descriptor: ValidatedV4BackupMembersV1.Descriptor
+        ) = try {
+            let manifestData = try anchoredRead(
+                "manifest.json",
+                root: root,
+                identity: rootIdentity,
+                expectedByteCount: nil,
+                maximumByteCount: Int64(limits.maximumIndexByteCount)
+            )
+            return (
+                try decoder.decodeManifest(manifestData),
+                .init(
+                    byteCount: Int64(manifestData.count),
+                    sha256: CanonicalJSONV1.sha256(manifestData)
+                )
+            )
+        }()
+        let manifest = manifestValue.manifest
+        try validateManifestBounds(manifest)
         let expectedFiles = Set(["manifest.json"] + manifest.entries.map(\.path))
         let expectedDirectories = Set(manifest.entries.compactMap { entry in
             entry.path == "records.json" ? nil : entry.path.split(separator: "/").first.map(String.init)
@@ -169,23 +264,58 @@ private extension BackupPackageValidatorV1 {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
 
-        var members = ["manifest.json": manifestData]
+        var descriptors = [
+            "manifest.json": manifestValue.descriptor
+        ]
         for entry in manifest.entries {
-            let bytes = try anchoredRead(entry.path, root: root, identity: rootIdentity)
+            guard descriptors.updateValue(
+                .init(byteCount: Int64(entry.byteCount), sha256: entry.sha256),
+                forKey: entry.path
+            ) == nil else {
+                throw BackupPackageValidationErrorV1.invalidPackage
+            }
+        }
+        let members = ValidatedV4BackupMembersV1(
+            rootURL: root,
+            rootIdentity: rootIdentity,
+            descriptors: descriptors,
+            maximumMemberByteCount: limits.maximumUncompressedEntryByteCount
+        )
+        for entry in manifest.entries {
+            try cancellation.checkpoint()
+            guard let bytes = members[entry.path] else {
+                throw BackupPackageValidationErrorV1.invalidPackage
+            }
             guard bytes.count == entry.byteCount,
                   CanonicalJSONV1.sha256(bytes) == entry.sha256 else {
                 throw BackupPackageValidationErrorV1.invalidPackage
             }
-            members[entry.path] = bytes
         }
-        guard members.count == expectedFiles.count,
-              let recordsData = members["records.json"] else {
+        guard members.keys.count == expectedFiles.count else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
-        let records = try decoder.decodeRecords(recordsData)
+        let records: V4BackupRecordsV1 = try {
+            guard let recordsData = members["records.json"] else {
+                throw BackupPackageValidationErrorV1.invalidPackage
+            }
+            return try decoder.decodeRecords(recordsData)
+        }()
+        try cancellation.checkpoint()
         try validateGraph(records, manifest: manifest)
-        try validateOwnedMembers(records, manifest: manifest, members: members)
-        try validateReports(records, members: members)
+        try cancellation.checkpoint()
+        try validateOwnedMembers(
+            records,
+            manifest: manifest,
+            members: members,
+            cancellation: cancellation
+        )
+        try cancellation.checkpoint()
+        try validateReports(
+            records,
+            members: members,
+            cancellation: cancellation
+        )
+        try cancellation.checkpoint()
         guard try BackupPackageAnchoredFile.rootIdentity(at: root) == rootIdentity else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
@@ -310,7 +440,9 @@ private extension BackupPackageValidatorV1 {
     func anchoredRead(
         _ path: String,
         root: URL,
-        identity: BackupPackageRootIdentity
+        identity: BackupPackageRootIdentity,
+        expectedByteCount: Int64? = nil,
+        maximumByteCount: Int64 = Int64.max
     ) throws -> Data {
         guard validRelativePath(path) else {
             throw BackupPackageValidationErrorV1.invalidPackage
@@ -318,8 +450,41 @@ private extension BackupPackageValidatorV1 {
         return try BackupPackageAnchoredFile.readRegularFile(
             path,
             within: root,
-            rootIdentity: identity
+            rootIdentity: identity,
+            expectedByteCount: expectedByteCount,
+            maximumByteCount: maximumByteCount
         )
+    }
+
+    func validateManifestBounds(_ manifest: V4BackupManifestV1) throws {
+        guard manifest.backupSchemaVersion == 1,
+              manifest.entries.count <= limits.maximumEntryCount,
+              manifest.declaredPayloadByteCount >= 0 else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+        var aggregate: Int64 = 0
+        var foldedPaths = Set<String>()
+        for entry in manifest.entries {
+            guard validRelativePath(entry.path),
+                  entry.path.utf8.count <= limits.maximumPathUTF8ByteCount,
+                  entry.byteCount >= 0,
+                  Int64(entry.byteCount) <= limits.maximumUncompressedEntryByteCount,
+                  lowercaseHash(entry.sha256),
+                  foldedPaths.insert(fold(entry.path)).inserted else {
+                throw BackupPackageValidationErrorV1.invalidPackage
+            }
+            let (next, overflow) = aggregate.addingReportingOverflow(
+                Int64(entry.byteCount)
+            )
+            guard !overflow,
+                  next <= limits.maximumUncompressedAggregateByteCount else {
+                throw BackupPackageValidationErrorV1.invalidPackage
+            }
+            aggregate = next
+        }
+        guard aggregate == Int64(manifest.declaredPayloadByteCount) else {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
     }
 
     func validRelativePath(_ value: String) -> Bool {
@@ -725,28 +890,37 @@ private extension BackupPackageValidatorV1 {
     func validateOwnedMembers(
         _ records: V4BackupRecordsV1,
         manifest: V4BackupManifestV1,
-        members: [String: Data]
+        members: ValidatedV4BackupMembersV1,
+        cancellation: StreamingArchiveCancellationV1
     ) throws {
         var expected = Set(["manifest.json", "records.json"])
         let normalizer = MediaNormalizerV1()
         for evidence in records.evidenceFiles {
+            try cancellation.checkpoint()
             let id = uuid(evidence.id)
             let originalPath = "media/\(id).jpg"
             let thumbnailPath = "thumbnails/\(id).jpg"
-            guard let original = members[originalPath],
-                  let thumbnail = members[thumbnailPath],
-                  original.count == evidence.byteCount,
-                  thumbnail.count == evidence.thumbnailByteCount,
-                  CanonicalJSONV1.sha256(original) == evidence.sha256,
-                  CanonicalJSONV1.sha256(thumbnail) == evidence.thumbnailSHA256 else {
-                throw invalid()
+            do {
+                guard let original = members[originalPath],
+                      original.count == evidence.byteCount,
+                      CanonicalJSONV1.sha256(original) == evidence.sha256 else {
+                    throw invalid()
+                }
+                _ = try normalizer.validateCanonicalJPEG(original, kind: .original)
             }
-            _ = try normalizer.validateCanonicalJPEG(original, kind: .original)
-            _ = try normalizer.validateCanonicalJPEG(thumbnail, kind: .thumbnail)
+            do {
+                guard let thumbnail = members[thumbnailPath],
+                      thumbnail.count == evidence.thumbnailByteCount,
+                      CanonicalJSONV1.sha256(thumbnail) == evidence.thumbnailSHA256 else {
+                    throw invalid()
+                }
+                _ = try normalizer.validateCanonicalJPEG(thumbnail, kind: .thumbnail)
+            }
             expected.insert(originalPath)
             expected.insert(thumbnailPath)
         }
         for report in records.reports {
+            try cancellation.checkpoint()
             let id = uuid(report.id)
             expected.insert("snapshots/\(id).json")
             switch ReportPDFState(rawValue: report.pdfState) {
@@ -766,7 +940,7 @@ private extension BackupPackageValidatorV1 {
                 throw invalid()
             }
         }
-        guard Set(members.keys) == expected,
+        guard members.keys == expected,
               Set(manifest.entries.map(\.path)) == expected.subtracting(["manifest.json"]) else {
             throw invalid()
         }
@@ -1094,7 +1268,11 @@ private extension BackupPackageValidatorV1 {
         )
     }
 
-    func validateReports(_ records: V4BackupRecordsV1, members: [String: Data]) throws {
+    func validateReports(
+        _ records: V4BackupRecordsV1,
+        members: ValidatedV4BackupMembersV1,
+        cancellation: StreamingArchiveCancellationV1
+    ) throws {
         let workflow = Dictionary(uniqueKeysWithValues: records.workflowRecords.map { ($0.id, $0) })
         let packets = Dictionary(uniqueKeysWithValues: records.packets.map { ($0.id, $0) })
         let evidence = Dictionary(uniqueKeysWithValues: records.evidenceFiles.map { ($0.id, $0) })
@@ -1102,6 +1280,7 @@ private extension BackupPackageValidatorV1 {
         let assets = Dictionary(uniqueKeysWithValues: records.assets.map { ($0.id, $0) })
         let sites = Dictionary(uniqueKeysWithValues: records.sites.map { ($0.id, $0) })
         for report in records.reports {
+            try cancellation.checkpoint()
             guard let bytes = members["snapshots/\(uuid(report.id)).json"],
                   CanonicalJSONV1.sha256(bytes) == report.snapshotSHA256,
                   let source = workflow[report.sourceRecordID],

@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import SwiftData
 
@@ -8,6 +9,10 @@ enum BackupExportServiceError: Error, Equatable {
     case stalePreview
     case destinationInvalid
     case destinationExists
+    case cancelled
+    case insufficientStorage
+    case sourceChanged
+    case cleanupFailed
     case writeFailed
 }
 
@@ -23,21 +28,52 @@ final class BackupExportService {
         let reports: [Report]
     }
 
+    private struct StreamingSource: Equatable {
+        enum Location: Equatable {
+            case generatedRecords
+            case generationRelative(String)
+        }
+
+        let path: String
+        let mimeType: String
+        let byteCount: Int
+        let sha256: String
+        let location: Location
+    }
+
+    private struct StreamingPrepared: Equatable {
+        let preview: BackupExportPreviewV1
+        let manifest: V4BackupManifestV1
+        let manifestData: Data
+        let recordsData: Data
+        let sources: [StreamingSource]
+    }
+
+    private struct OwnedStagingSource {
+        let url: URL
+        let device: UInt64
+        let inode: UInt64
+    }
+
     private let modelContext: ModelContext
     private let generationRootURL: URL
     private let rootIdentity: ReportPDFAnchoredFile.RootIdentity?
     private let storagePreflight: StoragePreflightService
+    private let archiveLimits: StreamingArchiveLimitsV1
+    private let archiveService: StreamingArchiveService
     private let now: () -> Date
     private let makeUUID: () -> UUID
     private let appVersion: () -> String
     private let appBuild: () -> String
     private let fileManager: FileManager
     private var prepared: PreparedV4BackupV1?
+    private var streamingPrepared: StreamingPrepared?
 
     init(
         modelContext: ModelContext,
         generationRootURL: URL,
         storagePreflight: StoragePreflightService = StoragePreflightService(),
+        archiveLimits: StreamingArchiveLimitsV1 = .card17,
         now: @escaping () -> Date = Date.init,
         makeUUID: @escaping () -> UUID = UUID.init,
         appVersion: @escaping () -> String = {
@@ -53,6 +89,11 @@ final class BackupExportService {
         self.modelContext = modelContext
         self.generationRootURL = generationRootURL.standardizedFileURL
         self.storagePreflight = storagePreflight
+        self.archiveLimits = archiveLimits
+        self.archiveService = StreamingArchiveService(
+            limits: archiveLimits,
+            makeOperationID: makeUUID
+        )
         self.now = now
         self.makeUUID = makeUUID
         self.appVersion = appVersion
@@ -83,6 +124,23 @@ final class BackupExportService {
             throw BackupExportServiceError.contextHasChanges
         }
         prepared = value
+        return value.preview
+    }
+
+    /// Prepares the regular-file archive without retaining media, snapshots,
+    /// or PDFs. `prepare()` remains the legacy V4 directory-package API.
+    func prepareStreaming() throws -> BackupExportPreviewV1 {
+        guard !modelContext.hasChanges else {
+            throw BackupExportServiceError.contextHasChanges
+        }
+        let value = try buildStreamingPrepared(
+            previewID: makeUUID(),
+            exportedAt: now()
+        )
+        guard !modelContext.hasChanges else {
+            throw BackupExportServiceError.contextHasChanges
+        }
+        streamingPrepared = value
         return value.preview
     }
 
@@ -179,9 +237,469 @@ final class BackupExportService {
         prepared = nil
         return packageURL
     }
+
+    /// Writes the bounded V23 regular-file archive. This is intentionally a
+    /// separate entry point so accepted V4 callers continue receiving the
+    /// directory package they traverse directly.
+    func exportStreaming(
+        previewID: UUID,
+        to destinationDirectoryURL: URL,
+        cancellation: StreamingArchiveCancellationV1 = .none
+    ) throws -> URL {
+        guard !modelContext.hasChanges else {
+            throw BackupExportServiceError.contextHasChanges
+        }
+        guard let frozen = streamingPrepared,
+              frozen.preview.id == previewID else {
+            throw BackupExportServiceError.stalePreview
+        }
+        let rebuilt = try buildStreamingPrepared(
+            previewID: previewID,
+            exportedAt: frozen.manifest.exportedAt
+        )
+        guard rebuilt == frozen, !modelContext.hasChanges else {
+            throw BackupExportServiceError.stalePreview
+        }
+        let destination = destinationDirectoryURL.standardizedFileURL
+        guard destinationDirectoryURL.isFileURL,
+              try itemType(at: destination) == .directory else {
+            throw BackupExportServiceError.destinationInvalid
+        }
+        do {
+            try storagePreflight.checkBackupExport(
+                declaredPayloadByteCount: Int64(frozen.preview.declaredPayloadByteCount),
+                onVolumeContaining: destination
+            )
+        } catch {
+            throw mapStreamingExportError(error)
+        }
+
+        let packageURL = destination.appendingPathComponent(
+            "AssetRounds.fieldrecordbackup",
+            isDirectory: false
+        )
+        guard try itemType(at: packageURL) == nil else {
+            throw BackupExportServiceError.destinationExists
+        }
+        let stagingRoot: URL
+        guard let pinnedGenerationRootIdentity = rootIdentity else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        do {
+            stagingRoot = try StoreGenerationFactory.backupImportStagingDirectory(
+                containing: generationRootURL
+            )
+            guard try itemType(at: stagingRoot) == .directory else {
+                throw BackupExportServiceError.invalidGeneration
+            }
+            try ProtectedFilePolicyV1.verify(.stagingDirectory, at: stagingRoot) {
+                guard try self.itemType(at: stagingRoot) == .directory,
+                      try ReportPDFAnchoredFile.rootIdentity(at: self.generationRootURL)
+                        == pinnedGenerationRootIdentity else {
+                    throw BackupExportServiceError.invalidGeneration
+                }
+            }
+        } catch let error as BackupExportServiceError {
+            throw error
+        } catch {
+            throw BackupExportServiceError.invalidGeneration
+        }
+
+        let stagingRootDescriptor = Darwin.open(
+            stagingRoot.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard stagingRootDescriptor >= 0 else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        defer { _ = Darwin.close(stagingRootDescriptor) }
+        var stagingRootInformation = stat()
+        guard Darwin.fstat(stagingRootDescriptor, &stagingRootInformation) == 0,
+              (stagingRootInformation.st_mode & S_IFMT) == S_IFDIR else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        let stagingRootIdentity = StreamingArchiveRootIdentityV1(
+            device: UInt64(stagingRootInformation.st_dev),
+            inode: UInt64(stagingRootInformation.st_ino)
+        )
+        let generationSourceRootIdentity = StreamingArchiveRootIdentityV1(
+            device: UInt64(pinnedGenerationRootIdentity.device),
+            inode: UInt64(pinnedGenerationRootIdentity.inode)
+        )
+
+        let manifestSource = stagingRoot.appendingPathComponent(
+            ".backup-export-\(uuid(previewID))-manifest.json"
+        )
+        let recordsSource = stagingRoot.appendingPathComponent(
+            ".backup-export-\(uuid(previewID))-records.json"
+        )
+        var createdSources = [OwnedStagingSource]()
+        var publishedURL: URL?
+        do {
+            createdSources.append(try writeOwnedStagingSource(
+                frozen.manifestData,
+                to: manifestSource,
+                expectedRootIdentity: stagingRootIdentity
+            ))
+            createdSources.append(try writeOwnedStagingSource(
+                frozen.recordsData,
+                to: recordsSource,
+                expectedRootIdentity: stagingRootIdentity
+            ))
+
+            var entries = [StreamingArchiveWriteEntryV1(
+                path: "manifest.json",
+                mimeType: "application/json",
+                sourceRootURL: stagingRoot,
+                sourceRelativePath: manifestSource.lastPathComponent,
+                expectedSourceRootIdentity: stagingRootIdentity,
+                expectedUncompressedByteCount: Int64(frozen.manifestData.count),
+                expectedContentSHA256: CanonicalJSONV1.sha256(frozen.manifestData),
+                compression: .stored
+            )]
+            entries.append(contentsOf: frozen.sources.map { source in
+                let sourceRootURL: URL
+                let sourceRelativePath: String
+                let expectedSourceRootIdentity: StreamingArchiveRootIdentityV1
+                switch source.location {
+                case .generatedRecords:
+                    sourceRootURL = stagingRoot
+                    sourceRelativePath = recordsSource.lastPathComponent
+                    expectedSourceRootIdentity = stagingRootIdentity
+                case .generationRelative(let relativePath):
+                    sourceRootURL = generationRootURL
+                    sourceRelativePath = relativePath
+                    expectedSourceRootIdentity = generationSourceRootIdentity
+                }
+                return StreamingArchiveWriteEntryV1(
+                    path: source.path,
+                    mimeType: source.mimeType,
+                    sourceRootURL: sourceRootURL,
+                    sourceRelativePath: sourceRelativePath,
+                    expectedSourceRootIdentity: expectedSourceRootIdentity,
+                    expectedUncompressedByteCount: Int64(source.byteCount),
+                    expectedContentSHA256: source.sha256,
+                    compression: .stored
+                )
+            })
+            let plan = StreamingArchiveWritePlanV1(
+                entries: entries,
+                stagingDirectoryURL: stagingRoot
+            )
+            var coordinationError: NSError?
+            var coordinatedResult: Result<StreamingArchiveWriteReceiptV1, Error>?
+            NSFileCoordinator().coordinate(
+                writingItemAt: destination,
+                options: .forMerging,
+                error: &coordinationError
+            ) { coordinatedDirectory in
+                let coordinatedPackage = coordinatedDirectory.appendingPathComponent(
+                    packageURL.lastPathComponent,
+                    isDirectory: false
+                )
+                coordinatedResult = Result {
+                    try self.archiveService.write(
+                        plan,
+                        to: coordinatedPackage,
+                        cancellation: cancellation,
+                        storageCheck: { requiredBytes in
+                            try self.storagePreflight.checkBackupExport(
+                                declaredPayloadByteCount: requiredBytes,
+                                onVolumeContaining: coordinatedDirectory
+                            )
+                        }
+                    )
+                }
+            }
+            guard coordinationError == nil, let coordinatedResult else {
+                throw BackupExportServiceError.writeFailed
+            }
+            let receipt = try coordinatedResult.get()
+            publishedURL = receipt.archiveURL
+            guard receipt.index.entries.map(\.path) == entries
+                    .sorted(by: { utf8Less($0.path, $1.path) })
+                    .map(\.path),
+                  receipt.index.uncompressedPayloadByteCount
+                    == Int64(frozen.manifestData.count)
+                        + Int64(frozen.preview.declaredPayloadByteCount),
+                  try StreamingArchiveService.hasFormatMagic(at: receipt.archiveURL) else {
+                throw BackupExportServiceError.writeFailed
+            }
+            try cleanupOwnedStagingSources(
+                createdSources,
+                within: stagingRoot,
+                directoryDescriptor: stagingRootDescriptor,
+                expectedRootIdentity: stagingRootIdentity
+            )
+            createdSources.removeAll()
+            streamingPrepared = nil
+            return receipt.archiveURL
+        } catch {
+            let original = error
+            let cleaned = (try? cleanupOwnedStagingSources(
+                createdSources,
+                within: stagingRoot,
+                directoryDescriptor: stagingRootDescriptor,
+                expectedRootIdentity: stagingRootIdentity
+            )) != nil
+            if let publishedURL,
+               (try? removeOwnedPublishedArchive(publishedURL, within: destination)) == nil {
+                throw BackupExportServiceError.cleanupFailed
+            }
+            guard cleaned else { throw BackupExportServiceError.cleanupFailed }
+            throw mapStreamingExportError(original)
+        }
+    }
 }
 
 private extension BackupExportService {
+    func buildStreamingPrepared(
+        previewID: UUID,
+        exportedAt: Date
+    ) throws -> StreamingPrepared {
+        guard let rootIdentity else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        guard try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
+                == rootIdentity else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        let rows = try fetchRows()
+        try validateGraph(rows)
+        let records = makeRecords(rows)
+        let recordsData: Data
+        do {
+            recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
+        } catch {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        guard Int64(recordsData.count) <= archiveLimits.maximumUncompressedEntryByteCount else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+
+        var sources = [StreamingSource(
+            path: "records.json",
+            mimeType: "application/json",
+            byteCount: recordsData.count,
+            sha256: CanonicalJSONV1.sha256(recordsData),
+            location: .generatedRecords
+        )]
+        let normalizer = MediaNormalizerV1()
+        for evidence in rows.evidence.sorted(by: { uuid($0.id) < uuid($1.id) }) {
+            guard !Task.isCancelled else {
+                throw BackupExportServiceError.cancelled
+            }
+            let canonicalID = uuid(evidence.id)
+            guard evidence.relativePath == "evidence/\(canonicalID)/original.jpg",
+                  evidence.thumbnailRelativePath
+                    == "evidence/\(canonicalID)/thumbnail.jpg",
+                  evidence.mimeType == "image/jpeg",
+                  evidence.byteCount >= 0,
+                  evidence.thumbnailByteCount >= 0,
+                  Int64(evidence.byteCount)
+                    <= archiveLimits.maximumUncompressedEntryByteCount,
+                  Int64(evidence.thumbnailByteCount)
+                    <= archiveLimits.maximumUncompressedEntryByteCount else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            do {
+                let original = try boundedStreamingRead(
+                    evidence.relativePath,
+                    expectedByteCount: Int64(evidence.byteCount),
+                    expectedSHA256: evidence.sha256,
+                    rootIdentity: rootIdentity
+                )
+                _ = try normalizer.validateCanonicalJPEG(original, kind: .original)
+            }
+            do {
+                let thumbnail = try boundedStreamingRead(
+                    evidence.thumbnailRelativePath,
+                    expectedByteCount: Int64(evidence.thumbnailByteCount),
+                    expectedSHA256: evidence.thumbnailSHA256,
+                    rootIdentity: rootIdentity
+                )
+                _ = try normalizer.validateCanonicalJPEG(thumbnail, kind: .thumbnail)
+            }
+            sources.append(.init(
+                path: "media/\(canonicalID).jpg",
+                mimeType: "image/jpeg",
+                byteCount: evidence.byteCount,
+                sha256: evidence.sha256,
+                location: .generationRelative(evidence.relativePath)
+            ))
+            sources.append(.init(
+                path: "thumbnails/\(canonicalID).jpg",
+                mimeType: "image/jpeg",
+                byteCount: evidence.thumbnailByteCount,
+                sha256: evidence.thumbnailSHA256,
+                location: .generationRelative(evidence.thumbnailRelativePath)
+            ))
+        }
+
+        let delivery: ReportDeliveryCoordinator
+        do {
+            delivery = try ReportDeliveryCoordinator(
+                modelContext: modelContext,
+                generationRootURL: generationRootURL,
+                signPack: .illuminatedSignV1,
+                expectedRootIdentity: rootIdentity
+            )
+        } catch {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        for report in rows.reports.sorted(by: { uuid($0.id) < uuid($1.id) }) {
+            guard !Task.isCancelled else {
+                throw BackupExportServiceError.cancelled
+            }
+            do { try delivery.validateRecoveryAuthority(id: report.id) }
+            catch { throw BackupExportServiceError.invalidAuthority }
+            let canonicalID = uuid(report.id)
+            guard report.snapshotSchemaVersion == 1,
+                  report.snapshotRelativePath == "snapshots/\(canonicalID).json" else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            let snapshotByteCount: Int = try {
+                let snapshot = try boundedStreamingRead(
+                    report.snapshotRelativePath,
+                    expectedByteCount: nil,
+                    expectedSHA256: report.snapshotSHA256,
+                    rootIdentity: rootIdentity
+                )
+                return snapshot.count
+            }()
+            sources.append(.init(
+                path: report.snapshotRelativePath,
+                mimeType: "application/json",
+                byteCount: snapshotByteCount,
+                sha256: report.snapshotSHA256,
+                location: .generationRelative(report.snapshotRelativePath)
+            ))
+            switch ReportPDFState(rawValue: report.pdfState) {
+            case .ready:
+                let path = "pdfs/\(canonicalID).pdf"
+                guard report.pdfRelativePath == path,
+                      let expectedHash = report.pdfSHA256 else {
+                    throw BackupExportServiceError.invalidAuthority
+                }
+                let pdf = try boundedStreamingRead(
+                    path,
+                    expectedByteCount: nil,
+                    expectedSHA256: expectedHash,
+                    rootIdentity: rootIdentity
+                )
+                guard pdf.starts(with: Data("%PDF-".utf8)) else {
+                    throw BackupExportServiceError.invalidAuthority
+                }
+                sources.append(.init(
+                    path: path,
+                    mimeType: "application/pdf",
+                    byteCount: pdf.count,
+                    sha256: expectedHash,
+                    location: .generationRelative(path)
+                ))
+            case .pending, .failed:
+                guard report.pdfRelativePath == nil, report.pdfSHA256 == nil else {
+                    throw BackupExportServiceError.invalidAuthority
+                }
+            case nil:
+                throw BackupExportServiceError.invalidAuthority
+            }
+        }
+        guard try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
+                == rootIdentity,
+              !modelContext.hasChanges else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+
+        sources.sort { utf8Less($0.path, $1.path) }
+        guard sources.count + 1 <= archiveLimits.maximumEntryCount else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        var declaredPayloadByteCount = 0
+        let entries = try sources.map { source -> V4BackupEntryV1 in
+            let (next, overflow) = declaredPayloadByteCount.addingReportingOverflow(
+                source.byteCount
+            )
+            guard !overflow else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            guard Int64(next) <= archiveLimits.maximumUncompressedAggregateByteCount else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            declaredPayloadByteCount = next
+            return V4BackupEntryV1(
+                byteCount: source.byteCount,
+                mimeType: source.mimeType,
+                path: source.path,
+                sha256: source.sha256
+            )
+        }
+        let packValues = Set(
+            rows.assets.map { "\($0.packID)|\($0.packSchemaVersion)|\($0.packContentVersion)" }
+                + rows.records.map {
+                    "\($0.packID)|\($0.packSchemaVersion)|\($0.packContentVersion)"
+                }
+        )
+        let packs = packValues.compactMap { value -> V4BackupPackV1? in
+            let parts = value.split(separator: "|", omittingEmptySubsequences: false)
+            guard parts.count == 3,
+                  let schema = Int(parts[1]),
+                  let content = Int(parts[2]) else { return nil }
+            return .init(
+                contentVersion: content,
+                packID: String(parts[0]),
+                schemaVersion: schema
+            )
+        }.sorted {
+            ($0.packID, $0.schemaVersion, $0.contentVersion)
+                < ($1.packID, $1.schemaVersion, $1.contentVersion)
+        }
+        guard packs.count == packValues.count else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        let manifest = V4BackupManifestV1(
+            backupSchemaVersion: 1,
+            consumedEvaluationRootIDs: rows.packets
+                .filter(\.evaluationCounted)
+                .map(\.stableRootID)
+                .sorted { uuid($0) < uuid($1) },
+            declaredPayloadByteCount: declaredPayloadByteCount,
+            entries: entries,
+            exportedAt: exportedAt,
+            packs: packs,
+            source: .init(
+                appBuild: appBuild(),
+                appVersion: appVersion(),
+                persistentSchemaVersion: 1,
+                recordsSchemaVersion: 1
+            )
+        )
+        let manifestData: Data
+        do {
+            manifestData = try BackupCanonicalEncoderV1().encodeManifest(manifest).data
+        } catch {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        guard manifestData.count <= archiveLimits.maximumIndexByteCount,
+              Int64(manifestData.count)
+                <= archiveLimits.maximumUncompressedEntryByteCount else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        return StreamingPrepared(
+            preview: .init(
+                id: previewID,
+                signCount: rows.assets.count,
+                reportCount: rows.reports.count,
+                photoCount: rows.evidence.count,
+                declaredPayloadByteCount: declaredPayloadByteCount
+            ),
+            manifest: manifest,
+            manifestData: manifestData,
+            recordsData: recordsData,
+            sources: sources
+        )
+    }
+
     func buildPrepared(
         previewID: UUID,
         exportedAt: Date
@@ -384,6 +902,239 @@ private extension BackupExportService {
             manifest: manifest,
             members: members
         )
+    }
+
+    struct StreamingSourceSnapshot: Equatable {
+        let device: UInt64
+        let inode: UInt64
+        let linkCount: UInt64
+        let byteCount: Int64
+        let modifiedSeconds: Int64
+        let modifiedNanoseconds: Int64
+        let changedSeconds: Int64
+        let changedNanoseconds: Int64
+    }
+
+    struct StreamingDirectoryIdentity: Equatable {
+        let device: UInt64
+        let inode: UInt64
+    }
+
+    struct OpenedStreamingSource {
+        let descriptor: Int32
+        let ancestorDescriptors: [Int32]
+        let ancestorIdentities: [StreamingDirectoryIdentity]
+    }
+
+    func boundedStreamingRead(
+        _ relativePath: String,
+        expectedByteCount: Int64?,
+        expectedSHA256: String,
+        rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) throws -> Data {
+        guard validRelativePath(relativePath),
+              expectedByteCount.map({
+                  $0 >= 0 && $0 <= archiveLimits.maximumUncompressedEntryByteCount
+              }) ?? true else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        let opened = try openStreamingSource(
+            relativePath,
+            rootIdentity: rootIdentity
+        )
+        defer {
+            _ = Darwin.close(opened.descriptor)
+            for descriptor in opened.ancestorDescriptors.reversed() {
+                _ = Darwin.close(descriptor)
+            }
+        }
+        let before = try streamingSourceSnapshot(opened.descriptor)
+        guard before.byteCount >= 0,
+              before.byteCount <= archiveLimits.maximumUncompressedEntryByteCount,
+              before.byteCount <= Int64(Int.max),
+              expectedByteCount.map({ $0 == before.byteCount }) ?? true else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+
+        var data = Data()
+        data.reserveCapacity(Int(before.byteCount))
+        var buffer = [UInt8](repeating: 0, count: archiveLimits.bufferByteCount)
+        var remaining = Int64(before.byteCount)
+        while remaining > 0 {
+            guard !Task.isCancelled else {
+                throw BackupExportServiceError.cancelled
+            }
+            let requested = min(buffer.count, Int(remaining))
+            let count: Int = buffer.withUnsafeMutableBytes { raw in
+                var result: Int
+                repeat {
+                    result = Darwin.read(opened.descriptor, raw.baseAddress, requested)
+                } while result < 0 && errno == EINTR
+                return result
+            }
+            guard count > 0 else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            data.append(contentsOf: buffer[0..<count])
+            remaining -= Int64(count)
+        }
+        var eofByte: UInt8 = 0
+        let eofCount = withUnsafeMutablePointer(to: &eofByte) { pointer in
+            var result: Int
+            repeat {
+                result = Darwin.read(opened.descriptor, pointer, 1)
+            } while result < 0 && errno == EINTR
+            return result
+        }
+        guard eofCount == 0,
+              try streamingSourceSnapshot(opened.descriptor) == before,
+              try streamingDirectoryIdentities(opened.ancestorDescriptors)
+                == opened.ancestorIdentities,
+              try streamingPathSnapshot(
+                  relativePath,
+                  rootIdentity: rootIdentity
+              ) == before,
+              try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
+                == rootIdentity,
+              data.count == Int(before.byteCount),
+              CanonicalJSONV1.sha256(data) == expectedSHA256 else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        return data
+    }
+
+    func openStreamingSource(
+        _ relativePath: String,
+        rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) throws -> OpenedStreamingSource {
+        let components = relativePath.split(
+            separator: "/",
+            omittingEmptySubsequences: false
+        ).map(String.init)
+        guard !components.isEmpty,
+              components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        let rootDescriptor = Darwin.open(
+            generationRootURL.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard rootDescriptor >= 0 else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        var ancestorDescriptors = [rootDescriptor]
+        do {
+            var rootInformation = stat()
+            guard Darwin.fstat(rootDescriptor, &rootInformation) == 0,
+                  (rootInformation.st_mode & S_IFMT) == S_IFDIR,
+                  rootInformation.st_dev == rootIdentity.device,
+                  rootInformation.st_ino == rootIdentity.inode else {
+                throw BackupExportServiceError.invalidGeneration
+            }
+            for component in components.dropLast() {
+                let child = Darwin.openat(
+                    ancestorDescriptors[ancestorDescriptors.count - 1],
+                    component,
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+                )
+                guard child >= 0 else {
+                    throw BackupExportServiceError.invalidAuthority
+                }
+                var childInformation = stat()
+                guard Darwin.fstat(child, &childInformation) == 0,
+                      (childInformation.st_mode & S_IFMT) == S_IFDIR else {
+                    _ = Darwin.close(child)
+                    throw BackupExportServiceError.invalidAuthority
+                }
+                ancestorDescriptors.append(child)
+            }
+            guard let leaf = components.last else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            let file = Darwin.openat(
+                ancestorDescriptors[ancestorDescriptors.count - 1],
+                leaf,
+                O_RDONLY | O_NOFOLLOW
+            )
+            guard file >= 0 else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            let identities: [StreamingDirectoryIdentity]
+            do {
+                identities = try streamingDirectoryIdentities(
+                    ancestorDescriptors
+                )
+            } catch {
+                _ = Darwin.close(file)
+                throw error
+            }
+            return OpenedStreamingSource(
+                descriptor: file,
+                ancestorDescriptors: ancestorDescriptors,
+                ancestorIdentities: identities
+            )
+        } catch {
+            for descriptor in ancestorDescriptors.reversed() {
+                _ = Darwin.close(descriptor)
+            }
+            throw error
+        }
+    }
+
+    func streamingDirectoryIdentities(
+        _ descriptors: [Int32]
+    ) throws -> [StreamingDirectoryIdentity] {
+        try descriptors.map { descriptor in
+            var information = stat()
+            guard Darwin.fstat(descriptor, &information) == 0,
+                  (information.st_mode & S_IFMT) == S_IFDIR else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            return StreamingDirectoryIdentity(
+                device: UInt64(information.st_dev),
+                inode: UInt64(information.st_ino)
+            )
+        }
+    }
+
+    func streamingSourceSnapshot(_ descriptor: Int32) throws -> StreamingSourceSnapshot {
+        var information = stat()
+        guard Darwin.fstat(descriptor, &information) == 0,
+              (information.st_mode & S_IFMT) == S_IFREG,
+              information.st_nlink == 1 else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        return StreamingSourceSnapshot(
+            device: UInt64(information.st_dev),
+            inode: UInt64(information.st_ino),
+            linkCount: UInt64(information.st_nlink),
+            byteCount: Int64(information.st_size),
+            modifiedSeconds: Int64(information.st_mtimespec.tv_sec),
+            modifiedNanoseconds: Int64(information.st_mtimespec.tv_nsec),
+            changedSeconds: Int64(information.st_ctimespec.tv_sec),
+            changedNanoseconds: Int64(information.st_ctimespec.tv_nsec)
+        )
+    }
+
+    func streamingPathSnapshot(
+        _ relativePath: String,
+        rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) throws -> StreamingSourceSnapshot {
+        let opened = try openStreamingSource(
+            relativePath,
+            rootIdentity: rootIdentity
+        )
+        defer {
+            _ = Darwin.close(opened.descriptor)
+            for descriptor in opened.ancestorDescriptors.reversed() {
+                _ = Darwin.close(descriptor)
+            }
+        }
+        guard try streamingDirectoryIdentities(opened.ancestorDescriptors)
+                == opened.ancestorIdentities else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        return try streamingSourceSnapshot(opened.descriptor)
     }
 
     func anchoredRead(
@@ -758,6 +1509,304 @@ private extension BackupExportService {
             && !value.hasPrefix("/")
             && value.split(separator: "/", omittingEmptySubsequences: false)
                 .allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
+    }
+
+    enum LocalItemType { case directory, regular }
+
+    func itemType(at url: URL) throws -> LocalItemType? {
+        var information = stat()
+        if Darwin.lstat(url.standardizedFileURL.path, &information) != 0 {
+            if errno == ENOENT { return nil }
+            throw BackupExportServiceError.destinationInvalid
+        }
+        switch information.st_mode & S_IFMT {
+        case S_IFDIR:
+            return .directory
+        case S_IFREG:
+            guard information.st_nlink == 1 else {
+                throw BackupExportServiceError.destinationInvalid
+            }
+            return .regular
+        default:
+            throw BackupExportServiceError.destinationInvalid
+        }
+    }
+
+    func writeOwnedStagingSource(
+        _ data: Data,
+        to url: URL,
+        expectedRootIdentity: StreamingArchiveRootIdentityV1
+    ) throws -> OwnedStagingSource {
+        let value = url.standardizedFileURL
+        let stagingRoot = value.deletingLastPathComponent()
+        guard value.lastPathComponent.hasPrefix(".backup-export-"),
+              value.lastPathComponent.hasSuffix(".json"),
+              Int64(data.count) <= archiveLimits.maximumUncompressedEntryByteCount,
+              try itemType(at: value) == nil else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        let parent = Darwin.open(
+            stagingRoot.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard parent >= 0 else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        defer { _ = Darwin.close(parent) }
+        var parentInformation = stat()
+        guard Darwin.fstat(parent, &parentInformation) == 0,
+              (parentInformation.st_mode & S_IFMT) == S_IFDIR,
+              UInt64(parentInformation.st_dev) == expectedRootIdentity.device,
+              UInt64(parentInformation.st_ino) == expectedRootIdentity.inode else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        let descriptor = Darwin.openat(
+            parent,
+            value.lastPathComponent,
+            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
+            mode_t(0o600)
+        )
+        guard descriptor >= 0 else {
+            throw BackupExportServiceError.writeFailed
+        }
+        var initialInformation = stat()
+        guard Darwin.fstat(descriptor, &initialInformation) == 0 else {
+            _ = Darwin.close(descriptor)
+            throw BackupExportServiceError.cleanupFailed
+        }
+        let expectedDevice = initialInformation.st_dev
+        let expectedInode = initialInformation.st_ino
+        guard (initialInformation.st_mode & S_IFMT) == S_IFREG,
+              initialInformation.st_nlink == 1,
+              initialInformation.st_size == 0 else {
+            _ = Darwin.close(descriptor)
+            var current = stat()
+            if Darwin.fstatat(
+                parent,
+                value.lastPathComponent,
+                &current,
+                AT_SYMLINK_NOFOLLOW
+            ) == 0,
+               current.st_dev == expectedDevice,
+               current.st_ino == expectedInode {
+                _ = Darwin.unlinkat(parent, value.lastPathComponent, 0)
+                _ = Darwin.fsync(parent)
+            }
+            throw BackupExportServiceError.writeFailed
+        }
+        var keep = false
+        defer {
+            _ = Darwin.close(descriptor)
+            if !keep {
+                var current = stat()
+                if Darwin.fstatat(
+                    parent,
+                    value.lastPathComponent,
+                    &current,
+                    AT_SYMLINK_NOFOLLOW
+                ) == 0,
+                   (current.st_mode & S_IFMT) == S_IFREG,
+                   current.st_nlink == 1,
+                   current.st_dev == expectedDevice,
+                   current.st_ino == expectedInode {
+                    _ = Darwin.unlinkat(parent, value.lastPathComponent, 0)
+                    _ = Darwin.fsync(parent)
+                }
+            }
+        }
+        try ProtectedFilePolicyV1.applyAndVerify(
+            .stagingFile,
+            relativePath: value.lastPathComponent,
+            within: stagingRoot
+        ) {
+            let currentRootDescriptor = Darwin.open(
+                stagingRoot.path,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard currentRootDescriptor >= 0 else {
+                throw BackupExportServiceError.sourceChanged
+            }
+            defer { _ = Darwin.close(currentRootDescriptor) }
+            var currentRoot = stat()
+            var current = stat()
+            var currentPath = stat()
+            guard Darwin.fstat(currentRootDescriptor, &currentRoot) == 0,
+                  (currentRoot.st_mode & S_IFMT) == S_IFDIR,
+                  UInt64(currentRoot.st_dev) == expectedRootIdentity.device,
+                  UInt64(currentRoot.st_ino) == expectedRootIdentity.inode,
+                  Darwin.fstat(descriptor, &current) == 0,
+                  current.st_dev == expectedDevice,
+                  current.st_ino == expectedInode,
+                  current.st_nlink == 1,
+                  current.st_size == 0,
+                  Darwin.fstatat(
+                    currentRootDescriptor,
+                    value.lastPathComponent,
+                    &currentPath,
+                    AT_SYMLINK_NOFOLLOW
+                  ) == 0,
+                  (currentPath.st_mode & S_IFMT) == S_IFREG,
+                  currentPath.st_dev == expectedDevice,
+                  currentPath.st_ino == expectedInode,
+                  currentPath.st_nlink == 1,
+                  currentPath.st_size == 0 else {
+                throw BackupExportServiceError.sourceChanged
+            }
+        }
+        try data.withUnsafeBytes { raw in
+            var offset = 0
+            while offset < raw.count {
+                let requested = min(
+                    archiveLimits.bufferByteCount,
+                    raw.count - offset
+                )
+                var count: Int
+                repeat {
+                    count = Darwin.write(
+                        descriptor,
+                        raw.baseAddress?.advanced(by: offset),
+                        requested
+                    )
+                } while count < 0 && errno == EINTR
+                guard count > 0 else {
+                    throw BackupExportServiceError.writeFailed
+                }
+                offset += count
+            }
+        }
+        guard Darwin.fsync(descriptor) == 0 else {
+            throw BackupExportServiceError.writeFailed
+        }
+        var information = stat()
+        var pathInformation = stat()
+        guard Darwin.fstat(descriptor, &information) == 0,
+              (information.st_mode & S_IFMT) == S_IFREG,
+              information.st_nlink == 1,
+              information.st_dev == expectedDevice,
+              information.st_ino == expectedInode,
+              information.st_size == Int64(data.count),
+              Darwin.fstatat(
+                parent,
+                value.lastPathComponent,
+                &pathInformation,
+                AT_SYMLINK_NOFOLLOW
+              ) == 0,
+              pathInformation.st_dev == expectedDevice,
+              pathInformation.st_ino == expectedInode,
+              pathInformation.st_nlink == 1,
+              pathInformation.st_size == Int64(data.count) else {
+            throw BackupExportServiceError.writeFailed
+        }
+        guard Darwin.fsync(parent) == 0 else {
+            throw BackupExportServiceError.writeFailed
+        }
+        keep = true
+        return OwnedStagingSource(
+            url: value,
+            device: UInt64(expectedDevice),
+            inode: UInt64(expectedInode)
+        )
+    }
+
+    func cleanupOwnedStagingSources(
+        _ sources: [OwnedStagingSource],
+        within stagingRootURL: URL,
+        directoryDescriptor: Int32,
+        expectedRootIdentity: StreamingArchiveRootIdentityV1
+    ) throws {
+        let root = stagingRootURL.standardizedFileURL
+        var rootInformation = stat()
+        guard Darwin.fstat(directoryDescriptor, &rootInformation) == 0,
+              (rootInformation.st_mode & S_IFMT) == S_IFDIR,
+              UInt64(rootInformation.st_dev) == expectedRootIdentity.device,
+              UInt64(rootInformation.st_ino) == expectedRootIdentity.inode else {
+            throw BackupExportServiceError.cleanupFailed
+        }
+        for source in sources.reversed() {
+            let value = source.url.standardizedFileURL
+            let name = value.lastPathComponent
+            guard value.deletingLastPathComponent() == root,
+                  name.hasPrefix(".backup-export-"),
+                  name.hasSuffix(".json") else {
+                throw BackupExportServiceError.cleanupFailed
+            }
+            var information = stat()
+            if Darwin.fstatat(
+                directoryDescriptor,
+                name,
+                &information,
+                AT_SYMLINK_NOFOLLOW
+            ) != 0 {
+                guard errno == ENOENT else {
+                    throw BackupExportServiceError.cleanupFailed
+                }
+                continue
+            }
+            guard (information.st_mode & S_IFMT) == S_IFREG,
+                  information.st_nlink == 1,
+                  UInt64(information.st_dev) == source.device,
+                  UInt64(information.st_ino) == source.inode,
+                  Darwin.unlinkat(directoryDescriptor, name, 0) == 0 else {
+                throw BackupExportServiceError.cleanupFailed
+            }
+        }
+        guard Darwin.fsync(directoryDescriptor) == 0 else {
+            throw BackupExportServiceError.cleanupFailed
+        }
+    }
+
+    func removeOwnedPublishedArchive(
+        _ url: URL,
+        within destinationDirectoryURL: URL
+    ) throws {
+        let value = url.standardizedFileURL
+        let parentURL = destinationDirectoryURL.standardizedFileURL
+        guard value.deletingLastPathComponent() == parentURL,
+              value.lastPathComponent == "AssetRounds.fieldrecordbackup",
+              try itemType(at: value) == .regular,
+              try StreamingArchiveService.hasFormatMagic(at: value) else {
+            throw BackupExportServiceError.cleanupFailed
+        }
+        let parent = Darwin.open(
+            parentURL.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard parent >= 0,
+              Darwin.unlinkat(parent, value.lastPathComponent, 0) == 0,
+              Darwin.fsync(parent) == 0 else {
+            if parent >= 0 { _ = Darwin.close(parent) }
+            throw BackupExportServiceError.cleanupFailed
+        }
+        _ = Darwin.close(parent)
+    }
+
+    func mapStreamingExportError(_ error: Error) -> BackupExportServiceError {
+        if let typed = error as? BackupExportServiceError { return typed }
+        if let storage = error as? StoragePreflightError {
+            if case .insufficientCapacity = storage { return .insufficientStorage }
+            return .writeFailed
+        }
+        guard let failure = error as? StreamingArchiveFailureV1 else {
+            return .writeFailed
+        }
+        switch failure {
+        case .cancelled:
+            return .cancelled
+        case .insufficientStorage:
+            return .insufficientStorage
+        case .sourceChanged, .contentMismatch:
+            return .sourceChanged
+        case .cleanupFailed:
+            return .cleanupFailed
+        case .destinationExists:
+            return .destinationExists
+        default:
+            return .writeFailed
+        }
+    }
+
+    func utf8Less(_ lhs: String, _ rhs: String) -> Bool {
+        lhs.utf8.lexicographicallyPrecedes(rhs.utf8)
     }
 
     func unique<T: Hashable>(_ values: [T]) -> Bool {

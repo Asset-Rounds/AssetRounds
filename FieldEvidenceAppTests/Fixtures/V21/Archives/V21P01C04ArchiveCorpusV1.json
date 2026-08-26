@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "authority": "V21-P01-C04",
+  "limits": {
+    "maximumIndexByteCount": 4194304,
+    "maximumEntryCount": 10000,
+    "maximumPathUTF8ByteCount": 512,
+    "maximumStoredEntryByteCount": 536870912,
+    "maximumUncompressedEntryByteCount": 536870912,
+    "maximumStoredAggregateByteCount": 4294967296,
+    "maximumUncompressedAggregateByteCount": 4294967296,
+    "maximumCompressionRatio": 100,
+    "bufferByteCount": 65536,
+    "stagingReserveByteCount": 67108864
+  },
+  "cases": [
+    {
+      "id": "V23-P01-C04-G01-deterministic-repeat",
+      "family": "G01",
+      "operation": "export",
+      "mutation": "repeat-with-fixed-clock-and-uuid",
+      "expected": "accept",
+      "assertions": ["byte-identical-archive", "canonical-entry-order", "unchanged-source"]
+    },
+    {
+      "id": "V23-P01-C04-G01-legacy-v4-dispatch",
+      "family": "G01",
+      "operation": "import",
+      "mutation": "explicit-v4-reader-dispatch",
+      "expected": "accept",
+      "assertions": ["valid-records", "valid-media", "valid-pdf", "unchanged-live-generation"]
+    },
+    {
+      "id": "V23-P01-C04-A01-maximum-fixture",
+      "family": "A01",
+      "operation": "roundTrip",
+      "mutation": "injected-small-fixture-at-tight-limits",
+      "expected": "accept",
+      "assertions": ["bounded-memory", "stream-buffer-bound", "index-boundary", "aggregate-boundary"]
+    },
+    {
+      "id": "V23-P01-C04-A01-limit-breaches",
+      "family": "A01",
+      "operation": "roundTrip",
+      "mutation": "one-over-each-declared-limit",
+      "expected": "reject",
+      "assertions": ["no-partial-destination", "no-staging-residue", "unchanged-source"]
+    },
+    {
+      "id": "V23-P01-C04-H01-path-absolute",
+      "family": "H01",
+      "operation": "validate",
+      "mutation": "absolute-path",
+      "expected": "reject",
+      "unsafeMaterialization": false
+    },
+    {
+      "id": "V23-P01-C04-H01-path-traversal",
+      "family": "H01",
+      "operation": "validate",
+      "mutation": "dot-and-dotdot-components",
+      "expected": "reject",
+      "unsafeMaterialization": false
+    },
+    {
+      "id": "V23-P01-C04-H01-path-separator-encoding",
+      "family": "H01",
+      "operation": "validate",
+      "mutation": "backslash-or-percent-encoded-separator",
+      "expected": "reject",
+      "unsafeMaterialization": false
+    },
+    {
+      "id": "V23-P01-C04-H01-path-length",
+      "family": "H01",
+      "operation": "validate",
+      "mutation": "path-or-component-over-limit",
+      "expected": "reject",
+      "unsafeMaterialization": false
+    },
+    {
+      "id": "V23-P01-C04-H01-link-symlink",
+      "family": "H01",
+      "operation": "validate",
+      "mutation": "member-symlink",
+      "expected": "reject",
+      "unsafeMaterialization": false
+    },
+    {
+      "id": "V23-P01-C04-H01-link-ancestor-reparse",
+      "family": "H01",
+      "operation": "validate",
+      "mutation": "ancestor-symlink-or-reparse",
+      "expected": "reject",
+      "unsafeMaterialization": false
+    },
+    {
+      "id": "V23-P01-C04-H01-link-hard",
+      "family": "H01",
+      "operation": "validate",
+      "mutation": "member-hard-link",
+      "expected": "reject",
+      "unsafeMaterialization": false
+    },
+    {
+      "id": "V23-P01-C04-H01-link-special",
+      "family": "H01",
+      "operation": "validate",
+      "mutation": "special-file",
+      "expected": "reject",
+      "unsafeMaterialization": false
+    },
+    {
+      "id": "V23-P01-C04-H01-bomb-ratio",
+      "family": "H01",
+      "operation": "validate",
+      "mutation": "compression-ratio-over-100-to-1",
+      "expected": "reject",
+      "unsafeMaterialization": false
+    },
+    {
+      "id": "V23-P01-C04-H01-bomb-size",
+      "family": "H01",
+      "operation": "validate",
+      "mutation": "declared-uncompressed-size-over-limit",
+      "expected": "reject",
+      "unsafeMaterialization": false
+    },
+    {
+      "id": "V23-P01-C04-H01-bomb-aggregate",
+      "family": "H01",
+      "operation": "validate",
+      "mutation": "declared-aggregate-over-limit",
+      "expected": "reject",
+      "unsafeMaterialization": false
+    },
+    {
+      "id": "V23-P01-C04-H01-tamper-bytes",
+      "family": "H01",
+      "operation": "validate",
+      "mutation": "content-bytes-or-content-hash-mismatch",
+      "expected": "reject",
+      "unsafeMaterialization": false
+    },
+    {
+      "id": "V23-P01-C04-H01-tamper-index",
+      "family": "H01",
+      "operation": "validate",
+      "mutation": "index-or-stored-hash-mismatch",
+      "expected": "reject",
+      "unsafeMaterialization": false
+    },
+    {
+      "id": "V23-P01-C04-H01-duplicate-exact",
+      "family": "H01",
+      "operation": "validate",
+      "mutation": "exact-duplicate-path",
+      "expected": "reject",
+      "unsafeMaterialization": false
+    },
+    {
+      "id": "V23-P01-C04-H01-duplicate-case",
+      "family": "H01",
+      "operation": "validate",
+      "mutation": "case-fold-collision",
+      "expected": "reject",
+      "unsafeMaterialization": false
+    },
+    {
+      "id": "V23-P01-C04-H01-duplicate-unicode",
+      "family": "H01",
+      "operation": "validate",
+      "mutation": "nfc-nfd-width-or-diacritic-collision",
+      "expected": "reject",
+      "unsafeMaterialization": false
+    },
+    {
+      "id": "V23-P01-C04-I01-cancel-before",
+      "family": "I01",
+      "operation": "roundTrip",
+      "mutation": "cancel-before-first-write",
+      "expected": "reject",
+      "assertions": ["no-partial-destination", "no-staging-residue"]
+    },
+    {
+      "id": "V23-P01-C04-I01-cancel-during",
+      "family": "I01",
+      "operation": "roundTrip",
+      "mutation": "cancel-during-stream",
+      "expected": "reject",
+      "assertions": ["cleanup", "source-access-stopped", "unchanged-source"]
+    },
+    {
+      "id": "V23-P01-C04-I01-permission",
+      "family": "I01",
+      "operation": "import",
+      "mutation": "security-scope-or-read-permission-denied",
+      "expected": "reject",
+      "assertions": ["no-staging-residue", "source-access-stopped"]
+    },
+    {
+      "id": "V23-P01-C04-I01-low-storage",
+      "family": "I01",
+      "operation": "roundTrip",
+      "mutation": "storage-preflight-or-midstream-failure",
+      "expected": "reject",
+      "assertions": ["no-partial-destination", "no-staging-residue", "unchanged-source"]
+    },
+    {
+      "id": "V23-P01-C04-I01-changing-source",
+      "family": "I01",
+      "operation": "export",
+      "mutation": "source-identity-size-or-content-changes-during-stream",
+      "expected": "reject",
+      "assertions": ["source-changed", "no-partial-destination", "unchanged-live-authority"]
+    },
+    {
+      "id": "V23-P01-C04-R01-writer-invalidation",
+      "family": "R01",
+      "operation": "export",
+      "mutation": "new-writer-invalidated",
+      "expected": "reject",
+      "assertions": ["legacy-reader-retained", "source-preserved", "staging-confined"]
+    },
+    {
+      "id": "V23-P01-C04-R01-retry",
+      "family": "R01",
+      "operation": "roundTrip",
+      "mutation": "retry-after-durable-boundary",
+      "expected": "accept",
+      "assertions": ["idempotent-result", "byte-identical-repeat", "no-orphan-staging"]
+    }
+  ]
+}

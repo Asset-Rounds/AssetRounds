@@ -1,0 +1,349 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "artifactDigest": "17e2e0d4202a8724bbf6deda6f359b28347adaef1ab7790d8eeb5b224e7067d8",
+  "authority": {
+    "acceptedS10_6BaselineDigest": null,
+    "activeS10OverlapCount": 0,
+    "authorizedPriorFenceOverlap": {
+      "cardID": "V23-P01-C02",
+      "disposition": "DIRECT_INVALIDATION_AND_REPROOF",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+      "pathFenceDigest": "516df34be4e6c68ff8a6d1737c8ced37e2eb1b5ebfd6110542a60b9579c36809"
+    },
+    "baseHead": "989d73460e4614e3bbea6c1dc20a9da0a1e5f660",
+    "baseTree": "8759c54dec2273b0e22a8caefb06cb0e0141657a",
+    "branch": "phase/v23-expansion",
+    "conformanceSubjectSet": "KernelConformanceSubjectSetV1",
+    "contextDigest": "b0a25f7dbfa1d1f6120f3fb7c5531b23189c26754c599cbf7e134d78755dbe29",
+    "coordinationAuthorityHead": "c7b9eaa18849af12b21ceddcaa14cd07596edc43",
+    "coordinationCASSequence": 66,
+    "coordinationLedgerDigest": "cf2376b9b9cc71f6fc15cbba80e8063dac9e8b3558ce95fbe074a567e0ffe045",
+    "coordinationLedgerSequence": 66,
+    "deterministicEvidenceIDs": [
+      "V23-P01-C04-G01",
+      "V23-P01-C04-A01",
+      "V23-P01-C04-H01",
+      "V23-P01-C04-I01",
+      "V23-P01-C04-R01"
+    ],
+    "directPrerequisite": {
+      "candidateHead": "989d73460e4614e3bbea6c1dc20a9da0a1e5f660",
+      "candidateTree": "8759c54dec2273b0e22a8caefb06cb0e0141657a",
+      "cardID": "V23-P01-C03",
+      "disposition": "CURRENT_CANDIDATE_COMPATIBLE_PROVISIONAL",
+      "migrationRecoveryContractDigest": "47b94e525443d748f01daf806dcfb4644533cb37cc98e0ce29f19e322333305e",
+      "persistentSchemaReleaseRegistryDigest": "e3223bf2f3b71095386ff5190d95d94aece9ead8ae9655ba8a0d6e843466733c",
+      "toolingManifestDigest": "3b921b3e300623df01d8dce1fbe219570afa6f48d50741834174fca877dda1d9"
+    },
+    "dossierDigest": "ec8ddc55bc2aec1cdeb41722004482ca345bd12b009032f3dadf29d297e56c5f",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationTransitionDigest": "0240584c291d45fbd15b750ca9070f02aed10b5f132f8c963498e081f2f3f0fe",
+    "inheritedV21BlockDigest": "3ff603dbc402208da26a1adb455028e82afb69de5e1d05874e6a8a58a8749414",
+    "invalidationConsumer": "V23-P01-C05",
+    "lineage": "REFINED_WITHOUT_LOSS",
+    "pathFenceDigest": "5ca647e7d47e14b1f758d06092df208626bbd8c4eac6dec3a83de0521800b51f",
+    "provisionalPrerequisiteDigest": "96436edd25b1792b918b4869b28e4cd6786dc2d6628285f56efea694e5d7d7b6",
+    "registerRowDigest": "f7c40a2bf9ea670923489e8f0aec0d1dfae1cf9a9bcad2bf20d2ce4f5bad5556",
+    "reservationOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452"
+  },
+  "cardID": "V23-P01-C04",
+  "determinism": {
+    "entryOrder": "NORMALIZED_UTF8_BYTEWISE_ASCENDING",
+    "metadata": "CANONICAL_FIXED_FIELDS_ONLY",
+    "preReadValidation": [
+      "COUNT",
+      "PATH",
+      "ENTRY",
+      "COMPRESSED_AGGREGATE",
+      "UNCOMPRESSED_AGGREGATE",
+      "STORAGE_RESERVE"
+    ],
+    "repeatExportByteIdentical": true,
+    "sourceReproof": [
+      "IDENTITY",
+      "SIZE",
+      "DIGEST"
+    ]
+  },
+  "fullCardFence": [
+    "FieldEvidenceApp/Domain/Backup/StreamingArchiveContracts.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/StreamingArchiveService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+    "FieldEvidenceAppTests/V9_04StreamingArchiveTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Archives/V21P01C04ArchiveCorpusV1.json",
+    "Scripts/v23/p01_c04_contracts.py",
+    "Scripts/v23/generate_p01_c04_contracts.py",
+    "Scripts/v23/verify_p01_c04_contracts.py",
+    "Scripts/v23/streaming-archive.schema.json",
+    "Scripts/v23/archive-corpus.schema.json",
+    "docs/design/v23/tooling/V23P01C04StreamingArchiveContractV1.json",
+    "docs/design/v23/tooling/V23P01C04ArchiveCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P01-C04-tooling-manifest.json"
+  ],
+  "hostedDispatchRan": false,
+  "hostileCases": [
+    {
+      "condition": "absolute member path",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "ABSOLUTE_PATH"
+    },
+    {
+      "condition": "dot-dot traversal after normalization",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "TRAVERSAL_PATH"
+    },
+    {
+      "condition": "Windows separator, drive, or UNC path",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "BACKSLASH_OR_DRIVE_PATH"
+    },
+    {
+      "condition": "symbolic, hard-link, device, socket, or reparse member",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "LINK_OR_REPARSE"
+    },
+    {
+      "condition": "exact duplicate normalized member",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "DUPLICATE_PATH"
+    },
+    {
+      "condition": "case-folded normalized collision",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "CASE_COLLISION"
+    },
+    {
+      "condition": "NFC-normalized member collision",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "UNICODE_COLLISION"
+    },
+    {
+      "condition": "executable or unsupported active member",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "ACTIVE_CONTENT"
+    },
+    {
+      "condition": "declared or observed entry count exceeds limit",
+      "expectedOutcome": "REJECT_AND_CLEAN_OWNED_STAGING",
+      "id": "ENTRY_COUNT_LIMIT"
+    },
+    {
+      "condition": "normalized UTF-8 path exceeds limit",
+      "expectedOutcome": "REJECT_AND_CLEAN_OWNED_STAGING",
+      "id": "PATH_BYTE_LIMIT"
+    },
+    {
+      "condition": "single entry exceeds uncompressed limit",
+      "expectedOutcome": "REJECT_AND_CLEAN_OWNED_STAGING",
+      "id": "ENTRY_SIZE_LIMIT"
+    },
+    {
+      "condition": "compressed aggregate exceeds limit",
+      "expectedOutcome": "REJECT_AND_CLEAN_OWNED_STAGING",
+      "id": "COMPRESSED_AGGREGATE_LIMIT"
+    },
+    {
+      "condition": "uncompressed aggregate exceeds limit",
+      "expectedOutcome": "REJECT_AND_CLEAN_OWNED_STAGING",
+      "id": "UNCOMPRESSED_AGGREGATE_LIMIT"
+    },
+    {
+      "condition": "ratio or expanded-byte bound exceeds limit",
+      "expectedOutcome": "REJECT_DURING_STREAM_AND_CLEAN_OWNED_STAGING",
+      "id": "COMPRESSION_BOMB"
+    },
+    {
+      "condition": "member or manifest digest mismatch",
+      "expectedOutcome": "REJECT_BEFORE_CANONICAL_MUTATION",
+      "id": "TAMPERED_DIGEST"
+    },
+    {
+      "condition": "source identity, size, or digest changes while exporting",
+      "expectedOutcome": "ABORT_NO_SUCCESS_RECEIPT",
+      "id": "CHANGING_SOURCE"
+    },
+    {
+      "condition": "cancellation before or during streaming",
+      "expectedOutcome": "ABORT_AND_CLEAN_OWNED_STAGING",
+      "id": "CANCELLATION"
+    },
+    {
+      "condition": "reserve cannot be maintained",
+      "expectedOutcome": "FAIL_VISIBLE_AND_CLEAN_OWNED_STAGING",
+      "id": "LOW_STORAGE"
+    },
+    {
+      "condition": "source or destination access denied",
+      "expectedOutcome": "FAIL_VISIBLE_NO_UNOWNED_CLEANUP",
+      "id": "PERMISSION_DENIAL"
+    },
+    {
+      "condition": "archive version has no explicit reader",
+      "expectedOutcome": "REJECT_WITHOUT_LEGACY_FALLTHROUGH",
+      "id": "UNKNOWN_VERSION"
+    }
+  ],
+  "lifecycle": {
+    "backupCompatibilityRequired": true,
+    "cloneForkRequired": false,
+    "deleteErase": "OWNED_STAGING_CLEANUP_ONLY",
+    "downgradePolicy": "CONTENT_ROLLBACK_ONLY",
+    "importExportRequired": true,
+    "interruption": "CANCEL_AND_CLEAN_OWNED_STAGING",
+    "journalReplay": "OWNED_STAGING_ONLY_NO_CANONICAL_RECEIPT",
+    "migrationRequired": false,
+    "mode": "CONTENT_ONLY",
+    "recovery": "INVALIDATE_STREAMING_WRITER_RETAIN_VERIFIED_V4_READER_EXPORT",
+    "replaceRestoreRequired": true,
+    "retention": "CALLER_OWNED_EXPORTED_FILE",
+    "schemaDelta": false,
+    "searchRebuild": "NOT_APPLICABLE_ARCHIVE_CONTAINER",
+    "supersession": "APPEND_SUCCESSOR_NEVER_REWRITE_ACCEPTED_ARTIFACT"
+  },
+  "limits": {
+    "bufferByteCount": 65536,
+    "maximumCompressionRatio": 100,
+    "maximumEntryCount": 10000,
+    "maximumIndexByteCount": 4194304,
+    "maximumPathUTF8ByteCount": 512,
+    "maximumStoredAggregateByteCount": 4294967296,
+    "maximumStoredEntryByteCount": 536870912,
+    "maximumUncompressedAggregateByteCount": 4294967296,
+    "maximumUncompressedEntryByteCount": 536870912,
+    "stagingReserveByteCount": 67108864
+  },
+  "nativeCompileRan": false,
+  "pathPolicy": {
+    "caseCollisionKey": "UNICODE_CASE_FOLD_OF_NFC",
+    "normalization": "RELATIVE_NFC_FORWARD_SLASH",
+    "ownedStagingRequired": true,
+    "reject": [
+      "ABSOLUTE",
+      "TRAVERSAL",
+      "BACKSLASH",
+      "DRIVE_OR_UNC",
+      "SYMLINK",
+      "HARD_LINK",
+      "REPARSE",
+      "DEVICE",
+      "SOCKET",
+      "DUPLICATE",
+      "CASE_COLLISION",
+      "UNICODE_COLLISION",
+      "ACTIVE_CONTENT"
+    ]
+  },
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P01C04StreamingArchiveContractV1",
+  "schemaVersion": 1,
+  "sourceBindings": [
+    {
+      "bytes": 6007,
+      "path": "FieldEvidenceApp/Domain/Backup/StreamingArchiveContracts.swift",
+      "requiredSymbols": [
+        "StreamingArchiveLimitsV1",
+        "static let card17",
+        "StreamingArchiveFormatV1",
+        "StreamingArchiveFailureV1"
+      ],
+      "role": "FENCED_PRODUCT_OR_TEST_SOURCE",
+      "sha256": "0c42374ae11c70f63ecb2e4874a863168a8c9acb24d40e2f5142b1825cbb4cb0",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 55766,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/StreamingArchiveService.swift",
+      "requiredSymbols": [
+        "struct StreamingArchiveService",
+        "func write(",
+        "func extract(",
+        "validateWritePlan",
+        "validateIndex"
+      ],
+      "role": "FENCED_PRODUCT_OR_TEST_SOURCE",
+      "sha256": "33c1123ce0f86646f538f33927cba4132a543500e5c57a6ab46de2b56dc0c42b",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 77365,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+      "requiredSymbols": [
+        "BackupExportService",
+        "prepareStreaming",
+        "exportStreaming",
+        "StreamingArchiveWritePlanV1"
+      ],
+      "role": "FENCED_PRODUCT_OR_TEST_SOURCE",
+      "sha256": "9768e4d6cdf403709bb1f35785fc643b8814463911342225c0599a989c19ffbd",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 50053,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+      "requiredSymbols": [
+        "BackupImportService",
+        "stageAndValidate(",
+        "stageAndValidateStreamingArchive",
+        "StreamingArchiveService.hasFormatMagic",
+        "archiveService.extract"
+      ],
+      "role": "FENCED_PRODUCT_OR_TEST_SOURCE",
+      "sha256": "6889d1b27cd96a19c29e1b69f8cf4c420450a9e373b95eb006199290027c123a",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 70847,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+      "requiredSymbols": [
+        "BackupPackageValidatorV1",
+        "ValidatedV4BackupPackageV1",
+        "ValidatedV4BackupMembersV1",
+        "maximumIndexByteCount",
+        "maximumUncompressedEntryByteCount"
+      ],
+      "role": "FENCED_PRODUCT_OR_TEST_SOURCE",
+      "sha256": "795c0d2f1139c9517b9e90dfdf6c90355ab1cf22abae410afd4d54f5bc48d163",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 19069,
+      "path": "FieldEvidenceAppTests/V9_04StreamingArchiveTests.swift",
+      "requiredSymbols": [
+        "V9_04StreamingArchiveTests",
+        "test"
+      ],
+      "role": "FENCED_PRODUCT_OR_TEST_SOURCE",
+      "sha256": "f253cff496999aabf46f5ffbf4ace82b7f4e34b912e4c6ce507a406bb95232be",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 7204,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Archives/V21P01C04ArchiveCorpusV1.json",
+      "requiredSymbols": [
+        "\"schemaVersion\"",
+        "\"authority\"",
+        "\"limits\"",
+        "\"cases\""
+      ],
+      "role": "FENCED_PRODUCT_OR_TEST_SOURCE",
+      "sha256": "bdc3f92d595bdb21ed465660c9f2e45196dc5271302dcb2e604f57513defec84",
+      "status": "BOUND"
+    }
+  ],
+  "versionDispatch": {
+    "legacyV4ReaderRetained": true,
+    "portablePackageVersion": 4,
+    "streamingFormat": "ASRBA1",
+    "streamingFormatVersion": 1,
+    "unknownVersionDisposition": "FAIL_CLOSED",
+    "wholeArchiveMemoryLoading": false
+  }
+}

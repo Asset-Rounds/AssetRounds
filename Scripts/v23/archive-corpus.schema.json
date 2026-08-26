@@ -1,0 +1,134 @@
+{
+  "$id": "urn:assetrounds:v23:p01:c04:archive-corpus-manifest:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P01-C04"
+    },
+    "cases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "class": {
+            "enum": [
+              "GOLDEN",
+              "ALTERNATE",
+              "HOSTILE",
+              "INTERRUPTION",
+              "RECOVERY"
+            ]
+          },
+          "evidenceID": {
+            "pattern": "^V23-P01-C04-[GAHIR]01$"
+          },
+          "expectedOutcome": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "class",
+          "expectedOutcome",
+          "evidenceID"
+        ],
+        "type": "object"
+      },
+      "minItems": 24,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "coverage": {
+      "type": "object"
+    },
+    "fixtureBinding": {
+      "required": [
+        "path",
+        "sha256",
+        "bytes"
+      ],
+      "type": "object"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "limits": {
+      "const": {
+        "bufferByteCount": 65536,
+        "maximumCompressionRatio": 100,
+        "maximumEntryCount": 10000,
+        "maximumIndexByteCount": 4194304,
+        "maximumPathUTF8ByteCount": 512,
+        "maximumStoredAggregateByteCount": 4294967296,
+        "maximumStoredEntryByteCount": 536870912,
+        "maximumUncompressedAggregateByteCount": 4294967296,
+        "maximumUncompressedEntryByteCount": 536870912,
+        "stagingReserveByteCount": 67108864
+      }
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "schema": {
+      "const": "V23P01C04ArchiveCorpusManifestV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "fixtureBinding",
+    "limits",
+    "cases",
+    "coverage",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "requiresAcceptedS10_6Reconciliation",
+    "phase10PollingDuringParallelExecution",
+    "artifactDigest"
+  ],
+  "title": "V23P01C04ArchiveCorpusManifestV1",
+  "type": "object"
+}

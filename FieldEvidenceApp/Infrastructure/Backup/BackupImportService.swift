@@ -36,6 +36,8 @@ final class BackupImportService {
     private let stagingDirectoryURL: URL
     private let storagePreflight: StoragePreflightService
     private let validator: BackupPackageValidatorV1
+    private let archiveLimits: StreamingArchiveLimitsV1
+    private let archiveService: StreamingArchiveService
     private let fileManager: FileManager
     private let makeUUID: () -> UUID
     private let scopedAccess: BackupSecurityScopedAccessV1
@@ -44,6 +46,7 @@ final class BackupImportService {
         generationRootURL: URL,
         storagePreflight: StoragePreflightService = StoragePreflightService(),
         validator: BackupPackageValidatorV1 = BackupPackageValidatorV1(),
+        archiveLimits: StreamingArchiveLimitsV1 = .card17,
         fileManager: FileManager = .default,
         makeUUID: @escaping () -> UUID = UUID.init,
         scopedAccess: BackupSecurityScopedAccessV1 = .live
@@ -59,13 +62,19 @@ final class BackupImportService {
         self.generationRootURL = root
         self.storagePreflight = storagePreflight
         self.validator = validator
+        self.archiveLimits = archiveLimits
+        self.archiveService = StreamingArchiveService(
+            limits: archiveLimits,
+            makeOperationID: makeUUID
+        )
         self.fileManager = fileManager
         self.makeUUID = makeUUID
         self.scopedAccess = scopedAccess
     }
 
     func stageAndValidate(
-        selectedPackageURL: URL
+        selectedPackageURL: URL,
+        cancellation: StreamingArchiveCancellationV1 = .none
     ) throws -> ValidatedV4BackupPackageV1 {
         guard selectedPackageURL.isFileURL else {
             throw BackupImportServiceError.invalidSource
@@ -74,7 +83,12 @@ final class BackupImportService {
         guard selected.pathExtension == "fieldrecordbackup",
               selected.lastPathComponent
                 == selected.lastPathComponent.precomposedStringWithCanonicalMapping,
-              scopedAccess.start(selected) else {
+              let selectedInformation = try itemInformation(at: selected),
+              isDirectory(selectedInformation)
+                || isRegularFile(selectedInformation) else {
+            throw BackupImportServiceError.invalidSource
+        }
+        guard scopedAccess.start(selected) else {
             throw BackupImportServiceError.securityScopeDenied
         }
         defer { scopedAccess.stop(selected) }
@@ -88,7 +102,8 @@ final class BackupImportService {
         ) { coordinatedURL in
             coordinatedResult = Result {
                 try stageAndValidateCoordinatedSource(
-                    coordinatedURL.standardizedFileURL
+                    coordinatedURL.standardizedFileURL,
+                    cancellation: cancellation
                 )
             }
         }
@@ -319,6 +334,34 @@ private extension BackupImportService {
     }
 
     func stageAndValidateCoordinatedSource(
+        _ sourceURL: URL,
+        cancellation: StreamingArchiveCancellationV1
+    ) throws -> ValidatedV4BackupPackageV1 {
+        guard let information = try itemInformation(at: sourceURL) else {
+            throw BackupImportServiceError.invalidSource
+        }
+        if isDirectory(information) {
+            return try stageAndValidateLegacyDirectory(sourceURL)
+        }
+        guard isRegularFile(information) else {
+            throw BackupImportServiceError.invalidSource
+        }
+        do {
+            guard try StreamingArchiveService.hasFormatMagic(at: sourceURL) else {
+                throw BackupImportServiceError.invalidSource
+            }
+        } catch let error as BackupImportServiceError {
+            throw error
+        } catch {
+            throw BackupImportServiceError.invalidSource
+        }
+        return try stageAndValidateStreamingArchive(
+            sourceURL,
+            cancellation: cancellation
+        )
+    }
+
+    func stageAndValidateLegacyDirectory(
         _ sourceURL: URL
     ) throws -> ValidatedV4BackupPackageV1 {
         try requireCurrentGeneration()
@@ -468,6 +511,154 @@ private extension BackupImportService {
         }
     }
 
+    func stageAndValidateStreamingArchive(
+        _ sourceURL: URL,
+        cancellation: StreamingArchiveCancellationV1
+    ) throws -> ValidatedV4BackupPackageV1 {
+        try requireCurrentGeneration()
+        let applicationSupportURL = stagingDirectoryURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        try prepareStagingDirectory()
+        let importAuthority = try PinnedImportAuthority.open(
+            stagingURL: stagingDirectoryURL
+        )
+        let verifyImportAuthority = {
+            try self.requireCurrentGeneration()
+            try importAuthority.verify()
+        }
+        try verifyImportAuthority()
+
+        let operationID = makeUUID()
+        let destinationURL = stagingDirectoryURL.appendingPathComponent(
+            "\(operationID.uuidString.lowercased()).fieldrecordbackup",
+            isDirectory: true
+        )
+        let temporaryURL = stagingDirectoryURL.appendingPathComponent(
+            "\(operationID.uuidString.lowercased())-tmp.fieldrecordbackup",
+            isDirectory: true
+        )
+        guard try itemInformation(at: destinationURL) == nil,
+              try itemInformation(at: temporaryURL) == nil else {
+            throw BackupImportServiceError.invalidSource
+        }
+
+        do {
+            try cancellation.checkpoint()
+            try verifyImportAuthority()
+            let extraction = try archiveService.extract(
+                sourceURL,
+                to: temporaryURL,
+                cancellation: cancellation,
+                storageCheck: { requiredBytes in
+                    let payloadBytes = requiredBytes
+                        - self.archiveLimits.stagingReserveByteCount
+                    guard payloadBytes >= 0 else {
+                        throw StreamingArchiveFailureV1.uncompressedLimitExceeded
+                    }
+                    try self.storagePreflight.checkBackupImport(
+                        declaredPayloadByteCount: payloadBytes,
+                        onVolumeContaining: applicationSupportURL
+                    )
+                }
+            )
+            guard extraction.extractedDirectoryURL.standardizedFileURL
+                    == temporaryURL else {
+                throw BackupImportServiceError.invalidSource
+            }
+            try verifyImportAuthority()
+            try protectStagedPackage(
+                at: temporaryURL,
+                authorityCheck: verifyImportAuthority
+            )
+            let temporaryValue = try validator.validate(
+                stagedPackageURL: temporaryURL,
+                cancellation: cancellation
+            )
+            let indexByPath = Dictionary(
+                uniqueKeysWithValues: extraction.index.entries.map { ($0.path, $0) }
+            )
+            guard temporaryValue.members.keys == Set(indexByPath.keys),
+                  temporaryValue.members.keys.allSatisfy({ path in
+                      guard let descriptor = temporaryValue.members.descriptors[path],
+                            let archived = indexByPath[path] else { return false }
+                      return descriptor.byteCount == archived.uncompressedByteCount
+                        && descriptor.sha256 == archived.contentSHA256
+                  }) else {
+                throw BackupImportServiceError.invalidSource
+            }
+
+            guard let temporaryInformation = try itemInformation(at: temporaryURL),
+                  isDirectory(temporaryInformation) else {
+                throw BackupImportServiceError.invalidSource
+            }
+            let temporaryIdentity = FileIdentity(temporaryInformation)
+            try cancellation.checkpoint()
+            try verifyImportAuthority()
+            guard try itemInformation(at: temporaryURL)
+                    .map(FileIdentity.init) == temporaryIdentity else {
+                throw BackupImportServiceError.invalidSource
+            }
+            try fileManager.moveItem(at: temporaryURL, to: destinationURL)
+            try verifyImportAuthority()
+            guard try itemInformation(at: destinationURL)
+                    .map(FileIdentity.init) == temporaryIdentity else {
+                throw BackupImportServiceError.copyFailed
+            }
+            try protectStagedPackage(
+                at: destinationURL,
+                authorityCheck: verifyImportAuthority
+            )
+            let value = try validator.validate(
+                stagedPackageURL: destinationURL,
+                cancellation: cancellation
+            )
+            guard value.manifest == temporaryValue.manifest,
+                  value.records == temporaryValue.records,
+                  value.members.keys == temporaryValue.members.keys else {
+                throw BackupImportServiceError.invalidSource
+            }
+            try verifyImportAuthority()
+            guard try itemInformation(at: destinationURL)
+                    .map(FileIdentity.init) == temporaryIdentity else {
+                throw BackupImportServiceError.copyFailed
+            }
+            return value
+        } catch {
+            let originalError = error
+            do {
+                try verifyImportAuthority()
+                if try itemInformation(at: temporaryURL) != nil {
+                    try cleanupOwnedPackage(
+                        at: temporaryURL,
+                        verifyProtection: false,
+                        authorityCheck: verifyImportAuthority
+                    )
+                }
+                try verifyImportAuthority()
+                if try itemInformation(at: destinationURL) != nil {
+                    try cleanupOwnedPackage(
+                        at: destinationURL,
+                        verifyProtection: false,
+                        authorityCheck: verifyImportAuthority
+                    )
+                }
+            } catch {
+                if isProtectedDataUnavailable(originalError) {
+                    throw originalError
+                }
+                if isProtectedDataUnavailable(error) {
+                    throw error
+                }
+                throw BackupImportServiceError.cleanupFailed
+            }
+            if isProtectedDataUnavailable(originalError) {
+                throw originalError
+            }
+            throw originalError
+        }
+    }
+
     private func validateSourceBoundary(_ sourceURL: URL) throws -> SourceBoundary {
         let root = sourceURL.standardizedFileURL
         guard root.pathExtension == "fieldrecordbackup",
@@ -481,7 +672,9 @@ private extension BackupImportService {
             manifestData = try BackupPackageAnchoredFile.readRegularFile(
                 "manifest.json",
                 within: root,
-                rootIdentity: rootIdentity
+                rootIdentity: rootIdentity,
+                expectedByteCount: nil,
+                maximumByteCount: Int64(archiveLimits.maximumIndexByteCount)
             )
         } catch {
             throw BackupImportServiceError.invalidSource
@@ -489,6 +682,7 @@ private extension BackupImportService {
         let manifest: V4BackupManifestV1
         do { manifest = try BackupCanonicalDecoderV1().decodeManifest(manifestData) }
         catch { throw BackupImportServiceError.invalidSource }
+        try validateLegacyManifestBounds(manifest)
 
         let expectedFiles = Set(["manifest.json"] + manifest.entries.map(\.path))
         let expectedDirectories = Set(manifest.entries.compactMap { entry in
@@ -510,9 +704,22 @@ private extension BackupImportService {
         root: URL,
         manifest: V4BackupManifestV1
     ) throws -> (Set<String>, Set<String>) {
-        let sizes = Dictionary(uniqueKeysWithValues: manifest.entries.map {
-            ($0.path, Int64($0.byteCount))
-        })
+        var sizes = [String: Int64]()
+        for entry in manifest.entries {
+            guard sizes.updateValue(
+                Int64(entry.byteCount),
+                forKey: entry.path
+            ) == nil else {
+                throw BackupImportServiceError.invalidSource
+            }
+        }
+        let expectedDirectoryCount = Set(manifest.entries.compactMap { entry in
+            entry.path == "records.json"
+                ? nil
+                : entry.path.split(separator: "/").first.map(String.init)
+        }).count
+        let maximumEnumeratedItemCount = manifest.entries.count
+            + expectedDirectoryCount + 1
         var enumerationError: Error?
         guard let enumerator = fileManager.enumerator(
             at: root,
@@ -528,11 +735,15 @@ private extension BackupImportService {
         var files = Set<String>()
         var directories = Set<String>()
         var identities = Set<FileIdentity>()
+        var enumeratedItemCount = 0
         for case let url as URL in enumerator {
             let path = try relativePath(of: url, within: root)
-            guard let information = try itemInformation(at: url) else {
+            guard path.utf8.count <= archiveLimits.maximumPathUTF8ByteCount,
+                  enumeratedItemCount < maximumEnumeratedItemCount,
+                  let information = try itemInformation(at: url) else {
                 throw BackupImportServiceError.invalidSource
             }
+            enumeratedItemCount += 1
             switch information.st_mode & S_IFMT {
             case S_IFDIR:
                 guard path.split(separator: "/", omittingEmptySubsequences: false).count == 1,
@@ -559,6 +770,70 @@ private extension BackupImportService {
             throw enumerationError
         }
         return (files, directories)
+    }
+
+    func validateLegacyManifestBounds(_ manifest: V4BackupManifestV1) throws {
+        guard manifest.backupSchemaVersion == 1,
+              manifest.entries.count <= archiveLimits.maximumEntryCount,
+              manifest.declaredPayloadByteCount >= 0 else {
+            throw BackupImportServiceError.invalidSource
+        }
+        var aggregate: Int64 = 0
+        var foldedPaths = Set<String>()
+        for entry in manifest.entries {
+            guard validManifestRelativePath(entry.path),
+                  entry.path.utf8.count <= archiveLimits.maximumPathUTF8ByteCount,
+                  entry.byteCount >= 0,
+                  Int64(entry.byteCount)
+                    <= archiveLimits.maximumUncompressedEntryByteCount,
+                  lowercaseHash(entry.sha256),
+                  foldedPaths.insert(fold(entry.path)).inserted else {
+                throw BackupImportServiceError.invalidSource
+            }
+            let (next, overflow) = aggregate.addingReportingOverflow(
+                Int64(entry.byteCount)
+            )
+            guard !overflow,
+                  next <= archiveLimits.maximumUncompressedAggregateByteCount else {
+                throw BackupImportServiceError.invalidSource
+            }
+            aggregate = next
+        }
+        guard aggregate == Int64(manifest.declaredPayloadByteCount) else {
+            throw BackupImportServiceError.invalidSource
+        }
+    }
+
+    func validManifestRelativePath(_ value: String) -> Bool {
+        guard value == value.precomposedStringWithCanonicalMapping,
+              !value.hasPrefix("/"),
+              !value.contains("\\"),
+              value.removingPercentEncoding == value else {
+            return false
+        }
+        let components = value.split(
+            separator: "/",
+            omittingEmptySubsequences: false
+        )
+        return !components.isEmpty && components.allSatisfy { component in
+            !component.isEmpty && component != "." && component != ".."
+                && !component.unicodeScalars.contains(where: {
+                    $0.value < 0x20 || $0.value == 0x7f
+                })
+        }
+    }
+
+    func fold(_ value: String) -> String {
+        value.folding(
+            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+            locale: Locale(identifier: "en_US_POSIX")
+        )
+    }
+
+    func lowercaseHash(_ value: String) -> Bool {
+        value.utf8.count == 64 && value.utf8.allSatisfy {
+            (0x30...0x39).contains($0) || (0x61...0x66).contains($0)
+        }
     }
 
     func prepareStagingDirectory() throws {
@@ -1000,6 +1275,11 @@ private extension BackupImportService {
 
     func isDirectory(_ information: stat) -> Bool {
         (information.st_mode & S_IFMT) == S_IFDIR
+    }
+
+    func isRegularFile(_ information: stat) -> Bool {
+        (information.st_mode & S_IFMT) == S_IFREG
+            && information.st_nlink == 1
     }
 }
 
