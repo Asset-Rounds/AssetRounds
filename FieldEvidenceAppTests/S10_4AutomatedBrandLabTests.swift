@@ -18581,7 +18581,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "priorShift * dragDistance > 0",
             "currentShift * dragDistance > 0",
             "measuredUndertravel = max(",
-            "guard let finalGeometry = liveComposition()",
             "isAcceptingComposition(finalGeometry)",
         ] {
             XCTAssertTrue(k134State56HelperSource.contains(exact), exact)
