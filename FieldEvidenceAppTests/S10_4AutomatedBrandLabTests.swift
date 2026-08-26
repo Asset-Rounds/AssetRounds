@@ -4722,14 +4722,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 separatedBy:
                     "shouldDiagnoseAXTextWorkValidationNativeContrastEvidence(in: app)"
             ).count - 1,
-            2
+            1
         )
         XCTAssertEqual(
             uiSource.components(
                 separatedBy:
                     "diagnoseAXTextWorkValidationNativeContrastEvidence(in: app)"
             ).count - 1,
-            2
+            1
         )
         for exactDiagnosticGate in [
             "guard automationSegment == .segment2,",
