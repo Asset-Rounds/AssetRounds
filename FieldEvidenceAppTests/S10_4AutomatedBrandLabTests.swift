@@ -15150,21 +15150,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"owner: "palatis3""#).count - 1,
-            17
+            18
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionOwner: "palatis3""#)
                 .count - 1,
-            17
+            18
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"expiresAt: "2026-11-20""#).count - 1,
-            17
+            18
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionExpiresAt: "2026-11-20""#)
                 .count - 1,
-            17
+            18
         )
 
         let signatureLocks = [
