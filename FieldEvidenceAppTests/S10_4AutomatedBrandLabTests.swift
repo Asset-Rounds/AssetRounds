@@ -3815,8 +3815,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let workValidationQueryLocks = [
             "        let notePredicate = NSPredicate(\n" +
-                #"            format: "identifier == '' AND label == %@",\n"# +
-                #"            "Note"\n"# +
+                "            format: \"identifier == '' AND label == %@\",\n" +
+                "            \"Note\"\n" +
                 "        )",
             "        let noteStaticTexts = app.staticTexts.matching(notePredicate)",
             "        let noteStaticText = noteStaticTexts.firstMatch",
@@ -14798,7 +14798,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             11
         )
         for lock in exceptionIDs {
-            XCTAssertEqual(uiSource.components(separatedBy: lock).count - 1, 1, lock)
+            let uiCount = lock
+                == "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION"
+                ? 2
+                : 1
+            XCTAssertEqual(
+                uiSource.components(separatedBy: lock).count - 1,
+                uiCount,
+                lock
+            )
             let workflowCount = lock.contains("REPORT-CORRECTION-HEADER") ? 4 : 2
             XCTAssertEqual(
                 workflowSource.components(separatedBy: lock).count - 1,
