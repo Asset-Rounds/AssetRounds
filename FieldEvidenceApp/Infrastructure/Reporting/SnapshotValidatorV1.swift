@@ -92,7 +92,7 @@ struct SnapshotValidatorV1 {
         let reportID = canonicalID(report.id)
         let expectedSnapshotPath = "snapshots/\(reportID).json"
         guard report.schemaVersion == 1,
-              report.snapshotSchemaVersion == 1,
+              report.snapshotSchemaVersion == 1 || report.snapshotSchemaVersion == 2,
               report.snapshotRelativePath == expectedSnapshotPath,
               isLowercaseSHA256(report.snapshotSHA256),
               report.pdfState == ReportPDFState.pending.rawValue,
@@ -114,7 +114,7 @@ struct SnapshotValidatorV1 {
         }
         let snapshot = try ReportSnapshotEncoderV1().decode(snapshotData)
         guard try ReportSnapshotEncoderV1().encode(snapshot).data == snapshotData,
-              snapshot.snapshotSchemaVersion == 1,
+              snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion,
               snapshot.reportID == report.id,
               snapshot.packetID == report.packetID,
               snapshot.sourceRecordID == report.sourceRecordID,
@@ -244,7 +244,11 @@ struct SnapshotValidatorV1 {
         var orderedRows = currentRows
         var seenEvidenceIDs = Set(currentRows.map(\.id))
         for (history, record) in zip(snapshot.history, expectedHistoryRecords) {
-            try validateHistory(history, against: record)
+            try validateHistory(
+                history,
+                against: record,
+                snapshotSchemaVersion: snapshot.snapshotSchemaVersion
+            )
             let rows = allEvidenceRows
                 .filter { $0.recordID == record.id }
                 .sorted(by: evidenceOrder)
@@ -343,8 +347,24 @@ struct SnapshotValidatorV1 {
         source: WorkflowRecord
     ) throws {
         let expectedCNV = frozenCNV(source)
+        let companion = try ObservationAndTimeRowStoreV1.requireRow(
+            recordID: source.id, in: modelContext
+        )
+        let expectedBasis = try companion.observationBasisV1()
+        let expectedTemporal = try companion.temporalContextV1()
+        let observationAndTimeMatches: Bool
+        if snapshot.snapshotSchemaVersion == 1 {
+            // Released v1 snapshots intentionally remain byte-identical after
+            // a store migration enriches their source rows.
+            observationAndTimeMatches = snapshot.observationBasis == nil
+                && snapshot.temporalContext == nil
+        } else {
+            observationAndTimeMatches = snapshot.observationBasis == expectedBasis
+                && snapshot.temporalContext == expectedTemporal
+        }
         guard signPack.acknowledgements.count == 2,
               snapshot.couldNotVerify == expectedCNV,
+              observationAndTimeMatches,
               canonicalOptionalDateEqual(
                 snapshot.timeContext.observedAtUTC,
                 source.observedAtUTC
@@ -395,6 +415,7 @@ struct SnapshotValidatorV1 {
               validOptionalTrimmed(record.note, maximum: 1_000) else {
             return false
         }
+        guard validObservationAndTime(record) else { return false }
 
         switch record.revisionKind {
         case WorkflowRevisionKind.original.rawValue:
@@ -674,7 +695,8 @@ struct SnapshotValidatorV1 {
 
     private func validateHistory(
         _ value: HistoryEntrySnapshotV1,
-        against record: WorkflowRecord
+        against record: WorkflowRecord,
+        snapshotSchemaVersion: Int
     ) throws {
         guard let completedAt = record.completedAt,
               canonicalDateEqual(value.completedAt, completedAt),
@@ -695,8 +717,38 @@ struct SnapshotValidatorV1 {
             throw SnapshotValidationErrorV1.invalidAuthority
         }
         let expectedCNV = frozenCNV(record)
-        guard value.couldNotVerify == expectedCNV else {
+        let companion = try ObservationAndTimeRowStoreV1.requireRow(
+            recordID: record.id, in: modelContext
+        )
+        let expectedBasis = try companion.observationBasisV1()
+        let expectedTemporal = try companion.temporalContextV1()
+        let observationAndTimeMatches: Bool
+        if snapshotSchemaVersion == 1 {
+            observationAndTimeMatches = value.observationBasis == nil
+                && value.temporalContext == nil
+        } else {
+            observationAndTimeMatches = value.observationBasis == expectedBasis
+                && value.temporalContext == expectedTemporal
+        }
+        guard value.couldNotVerify == expectedCNV,
+              observationAndTimeMatches else {
             throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    private func validObservationAndTime(_ record: WorkflowRecord) -> Bool {
+        do {
+            let companion = try ObservationAndTimeRowStoreV1.requireRow(
+                recordID: record.id, in: modelContext
+            )
+            let basis = try companion.observationBasisV1()
+            let temporal = try companion.temporalContextV1()
+            let basisData = try ObservationAndTimeCodecV1.encode(basis)
+            let temporalData = try ObservationAndTimeCodecV1.encode(temporal)
+            return basisData == companion.observationBasisV1Data
+                && temporalData == companion.temporalContextV1Data
+        } catch {
+            return false
         }
     }
 

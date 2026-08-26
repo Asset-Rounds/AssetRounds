@@ -101,6 +101,8 @@ struct WorkflowRecordPayloadV1: Codable, Equatable, Sendable {
     let workDescription: String?
     let note: String?
     let finalizationMutationID: UUID?
+    var observationBasisV1Data: Data? = nil
+    var temporalContextV1Data: Data? = nil
 }
 
 struct IssuePayloadV1: Codable, Equatable, Sendable {
@@ -210,6 +212,9 @@ struct FinalizationContractDecoderV1 {
 
 struct FinalizationContractEncoderV1 {
     func encodePayload(_ payload: FinalizationPayloadV1) throws -> EncodedFinalizationContractV1 {
+        guard Self.validObservationAndTime(payload.workflowRecordAfter) else {
+            throw FinalizationContractEncodingErrorV1.unsupportedValue
+        }
         let value = CanonicalJSONV1.finalizationPayload(payload)
         let data = try CanonicalJSONV1.encode(value)
         return EncodedFinalizationContractV1(data: data, sha256: CanonicalJSONV1.sha256(data))
@@ -222,6 +227,24 @@ struct FinalizationContractEncoderV1 {
         }
         let data = try CanonicalJSONV1.encode(CanonicalJSONV1.finalizationIntent(intent))
         return EncodedFinalizationContractV1(data: data, sha256: CanonicalJSONV1.sha256(data))
+    }
+
+    private static func validObservationAndTime(
+        _ record: WorkflowRecordPayloadV1
+    ) -> Bool {
+        guard (record.observationBasisV1Data == nil)
+                == (record.temporalContextV1Data == nil) else { return false }
+        guard let basisData = record.observationBasisV1Data,
+              let temporalData = record.temporalContextV1Data else { return true }
+        do {
+            let basis = try ObservationAndTimeCodecV1.decodeObservationBasis(basisData)
+            let temporal = try ObservationAndTimeCodecV1.decodeTemporalContext(temporalData)
+            let canonicalBasis = try ObservationAndTimeCodecV1.encode(basis)
+            let canonicalTemporal = try ObservationAndTimeCodecV1.encode(temporal)
+            return canonicalBasis == basisData && canonicalTemporal == temporalData
+        } catch {
+            return false
+        }
     }
 }
 
@@ -310,7 +333,7 @@ enum CanonicalJSONV1 {
     }
 
     private static func workflowRecord(_ value: WorkflowRecordPayloadV1) -> CanonicalJSONValueV1 {
-        .object([
+        var object: [String: CanonicalJSONValueV1] = [
             "afterDarkAcknowledgementAccepted": optionalBool(value.afterDarkAcknowledgementAccepted),
             "afterDarkAcknowledgementCopy": optionalString(value.afterDarkAcknowledgementCopy),
             "afterDarkAcknowledgementKey": optionalString(value.afterDarkAcknowledgementKey),
@@ -352,7 +375,17 @@ enum CanonicalJSONV1 {
             "utcOffsetMinutes": optionalInteger(value.utcOffsetMinutes),
             "workDescription": optionalString(value.workDescription),
             "workPerformedLocalDate": optionalString(value.workPerformedLocalDate),
-        ])
+        ]
+        // Nil is the exact released pre-ObservationAndTimeSchemaV1 shape. Do
+        // not add null members: old finalization/recovery bytes must re-encode
+        // byte-for-byte. New rows carry the codec's canonical bytes verbatim.
+        if let data = value.observationBasisV1Data {
+            object["observationBasisV1Data"] = .string(data.base64EncodedString())
+        }
+        if let data = value.temporalContextV1Data {
+            object["temporalContextV1Data"] = .string(data.base64EncodedString())
+        }
+        return .object(object)
     }
 
     private static func issue(_ value: IssuePayloadV1) -> CanonicalJSONValueV1 {

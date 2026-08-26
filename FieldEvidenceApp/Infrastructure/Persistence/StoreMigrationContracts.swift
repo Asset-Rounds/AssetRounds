@@ -80,6 +80,243 @@ enum StoreMigrationFailure: Error, Equatable, Sendable {
     case maintenanceRequired(StoreMigrationMaintenanceReasonV1)
 }
 
+enum ObservationAndTimeMigrationDispositionV1: String, Codable, Equatable,
+    Sendable {
+    case noLegacyValues = "NO_LEGACY_VALUES"
+    case migratedLegacyValues = "MIGRATED_LEGACY_VALUES"
+    case alreadyCurrent = "ALREADY_CURRENT"
+    case quarantinedUnsupportedBytes = "QUARANTINED_UNSUPPORTED_BYTES"
+}
+
+struct ObservationAndTimeMigrationReceiptV1: Codable, Equatable, Sendable {
+    static let currentSchemaVersion = 1
+
+    let schemaVersion: Int
+    let disposition: ObservationAndTimeMigrationDispositionV1
+    let sourceSHA256: String
+    let resultSHA256: String
+    let legacyColumnsPreserved: Bool
+    let inventedDirectObservation: Bool
+    let requiresForwardRepair: Bool
+
+    init(
+        disposition: ObservationAndTimeMigrationDispositionV1,
+        sourceSHA256: String,
+        resultSHA256: String,
+        requiresForwardRepair: Bool
+    ) throws {
+        schemaVersion = Self.currentSchemaVersion
+        self.disposition = disposition
+        self.sourceSHA256 = sourceSHA256
+        self.resultSHA256 = resultSHA256
+        legacyColumnsPreserved = true
+        inventedDirectObservation = false
+        self.requiresForwardRepair = requiresForwardRepair
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.currentSchemaVersion,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(sourceSHA256),
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(resultSHA256),
+              legacyColumnsPreserved,
+              !inventedDirectObservation,
+              requiresForwardRepair
+                == (disposition == .quarantinedUnsupportedBytes) else {
+            throw StoreMigrationFailure.invalidContract
+        }
+    }
+}
+
+struct ObservationAndTimeMigrationResultV1: Equatable, Sendable {
+    let observationBasisData: Data?
+    let temporalContextData: Data?
+    let disposition: ObservationAndTimeMigrationDispositionV1
+    let receipt: ObservationAndTimeMigrationReceiptV1
+
+    var requiresForwardRepair: Bool {
+        receipt.requiresForwardRepair
+    }
+}
+
+/// Pure deterministic V4-to-V5 value migration. Existing current bytes win;
+/// malformed or future bytes are returned unchanged with a quarantine receipt
+/// so callers can fail the generation migration without damaging V4.
+enum ObservationAndTimeMigrationV1 {
+    private struct DigestInputV1: Codable {
+        let existingObservationBasisData: Data?
+        let existingTemporalContextData: Data?
+        let couldNotVerifyKey: String?
+        let couldNotVerifyDisplaySnapshot: String?
+        let couldNotVerifyRegistryVersion: String?
+        let observedAtUTC: Date?
+        let recordedAtUTC: Date
+        let timeZoneID: String?
+        let utcOffsetMinutes: Int?
+        let localDate: String?
+        let localTime: String?
+    }
+
+    private struct DigestOutputV1: Codable {
+        let observationBasisData: Data?
+        let temporalContextData: Data?
+        let disposition: ObservationAndTimeMigrationDispositionV1
+    }
+
+    static func migrate(
+        existingObservationBasisData: Data?,
+        existingTemporalContextData: Data?,
+        couldNotVerifyKey: String?,
+        couldNotVerifyDisplaySnapshot: String?,
+        couldNotVerifyRegistryVersion: String?,
+        observedAtUTC: Date?,
+        recordedAtUTC: Date,
+        timeZoneID: String?,
+        utcOffsetMinutes: Int?,
+        localDate: String?,
+        localTime: String?
+    ) throws -> ObservationAndTimeMigrationResultV1 {
+        let input = DigestInputV1(
+            existingObservationBasisData: existingObservationBasisData,
+            existingTemporalContextData: existingTemporalContextData,
+            couldNotVerifyKey: couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: couldNotVerifyRegistryVersion,
+            observedAtUTC: observedAtUTC,
+            recordedAtUTC: recordedAtUTC,
+            timeZoneID: timeZoneID,
+            utcOffsetMinutes: utcOffsetMinutes,
+            localDate: localDate,
+            localTime: localTime
+        )
+        let sourceSHA256 = try StoreMigrationCanonicalJSONV1.digest(input)
+
+        do {
+            if let existingObservationBasisData {
+                _ = try ObservationAndTimeCodecV1.decodeObservationBasis(
+                    existingObservationBasisData
+                )
+            }
+            if let existingTemporalContextData {
+                _ = try ObservationAndTimeCodecV1.decodeTemporalContext(
+                    existingTemporalContextData
+                )
+            }
+        } catch {
+            return try result(
+                observationBasisData: existingObservationBasisData,
+                temporalContextData: existingTemporalContextData,
+                disposition: .quarantinedUnsupportedBytes,
+                sourceSHA256: sourceSHA256
+            )
+        }
+
+        var basisData = existingObservationBasisData
+        var timeData = existingTemporalContextData
+        do {
+            if basisData == nil,
+               let basis = try ObservationAndTimeLegacyMigrationV1
+                .observationBasis(
+                    couldNotVerifyKey: couldNotVerifyKey,
+                    displaySnapshot: couldNotVerifyDisplaySnapshot,
+                    registryVersion: couldNotVerifyRegistryVersion
+                ) {
+                basisData = try ObservationAndTimeCodecV1.encode(basis)
+            }
+            if timeData == nil,
+               let temporal = try ObservationAndTimeLegacyMigrationV1
+                .temporalContext(
+                    observedAtUTC: observedAtUTC,
+                    recordedAtUTC: recordedAtUTC,
+                    timeZoneID: timeZoneID,
+                    utcOffsetMinutes: utcOffsetMinutes,
+                    localDate: localDate,
+                    localTime: localTime
+                ) {
+                timeData = try ObservationAndTimeCodecV1.encode(temporal)
+            }
+        } catch {
+            return try result(
+                observationBasisData: existingObservationBasisData,
+                temporalContextData: existingTemporalContextData,
+                disposition: .quarantinedUnsupportedBytes,
+                sourceSHA256: sourceSHA256
+            )
+        }
+
+        let disposition: ObservationAndTimeMigrationDispositionV1
+        if basisData == nil, timeData == nil {
+            disposition = .noLegacyValues
+        } else if basisData == existingObservationBasisData,
+                  timeData == existingTemporalContextData {
+            disposition = .alreadyCurrent
+        } else {
+            disposition = .migratedLegacyValues
+        }
+        return try result(
+            observationBasisData: basisData,
+            temporalContextData: timeData,
+            disposition: disposition,
+            sourceSHA256: sourceSHA256
+        )
+    }
+
+    private static func result(
+        observationBasisData: Data?,
+        temporalContextData: Data?,
+        disposition: ObservationAndTimeMigrationDispositionV1,
+        sourceSHA256: String
+    ) throws -> ObservationAndTimeMigrationResultV1 {
+        let output = DigestOutputV1(
+            observationBasisData: observationBasisData,
+            temporalContextData: temporalContextData,
+            disposition: disposition
+        )
+        let receipt = try ObservationAndTimeMigrationReceiptV1(
+            disposition: disposition,
+            sourceSHA256: sourceSHA256,
+            resultSHA256: try StoreMigrationCanonicalJSONV1.digest(output),
+            requiresForwardRepair: disposition == .quarantinedUnsupportedBytes
+        )
+        return ObservationAndTimeMigrationResultV1(
+            observationBasisData: observationBasisData,
+            temporalContextData: temporalContextData,
+            disposition: disposition,
+            receipt: receipt
+        )
+    }
+}
+
+enum ObservationAndTimeStoreMigrationV1 {
+    static func row(for record: WorkflowRecord) throws -> ObservationAndTimeRow {
+        let result = try ObservationAndTimeMigrationV1.migrate(
+            existingObservationBasisData: nil,
+            existingTemporalContextData: nil,
+            couldNotVerifyKey: record.couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: record.couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: record.couldNotVerifyRegistryVersion,
+            observedAtUTC: record.observedAtUTC,
+            recordedAtUTC: record.completedAt ?? record.startedAt,
+            timeZoneID: record.timeZoneID,
+            utcOffsetMinutes: record.utcOffsetMinutes,
+            localDate: record.localDate,
+            localTime: record.localTime
+        )
+        guard !result.requiresForwardRepair else {
+            throw StoreMigrationFailure.maintenanceRequired(.forwardFixRequired)
+        }
+        guard let basis = result.observationBasisData,
+              let temporal = result.temporalContextData else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        return try ObservationAndTimeRow(
+            recordID: record.id,
+            observationBasisV1Data: basis,
+            temporalContextV1Data: temporal
+        )
+    }
+}
+
 struct StoreGenerationFileDigestV1: Codable, Equatable, Sendable {
     let relativePath: String
     let byteCount: Int
@@ -340,7 +577,7 @@ struct CurrentGenerationPointerV3: Codable, Equatable, Sendable {
     func validate() throws {
         let zero = "00000000-0000-0000-0000-000000000000"
         guard schemaVersion == 3,
-              (storeSchemaVersion == 2 || storeSchemaVersion == 3 || storeSchemaVersion == 4),
+              (2...5).contains(storeSchemaVersion),
               Self.canonicalUUID(generationID) != nil,
               Self.canonicalUUID(workspaceID) != nil,
               Self.canonicalUUID(replicaID) != nil,
@@ -495,7 +732,8 @@ struct StoreMigrationJournalV1: Codable, Equatable, Sendable {
               (sourceRelease == .v2 || migrationID != sourceGenerationID),
               ((sourceRelease == .v1 && targetRelease == .v2)
                 || (sourceRelease == .v2 && targetRelease == .v3)
-                || (sourceRelease == .v3 && targetRelease == .v4)) else {
+                || (sourceRelease == .v3 && targetRelease == .v4)
+                || (sourceRelease == .v4 && targetRelease == .v5)) else {
             throw StoreMigrationFailure.invalidContract
         }
 

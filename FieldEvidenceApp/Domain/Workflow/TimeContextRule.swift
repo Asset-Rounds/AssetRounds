@@ -13,6 +13,31 @@ enum TimeContextRuleError: Error, Equatable {
 }
 
 enum TimeContextRule {
+    static func freezeTemporalContext(
+        occurredAtUTC: Date,
+        recordedAtUTC: Date,
+        confirmedTimeZoneID: String
+    ) throws -> TemporalContextV1 {
+        guard TimeZone.knownTimeZoneIdentifiers.contains(confirmedTimeZoneID),
+              let timeZone = TimeZone(identifier: confirmedTimeZoneID) else {
+            throw TimeContextRuleError.invalidTimeZoneID
+        }
+        let local = localStrings(for: occurredAtUTC, timeZone: timeZone)
+        let disposition: LocalTimeDispositionV1 = isAmbiguousFold(
+            occurredAtUTC,
+            timeZone: timeZone
+        ) ? .ambiguousFold : .unambiguous
+        return try TemporalContextV1(
+            occurredAtUTC: occurredAtUTC,
+            recordedAtUTC: recordedAtUTC,
+            localDate: local.date,
+            localTime: local.time,
+            utcOffsetSeconds: timeZone.secondsFromGMT(for: occurredAtUTC),
+            ianaTimeZoneIdentifier: confirmedTimeZoneID,
+            localTimeDisposition: disposition
+        )
+    }
+
     static func freeze(
         observedAtUTC: Date,
         confirmedTimeZoneID: String
@@ -22,6 +47,21 @@ enum TimeContextRule {
             throw TimeContextRuleError.invalidTimeZoneID
         }
 
+        let local = localStrings(for: observedAtUTC, timeZone: timeZone)
+
+        return FrozenTimeContext(
+            observedAtUTC: observedAtUTC,
+            timeZoneID: confirmedTimeZoneID,
+            utcOffsetMinutes: timeZone.secondsFromGMT(for: observedAtUTC) / 60,
+            localDate: local.date,
+            localTime: local.time
+        )
+    }
+
+    private static func localStrings(
+        for instant: Date,
+        timeZone: TimeZone
+    ) -> (date: String, time: String) {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = Locale(identifier: "en_US_POSIX")
         calendar.timeZone = timeZone
@@ -37,13 +77,41 @@ enum TimeContextRule {
         timeFormatter.locale = Locale(identifier: "en_US_POSIX")
         timeFormatter.timeZone = timeZone
         timeFormatter.dateFormat = "HH:mm:ss"
-
-        return FrozenTimeContext(
-            observedAtUTC: observedAtUTC,
-            timeZoneID: confirmedTimeZoneID,
-            utcOffsetMinutes: timeZone.secondsFromGMT(for: observedAtUTC) / 60,
-            localDate: dateFormatter.string(from: observedAtUTC),
-            localTime: timeFormatter.string(from: observedAtUTC)
+        return (
+            dateFormatter.string(from: instant),
+            timeFormatter.string(from: instant)
         )
+    }
+
+    /// A fold has two UTC instants with the same local civil second. Calendar's
+    /// strict first/last policies expose both without treating either as
+    /// causal authority.
+    private static func isAmbiguousFold(
+        _ instant: Date,
+        timeZone: TimeZone
+    ) -> Bool {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = timeZone
+        let components = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second],
+            from: instant
+        )
+        let searchStart = instant.addingTimeInterval(-2 * 24 * 60 * 60)
+        guard let first = calendar.nextDate(
+            after: searchStart,
+            matching: components,
+            matchingPolicy: .strict,
+            repeatedTimePolicy: .first,
+            direction: .forward
+        ),
+        let last = calendar.nextDate(
+            after: searchStart,
+            matching: components,
+            matchingPolicy: .strict,
+            repeatedTimePolicy: .last,
+            direction: .forward
+        ) else { return false }
+        return first != last
     }
 }

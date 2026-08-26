@@ -14,8 +14,10 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let targetID: UUID
         let v3TargetID: UUID
         let v4TargetID: UUID
+        let v5TargetID: UUID
         let siteID: UUID
         let assetID: UUID
+        let recordID: UUID
         let processIDs: [UUID]
     }
 
@@ -166,6 +168,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         var thirdLaunch: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
         let third = try XCTUnwrap(thirdLaunch)
         XCTAssertEqual(third.generationID, fixture.v4TargetID)
+        try assertMigratedRows(in: third.modelContext, fixture: fixture)
         XCTAssertEqual(
             try DeletionLedgerStore(context: third.modelContext).snapshot(),
             .empty
@@ -181,9 +184,39 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
 
         var fourthLaunch: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
         let fourth = try XCTUnwrap(fourthLaunch)
-        XCTAssertEqual(fourth.generationID, fixture.v4TargetID)
+        XCTAssertEqual(fourth.generationID, fixture.v5TargetID)
         XCTAssertEqual(try fourth.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+        let migratedRecord = try XCTUnwrap(
+            try fourth.modelContext.fetch(FetchDescriptor<WorkflowRecord>()).first
+        )
+        XCTAssertEqual(migratedRecord.id, fixture.recordID)
+        let migratedCompanion = try ObservationAndTimeRowStoreV1.requireRow(
+            recordID: migratedRecord.id,
+            in: fourth.modelContext
+        )
+        XCTAssertEqual(try migratedCompanion.observationBasisV1().kind, .unverifiable)
+        XCTAssertEqual(try migratedCompanion.observationBasisV1().method.key, ObservationMethodV1.unknownKey)
+        XCTAssertEqual(try migratedCompanion.temporalContextV1().localTimeDisposition, .unknown)
+        XCTAssertEqual(try migratedCompanion.temporalContextV1().utcOffsetSeconds, -18_000)
         fourthLaunch = nil
+
+        let v5FirstLaunch = try XCTUnwrap(try store.loadJournal())
+        XCTAssertEqual(v5FirstLaunch.sourceRelease, .v4)
+        XCTAssertEqual(v5FirstLaunch.targetRelease, .v5)
+        XCTAssertEqual(v5FirstLaunch.phase, .firstLaunchValidated)
+
+        var fifthLaunch: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
+        let fifth = try XCTUnwrap(fifthLaunch)
+        XCTAssertEqual(fifth.generationID, fixture.v5TargetID)
+        XCTAssertEqual(
+            try fifth.modelContext.fetchCount(FetchDescriptor<WorkflowRecord>()),
+            1
+        )
+        XCTAssertEqual(
+            try fifth.modelContext.fetchCount(FetchDescriptor<ObservationAndTimeRow>()),
+            1
+        )
+        fifthLaunch = nil
         XCTAssertNil(try store.loadJournal())
         XCTAssertEqual(try pointerSchema(in: fixture.root), 3)
     }
@@ -792,9 +825,11 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let targetID = fixedUUID("00000000-0000-0000-0000-000000000012")
         let v3TargetID = fixedUUID("00000000-0000-0000-0000-000000000015")
         let v4TargetID = fixedUUID("00000000-0000-0000-0000-000000000016")
+        let v5TargetID = fixedUUID("00000000-0000-0000-0000-000000000017")
         let siteID = fixedUUID("00000000-0000-0000-0000-000000000013")
         let assetID = fixedUUID("00000000-0000-0000-0000-000000000014")
-        let processIDs = (0..<8).map {
+        let recordID = fixedUUID("00000000-0000-0000-0000-000000000018")
+        let processIDs = (0..<10).map {
             fixedUUID(String(format: "00000000-0000-0000-0000-00000000002%1d", $0))
         }
         let sourceRoot = generationsRoot.appendingPathComponent(
@@ -845,6 +880,50 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
                     updatedAt: createdAt
                 )
             )
+            context.insert(WorkflowRecord(
+                id: recordID,
+                assetID: assetID,
+                packetID: nil,
+                issueID: nil,
+                parentRecordID: nil,
+                recordRevisionRootID: recordID,
+                revisesRecordID: nil,
+                evidenceSourceRecordID: nil,
+                revisionKind: .original,
+                stage: .recheck,
+                state: .completed,
+                draftStepKey: nil,
+                startedAt: createdAt,
+                completedAt: createdAt.addingTimeInterval(5),
+                observedAtUTC: createdAt,
+                timeZoneID: "America/New_York",
+                utcOffsetMinutes: -300,
+                localDate: "2023-11-14",
+                localTime: "17:15:00",
+                afterDarkAcknowledgementKey: nil,
+                afterDarkAcknowledgementCopy: nil,
+                afterDarkAcknowledgementVersion: nil,
+                afterDarkAcknowledgementAccepted: nil,
+                safePositionAcknowledgementKey: nil,
+                safePositionAcknowledgementCopy: nil,
+                safePositionAcknowledgementVersion: nil,
+                safePositionAcknowledgementAccepted: nil,
+                packID: "field.evidence.illuminated_sign.v1",
+                packSchemaVersion: 1,
+                packContentVersion: 1,
+                pdfTemplateID: "field.evidence.pdf.worklight.v1",
+                pdfTemplateVersion: 1,
+                outcomeKey: "could_not_verify",
+                couldNotVerifyKey: "required_view_obstructed",
+                couldNotVerifyDisplaySnapshot: "Required view is blocked",
+                couldNotVerifyRegistryVersion: "cnv.reason.en-US.v1",
+                workPerformedLocalDate: nil,
+                workDescription: nil,
+                note: nil,
+                finalizationMutationID: fixedUUID(
+                    "00000000-0000-0000-0000-000000000019"
+                )
+            ))
             try context.save()
         }
 
@@ -870,8 +949,10 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
             targetID: targetID,
             v3TargetID: v3TargetID,
             v4TargetID: v4TargetID,
+            v5TargetID: v5TargetID,
             siteID: siteID,
             assetID: assetID,
+            recordID: recordID,
             processIDs: processIDs
         )
     }
@@ -910,8 +991,9 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
                 if schemaVersion == 1 { return fixture.targetID }
                 if let data = try? Data(contentsOf: pointerURL),
                    let pointer = try? CurrentGenerationPointerV3.decodeCanonical(from: data),
-                   pointer.storeSchemaVersion == 3 {
-                    return fixture.v4TargetID
+                   pointer.storeSchemaVersion >= 3 {
+                    if pointer.storeSchemaVersion == 3 { return fixture.v4TargetID }
+                    if pointer.storeSchemaVersion == 4 { return fixture.v5TargetID }
                 }
                 return fixture.v3TargetID
             },
@@ -947,8 +1029,10 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
     ) throws {
         let sites = try context.fetch(FetchDescriptor<Site>())
         let assets = try context.fetch(FetchDescriptor<Asset>())
+        let records = try context.fetch(FetchDescriptor<WorkflowRecord>())
         XCTAssertEqual(sites.count, 1)
         XCTAssertEqual(assets.count, 1)
+        XCTAssertEqual(records.count, 1)
         let site = try XCTUnwrap(sites.first)
         let asset = try XCTUnwrap(assets.first)
         XCTAssertEqual(site.id, fixture.siteID)
@@ -956,6 +1040,8 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         XCTAssertEqual(asset.id, fixture.assetID)
         XCTAssertEqual(asset.siteID, fixture.siteID)
         XCTAssertEqual(asset.label, "Synthetic Legacy Asset")
+        let record = try XCTUnwrap(records.first)
+        XCTAssertEqual(record.id, fixture.recordID)
     }
 
     private func assertMarker(
@@ -978,6 +1064,11 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
                 version: PersistentSchemaV3.versionIdentifier
             )
         case .v4:
+            schema = Schema(
+                PersistentSchemaV4.models,
+                version: PersistentSchemaV4.versionIdentifier
+            )
+        case .v5:
             schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
         }
         let configuration = ModelConfiguration(
@@ -1016,6 +1107,10 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
             expectedSchemaVersion = 4
             expectedReleaseID = PersistentSchemaReleaseRegistryV1.v4CompatibilityID
             expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v3CompatibilityID
+        case .v5:
+            expectedSchemaVersion = 5
+            expectedReleaseID = PersistentSchemaReleaseRegistryV1.v5CompatibilityID
+            expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v4CompatibilityID
         }
         XCTAssertEqual(marker.schemaVersion, expectedSchemaVersion)
         XCTAssertEqual(
@@ -1049,6 +1144,11 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
                 version: PersistentSchemaV3.versionIdentifier
             )
         case .v4:
+            schema = Schema(
+                PersistentSchemaV4.models,
+                version: PersistentSchemaV4.versionIdentifier
+            )
+        case .v5:
             schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
         }
         let configuration = ModelConfiguration(

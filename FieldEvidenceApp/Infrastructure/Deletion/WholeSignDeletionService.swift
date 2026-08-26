@@ -717,6 +717,8 @@ private extension WholeSignDeletionService {
         let sites: [Site]
         let assets: [Asset]
         let records: [WorkflowRecord]
+        let observationAndTime: [UUID: ObservationAndTimeRow]
+        let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
         let issues: [Issue]
         let packets: [Packet]
@@ -725,10 +727,22 @@ private extension WholeSignDeletionService {
 
     func fetchRows() throws -> Rows {
         do {
+            let records = try boundedFetch(WorkflowRecord.self)
+            let observationAndTime = try validatedObservationAndTimeIndex(
+                records: records
+            )
+            let recordPayloads = try records.map { record in
+                guard let companion = observationAndTime[record.id] else {
+                    throw WholeSignDeletionServiceError.graphInvalid
+                }
+                return payload(record, companion: companion)
+            }
             return Rows(
                 sites: try boundedFetch(Site.self),
                 assets: try boundedFetch(Asset.self),
-                records: try boundedFetch(WorkflowRecord.self),
+                records: records,
+                observationAndTime: observationAndTime,
+                recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
                 issues: try boundedFetch(Issue.self),
                 packets: try boundedFetch(Packet.self),
@@ -749,6 +763,48 @@ private extension WholeSignDeletionService {
         return rows
     }
 
+    func validatedObservationAndTimeIndex(
+        records: [WorkflowRecord]
+    ) throws -> [UUID: ObservationAndTimeRow] {
+        guard records.count <= Self.maximumGraphRowsPerKind else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        var rows: [ObservationAndTimeRow] = []
+        rows.reserveCapacity(records.count)
+        var offset = 0
+        while true {
+            var descriptor = FetchDescriptor<ObservationAndTimeRow>(
+                sortBy: [SortDescriptor(\.recordID)]
+            )
+            descriptor.fetchLimit = Self.observationAndTimeBatchSize
+            descriptor.fetchOffset = offset
+            let batch = try modelContext.fetch(descriptor)
+            rows.append(contentsOf: batch)
+            guard rows.count <= Self.maximumGraphRowsPerKind else {
+                throw WholeSignDeletionServiceError.graphInvalid
+            }
+            guard batch.count == Self.observationAndTimeBatchSize else { break }
+            offset += batch.count
+        }
+
+        let recordIDs = Set(records.map(\.id))
+        var result: [UUID: ObservationAndTimeRow] = [:]
+        result.reserveCapacity(rows.count)
+        for row in rows {
+            guard recordIDs.contains(row.recordID),
+                  result.updateValue(row, forKey: row.recordID) == nil else {
+                throw WholeSignDeletionServiceError.graphInvalid
+            }
+            do { try row.validate() } catch {
+                throw WholeSignDeletionServiceError.graphInvalid
+            }
+        }
+        guard result.count == recordIDs.count else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+        return result
+    }
+
     func makeRuleInput(
         rows: Rows,
         assetID: UUID,
@@ -764,7 +820,7 @@ private extension WholeSignDeletionService {
             assets: rows.assets.map {
                 .init(id: $0.id, schemaVersion: $0.schemaVersion, siteID: $0.siteID)
             },
-            records: rows.records.map(payload),
+            records: rows.recordPayloads,
             evidence: rows.evidence.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -847,7 +903,10 @@ private extension WholeSignDeletionService {
         )
     }
 
-    func payload(_ row: WorkflowRecord) -> WorkflowRecordPayloadV1 {
+    func payload(
+        _ row: WorkflowRecord,
+        companion: ObservationAndTimeRow
+    ) -> WorkflowRecordPayloadV1 {
         WorkflowRecordPayloadV1(
             id: row.id, schemaVersion: row.schemaVersion, assetID: row.assetID,
             packetID: row.packetID, issueID: row.issueID,
@@ -877,7 +936,9 @@ private extension WholeSignDeletionService {
             couldNotVerifyRegistryVersion: row.couldNotVerifyRegistryVersion,
             workPerformedLocalDate: row.workPerformedLocalDate,
             workDescription: row.workDescription, note: row.note,
-            finalizationMutationID: row.finalizationMutationID
+            finalizationMutationID: row.finalizationMutationID,
+            observationBasisV1Data: companion.observationBasisV1Data,
+            temporalContextV1Data: companion.temporalContextV1Data
         )
     }
 
@@ -1156,6 +1217,8 @@ private extension WholeSignDeletionService {
         rows.evidence.filter { evidenceIDs.contains($0.id) }.forEach { modelContext.delete($0) }
         rows.issues.filter { issueIDs.contains($0.id) }.forEach { modelContext.delete($0) }
         rows.reports.filter { reportIDs.contains($0.id) }.forEach { modelContext.delete($0) }
+        recordIDs.compactMap { rows.observationAndTime[$0] }
+            .forEach { modelContext.delete($0) }
         rows.records.filter { recordIDs.contains($0.id) }.forEach { modelContext.delete($0) }
         rows.packets.filter { packetDeleteIDs.contains($0.id) }.forEach { modelContext.delete($0) }
         for packet in rows.packets {
@@ -1197,6 +1260,7 @@ private extension WholeSignDeletionService {
     }
 
     static let maximumGraphRowsPerKind = DeletionLedgerV2.maximumEntryCount
+    static let observationAndTimeBatchSize = 512
 }
 
 private final class DeletionGenerationFiles {

@@ -140,6 +140,11 @@ final class BackupRestoreService {
     static func isEmptyCurrent(_ modelContext: ModelContext) -> Bool {
         guard !modelContext.hasChanges else { return false }
         do {
+            var observationAndTime = FetchDescriptor<ObservationAndTimeRow>()
+            observationAndTime.fetchLimit = 1
+            let hasNoObservationAndTime = try modelContext.fetch(
+                observationAndTime
+            ).isEmpty
             return try modelContext.fetchCount(FetchDescriptor<Site>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<Asset>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<WorkflowRecord>()) == 0
@@ -153,6 +158,7 @@ final class BackupRestoreService {
                 && modelContext.fetchCount(
                     FetchDescriptor<EntityMutationRevisionRow>()
                 ) == 0
+                && hasNoObservationAndTime
         } catch {
             return false
         }
@@ -887,8 +893,13 @@ final class BackupRestoreService {
     func migrationCanonicalRecords(
         in context: ModelContext
     ) throws -> V4BackupRecordsV1 {
-        try records(in: context, includingDeletionLedger: false)
+        try records(
+            in: context,
+            includingDeletionLedger: false,
+            includesObservationAndTime: false
+        )
     }
+
 }
 
 private extension BackupRestoreService {
@@ -990,7 +1001,8 @@ private extension BackupRestoreService {
             return nil
         case (let workspaceID?, let replicaID?):
             guard package.manifest.backupSchemaVersion == 2
-                    || package.manifest.backupSchemaVersion == 3,
+                    || package.manifest.backupSchemaVersion == 3
+                    || package.manifest.backupSchemaVersion == 4,
                   workspaceID != replicaID else {
                 throw BackupRestoreServiceError.invalidPackage
             }
@@ -1289,7 +1301,7 @@ private extension BackupRestoreService {
             issues: records.issues,
             mutationHistory: history,
             packets: records.packets,
-            recordsSchemaVersion: 3,
+            recordsSchemaVersion: records.recordsSchemaVersion >= 4 ? 4 : 3,
             reports: records.reports,
             sites: records.sites,
             workflowRecords: records.workflowRecords
@@ -1300,7 +1312,8 @@ private extension BackupRestoreService {
         _ records: V4BackupRecordsV1,
         identityDecision: RestoreIdentityV1?
     ) throws -> V4BackupRecordsV1 {
-        guard let history = records.mutationHistory else {
+        let normalized = try recordsWithObservationAndTime(records)
+        guard let history = normalized.mutationHistory else {
             throw BackupRestoreServiceError.invalidPackage
         }
         let resetsLocalSequence: Bool
@@ -1313,10 +1326,10 @@ private extension BackupRestoreService {
             resetsLocalSequence = false
         }
         guard resetsLocalSequence, history.lastLocalSequence != 0 else {
-            return records
+            return normalized
         }
         return replacingMutationHistoryForCurrentWriter(
-            in: records,
+            in: normalized,
             with: MutationHistorySnapshotV1(
                 workspaceRevision: history.workspaceRevision,
                 lastLocalSequence: 0,
@@ -1324,6 +1337,34 @@ private extension BackupRestoreService {
                 quarantines: history.quarantines,
                 entityRevisions: history.entityRevisions
             )
+        )
+    }
+
+    func recordsWithObservationAndTime(
+        _ records: V4BackupRecordsV1
+    ) throws -> V4BackupRecordsV1 {
+        guard records.recordsSchemaVersion < 4 else { return records }
+        let workflowRecords = try records.workflowRecords.map { value in
+            let data = try observationAndTimeData(
+                for: value,
+                recordsSchemaVersion: records.recordsSchemaVersion
+            )
+            return value.replacingObservationAndTime(
+                basisData: data.basis,
+                temporalData: data.temporal
+            )
+        }
+        return V4BackupRecordsV1(
+            assets: records.assets,
+            deletionLedger: records.deletionLedger,
+            evidenceFiles: records.evidenceFiles,
+            issues: records.issues,
+            mutationHistory: records.mutationHistory,
+            packets: records.packets,
+            recordsSchemaVersion: 4,
+            reports: records.reports,
+            sites: records.sites,
+            workflowRecords: workflowRecords
         )
     }
 
@@ -1384,6 +1425,76 @@ private extension BackupRestoreService {
         }
     }
 
+    func observationAndTimeData(
+        for value: V4BackupWorkflowRecordDTO,
+        recordsSchemaVersion: Int
+    ) throws -> (basis: Data?, temporal: Data?) {
+        do {
+            if recordsSchemaVersion == 4 {
+                guard let basisData = value.observationBasisV1Data,
+                      let temporalData = value.temporalContextV1Data else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                let basis = try ObservationAndTimeCodecV1
+                    .decodeObservationBasis(basisData)
+                let temporal = try ObservationAndTimeCodecV1
+                    .decodeTemporalContext(temporalData)
+                guard try ObservationAndTimeCodecV1.encode(basis) == basisData,
+                      try ObservationAndTimeCodecV1.encode(temporal) == temporalData else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                return (basisData, temporalData)
+            }
+            guard (1...3).contains(recordsSchemaVersion),
+                  value.observationBasisV1Data == nil,
+                  value.temporalContextV1Data == nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            var basis = try ObservationAndTimeLegacyMigrationV1.observationBasis(
+                couldNotVerifyKey: value.couldNotVerifyKey,
+                displaySnapshot: value.couldNotVerifyDisplaySnapshot,
+                registryVersion: value.couldNotVerifyRegistryVersion
+            )
+            var temporal = try ObservationAndTimeLegacyMigrationV1.temporalContext(
+                observedAtUTC: value.observedAtUTC,
+                recordedAtUTC: value.completedAt ?? value.startedAt,
+                timeZoneID: value.timeZoneID,
+                utcOffsetMinutes: value.utcOffsetMinutes,
+                localDate: value.localDate,
+                localTime: value.localTime
+            )
+            if basis == nil {
+                basis = try ObservationBasisV1(
+                    kind: .unknown,
+                    method: ObservationMethodV1(key: ObservationMethodV1.unknownKey),
+                    source: ObservationSourceReferenceV1(kind: .unknown)
+                )
+            }
+            if temporal == nil {
+                temporal = try TemporalContextV1(
+                    occurredAtUTC: nil,
+                    recordedAtUTC: value.completedAt ?? value.startedAt,
+                    localDate: nil,
+                    localTime: nil,
+                    utcOffsetSeconds: nil,
+                    ianaTimeZoneIdentifier: nil,
+                    localTimeDisposition: .unknown
+                )
+            }
+            guard let basis, let temporal else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return (
+                try ObservationAndTimeCodecV1.encode(basis),
+                try ObservationAndTimeCodecV1.encode(temporal)
+            )
+        } catch let failure as BackupRestoreServiceError {
+            throw failure
+        } catch {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+    }
+
     func insert(
         _ records: V4BackupRecordsV1,
         into context: ModelContext,
@@ -1391,7 +1502,8 @@ private extension BackupRestoreService {
         identityDecision: RestoreIdentityV1?,
         legacyDestinationIdentity: WorkspaceReplicaIdentityV1
     ) throws {
-        guard (records.recordsSchemaVersion == 3)
+        guard (records.recordsSchemaVersion == 3
+                || records.recordsSchemaVersion == 4)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -1402,7 +1514,7 @@ private extension BackupRestoreService {
         ) {
         case (1, nil, nil):
             break
-        case (2, let ledger?, nil), (3, let ledger?, _):
+        case (2, let ledger?, nil), (3, let ledger?, _), (4, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -1435,11 +1547,19 @@ private extension BackupRestoreService {
             ))
         }
         for value in records.workflowRecords {
+            let observationAndTime = try observationAndTimeData(
+                for: value,
+                recordsSchemaVersion: records.recordsSchemaVersion
+            )
             guard let revision = WorkflowRevisionKind(rawValue: value.revisionKind),
                   let stage = WorkflowStage(rawValue: value.stage),
                   let state = WorkflowState(rawValue: value.state),
                   value.draftStepKey == nil
                     || WorkflowDraftStep(rawValue: value.draftStepKey!) != nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            guard let basisData = observationAndTime.basis,
+                  let temporalData = observationAndTime.temporal else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             context.insert(WorkflowRecord(
@@ -1490,6 +1610,11 @@ private extension BackupRestoreService {
                 workDescription: value.workDescription,
                 note: value.note,
                 finalizationMutationID: value.finalizationMutationID
+            ))
+            context.insert(try ObservationAndTimeRow(
+                recordID: value.id,
+                observationBasisV1Data: basisData,
+                temporalContextV1Data: temporalData
             ))
         }
         for value in records.evidenceFiles {
@@ -1552,7 +1677,8 @@ private extension BackupRestoreService {
             ))
         }
         if let mutationHistory = records.mutationHistory {
-            guard records.recordsSchemaVersion == 3 else {
+            guard records.recordsSchemaVersion == 3
+                    || records.recordsSchemaVersion == 4 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -2685,12 +2811,17 @@ private extension BackupRestoreService {
     }
 
     func records(in context: ModelContext) throws -> V4BackupRecordsV1 {
-        try records(in: context, includingDeletionLedger: true)
+        try records(
+            in: context,
+            includingDeletionLedger: true,
+            includesObservationAndTime: true
+        )
     }
 
     func records(
         in context: ModelContext,
-        includingDeletionLedger: Bool
+        includingDeletionLedger: Bool,
+        includesObservationAndTime: Bool
     ) throws -> V4BackupRecordsV1 {
         let sites = try context.fetch(FetchDescriptor<Site>())
         let assets = try context.fetch(FetchDescriptor<Asset>())
@@ -2699,6 +2830,14 @@ private extension BackupRestoreService {
         let issues = try context.fetch(FetchDescriptor<Issue>())
         let packets = try context.fetch(FetchDescriptor<Packet>())
         let reports = try context.fetch(FetchDescriptor<Report>())
+        let observationAndTime: [UUID: ObservationAndTimeRow]
+        if includesObservationAndTime {
+            observationAndTime = try ObservationAndTimeRowStoreV1.validatedIndex(
+                in: context
+            )
+        } else {
+            observationAndTime = [:]
+        }
         let deletionLedger: DeletionLedgerV2?
         let mutationHistory: MutationHistorySnapshotV1?
         if includingDeletionLedger {
@@ -2754,7 +2893,7 @@ private extension BackupRestoreService {
             }.sorted { canonical($0.id) < canonical($1.id) },
             recordsSchemaVersion: mutationHistory == nil
                 ? (includingDeletionLedger ? 2 : 1)
-                : 3,
+                : 4,
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2775,8 +2914,65 @@ private extension BackupRestoreService {
                     updatedAt: $0.updatedAt
                 )
             }.sorted { canonical($0.id) < canonical($1.id) },
-            workflowRecords: workflow.map(workflowDTO)
-                .sorted { canonical($0.id) < canonical($1.id) }
+            workflowRecords: try workflow.map { record in
+                guard includesObservationAndTime else {
+                    return workflowDTO(record)
+                }
+                guard let companion = observationAndTime[record.id] else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                return workflowDTO(record, observationAndTime: companion)
+            }.sorted { canonical($0.id) < canonical($1.id) }
+        )
+    }
+
+    func workflowDTO(
+        _ value: WorkflowRecord,
+        observationAndTime: ObservationAndTimeRow
+    ) -> V4BackupWorkflowRecordDTO {
+        workflowDTO(value).replacingObservationAndTime(
+            basisData: observationAndTime.observationBasisV1Data,
+            temporalData: observationAndTime.temporalContextV1Data
+        )
+    }
+
+    func workflowDTO(_ value: WorkflowRecord) -> V4BackupWorkflowRecordDTO {
+        .init(
+            id: value.id, schemaVersion: value.schemaVersion,
+            assetID: value.assetID, packetID: value.packetID,
+            issueID: value.issueID, parentRecordID: value.parentRecordID,
+            recordRevisionRootID: value.recordRevisionRootID,
+            revisesRecordID: value.revisesRecordID,
+            evidenceSourceRecordID: value.evidenceSourceRecordID,
+            revisionKind: value.revisionKind, stage: value.stage,
+            state: value.state, draftStepKey: value.draftStepKey,
+            startedAt: value.startedAt, completedAt: value.completedAt,
+            observedAtUTC: value.observedAtUTC, timeZoneID: value.timeZoneID,
+            utcOffsetMinutes: value.utcOffsetMinutes, localDate: value.localDate,
+            localTime: value.localTime,
+            afterDarkAcknowledgementKey: value.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: value.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: value.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted:
+                value.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: value.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy:
+                value.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion:
+                value.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted:
+                value.safePositionAcknowledgementAccepted,
+            packID: value.packID, packSchemaVersion: value.packSchemaVersion,
+            packContentVersion: value.packContentVersion,
+            pdfTemplateID: value.pdfTemplateID,
+            pdfTemplateVersion: value.pdfTemplateVersion,
+            outcomeKey: value.outcomeKey,
+            couldNotVerifyKey: value.couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: value.couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: value.couldNotVerifyRegistryVersion,
+            workPerformedLocalDate: value.workPerformedLocalDate,
+            workDescription: value.workDescription, note: value.note,
+            finalizationMutationID: value.finalizationMutationID
         )
     }
 
@@ -2819,46 +3015,6 @@ private extension BackupRestoreService {
         } catch {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
-    }
-
-    func workflowDTO(_ value: WorkflowRecord) -> V4BackupWorkflowRecordDTO {
-        .init(
-            id: value.id, schemaVersion: value.schemaVersion,
-            assetID: value.assetID, packetID: value.packetID,
-            issueID: value.issueID, parentRecordID: value.parentRecordID,
-            recordRevisionRootID: value.recordRevisionRootID,
-            revisesRecordID: value.revisesRecordID,
-            evidenceSourceRecordID: value.evidenceSourceRecordID,
-            revisionKind: value.revisionKind, stage: value.stage,
-            state: value.state, draftStepKey: value.draftStepKey,
-            startedAt: value.startedAt, completedAt: value.completedAt,
-            observedAtUTC: value.observedAtUTC, timeZoneID: value.timeZoneID,
-            utcOffsetMinutes: value.utcOffsetMinutes, localDate: value.localDate,
-            localTime: value.localTime,
-            afterDarkAcknowledgementKey: value.afterDarkAcknowledgementKey,
-            afterDarkAcknowledgementCopy: value.afterDarkAcknowledgementCopy,
-            afterDarkAcknowledgementVersion: value.afterDarkAcknowledgementVersion,
-            afterDarkAcknowledgementAccepted:
-                value.afterDarkAcknowledgementAccepted,
-            safePositionAcknowledgementKey: value.safePositionAcknowledgementKey,
-            safePositionAcknowledgementCopy:
-                value.safePositionAcknowledgementCopy,
-            safePositionAcknowledgementVersion:
-                value.safePositionAcknowledgementVersion,
-            safePositionAcknowledgementAccepted:
-                value.safePositionAcknowledgementAccepted,
-            packID: value.packID, packSchemaVersion: value.packSchemaVersion,
-            packContentVersion: value.packContentVersion,
-            pdfTemplateID: value.pdfTemplateID,
-            pdfTemplateVersion: value.pdfTemplateVersion,
-            outcomeKey: value.outcomeKey,
-            couldNotVerifyKey: value.couldNotVerifyKey,
-            couldNotVerifyDisplaySnapshot: value.couldNotVerifyDisplaySnapshot,
-            couldNotVerifyRegistryVersion: value.couldNotVerifyRegistryVersion,
-            workPerformedLocalDate: value.workPerformedLocalDate,
-            workDescription: value.workDescription, note: value.note,
-            finalizationMutationID: value.finalizationMutationID
-        )
     }
 
     func discardImportedPackage(

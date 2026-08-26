@@ -1,0 +1,1485 @@
+{
+  "$id": "https://assetrounds.invalid/v23/TemporalContextContractV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateAcceptanceMemberships": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "AutonomousRequiredAcceptedSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "appBaseHead": {
+          "const": "0a97101d906816fd9a17bdc02d2b42ac02e3616d"
+        },
+        "appBaseTree": {
+          "const": "a5432c93afa969d4b936ff313b9cd0985661829e"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "authorityReceiptDigest": {
+          "const": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752"
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P02-C07"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "const": "f8ec963ab7e2a2ea1122b34d96e957ade3564748f10a3582619316d825413b8b"
+        },
+        "coordinationAuthorityHead": {
+          "const": "4737a62d29a4e87c8e67341bcc32acb1668bbfe4"
+        },
+        "coordinationAuthorityTree": {
+          "const": "66d2df86c6007fb084a058b8fb0929d5223a47ea"
+        },
+        "coordinationCASSequence": {
+          "const": 112
+        },
+        "coordinationLedgerDigest": {
+          "const": "e264a7a6932757680bd457823c79a056c1e21769278368372f8225c22c2b0968"
+        },
+        "dependencyDispositionDigest": {
+          "const": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C07-G01"
+            },
+            {
+              "const": "V23-P02-C07-A01"
+            },
+            {
+              "const": "V23-P02-C07-H01"
+            },
+            {
+              "const": "V23-P02-C07-I01"
+            },
+            {
+              "const": "V23-P02-C07-R01"
+            }
+          ],
+          "type": "array"
+        },
+        "directGraphDigest": {
+          "const": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C06"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "const": "dfbeb39f8f4993fe069aecb29f555e160567df69de1da53e35942b9be1168d5b"
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "const": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f"
+        },
+        "foundationRegisterDigest": {
+          "const": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd"
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "hydrationProjectionDigest": {
+          "const": "18c68d2ffa91ff935c93e30efaf231aca52acee85a3e9d21c59dbf2cb21afe0f"
+        },
+        "hydrationTransitionDigest": {
+          "const": "a147d23067a61d3797dafc776d5e5bfeb8da2b43f8578ced16b480599e5a57f1"
+        },
+        "impactManifestDigest": {
+          "const": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b"
+        },
+        "inheritedV21BlockDigest": {
+          "const": "1c469d8e8baa23cf64a446f729eb8f6c52c7e675597182b4cf144cde99f099f6"
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C08"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "EXACT_WITH_GENERATION_REBIND"
+        },
+        "lineageSource": {
+          "const": "V21-P02-C07"
+        },
+        "ownerParallelOverrideAuthorityReceiptDigest": {
+          "const": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452"
+        },
+        "pathFenceDigest": {
+          "const": "2e293ae5e604d6f5c4f83009aad480b3eb278bc80b3c2202272c6bf13115c118"
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "const": "a76e7d82ef3e832fb0b4d884f25727fd40cfaa9d4fe0014b2c13cc396627b8a0"
+        },
+        "registerOrdinal": {
+          "const": 27
+        },
+        "registerRowDigest": {
+          "const": "444712a550a1d0419fe2da21822b2352777c919c7912cad497938d2ec30d7778"
+        },
+        "relationManifestDigest": {
+          "const": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4"
+        },
+        "selectorManifestDigest": {
+          "const": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+        },
+        "title": {
+          "const": "ObservationBasisV1, bounded uncertainty, and explicit temporal semantics"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "lineageSource",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationAuthorityHead",
+        "coordinationAuthorityTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "hydrationProjectionDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "hydrationTransitionDigest",
+        "authorityReceiptDigest",
+        "ownerParallelOverrideAuthorityReceiptDigest",
+        "registerRowDigest",
+        "dossierDigest",
+        "inheritedV21BlockDigest",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "aggregateAcceptanceMemberships",
+        "conformanceSubjects",
+        "deterministicEvidenceIDs"
+      ],
+      "type": "object"
+    },
+    "backupBehaviorDelta": {
+      "const": true
+    },
+    "backupCompatibilityRequired": {
+      "const": true
+    },
+    "cardID": {
+      "const": "V23-P02-C07"
+    },
+    "deleteBehaviorDelta": {
+      "const": true
+    },
+    "deleteCompatibilityRequired": {
+      "const": true
+    },
+    "downgradeDisposition": {
+      "const": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION"
+    },
+    "evidenceIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "V23-P02-C07-G01"
+        },
+        {
+          "const": "V23-P02-C07-A01"
+        },
+        {
+          "const": "V23-P02-C07-H01"
+        },
+        {
+          "const": "V23-P02-C07-I01"
+        },
+        {
+          "const": "V23-P02-C07-R01"
+        }
+      ],
+      "type": "array"
+    },
+    "exportBehaviorDelta": {
+      "const": true
+    },
+    "exportCompatibilityRequired": {
+      "const": true
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "migrationBehaviorDelta": {
+      "const": true
+    },
+    "monotonicSeparation": {
+      "additionalProperties": false,
+      "properties": {
+        "causalAuthority": {
+          "const": "acceptedMutationOrder_and_revisions"
+        },
+        "persistedMonotonicTicks": {
+          "const": false
+        },
+        "wallClockIsNotMonotonicSource": {
+          "const": true
+        }
+      },
+      "required": [
+        "persistedMonotonicTicks",
+        "wallClockIsNotMonotonicSource",
+        "causalAuthority"
+      ],
+      "type": "object"
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "owner": {
+      "const": "TemporalContextV1"
+    },
+    "persistentChangeMode": {
+      "const": "NEW_SCHEMA_VERSION"
+    },
+    "persistentContractSchema": {
+      "const": "ObservationAndTimeSchemaV1"
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "prohibitedTokens": {
+      "items": false,
+      "maxItems": 16,
+      "minItems": 16,
+      "prefixItems": [
+        {
+          "const": "accountID"
+        },
+        {
+          "const": "authenticatedUserID"
+        },
+        {
+          "const": "backgroundDaemon"
+        },
+        {
+          "const": "CloudKit"
+        },
+        {
+          "const": "CKRecord"
+        },
+        {
+          "const": "inbox"
+        },
+        {
+          "const": "outbox"
+        },
+        {
+          "const": "providerID"
+        },
+        {
+          "const": "remoteProvider"
+        },
+        {
+          "const": "serverCursor"
+        },
+        {
+          "const": "serverRevision"
+        },
+        {
+          "const": "tenantID"
+        },
+        {
+          "const": "vectorClock"
+        },
+        {
+          "const": "accessToken"
+        },
+        {
+          "const": "serviceCredential"
+        },
+        {
+          "const": "secretMaterial"
+        }
+      ],
+      "type": "array"
+    },
+    "provisional": {
+      "const": true
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "restoreBehaviorDelta": {
+      "const": true
+    },
+    "restoreCompatibilityRequired": {
+      "const": true
+    },
+    "schema": {
+      "const": "TemporalContextContractV1"
+    },
+    "schemaBehaviorDelta": {
+      "const": true
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sourceBindings": {
+      "items": false,
+      "maxItems": 13,
+      "minItems": 13,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C07"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Workflow/TimeContextRule.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 5,
+              "minItems": 5,
+              "prefixItems": [
+                {
+                  "const": "TemporalContextV1"
+                },
+                {
+                  "const": "observedAtUTC"
+                },
+                {
+                  "const": "timeZoneID"
+                },
+                {
+                  "const": "secondsFromGMT"
+                },
+                {
+                  "const": "freezeTemporalContext"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "const": "TimeContextRule"
+                },
+                {
+                  "const": "TemporalContextV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C07"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Workflow/ReportCorrectionRule.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 8,
+              "minItems": 8,
+              "prefixItems": [
+                {
+                  "const": "ReportCorrectionRule"
+                },
+                {
+                  "const": "validateEdge"
+                },
+                {
+                  "const": "makePlan"
+                },
+                {
+                  "const": "WorkflowRecordPayloadV1"
+                },
+                {
+                  "const": "frozen"
+                },
+                {
+                  "const": "snapshotSchemaVersion == 2"
+                },
+                {
+                  "const": "observationBasisV1Data"
+                },
+                {
+                  "const": "temporalContextV1Data"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 5,
+              "minItems": 5,
+              "prefixItems": [
+                {
+                  "const": "ReportCorrectionRule"
+                },
+                {
+                  "const": "ReportCorrectionRuleSource"
+                },
+                {
+                  "const": "ReportCorrectionRuleRequest"
+                },
+                {
+                  "const": "ReportCorrectionRulePlan"
+                },
+                {
+                  "const": "ReportCorrectionRuleError"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C07"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "ObservationBasisV1"
+                },
+                {
+                  "const": "TemporalContextV1"
+                },
+                {
+                  "const": "observationBasis"
+                },
+                {
+                  "const": "temporalContext"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "ReportSnapshotV1"
+                },
+                {
+                  "const": "ObservationBasisV1"
+                },
+                {
+                  "const": "TemporalContextV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C07"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 7,
+              "minItems": 7,
+              "prefixItems": [
+                {
+                  "const": "PersistentSchemaV4"
+                },
+                {
+                  "const": "PersistentSchemaV5"
+                },
+                {
+                  "const": "ObservationAndTimeRow"
+                },
+                {
+                  "const": "PersistentSchemaV4.models + [ObservationAndTimeRow.self]"
+                },
+                {
+                  "const": "PersistentSchemaMigrationPlanV4"
+                },
+                {
+                  "const": "migrateV4ToV5"
+                },
+                {
+                  "const": "models.count == 14"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "PersistentSchemaV4"
+                },
+                {
+                  "const": "PersistentSchemaV5"
+                },
+                {
+                  "const": "ObservationAndTimeRow"
+                },
+                {
+                  "const": "PersistentSchemaMigrationPlanV4"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C07"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "ObservationAndTimeMigrationV1"
+                },
+                {
+                  "const": "ObservationAndTimeMigrationReceiptV1"
+                },
+                {
+                  "const": "inventedDirectObservation"
+                },
+                {
+                  "const": "legacy"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "const": "ObservationAndTimeMigrationV1"
+                },
+                {
+                  "const": "ObservationAndTimeMigrationReceiptV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C07"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "WorkspaceWriterAdapterV1"
+                },
+                {
+                  "const": "ObservationAndTimeCodecV1"
+                },
+                {
+                  "const": "observationBasisData"
+                },
+                {
+                  "const": "temporalContextData"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "WorkspaceWriterAdapterV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C07"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 10,
+              "minItems": 10,
+              "prefixItems": [
+                {
+                  "const": "BackupImportService"
+                },
+                {
+                  "const": "stageAndValidate"
+                },
+                {
+                  "const": "stageAndValidateOffMain"
+                },
+                {
+                  "const": "validateManifestBounds"
+                },
+                {
+                  "const": "backupSchemaVersion"
+                },
+                {
+                  "const": "persistentSchemaVersion"
+                },
+                {
+                  "const": "recordsSchemaVersion"
+                },
+                {
+                  "const": "(4, 5, 4)"
+                },
+                {
+                  "const": "validateSourceBoundary"
+                },
+                {
+                  "const": "discard"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "BackupImportService"
+                },
+                {
+                  "const": "ValidatedV4BackupPackageV1"
+                },
+                {
+                  "const": "BackupImportServiceError"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C07"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "BackupRestoreService"
+                },
+                {
+                  "const": "restore"
+                },
+                {
+                  "const": "migrationCanonicalRecords"
+                },
+                {
+                  "const": "newGenerationID"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "BackupRestoreService"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C07"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "ReportSnapshotEncoderV1"
+                },
+                {
+                  "const": "ObservationAndTimeCodecV1"
+                },
+                {
+                  "const": "validObservationAndTime"
+                },
+                {
+                  "const": "ObservationBasisV1"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "ReportSnapshotEncoderV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C07"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 11,
+              "minItems": 11,
+              "prefixItems": [
+                {
+                  "const": "ReportDeliveryCoordinator"
+                },
+                {
+                  "const": "ReportDeliveryValue"
+                },
+                {
+                  "const": "ReportCorrectionSubmissionResult"
+                },
+                {
+                  "const": "prepareFinalizedReport"
+                },
+                {
+                  "const": "submitCorrection"
+                },
+                {
+                  "const": "validateCompleteSnapshotAuthority"
+                },
+                {
+                  "const": "snapshotSchemaVersion == 2"
+                },
+                {
+                  "const": "WorkflowRecord"
+                },
+                {
+                  "const": "ObservationAndTimeRowStoreV1"
+                },
+                {
+                  "const": "observationBasisV1Data"
+                },
+                {
+                  "const": "temporalContextV1Data"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "ReportDeliveryCoordinator"
+                },
+                {
+                  "const": "ReportDeliveryValue"
+                },
+                {
+                  "const": "ReportDeliveryPreparation"
+                },
+                {
+                  "const": "ReportCorrectionSubmissionResult"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C07"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "SnapshotValidatorV1"
+                },
+                {
+                  "const": "observationBasis"
+                },
+                {
+                  "const": "temporalContext"
+                },
+                {
+                  "const": "validObservationAndTime"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "SnapshotValidatorV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C07"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "ReportRecoveryService"
+                },
+                {
+                  "const": "canonicalSnapshot"
+                },
+                {
+                  "const": "observedAtUTC"
+                },
+                {
+                  "const": "couldNotVerifyKey"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "ReportRecoveryService"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C07"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Models/ObservationAndTimeModelsV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 20,
+              "minItems": 20,
+              "prefixItems": [
+                {
+                  "const": "DIRECTLY_OBSERVED"
+                },
+                {
+                  "const": "REPORTED"
+                },
+                {
+                  "const": "INFERRED"
+                },
+                {
+                  "const": "NOT_OBSERVED"
+                },
+                {
+                  "const": "UNVERIFIABLE"
+                },
+                {
+                  "const": "UNKNOWN"
+                },
+                {
+                  "const": "OBSERVER"
+                },
+                {
+                  "const": "REPORTED_PARTY"
+                },
+                {
+                  "const": "RECORD"
+                },
+                {
+                  "const": "AMBIGUOUS_FOLD"
+                },
+                {
+                  "const": "NONEXISTENT_GAP"
+                },
+                {
+                  "const": "maximumLimitationCount"
+                },
+                {
+                  "const": "maximumEncodedValueBytes"
+                },
+                {
+                  "const": "maximumAbsoluteUTCOffsetSeconds"
+                },
+                {
+                  "const": "maximumTimeZoneIdentifierBytes"
+                },
+                {
+                  "const": "unknownKey"
+                },
+                {
+                  "const": "sortedKeys"
+                },
+                {
+                  "const": "withoutEscapingSlashes"
+                },
+                {
+                  "const": "millisecondsSince1970"
+                },
+                {
+                  "const": "ObservationAndTimeLegacyMigrationV1"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 11,
+              "minItems": 11,
+              "prefixItems": [
+                {
+                  "const": "ObservationAndTimeValidationFailureV1"
+                },
+                {
+                  "const": "ObservationBasisKindV1"
+                },
+                {
+                  "const": "ObservationMethodV1"
+                },
+                {
+                  "const": "ObservationSourceKindV1"
+                },
+                {
+                  "const": "ObservationSourceReferenceV1"
+                },
+                {
+                  "const": "ObservationBasisV1"
+                },
+                {
+                  "const": "LocalTimeDispositionV1"
+                },
+                {
+                  "const": "TemporalContextV1"
+                },
+                {
+                  "const": "ObservationAndTimeSchemaV1"
+                },
+                {
+                  "const": "ObservationAndTimeCodecV1"
+                },
+                {
+                  "const": "ObservationAndTimeLegacyMigrationV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "temporal": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalSortedKeys": {
+          "const": true
+        },
+        "causalOrdering": {
+          "const": "FORBIDDEN"
+        },
+        "codec": {
+          "const": "ObservationAndTimeCodecV1"
+        },
+        "dateEncoding": {
+          "const": "millisecondsSince1970"
+        },
+        "dispositionEnum": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "const": "UNAMBIGUOUS"
+            },
+            {
+              "const": "AMBIGUOUS_FOLD"
+            },
+            {
+              "const": "NONEXISTENT_GAP"
+            },
+            {
+              "const": "UNKNOWN"
+            }
+          ],
+          "type": "array"
+        },
+        "durableValidation": {
+          "additionalProperties": false,
+          "properties": {
+            "rederivesOffsetOrDST": {
+              "const": false
+            },
+            "reopensTimeZoneDatabase": {
+              "const": false
+            },
+            "usesCapturedTuple": {
+              "const": true
+            }
+          },
+          "required": [
+            "usesCapturedTuple",
+            "reopensTimeZoneDatabase",
+            "rederivesOffsetOrDST"
+          ],
+          "type": "object"
+        },
+        "durationMeasurement": {
+          "const": "FORBIDDEN"
+        },
+        "fields": {
+          "items": false,
+          "maxItems": 7,
+          "minItems": 7,
+          "prefixItems": [
+            {
+              "const": "occurredAtUTC"
+            },
+            {
+              "const": "recordedAtUTC"
+            },
+            {
+              "const": "localDate"
+            },
+            {
+              "const": "localTime"
+            },
+            {
+              "const": "utcOffsetSeconds"
+            },
+            {
+              "const": "ianaTimeZoneIdentifier"
+            },
+            {
+              "const": "localTimeDisposition"
+            }
+          ],
+          "type": "array"
+        },
+        "fold": {
+          "const": "PRESERVE_EXPLICIT_AMBIGUOUS_FOLD_WITH_CIVIL_TIME_AND_ZONE"
+        },
+        "gap": {
+          "const": "PRESERVE_EXPLICIT_NONEXISTENT_GAP_WITHOUT_INVENTED_INSTANT"
+        },
+        "liveCreation": {
+          "additionalProperties": false,
+          "properties": {
+            "capturesZoneOffsetAndDisposition": {
+              "const": true
+            },
+            "derivesCurrentOffsetAndDST": {
+              "const": true
+            },
+            "method": {
+              "const": "wallTimeRecord(timeZone:)"
+            }
+          },
+          "required": [
+            "method",
+            "derivesCurrentOffsetAndDST",
+            "capturesZoneOffsetAndDisposition"
+          ],
+          "type": "object"
+        },
+        "maximumEncodedValueBytes": {
+          "const": 32768
+        },
+        "offsetInclusiveRange": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": -64800
+            },
+            {
+              "const": 64800
+            }
+          ],
+          "type": "array"
+        },
+        "representation": {
+          "const": "Data"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "timeZoneIdentifierMaximumUTF8Bytes": {
+          "const": 255
+        },
+        "unknown": {
+          "const": "RETAIN_UNKNOWN_WITHOUT_TZDB_GUESS"
+        },
+        "validation": {
+          "items": false,
+          "maxItems": 7,
+          "minItems": 7,
+          "prefixItems": [
+            {
+              "const": "finiteDate"
+            },
+            {
+              "const": "localDateAndLocalTimeArePaired"
+            },
+            {
+              "const": "ISO8601CivilDate"
+            },
+            {
+              "const": "ISO8601CivilTime"
+            },
+            {
+              "const": "capturedUTCOffsetSecondsWithinInclusivePlusOrMinus64800"
+            },
+            {
+              "const": "nonEmptyTrimmedControlFreeTimeZoneIdentifier"
+            },
+            {
+              "const": "timeZoneIdentifierUTF8ByteCountAtMost255"
+            }
+          ],
+          "type": "array"
+        },
+        "wallClockForwardJump": {
+          "const": "DISPLAY_CONTEXT_ONLY_NO_CAUSAL_REORDER"
+        },
+        "wallClockRollback": {
+          "const": "DISPLAY_CONTEXT_ONLY_NO_CAUSAL_REORDER"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "fields",
+        "dispositionEnum",
+        "dateEncoding",
+        "codec",
+        "representation",
+        "canonicalSortedKeys",
+        "maximumEncodedValueBytes",
+        "validation",
+        "offsetInclusiveRange",
+        "timeZoneIdentifierMaximumUTF8Bytes",
+        "liveCreation",
+        "durableValidation",
+        "causalOrdering",
+        "durationMeasurement",
+        "wallClockRollback",
+        "wallClockForwardJump",
+        "fold",
+        "gap",
+        "unknown"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "owner",
+    "persistentContractSchema",
+    "persistentChangeMode",
+    "schemaBehaviorDelta",
+    "migrationBehaviorDelta",
+    "backupBehaviorDelta",
+    "restoreBehaviorDelta",
+    "deleteBehaviorDelta",
+    "exportBehaviorDelta",
+    "backupCompatibilityRequired",
+    "restoreCompatibilityRequired",
+    "deleteCompatibilityRequired",
+    "exportCompatibilityRequired",
+    "downgradeDisposition",
+    "temporal",
+    "monotonicSeparation",
+    "sourceBindings",
+    "prohibitedTokens",
+    "evidenceIDs",
+    "provisional",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "phase10PollingDuringParallelExecution",
+    "requiresAcceptedS10_6Reconciliation",
+    "artifactDigest"
+  ],
+  "title": "TemporalContextContractV1",
+  "type": "object"
+}

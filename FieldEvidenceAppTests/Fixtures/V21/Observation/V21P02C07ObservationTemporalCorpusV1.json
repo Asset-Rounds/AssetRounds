@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "fixtureIdentity": "V21-P02-C07-OBSERVATION-TEMPORAL-CORPUS-V1",
+  "basisKinds": [
+    "directly_observed",
+    "reported_by_person",
+    "inferred",
+    "not_observed",
+    "unverifiable",
+    "unknown"
+  ],
+  "outcomes": [
+    "compliant",
+    "noncompliant",
+    "unknown"
+  ],
+  "golden": {
+    "method": "visual_inspection",
+    "sourceReference": "asset:00000000-0000-0000-0000-000000000101",
+    "limitations": "West face partly screened by a fixed awning.",
+    "occurredAtUTC": "2026-01-15T17:00:00Z",
+    "recordedAtUTC": "2026-01-15T17:00:12Z",
+    "localDate": "2026-01-15",
+    "localTime": "12:00:00",
+    "utcOffsetSeconds": -18000,
+    "timeZoneIdentifier": "America/New_York",
+    "localTimeDisposition": "exact"
+  },
+  "alternate": {
+    "reportedMethod": "verbal_report",
+    "reportedSourceReference": "person:shift-lead-17",
+    "inferredMethod": "derived_from_recorded_evidence",
+    "unknownSourceReference": null
+  },
+  "hostileTimeCases": [
+    {
+      "id": "fall-fold-first",
+      "occurredAtUTC": "2026-11-01T05:30:00Z",
+      "recordedAtUTC": "2026-11-01T05:30:05Z",
+      "localDate": "2026-11-01",
+      "localTime": "01:30:00",
+      "utcOffsetSeconds": -14400,
+      "timeZoneIdentifier": "America/New_York",
+      "localTimeDisposition": "fold_first"
+    },
+    {
+      "id": "fall-fold-second",
+      "occurredAtUTC": "2026-11-01T06:30:00Z",
+      "recordedAtUTC": "2026-11-01T06:30:05Z",
+      "localDate": "2026-11-01",
+      "localTime": "01:30:00",
+      "utcOffsetSeconds": -18000,
+      "timeZoneIdentifier": "America/New_York",
+      "localTimeDisposition": "fold_second"
+    },
+    {
+      "id": "spring-gap",
+      "occurredAtUTC": null,
+      "recordedAtUTC": "2026-03-08T07:00:00Z",
+      "localDate": "2026-03-08",
+      "localTime": "02:30:00",
+      "utcOffsetSeconds": null,
+      "timeZoneIdentifier": "America/New_York",
+      "localTimeDisposition": "nonexistent"
+    },
+    {
+      "id": "unknown-zone",
+      "occurredAtUTC": "2026-07-15T16:00:00Z",
+      "recordedAtUTC": "2026-07-15T16:00:05Z",
+      "localDate": "2026-07-15",
+      "localTime": "12:00:00",
+      "utcOffsetSeconds": null,
+      "timeZoneIdentifier": null,
+      "localTimeDisposition": "unknown"
+    },
+    {
+      "id": "wall-clock-rollback",
+      "occurredAtUTC": "2026-01-15T17:00:30Z",
+      "recordedAtUTC": "2026-01-15T16:59:30Z",
+      "localDate": "2026-01-15",
+      "localTime": "12:00:30",
+      "utcOffsetSeconds": -18000,
+      "timeZoneIdentifier": "America/New_York",
+      "localTimeDisposition": "exact"
+    }
+  ],
+  "interruptionBoundaries": [
+    "afterEffectBeforeReceipt",
+    "afterReceiptBeforeSave",
+    "afterSaveBeforeReturn"
+  ],
+  "legacyCouldNotVerify": {
+    "outcomeKey": "could_not_verify",
+    "reasonKey": "required_view_obstructed",
+    "reasonDisplaySnapshot": "Required view is blocked",
+    "reasonRegistryVersion": "cnv.reason.en-US.v1",
+    "expectedBasisKind": "unverifiable",
+    "expectedMethod": "unknown",
+    "expectedSourceReference": null
+  },
+  "portableLifecycle": [
+    "backup",
+    "replace_restore",
+    "clone",
+    "fork",
+    "export",
+    "import",
+    "journal_replay",
+    "delete",
+    "erase"
+  ],
+  "unsupportedSchemaVersion": 2147483647
+}

@@ -23,6 +23,7 @@ final class BackupExportService {
         let sites: [Site]
         let assets: [Asset]
         let records: [WorkflowRecord]
+        let observationAndTime: [UUID: ObservationAndTimeRow]
         let evidence: [EvidenceFile]
         let issues: [Issue]
         let packets: [Packet]
@@ -512,7 +513,7 @@ private extension BackupExportService {
         } catch {
             throw BackupExportServiceError.invalidAuthority
         }
-        let records = makeRecords(
+        let records = try makeRecords(
             rows,
             deletionLedger: deletionLedger,
             mutationHistory: mutationHistory
@@ -606,7 +607,8 @@ private extension BackupExportService {
             do { try delivery.validateRecoveryAuthority(id: report.id) }
             catch { throw BackupExportServiceError.invalidAuthority }
             let canonicalID = uuid(report.id)
-            guard report.snapshotSchemaVersion == 1,
+            guard (report.snapshotSchemaVersion == 1
+                    || report.snapshotSchemaVersion == 2),
                   report.snapshotRelativePath == "snapshots/\(canonicalID).json" else {
                 throw BackupExportServiceError.invalidAuthority
             }
@@ -718,7 +720,7 @@ private extension BackupExportService {
             throw BackupExportServiceError.invalidAuthority
         }
         let manifest = V4BackupManifestV1(
-            backupSchemaVersion: 3,
+            backupSchemaVersion: 4,
             consumedEvaluationRootIDs: rows.packets
                 .filter(\.evaluationCounted)
                 .map(\.stableRootID)
@@ -730,9 +732,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 4,
+                persistentSchemaVersion: 5,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 3,
+                recordsSchemaVersion: 4,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
         )
@@ -800,7 +802,7 @@ private extension BackupExportService {
         }
         let rows = try fetchRows()
         try validateGraph(rows)
-        let records = makeRecords(rows)
+        let records = try makeRecords(rows)
         let recordsData: Data
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
@@ -868,7 +870,8 @@ private extension BackupExportService {
             do { try delivery.validateRecoveryAuthority(id: report.id) }
             catch { throw BackupExportServiceError.invalidAuthority }
             let canonicalID = uuid(report.id)
-            guard report.snapshotSchemaVersion == 1,
+            guard (report.snapshotSchemaVersion == 1
+                    || report.snapshotSchemaVersion == 2),
                   report.snapshotRelativePath == "snapshots/\(canonicalID).json" else {
                 throw BackupExportServiceError.invalidAuthority
             }
@@ -1248,6 +1251,9 @@ private extension BackupExportService {
                 sites: try modelContext.fetch(FetchDescriptor<Site>()),
                 assets: try modelContext.fetch(FetchDescriptor<Asset>()),
                 records: try modelContext.fetch(FetchDescriptor<WorkflowRecord>()),
+                observationAndTime: try ObservationAndTimeRowStoreV1.validatedIndex(
+                    in: modelContext
+                ),
                 evidence: try modelContext.fetch(FetchDescriptor<EvidenceFile>()),
                 issues: try modelContext.fetch(FetchDescriptor<Issue>()),
                 packets: try modelContext.fetch(FetchDescriptor<Packet>()),
@@ -1410,7 +1416,7 @@ private extension BackupExportService {
         _ rows: Rows,
         deletionLedger: DeletionLedgerV2? = nil,
         mutationHistory: MutationHistorySnapshotV1? = nil
-    ) -> V4BackupRecordsV1 {
+    ) throws -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             assets: rows.assets.map {
                 .init(
@@ -1453,7 +1459,7 @@ private extension BackupExportService {
             }.sorted(by: dtoOrder),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 3,
+                : 4,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -1472,7 +1478,12 @@ private extension BackupExportService {
                     createdAt: $0.createdAt, updatedAt: $0.updatedAt
                 )
             }.sorted(by: dtoOrder),
-            workflowRecords: rows.records.map(workflowDTO).sorted(by: dtoOrder)
+            workflowRecords: try rows.records.map { record in
+                guard let companion = rows.observationAndTime[record.id] else {
+                    throw BackupExportServiceError.invalidAuthority
+                }
+                return workflowDTO(record, observationAndTime: companion)
+            }.sorted(by: dtoOrder)
         )
     }
 
@@ -1523,7 +1534,10 @@ private extension BackupExportService {
         }
     }
 
-    func workflowDTO(_ value: WorkflowRecord) -> V4BackupWorkflowRecordDTO {
+    func workflowDTO(
+        _ value: WorkflowRecord,
+        observationAndTime: ObservationAndTimeRow
+    ) -> V4BackupWorkflowRecordDTO {
         .init(
             id: value.id, schemaVersion: value.schemaVersion,
             assetID: value.assetID, packetID: value.packetID, issueID: value.issueID,
@@ -1553,7 +1567,9 @@ private extension BackupExportService {
             couldNotVerifyRegistryVersion: value.couldNotVerifyRegistryVersion,
             workPerformedLocalDate: value.workPerformedLocalDate,
             workDescription: value.workDescription, note: value.note,
-            finalizationMutationID: value.finalizationMutationID
+            finalizationMutationID: value.finalizationMutationID,
+            observationBasisV1Data: observationAndTime.observationBasisV1Data,
+            temporalContextV1Data: observationAndTime.temporalContextV1Data
         )
     }
 }

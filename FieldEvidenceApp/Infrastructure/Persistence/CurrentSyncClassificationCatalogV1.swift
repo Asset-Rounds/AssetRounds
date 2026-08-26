@@ -47,7 +47,7 @@ enum CurrentSyncClassificationCatalogFailureV1: Error, Equatable {
 struct CurrentSyncClassificationCatalogV1: Sendable {
     static let persistentModelNames = [
         "Asset", "DeletionLedgerRow", "EntityMutationRevisionRow", "EvidenceFile",
-        "Issue", "MutationQuarantineRow", "MutationReceiptRow", "Packet",
+        "Issue", "MutationQuarantineRow", "MutationReceiptRow", "ObservationAndTimeRow", "Packet",
         "PersistentSchemaReleaseMarker", "Report", "Site", "WorkflowRecord",
         "WorkspaceMutationStateRow",
     ]
@@ -63,8 +63,10 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     static let portableContentProjectionNames = [
         "DeletionLedgerV2",
         "MutationHistorySnapshotV1",
+        "ObservationBasisV1",
         "ReportSnapshotV1",
         "StreamingArchiveIndexV1",
+        "TemporalContextV1",
         "V4BackupAssetDTO",
         "V4BackupEvidenceFileDTO",
         "V4BackupIssueDTO",
@@ -85,8 +87,11 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "EntityMutationRevisionSemanticV1",
         "MutationQuarantineSemanticV1",
         "MutationReceiptSemanticV1",
+        "ObservationAndTimeMigrationReceiptV1",
+        "ObservationAndTimeSemanticV1",
         "StoreSemanticEnvelopeV3",
         "StoreSemanticEnvelopeV4",
+        "StoreSemanticEnvelopeV5",
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
@@ -374,6 +379,7 @@ private extension CurrentSyncClassificationCatalogV1 {
     enum AdditionalProfile {
         case portableProjection
         case immutableContent
+        case replicatedContent
         case derivedProjection
         case replicatedMutationHistory
         case recoveryJournal
@@ -393,6 +399,15 @@ private extension CurrentSyncClassificationCatalogV1 {
             try SyncClassificationRegistryV1.registrations.map(\.subject.canonicalKey)
         )
         var specs: [AdditionalSpec] = []
+
+        specs.append(AdditionalSpec(
+            category: .persistentModel,
+            name: "ObservationAndTimeRow",
+            profile: .replicatedContent,
+            dependencies: [
+                try subject(category: .persistentModel, name: "WorkflowRecord")
+            ]
+        ))
 
         for name in portableContentProjectionNames {
             let profile: AdditionalProfile = name == "ReportSnapshotV1"
@@ -507,6 +522,20 @@ private extension CurrentSyncClassificationCatalogV1 {
             erase = .clearWithWorkspace
             rule = .immutableVersion
             maximumBytes = 134_217_728
+        case .replicatedContent:
+            classification = .replicated
+            authority = .workspaceWriter
+            persistence = .swiftDataRecord
+            transport = .futureAcceptedMutationEligible
+            bootstrap = .canonicalSnapshot
+            privacy = .workspaceData
+            retention = .untilCanonicalDeleteOrErase
+            backup = .includeCanonical
+            export = .portableCanonical
+            deletion = .canonicalDelete
+            erase = .clearWithWorkspace
+            rule = .exactRevisionManual
+            maximumBytes = 16_777_216
         case .derivedProjection:
             classification = .derivedRebuildable
             authority = .derivedFromCanonicalInputs
@@ -671,6 +700,8 @@ private extension CurrentSyncClassificationCatalogV1 {
                 "EntityMutationRevisionRow", "MutationQuarantineRow",
                 "MutationReceiptRow", "WorkspaceMutationStateRow",
             ])
+        case "ObservationBasisV1", "TemporalContextV1":
+            return [try subject(category: .persistentModel, name: "ObservationAndTimeRow")]
         case "ReportSnapshotV1":
             return try contentModelSubjects()
         case "StreamingArchiveIndexV1":
@@ -688,7 +719,9 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "V4BackupSiteDTO":
             return [try subject(category: .persistentModel, name: "Site")]
         case "V4BackupWorkflowRecordDTO":
-            return [try subject(category: .persistentModel, name: "WorkflowRecord")]
+            return try subjects(category: .persistentModel, names: [
+                "ObservationAndTimeRow", "WorkflowRecord",
+            ])
         case "V4BackupRecordsV1", "V4BackupManifestV1":
             return try contentModelSubjects()
         default:
@@ -708,7 +741,12 @@ private extension CurrentSyncClassificationCatalogV1 {
             return [try subject(category: .persistentModel, name: "MutationReceiptRow")]
         case "WorkspaceMutationStateSemanticV1", "workspaceMutationState":
             return [try subject(category: .persistentModel, name: "WorkspaceMutationStateRow")]
-        case "StoreSemanticEnvelopeV3", "StoreSemanticEnvelopeV4":
+        case "ObservationAndTimeMigrationReceiptV1", "ObservationAndTimeSemanticV1":
+            return [
+                try subject(category: .persistentModel, name: "WorkflowRecord"),
+                try subject(category: .persistentModel, name: "ObservationAndTimeRow"),
+            ]
+        case "StoreSemanticEnvelopeV3", "StoreSemanticEnvelopeV4", "StoreSemanticEnvelopeV5":
             return try subjects(category: .persistentModel, names: persistentModelNames)
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
@@ -717,7 +755,8 @@ private extension CurrentSyncClassificationCatalogV1 {
 
     static func contentModelSubjects() throws -> [SyncSubjectIdentityV1] {
         try subjects(category: .persistentModel, names: [
-            "Asset", "EvidenceFile", "Issue", "Packet", "Report", "Site", "WorkflowRecord",
+            "Asset", "EvidenceFile", "Issue", "ObservationAndTimeRow", "Packet",
+            "Report", "Site", "WorkflowRecord",
         ])
     }
 
@@ -736,20 +775,22 @@ private extension CurrentSyncClassificationCatalogV1 {
             MutationQuarantineRow.self,
             WorkspaceMutationStateRow.self,
             EntityMutationRevisionRow.self,
+            ObservationAndTimeRow.self,
         ]
-        let runtimeNames = PersistentSchemaV4.models.map { modelType in
+        let runtimeNames = PersistentSchemaV5.models.map { modelType in
             String(describing: modelType)
                 .split(separator: ".")
                 .last
                 .map(String.init) ?? ""
         }.sorted()
-        guard PersistentSchemaV4.models.count == expected.count,
-              Set(PersistentSchemaV4.models.map { ObjectIdentifier($0) })
+        guard PersistentSchemaV5.models.count == expected.count,
+              Set(PersistentSchemaV5.models.map { ObjectIdentifier($0) })
                 == Set(expected.map { ObjectIdentifier($0) }),
               runtimeNames.count == Set(runtimeNames).count,
               runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),
               runtimeNames == persistentModelNames,
-              persistentModelNames == SyncClassificationRegistryV1.persistentModelNames else {
+              Set(persistentModelNames)
+                == Set(SyncClassificationRegistryV1.persistentModelNames + ["ObservationAndTimeRow"]) else {
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
     }

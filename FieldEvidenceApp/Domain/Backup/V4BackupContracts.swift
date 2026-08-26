@@ -64,6 +64,48 @@ struct V4BackupWorkflowRecordDTO: Codable, Equatable, Identifiable, Sendable {
     let workDescription: String?
     let note: String?
     let finalizationMutationID: UUID?
+    /// Exact canonical ObservationAndTimeCodecV1 bytes. Legacy records omit it.
+    var observationBasisV1Data: Data? = nil
+    /// Exact canonical ObservationAndTimeCodecV1 bytes. Legacy records omit it.
+    var temporalContextV1Data: Data? = nil
+
+    func replacingObservationAndTime(
+        basisData: Data?,
+        temporalData: Data?
+    ) -> Self {
+        Self(
+            id: id, schemaVersion: schemaVersion, assetID: assetID,
+            packetID: packetID, issueID: issueID,
+            parentRecordID: parentRecordID,
+            recordRevisionRootID: recordRevisionRootID,
+            revisesRecordID: revisesRecordID,
+            evidenceSourceRecordID: evidenceSourceRecordID,
+            revisionKind: revisionKind, stage: stage, state: state,
+            draftStepKey: draftStepKey, startedAt: startedAt,
+            completedAt: completedAt, observedAtUTC: observedAtUTC,
+            timeZoneID: timeZoneID, utcOffsetMinutes: utcOffsetMinutes,
+            localDate: localDate, localTime: localTime,
+            afterDarkAcknowledgementKey: afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: safePositionAcknowledgementAccepted,
+            packID: packID, packSchemaVersion: packSchemaVersion,
+            packContentVersion: packContentVersion,
+            pdfTemplateID: pdfTemplateID, pdfTemplateVersion: pdfTemplateVersion,
+            outcomeKey: outcomeKey, couldNotVerifyKey: couldNotVerifyKey,
+            couldNotVerifyDisplaySnapshot: couldNotVerifyDisplaySnapshot,
+            couldNotVerifyRegistryVersion: couldNotVerifyRegistryVersion,
+            workPerformedLocalDate: workPerformedLocalDate,
+            workDescription: workDescription, note: note,
+            finalizationMutationID: finalizationMutationID,
+            observationBasisV1Data: basisData,
+            temporalContextV1Data: temporalData
+        )
+    }
 }
 
 struct V4BackupEvidenceFileDTO: Codable, Equatable, Identifiable, Sendable {

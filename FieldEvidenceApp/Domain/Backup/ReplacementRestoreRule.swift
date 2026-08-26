@@ -197,7 +197,7 @@ private extension ReplacementRestoreRule {
         case (2, let ledger?, nil):
             try ledger.validate()
             explicit = ledger
-        case (3, let ledger?, let history?):
+        case (3, let ledger?, let history?), (4, let ledger?, let history?):
             try ledger.validate()
             try MutationJournalStoreV1.validateImportedSnapshot(history)
             explicit = ledger
@@ -263,7 +263,9 @@ private extension ReplacementRestoreRule {
             issues: issues,
             mutationHistory: records.mutationHistory,
             packets: packets,
-            recordsSchemaVersion: records.mutationHistory == nil ? 2 : 3,
+            recordsSchemaVersion: records.mutationHistory == nil
+                ? 2
+                : (records.recordsSchemaVersion >= 4 ? 4 : 3),
             reports: reports,
             sites: sites,
             workflowRecords: workflow
@@ -305,7 +307,7 @@ private extension ReplacementRestoreRule {
             packets: records.packets,
             recordsSchemaVersion: mutationHistory == nil
                 ? min(records.recordsSchemaVersion, 2)
-                : 3,
+                : (records.recordsSchemaVersion >= 4 ? 4 : 3),
             reports: records.reports,
             sites: records.sites,
             workflowRecords: records.workflowRecords

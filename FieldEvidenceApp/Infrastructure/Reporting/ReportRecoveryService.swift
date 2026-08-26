@@ -244,7 +244,7 @@ final class ReportRecoveryService: ObservableObject {
             guard ids.insert(report.id).inserted,
                   sourceRecordIDs.insert(report.sourceRecordID).inserted,
                   report.schemaVersion == 1,
-                  report.snapshotSchemaVersion == 1,
+                  report.snapshotSchemaVersion == 1 || report.snapshotSchemaVersion == 2,
                   Self.isLowercaseSHA256(report.snapshotSHA256) else {
                 throw ReportRecoveryServiceError.invalidAuthority
             }
@@ -288,7 +288,7 @@ final class ReportRecoveryService: ObservableObject {
             } catch {
                 throw ReportRecoveryServiceError.invalidAuthority
             }
-            guard snapshot.snapshotSchemaVersion == 1,
+            guard snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion,
                   snapshot.reportID == report.id,
                   snapshot.packetID == report.packetID,
                   snapshot.sourceRecordID == report.sourceRecordID,
@@ -392,6 +392,7 @@ final class ReportRecoveryService: ObservableObject {
         let packets = try modelContext.fetch(FetchDescriptor<Packet>())
         let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
         let evidence = try modelContext.fetch(FetchDescriptor<EvidenceFile>())
+        let observationAndTime = try validatedObservationAndTimeIndex(records: records)
         guard Set(reports.map(\.id)).count == reports.count,
               Set(records.map(\.id)).count == records.count,
               Set(reports.map(\.sourceRecordID)).count == reports.count else {
@@ -461,7 +462,10 @@ final class ReportRecoveryService: ObservableObject {
                     do {
                         try ReportCorrectionRule().validateEdge(
                             prior: ReportCorrectionRuleSource(
-                                currentRecord: recordPayload(priorRecords[0]),
+                                currentRecord: try recordPayload(
+                                    priorRecords[0],
+                                    observationAndTime: observationAndTime
+                                ),
                                 packet: PacketPayloadV1(
                                     id: packet.id,
                                     schemaVersion: packet.schemaVersion,
@@ -474,7 +478,10 @@ final class ReportRecoveryService: ObservableObject {
                                 currentReport: reportPayload(priorReports[0]),
                                 currentSnapshot: priorSnapshot
                             ),
-                            correctionRecord: recordPayload(source),
+                            correctionRecord: try recordPayload(
+                                source,
+                                observationAndTime: observationAndTime
+                            ),
                             correctionReport: reportPayload(report),
                             correctionSnapshot: correctionSnapshot
                         )
@@ -523,8 +530,14 @@ final class ReportRecoveryService: ObservableObject {
         }
     }
 
-    private func recordPayload(_ value: WorkflowRecord) -> WorkflowRecordPayloadV1 {
-        WorkflowRecordPayloadV1(
+    private func recordPayload(
+        _ value: WorkflowRecord,
+        observationAndTime: [UUID: ObservationAndTimeRow]
+    ) throws -> WorkflowRecordPayloadV1 {
+        guard let companion = observationAndTime[value.id] else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        return WorkflowRecordPayloadV1(
             id: value.id, schemaVersion: value.schemaVersion,
             assetID: value.assetID, packetID: value.packetID,
             issueID: value.issueID, parentRecordID: value.parentRecordID,
@@ -555,8 +568,52 @@ final class ReportRecoveryService: ObservableObject {
             couldNotVerifyRegistryVersion: value.couldNotVerifyRegistryVersion,
             workPerformedLocalDate: value.workPerformedLocalDate,
             workDescription: value.workDescription, note: value.note,
-            finalizationMutationID: value.finalizationMutationID
+            finalizationMutationID: value.finalizationMutationID,
+            observationBasisV1Data: companion.observationBasisV1Data,
+            temporalContextV1Data: companion.temporalContextV1Data
         )
+    }
+
+    private func validatedObservationAndTimeIndex(
+        records: [WorkflowRecord]
+    ) throws -> [UUID: ObservationAndTimeRow] {
+        guard records.count <= ObservationAndTimeRowStoreV1.maximumRows else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        var rows: [ObservationAndTimeRow] = []
+        rows.reserveCapacity(records.count)
+        var offset = 0
+        while true {
+            var descriptor = FetchDescriptor<ObservationAndTimeRow>(
+                sortBy: [SortDescriptor(\.recordID)]
+            )
+            descriptor.fetchLimit = Self.observationAndTimeBatchSize
+            descriptor.fetchOffset = offset
+            let batch = try modelContext.fetch(descriptor)
+            rows.append(contentsOf: batch)
+            guard rows.count <= ObservationAndTimeRowStoreV1.maximumRows else {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+            guard batch.count == Self.observationAndTimeBatchSize else { break }
+            offset += batch.count
+        }
+
+        let recordIDs = Set(records.map(\.id))
+        var result: [UUID: ObservationAndTimeRow] = [:]
+        result.reserveCapacity(rows.count)
+        for row in rows {
+            guard recordIDs.contains(row.recordID),
+                  result.updateValue(row, forKey: row.recordID) == nil else {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+            do { try row.validate() } catch {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+        }
+        guard result.count == recordIDs.count else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        return result
     }
 
     private func reportPayload(_ value: Report) -> ReportPayloadV1 {
@@ -698,6 +755,8 @@ final class ReportRecoveryService: ObservableObject {
     private static func canonical(_ id: UUID) -> String {
         id.uuidString.lowercased()
     }
+
+    private static let observationAndTimeBatchSize = 512
 
     private static func isLowercaseSHA256(_ value: String) -> Bool {
         value.utf8.count == 64 && value.utf8.allSatisfy {

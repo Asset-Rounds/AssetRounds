@@ -254,7 +254,8 @@ final class ReportDeliveryCoordinator {
               report.pdfRelativePath == expectedPDFPath,
               let storedPDFSHA256 = report.pdfSHA256,
               Self.isLowercaseSHA256(storedPDFSHA256),
-              report.snapshotSchemaVersion == 1,
+              (report.snapshotSchemaVersion == 1
+                || report.snapshotSchemaVersion == 2),
               report.snapshotRelativePath == "snapshots/\(canonicalID).json",
               Self.isLowercaseSHA256(report.snapshotSHA256),
               try anchoredLeafIsAbsent(relativePath: ".staging/pdfs/\(canonicalID).pdf") else {
@@ -491,7 +492,7 @@ final class ReportDeliveryCoordinator {
             do {
                 expectedPlan = try ReportCorrectionRule().makePlan(
                     source: ReportCorrectionRuleSource(
-                        currentRecord: recordPayload(records[0]),
+                        currentRecord: try recordPayload(records[0]),
                         packet: packetPayload(packets[0]),
                         currentReport: reportPayload(report),
                         currentSnapshot: validated.snapshot
@@ -687,7 +688,7 @@ final class ReportDeliveryCoordinator {
         )
         let expected = try ReportCorrectionRule().makePlan(
             source: ReportCorrectionRuleSource(
-                currentRecord: recordPayload(priorRecords[0]),
+                currentRecord: try recordPayload(priorRecords[0]),
                 packet: packetBefore,
                 currentReport: reportPayload(priorReports[0]),
                 currentSnapshot: prior.snapshot
@@ -723,7 +724,7 @@ final class ReportDeliveryCoordinator {
             contentDeletedAt: packet.contentDeletedAt,
             createdAt: packet.createdAt
         )
-        guard recordPayload(newRecords[0]) == expected.recordAfter,
+        guard try recordPayload(newRecords[0]) == expected.recordAfter,
               normalizedStoredReport == expected.reportInsert,
               packetAfter == expected.packetAfter,
               try readCanonicalSnapshot(for: storedReport) == expected.snapshot else {
@@ -902,7 +903,7 @@ final class ReportDeliveryCoordinator {
             do {
                 try ReportCorrectionRule().validateEdge(
                     prior: ReportCorrectionRuleSource(
-                        currentRecord: recordPayload(priorRecords[0]),
+                        currentRecord: try recordPayload(priorRecords[0]),
                         packet: PacketPayloadV1(
                             id: packet.id,
                             schemaVersion: packet.schemaVersion,
@@ -915,7 +916,7 @@ final class ReportDeliveryCoordinator {
                         currentReport: reportPayload(prior),
                         currentSnapshot: priorSnapshot
                     ),
-                    correctionRecord: recordPayload(newerRecords[0]),
+                    correctionRecord: try recordPayload(newerRecords[0]),
                     correctionReport: reportPayload(newer),
                     correctionSnapshot: newerSnapshot
                 )
@@ -942,8 +943,12 @@ final class ReportDeliveryCoordinator {
         }
     }
 
-    private func recordPayload(_ value: WorkflowRecord) -> WorkflowRecordPayloadV1 {
-        WorkflowRecordPayloadV1(
+    private func recordPayload(_ value: WorkflowRecord) throws -> WorkflowRecordPayloadV1 {
+        let companion = try ObservationAndTimeRowStoreV1.requireRow(
+            recordID: value.id,
+            in: modelContext
+        )
+        return WorkflowRecordPayloadV1(
             id: value.id, schemaVersion: value.schemaVersion,
             assetID: value.assetID, packetID: value.packetID,
             issueID: value.issueID, parentRecordID: value.parentRecordID,
@@ -974,7 +979,9 @@ final class ReportDeliveryCoordinator {
             couldNotVerifyRegistryVersion: value.couldNotVerifyRegistryVersion,
             workPerformedLocalDate: value.workPerformedLocalDate,
             workDescription: value.workDescription, note: value.note,
-            finalizationMutationID: value.finalizationMutationID
+            finalizationMutationID: value.finalizationMutationID,
+            observationBasisV1Data: companion.observationBasisV1Data,
+            temporalContextV1Data: companion.temporalContextV1Data
         )
     }
 
@@ -1186,7 +1193,8 @@ private struct ReadyReportAuthorityValidator {
                 && report.pdfSHA256 == nil
         }
         guard report.schemaVersion == 1,
-              report.snapshotSchemaVersion == 1,
+              (report.snapshotSchemaVersion == 1
+                || report.snapshotSchemaVersion == 2),
               report.snapshotRelativePath == expectedSnapshotPath,
               isLowercaseSHA256(report.snapshotSHA256),
               hasLegalDeliveryState else {
@@ -1202,7 +1210,7 @@ private struct ReadyReportAuthorityValidator {
         }
         let snapshot = try ReportSnapshotEncoderV1().decode(snapshotData)
         guard try ReportSnapshotEncoderV1().encode(snapshot).data == snapshotData,
-              snapshot.snapshotSchemaVersion == 1,
+              snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion,
               snapshot.reportID == report.id,
               snapshot.packetID == report.packetID,
               snapshot.sourceRecordID == report.sourceRecordID,
@@ -1334,7 +1342,11 @@ private struct ReadyReportAuthorityValidator {
         var orderedRows = currentRows
         var seenEvidenceIDs = Set(currentRows.map(\.id))
         for (history, record) in zip(snapshot.history, expectedHistoryRecords) {
-            try validateHistory(history, against: record)
+            try validateHistory(
+                history,
+                against: record,
+                snapshotSchemaVersion: snapshot.snapshotSchemaVersion
+            )
             let rows = allEvidenceRows
                 .filter { $0.recordID == record.id }
                 .sorted(by: evidenceOrder)
@@ -1431,8 +1443,24 @@ private struct ReadyReportAuthorityValidator {
         source: WorkflowRecord
     ) throws {
         let expectedCNV = frozenCNV(source)
+        let companion = try ObservationAndTimeRowStoreV1.requireRow(
+            recordID: source.id, in: modelContext
+        )
+        let expectedBasis = try companion.observationBasisV1()
+        let expectedTemporal = try companion.temporalContextV1()
+        let observationAndTimeMatches: Bool
+        if snapshot.snapshotSchemaVersion == 1 {
+            // A migrated source row may be enriched after an immutable v1
+            // snapshot was emitted; v1 itself must retain its original shape.
+            observationAndTimeMatches = snapshot.observationBasis == nil
+                && snapshot.temporalContext == nil
+        } else {
+            observationAndTimeMatches = snapshot.observationBasis == expectedBasis
+                && snapshot.temporalContext == expectedTemporal
+        }
         guard signPack.acknowledgements.count == 2,
               snapshot.couldNotVerify == expectedCNV,
+              observationAndTimeMatches,
               canonicalOptionalDateEqual(
                 snapshot.timeContext.observedAtUTC,
                 source.observedAtUTC
@@ -1480,7 +1508,8 @@ private struct ReadyReportAuthorityValidator {
               record.packContentVersion == signPack.contentVersion,
               record.pdfTemplateID == Self.templateID,
               record.pdfTemplateVersion == 1,
-              validOptionalTrimmed(record.note, maximum: 1_000) else {
+              validOptionalTrimmed(record.note, maximum: 1_000),
+              validObservationAndTime(record) else {
             return false
         }
 
@@ -1653,6 +1682,8 @@ private struct ReadyReportAuthorityValidator {
             && correction.utcOffsetMinutes == prior.utcOffsetMinutes
             && correction.localDate == prior.localDate
             && correction.localTime == prior.localTime
+            && correction.observationBasisV1Data == prior.observationBasisV1Data
+            && correction.temporalContextV1Data == prior.temporalContextV1Data
             && correction.afterDarkAcknowledgementKey
                 == prior.afterDarkAcknowledgementKey
             && correction.afterDarkAcknowledgementCopy
@@ -1762,7 +1793,8 @@ private struct ReadyReportAuthorityValidator {
 
     private func validateHistory(
         _ value: HistoryEntrySnapshotV1,
-        against record: WorkflowRecord
+        against record: WorkflowRecord,
+        snapshotSchemaVersion: Int
     ) throws {
         guard let completedAt = record.completedAt,
               canonicalDateEqual(value.completedAt, completedAt),
@@ -1783,8 +1815,38 @@ private struct ReadyReportAuthorityValidator {
             throw SnapshotValidationErrorV1.invalidAuthority
         }
         let expectedCNV = frozenCNV(record)
-        guard value.couldNotVerify == expectedCNV else {
+        let companion = try ObservationAndTimeRowStoreV1.requireRow(
+            recordID: record.id, in: modelContext
+        )
+        let expectedBasis = try companion.observationBasisV1()
+        let expectedTemporal = try companion.temporalContextV1()
+        let observationAndTimeMatches: Bool
+        if snapshotSchemaVersion == 1 {
+            observationAndTimeMatches = value.observationBasis == nil
+                && value.temporalContext == nil
+        } else {
+            observationAndTimeMatches = value.observationBasis == expectedBasis
+                && value.temporalContext == expectedTemporal
+        }
+        guard value.couldNotVerify == expectedCNV,
+              observationAndTimeMatches else {
             throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    private func validObservationAndTime(_ record: WorkflowRecord) -> Bool {
+        do {
+            let companion = try ObservationAndTimeRowStoreV1.requireRow(
+                recordID: record.id, in: modelContext
+            )
+            let basis = try companion.observationBasisV1()
+            let temporal = try companion.temporalContextV1()
+            return try ObservationAndTimeCodecV1.encode(basis)
+                    == companion.observationBasisV1Data
+                && ObservationAndTimeCodecV1.encode(temporal)
+                    == companion.temporalContextV1Data
+        } catch {
+            return false
         }
     }
 

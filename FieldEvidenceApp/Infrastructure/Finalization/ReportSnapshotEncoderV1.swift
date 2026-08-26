@@ -57,7 +57,7 @@ struct ReportSnapshotEncoderV1: Sendable {
     }
 
     private static func isValid(_ snapshot: ReportSnapshotV1) -> Bool {
-        guard snapshot.snapshotSchemaVersion == 1,
+        guard snapshot.snapshotSchemaVersion == 1 || snapshot.snapshotSchemaVersion == 2,
               snapshot.stage == "check" || snapshot.stage == "recheck",
               snapshot.pdfTemplate.id == "field.evidence.pdf.worklight.v1",
               snapshot.pdfTemplate.version == 1,
@@ -78,12 +78,48 @@ struct ReportSnapshotEncoderV1: Sendable {
             return false
         }
 
+        guard validObservationAndTime(
+            basis: snapshot.observationBasis,
+            temporal: snapshot.temporalContext,
+            required: snapshot.snapshotSchemaVersion == 2
+        ) else { return false }
+
         return snapshot.history.allSatisfy {
             ($0.stage == "check" || $0.stage == "work" || $0.stage == "recheck")
                 && Set($0.evidenceIDs).count == $0.evidenceIDs.count
                 && Set($0.issueIDs).count == $0.issueIDs.count
+                && validObservationAndTime(
+                    basis: $0.observationBasis,
+                    temporal: $0.temporalContext,
+                    required: snapshot.snapshotSchemaVersion == 2
+                )
         } && snapshot.issues.allSatisfy {
             $0.status == "open" || $0.status == "recheck_due" || $0.status == "resolved"
+        }
+    }
+
+    private static func validObservationAndTime(
+        basis: ObservationBasisV1?,
+        temporal: TemporalContextV1?,
+        required: Bool
+    ) -> Bool {
+        guard (basis == nil) == (temporal == nil),
+              (required && basis != nil) || (!required && basis == nil) else {
+            return false
+        }
+        guard let basis, let temporal else { return !required }
+        do {
+            try basis.validate()
+            try temporal.validate()
+            let basisData = try ObservationAndTimeCodecV1.encode(basis)
+            let temporalData = try ObservationAndTimeCodecV1.encode(temporal)
+            let decodedBasis = try ObservationAndTimeCodecV1
+                .decodeObservationBasis(basisData)
+            let decodedTemporal = try ObservationAndTimeCodecV1
+                .decodeTemporalContext(temporalData)
+            return decodedBasis == basis && decodedTemporal == temporal
+        } catch {
+            return false
         }
     }
 
@@ -119,7 +155,7 @@ struct ReportSnapshotEncoderV1: Sendable {
 
 extension CanonicalJSONV1 {
     static func reportSnapshot(_ value: ReportSnapshotV1) -> CanonicalJSONValueV1 {
-        .object([
+        var object: [String: CanonicalJSONValueV1] = [
             "acknowledgements": .array(value.acknowledgements.map(acknowledgement)),
             "asset": asset(value.asset),
             "couldNotVerify": value.couldNotVerify.map(couldNotVerify) ?? .null,
@@ -143,7 +179,14 @@ extension CanonicalJSONV1 {
             "stableRootID": uuid(value.stableRootID),
             "stage": .string(value.stage),
             "timeContext": timeContext(value.timeContext),
-        ])
+        ]
+        if value.snapshotSchemaVersion == 2,
+           let basis = value.observationBasis,
+           let temporal = value.temporalContext {
+            object["observationBasis"] = observationBasis(basis)
+            object["temporalContext"] = temporalContext(temporal)
+        }
+        return .object(object)
     }
 
     private static func acknowledgement(_ value: AcknowledgementSnapshotV1) -> CanonicalJSONValueV1 {
@@ -195,7 +238,7 @@ extension CanonicalJSONV1 {
     }
 
     private static func history(_ value: HistoryEntrySnapshotV1) -> CanonicalJSONValueV1 {
-        .object([
+        var object: [String: CanonicalJSONValueV1] = [
             "completedAt": date(value.completedAt),
             "couldNotVerify": value.couldNotVerify.map(couldNotVerify) ?? .null,
             "evidenceIDs": .array(value.evidenceIDs.map(uuid)),
@@ -208,7 +251,12 @@ extension CanonicalJSONV1 {
             "stageDisplay": .string(value.stageDisplay),
             "workDescription": optionalString(value.workDescription),
             "workPerformedLocalDate": optionalString(value.workPerformedLocalDate),
-        ])
+        ]
+        if let basis = value.observationBasis, let temporal = value.temporalContext {
+            object["observationBasis"] = observationBasis(basis)
+            object["temporalContext"] = temporalContext(temporal)
+        }
+        return .object(object)
     }
 
     private static func issueSnapshot(_ value: IssueSnapshotV1) -> CanonicalJSONValueV1 {
@@ -260,6 +308,36 @@ extension CanonicalJSONV1 {
             "observedAtUTC": date(value.observedAtUTC),
             "timeZoneID": .string(value.timeZoneID),
             "utcOffsetMinutes": .integer(value.utcOffsetMinutes),
+        ])
+    }
+
+    private static func observationBasis(
+        _ value: ObservationBasisV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "kind": .string(value.kind.rawValue),
+            "limitations": .array(value.limitations.map { .string($0) }),
+            "method": .object(["key": .string(value.method.key)]),
+            "source": .object([
+                "kind": .string(value.source.kind.rawValue),
+                "reference": optionalString(value.source.reference),
+            ]),
+            "version": .integer(value.version),
+        ])
+    }
+
+    private static func temporalContext(
+        _ value: TemporalContextV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "ianaTimeZoneIdentifier": optionalString(value.ianaTimeZoneIdentifier),
+            "localDate": optionalString(value.localDate),
+            "localTime": optionalString(value.localTime),
+            "localTimeDisposition": .string(value.localTimeDisposition.rawValue),
+            "occurredAtUTC": optionalDate(value.occurredAtUTC),
+            "recordedAtUTC": date(value.recordedAtUTC),
+            "utcOffsetSeconds": optionalInteger(value.utcOffsetSeconds),
+            "version": .integer(value.version),
         ])
     }
 }

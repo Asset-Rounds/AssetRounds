@@ -279,6 +279,11 @@ final class MutationJournalStoreV1 {
               envelope.generationID == generationID else {
             throw WorkspaceMutationFailureV1.wrongGeneration
         }
+        do {
+            _ = try ObservationAndTimeRowStoreV1.validatedIndex(in: modelContext)
+        } catch {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
         guard semanticReversal == nil || semanticReversalExecution == nil else {
             throw WorkspaceMutationFailureV1.invalidReversal
         }
@@ -1087,6 +1092,10 @@ final class MutationJournalStoreV1 {
             let id = identity.id
             let rows = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(predicate: #Predicate { $0.id == id }))
             guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            let observationAndTime = try ObservationAndTimeRowStoreV1.requireRow(
+                recordID: id,
+                in: modelContext
+            )
             return try semanticPostImage(identity, revision, V4BackupWorkflowRecordDTO(
                 id: row.id, schemaVersion: row.schemaVersion, assetID: row.assetID,
                 packetID: row.packetID, issueID: row.issueID, parentRecordID: row.parentRecordID,
@@ -1113,7 +1122,9 @@ final class MutationJournalStoreV1 {
                 couldNotVerifyRegistryVersion: row.couldNotVerifyRegistryVersion,
                 workPerformedLocalDate: row.workPerformedLocalDate,
                 workDescription: row.workDescription, note: row.note,
-                finalizationMutationID: row.finalizationMutationID
+                finalizationMutationID: row.finalizationMutationID,
+                observationBasisV1Data: observationAndTime.observationBasisV1Data,
+                temporalContextV1Data: observationAndTime.temporalContextV1Data
             ))
         case .evidenceFile:
             let id = identity.id

@@ -178,6 +178,68 @@ struct CheckDraftMutationV1: Codable, Equatable, Sendable {
     let packContentVersion: Int
     let pdfTemplateID: String
     let pdfTemplateVersion: Int
+    /// Optional only for decoding/replaying pre-ObservationAndTimeSchemaV1
+    /// commands. New callers submit both values atomically.
+    let observationBasis: ObservationBasisV1?
+    let temporalContext: TemporalContextV1?
+
+    init(
+        recordID: UUID,
+        assetID: UUID,
+        issueID: UUID?,
+        parentRecordID: UUID?,
+        stage: String,
+        draftStepKey: String?,
+        startedAt: Date,
+        observedAtUTC: Date?,
+        timeZoneID: String?,
+        utcOffsetMinutes: Int?,
+        localDate: String?,
+        localTime: String?,
+        afterDarkAcknowledgementKey: String?,
+        afterDarkAcknowledgementCopy: String?,
+        afterDarkAcknowledgementVersion: String?,
+        afterDarkAcknowledgementAccepted: Bool?,
+        safePositionAcknowledgementKey: String?,
+        safePositionAcknowledgementCopy: String?,
+        safePositionAcknowledgementVersion: String?,
+        safePositionAcknowledgementAccepted: Bool?,
+        packID: String,
+        packSchemaVersion: Int,
+        packContentVersion: Int,
+        pdfTemplateID: String,
+        pdfTemplateVersion: Int,
+        observationBasis: ObservationBasisV1? = nil,
+        temporalContext: TemporalContextV1? = nil
+    ) {
+        self.recordID = recordID
+        self.assetID = assetID
+        self.issueID = issueID
+        self.parentRecordID = parentRecordID
+        self.stage = stage
+        self.draftStepKey = draftStepKey
+        self.startedAt = startedAt
+        self.observedAtUTC = observedAtUTC
+        self.timeZoneID = timeZoneID
+        self.utcOffsetMinutes = utcOffsetMinutes
+        self.localDate = localDate
+        self.localTime = localTime
+        self.afterDarkAcknowledgementKey = afterDarkAcknowledgementKey
+        self.afterDarkAcknowledgementCopy = afterDarkAcknowledgementCopy
+        self.afterDarkAcknowledgementVersion = afterDarkAcknowledgementVersion
+        self.afterDarkAcknowledgementAccepted = afterDarkAcknowledgementAccepted
+        self.safePositionAcknowledgementKey = safePositionAcknowledgementKey
+        self.safePositionAcknowledgementCopy = safePositionAcknowledgementCopy
+        self.safePositionAcknowledgementVersion = safePositionAcknowledgementVersion
+        self.safePositionAcknowledgementAccepted = safePositionAcknowledgementAccepted
+        self.packID = packID
+        self.packSchemaVersion = packSchemaVersion
+        self.packContentVersion = packContentVersion
+        self.pdfTemplateID = pdfTemplateID
+        self.pdfTemplateVersion = pdfTemplateVersion
+        self.observationBasis = observationBasis
+        self.temporalContext = temporalContext
+    }
 }
 
 struct CheckEvidenceMutationV1: Codable, Equatable, Sendable {

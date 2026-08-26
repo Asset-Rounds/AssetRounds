@@ -16,10 +16,12 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
         let catalog = try CurrentSyncClassificationCatalogV1.current
         try catalog.validate()
         let registrations = catalog.registrations
-        XCTAssertEqual(registrations.count, fixture.inventoryExpectations.registrationCount)
+        // The inherited C03 fixture is the transport-policy baseline. Card27 adds one
+        // canonical model, two portable projections, and three derived projections.
+        XCTAssertEqual(registrations.count, fixture.inventoryExpectations.registrationCount + 6)
         XCTAssertEqual(
             catalog.persistentModelSubjects.count,
-            fixture.inventoryExpectations.persistentModelCount
+            fixture.inventoryExpectations.persistentModelCount + 1
         )
         XCTAssertEqual(
             catalog.ownedFileClassSubjects.count,
@@ -27,11 +29,11 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
         )
         XCTAssertEqual(
             catalog.portableContentProjectionSubjects.count,
-            fixture.inventoryExpectations.portableContentProjectionCount
+            fixture.inventoryExpectations.portableContentProjectionCount + 2
         )
         XCTAssertEqual(
             catalog.derivedIndexProjectionSubjects.count,
-            fixture.inventoryExpectations.derivedIndexProjectionCount
+            fixture.inventoryExpectations.derivedIndexProjectionCount + 3
         )
         XCTAssertEqual(
             catalog.journalRecoverySubjects.count,
@@ -44,13 +46,19 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
         XCTAssertTrue(catalog.secretSubjects.isEmpty)
         XCTAssertFalse(catalog.searchImplementationPresent)
         XCTAssertFalse(catalog.keychainUsageDeclared)
+        var expectedCategoryCounts = fixture.inventoryExpectations.categoryCounts
+        expectedCategoryCounts[SyncSubjectCategoryV1.persistentModel.rawValue, default: 0] += 1
+        expectedCategoryCounts[SyncSubjectCategoryV1.projection.rawValue, default: 0] += 5
         XCTAssertEqual(
             Self.counts(registrations.map { $0.subject.category.rawValue }),
-            fixture.inventoryExpectations.categoryCounts
+            expectedCategoryCounts
         )
+        var expectedClassificationCounts = fixture.inventoryExpectations.classificationCounts
+        expectedClassificationCounts[SyncClassificationV1.replicated.rawValue, default: 0] += 1
+        expectedClassificationCounts[SyncClassificationV1.derivedRebuildable.rawValue, default: 0] += 5
         XCTAssertEqual(
             Self.counts(registrations.map { $0.classification.rawValue }),
-            fixture.inventoryExpectations.classificationCounts
+            expectedClassificationCounts
         )
         XCTAssertEqual(
             registrations.map(\.subject.canonicalKey),
@@ -103,6 +111,52 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
         XCTAssertEqual(recordsRoute.filesystemBackup, .notApplicable)
         XCTAssertEqual(recordsRoute.semanticBackup, .includeCanonical)
         XCTAssertEqual(recordsRoute.portableExport, .portableCanonical)
+
+        let observationRow = try SyncSubjectIdentityV1(
+            category: .persistentModel,
+            stableName: "ObservationAndTimeRow"
+        )
+        let workflowRecord = try SyncSubjectIdentityV1(
+            category: .persistentModel,
+            stableName: "WorkflowRecord"
+        )
+        let observationRegistration = try catalog.registration(for: observationRow)
+        XCTAssertEqual(observationRegistration.classification, .replicated)
+        XCTAssertEqual(observationRegistration.replicationPolicy.authority, .workspaceWriter)
+        XCTAssertEqual(observationRegistration.replicationPolicy.persistence, .swiftDataRecord)
+        XCTAssertEqual(
+            observationRegistration.replicationPolicy.transport,
+            .futureAcceptedMutationEligible
+        )
+        XCTAssertEqual(observationRegistration.replicationPolicy.bootstrap, .canonicalSnapshot)
+        XCTAssertEqual(
+            observationRegistration.replicationPolicy.retention,
+            .untilCanonicalDeleteOrErase
+        )
+        XCTAssertEqual(observationRegistration.replicationPolicy.backup, .includeCanonical)
+        XCTAssertEqual(observationRegistration.replicationPolicy.export, .portableCanonical)
+        XCTAssertEqual(observationRegistration.replicationPolicy.deletion, .canonicalDelete)
+        XCTAssertEqual(observationRegistration.conflictPolicy.rule, .exactRevisionManual)
+        XCTAssertEqual(observationRegistration.replicationPolicy.dependencies, [workflowRecord])
+
+        for projectionName in ["ObservationBasisV1", "TemporalContextV1"] {
+            let projection = try SyncSubjectIdentityV1(
+                category: .projection,
+                stableName: projectionName
+            )
+            XCTAssertEqual(
+                try catalog.registration(for: projection).replicationPolicy.dependencies,
+                [observationRow]
+            )
+        }
+        let backupWorkflow = try SyncSubjectIdentityV1(
+            category: .projection,
+            stableName: "V4BackupWorkflowRecordDTO"
+        )
+        XCTAssertEqual(
+            try catalog.registration(for: backupWorkflow).replicationPolicy.dependencies,
+            [observationRow, workflowRecord].sorted { $0.canonicalKey < $1.canonicalKey }
+        )
     }
 
     func testV10_03A01SixRuleMatrixAndPermutationIdentity() throws {
@@ -183,7 +237,7 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
         let registeredModelNames = currentCatalog.registrations
             .filter { $0.subject.category == .persistentModel }
             .map(\.subject.stableName)
-        XCTAssertEqual(registeredModelNames.count, 13)
+        XCTAssertEqual(registeredModelNames.count, 14)
         XCTAssertEqual(Set(registeredModelNames).count, registeredModelNames.count)
         XCTAssertEqual(
             registeredModelNames.sorted(),

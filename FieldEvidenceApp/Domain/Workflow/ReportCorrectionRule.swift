@@ -123,7 +123,8 @@ struct ReportCorrectionRule {
               report.schemaVersion == 1,
               report.packetID == packet.id,
               report.sourceRecordID == old.id,
-              report.snapshotSchemaVersion == 1,
+              (report.snapshotSchemaVersion == 1
+                || report.snapshotSchemaVersion == 2),
               report.snapshotRelativePath
                 == "snapshots/\(report.id.uuidString.lowercased()).json",
               isLowercaseSHA256(report.snapshotSHA256),
@@ -131,7 +132,7 @@ struct ReportCorrectionRule {
               report.pdfRelativePath
                 == "pdfs/\(report.id.uuidString.lowercased()).pdf",
               report.pdfSHA256.map(isLowercaseSHA256) == true,
-              snapshot.snapshotSchemaVersion == 1,
+              snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion,
               snapshot.reportID == report.id,
               snapshot.packetID == packet.id,
               snapshot.stableRootID == packet.stableRootID,
@@ -145,6 +146,7 @@ struct ReportCorrectionRule {
               snapshot.pack.contentVersion == old.packContentVersion,
               snapshot.pdfTemplate.id == old.pdfTemplateID,
               snapshot.pdfTemplate.version == old.pdfTemplateVersion,
+              snapshotObservationAndTimeMatches(snapshot, record: old),
               canonicalDate(snapshot.snapshotCreatedAt)
                 == canonicalDate(report.createdAt),
               snapshotCreatedAt > snapshot.snapshotCreatedAt,
@@ -196,7 +198,9 @@ struct ReportCorrectionRule {
             workPerformedLocalDate: old.workPerformedLocalDate,
             workDescription: old.workDescription,
             note: request.note,
-            finalizationMutationID: request.identifiers.mutationID
+            finalizationMutationID: request.identifiers.mutationID,
+            observationBasisV1Data: old.observationBasisV1Data,
+            temporalContextV1Data: old.temporalContextV1Data
         )
         let packetAfter = PacketPayloadV1(
             id: packet.id,
@@ -218,6 +222,7 @@ struct ReportCorrectionRule {
             history: snapshot.history,
             issues: snapshot.issues,
             note: request.note,
+            observationBasis: snapshot.observationBasis,
             outcome: snapshot.outcome,
             pack: snapshot.pack,
             packetID: snapshot.packetID,
@@ -230,6 +235,7 @@ struct ReportCorrectionRule {
             sourceRecordID: request.identifiers.recordID,
             stableRootID: snapshot.stableRootID,
             stage: snapshot.stage,
+            temporalContext: snapshot.temporalContext,
             timeContext: snapshot.timeContext
         )
         let encodedSnapshot: EncodedReportSnapshotV1
@@ -244,7 +250,7 @@ struct ReportCorrectionRule {
             schemaVersion: 1,
             packetID: packet.id,
             sourceRecordID: recordAfter.id,
-            snapshotSchemaVersion: 1,
+            snapshotSchemaVersion: correctedSnapshot.snapshotSchemaVersion,
             snapshotRelativePath: "snapshots/\(canonicalReportID).json",
             snapshotSHA256: encodedSnapshot.sha256,
             pdfState: ReportPDFState.pending.rawValue,
@@ -274,7 +280,8 @@ struct ReportCorrectionRule {
               record.stage == WorkflowStage.check.rawValue
                 || record.stage == WorkflowStage.recheck.rawValue,
               record.workPerformedLocalDate == nil,
-              record.workDescription == nil else { return false }
+              record.workDescription == nil,
+              validObservationAndTime(record) else { return false }
 
         switch WorkflowRevisionKind(rawValue: record.revisionKind) {
         case .original:
@@ -304,6 +311,50 @@ struct ReportCorrectionRule {
 
     private func effectiveEvidenceOwner(_ record: WorkflowRecordPayloadV1) -> UUID {
         record.evidenceSourceRecordID ?? record.id
+    }
+
+    private func snapshotObservationAndTimeMatches(
+        _ snapshot: ReportSnapshotV1,
+        record: WorkflowRecordPayloadV1
+    ) -> Bool {
+        guard validObservationAndTime(record) else { return false }
+        switch snapshot.snapshotSchemaVersion {
+        case 1:
+            // A migrated source row may be enriched after an immutable v1
+            // snapshot was emitted; v1 itself must retain its original shape.
+            return snapshot.observationBasis == nil
+                && snapshot.temporalContext == nil
+        case 2:
+            guard let basisData = record.observationBasisV1Data,
+                  let temporalData = record.temporalContextV1Data else {
+                return false
+            }
+            do {
+                return snapshot.observationBasis
+                        == (try ObservationAndTimeCodecV1.decodeObservationBasis(basisData))
+                    && snapshot.temporalContext
+                        == (try ObservationAndTimeCodecV1.decodeTemporalContext(temporalData))
+            } catch {
+                return false
+            }
+        default:
+            return false
+        }
+    }
+
+    private func validObservationAndTime(_ record: WorkflowRecordPayloadV1) -> Bool {
+        guard (record.observationBasisV1Data == nil)
+                == (record.temporalContextV1Data == nil) else { return false }
+        guard let basisData = record.observationBasisV1Data,
+              let temporalData = record.temporalContextV1Data else { return true }
+        do {
+            let basis = try ObservationAndTimeCodecV1.decodeObservationBasis(basisData)
+            let temporal = try ObservationAndTimeCodecV1.decodeTemporalContext(temporalData)
+            return try ObservationAndTimeCodecV1.encode(basis) == basisData
+                && ObservationAndTimeCodecV1.encode(temporal) == temporalData
+        } catch {
+            return false
+        }
     }
 
     private func correctionRecordMatchesCanonicalDates(
@@ -359,7 +410,9 @@ struct ReportCorrectionRule {
             couldNotVerifyRegistryVersion: value.couldNotVerifyRegistryVersion,
             workPerformedLocalDate: value.workPerformedLocalDate,
             workDescription: value.workDescription, note: value.note,
-            finalizationMutationID: value.finalizationMutationID
+            finalizationMutationID: value.finalizationMutationID,
+            observationBasisV1Data: value.observationBasisV1Data,
+            temporalContextV1Data: value.temporalContextV1Data
         )
     }
 

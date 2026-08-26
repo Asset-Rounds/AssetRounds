@@ -26,6 +26,11 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         guard !modelContext.hasChanges else {
             throw WorkspaceMutationFailureV1.persistenceFailed
         }
+        do {
+            _ = try ObservationAndTimeRowStoreV1.validatedIndex(in: modelContext)
+        } catch {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
         switch command {
         case let .createFirstSign(value):
             return try createFirstSign(
@@ -143,6 +148,47 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
               value.observedAtUTC.map({ Self.isFinite($0) }) ?? true else {
             throw WorkspaceMutationFailureV1.invalidCommand
         }
+        guard (value.observationBasis == nil) == (value.temporalContext == nil) else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let observationBasisData: Data
+        let temporalContextData: Data
+        do {
+            if let observationBasis = value.observationBasis,
+               let temporalContext = value.temporalContext {
+                try Self.requireLegacyTimeProjectionMatches(
+                    temporalContext,
+                    command: value
+                )
+                observationBasisData = try ObservationAndTimeCodecV1.encode(
+                    observationBasis
+                )
+                temporalContextData = try ObservationAndTimeCodecV1.encode(
+                    temporalContext
+                )
+            } else {
+                let migratedBasis = try ObservationAndTimeLegacyMigrationV1.observationBasis(
+                    couldNotVerifyKey: nil,
+                    displaySnapshot: nil,
+                    registryVersion: nil
+                )
+                let migratedTemporal = try ObservationAndTimeLegacyMigrationV1.temporalContext(
+                    observedAtUTC: value.observedAtUTC,
+                    recordedAtUTC: value.startedAt,
+                    timeZoneID: value.timeZoneID,
+                    utcOffsetMinutes: value.utcOffsetMinutes,
+                    localDate: value.localDate,
+                    localTime: value.localTime
+                )
+                guard let migratedBasis, let migratedTemporal else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                observationBasisData = try ObservationAndTimeCodecV1.encode(migratedBasis)
+                temporalContextData = try ObservationAndTimeCodecV1.encode(migratedTemporal)
+            }
+        } catch {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
         let draftStep: WorkflowDraftStep?
         if let key = value.draftStepKey {
             guard let parsed = WorkflowDraftStep(rawValue: key) else {
@@ -215,7 +261,40 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             note: nil,
             finalizationMutationID: nil
         ))
+        modelContext.insert(try ObservationAndTimeRow(
+            recordID: value.recordID,
+            observationBasisV1Data: observationBasisData,
+            temporalContextV1Data: temporalContextData
+        ))
         return effect
+    }
+
+    private static func requireLegacyTimeProjectionMatches(
+        _ temporal: TemporalContextV1,
+        command: CheckDraftMutationV1
+    ) throws {
+        try temporal.validate()
+        guard temporal.occurredAtUTC == command.observedAtUTC,
+              temporal.localDate == command.localDate,
+              temporal.localTime == command.localTime,
+              temporal.ianaTimeZoneIdentifier == command.timeZoneID else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let expectedOffsetSeconds: Int?
+        if let minutes = command.utcOffsetMinutes {
+            let (seconds, overflow) = minutes.multipliedReportingOverflow(
+                by: 60
+            )
+            guard !overflow else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            expectedOffsetSeconds = seconds
+        } else {
+            expectedOffsetSeconds = nil
+        }
+        guard temporal.utcOffsetSeconds == expectedOffsetSeconds else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
     }
 
     func acceptCheckEvidence(

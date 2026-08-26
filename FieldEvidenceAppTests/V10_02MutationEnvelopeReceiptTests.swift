@@ -978,10 +978,16 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
     @MainActor
     func testV10_02R01MigrationLifecycleAndReplicaIdentityMatrix() throws {
         let corpus = try Self.loadCorpus()
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v4)
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.releases, [.v1, .v2, .v3, .v4])
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v5)
+        XCTAssertEqual(
+            PersistentSchemaReleaseRegistryV1.releases,
+            [.v1, .v2, .v3, .v4, .v5]
+        )
         XCTAssertEqual(PersistentSchemaV4.models.count, PersistentSchemaV3.models.count + 4)
+        XCTAssertEqual(PersistentSchemaV5.models.count, PersistentSchemaV4.models.count + 1)
         XCTAssertEqual(PersistentSchemaMigrationPlanV3.schemas.count, 2)
+        XCTAssertEqual(PersistentSchemaMigrationPlanV4.schemas.count, 2)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v5.migrationStage, .custom)
 
         XCTAssertEqual(corpus.restoreMatrix.map(\.mode), ["empty", "replace", "clone", "fork"])
         XCTAssertTrue(corpus.restoreMatrix.allSatisfy(\.preservesReceiptHistory))
@@ -1294,8 +1300,8 @@ private final class MutationJournalHarnessV1 {
 
     static func makeContainer(name: String) throws -> ModelContainer {
         let schema = Schema(
-            PersistentSchemaV4.models,
-            version: PersistentSchemaV4.versionIdentifier
+            PersistentSchemaV5.models,
+            version: PersistentSchemaV5.versionIdentifier
         )
         return try ModelContainer(
             for: schema,

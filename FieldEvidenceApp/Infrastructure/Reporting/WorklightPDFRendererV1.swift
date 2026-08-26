@@ -56,7 +56,7 @@ struct WorklightPDFRendererV1 {
         let snapshot = validated.snapshot
         guard snapshot.pdfTemplate.id == "field.evidence.pdf.worklight.v1",
               snapshot.pdfTemplate.version == 1,
-              snapshot.snapshotSchemaVersion == 1,
+              snapshot.snapshotSchemaVersion == 1 || snapshot.snapshotSchemaVersion == 2,
               snapshot.reportID.uuidString.lowercased().count == 36,
               validated.snapshotSHA256.utf8.count == 64 else {
             throw WorklightPDFRendererErrorV1.invalidValidatedSnapshot
@@ -233,7 +233,16 @@ private extension WorklightPDFRendererV1 {
         text("\(posixTitle(snapshot.display.checkSingular)) report", style: .title, role: "title", after: 18)
         section("Identity and time", role: "identity.heading")
         let address = snapshot.site.address.map { "\nAddress: \($0)" } ?? ""
-        text("Site: \(snapshot.site.label)\(address)\n\(posixTitle(snapshot.display.assetSingular)): \(snapshot.asset.label)\nObserved: \(snapshot.timeContext.localDate) \(snapshot.timeContext.localTime) \(snapshot.timeContext.timeZoneID) (UTC \(signedOffset(snapshot.timeContext.utcOffsetMinutes)))", style: .body, role: "identity.body")
+        var identity = "Site: \(snapshot.site.label)\(address)\n\(posixTitle(snapshot.display.assetSingular)): \(snapshot.asset.label)"
+        if snapshot.snapshotSchemaVersion == 1 {
+            identity += "\nObserved: \(snapshot.timeContext.localDate) \(snapshot.timeContext.localTime) \(snapshot.timeContext.timeZoneID) (UTC \(signedOffset(snapshot.timeContext.utcOffsetMinutes)))"
+        } else if let basis = snapshot.observationBasis,
+                  let temporal = snapshot.temporalContext {
+            identity += "\n" + observationAndTimeText(basis: basis, temporal: temporal)
+        } else {
+            throw WorklightPDFRendererErrorV1.invalidValidatedSnapshot
+        }
+        text(identity, style: .body, role: "identity.body")
 
         let current = snapshot.evidence.filter { $0.recordID == snapshot.evidenceSourceRecordID }
         for purpose in ["wide_context", "close_detail"] {
@@ -292,6 +301,16 @@ private extension WorklightPDFRendererV1 {
                 if let reason = entry.couldNotVerify {
                     summary += "\nCould not verify: \(reason.display)"
                 }
+                if snapshot.snapshotSchemaVersion == 2 {
+                    guard let basis = entry.observationBasis,
+                          let temporal = entry.temporalContext else {
+                        throw WorklightPDFRendererErrorV1.invalidValidatedSnapshot
+                    }
+                    summary += "\n" + observationAndTimeText(
+                        basis: basis,
+                        temporal: temporal
+                    )
+                }
                 if let localDate = entry.workPerformedLocalDate {
                     summary += "\nWork date: \(localDate)"
                 }
@@ -305,6 +324,53 @@ private extension WorklightPDFRendererV1 {
         section("About this report", role: "disclaimer.heading")
         text(snapshot.disclaimer, style: .body, role: "disclaimer.body", after: 0)
         return blocks
+    }
+
+    func observationAndTimeText(
+        basis: ObservationBasisV1,
+        temporal: TemporalContextV1
+    ) -> String {
+        let source = basis.source.reference.map {
+            "\(basis.source.kind.rawValue): \($0)"
+        } ?? basis.source.kind.rawValue
+        let limitations = basis.limitations.isEmpty
+            ? "None recorded" : basis.limitations.joined(separator: "; ")
+        let occurred = temporal.occurredAtUTC.map(timestamp) ?? "Unknown / no instant"
+        let localCivil: String
+        if let localDate = temporal.localDate, let localTime = temporal.localTime {
+            let zone = temporal.ianaTimeZoneIdentifier ?? "Unknown zone"
+            let offset = temporal.utcOffsetSeconds.map(signedOffsetSeconds)
+                ?? "unknown offset"
+            localCivil = "\(localDate) \(localTime) \(zone) (UTC \(offset))"
+        } else {
+            localCivil = "Unknown"
+        }
+        return "Observation basis: \(basis.kind.rawValue)"
+            + "\nMethod: \(basis.method.key)"
+            + "\nSource: \(source)"
+            + "\nLimitations: \(limitations)"
+            + "\nOccurred at: \(occurred)"
+            + "\nRecorded at: \(timestamp(temporal.recordedAtUTC))"
+            + "\nLocal civil time: \(localCivil)"
+            + "\nLocal-time disposition: \(temporal.localTimeDisposition.rawValue)"
+    }
+
+    func signedOffsetSeconds(_ seconds: Int) -> String {
+        let sign = seconds < 0 ? "-" : "+"
+        let magnitude = abs(seconds)
+        let hours = magnitude / 3_600
+        let minutes = (magnitude % 3_600) / 60
+        let remainingSeconds = magnitude % 60
+        if remainingSeconds == 0 {
+            return String(format: "%@%02d:%02d", sign, hours, minutes)
+        }
+        return String(
+            format: "%@%02d:%02d:%02d",
+            sign,
+            hours,
+            minutes,
+            remainingSeconds
+        )
     }
 
     func paginate(_ blocks: [Block]) throws -> [[PlacedBlock]] {

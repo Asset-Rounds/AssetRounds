@@ -319,6 +319,7 @@ enum WholeSignDeletionRule {
                   record.packetID.map({ packetsByID[$0] != nil }) ?? true else {
                 return false
             }
+            guard validObservationAndTime(record) else { return false }
             switch state {
             case .draft:
                 guard record.completedAt == nil else { return false }
@@ -421,7 +422,7 @@ enum WholeSignDeletionRule {
                   packet.currentRecordID != nil,
                   packetOwner(packet, records: input.records, reports: input.reports)
                     == source.assetID,
-                  report.snapshotSchemaVersion == 1,
+                  report.snapshotSchemaVersion == 1 || report.snapshotSchemaVersion == 2,
                   report.snapshotRelativePath
                     == "snapshots/\(canonicalID(report.id)).json",
                   isLowercaseSHA256(report.snapshotSHA256),
@@ -469,6 +470,23 @@ enum WholeSignDeletionRule {
             }
         }
         return owners.count == 1 ? owners.first : nil
+    }
+
+    private static func validObservationAndTime(
+        _ record: WorkflowRecordPayloadV1
+    ) -> Bool {
+        guard (record.observationBasisV1Data == nil)
+                == (record.temporalContextV1Data == nil) else { return false }
+        guard let basisData = record.observationBasisV1Data,
+              let temporalData = record.temporalContextV1Data else { return true }
+        do {
+            let basis = try ObservationAndTimeCodecV1.decodeObservationBasis(basisData)
+            let temporal = try ObservationAndTimeCodecV1.decodeTemporalContext(temporalData)
+            return try ObservationAndTimeCodecV1.encode(basis) == basisData
+                && ObservationAndTimeCodecV1.encode(temporal) == temporalData
+        } catch {
+            return false
+        }
     }
 
     private static func uniqueAcrossAuthorities(

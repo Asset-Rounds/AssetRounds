@@ -11,6 +11,7 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     let history: [HistoryEntrySnapshotV1]
     let issues: [IssueSnapshotV1]
     let note: String?
+    var observationBasis: ObservationBasisV1? = nil
     let outcome: String
     let pack: PackSnapshotV1
     let packetID: UUID
@@ -23,6 +24,7 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     let sourceRecordID: UUID
     let stableRootID: UUID
     let stage: String
+    var temporalContext: TemporalContextV1? = nil
     let timeContext: TimeContextSnapshotV1
 }
 
@@ -72,11 +74,13 @@ struct HistoryEntrySnapshotV1: Codable, Equatable, Sendable {
     let evidenceIDs: [UUID]
     let issueIDs: [UUID]
     let note: String?
+    var observationBasis: ObservationBasisV1? = nil
     let outcome: String
     let outcomeDisplay: String
     let recordID: UUID
     let stage: String
     let stageDisplay: String
+    var temporalContext: TemporalContextV1? = nil
     let workDescription: String?
     let workPerformedLocalDate: String?
 }

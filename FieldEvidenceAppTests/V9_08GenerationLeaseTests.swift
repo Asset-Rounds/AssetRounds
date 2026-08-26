@@ -1504,8 +1504,8 @@ final class V9_08GenerationLeaseTests: XCTestCase {
         let validated = try importer.stageAndValidate(
             selectedPackageURL: archive
         )
-        XCTAssertEqual(validated.manifest.backupSchemaVersion, 3)
-        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 3)
+        XCTAssertEqual(validated.manifest.backupSchemaVersion, 4)
+        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 4)
         XCTAssertEqual(
             Set(validated.records.sites.map(\.id)),
             Set([sourceSiteID])

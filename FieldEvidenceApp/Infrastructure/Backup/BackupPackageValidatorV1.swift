@@ -499,7 +499,8 @@ private extension BackupPackageValidatorV1 {
         case (1, nil, nil):
             sourceIdentityIsValid = true
         case (2, let workspaceID?, let replicaID?),
-             (3, let workspaceID?, let replicaID?):
+             (3, let workspaceID?, let replicaID?),
+             (4, let workspaceID?, let replicaID?):
             sourceIdentityIsValid = workspaceID != zero
                 && replicaID != zero
                 && workspaceID != replicaID
@@ -512,7 +513,8 @@ private extension BackupPackageValidatorV1 {
             manifest.source.persistentSchemaVersion,
             manifest.source.recordsSchemaVersion
         ) {
-        case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3):
+        case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
+             (4, 5, 4):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false
@@ -568,6 +570,7 @@ private extension BackupPackageValidatorV1 {
         manifest: V4BackupManifestV1
     ) throws {
         try validateDeletionLedger(records, manifest: manifest)
+        try validateObservationAndTime(records)
         let allIDs = records.sites.map(\.id) + records.assets.map(\.id)
             + records.workflowRecords.map(\.id) + records.evidenceFiles.map(\.id)
             + records.issues.map(\.id) + records.packets.map(\.id)
@@ -813,7 +816,8 @@ private extension BackupPackageValidatorV1 {
                   let sourceCompletedAt = source.completedAt,
                   report.createdAt >= sourceCompletedAt,
                   ReportPDFState(rawValue: report.pdfState) != nil,
-                  report.snapshotSchemaVersion == 1,
+                  (report.snapshotSchemaVersion == 1
+                    || report.snapshotSchemaVersion == 2),
                   report.snapshotRelativePath == "snapshots/\(uuid(report.id)).json",
                   lowercaseHash(report.snapshotSHA256) else { throw invalid() }
             if let replacedID = report.replacesReportID {
@@ -840,6 +844,53 @@ private extension BackupPackageValidatorV1 {
               manifest.packs == expectedPacks else { throw invalid() }
     }
 
+    func validateObservationAndTime(_ records: V4BackupRecordsV1) throws {
+        if records.recordsSchemaVersion < 4 {
+            guard records.workflowRecords.allSatisfy({
+                $0.observationBasisV1Data == nil && $0.temporalContextV1Data == nil
+            }) else { throw invalid() }
+            return
+        }
+        guard records.recordsSchemaVersion == 4 else { throw invalid() }
+        for record in records.workflowRecords {
+            guard let basisData = record.observationBasisV1Data,
+                  let temporalData = record.temporalContextV1Data else {
+                throw invalid()
+            }
+            do {
+                let basis = try ObservationAndTimeCodecV1.decodeObservationBasis(
+                    basisData
+                )
+                let temporal = try ObservationAndTimeCodecV1.decodeTemporalContext(
+                    temporalData
+                )
+                guard try ObservationAndTimeCodecV1.encode(basis) == basisData,
+                      try ObservationAndTimeCodecV1.encode(temporal) == temporalData,
+                      temporal.occurredAtUTC == record.observedAtUTC,
+                      temporal.localDate == record.localDate,
+                      temporal.localTime == record.localTime,
+                      temporal.ianaTimeZoneIdentifier == record.timeZoneID else {
+                    throw invalid()
+                }
+                let projectedOffset: Int?
+                if let minutes = record.utcOffsetMinutes {
+                    let (seconds, overflow) = minutes.multipliedReportingOverflow(
+                        by: 60
+                    )
+                    guard !overflow else { throw invalid() }
+                    projectedOffset = seconds
+                } else {
+                    projectedOffset = nil
+                }
+                guard temporal.utcOffsetSeconds == projectedOffset else {
+                    throw invalid()
+                }
+            } catch {
+                throw invalid()
+            }
+        }
+    }
+
     func validateDeletionLedger(
         _ records: V4BackupRecordsV1,
         manifest: V4BackupManifestV1
@@ -857,7 +908,7 @@ private extension BackupPackageValidatorV1 {
             return
         case (2, let value?, nil):
             ledger = value
-        case (3, let value?, let history?):
+        case (3, let value?, let history?), (4, let value?, let history?):
             ledger = value
             do { try MutationJournalStoreV1.validateImportedSnapshot(history) }
             catch { throw invalid() }
@@ -1473,6 +1524,11 @@ private extension BackupPackageValidatorV1 {
                   snapshot.issues == expectedIssues else {
                 throw invalid()
             }
+            try validateSnapshotObservationAndTime(
+                snapshot,
+                source: source,
+                expectedHistory: expectedHistory
+            )
 
             var orderedEvidence = records.evidenceFiles.filter {
                 $0.recordID == effectiveSourceID
@@ -1523,6 +1579,59 @@ private extension BackupPackageValidatorV1 {
                       signPack.evidencePurposes.first(where: { $0.key == row.purposeKey })?.display
                         == value.purposeDisplay else { throw invalid() }
             }
+        }
+    }
+
+    func validateSnapshotObservationAndTime(
+        _ snapshot: ReportSnapshotV1,
+        source: V4BackupWorkflowRecordDTO,
+        expectedHistory: [V4BackupWorkflowRecordDTO]
+    ) throws {
+        switch snapshot.snapshotSchemaVersion {
+        case 1:
+            guard snapshot.observationBasis == nil,
+                  snapshot.temporalContext == nil,
+                  snapshot.history.allSatisfy({
+                      $0.observationBasis == nil && $0.temporalContext == nil
+                  }) else {
+                throw invalid()
+            }
+        case 2:
+            guard snapshot.history.count == expectedHistory.count else {
+                throw invalid()
+            }
+            do {
+                guard let sourceBasisData = source.observationBasisV1Data,
+                      let sourceTemporalData = source.temporalContextV1Data,
+                      snapshot.observationBasis
+                        == (try ObservationAndTimeCodecV1.decodeObservationBasis(
+                            sourceBasisData
+                        )),
+                      snapshot.temporalContext
+                        == (try ObservationAndTimeCodecV1.decodeTemporalContext(
+                            sourceTemporalData
+                        )) else {
+                    throw invalid()
+                }
+                for (history, record) in zip(snapshot.history, expectedHistory) {
+                    guard let basisData = record.observationBasisV1Data,
+                          let temporalData = record.temporalContextV1Data,
+                          history.observationBasis
+                            == (try ObservationAndTimeCodecV1.decodeObservationBasis(
+                                basisData
+                            )),
+                          history.temporalContext
+                            == (try ObservationAndTimeCodecV1.decodeTemporalContext(
+                                temporalData
+                            )) else {
+                        throw invalid()
+                    }
+                }
+            } catch {
+                throw invalid()
+            }
+        default:
+            throw invalid()
         }
     }
 

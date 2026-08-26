@@ -51,7 +51,12 @@ struct BackupCanonicalEncoderV1: Sendable {
             "recordsSchemaVersion": .integer(records.recordsSchemaVersion),
             "reports": .array(records.reports.map(Self.report)),
             "sites": .array(records.sites.map(Self.site)),
-            "workflowRecords": .array(records.workflowRecords.map(Self.workflowRecord)),
+            "workflowRecords": .array(records.workflowRecords.map {
+                Self.workflowRecord(
+                    $0,
+                    includeObservationAndTime: records.recordsSchemaVersion >= 4
+                )
+            }),
         ]
         if let deletionLedger = records.deletionLedger {
             fields["deletionLedger"] = Self.deletionLedger(deletionLedger)
@@ -97,7 +102,7 @@ private extension BackupCanonicalEncoderV1 {
             ledgerIsValid = true
         case (2, let ledger?, nil):
             ledgerIsValid = (try? ledger.validate()) != nil
-        case (3, let ledger?, let history?):
+        case (3, let ledger?, let history?), (4, let ledger?, let history?):
             ledgerIsValid = (try? ledger.validate()) != nil
                 && (try? MutationJournalStoreV1.validateImportedSnapshot(history)) != nil
                 && validMutationHistoryOrder(history)
@@ -105,6 +110,7 @@ private extension BackupCanonicalEncoderV1 {
             ledgerIsValid = false
         }
         return ledgerIsValid
+            && validObservationAndTime(records)
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -121,6 +127,46 @@ private extension BackupCanonicalEncoderV1 {
             && records.workflowRecords.allSatisfy({ $0.schemaVersion == 1 })
     }
 
+    static func validObservationAndTime(_ records: V4BackupRecordsV1) -> Bool {
+        if records.recordsSchemaVersion < 4 {
+            return records.workflowRecords.allSatisfy {
+                $0.observationBasisV1Data == nil && $0.temporalContextV1Data == nil
+            }
+        }
+        guard records.recordsSchemaVersion == 4 else { return false }
+        return records.workflowRecords.allSatisfy { record in
+            guard let basisData = record.observationBasisV1Data,
+                  let temporalData = record.temporalContextV1Data else { return false }
+            do {
+                let basis = try ObservationAndTimeCodecV1.decodeObservationBasis(
+                    basisData
+                )
+                let temporal = try ObservationAndTimeCodecV1.decodeTemporalContext(
+                    temporalData
+                )
+                let projectedOffset: Int?
+                if let minutes = record.utcOffsetMinutes {
+                    let (seconds, overflow) = minutes.multipliedReportingOverflow(
+                        by: 60
+                    )
+                    guard !overflow else { return false }
+                    projectedOffset = seconds
+                } else {
+                    projectedOffset = nil
+                }
+                return try ObservationAndTimeCodecV1.encode(basis) == basisData
+                    && ObservationAndTimeCodecV1.encode(temporal) == temporalData
+                    && temporal.occurredAtUTC == record.observedAtUTC
+                    && temporal.localDate == record.localDate
+                    && temporal.localTime == record.localTime
+                    && temporal.ianaTimeZoneIdentifier == record.timeZoneID
+                    && temporal.utcOffsetSeconds == projectedOffset
+            } catch {
+                return false
+            }
+        }
+    }
+
     static func valid(_ manifest: V4BackupManifestV1) -> Bool {
         let zero = UUID(uuid: (
             0, 0, 0, 0, 0, 0, 0, 0,
@@ -135,7 +181,8 @@ private extension BackupCanonicalEncoderV1 {
         case (1, nil, nil):
             sourceIdentityIsValid = true
         case (2, let workspaceID?, let replicaID?),
-             (3, let workspaceID?, let replicaID?):
+             (3, let workspaceID?, let replicaID?),
+             (4, let workspaceID?, let replicaID?):
             sourceIdentityIsValid = workspaceID != zero
                 && replicaID != zero
                 && workspaceID != replicaID
@@ -148,7 +195,8 @@ private extension BackupCanonicalEncoderV1 {
             manifest.source.persistentSchemaVersion,
             manifest.source.recordsSchemaVersion
         ) {
-        case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3):
+        case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
+             (4, 5, 4):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false
@@ -277,8 +325,11 @@ private extension BackupCanonicalEncoderV1 {
         ])
     }
 
-    static func workflowRecord(_ value: V4BackupWorkflowRecordDTO) -> CanonicalJSONValueV1 {
-        .object([
+    static func workflowRecord(
+        _ value: V4BackupWorkflowRecordDTO,
+        includeObservationAndTime: Bool
+    ) -> CanonicalJSONValueV1 {
+        var fields: [String: CanonicalJSONValueV1] = [
             "afterDarkAcknowledgementAccepted": CanonicalJSONV1.optionalBool(value.afterDarkAcknowledgementAccepted),
             "afterDarkAcknowledgementCopy": CanonicalJSONV1.optionalString(value.afterDarkAcknowledgementCopy),
             "afterDarkAcknowledgementKey": CanonicalJSONV1.optionalString(value.afterDarkAcknowledgementKey),
@@ -320,7 +371,14 @@ private extension BackupCanonicalEncoderV1 {
             "utcOffsetMinutes": CanonicalJSONV1.optionalInteger(value.utcOffsetMinutes),
             "workDescription": CanonicalJSONV1.optionalString(value.workDescription),
             "workPerformedLocalDate": CanonicalJSONV1.optionalString(value.workPerformedLocalDate),
-        ])
+        ]
+        if includeObservationAndTime {
+            fields["observationBasisV1Data"] = value.observationBasisV1Data
+                .map { .string($0.base64EncodedString()) } ?? .null
+            fields["temporalContextV1Data"] = value.temporalContextV1Data
+                .map { .string($0.base64EncodedString()) } ?? .null
+        }
+        return .object(fields)
     }
 
     static func evidenceFile(_ value: V4BackupEvidenceFileDTO) -> CanonicalJSONValueV1 {
