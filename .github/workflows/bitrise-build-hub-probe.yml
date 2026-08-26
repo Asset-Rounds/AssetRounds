@@ -1,0 +1,353 @@
+name: Bitrise Build Hub cache probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bitrise-build-hub-probe-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: bitrise-m4-pro
+    timeout-minutes: 30
+    env:
+      EXPECTED_XCODE_VERSION: Xcode 26.6
+      EXPECTED_XCODE_BUILD: Build version 17F113
+      EXPECTED_MINIMUM_IOS: "18.0"
+      PROJECT_PATH: FieldEvidenceApp.xcodeproj
+      SCHEME: FieldEvidenceApp
+      CONFIGURATION: Debug
+      SIMULATOR_RUNTIME: iOS 26.2
+      SIMULATOR_RUNTIME_BUILD: 23C54
+      SIMULATOR_NAME: iPhone 17
+      CI_BUILD_TIMEOUT_SECONDS: "900"
+      CI_SIMULATOR_BOOT_TIMEOUT_SECONDS: "900"
+      CODE_SIGNING_ALLOWED: "NO"
+      NSUnbufferedIO: "YES"
+
+    steps:
+      - name: Prepare development-only evidence directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          CI_ARTIFACT_DIR="$RUNNER_TEMP/BitriseBuildHubProbe"
+          mkdir -p "$CI_ARTIFACT_DIR"
+          printf 'CI_ARTIFACT_DIR=%s\n' "$CI_ARTIFACT_DIR" >> "$GITHUB_ENV"
+
+      - name: Check out the exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install, activate, and exercise Bitrise Build Cache
+        id: probe
+        shell: bash
+        env:
+          BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN }}
+          BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ vars.BITRISE_BUILD_CACHE_WORKSPACE_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$BITRISE_BUILD_CACHE_AUTH_TOKEN"
+          test -n "$BITRISE_BUILD_CACHE_WORKSPACE_ID"
+          test "$(uname -m)" = arm64
+          test -f Scripts/run-with-timeout.sh
+          test -f Scripts/build-smoke.sh
+          test -f "$PROJECT_PATH/project.pbxproj"
+          test -f "$PROJECT_PATH/xcshareddata/xcschemes/$SCHEME.xcscheme"
+
+          installer="$RUNNER_TEMP/bitrise-build-cache-installer.sh"
+          release_archive="$RUNNER_TEMP/bitrise-build-cache_3.6.2_darwin_arm64.tar.gz"
+          activation_raw="$RUNNER_TEMP/bitrise-build-cache-activation.raw.log"
+          curl --retry 5 --retry-all-errors -sSfL \
+            'https://raw.githubusercontent.com/bitrise-io/bitrise-build-cache-cli/d971b485dd0519fdebb41240f1a2997d77dbf3a6/install/installer.sh' \
+            -o "$installer"
+          test "$(stat -f '%z' "$installer")" = 14322
+          printf '%s  %s\n' \
+            '8b4c6bf5f75f064b2f95b7e8a7cfa47fd2fd48fbf7de16464713be3a317fb5d4' \
+            "$installer" | shasum -a 256 -c -
+          cp "$installer" "$CI_ARTIFACT_DIR/installer.sh"
+
+          curl --retry 5 --retry-all-errors -sSfL \
+            'https://github.com/bitrise-io/bitrise-build-cache-cli/releases/download/v3.6.2/bitrise-build-cache_3.6.2_darwin_arm64.tar.gz' \
+            -o "$release_archive"
+          printf '%s  %s\n' \
+            '17898081d7e6ea64b0393c50482cb00d84b6aa459e9954b1f26f0d64b4bf510e' \
+            "$release_archive" | shasum -a 256 -c -
+          cp "$release_archive" "$CI_ARTIFACT_DIR/bitrise-build-cache_3.6.2_darwin_arm64.tar.gz"
+
+          mkdir -p /tmp/bin
+          rm -f /tmp/bin/bitrise-build-cache
+          /bin/sh "$installer" -b /tmp/bin -d v3.6.2 \
+            > "$CI_ARTIFACT_DIR/installer-execution.log" 2>&1
+          test -x /tmp/bin/bitrise-build-cache
+          test "$(stat -f '%z' /tmp/bin/bitrise-build-cache)" = 20335490
+          printf '%s  %s\n' \
+            '2dfbfa4364a3a133370071715b9a7d0f9c6d7661b71abac839f723901c547bc3' \
+            /tmp/bin/bitrise-build-cache | shasum -a 256 -c -
+          /tmp/bin/bitrise-build-cache version \
+            > "$CI_ARTIFACT_DIR/bitrise-build-cache-version.txt" 2>&1
+          printf 'release=v3.6.2\narchive_sha256=%s\nbinary_bytes=20335490\nbinary_sha256=%s\n' \
+            '17898081D7E6EA64B0393C50482CB00D84B6AA459E9954B1F26F0D64B4BF510E' \
+            '2DFBFA4364A3A133370071715B9A7D0F9C6D7661B71ABAC839F723901C547BC3' \
+            > "$CI_ARTIFACT_DIR/cli-verification.txt"
+
+          set +e
+          /tmp/bin/bitrise-build-cache activate xcode --cache --cache-push \
+            > "$activation_raw" 2>&1
+          activation_status=$?
+          set -e
+          python3 - "$activation_raw" "$CI_ARTIFACT_DIR/cache-activation.log" <<'PY'
+          import os
+          import pathlib
+          import sys
+
+          source = pathlib.Path(sys.argv[1]).read_text(errors="replace")
+          for name in ("BITRISE_BUILD_CACHE_AUTH_TOKEN", "BITRISE_BUILD_CACHE_WORKSPACE_ID"):
+              value = os.environ.get(name, "")
+              if value:
+                  source = source.replace(value, "[REDACTED]")
+          pathlib.Path(sys.argv[2]).write_text(source)
+          PY
+          rm -f "$activation_raw"
+          test "$activation_status" -eq 0
+          printf 'activation_exit=0\ncache=true\ncache_push=true\n' \
+            >> "$CI_ARTIFACT_DIR/cache-activation.log"
+
+          resolved_developer_dir="$(env -u DEVELOPER_DIR xcode-select -p)"
+          case "$resolved_developer_dir" in /*/Contents/Developer) ;; *) exit 1 ;; esac
+          test -d "$resolved_developer_dir"
+          DEVELOPER_DIR="$resolved_developer_dir"
+          export DEVELOPER_DIR
+          printf 'DEVELOPER_DIR=%s\n' "$DEVELOPER_DIR" >> "$GITHUB_ENV"
+          printf 'runner_name=%s\nrunner_arch=%s\nuname_arch=%s\nmacos=%s\ndeveloper_dir=%s\n' \
+            "${RUNNER_NAME:-unknown}" "${RUNNER_ARCH:-unknown}" "$(uname -m)" \
+            "$(sw_vers -productVersion)" "$DEVELOPER_DIR" \
+            > "$CI_ARTIFACT_DIR/runner-toolchain.txt"
+          printf 'repository=%s\nref=%s\nsha=%s\nrun_id=%s\nrun_attempt=%s\n' \
+            "$GITHUB_REPOSITORY" "$GITHUB_REF" "$GITHUB_SHA" \
+            "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
+            > "$CI_ARTIFACT_DIR/github-run.txt"
+
+          xcodebuild -version | tee "$CI_ARTIFACT_DIR/xcode-version.txt"
+          grep -Fxq "$EXPECTED_XCODE_VERSION" "$CI_ARTIFACT_DIR/xcode-version.txt"
+          grep -Fxq "$EXPECTED_XCODE_BUILD" "$CI_ARTIFACT_DIR/xcode-version.txt"
+          xcodebuild -list -json -project "$PROJECT_PATH" \
+            | tee "$CI_ARTIFACT_DIR/xcode-list.json"
+          jq -e --arg scheme "$SCHEME" \
+            '.project.schemes | index($scheme) != null' \
+            "$CI_ARTIFACT_DIR/xcode-list.json" > /dev/null
+          xcodebuild -showBuildSettings -project "$PROJECT_PATH" -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" \
+            | tee "$CI_ARTIFACT_DIR/build-settings.txt"
+          deployment_targets="$(awk -F'= ' \
+            '/^[[:space:]]*IPHONEOS_DEPLOYMENT_TARGET = / {print $2}' \
+            "$CI_ARTIFACT_DIR/build-settings.txt" | LC_ALL=C sort -u)"
+          test "$(printf '%s\n' "$deployment_targets" | sed '/^$/d' | wc -l | tr -d ' ')" -eq 1
+          test "$deployment_targets" = "$EXPECTED_MINIMUM_IOS"
+
+          xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
+          xcrun simctl list devices available -j > "$CI_ARTIFACT_DIR/simulator-devices.json"
+          xcrun simctl list devicetypes -j > "$CI_ARTIFACT_DIR/simulator-device-types.json"
+          runtime_id="$(jq -r --arg name "$SIMULATOR_RUNTIME" --arg build "$SIMULATOR_RUNTIME_BUILD" '
+            .runtimes[]
+            | select(.name == $name and .buildversion == $build and .isAvailable == true)
+            | .identifier' "$CI_ARTIFACT_DIR/simulator-runtimes.json" | head -n 1)"
+          test -n "$runtime_id"
+          simulator_udid="$(jq -r --arg runtime "$runtime_id" --arg name "$SIMULATOR_NAME" '
+            .devices[$runtime][]
+            | select(.name == $name and .isAvailable == true)
+            | .udid' "$CI_ARTIFACT_DIR/simulator-devices.json" | head -n 1)"
+          if test -z "$simulator_udid"; then
+            device_type_id="$(jq -r --arg name "$SIMULATOR_NAME" '
+              .devicetypes[] | select(.name == $name) | .identifier' \
+              "$CI_ARTIFACT_DIR/simulator-device-types.json" | head -n 1)"
+            test -n "$device_type_id"
+            simulator_udid="$(xcrun simctl create "$SIMULATOR_NAME" "$device_type_id" "$runtime_id")"
+          fi
+          test -n "$simulator_udid"
+          simulator_state="$(xcrun simctl list devices -j | jq -er --arg runtime "$runtime_id" --arg udid "$simulator_udid" '
+            [.devices[$runtime][] | select(.udid == $udid) | .state]
+            | if length == 1 then .[0] else error("selected simulator cardinality") end')"
+          case "$simulator_state" in
+            Shutdown) xcrun simctl boot "$simulator_udid" ;;
+            Booted) ;;
+            *) exit 1 ;;
+          esac
+          bash Scripts/run-with-timeout.sh "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
+            xcrun simctl bootstatus "$simulator_udid" -b \
+            2>&1 | tee "$CI_ARTIFACT_DIR/simulator-boot.log"
+          printf 'runtime=%s\nruntime_build=%s\nname=%s\nudid=%s\ninitial_state=%s\n' \
+            "$SIMULATOR_RUNTIME" "$SIMULATOR_RUNTIME_BUILD" "$SIMULATOR_NAME" \
+            "$simulator_udid" "$simulator_state" \
+            > "$CI_ARTIFACT_DIR/simulator-selection.txt"
+          CI_SIMULATOR_UDID="$simulator_udid"
+          CI_DESTINATION="platform=iOS Simulator,id=$simulator_udid"
+          export CI_SIMULATOR_UDID CI_DESTINATION
+
+          set +e
+          bash Scripts/run-with-timeout.sh "$CI_BUILD_TIMEOUT_SECONDS" \
+            bash Scripts/build-smoke.sh \
+            > "$CI_ARTIFACT_DIR/build-smoke.log" 2>&1
+          build_status=$?
+          set -e
+          printf 'build_exit=%s\n' "$build_status" \
+            > "$CI_ARTIFACT_DIR/build-result.txt"
+          test "$build_status" -eq 0
+
+      - name: Verify retained evidence contains no cache credentials
+        id: credential_scan
+        if: always()
+        shell: bash
+        env:
+          BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN }}
+          BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ vars.BITRISE_BUILD_CACHE_WORKSPACE_ID }}
+        run: |
+          set -euo pipefail
+          test "$CI_ARTIFACT_DIR" = "$RUNNER_TEMP/BitriseBuildHubProbe"
+          mkdir -p "$CI_ARTIFACT_DIR"
+          set +e
+          contaminated_file_count="$(python3 - "$CI_ARTIFACT_DIR" <<'PY'
+          import os
+          import pathlib
+          import sys
+
+          root = pathlib.Path(sys.argv[1])
+          needles = [
+              value.encode()
+              for name in ("BITRISE_BUILD_CACHE_AUTH_TOKEN", "BITRISE_BUILD_CACHE_WORKSPACE_ID")
+              if (value := os.environ.get(name, ""))
+          ]
+          contaminated = 0
+          max_tail = max((len(needle) for needle in needles), default=1) - 1
+          for path in root.rglob("*"):
+              if not path.is_file():
+                  continue
+              matched = False
+              tail = b""
+              with path.open("rb") as stream:
+                  while chunk := stream.read(1024 * 1024):
+                      candidate = tail + chunk
+                      if any(needle in candidate for needle in needles):
+                          matched = True
+                          break
+                      tail = candidate[-max_tail:] if max_tail else b""
+              contaminated += int(matched)
+          print(contaminated)
+          PY
+          )"
+          scan_status=$?
+          set -e
+          scan_result_valid=true
+          if test "$scan_status" -ne 0; then
+            scan_result_valid=false
+            contaminated_file_count=unknown
+          else
+            case "$contaminated_file_count" in
+              '' | *[!0-9]*)
+                scan_result_valid=false
+                contaminated_file_count=unknown
+                ;;
+            esac
+          fi
+          if test "$scan_result_valid" != true || \
+             test "$contaminated_file_count" != 0; then
+            rm -rf -- "$CI_ARTIFACT_DIR"
+            mkdir -p "$CI_ARTIFACT_DIR"
+            printf 'credential_scan_passed=false\ncontaminated_file_count=%s\nevidence_retained=false\n' \
+              "$contaminated_file_count" > "$CI_ARTIFACT_DIR/credential-scan.txt"
+            printf 'safe_to_upload=true\n' >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          printf 'credential_scan_passed=true\ncontaminated_file_count=0\nevidence_retained=true\n' \
+            > "$CI_ARTIFACT_DIR/credential-scan.txt"
+          printf 'safe_to_upload=true\n' >> "$GITHUB_OUTPUT"
+
+      - name: Finalize nonaccepting probe receipt
+        if: ${{ always() && steps.credential_scan.outputs.safe_to_upload == 'true' }}
+        shell: bash
+        env:
+          PROBE_OUTCOME: ${{ steps.probe.outcome }}
+          CREDENTIAL_SCAN_OUTCOME: ${{ steps.credential_scan.outcome }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$CI_ARTIFACT_DIR"
+          if test "$PROBE_OUTCOME" = success && \
+             test "$CREDENTIAL_SCAN_OUTCOME" = success; then
+            probe_passed=true
+          else
+            probe_passed=false
+          fi
+          if test "$CREDENTIAL_SCAN_OUTCOME" = success; then
+            credential_scan_passed=true
+          else
+            credential_scan_passed=false
+          fi
+          jq -n \
+            --argjson probePassed "$probe_passed" \
+            --argjson credentialScanPassed "$credential_scan_passed" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg ref "$GITHUB_REF" \
+            --arg head "$GITHUB_SHA" \
+            --arg runID "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg runnerLabel bitrise-m4-pro \
+            --arg installerCommit d971b485dd0519fdebb41240f1a2997d77dbf3a6 \
+            --arg installerSHA256 8B4C6BF5F75F064B2F95B7E8A7CFA47FD2FD48FBF7DE16464713BE3A317FB5D4 \
+            --arg cliRelease v3.6.2 \
+            --arg cliSHA256 2DFBFA4364A3A133370071715B9A7D0F9C6D7661B71ABAC839F723901C547BC3 \
+            '{
+              probePassed: $probePassed,
+              finalAcceptanceEligible: false,
+              developmentOnly: true,
+              credentialScanPassed: $credentialScanPassed,
+              repository: $repository,
+              ref: $ref,
+              head: $head,
+              runID: $runID,
+              runAttempt: ($runAttempt | tonumber),
+              runnerLabel: $runnerLabel,
+              installerCommit: $installerCommit,
+              installerSHA256: $installerSHA256,
+              cliRelease: $cliRelease,
+              cliSHA256: $cliSHA256
+            }' > "$CI_ARTIFACT_DIR/probe-receipt.json"
+          jq -e '
+            (.probePassed == true or .probePassed == false)
+            and .finalAcceptanceEligible == false
+            and .developmentOnly == true
+            and (.credentialScanPassed == true or .credentialScanPassed == false)
+            and .runnerLabel == "bitrise-m4-pro"
+          ' "$CI_ARTIFACT_DIR/probe-receipt.json" > /dev/null
+
+      - name: Hash development-only probe evidence
+        if: ${{ always() && steps.credential_scan.outputs.safe_to_upload == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CI_ARTIFACT_DIR"
+          rm -f "$CI_ARTIFACT_DIR/SHA256SUMS.txt"
+          checksum_file="$RUNNER_TEMP/BitriseBuildHubProbe-checksums.txt"
+          (
+            cd "$CI_ARTIFACT_DIR"
+            find . -type f -print | LC_ALL=C sort | while IFS= read -r file; do
+              shasum -a 256 "$file"
+            done
+          ) > "$checksum_file"
+          mv "$checksum_file" "$CI_ARTIFACT_DIR/SHA256SUMS.txt"
+          (
+            cd "$CI_ARTIFACT_DIR"
+            shasum -a 256 -c SHA256SUMS.txt
+          )
+
+      - name: Upload development-only probe evidence
+        if: ${{ always() && steps.credential_scan.outputs.safe_to_upload == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bitrise-build-hub-probe-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/BitriseBuildHubProbe
+          if-no-files-found: error
+          retention-days: 14
