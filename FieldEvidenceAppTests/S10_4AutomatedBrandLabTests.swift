@@ -752,10 +752,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 98_283)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 98_285)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "9ED34B8F389430B5D5CE54506D5A4C53A856025C68B32D73FE4F86EF38CF098F"
+            "B519935C5097909576FF4CF78053644A503EDC6F1CA48329FFD8D7E75D1F8B6C"
         )
         let warpScopeSource = String(
             warpJobSource[warpScopeStart.lowerBound..<warpExecutionStart.lowerBound]
@@ -20999,8 +20999,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "2dfbfa4364a3a133370071715b9a7d0f9c6d7661b71abac839f723901c547bc3",
             "/tmp/bin/bitrise-build-cache activate xcode --cache --cache-push",
             "env -u BITRISE_BUILD_CACHE_AUTH_TOKEN -u BITRISE_BUILD_CACHE_WORKSPACE_ID",
-            "$HOME/.bitrise-xcelerate/bin/xcodebuild",
-            "$HOME/.bitrise-xcelerate/bin/xcrun",
+            "bitrise_wrapper_dir=\"$HOME/.bitrise-xcelerate/bin\"",
+            "bitrise_xcodebuild_wrapper=\"$bitrise_wrapper_dir/xcodebuild\"",
+            "bitrise_xcrun_wrapper=\"$bitrise_wrapper_dir/xcrun\"",
             "source.replace(value, \"[REDACTED]\")",
             "rm -f \"$activation_raw\"",
         ] {
