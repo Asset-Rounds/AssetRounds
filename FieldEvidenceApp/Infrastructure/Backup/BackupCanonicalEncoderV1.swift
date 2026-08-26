@@ -70,7 +70,26 @@ private extension BackupCanonicalEncoderV1 {
     }
 
     static func valid(_ manifest: V4BackupManifestV1) -> Bool {
-        guard manifest.backupSchemaVersion == 1,
+        let zero = UUID(uuid: (
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0
+        ))
+        let sourceIdentityIsValid: Bool
+        switch (
+            manifest.backupSchemaVersion,
+            manifest.source.workspaceID,
+            manifest.source.replicaID
+        ) {
+        case (1, nil, nil):
+            sourceIdentityIsValid = true
+        case (2, let workspaceID?, let replicaID?):
+            sourceIdentityIsValid = workspaceID != zero
+                && replicaID != zero
+                && workspaceID != replicaID
+        default:
+            sourceIdentityIsValid = false
+        }
+        guard sourceIdentityIsValid,
               manifest.declaredPayloadByteCount >= 0,
               manifest.source.persistentSchemaVersion == 1,
               manifest.source.recordsSchemaVersion == 1,
@@ -320,11 +339,17 @@ private extension BackupCanonicalEncoderV1 {
     }
 
     static func source(_ value: V4BackupSourceV1) -> CanonicalJSONValueV1 {
-        .object([
+        var fields: [String: CanonicalJSONValueV1] = [
             "appBuild": .string(value.appBuild),
             "appVersion": .string(value.appVersion),
             "persistentSchemaVersion": .integer(value.persistentSchemaVersion),
             "recordsSchemaVersion": .integer(value.recordsSchemaVersion),
-        ])
+        ]
+        if let replicaID = value.replicaID,
+           let workspaceID = value.workspaceID {
+            fields["replicaID"] = CanonicalJSONV1.uuid(replicaID)
+            fields["workspaceID"] = CanonicalJSONV1.uuid(workspaceID)
+        }
+        return .object(fields)
     }
 }

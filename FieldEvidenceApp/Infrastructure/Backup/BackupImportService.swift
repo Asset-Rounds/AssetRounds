@@ -682,7 +682,7 @@ private extension BackupImportService {
         let manifest: V4BackupManifestV1
         do { manifest = try BackupCanonicalDecoderV1().decodeManifest(manifestData) }
         catch { throw BackupImportServiceError.invalidSource }
-        try validateLegacyManifestBounds(manifest)
+        try validateManifestBounds(manifest)
 
         let expectedFiles = Set(["manifest.json"] + manifest.entries.map(\.path))
         let expectedDirectories = Set(manifest.entries.compactMap { entry in
@@ -772,8 +772,27 @@ private extension BackupImportService {
         return (files, directories)
     }
 
-    func validateLegacyManifestBounds(_ manifest: V4BackupManifestV1) throws {
-        guard manifest.backupSchemaVersion == 1,
+    func validateManifestBounds(_ manifest: V4BackupManifestV1) throws {
+        let zero = UUID(uuid: (
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0
+        ))
+        let sourceIdentityIsValid: Bool
+        switch (
+            manifest.backupSchemaVersion,
+            manifest.source.workspaceID,
+            manifest.source.replicaID
+        ) {
+        case (1, nil, nil):
+            sourceIdentityIsValid = true
+        case (2, let workspaceID?, let replicaID?):
+            sourceIdentityIsValid = workspaceID != zero
+                && replicaID != zero
+                && workspaceID != replicaID
+        default:
+            sourceIdentityIsValid = false
+        }
+        guard sourceIdentityIsValid,
               manifest.entries.count <= archiveLimits.maximumEntryCount,
               manifest.declaredPayloadByteCount >= 0 else {
             throw BackupImportServiceError.invalidSource

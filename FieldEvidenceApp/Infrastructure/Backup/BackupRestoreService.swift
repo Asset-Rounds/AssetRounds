@@ -14,11 +14,6 @@ enum BackupRestoreServiceError: Error, Equatable {
     case injectedFailure
 }
 
-enum BackupRestoreMode: Equatable, Sendable {
-    case emptyInstall
-    case replaceExisting
-}
-
 struct BackupRestoreCurrentSummaryV1: Equatable, Sendable {
     let signCount: Int
     let reportCount: Int
@@ -192,6 +187,7 @@ final class BackupRestoreService {
         currentGenerationRootURL: URL,
         mode: BackupRestoreMode = .emptyInstall
     ) async throws -> StoreGenerationSession {
+        try Task.checkCancellation()
         guard !currentModelContext.hasChanges else {
             throw BackupRestoreServiceError.contextHasChanges
         }
@@ -229,6 +225,8 @@ final class BackupRestoreService {
                 modelContext: currentModelContext,
                 generationRootURL: currentGenerationRootURL
             )
+            frozenCurrentRecords = try records(in: currentModelContext)
+        case .clone, .fork:
             frozenCurrentRecords = try records(in: currentModelContext)
         }
         do {
@@ -299,6 +297,13 @@ final class BackupRestoreService {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
             expectedRecords = replacementRecords
+        case .clone, .fork:
+            guard let frozenCurrentRecords,
+                  try records(in: currentModelContext) == frozenCurrentRecords,
+                  uniqueModelIDs(in: validatedPackage.records) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            expectedRecords = validatedPackage.records
         }
 
         let newGenerationID = makeUUID()
@@ -309,31 +314,73 @@ final class BackupRestoreService {
               !initialRetiredIDs.contains(newGenerationID) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
-        let intent = RestoreIntentV1(
-            newGenerationID: newGenerationID,
-            newGenerationRelativePath:
-                "FieldEvidenceData/generations/\(canonical(newGenerationID))",
-            oldGenerationID: currentGenerationID,
-            phase: .prepared,
-            restoreID: restoreID,
-            schemaVersion: 1,
-            stagingGenerationRelativePath:
-                "FieldEvidenceRestore/generations/\(canonical(newGenerationID))"
-        )
-        guard RestoreIntentCodecV1.valid(intent) else {
-            throw BackupRestoreServiceError.invalidRestoreAuthority
-        }
 
         do {
+            try Task.checkCancellation()
             try materialize(
                 validatedPackage,
                 records: expectedRecords,
                 generationID: newGenerationID
             )
+            try Task.checkCancellation()
             try validateStagingGeneration(
                 id: newGenerationID,
                 expected: expectedRecords
             )
+            try Task.checkCancellation()
+            let hasSourceIdentity = validatedPackage.manifest.source.workspaceID
+                != nil
+            let targetManifestDigest: String
+            if hasSourceIdentity {
+                targetManifestDigest = try generationFactory
+                    .prepareRestoreStagingGenerationManifest(
+                        expectedOldID: currentGenerationID,
+                        newID: newGenerationID,
+                        authority: generationAuthority
+                    )
+            } else {
+                targetManifestDigest = ""
+            }
+            let identityDecision = try makeIdentityDecision(
+                package: validatedPackage,
+                mode: mode,
+                currentGenerationID: currentGenerationID,
+                newGenerationID: newGenerationID,
+                targetManifestDigest: targetManifestDigest
+            )
+            if let identityDecision {
+                try validateStagingGeneration(
+                    id: newGenerationID,
+                    expected: expectedRecords,
+                    identity: try workspaceIdentity(identityDecision)
+                )
+            }
+            let intent: RestoreIntentV1
+            if let identityDecision {
+                intent = RestoreIntentV1(
+                    identity: identityDecision,
+                    restoreID: restoreID
+                )
+            } else {
+                guard mode == .emptyInstall || mode == .replaceExisting else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                intent = RestoreIntentV1(
+                    newGenerationID: newGenerationID,
+                    newGenerationRelativePath:
+                        "FieldEvidenceData/generations/\(canonical(newGenerationID))",
+                    oldGenerationID: currentGenerationID,
+                    phase: .prepared,
+                    restoreID: restoreID,
+                    schemaVersion: 1,
+                    stagingGenerationRelativePath:
+                        "FieldEvidenceRestore/generations/\(canonical(newGenerationID))"
+                )
+            }
+            guard RestoreIntentCodecV1.valid(intent) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            try Task.checkCancellation()
             try discardImportedPackage(validatedPackage, currentGenerationRootURL)
             let expectedInstalledNames = Set(
                 (initialRetiredIDs + [currentGenerationID]).map(canonical)
@@ -347,10 +394,12 @@ final class BackupRestoreService {
             }
 
             try inject(.beforePreparedWrite)
+            try Task.checkCancellation()
             try intentStore.create(intent)
             try inject(.afterPreparedWrite)
 
             try inject(.beforeGenerationInstall)
+            try Task.checkCancellation()
             try protectGenerationTree(
                 id: newGenerationID,
                 root: generationFactory.restoreStagingGenerationURL(id: newGenerationID),
@@ -369,35 +418,72 @@ final class BackupRestoreService {
             try intentStore.replace(expected: intent, with: installed)
             try validateInstalledGeneration(
                 id: newGenerationID,
-                expected: expectedRecords
+                expected: expectedRecords,
+                identity: try identityDecision.map { try workspaceIdentity($0) }
             )
+            try Task.checkCancellation()
             try inject(.afterGenerationInstall)
 
             try inject(.beforePointerSwitch)
+            try Task.checkCancellation()
             try protectDataPointer(named: "current.json")
-            try generationFactory.switchCurrentGeneration(
-                expected: currentGenerationID,
-                to: newGenerationID,
-                authority: generationAuthority
+            if let identityDecision {
+                let expectedCurrentPointer = try currentPointer(
+                    identityDecision.oldPointer
+                )
+                try generationFactory.switchCurrentGeneration(
+                    expected: currentGenerationID,
+                    to: newGenerationID,
+                    expectedCurrentPointer: expectedCurrentPointer,
+                    identity: try workspaceIdentity(identityDecision),
+                    sourceReplicaID: identityDecision.source.replicaID.map {
+                        ReplicaID(rawValue: $0)
+                    },
+                    knownReplicaIDs: knownReplicaIDs(identityDecision),
+                    preparedGenerationManifestSHA256: targetManifestDigest,
+                    authority: generationAuthority
+                )
+            } else {
+                try generationFactory.switchCurrentGeneration(
+                    expected: currentGenerationID,
+                    to: newGenerationID,
+                    authority: generationAuthority
+                )
+            }
+            try requireCurrentPointerBinding(
+                installed,
+                currentID: newGenerationID
             )
             let switched = installed.advancing(to: .pointerSwitched)
             try intentStore.replace(expected: installed, with: switched)
             try inject(.afterPointerSwitch)
 
             try inject(.beforeNewGenerationValidation)
-            let session = try generationFactory.openInstalledGeneration(
-                id: newGenerationID,
-                authority: generationAuthority
-            )
+            try Task.checkCancellation()
+            let session: StoreGenerationSession
+            if let identityDecision {
+                session = try generationFactory.openInstalledGeneration(
+                    id: newGenerationID,
+                    identity: try workspaceIdentity(identityDecision),
+                    authority: generationAuthority
+                )
+            } else {
+                session = try generationFactory.openInstalledGeneration(
+                    id: newGenerationID,
+                    authority: generationAuthority
+                )
+            }
             try validateLiveSession(
                 session,
                 expected: expectedRecords
             )
+            try Task.checkCancellation()
             let validated = switched.advancing(to: .newGenerationValidated)
             try intentStore.replace(expected: switched, with: validated)
             try inject(.afterNewGenerationValidation)
 
             try inject(.beforeCleanup)
+            try Task.checkCancellation()
             try protectDataPointer(named: "retired.json")
             try generationFactory.retireGeneration(
                 oldID: currentGenerationID,
@@ -452,6 +538,7 @@ final class BackupRestoreService {
         let currentID = try generationFactory.currentGenerationID(
             authority: generationAuthority
         )
+        try requireCurrentPointerBinding(intent, currentID: currentID)
         let retiredIDs = try generationAuthority.retiredGenerationIDs()
         let presence = try generationFactory.generationPresence(
             id: intent.newGenerationID,
@@ -473,7 +560,12 @@ final class BackupRestoreService {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         guard let oldSession = try validInstalledGeneration(
-            id: intent.oldGenerationID
+            id: intent.oldGenerationID,
+            identity: try intent.identity.map {
+                try workspaceIdentity($0.oldPointer)
+            },
+            requireExportReconciliation:
+                currentID == intent.oldGenerationID
         ), let oldRecords = try? records(in: oldSession.modelContext) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
@@ -488,8 +580,49 @@ final class BackupRestoreService {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
         }
+        if intent.schemaVersion == 2,
+           intent.phase == .generationInstalled,
+           currentID == intent.oldGenerationID {
+            guard !presence.staging,
+                  let identity = intent.identity else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            try removePreparedRestoreManifestBeforeDiscard(
+                expectedOldID: intent.oldGenerationID,
+                generationID: intent.newGenerationID,
+                expectedDigest:
+                    identity.targetPointer.generationManifestSHA256
+            )
+            try generationFactory.removeInstalledGeneration(
+                id: intent.newGenerationID,
+                keeping: intent.oldGenerationID,
+                authority: generationAuthority
+            )
+            let discardedPresence = try generationFactory.generationPresence(
+                id: intent.newGenerationID,
+                authority: generationAuthority
+            )
+            guard !discardedPresence.staging,
+                  !discardedPresence.installed else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            try intentStore.remove(expected: intent)
+            try cleanupEmptyRestoreDirectories()
+            return nil
+        }
         if presence.installed {
             try requireNoUnexpectedInstalledBytes(id: intent.newGenerationID)
+            if intent.schemaVersion == 2,
+               currentID == intent.newGenerationID,
+               let identity = intent.identity {
+                try generationFactory.requireInstalledRestoreGenerationSnapshot(
+                    expectedOldID: intent.oldGenerationID,
+                    generationID: intent.newGenerationID,
+                    expectedManifestDigest:
+                        identity.targetPointer.generationManifestSHA256,
+                    authority: generationAuthority
+                )
+            }
         }
         if presence.staging {
             try requireNoUnexpectedStagingBytes(id: intent.newGenerationID)
@@ -497,27 +630,50 @@ final class BackupRestoreService {
         let installedNewSession: StoreGenerationSession?
         if presence.installed {
             installedNewSession = try validInstalledGeneration(
-                id: intent.newGenerationID
+                id: intent.newGenerationID,
+                identity: try intent.identity.map {
+                    try workspaceIdentity($0.targetPointer)
+                },
+                requireExportReconciliation:
+                    currentID == intent.newGenerationID
             )
         } else {
             installedNewSession = nil
         }
         if let installedNewSession {
             let newRecords = try records(in: installedNewSession.modelContext)
-            guard validMonotonicUnion(from: oldRecords, to: newRecords) else {
+            guard validRecoveredRecords(
+                intent: intent,
+                old: oldRecords,
+                target: newRecords
+            ) else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
         }
         if presence.staging,
            let stagedRecords = try validStagingGenerationRecords(
-               id: intent.newGenerationID
+               id: intent.newGenerationID,
+               identity: try intent.identity.map {
+                   try workspaceIdentity($0.targetPointer)
+               }
            ),
-           !validMonotonicUnion(from: oldRecords, to: stagedRecords) {
+           !validRecoveredRecords(
+               intent: intent,
+               old: oldRecords,
+               target: stagedRecords
+           ) {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
 
         switch intent.phase {
         case .prepared:
+            if intent.schemaVersion == 2,
+               currentID == intent.newGenerationID,
+               let newSession = installedNewSession {
+                let switched = intent.advancing(to: .pointerSwitched)
+                try intentStore.replace(expected: intent, with: switched)
+                return try finishValidatedNew(switched, session: newSession)
+            }
             guard currentID == intent.oldGenerationID else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
@@ -526,15 +682,24 @@ final class BackupRestoreService {
                       !presence.staging else {
                     throw BackupRestoreServiceError.invalidRestoreAuthority
                 }
+                try removePreparedRestoreManifestBeforeDiscard(
+                    expectedOldID: intent.oldGenerationID,
+                    generationID: intent.newGenerationID,
+                    expectedDigest:
+                        intent.identity?.targetPointer
+                            .generationManifestSHA256
+                )
                 try generationFactory.removeInstalledGeneration(
                     id: intent.newGenerationID,
                     keeping: intent.oldGenerationID,
                     authority: generationAuthority
                 )
             } else if presence.staging {
-                try generationFactory.removeRestoreStagingGeneration(
+                try discardPrepublicationStagingGeneration(
                     id: intent.newGenerationID,
-                    authority: generationAuthority
+                    expectedDigest:
+                        intent.identity?.targetPointer
+                            .generationManifestSHA256
                 )
             }
             try intentStore.remove(expected: intent)
@@ -547,6 +712,9 @@ final class BackupRestoreService {
             }
             let newSession = installedNewSession
             guard let newSession else {
+                if intent.schemaVersion == 2 {
+                    throw BackupRestoreServiceError.recoveryRequired
+                }
                 if currentID == intent.newGenerationID {
                     try protectDataPointer(named: "current.json")
                     try generationFactory.switchCurrentGeneration(
@@ -568,11 +736,7 @@ final class BackupRestoreService {
             }
             if currentID == intent.oldGenerationID {
                 try protectDataPointer(named: "current.json")
-                try generationFactory.switchCurrentGeneration(
-                    expected: intent.oldGenerationID,
-                    to: intent.newGenerationID,
-                    authority: generationAuthority
-                )
+                try publishTarget(for: intent)
             } else if currentID != intent.newGenerationID {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
@@ -589,6 +753,9 @@ final class BackupRestoreService {
             }
             let newSession = installedNewSession
             guard let newSession else {
+                if intent.schemaVersion == 2 {
+                    throw BackupRestoreServiceError.recoveryRequired
+                }
                 guard currentID == intent.newGenerationID else {
                     throw BackupRestoreServiceError.invalidRestoreAuthority
                 }
@@ -643,6 +810,245 @@ final class BackupRestoreService {
 }
 
 private extension BackupRestoreService {
+    func requireCurrentPointerBinding(
+        _ intent: RestoreIntentV1,
+        currentID: UUID
+    ) throws {
+        guard let identity = intent.identity else { return }
+        let expected: RestorePointerIdentityV1
+        if currentID == intent.oldGenerationID {
+            expected = identity.oldPointer
+        } else if currentID == intent.newGenerationID {
+            expected = identity.targetPointer
+        } else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        let pointer = try generationFactory.currentGenerationPointerV3(
+            expectedGenerationID: currentID,
+            authority: generationAuthority
+        )
+        guard pointer.generationID == canonical(expected.generationID),
+              pointer.generationManifestSHA256
+                == expected.generationManifestSHA256,
+              pointer.knownReplicaIDs
+                == expected.knownReplicaIDs.map(canonical),
+              pointer.workspaceID == canonical(expected.workspaceID),
+              pointer.replicaID == canonical(expected.replicaID) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+
+    func publishTarget(for intent: RestoreIntentV1) throws {
+        if let identity = intent.identity {
+            let expectedCurrentPointer = try currentPointer(
+                identity.oldPointer
+            )
+            try generationFactory.switchCurrentGeneration(
+                expected: intent.oldGenerationID,
+                to: intent.newGenerationID,
+                expectedCurrentPointer: expectedCurrentPointer,
+                identity: try workspaceIdentity(identity),
+                sourceReplicaID: identity.source.replicaID.map {
+                    ReplicaID(rawValue: $0)
+                },
+                knownReplicaIDs: knownReplicaIDs(identity),
+                preparedGenerationManifestSHA256:
+                    identity.targetPointer.generationManifestSHA256,
+                authority: generationAuthority
+            )
+        } else {
+            try generationFactory.switchCurrentGeneration(
+                expected: intent.oldGenerationID,
+                to: intent.newGenerationID,
+                authority: generationAuthority
+            )
+        }
+    }
+
+    func validRecoveredRecords(
+        intent: RestoreIntentV1,
+        old: V4BackupRecordsV1,
+        target: V4BackupRecordsV1
+    ) -> Bool {
+        guard let identity = intent.identity else {
+            return validMonotonicUnion(from: old, to: target)
+        }
+        switch identity.mode {
+        case .replaceExisting:
+            return validMonotonicUnion(from: old, to: target)
+        case .emptyInstall, .clone, .fork:
+            return uniqueModelIDs(in: target)
+        }
+    }
+
+    func makeIdentityDecision(
+        package: ValidatedV4BackupPackageV1,
+        mode: BackupRestoreMode,
+        currentGenerationID: UUID,
+        newGenerationID: UUID,
+        targetManifestDigest: String
+    ) throws -> RestoreIdentityV1? {
+        let source = package.manifest.source
+        switch (source.workspaceID, source.replicaID) {
+        case (nil, nil):
+            guard package.manifest.backupSchemaVersion == 1 else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return nil
+        case (let workspaceID?, let replicaID?):
+            guard package.manifest.backupSchemaVersion == 2,
+                  workspaceID != replicaID else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let current: CurrentGenerationPointerV3 = try generationFactory
+                .currentGenerationPointerV3(
+                expectedGenerationID: currentGenerationID,
+                authority: generationAuthority
+            )
+            guard let oldGenerationID = UUID(uuidString: current.generationID),
+                  oldGenerationID == currentGenerationID,
+                  let oldWorkspaceID = UUID(uuidString: current.workspaceID),
+                  let oldReplicaID = UUID(uuidString: current.replicaID) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let decodedKnownReplicaIDs = current.knownReplicaIDs.compactMap {
+                UUID(uuidString: $0)
+            }
+            guard decodedKnownReplicaIDs.count
+                    == current.knownReplicaIDs.count else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let oldPointer = RestorePointerIdentityV1(
+                generationID: oldGenerationID,
+                generationManifestSHA256: current.generationManifestSHA256,
+                knownReplicaIDs: Set(decodedKnownReplicaIDs),
+                workspaceID: oldWorkspaceID,
+                replicaID: oldReplicaID
+            )
+            let known = Set(decodedKnownReplicaIDs)
+            var unavailableWorkspaces = known
+            unavailableWorkspaces.formUnion([
+                workspaceID,
+                oldWorkspaceID,
+                replicaID,
+                oldReplicaID,
+                currentGenerationID,
+                newGenerationID,
+            ])
+            let allocatedWorkspaceID: UUID?
+            switch mode {
+            case .clone, .fork:
+                allocatedWorkspaceID = try destinationWorkspaceID(
+                    excluding: unavailableWorkspaces
+                )
+            case .emptyInstall, .replaceExisting: allocatedWorkspaceID = nil
+            }
+            let targetWorkspaceID: UUID
+            switch mode {
+            case .emptyInstall: targetWorkspaceID = workspaceID
+            case .replaceExisting: targetWorkspaceID = oldWorkspaceID
+            case .clone, .fork:
+                guard let allocatedWorkspaceID else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                targetWorkspaceID = allocatedWorkspaceID
+            }
+            let requiresReplica = mode != .replaceExisting
+                || oldReplicaID == replicaID
+            var unavailableReplicas = known
+            if mode == .replaceExisting {
+                unavailableReplicas.remove(oldReplicaID)
+            }
+            unavailableReplicas.formUnion([
+                currentGenerationID,
+                newGenerationID,
+                workspaceID,
+                oldWorkspaceID,
+                targetWorkspaceID,
+            ])
+            let allocatedReplicaID: UUID?
+            if requiresReplica {
+                do {
+                    allocatedReplicaID = try ReplicaID
+                        .destinationOwnedForRestore(
+                            excluding: ReplicaID(rawValue: replicaID),
+                            disallowed: Set(unavailableReplicas.map {
+                                ReplicaID(rawValue: $0)
+                            }),
+                            generate: makeUUID
+                        ).rawValue
+                } catch {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+            } else {
+                allocatedReplicaID = nil
+            }
+            do {
+                return try RestoreIdentityDecisionV1.decide(.init(
+                    mode: mode,
+                    source: RestoreSourceIdentityV1(
+                        workspaceID: workspaceID,
+                        replicaID: replicaID
+                    ),
+                    oldPointer: oldPointer,
+                    targetGenerationID: newGenerationID,
+                    targetGenerationManifestSHA256: targetManifestDigest,
+                    allocatedWorkspaceID: allocatedWorkspaceID,
+                    allocatedReplicaID: allocatedReplicaID,
+                    unavailableWorkspaceIDs: unavailableWorkspaces,
+                    unavailableReplicaIDs: unavailableReplicas
+                ))
+            } catch {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        default:
+            throw BackupRestoreServiceError.invalidPackage
+        }
+    }
+
+    func workspaceIdentity(
+        _ decision: RestoreIdentityV1
+    ) throws -> WorkspaceReplicaIdentityV1 {
+        try workspaceIdentity(decision.targetPointer)
+    }
+
+    func destinationWorkspaceID(excluding unavailable: Set<UUID>) throws -> UUID {
+        for _ in 0..<16 {
+            let candidate = makeUUID()
+            if !unavailable.contains(candidate) { return candidate }
+        }
+        throw BackupRestoreServiceError.invalidRestoreAuthority
+    }
+
+    func currentPointer(
+        _ pointer: RestorePointerIdentityV1
+    ) throws -> CurrentGenerationPointerV3 {
+        try CurrentGenerationPointerV3(
+            generationID: pointer.generationID,
+            generationManifestSHA256: pointer.generationManifestSHA256,
+            workspaceID: WorkspaceID(rawValue: pointer.workspaceID),
+            replicaID: ReplicaID(rawValue: pointer.replicaID),
+            knownReplicaIDs: Set(pointer.knownReplicaIDs.map {
+                ReplicaID(rawValue: $0)
+            })
+        )
+    }
+
+    func workspaceIdentity(
+        _ pointer: RestorePointerIdentityV1
+    ) throws -> WorkspaceReplicaIdentityV1 {
+        try WorkspaceReplicaIdentityV1(
+            workspaceID: WorkspaceID(rawValue: pointer.workspaceID),
+            replicaID: ReplicaID(rawValue: pointer.replicaID)
+        )
+    }
+
+    func knownReplicaIDs(_ decision: RestoreIdentityV1) -> Set<ReplicaID> {
+        Set(decision.targetPointer.knownReplicaIDs.map {
+            ReplicaID(rawValue: $0)
+        })
+    }
+
     func protectDataPointer(named name: String) throws {
         let pointerURL = applicationSupportURL
             .appendingPathComponent("FieldEvidenceData", isDirectory: true)
@@ -691,6 +1097,10 @@ private extension BackupRestoreService {
         _ intent: RestoreIntentV1,
         session: StoreGenerationSession
     ) throws -> StoreGenerationSession {
+        try requireCurrentPointerBinding(
+            intent,
+            currentID: intent.newGenerationID
+        )
         try validateLiveSession(session, expected: nil)
         let validated = intent.advancing(to: .newGenerationValidated)
         try intentStore.replace(expected: intent, with: validated)
@@ -1570,12 +1980,22 @@ private extension BackupRestoreService {
 
     func validateStagingGeneration(
         id: UUID,
-        expected: V4BackupRecordsV1
+        expected: V4BackupRecordsV1,
+        identity: WorkspaceReplicaIdentityV1? = nil
     ) throws {
-        let session = try generationFactory.openRestoreStagingGeneration(
-            id: id,
-            authority: generationAuthority
-        )
+        let session: StoreGenerationSession
+        if let identity {
+            session = try generationFactory.openRestoreStagingGeneration(
+                id: id,
+                identity: identity,
+                authority: generationAuthority
+            )
+        } else {
+            session = try generationFactory.openRestoreStagingGeneration(
+                id: id,
+                authority: generationAuthority
+            )
+        }
         try protectGenerationTree(
             id: id,
             root: session.generationRootURL,
@@ -1597,18 +2017,65 @@ private extension BackupRestoreService {
 
     func validateInstalledGeneration(
         id: UUID,
-        expected: V4BackupRecordsV1
+        expected: V4BackupRecordsV1,
+        identity: WorkspaceReplicaIdentityV1? = nil
     ) throws {
-        let session = try generationFactory.openInstalledGeneration(
-            id: id,
-            authority: generationAuthority
-        )
+        let session: StoreGenerationSession
+        if let identity {
+            session = try generationFactory.openInstalledGeneration(
+                id: id,
+                identity: identity,
+                authority: generationAuthority
+            )
+        } else {
+            session = try generationFactory.openInstalledGeneration(
+                id: id,
+                authority: generationAuthority
+            )
+        }
         try protectGenerationTree(
             id: id,
             root: session.generationRootURL,
             staging: false
         )
-        try validateLiveSession(session, expected: expected)
+        try validateUnpublishedTargetSession(
+            session,
+            expected: expected,
+            staging: false
+        )
+    }
+
+    func validateUnpublishedTargetSession(
+        _ session: StoreGenerationSession,
+        expected: V4BackupRecordsV1,
+        staging: Bool
+    ) throws {
+        guard !session.modelContext.hasChanges else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        try validateRows(session.modelContext, expected: expected)
+        try validateFrozenFiles(
+            root: session.generationRootURL,
+            records: expected,
+            authorityCheck: {
+                if staging {
+                    try generationAuthority.requireStagingGeneration(
+                        id: session.generationID
+                    )
+                } else {
+                    try generationAuthority.requireInstalledGeneration(
+                        id: session.generationID
+                    )
+                }
+            }
+        )
+        let tree: StoreRestoreGenerationAuthority.Tree
+        if staging {
+            tree = try generationAuthority.stagingTree(id: session.generationID)
+        } else {
+            tree = try generationAuthority.installedTree(id: session.generationID)
+        }
+        try validateGenerationTree(tree, records: expected)
     }
 
     func validateLiveSession(
@@ -1626,7 +2093,7 @@ private extension BackupRestoreService {
                 modelContext: session.modelContext,
                 generationRootURL: session.generationRootURL,
                 now: { Date(timeIntervalSince1970: 0) }
-            ).prepare()
+            ).prepareStreaming()
         } catch let failure as ProtectedFilePolicyError
             where failure == .protectedDataUnavailable {
             throw failure
@@ -1754,13 +2221,25 @@ private extension BackupRestoreService {
         ]
     }
 
-    func validInstalledGeneration(id: UUID) throws -> StoreGenerationSession? {
+    func validInstalledGeneration(
+        id: UUID,
+        identity: WorkspaceReplicaIdentityV1? = nil,
+        requireExportReconciliation: Bool = true
+    ) throws -> StoreGenerationSession? {
         let session: StoreGenerationSession
         do {
-            session = try generationFactory.openInstalledGeneration(
-                id: id,
-                authority: generationAuthority
-            )
+            if let identity {
+                session = try generationFactory.openInstalledGeneration(
+                    id: id,
+                    identity: identity,
+                    authority: generationAuthority
+                )
+            } else {
+                session = try generationFactory.openInstalledGeneration(
+                    id: id,
+                    authority: generationAuthority
+                )
+            }
         } catch let failure as ProtectedFilePolicyError
             where failure == .protectedDataUnavailable {
             throw failure
@@ -1780,7 +2259,16 @@ private extension BackupRestoreService {
             return nil
         }
         do {
-            try validateLiveSession(session, expected: nil)
+            let frozenRecords = try records(in: session.modelContext)
+            if requireExportReconciliation {
+                try validateLiveSession(session, expected: frozenRecords)
+            } else {
+                try validateUnpublishedTargetSession(
+                    session,
+                    expected: frozenRecords,
+                    staging: false
+                )
+            }
         } catch let failure as ProtectedFilePolicyError
             where failure == .protectedDataUnavailable {
             throw failure
@@ -1790,12 +2278,24 @@ private extension BackupRestoreService {
         return session
     }
 
-    func validStagingGenerationRecords(id: UUID) throws -> V4BackupRecordsV1? {
+    func validStagingGenerationRecords(
+        id: UUID,
+        identity: WorkspaceReplicaIdentityV1? = nil
+    ) throws -> V4BackupRecordsV1? {
         do {
-            let session = try generationFactory.openRestoreStagingGeneration(
-                id: id,
-                authority: generationAuthority
-            )
+            let session: StoreGenerationSession
+            if let identity {
+                session = try generationFactory.openRestoreStagingGeneration(
+                    id: id,
+                    identity: identity,
+                    authority: generationAuthority
+                )
+            } else {
+                session = try generationFactory.openRestoreStagingGeneration(
+                    id: id,
+                    authority: generationAuthority
+                )
+            }
             try protectGenerationTree(
                 id: id,
                 root: session.generationRootURL,
@@ -1803,11 +2303,13 @@ private extension BackupRestoreService {
             )
             guard !session.modelContext.hasChanges else { return nil }
             let frozenRecords = try records(in: session.modelContext)
-            _ = try BackupExportService(
-                modelContext: session.modelContext,
-                generationRootURL: session.generationRootURL,
-                now: { Date(timeIntervalSince1970: 0) }
-            ).prepare()
+            try validateFrozenFiles(
+                root: session.generationRootURL,
+                records: frozenRecords,
+                authorityCheck: {
+                    try generationAuthority.requireStagingGeneration(id: id)
+                }
+            )
             try validateGenerationTree(
                 generationAuthority.stagingTree(id: id),
                 records: frozenRecords
@@ -2061,11 +2563,23 @@ private extension BackupRestoreService {
     }
 
     func cleanupAbandonedRestoreStaging() throws {
+        let currentID = try generationFactory.currentGenerationID(
+            authority: generationAuthority
+        )
         for name in try generationAuthority.restoreGenerationNames() {
             guard let id = UUID(uuidString: name), canonical(id) == name else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
-            try generationAuthority.removeStagingGeneration(id: id)
+            let digest = try generationFactory
+                .prepareRestoreStagingGenerationManifest(
+                    expectedOldID: currentID,
+                    newID: id,
+                    authority: generationAuthority
+                )
+            try discardPrepublicationStagingGeneration(
+                id: id,
+                expectedDigest: digest
+            )
         }
         for name in try generationAuthority.importStagingNames() {
             let url = URL(fileURLWithPath: name)
@@ -2078,6 +2592,50 @@ private extension BackupRestoreService {
             try generationAuthority.removeImportStagingPackage(name: name)
         }
         try cleanupEmptyRestoreDirectories()
+    }
+
+    func discardPrepublicationStagingGeneration(
+        id: UUID,
+        expectedDigest: String?
+    ) throws {
+        if let expectedDigest {
+            let currentID = try generationFactory.currentGenerationID(
+                authority: generationAuthority
+            )
+            let observed = try generationFactory
+                .prepareRestoreStagingGenerationManifest(
+                    expectedOldID: currentID,
+                    newID: id,
+                    authority: generationAuthority
+                )
+            guard observed == expectedDigest else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            try removePreparedRestoreManifestBeforeDiscard(
+                expectedOldID: currentID,
+                generationID: id,
+                expectedDigest: expectedDigest
+            )
+        }
+        try generationFactory.removeRestoreStagingGeneration(
+            id: id,
+            authority: generationAuthority
+        )
+    }
+
+    func removePreparedRestoreManifestBeforeDiscard(
+        expectedOldID: UUID,
+        generationID: UUID,
+        expectedDigest: String?
+    ) throws {
+        guard let expectedDigest else { return }
+        try generationFactory
+            .removePreparedRestoreGenerationManifestBeforeDiscard(
+                expectedOldID: expectedOldID,
+                generationID: generationID,
+                expectedDigest: expectedDigest,
+                authority: generationAuthority
+            )
     }
 
     func cleanupEmptyRestoreDirectories() throws {

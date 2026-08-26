@@ -24,6 +24,18 @@ final class StoreSessionCoordinator: ObservableObject {
         session.generationRootURL
     }
 
+    var workspaceID: WorkspaceID {
+        session.workspaceID
+    }
+
+    var replicaID: ReplicaID {
+        session.replicaID
+    }
+
+    var workspaceIdentity: WorkspaceReplicaIdentityV1 {
+        session.workspaceIdentity
+    }
+
     func activate(session: StoreGenerationSession) {
         self.session = session
         if uiGenerationToken < .max {

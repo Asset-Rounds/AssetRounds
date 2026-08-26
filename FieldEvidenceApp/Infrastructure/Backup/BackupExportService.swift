@@ -464,6 +464,7 @@ private extension BackupExportService {
                 == rootIdentity else {
             throw BackupExportServiceError.invalidGeneration
         }
+        let sourceIdentity = try currentStreamingWorkspaceIdentity()
         let rows = try fetchRows()
         try validateGraph(rows)
         let records = makeRecords(rows)
@@ -607,6 +608,7 @@ private extension BackupExportService {
         }
         guard try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
                 == rootIdentity,
+              try currentStreamingWorkspaceIdentity() == sourceIdentity,
               !modelContext.hasChanges else {
             throw BackupExportServiceError.invalidGeneration
         }
@@ -658,7 +660,7 @@ private extension BackupExportService {
             throw BackupExportServiceError.invalidAuthority
         }
         let manifest = V4BackupManifestV1(
-            backupSchemaVersion: 1,
+            backupSchemaVersion: 2,
             consumedEvaluationRootIDs: rows.packets
                 .filter(\.evaluationCounted)
                 .map(\.stableRootID)
@@ -671,7 +673,9 @@ private extension BackupExportService {
                 appBuild: appBuild(),
                 appVersion: appVersion(),
                 persistentSchemaVersion: 1,
-                recordsSchemaVersion: 1
+                replicaID: sourceIdentity.replicaID.rawValue,
+                recordsSchemaVersion: 1,
+                workspaceID: sourceIdentity.workspaceID.rawValue
             )
         )
         let manifestData: Data
@@ -698,6 +702,26 @@ private extension BackupExportService {
             recordsData: recordsData,
             sources: sources
         )
+    }
+
+    func currentStreamingWorkspaceIdentity() throws -> WorkspaceReplicaIdentityV1 {
+        guard let generationID = UUID(uuidString: generationRootURL.lastPathComponent),
+              generationID.uuidString.lowercased()
+                == generationRootURL.lastPathComponent else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        let applicationSupportURL = generationRootURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        do {
+            return try StoreGenerationFactory(
+                applicationSupportURL: applicationSupportURL,
+                fileManager: fileManager
+            ).currentWorkspaceIdentity(expectedGenerationID: generationID)
+        } catch {
+            throw BackupExportServiceError.invalidGeneration
+        }
     }
 
     func buildPrepared(

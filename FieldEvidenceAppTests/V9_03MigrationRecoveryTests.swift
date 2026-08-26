@@ -500,7 +500,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
             (
                 "future",
                 try StoreMigrationCanonicalJSONV1.encode(
-                    FuturePointer(schemaVersion: 3)
+                    FuturePointer(schemaVersion: 4)
                 ),
                 .maintenanceRequired(.futureVersion)
             ),

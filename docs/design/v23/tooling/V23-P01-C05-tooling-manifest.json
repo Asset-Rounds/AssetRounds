@@ -1,0 +1,131 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "artifactCount": 7,
+  "artifactDigest": "4c7bd4254504fc2d24c77eb741f83cc8fc80f677eeb4102d848fa697f16fbf0f",
+  "artifactSetDigest": "fb8eb6366df24e30512ffc44c2f01fc8c9f09496fb8dafb4b24a84b7684c6701",
+  "artifacts": [
+    {
+      "bytes": 22617,
+      "path": "Scripts/v23/p01_c05_contracts.py",
+      "sha256": "8365cbb1feaa06536769e96ccb4d57043b2eda4384666da4711e1f71428409e9"
+    },
+    {
+      "bytes": 1410,
+      "path": "Scripts/v23/generate_p01_c05_contracts.py",
+      "sha256": "d401cd11d2e5d8e3257035ae758a73725462777eb5d6a81ec53ce94e580ba8e0"
+    },
+    {
+      "bytes": 9820,
+      "path": "Scripts/v23/verify_p01_c05_contracts.py",
+      "sha256": "40cb6917cfbca1877215a22d3e80d227073480cafd0beb1f6b53b005faa3cc4d"
+    },
+    {
+      "bytes": 9720,
+      "path": "Scripts/v23/restore-identity.schema.json",
+      "sha256": "f5dfce26a41916cc8273c81eb18319c4e14e5b2c1b2b83cc890ec3ec4455daf4"
+    },
+    {
+      "bytes": 4602,
+      "path": "Scripts/v23/restore-identity-fixture.schema.json",
+      "sha256": "3be8ffb7a0b7b4ede9384d8c7d406f752e8950ff11cd278cff1b84d6e3234c31"
+    },
+    {
+      "bytes": 20188,
+      "path": "docs/design/v23/tooling/V23P01C05RestoreIdentityContractV1.json",
+      "sha256": "797a375ee537ed3833ae2929ac1bda6506dd157e3a60e3e71f1e4f21f0f9430e"
+    },
+    {
+      "bytes": 8089,
+      "path": "docs/design/v23/tooling/V23P01C05IdentityTransformationManifestV1.json",
+      "sha256": "ac9d88f1feda11160fc17ae6edb8602733f7146e0aca9dd0fd3bd9ad058f2868"
+    }
+  ],
+  "authority": {
+    "acceptedS10_6BaselineDigest": null,
+    "activeS10OverlapCount": 0,
+    "authorityCorrectionReceiptDigest": "5d230487a628b897a939ab82817698b0e757836f99679d5dc9f965874fd4c8da",
+    "baseHead": "8e2536f42e6381412d22de302b013f606c2ec42f",
+    "baseTree": "f5db4dbdb8b393dc35e963ca05bd598a9fccf953",
+    "branch": "phase/v23-expansion",
+    "conformanceSubjectSet": "KernelConformanceSubjectSetV1",
+    "contextDigest": "3c58e2346b8c608c52729580bd867e8c8f329ea19119cb029e9bcff228e34ff5",
+    "coordinationAuthorityHead": "c73c6b05cf1f50e135e265be033fbe9d6a55c8bb",
+    "coordinationCASSequence": 71,
+    "coordinationLedgerDigest": "53bc489b243045d2abc9174e27d490f9324b6ab77b913fd80754e5def1efbda5",
+    "coordinationLedgerSequence": 71,
+    "correctedProjectionDigest": "61bf7e0788893bdc015118a86290e1e8b3d4b3407eb7d00e856582d48e98538e",
+    "deterministicEvidenceIDs": [
+      "V23-P01-C05-G01",
+      "V23-P01-C05-A01",
+      "V23-P01-C05-H01",
+      "V23-P01-C05-I01",
+      "V23-P01-C05-R01"
+    ],
+    "directPrerequisite": "V23-P01-C04",
+    "dossierDigest": "528e5aacfac8fb5f330b31fe6da18188cbf21b730f5d41549f1c222a26b1abc0",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationTransitionDigest": "3c8473e539474d2e23f4932ae81b0f072c9be71b855c81bc5b3dc91bfd38c5d4",
+    "inheritedV21BlockDigest": "451ce63ceafea76f32c23face560273ee75aed24a9d7fda0f9d0c9f613700176",
+    "invalidationConsumer": "V23-P01-C06",
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "ownerParallelOverrideAuthorityReceiptDigest": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752",
+    "ownerParallelOverrideReason": "OWNER_AUTHORIZED_PRE_S10_6_ORDERED_IMPLEMENTATION_V4",
+    "pathFenceDigest": "d33d9dc7eb467939eb7e682e56dbd0c5b0152f7c140867115bd17bd918d7083a",
+    "priorCoordinationLedgerDigest": "da7699908e225b0f2e6d6c771d8887d9fee7ae797822071f16cea593f54b9e59",
+    "provisionalPrerequisiteDigest": "8d812b35d7d8c0d68148dfebfee38049caae7083db54138763d8430f0f9d1a95",
+    "registerRowDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "supplementalPrerequisiteDigest": "7c3f0c6ee84c789587dc0b24503399b271a09c2df7c954d6137026e86eadf633"
+  },
+  "cardID": "V23-P01-C05",
+  "fullCardFence": [
+    "FieldEvidenceApp/Domain/Backup/RestoreIdentityV1.swift",
+    "FieldEvidenceApp/Domain/Backup/RestoreIntentV1.swift",
+    "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/RestoreIntentStore.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceIdentity.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+    "FieldEvidenceAppTests/V9_05RestoreIdentityTests.swift",
+    "FieldEvidenceAppTests/V9_01VersionedSchemaIdentityTests.swift",
+    "FieldEvidenceAppTests/V9_03MigrationRecoveryTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Restore/V21P01C05IdentityTransformationsV1.json",
+    "Scripts/v23/p01_c05_contracts.py",
+    "Scripts/v23/generate_p01_c05_contracts.py",
+    "Scripts/v23/verify_p01_c05_contracts.py",
+    "Scripts/v23/restore-identity.schema.json",
+    "Scripts/v23/restore-identity-fixture.schema.json",
+    "docs/design/v23/tooling/V23P01C05RestoreIdentityContractV1.json",
+    "docs/design/v23/tooling/V23P01C05IdentityTransformationManifestV1.json",
+    "docs/design/v23/tooling/V23-P01-C05-tooling-manifest.json"
+  ],
+  "hostedDispatchRan": false,
+  "nativeCompileRan": false,
+  "pathFence": [
+    "Scripts/v23/p01_c05_contracts.py",
+    "Scripts/v23/generate_p01_c05_contracts.py",
+    "Scripts/v23/verify_p01_c05_contracts.py",
+    "Scripts/v23/restore-identity.schema.json",
+    "Scripts/v23/restore-identity-fixture.schema.json",
+    "docs/design/v23/tooling/V23P01C05RestoreIdentityContractV1.json",
+    "docs/design/v23/tooling/V23P01C05IdentityTransformationManifestV1.json",
+    "docs/design/v23/tooling/V23-P01-C05-tooling-manifest.json"
+  ],
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P01C05ToolingManifestV1",
+  "schemaVersion": 1,
+  "sourceBindingComplete": true,
+  "sourceBindingCount": 17,
+  "toolingPathCount": 8
+}

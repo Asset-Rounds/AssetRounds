@@ -303,6 +303,118 @@ struct CurrentGenerationPointerV2: Codable, Equatable, Sendable {
     }
 }
 
+struct CurrentGenerationPointerV3: Codable, Equatable, Sendable {
+    static let maximumKnownReplicaCount = 64
+
+    let generationID: String
+    let generationManifestSHA256: String
+    let knownReplicaIDs: [String]
+    let replicaID: String
+    let storeSchemaVersion: Int
+    let workspaceID: String
+    let schemaVersion: Int
+
+    init(
+        generationID: UUID,
+        generationManifestSHA256: String,
+        workspaceID: WorkspaceID,
+        replicaID: ReplicaID,
+        knownReplicaIDs: Set<ReplicaID> = [],
+        storeSchemaVersion: Int = 2,
+        schemaVersion: Int = 3
+    ) throws {
+        var history = knownReplicaIDs
+        history.insert(replicaID)
+        self.generationID = generationID.uuidString.lowercased()
+        self.generationManifestSHA256 = generationManifestSHA256
+        self.knownReplicaIDs = history
+            .map { $0.rawValue.uuidString.lowercased() }
+            .sorted()
+        self.replicaID = replicaID.rawValue.uuidString.lowercased()
+        self.storeSchemaVersion = storeSchemaVersion
+        self.workspaceID = workspaceID.rawValue.uuidString.lowercased()
+        self.schemaVersion = schemaVersion
+        try validate()
+    }
+
+    func validate() throws {
+        let zero = "00000000-0000-0000-0000-000000000000"
+        guard schemaVersion == 3,
+              storeSchemaVersion == 2,
+              Self.canonicalUUID(generationID) != nil,
+              Self.canonicalUUID(workspaceID) != nil,
+              Self.canonicalUUID(replicaID) != nil,
+              generationID != workspaceID,
+              generationID != replicaID,
+              workspaceID != replicaID,
+              generationID != zero,
+              workspaceID != zero,
+              replicaID != zero,
+              !knownReplicaIDs.isEmpty,
+              knownReplicaIDs.count <= Self.maximumKnownReplicaCount,
+              knownReplicaIDs == knownReplicaIDs.sorted(),
+              Set(knownReplicaIDs).count == knownReplicaIDs.count,
+              knownReplicaIDs.contains(replicaID),
+              knownReplicaIDs.allSatisfy({
+                  $0 != zero && Self.canonicalUUID($0) != nil
+              }) else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+            generationManifestSHA256
+        ) else {
+            throw StoreMigrationFailure.invalidDigest
+        }
+    }
+
+    func identity() throws -> WorkspaceReplicaIdentityV1 {
+        try validate()
+        guard let workspaceUUID = Self.canonicalUUID(workspaceID),
+              let replicaUUID = Self.canonicalUUID(replicaID) else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        return try WorkspaceReplicaIdentityV1(
+            workspaceID: WorkspaceID(rawValue: workspaceUUID),
+            replicaID: ReplicaID(rawValue: replicaUUID)
+        )
+    }
+
+    func knownReplicaIdentitySet() throws -> Set<ReplicaID> {
+        try validate()
+        let values = knownReplicaIDs.compactMap(Self.canonicalUUID)
+        guard values.count == knownReplicaIDs.count else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        return Set(values.map { ReplicaID(rawValue: $0) })
+    }
+
+    func canonicalData() throws -> Data {
+        try validate()
+        return try StoreMigrationCanonicalJSONV1.encode(self)
+    }
+
+    func canonicalSHA256() throws -> String {
+        try validate()
+        return try StoreMigrationCanonicalJSONV1.digest(self)
+    }
+
+    static func decodeCanonical(from data: Data) throws -> Self {
+        try StoreMigrationCanonicalJSONV1.decodeCanonicalContract(
+            Self.self,
+            from: data,
+            validate: { try $0.validate() }
+        )
+    }
+
+    private static func canonicalUUID(_ value: String) -> UUID? {
+        guard let identifier = UUID(uuidString: value),
+              identifier.uuidString.lowercased() == value else {
+            return nil
+        }
+        return identifier
+    }
+}
+
 struct StoreMigrationJournalV1: Codable, Equatable, Sendable {
     let schemaVersion: Int
     let migrationID: UUID

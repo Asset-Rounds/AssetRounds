@@ -298,7 +298,7 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
                 "future",
                 { generationID in
                     try StoreMigrationCanonicalJSONV1.encode(
-                        FuturePointer(schemaVersion: 3)
+                        FuturePointer(schemaVersion: 4)
                     )
                 },
                 StoreMigrationFailure.maintenanceRequired(.futureVersion)
@@ -345,7 +345,7 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         let (factory, _, modelURL) = try bootstrapGeneration(at: root)
         try fileManager.removeItem(at: modelURL)
         try StoreMigrationCanonicalJSONV1.encode(
-            FutureRetiredPointer(generationIDs: [], schemaVersion: 3)
+            FutureRetiredPointer(generationIDs: [], schemaVersion: 4)
         ).write(to: retiredPointerURL(in: root), options: .atomic)
 
         XCTAssertThrowsError(try factory.openOrBootstrapCurrent()) { error in
@@ -355,17 +355,27 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
     }
 
     @MainActor
-    func testV2BootstrapAndReopenPersistPointerManifestAndMarker() throws {
+    func testV3BootstrapAndReopenPersistV2ManifestAndMarker() throws {
         let root = try makeTemporaryApplicationSupportURL(suffix: "V2Bootstrap")
         defer { try? fileManager.removeItem(at: root) }
         let factory = StoreGenerationFactory(applicationSupportURL: root)
         var opened: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
         let generationID = try XCTUnwrap(opened).generationID
+        let workspaceID = try XCTUnwrap(opened).workspaceID
+        let replicaID = try XCTUnwrap(opened).replicaID
         let pointerData = try Data(contentsOf: currentPointerURL(in: root))
-        let pointer = try CurrentGenerationPointerV2.decodeCanonical(from: pointerData)
+        let pointer = try CurrentGenerationPointerV3.decodeCanonical(from: pointerData)
         XCTAssertEqual(pointer.generationID, generationID.uuidString.lowercased())
-        XCTAssertEqual(pointer.schemaVersion, 2)
+        XCTAssertEqual(pointer.schemaVersion, 3)
         XCTAssertEqual(pointer.storeSchemaVersion, 2)
+        XCTAssertEqual(
+            pointer.workspaceID,
+            workspaceID.rawValue.uuidString.lowercased()
+        )
+        XCTAssertEqual(
+            pointer.replicaID,
+            replicaID.rawValue.uuidString.lowercased()
+        )
 
         let migrationStore = try StoreMigrationJournalStoreV1(
             applicationSupportURL: root
@@ -399,6 +409,8 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
 
         let reopened = try factory.openOrBootstrapCurrent()
         XCTAssertEqual(reopened.generationID, generationID)
+        XCTAssertEqual(reopened.workspaceID, workspaceID)
+        XCTAssertEqual(reopened.replicaID, replicaID)
         let reopenedMarkers = try reopened.modelContext.fetch(
             FetchDescriptor<PersistentSchemaReleaseMarker>()
         )

@@ -457,7 +457,26 @@ private extension BackupPackageValidatorV1 {
     }
 
     func validateManifestBounds(_ manifest: V4BackupManifestV1) throws {
-        guard manifest.backupSchemaVersion == 1,
+        let zero = UUID(uuid: (
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0
+        ))
+        let sourceIdentityIsValid: Bool
+        switch (
+            manifest.backupSchemaVersion,
+            manifest.source.workspaceID,
+            manifest.source.replicaID
+        ) {
+        case (1, nil, nil):
+            sourceIdentityIsValid = true
+        case (2, let workspaceID?, let replicaID?):
+            sourceIdentityIsValid = workspaceID != zero
+                && replicaID != zero
+                && workspaceID != replicaID
+        default:
+            sourceIdentityIsValid = false
+        }
+        guard sourceIdentityIsValid,
               manifest.entries.count <= limits.maximumEntryCount,
               manifest.declaredPayloadByteCount >= 0 else {
             throw BackupPackageValidationErrorV1.invalidPackage

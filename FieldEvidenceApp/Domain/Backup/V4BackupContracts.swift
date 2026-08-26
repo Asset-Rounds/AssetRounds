@@ -147,7 +147,25 @@ struct V4BackupSourceV1: Codable, Equatable, Sendable {
     let appBuild: String
     let appVersion: String
     let persistentSchemaVersion: Int
+    let replicaID: UUID?
     let recordsSchemaVersion: Int
+    let workspaceID: UUID?
+
+    init(
+        appBuild: String,
+        appVersion: String,
+        persistentSchemaVersion: Int,
+        replicaID: UUID? = nil,
+        recordsSchemaVersion: Int,
+        workspaceID: UUID? = nil
+    ) {
+        self.appBuild = appBuild
+        self.appVersion = appVersion
+        self.persistentSchemaVersion = persistentSchemaVersion
+        self.replicaID = replicaID
+        self.recordsSchemaVersion = recordsSchemaVersion
+        self.workspaceID = workspaceID
+    }
 }
 
 struct V4BackupManifestV1: Codable, Equatable, Sendable {
