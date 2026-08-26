@@ -19838,6 +19838,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             4
         )
+        let k154WorkflowSource = try text(".github/workflows/ios-ci-worker.yml")
         for diagnosticPrefix in [
             "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
             "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
@@ -19850,7 +19851,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 1,
                 diagnosticPrefix
             )
-            XCTAssertFalse(workflowSource.contains(diagnosticPrefix), diagnosticPrefix)
+            XCTAssertFalse(k154WorkflowSource.contains(diagnosticPrefix), diagnosticPrefix)
         }
         var k154DiagnosticTail = k154WorkValidationNativeContrastDiagnosticSource[
             k154WorkValidationNativeContrastDiagnosticSource.startIndex...
@@ -19895,7 +19896,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        }\n" +
                 "        scroll(description, in: app)"
         XCTAssertEqual(
-            workValidationTailSource.components(separatedBy: k154CallerGuard).count - 1,
+            uiSource.components(separatedBy: k154CallerGuard).count - 1,
             1
         )
 
