@@ -717,6 +717,7 @@ jobs:
         env:
           BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN }}
           BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ vars.BITRISE_BUILD_CACHE_WORKSPACE_ID }}
+          BITRISE_BUILD_CACHE_BENCHMARK_PHASE_XCODE: established
         run: |
           set -euo pipefail
           test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-m4-pro"
@@ -777,6 +778,7 @@ jobs:
           printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' \
             'test -n "${BITRISE_BUILD_CACHE_AUTH_TOKEN:-}"' \
             'test "${BITRISE_BUILD_CACHE_WORKSPACE_ID:-}" = "c70b2962648b79fb"' \
+            'test "${BITRISE_BUILD_CACHE_BENCHMARK_PHASE_XCODE:-}" = "established"' \
             'counter_file="$RUNNER_TEMP/bitrise-build-cache-activation-counter.txt"' \
             'activation_raw="$RUNNER_TEMP/bitrise-build-cache-activation.raw.log"' \
             'activation_ordinal=0' \
@@ -803,11 +805,14 @@ jobs:
             '    if not source.endswith("\n"):' \
             '        stream.write("\n")' \
             'PY' \
+            'grep -F "xcode=established" "$activation_raw" > /dev/null' \
             'rm -f "$activation_raw"' \
             'test "$activation_status" -eq 0' \
-            'printf "activation_exit=0\ncache=true\ncache_push=true\n" >> "$CI_ARTIFACT_DIR/bitrise-build-cache-activation.log"' \
+            'printf "activation_exit=0\ncache=true\ncache_push=true\nbenchmark_phase=established\n" >> "$CI_ARTIFACT_DIR/bitrise-build-cache-activation.log"' \
             > "$activation_helper"
           chmod 700 "$activation_helper"
+          printf 'BITRISE_BUILD_CACHE_BENCHMARK_PHASE_XCODE=established\n' >> "$GITHUB_ENV"
+          export BITRISE_BUILD_CACHE_BENCHMARK_PHASE_XCODE=established
           bash "$activation_helper"
 
           bitrise_wrapper_dir="$HOME/.bitrise-xcelerate/bin"
@@ -1258,6 +1263,19 @@ jobs:
             activation_count="$(cat "$RUNNER_TEMP/bitrise-build-cache-activation-counter.txt")"
           fi
           case "$activation_count" in "" | *[!0-9]*) exit 1 ;; esac
+          benchmark_phase="unavailable"
+          cache_operational=false
+          established_count=0
+          if test -s "$CI_ARTIFACT_DIR/bitrise-build-cache-activation.log"; then
+            established_count="$(grep -c '^benchmark_phase=established$' "$CI_ARTIFACT_DIR/bitrise-build-cache-activation.log" || true)"
+          fi
+          if test "$activation_count" -ge 1 \
+            && test "$established_count" -eq "$activation_count" \
+            && ! grep -F 'cache disabled, analytics only' \
+              "$CI_ARTIFACT_DIR/bitrise-build-cache-activation.log" > /dev/null; then
+            benchmark_phase=established
+            cache_operational=true
+          fi
           artifact_name="ios-ci-development-only-bitrise-xcode-26.6-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$CI_S10_4_SHARD_ID-$CI_S10_4_SEGMENT_ID"
           jq -n \
             --arg laneID "bitrise-build-hub-xcode-26.6-segmented-development-only" \
@@ -1274,6 +1292,8 @@ jobs:
             --arg artifactName "$artifact_name" \
             --arg planSHA256 "$plan_sha256" \
             --arg priorJobStatus "$BITRISE_PRIOR_JOB_STATUS" \
+            --arg benchmarkPhase "$benchmark_phase" \
+            --argjson cacheOperational "$cache_operational" \
             --argjson activationCount "$activation_count" '
               {
                 schemaVersion: 1,
@@ -1293,6 +1313,8 @@ jobs:
                 priorJobStatus: $priorJobStatus,
                 cacheEnabled: true,
                 cachePushEnabled: true,
+                benchmarkPhase: $benchmarkPhase,
+                cacheOperational: $cacheOperational,
                 cacheActivationCount: $activationCount,
                 workspaceConfigured: true,
                 independentSession: true,
@@ -1315,6 +1337,8 @@ jobs:
             and (.segmentID | IN("segment-1", "segment-2", "segment-3"))
             and .cacheEnabled == true
             and .cachePushEnabled == true
+            and .benchmarkPhase == "established"
+            and .cacheOperational == true
             and .cacheActivationCount >= 1
             and .workspaceConfigured == true
             and .independentSession == true
@@ -3573,11 +3597,20 @@ jobs:
           test ! -e "$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID/segment-receipt.json"
           test ! -e "$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID/segment-receipt.pending.json"
           test ! -e "$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID/shard-receipt.json"
-          test "$(cat "$RUNNER_TEMP/bitrise-build-cache-activation-counter.txt")" -ge 6
+          activation_count="$(cat "$RUNNER_TEMP/bitrise-build-cache-activation-counter.txt")"
+          test "$activation_count" -ge 6
+          test "$(grep -c '^benchmark_phase=established$' "$CI_ARTIFACT_DIR/bitrise-build-cache-activation.log")" \
+            -eq "$activation_count"
+          if grep -F 'cache disabled, analytics only' \
+            "$CI_ARTIFACT_DIR/bitrise-build-cache-activation.log" > /dev/null; then
+            exit 1
+          fi
           jq -e '
             .laneID == "bitrise-build-hub-xcode-26.6-segmented-development-only"
             and .provider == "bitrise"
             and .runnerLabel == "bitrise-m4-pro"
+            and .benchmarkPhase == "established"
+            and .cacheOperational == true
             and .acceptingSegmentReceipt == false
             and .feedsAcceptanceAssembler == false
             and .rawEvidenceOnly == true

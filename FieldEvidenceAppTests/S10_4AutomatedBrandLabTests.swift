@@ -120,8 +120,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 216_723,
-            sha256: "BBE69221FAC2E5554E354A275C2E0AE2A6FB21E579E5D42D446F1538F87EDFB0"
+            byteCount: 218_593,
+            sha256: "134C4225D6F3D5925FF0AAFC5B6DCF4DCA2B023FCA19599E984F94E72D3BFB78"
         )
         let workflowSource = try text(workflowPath)
         let workerCallHeader =
@@ -752,10 +752,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 98_285)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 99_693)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "B519935C5097909576FF4CF78053644A503EDC6F1CA48329FFD8D7E75D1F8B6C"
+            "B7631D6B70923A6D6CED09C5B58BEAA52C35878E59CA8937A9CC7F10E19AB566"
         )
         let warpScopeSource = String(
             warpJobSource[warpScopeStart.lowerBound..<warpExecutionStart.lowerBound]
@@ -20986,6 +20986,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "if: ${{ inputs.runner_provider == 'bitrise' }}",
             "BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN }}",
             "BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ vars.BITRISE_BUILD_CACHE_WORKSPACE_ID }}",
+            "BITRISE_BUILD_CACHE_BENCHMARK_PHASE_XCODE: established",
             "bitrise:bitrise-m4-pro",
             "test \"${RUNNER_ARCH:-}\" = \"ARM64\"",
             "test \"$(uname -m)\" = \"arm64\"",
@@ -20998,6 +20999,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "test \"$(stat -f '%z' /tmp/bin/bitrise-build-cache)\" = 20335490",
             "2dfbfa4364a3a133370071715b9a7d0f9c6d7661b71abac839f723901c547bc3",
             "/tmp/bin/bitrise-build-cache activate xcode --cache --cache-push",
+            "test \"${BITRISE_BUILD_CACHE_BENCHMARK_PHASE_XCODE:-}\" = \"established\"",
+            "grep -F \"xcode=established\" \"$activation_raw\" > /dev/null",
+            "benchmark_phase=established",
             "env -u BITRISE_BUILD_CACHE_AUTH_TOKEN -u BITRISE_BUILD_CACHE_WORKSPACE_ID",
             "bitrise_wrapper_dir=\"$HOME/.bitrise-xcelerate/bin\"",
             "bitrise_xcodebuild_wrapper=\"$bitrise_wrapper_dir/xcodebuild\"",
@@ -21026,6 +21030,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "inputs.runner_provider == 'bitrise'",
             "bitrise-development/$CI_S10_4_SEGMENT_ID",
             "development-segment-record.json",
+            "benchmarkPhase: $benchmarkPhase",
+            "cacheOperational: $cacheOperational",
+            ".benchmarkPhase == \"established\"",
+            ".cacheOperational == true",
             "independentSession: true",
             "crossSessionBuildReuse: false",
             "crossSessionResultReuse: false",
@@ -21040,6 +21048,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertFalse(bitriseDevelopmentRetentionSource.contains("complete: true"))
         XCTAssertFalse(bitriseDevelopmentRetentionSource.contains("receiptKind: \"s10.4-segment\""))
+        let bitriseDevelopmentValidationSource = try boundedSource(
+            workerSource,
+            from: "      - name: Validate Bitrise development-only segment evidence",
+            before: "\n\n      - name: Finalize successful S10.4 segment receipt"
+        )
+        for exact in [
+            "grep -c '^benchmark_phase=established$'",
+            "cache disabled, analytics only",
+            ".benchmarkPhase == \"established\"",
+            ".cacheOperational == true",
+        ] {
+            XCTAssertTrue(bitriseDevelopmentValidationSource.contains(exact), exact)
+        }
 
         let retainSegmentSource = try boundedSource(
             workerSource,
