@@ -4220,9 +4220,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                timeout: 1",
             "            let stabilizedFinalSemanticRelations = finalStrictSemanticRelations()",
             "            if stabilizedFinalSemanticRelations.allSatisfy({ relation in",
-            "            if automationSegment == .segment2 {",
+            "        if automationSegment == .segment2 {",
             "            return diagnoseSegment2FinalSemantics(initialFinalSemanticRelations)",
-            "            XCTFail(\"AX-text work-validation final semantics are invalid.\")",
+            "        XCTFail(\"AX-text work-validation final semantics are invalid.\")",
         ] {
             XCTAssertTrue(
                 workValidationPositioningHelperSource.contains(
