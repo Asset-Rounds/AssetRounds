@@ -15,6 +15,10 @@ enum OwnedFileKindV1: String, CaseIterable, Equatable, Hashable, Sendable {
     case databaseSHM
     case generationPointer
     case generationPointerTemporary
+    case generationLeaseDirectory
+    case generationLeaseControl
+    case generationLeaseControlTemporary
+    case generationLeaseOwnerLock
     case journal
     case journalTemporary
     case mediaOriginal
@@ -82,7 +86,11 @@ enum ProtectedFilePolicyV1 {
                 expectsDirectory: kind == .durableDirectory,
                 isExcludedFromBackup: false
             )
-        case .stagingDirectory, .restoreStaging, .cache, .scratch:
+        case .stagingDirectory,
+             .restoreStaging,
+             .generationLeaseDirectory,
+             .cache,
+             .scratch:
             return OwnedFileProtectionDispositionV1(
                 expectsDirectory: true,
                 isExcludedFromBackup: true
@@ -90,6 +98,9 @@ enum ProtectedFilePolicyV1 {
         case .stagingFile,
              .temporaryFile,
              .generationPointerTemporary,
+             .generationLeaseControl,
+             .generationLeaseControlTemporary,
+             .generationLeaseOwnerLock,
              .journal,
              .journalTemporary,
              .diagnostics,

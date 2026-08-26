@@ -27,22 +27,75 @@ final class MutationJournalStoreV1 {
     nonisolated static let maximumReceiptValidationCount = 100_000
     nonisolated static let maximumMutableContentValidationCount = 100_000
 
+    private enum AccessMode {
+        case canonicalWriter(StaleWriterFenceV1)
+        case maintenanceOrTest
+    }
+
     private let modelContext: ModelContext
     private let identity: WorkspaceReplicaIdentityV1
     private let generationID: UUID
     private let failureInjection: MutationJournalFailureInjectionV1?
+    private let accessMode: AccessMode
 
-    init(
+    convenience init(
+        modelContext: ModelContext,
+        identity: WorkspaceReplicaIdentityV1,
+        generationID: UUID,
+        failureInjection: MutationJournalFailureInjectionV1? = nil,
+        allowStateBootstrap: Bool = true,
+        staleWriterFence: StaleWriterFenceV1
+    ) throws {
+        let writerLeaseToken: GenerationLeaseTokenV1 =
+            staleWriterFence.writerLeaseToken
+        guard staleWriterFence.expectedGenerationEpoch.generationID == generationID,
+              writerLeaseToken.epoch == staleWriterFence.expectedGenerationEpoch,
+              writerLeaseToken.role == .writer else {
+            throw WorkspaceMutationFailureV1.wrongGeneration
+        }
+        try self.init(
+            modelContext: modelContext,
+            identity: identity,
+            generationID: generationID,
+            failureInjection: failureInjection,
+            allowStateBootstrap: allowStateBootstrap,
+            accessMode: .canonicalWriter(staleWriterFence)
+        )
+    }
+
+    /// Legacy maintenance/read access. Canonical writer and recovery entry
+    /// points reject this mode in release builds; DEBUG retains the existing
+    /// isolated in-memory test seam.
+    convenience init(
         modelContext: ModelContext,
         identity: WorkspaceReplicaIdentityV1,
         generationID: UUID,
         failureInjection: MutationJournalFailureInjectionV1? = nil,
         allowStateBootstrap: Bool = true
     ) throws {
+        try self.init(
+            modelContext: modelContext,
+            identity: identity,
+            generationID: generationID,
+            failureInjection: failureInjection,
+            allowStateBootstrap: allowStateBootstrap,
+            accessMode: .maintenanceOrTest
+        )
+    }
+
+    private init(
+        modelContext: ModelContext,
+        identity: WorkspaceReplicaIdentityV1,
+        generationID: UUID,
+        failureInjection: MutationJournalFailureInjectionV1?,
+        allowStateBootstrap: Bool,
+        accessMode: AccessMode
+    ) throws {
         self.modelContext = modelContext
         self.identity = identity
         self.generationID = generationID
         self.failureInjection = failureInjection
+        self.accessMode = accessMode
         try bootstrapOrValidateState(allowBootstrap: allowStateBootstrap)
     }
 
@@ -51,6 +104,7 @@ final class MutationJournalStoreV1 {
     }
 
     func currentRevision(writerInstanceID: UUID) throws -> WorkspaceRevisionV1 {
+        try validateCurrentWriterLease()
         let state = try requireState()
         let rows = try modelContext.fetch(FetchDescriptor<EntityMutationRevisionRow>(
             sortBy: [SortDescriptor(\.stableIdentity)]
@@ -74,6 +128,7 @@ final class MutationJournalStoreV1 {
     }
 
     func nextLocalSequence() throws -> UInt64 {
+        try validateCurrentWriterLease()
         let value = try requireState().lastLocalSequence
         guard value >= 0, value < Int64.max else { throw WorkspaceMutationFailureV1.revisionOverflow }
         return UInt64(value + 1)
@@ -82,6 +137,7 @@ final class MutationJournalStoreV1 {
     /// Returns the prior immutable receipt before live-session revision checks.
     /// A conflicting body is durably quarantined and always fails closed.
     func resolveReplay(envelope: MutationEnvelopeV1, detectedAt: Date) throws -> MutationReceiptV1? {
+        try validateCurrentWriterLease()
         try envelope.validate()
         guard envelope.workspaceID == identity.workspaceID,
               envelope.generationID == generationID else {
@@ -111,7 +167,12 @@ final class MutationJournalStoreV1 {
                 conflictingIdentitySHA256: incoming,
                 detectedAt: detectedAt
             ))
-            do { try modelContext.save() } catch {
+            do {
+                try saveWithStaleWriterFence()
+            } catch let failure as WorkspaceMutationFailureV1 {
+                modelContext.rollback()
+                throw failure
+            } catch {
                 modelContext.rollback()
                 throw WorkspaceMutationFailureV1.persistenceFailed
             }
@@ -128,6 +189,7 @@ final class MutationJournalStoreV1 {
         replayIdentitySHA256: String,
         detectedAt: Date
     ) throws -> MutationReceiptV1? {
+        try validateCurrentWriterLease()
         guard request.expectedRevision.workspaceID == identity.workspaceID,
               request.expectedRevision.generationID == generationID,
               MutationEnvelopeV1.isSHA256(replayIdentitySHA256) else {
@@ -161,7 +223,12 @@ final class MutationJournalStoreV1 {
                 conflictingIdentitySHA256: replayIdentitySHA256,
                 detectedAt: detectedAt
             ))
-            do { try modelContext.save() } catch {
+            do {
+                try saveWithStaleWriterFence()
+            } catch let failure as WorkspaceMutationFailureV1 {
+                modelContext.rollback()
+                throw failure
+            } catch {
                 modelContext.rollback()
                 throw WorkspaceMutationFailureV1.persistenceFailed
             }
@@ -172,6 +239,33 @@ final class MutationJournalStoreV1 {
     }
 
     func commit(
+        envelope: MutationEnvelopeV1,
+        writerInstanceID: UUID,
+        affectedEntities: [WorkspaceEntityIdentityV1],
+        committedAt: Date,
+        reversalBasis: ReversalBasisV1? = nil,
+        semanticReversal: SemanticReversalReceiptV1? = nil,
+        semanticReversalExecution: SemanticReversalExecutionV1? = nil
+    ) throws -> MutationReceiptV1 {
+        do {
+            return try withStaleWriterFence {
+                try commitAfterFence(
+                    envelope: envelope,
+                    writerInstanceID: writerInstanceID,
+                    affectedEntities: affectedEntities,
+                    committedAt: committedAt,
+                    reversalBasis: reversalBasis,
+                    semanticReversal: semanticReversal,
+                    semanticReversalExecution: semanticReversalExecution
+                )
+            }
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
+    }
+
+    private func commitAfterFence(
         envelope: MutationEnvelopeV1,
         writerInstanceID: UUID,
         affectedEntities: [WorkspaceEntityIdentityV1],
@@ -292,6 +386,9 @@ final class MutationJournalStoreV1 {
             try reach(.afterSaveBeforeReturn)
             return receipt
         } catch let failure as MutationJournalFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch let failure as WorkspaceMutationFailureV1 {
             modelContext.rollback()
             throw failure
         } catch {
@@ -725,7 +822,7 @@ final class MutationJournalStoreV1 {
         state.mutableSemanticSHA256 = try mutableSemanticSHA256()
         do {
             try validateAll()
-            try modelContext.save()
+            try saveWithMaintenanceAuthorization()
         } catch let error as WorkspaceMutationFailureV1 {
             modelContext.rollback()
             throw error
@@ -746,7 +843,15 @@ final class MutationJournalStoreV1 {
         state.workspaceRevision = 0
         state.lastLocalSequence = 0
         state.mutableSemanticSHA256 = try mutableSemanticSHA256()
-        do { try modelContext.save() } catch { modelContext.rollback(); throw WorkspaceMutationFailureV1.persistenceFailed }
+        do {
+            try saveWithMaintenanceAuthorization()
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
     }
 
     /// Stages, but deliberately does not save, the semantic checkpoint after
@@ -780,7 +885,7 @@ final class MutationJournalStoreV1 {
             if row.mutableSemanticSHA256 == nil {
                 guard allowBootstrap else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
                 row.mutableSemanticSHA256 = try mutableSemanticSHA256()
-                do { try modelContext.save() } catch {
+                do { try saveWithMaintenanceAuthorization() } catch {
                     modelContext.rollback()
                     throw WorkspaceMutationFailureV1.persistenceFailed
                 }
@@ -794,10 +899,91 @@ final class MutationJournalStoreV1 {
             )
             modelContext.insert(row)
             row.mutableSemanticSHA256 = try mutableSemanticSHA256()
-            do { try modelContext.save() } catch {
+            do { try saveWithMaintenanceAuthorization() } catch {
                 modelContext.rollback()
                 throw WorkspaceMutationFailureV1.persistenceFailed
             }
+        }
+    }
+
+    /// Keeps startup recovery and every canonical journal save on the same
+    /// generation mutation lock as pointer activation. Release builds reject
+    /// recovery through the maintenance-only initializer.
+    func withAuthorizedRecovery<Value>(
+        _ operation: () throws -> Value
+    ) throws -> Value {
+        try withStaleWriterFence(operation)
+    }
+
+    private func saveWithStaleWriterFence() throws {
+        try withStaleWriterFence {
+            try modelContext.save()
+        }
+    }
+
+    private func saveWithMaintenanceAuthorization() throws {
+        switch accessMode {
+        case .canonicalWriter:
+            try saveWithStaleWriterFence()
+        case .maintenanceOrTest:
+            try modelContext.save()
+        }
+    }
+
+    private func validateCurrentWriterLease() throws {
+        switch accessMode {
+        case .canonicalWriter(let staleWriterFence):
+            do {
+                try staleWriterFence.validateCurrent()
+            } catch let failure as GenerationLeaseRegistryFailureV1 {
+                throw mappedFenceFailure(failure)
+            } catch {
+                throw WorkspaceMutationFailureV1.persistenceFailed
+            }
+        case .maintenanceOrTest:
+#if DEBUG
+            return
+#else
+            throw WorkspaceMutationFailureV1.persistenceFailed
+#endif
+        }
+    }
+
+    private func withStaleWriterFence<Value>(
+        _ operation: () throws -> Value
+    ) throws -> Value {
+        switch accessMode {
+        case .canonicalWriter(let staleWriterFence):
+            do {
+                return try staleWriterFence.withAuthorizedCommit(operation)
+            } catch let failure as WorkspaceMutationFailureV1 {
+                throw failure
+            } catch let failure as MutationJournalFailureV1 {
+                throw failure
+            } catch let failure as GenerationLeaseRegistryFailureV1 {
+                throw mappedFenceFailure(failure)
+            } catch {
+                throw WorkspaceMutationFailureV1.persistenceFailed
+            }
+        case .maintenanceOrTest:
+#if DEBUG
+            return try operation()
+#else
+            throw WorkspaceMutationFailureV1.persistenceFailed
+#endif
+        }
+    }
+
+    private func mappedFenceFailure(
+        _ failure: GenerationLeaseRegistryFailureV1
+    ) -> WorkspaceMutationFailureV1 {
+        switch failure {
+        case .staleGeneration, .leaseNotActive, .wrongLeaseRole:
+            return .wrongGeneration
+        case .invalidContract, .invalidPath, .invalidIdentity,
+                .corruptRegistry, .registryLimitExceeded, .duplicateLease,
+                .uncertainOwner, .protectedDataUnavailable:
+            return .persistenceFailed
         }
     }
 

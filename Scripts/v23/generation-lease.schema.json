@@ -1,0 +1,658 @@
+{
+  "$id": "https://assetrounds.invalid/v23/GenerationLeaseContractV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateAcceptanceMemberships": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "AutonomousRequiredAcceptedSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "appBaseHead": {
+          "const": "b81726024a9ee3af82c19659ac2ff1d316d3744e"
+        },
+        "appBaseTree": {
+          "const": "73a849ce3a982c475204f8ec828a09d02303e126"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P02-C04"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "const": "302ef4657fc1e840b754be5cfaee2542cf5c7cce2007dff4d3f2f55d69e14edb"
+        },
+        "coordinationAuthorityHead": {
+          "const": "5a57191d280f05324f6501c70e28e60e13a452eb"
+        },
+        "coordinationAuthorityTree": {
+          "const": "72a0e0c348572ffdb6b97528b23c6acc2ab17125"
+        },
+        "coordinationCASSequence": {
+          "const": 97
+        },
+        "coordinationLedgerDigest": {
+          "const": "ac08d49d2dd442e494d1f9ef5fecf1e291cb9c07d6ff2811e06ae484dd2e01a7"
+        },
+        "dependencyDispositionDigest": {
+          "const": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C04-G01"
+            },
+            {
+              "const": "V23-P02-C04-A01"
+            },
+            {
+              "const": "V23-P02-C04-H01"
+            },
+            {
+              "const": "V23-P02-C04-I01"
+            },
+            {
+              "const": "V23-P02-C04-R01"
+            }
+          ],
+          "type": "array"
+        },
+        "directGraphDigest": {
+          "const": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C03"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "const": "3610631e2ac9e6176fa3380f34600ccaca796c12b54564c27434b346eecdce37"
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "const": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f"
+        },
+        "foundationRegisterDigest": {
+          "const": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd"
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "hydrationFenceCorrectionReceiptDigest": {
+          "const": "e2f0d2a35c2cc7973c53e0ce59da103c8224db294962030634bf1776be3a979a"
+        },
+        "hydrationProjectionDigest": {
+          "const": "3bc6a16e9dd3b7e93fb68d046c0d889dd08a3b30a1dc61f54d1bf2eca74be47d"
+        },
+        "hydrationTransitionDigest": {
+          "const": "64ede9e90e0332c806eeac8409ffc297605e5ce94e31e057a05a07b5d02d6396"
+        },
+        "impactManifestDigest": {
+          "const": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b"
+        },
+        "inheritedV21BlockDigest": {
+          "const": "56eeab66381897730fdc7e8765bc8bfa89d7537f325bde15f3bbb12e6dd51762"
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C05"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "EXACT_WITH_GENERATION_REBIND"
+        },
+        "lineageSource": {
+          "const": "V21-P02-C04"
+        },
+        "ownerParallelOverrideAuthorityReceiptDigest": {
+          "const": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752"
+        },
+        "pathFenceDigest": {
+          "const": "fea695e7b500fadbb82b4f45700c291919c2edb0f1d816bd4fdcde49f5711ffa"
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "const": "80cf486387f02354af70050f77c8d3722f60da902c06c56f7e05b308a5cbcb8a"
+        },
+        "registerOrdinal": {
+          "const": 24
+        },
+        "registerRowDigest": {
+          "const": "bd927832aba21a262e169db53cd50e1b4abf973b1fb56de2730f34daf7de5751"
+        },
+        "relationManifestDigest": {
+          "const": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4"
+        },
+        "selectorManifestDigest": {
+          "const": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+        },
+        "title": {
+          "const": "Generation leases, stale-writer fencing, and safe prune"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "lineageSource",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationAuthorityHead",
+        "coordinationAuthorityTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "hydrationProjectionDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "hydrationTransitionDigest",
+        "hydrationFenceCorrectionReceiptDigest",
+        "registerRowDigest",
+        "dossierDigest",
+        "inheritedV21BlockDigest",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "ownerParallelOverrideAuthorityReceiptDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "aggregateAcceptanceMemberships",
+        "conformanceSubjects",
+        "deterministicEvidenceIDs"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P02-C04"
+    },
+    "evidenceIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "V23-P02-C04-G01"
+        },
+        {
+          "const": "V23-P02-C04-A01"
+        },
+        {
+          "const": "V23-P02-C04-H01"
+        },
+        {
+          "const": "V23-P02-C04-I01"
+        },
+        {
+          "const": "V23-P02-C04-R01"
+        }
+      ],
+      "type": "array"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "identity": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalEncoding": {
+          "const": "SORTED_KEY_UTF8_EXACT_BYTES"
+        },
+        "epochFields": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "schemaVersion"
+            },
+            {
+              "const": "generationID"
+            },
+            {
+              "const": "generationManifestSHA256"
+            }
+          ],
+          "type": "array"
+        },
+        "generationID": {
+          "const": "NONZERO_UUID"
+        },
+        "generationManifestSHA256": {
+          "const": "LOWERCASE_SHA256"
+        },
+        "leaseID": {
+          "const": "NONZERO_UUID"
+        },
+        "ownerID": {
+          "const": "NONZERO_LOCAL_PROCESS_UUID"
+        },
+        "role": {
+          "const": "CLOSED_READER_OR_WRITER"
+        },
+        "tokenFields": {
+          "items": false,
+          "maxItems": 6,
+          "minItems": 6,
+          "prefixItems": [
+            {
+              "const": "schemaVersion"
+            },
+            {
+              "const": "leaseID"
+            },
+            {
+              "const": "ownerID"
+            },
+            {
+              "const": "epoch"
+            },
+            {
+              "const": "role"
+            },
+            {
+              "const": "acquiredAt"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": [
+        "epochFields",
+        "tokenFields",
+        "generationID",
+        "generationManifestSHA256",
+        "leaseID",
+        "ownerID",
+        "role",
+        "canonicalEncoding"
+      ],
+      "type": "object"
+    },
+    "leaseRoles": {
+      "items": false,
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "const": "READER"
+        },
+        {
+          "const": "WRITER"
+        }
+      ],
+      "type": "array"
+    },
+    "liveness": {
+      "additionalProperties": false,
+      "properties": {
+        "abandonedAndOwnerProvablyDead": {
+          "const": "RECOVERY_ELIGIBLE"
+        },
+        "live": {
+          "const": "OWNER_LOCK_HELD_RETAIN_AND_NEVER_RELEASE"
+        },
+        "unknownOrUncertain": {
+          "const": "RETAIN_AND_FAIL_CLOSED"
+        }
+      },
+      "required": [
+        "live",
+        "abandonedAndOwnerProvablyDead",
+        "unknownOrUncertain"
+      ],
+      "type": "object"
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "owners": {
+      "items": false,
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "const": "GenerationEpochV1"
+        },
+        {
+          "const": "GenerationLeaseTokenV1"
+        },
+        {
+          "const": "GenerationLeaseRegistryV1"
+        }
+      ],
+      "type": "array"
+    },
+    "persistentChangeMode": {
+      "const": "CONTENT_ONLY"
+    },
+    "persistentContractSchema": {
+      "const": "GENERATION_LEASE_STALE_WRITER_FENCE_AND_SAFE_PRUNE_V1"
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "prohibitedTokens": {
+      "items": false,
+      "maxItems": 11,
+      "minItems": 11,
+      "prefixItems": [
+        {
+          "const": "accountID"
+        },
+        {
+          "const": "backgroundDaemon"
+        },
+        {
+          "const": "CloudKit"
+        },
+        {
+          "const": "CKRecord"
+        },
+        {
+          "const": "outbox"
+        },
+        {
+          "const": "providerID"
+        },
+        {
+          "const": "remoteProvider"
+        },
+        {
+          "const": "serverCursor"
+        },
+        {
+          "const": "serverRevision"
+        },
+        {
+          "const": "tenantID"
+        },
+        {
+          "const": "vectorClock"
+        }
+      ],
+      "type": "array"
+    },
+    "provisional": {
+      "const": true
+    },
+    "registry": {
+      "additionalProperties": false,
+      "properties": {
+        "allOperationalLeaseKindsExcludedFromFilesystemBackup": {
+          "const": true
+        },
+        "apis": {
+          "items": false,
+          "maxItems": 6,
+          "minItems": 6,
+          "prefixItems": [
+            {
+              "const": "acquire(epoch:role:)"
+            },
+            {
+              "const": "release(_:)"
+            },
+            {
+              "const": "validateActive(_:requiredRole:)"
+            },
+            {
+              "const": "reconcileAbandonedOwners()"
+            },
+            {
+              "const": "withExclusiveGenerationMutationLock(_:)"
+            },
+            {
+              "const": "activeEpochs()"
+            }
+          ],
+          "type": "array"
+        },
+        "backing": {
+          "const": "DESCRIPTOR_PINNED_CANONICAL_JSON_AND_OWNER_LOCKS"
+        },
+        "boundedLeaseCountRequired": {
+          "const": true
+        },
+        "controlFileCrashSafety": {
+          "additionalProperties": false,
+          "properties": {
+            "failedCreateCleanupRequiresExactCreatedIdentity": {
+              "const": true
+            },
+            "initialPublication": {
+              "const": "PROTECTED_FSYNCED_TEMPORARY_THEN_RENAME_EXCL"
+            },
+            "loadReverifiesPolicyAndStableDescriptorSnapshot": {
+              "const": true
+            },
+            "partialCanonicalFileCanBecomeAuthority": {
+              "const": false
+            },
+            "protectionAppliedBeforeControlBytes": {
+              "const": true
+            },
+            "renameSuccessDirectoryFsyncFailure": {
+              "const": "RETRY_ADOPTS_ONLY_EXACT_DESIRED_CANONICAL_BYTES"
+            }
+          },
+          "required": [
+            "initialPublication",
+            "protectionAppliedBeforeControlBytes",
+            "loadReverifiesPolicyAndStableDescriptorSnapshot",
+            "failedCreateCleanupRequiresExactCreatedIdentity",
+            "renameSuccessDirectoryFsyncFailure",
+            "partialCanonicalFileCanBecomeAuthority"
+          ],
+          "type": "object"
+        },
+        "duplicateIdentity": {
+          "const": "FAIL_CLOSED"
+        },
+        "durableAtomicReplace": {
+          "const": true
+        },
+        "durableBeforeGenerationUse": {
+          "const": true
+        },
+        "maximumActiveLeaseCount": {
+          "const": 256
+        },
+        "maximumControlFileBytes": {
+          "const": 4194304
+        },
+        "maximumOwnerCount": {
+          "const": 64
+        },
+        "oneIdentityPerActiveReaderOrWriter": {
+          "const": true
+        },
+        "ownedFileKinds": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "const": "generationLeaseDirectory"
+            },
+            {
+              "const": "generationLeaseControl"
+            },
+            {
+              "const": "generationLeaseControlTemporary"
+            },
+            {
+              "const": "generationLeaseOwnerLock"
+            }
+          ],
+          "type": "array"
+        },
+        "owner": {
+          "const": "GenerationLeaseRegistryV1"
+        },
+        "paths": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "const": "FieldEvidenceOperations/generation-leases/registry.json"
+            },
+            {
+              "const": "FieldEvidenceOperations/generation-leases/registry.next.json"
+            },
+            {
+              "const": "FieldEvidenceOperations/generation-leases/mutation.lock"
+            },
+            {
+              "const": "FieldEvidenceOperations/generation-leases/owners/<ownerID>.lock"
+            }
+          ],
+          "type": "array"
+        },
+        "release": {
+          "const": "EXACT_TOKEN_IDENTITY_MATCH_ONLY"
+        },
+        "unknownVersion": {
+          "const": "FAIL_CLOSED"
+        }
+      },
+      "required": [
+        "owner",
+        "backing",
+        "durableBeforeGenerationUse",
+        "oneIdentityPerActiveReaderOrWriter",
+        "duplicateIdentity",
+        "unknownVersion",
+        "release",
+        "boundedLeaseCountRequired",
+        "maximumActiveLeaseCount",
+        "maximumOwnerCount",
+        "maximumControlFileBytes",
+        "durableAtomicReplace",
+        "apis",
+        "paths",
+        "ownedFileKinds",
+        "allOperationalLeaseKindsExcludedFromFilesystemBackup",
+        "controlFileCrashSafety"
+      ],
+      "type": "object"
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "schema": {
+      "const": "GenerationLeaseContractV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "persistentContractSchema",
+    "persistentChangeMode",
+    "owners",
+    "leaseRoles",
+    "identity",
+    "registry",
+    "liveness",
+    "prohibitedTokens",
+    "evidenceIDs",
+    "provisional",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "phase10PollingDuringParallelExecution",
+    "requiresAcceptedS10_6Reconciliation",
+    "artifactDigest"
+  ],
+  "title": "GenerationLeaseContractV1",
+  "type": "object"
+}

@@ -734,6 +734,521 @@ enum StoreMigrationCanonicalJSONV1 {
     }
 }
 
+enum GenerationLeaseRoleV1: String, Codable, CaseIterable, Equatable, Sendable {
+    case reader = "READER"
+    case writer = "WRITER"
+}
+
+private enum GenerationContractCanonicalOrderV1 {
+    static func epoch(
+        _ lhs: GenerationEpochV1,
+        _ rhs: GenerationEpochV1
+    ) -> Bool {
+        let left = uuid(lhs.generationID)
+        let right = uuid(rhs.generationID)
+        if left != right { return left < right }
+        return lhs.generationManifestSHA256 < rhs.generationManifestSHA256
+    }
+
+    static func uuid(_ lhs: UUID, _ rhs: UUID) -> Bool {
+        uuid(lhs) < uuid(rhs)
+    }
+
+    private static func uuid(_ value: UUID) -> String {
+        value.uuidString.lowercased()
+    }
+}
+
+enum GenerationLeaseRegistryFailureV1: Error, Equatable, Sendable {
+    case invalidContract
+    case invalidPath
+    case invalidIdentity
+    case corruptRegistry
+    case registryLimitExceeded
+    case duplicateLease
+    case leaseNotActive
+    case wrongLeaseRole
+    case staleGeneration
+    case uncertainOwner
+    case protectedDataUnavailable
+}
+
+struct GenerationEpochV1: Codable, Equatable, Hashable, Sendable {
+    static let currentSchemaVersion = 1
+
+    let schemaVersion: Int
+    let generationID: UUID
+    let generationManifestSHA256: String
+
+    init(
+        generationID: UUID,
+        generationManifestSHA256: String,
+        schemaVersion: Int = Self.currentSchemaVersion
+    ) throws {
+        self.schemaVersion = schemaVersion
+        self.generationID = generationID
+        self.generationManifestSHA256 = generationManifestSHA256
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.currentSchemaVersion,
+              generationID != Self.zeroUUID,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                  generationManifestSHA256
+              ) else {
+            throw GenerationLeaseRegistryFailureV1.invalidContract
+        }
+    }
+
+    func canonicalData() throws -> Data {
+        try validate()
+        return try StoreMigrationCanonicalJSONV1.encode(self)
+    }
+
+    func canonicalSHA256() throws -> String {
+        StoreMigrationCanonicalJSONV1.sha256(try canonicalData())
+    }
+
+    static func decodeCanonical(from data: Data) throws -> Self {
+        try StoreMigrationCanonicalJSONV1.decodeCanonicalContract(
+            Self.self,
+            from: data,
+            validate: { try $0.validate() }
+        )
+    }
+
+    static let zeroUUID = UUID(
+        uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    )
+}
+
+struct GenerationLeaseTokenV1: Codable, Equatable, Hashable, Sendable {
+    static let currentSchemaVersion = 1
+
+    let schemaVersion: Int
+    let leaseID: UUID
+    let ownerID: UUID
+    let epoch: GenerationEpochV1
+    let role: GenerationLeaseRoleV1
+    let acquiredAt: Date
+
+    init(
+        leaseID: UUID,
+        ownerID: UUID,
+        epoch: GenerationEpochV1,
+        role: GenerationLeaseRoleV1,
+        acquiredAt: Date,
+        schemaVersion: Int = Self.currentSchemaVersion
+    ) throws {
+        self.schemaVersion = schemaVersion
+        self.leaseID = leaseID
+        self.ownerID = ownerID
+        self.epoch = epoch
+        self.role = role
+        self.acquiredAt = acquiredAt
+        try validate()
+    }
+
+    func validate() throws {
+        try epoch.validate()
+        guard schemaVersion == Self.currentSchemaVersion,
+              leaseID != GenerationEpochV1.zeroUUID,
+              ownerID != GenerationEpochV1.zeroUUID,
+              acquiredAt.timeIntervalSinceReferenceDate.isFinite else {
+            throw GenerationLeaseRegistryFailureV1.invalidContract
+        }
+    }
+
+    func canonicalData() throws -> Data {
+        try validate()
+        return try StoreMigrationCanonicalJSONV1.encode(self)
+    }
+
+    func canonicalSHA256() throws -> String {
+        StoreMigrationCanonicalJSONV1.sha256(try canonicalData())
+    }
+
+    static func decodeCanonical(from data: Data) throws -> Self {
+        try StoreMigrationCanonicalJSONV1.decodeCanonicalContract(
+            Self.self,
+            from: data,
+            validate: { try $0.validate() }
+        )
+    }
+}
+
+struct GenerationPrunePolicyV1: Codable, Equatable, Sendable {
+    static let currentSchemaVersion = 1
+    static let productionRetainedInactiveAcceptedGenerationCount = 2
+
+    let schemaVersion: Int
+    let retainedInactiveAcceptedGenerationCount: Int
+    let pruningEnabled: Bool
+
+    init(
+        retainedInactiveAcceptedGenerationCount: Int,
+        pruningEnabled: Bool = true,
+        schemaVersion: Int = Self.currentSchemaVersion
+    ) throws {
+        self.schemaVersion = schemaVersion
+        self.retainedInactiveAcceptedGenerationCount =
+            retainedInactiveAcceptedGenerationCount
+        self.pruningEnabled = pruningEnabled
+        try validate()
+    }
+
+    static var production: GenerationPrunePolicyV1 {
+        // All arguments are compile-time-valid closed policy values.
+        try! GenerationPrunePolicyV1(
+            retainedInactiveAcceptedGenerationCount:
+                productionRetainedInactiveAcceptedGenerationCount
+        )
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.currentSchemaVersion,
+              retainedInactiveAcceptedGenerationCount >= 0,
+              retainedInactiveAcceptedGenerationCount <= 64 else {
+            throw GenerationLeaseRegistryFailureV1.invalidContract
+        }
+    }
+
+    func canonicalData() throws -> Data {
+        try validate()
+        return try StoreMigrationCanonicalJSONV1.encode(self)
+    }
+
+    static func decodeCanonical(from data: Data) throws -> Self {
+        try StoreMigrationCanonicalJSONV1.decodeCanonicalContract(
+            Self.self,
+            from: data,
+            validate: { try $0.validate() }
+        )
+    }
+}
+
+enum GenerationPruneDispositionV1: String, Codable, Equatable, Sendable {
+    case pruned = "PRUNED"
+    case noEligibleGenerations = "NO_ELIGIBLE_GENERATIONS"
+    case disabledRetainAll = "DISABLED_RETAIN_ALL"
+    case uncertainRetainAll = "UNCERTAIN_RETAIN_ALL"
+}
+
+struct GenerationPruneReceiptV1: Codable, Equatable, Sendable {
+    static let currentSchemaVersion = 1
+
+    let schemaVersion: Int
+    let operationID: UUID
+    let currentEpoch: GenerationEpochV1
+    let retainedEpochs: [GenerationEpochV1]
+    let prunedEpochs: [GenerationEpochV1]
+    let activeRetainedEpochs: [GenerationEpochV1]
+    let uncertainRetainedGenerationIDs: [UUID]
+    let ownerLivenessUncertain: Bool
+    let inventoryBeforeSHA256: String
+    let inventoryAfterSHA256: String
+    let disposition: GenerationPruneDispositionV1
+
+    init(
+        operationID: UUID,
+        currentEpoch: GenerationEpochV1,
+        retainedEpochs: [GenerationEpochV1],
+        prunedEpochs: [GenerationEpochV1],
+        activeRetainedEpochs: [GenerationEpochV1],
+        uncertainRetainedGenerationIDs: [UUID],
+        ownerLivenessUncertain: Bool = false,
+        inventoryBeforeSHA256: String,
+        inventoryAfterSHA256: String,
+        disposition: GenerationPruneDispositionV1,
+        schemaVersion: Int = Self.currentSchemaVersion
+    ) throws {
+        self.schemaVersion = schemaVersion
+        self.operationID = operationID
+        self.currentEpoch = currentEpoch
+        self.retainedEpochs = retainedEpochs
+        self.prunedEpochs = prunedEpochs
+        self.activeRetainedEpochs = activeRetainedEpochs
+        self.uncertainRetainedGenerationIDs = uncertainRetainedGenerationIDs
+        self.ownerLivenessUncertain = ownerLivenessUncertain
+        self.inventoryBeforeSHA256 = inventoryBeforeSHA256
+        self.inventoryAfterSHA256 = inventoryAfterSHA256
+        self.disposition = disposition
+        try validate()
+    }
+
+    func validate() throws {
+        try currentEpoch.validate()
+        try (retainedEpochs + prunedEpochs + activeRetainedEpochs).forEach {
+            try $0.validate()
+        }
+        let retained = retainedEpochs.map(\.generationID)
+        let pruned = prunedEpochs.map(\.generationID)
+        let active = activeRetainedEpochs.map(\.generationID)
+        let uncertain = Set(uncertainRetainedGenerationIDs)
+        let exactRetainedEpochs = Set(retainedEpochs)
+        let exactActiveEpochs = Set(activeRetainedEpochs)
+        let allKnownEpochIDs = Set(retained + pruned + active)
+        guard schemaVersion == Self.currentSchemaVersion,
+              operationID != GenerationEpochV1.zeroUUID,
+              retained.count + pruned.count
+                <= GenerationLeaseRegistryV1.maximumActiveLeaseCount,
+              active.count
+                <= GenerationLeaseRegistryV1.maximumActiveLeaseCount,
+              uncertainRetainedGenerationIDs.count
+                <= GenerationLeaseRegistryV1.maximumActiveLeaseCount,
+              retainedEpochs == retainedEpochs.sorted(
+                  by: GenerationContractCanonicalOrderV1.epoch
+              ),
+              prunedEpochs == prunedEpochs.sorted(
+                  by: GenerationContractCanonicalOrderV1.epoch
+              ),
+              activeRetainedEpochs == activeRetainedEpochs.sorted(
+                  by: GenerationContractCanonicalOrderV1.epoch
+              ),
+              uncertainRetainedGenerationIDs
+                == uncertainRetainedGenerationIDs.sorted(
+                    by: GenerationContractCanonicalOrderV1.uuid
+                ),
+              Set(retained).count == retained.count,
+              Set(pruned).count == pruned.count,
+              Set(active).count == active.count,
+              uncertain.count
+                == uncertainRetainedGenerationIDs.count,
+              uncertainRetainedGenerationIDs.allSatisfy({
+                  $0 != GenerationEpochV1.zeroUUID
+              }),
+              Set(retained).isDisjoint(with: Set(pruned)),
+              exactActiveEpochs.isSubset(of: exactRetainedEpochs),
+              exactRetainedEpochs.contains(currentEpoch),
+              !Set(pruned).contains(currentEpoch.generationID),
+              uncertain.isDisjoint(with: allKnownEpochIDs),
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                  inventoryBeforeSHA256
+              ),
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                  inventoryAfterSHA256
+              ) else {
+            throw GenerationLeaseRegistryFailureV1.invalidContract
+        }
+        switch disposition {
+        case .pruned:
+            guard !prunedEpochs.isEmpty,
+                  uncertainRetainedGenerationIDs.isEmpty,
+                  !ownerLivenessUncertain else {
+                throw GenerationLeaseRegistryFailureV1.invalidContract
+            }
+        case .uncertainRetainAll:
+            guard prunedEpochs.isEmpty,
+                  ownerLivenessUncertain
+                    || !uncertainRetainedGenerationIDs.isEmpty else {
+                throw GenerationLeaseRegistryFailureV1.invalidContract
+            }
+        case .noEligibleGenerations, .disabledRetainAll:
+            guard prunedEpochs.isEmpty,
+                  !ownerLivenessUncertain else {
+                throw GenerationLeaseRegistryFailureV1.invalidContract
+            }
+        }
+    }
+
+    func canonicalData() throws -> Data {
+        try validate()
+        return try StoreMigrationCanonicalJSONV1.encode(self)
+    }
+
+    func canonicalSHA256() throws -> String {
+        StoreMigrationCanonicalJSONV1.sha256(try canonicalData())
+    }
+
+    static func decodeCanonical(from data: Data) throws -> Self {
+        try StoreMigrationCanonicalJSONV1.decodeCanonicalContract(
+            Self.self,
+            from: data,
+            validate: { try $0.validate() }
+        )
+    }
+}
+
+enum GenerationPruneIntentPhaseV1: String, Codable, CaseIterable, Equatable,
+    Sendable {
+    case prepared = "PREPARED"
+    case bytesRemoved = "BYTES_REMOVED"
+    case retiredPointerPublished = "RETIRED_POINTER_PUBLISHED"
+    case receiptPublished = "RECEIPT_PUBLISHED"
+
+    fileprivate var ordinal: Int {
+        switch self {
+        case .prepared: return 0
+        case .bytesRemoved: return 1
+        case .retiredPointerPublished: return 2
+        case .receiptPublished: return 3
+        }
+    }
+}
+
+struct GenerationPruneIntentV1: Codable, Equatable, Sendable {
+    static let currentSchemaVersion = 1
+
+    let schemaVersion: Int
+    let operationID: UUID
+    let phase: GenerationPruneIntentPhaseV1
+    let currentEpoch: GenerationEpochV1
+    let candidateEpochs: [GenerationEpochV1]
+    let retainedEpochs: [GenerationEpochV1]
+    let activeRetainedEpochs: [GenerationEpochV1]
+    let uncertainRetainedGenerationIDs: [UUID]
+    let inventoryBeforeSHA256: String
+    let expectedRetiredGenerationIDs: [UUID]
+    let desiredRetiredGenerationIDs: [UUID]
+
+    init(
+        operationID: UUID,
+        phase: GenerationPruneIntentPhaseV1 = .prepared,
+        currentEpoch: GenerationEpochV1,
+        candidateEpochs: [GenerationEpochV1],
+        retainedEpochs: [GenerationEpochV1],
+        activeRetainedEpochs: [GenerationEpochV1],
+        uncertainRetainedGenerationIDs: [UUID],
+        inventoryBeforeSHA256: String,
+        expectedRetiredGenerationIDs: [UUID],
+        desiredRetiredGenerationIDs: [UUID],
+        schemaVersion: Int = Self.currentSchemaVersion
+    ) throws {
+        self.schemaVersion = schemaVersion
+        self.operationID = operationID
+        self.phase = phase
+        self.currentEpoch = currentEpoch
+        self.candidateEpochs = candidateEpochs
+        self.retainedEpochs = retainedEpochs
+        self.activeRetainedEpochs = activeRetainedEpochs
+        self.uncertainRetainedGenerationIDs = uncertainRetainedGenerationIDs
+        self.inventoryBeforeSHA256 = inventoryBeforeSHA256
+        self.expectedRetiredGenerationIDs = expectedRetiredGenerationIDs
+        self.desiredRetiredGenerationIDs = desiredRetiredGenerationIDs
+        try validate()
+    }
+
+    func advancing(to next: GenerationPruneIntentPhaseV1) throws -> Self {
+        guard next.ordinal == phase.ordinal + 1 else {
+            throw GenerationLeaseRegistryFailureV1.invalidContract
+        }
+        return try GenerationPruneIntentV1(
+            operationID: operationID,
+            phase: next,
+            currentEpoch: currentEpoch,
+            candidateEpochs: candidateEpochs,
+            retainedEpochs: retainedEpochs,
+            activeRetainedEpochs: activeRetainedEpochs,
+            uncertainRetainedGenerationIDs: uncertainRetainedGenerationIDs,
+            inventoryBeforeSHA256: inventoryBeforeSHA256,
+            expectedRetiredGenerationIDs: expectedRetiredGenerationIDs,
+            desiredRetiredGenerationIDs: desiredRetiredGenerationIDs
+        )
+    }
+
+    func validateReplacement(of previous: Self) throws {
+        guard self == (try previous.advancing(to: phase)) else {
+            throw GenerationLeaseRegistryFailureV1.invalidContract
+        }
+    }
+
+    func validate() throws {
+        try currentEpoch.validate()
+        try (candidateEpochs + retainedEpochs + activeRetainedEpochs).forEach {
+            try $0.validate()
+        }
+        let candidates = candidateEpochs.map(\.generationID)
+        let retained = retainedEpochs.map(\.generationID)
+        let active = activeRetainedEpochs.map(\.generationID)
+        let uncertain = Set(uncertainRetainedGenerationIDs)
+        let exactRetainedEpochs = Set(retainedEpochs)
+        let expectedRetired = Set(expectedRetiredGenerationIDs)
+        let desiredRetired = Set(desiredRetiredGenerationIDs)
+        guard schemaVersion == Self.currentSchemaVersion,
+              operationID != GenerationEpochV1.zeroUUID,
+              !candidateEpochs.isEmpty,
+              candidates.count + retained.count
+                <= GenerationLeaseRegistryV1.maximumActiveLeaseCount,
+              active.count
+                <= GenerationLeaseRegistryV1.maximumActiveLeaseCount,
+              uncertainRetainedGenerationIDs.count
+                <= GenerationLeaseRegistryV1.maximumActiveLeaseCount,
+              expectedRetiredGenerationIDs.count
+                <= GenerationLeaseRegistryV1.maximumActiveLeaseCount,
+              desiredRetiredGenerationIDs.count
+                <= GenerationLeaseRegistryV1.maximumActiveLeaseCount,
+              candidateEpochs == candidateEpochs.sorted(
+                  by: GenerationContractCanonicalOrderV1.epoch
+              ),
+              retainedEpochs == retainedEpochs.sorted(
+                  by: GenerationContractCanonicalOrderV1.epoch
+              ),
+              activeRetainedEpochs == activeRetainedEpochs.sorted(
+                  by: GenerationContractCanonicalOrderV1.epoch
+              ),
+              uncertainRetainedGenerationIDs
+                == uncertainRetainedGenerationIDs.sorted(
+                    by: GenerationContractCanonicalOrderV1.uuid
+                ),
+              expectedRetiredGenerationIDs
+                == expectedRetiredGenerationIDs.sorted(
+                    by: GenerationContractCanonicalOrderV1.uuid
+                ),
+              desiredRetiredGenerationIDs
+                == desiredRetiredGenerationIDs.sorted(
+                    by: GenerationContractCanonicalOrderV1.uuid
+                ),
+              Set(candidates).count == candidates.count,
+              Set(retained).count == retained.count,
+              Set(active).count == active.count,
+              uncertain.count == uncertainRetainedGenerationIDs.count,
+              uncertainRetainedGenerationIDs.allSatisfy({
+                  $0 != GenerationEpochV1.zeroUUID
+              }),
+              Set(candidates).isDisjoint(with: Set(retained)),
+              Set(activeRetainedEpochs).isSubset(of: exactRetainedEpochs),
+              exactRetainedEpochs.contains(currentEpoch),
+              Set(expectedRetiredGenerationIDs).count
+                == expectedRetiredGenerationIDs.count,
+              Set(desiredRetiredGenerationIDs).count
+                == desiredRetiredGenerationIDs.count,
+              desiredRetired.isSubset(of: expectedRetired),
+              expectedRetired.subtracting(desiredRetired)
+                == Set(candidates),
+              !expectedRetiredGenerationIDs.contains(currentEpoch.generationID),
+              !desiredRetiredGenerationIDs.contains(currentEpoch.generationID),
+              desiredRetired == Set(retained)
+                .subtracting(Set([currentEpoch.generationID]))
+                .union(uncertain),
+              uncertain.isSubset(of: expectedRetired),
+              uncertain.isDisjoint(with: Set(candidates)),
+              uncertain.isDisjoint(with: Set(retained)),
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                  inventoryBeforeSHA256
+              ) else {
+            throw GenerationLeaseRegistryFailureV1.invalidContract
+        }
+    }
+
+    func canonicalData() throws -> Data {
+        try validate()
+        return try StoreMigrationCanonicalJSONV1.encode(self)
+    }
+
+    func canonicalSHA256() throws -> String {
+        StoreMigrationCanonicalJSONV1.sha256(try canonicalData())
+    }
+
+    static func decodeCanonical(from data: Data) throws -> Self {
+        try StoreMigrationCanonicalJSONV1.decodeCanonicalContract(
+            Self.self,
+            from: data,
+            validate: { try $0.validate() }
+        )
+    }
+}
+
 @MainActor
 struct StoreMigrationIdentitySourceV1 {
     private static let liveProcessID = UUID()

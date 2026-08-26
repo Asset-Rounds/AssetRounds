@@ -1,0 +1,273 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "acceptanceOrReleaseClaimed": false,
+  "adoptionEnabled": false,
+  "artifactCount": 23,
+  "artifactDigest": "a86b397b37f2121420aa84c9c2fab5012c1b98cc22eb243b821b994265a3a372",
+  "artifactSetDigest": "11d178e66a863efebfcf833cbc8cbee28821126c8447118f6bfee08411bc7502",
+  "artifacts": [
+    {
+      "bytes": 22119,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift",
+      "sha256": "75a6e255532ac308a14080119a5462ea19947f2dc6603812b528054068ffb2ad"
+    },
+    {
+      "bytes": 17754,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+      "sha256": "99a92723f175051d9a674905ec4c5bdb407e0f8854063f87ab9be1994bdb5d75"
+    },
+    {
+      "bytes": 47327,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift",
+      "sha256": "fae4e3c63c23853ed696afd9e22549b6c00ec873af229240ffb303df685ce24b"
+    },
+    {
+      "bytes": 108548,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift",
+      "sha256": "23a6d71f98e32613ac3e299d91091c5b7ccef18eff407b357b4796da04ba0460"
+    },
+    {
+      "bytes": 323570,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+      "sha256": "b119a59395b4dcddbc27b165d64e3ca108f36d4e3e2e546d4c962dfcbda6a55f"
+    },
+    {
+      "bytes": 21560,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+      "sha256": "bea0fb7fc9279950327534ef395ab35b480c86c940a98b77808e6a0254351cc1"
+    },
+    {
+      "bytes": 7673,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+      "sha256": "0232505c6a50bcf47a5b5b0e1c5a8de76f9880755617340f64ffb6802c08343f"
+    },
+    {
+      "bytes": 12556,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+      "sha256": "36f16afccf994c4ebf91e54ff37405b296b32f8473bac72c35761e933f4ed45b"
+    },
+    {
+      "bytes": 66955,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
+      "sha256": "716d757f25d03f003335eb763bc98fbd44afb7809011c26a133506bfc0a7d20c"
+    },
+    {
+      "bytes": 558,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationReceiptRecoveryServiceV1.swift",
+      "sha256": "f14c6ea4eb426fb04db1f259143c18ab5a2bca6a150081e859e7d1030097c9ef"
+    },
+    {
+      "bytes": 89332,
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+      "sha256": "14dd05b5edc38e18200d48c10d0a9dad612d299c5f76aef9875d29409de7a7b1"
+    },
+    {
+      "bytes": 77763,
+      "path": "FieldEvidenceAppTests/V9_08GenerationLeaseTests.swift",
+      "sha256": "eb7cce44af585471b057dd7e95db788acb41c5b25828d3a1adfd6054bc6b858f"
+    },
+    {
+      "bytes": 21957,
+      "path": "Scripts/v23/p02_c04_contracts.py",
+      "sha256": "8525799c771df34967cce5690a59ebe616e05b22c266b8f79adf67103c602ca9"
+    },
+    {
+      "bytes": 1182,
+      "path": "Scripts/v23/generate_p02_c04_contracts.py",
+      "sha256": "af7ac878fb5cd2de272d74bfbad97fdaaa93e180323821b5852f751be86c67df"
+    },
+    {
+      "bytes": 17163,
+      "path": "Scripts/v23/verify_p02_c04_contracts.py",
+      "sha256": "01bb1de4084011123ab5c95943dc5b33473b6edbd95288fac204bbbaf18dd777"
+    },
+    {
+      "bytes": 17301,
+      "path": "Scripts/v23/generation-lease.schema.json",
+      "sha256": "d3c332ffa4e4735e5e07737e79a9e00b21ad2ef23e6db205c66fa0cd483edb97"
+    },
+    {
+      "bytes": 13526,
+      "path": "Scripts/v23/stale-writer-fence.schema.json",
+      "sha256": "109b397574acb0f5493829f3c1af0f3cf2628ceb4e8f90b078e3f752c1257a23"
+    },
+    {
+      "bytes": 22578,
+      "path": "Scripts/v23/generation-prune-policy.schema.json",
+      "sha256": "895a1f5d38acd403d354c1968b5b3a44f75f3d11225c82be09862e73b2f56505"
+    },
+    {
+      "bytes": 13830,
+      "path": "Scripts/v23/generation-lease-prune-corpus.schema.json",
+      "sha256": "0ec7a2ead372dc7938dd8563b5dc45b17e257db6aeeaa1d0aff1ff045145514b"
+    },
+    {
+      "bytes": 6683,
+      "path": "docs/design/v23/tooling/V23P02C04GenerationLeaseContractV1.json",
+      "sha256": "d8d818f8ad72e576e0290db0294bbf3d2bdc22297ac175a14aaecd532cb6fd4a"
+    },
+    {
+      "bytes": 5445,
+      "path": "docs/design/v23/tooling/V23P02C04StaleWriterFenceContractV1.json",
+      "sha256": "64c10b59ec06b8c2fcba04f319cff31757b4d9a6bfe2998ad0ca7b267bf38fc1"
+    },
+    {
+      "bytes": 8591,
+      "path": "docs/design/v23/tooling/V23P02C04GenerationPrunePolicyV1.json",
+      "sha256": "22ec0651d688f2a4909e754f88efa0aaa212f1f38056030ccc536c751a1ed7b3"
+    },
+    {
+      "bytes": 5316,
+      "path": "docs/design/v23/tooling/V23P02C04GenerationLeasePruneCorpusManifestV1.json",
+      "sha256": "46efd45f97cacb155756c89f6a7cca42962da633a5f4210b6318f9e76bd4ade4"
+    }
+  ],
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "b81726024a9ee3af82c19659ac2ff1d316d3744e",
+    "appBaseTree": "73a849ce3a982c475204f8ec828a09d02303e126",
+    "attemptID": 1,
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C04",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "302ef4657fc1e840b754be5cfaee2542cf5c7cce2007dff4d3f2f55d69e14edb",
+    "coordinationAuthorityHead": "5a57191d280f05324f6501c70e28e60e13a452eb",
+    "coordinationAuthorityTree": "72a0e0c348572ffdb6b97528b23c6acc2ab17125",
+    "coordinationCASSequence": 97,
+    "coordinationLedgerDigest": "ac08d49d2dd442e494d1f9ef5fecf1e291cb9c07d6ff2811e06ae484dd2e01a7",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P02-C04-G01",
+      "V23-P02-C04-A01",
+      "V23-P02-C04-H01",
+      "V23-P02-C04-I01",
+      "V23-P02-C04-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P02-C03"
+    ],
+    "dossierDigest": "3610631e2ac9e6176fa3380f34600ccaca796c12b54564c27434b346eecdce37",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationFenceCorrectionReceiptDigest": "e2f0d2a35c2cc7973c53e0ce59da103c8224db294962030634bf1776be3a979a",
+    "hydrationProjectionDigest": "3bc6a16e9dd3b7e93fb68d046c0d889dd08a3b30a1dc61f54d1bf2eca74be47d",
+    "hydrationTransitionDigest": "64ede9e90e0332c806eeac8409ffc297605e5ce94e31e057a05a07b5d02d6396",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "56eeab66381897730fdc7e8765bc8bfa89d7537f325bde15f3bbb12e6dd51762",
+    "invalidationConsumers": [
+      "V23-P02-C05"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P02-C04",
+    "ownerParallelOverrideAuthorityReceiptDigest": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752",
+    "pathFenceDigest": "fea695e7b500fadbb82b4f45700c291919c2edb0f1d816bd4fdcde49f5711ffa",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "80cf486387f02354af70050f77c8d3722f60da902c06c56f7e05b308a5cbcb8a",
+    "registerOrdinal": 24,
+    "registerRowDigest": "bd927832aba21a262e169db53cd50e1b4abf973b1fb56de2730f34daf7de5751",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Generation leases, stale-writer fencing, and safe prune"
+  },
+  "cardID": "V23-P02-C04",
+  "evidenceIDs": [
+    "V23-P02-C04-G01",
+    "V23-P02-C04-A01",
+    "V23-P02-C04-H01",
+    "V23-P02-C04-I01",
+    "V23-P02-C04-R01"
+  ],
+  "generatedPaths": [
+    "Scripts/v23/generation-lease.schema.json",
+    "Scripts/v23/stale-writer-fence.schema.json",
+    "Scripts/v23/generation-prune-policy.schema.json",
+    "Scripts/v23/generation-lease-prune-corpus.schema.json",
+    "docs/design/v23/tooling/V23P02C04GenerationLeaseContractV1.json",
+    "docs/design/v23/tooling/V23P02C04StaleWriterFenceContractV1.json",
+    "docs/design/v23/tooling/V23P02C04GenerationPrunePolicyV1.json",
+    "docs/design/v23/tooling/V23P02C04GenerationLeasePruneCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P02-C04-tooling-manifest.json"
+  ],
+  "generator": {
+    "seed": 230204,
+    "version": "p02-c04-contracts-v1"
+  },
+  "hostedDispatchRan": false,
+  "nativeCompileRan": false,
+  "nativeOrHostedEvidenceClaimed": false,
+  "pathFence": [
+    "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationReceiptRecoveryServiceV1.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+    "FieldEvidenceAppTests/V9_08GenerationLeaseTests.swift",
+    "Scripts/v23/p02_c04_contracts.py",
+    "Scripts/v23/generate_p02_c04_contracts.py",
+    "Scripts/v23/verify_p02_c04_contracts.py",
+    "Scripts/v23/generation-lease.schema.json",
+    "Scripts/v23/stale-writer-fence.schema.json",
+    "Scripts/v23/generation-prune-policy.schema.json",
+    "Scripts/v23/generation-lease-prune-corpus.schema.json",
+    "docs/design/v23/tooling/V23P02C04GenerationLeaseContractV1.json",
+    "docs/design/v23/tooling/V23P02C04StaleWriterFenceContractV1.json",
+    "docs/design/v23/tooling/V23P02C04GenerationPrunePolicyV1.json",
+    "docs/design/v23/tooling/V23P02C04GenerationLeasePruneCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P02-C04-tooling-manifest.json"
+  ],
+  "pathFenceCount": 24,
+  "persistentSchemaActivatedByTooling": false,
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "provisional": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23-P02-C04-tooling-manifest",
+  "schemaVersion": 1,
+  "sourcePathCount": 12,
+  "sourcePaths": [
+    "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationReceiptRecoveryServiceV1.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+    "FieldEvidenceAppTests/V9_08GenerationLeaseTests.swift"
+  ],
+  "toolingPathCount": 12,
+  "toolingPaths": [
+    "Scripts/v23/p02_c04_contracts.py",
+    "Scripts/v23/generate_p02_c04_contracts.py",
+    "Scripts/v23/verify_p02_c04_contracts.py",
+    "Scripts/v23/generation-lease.schema.json",
+    "Scripts/v23/stale-writer-fence.schema.json",
+    "Scripts/v23/generation-prune-policy.schema.json",
+    "Scripts/v23/generation-lease-prune-corpus.schema.json",
+    "docs/design/v23/tooling/V23P02C04GenerationLeaseContractV1.json",
+    "docs/design/v23/tooling/V23P02C04StaleWriterFenceContractV1.json",
+    "docs/design/v23/tooling/V23P02C04GenerationPrunePolicyV1.json",
+    "docs/design/v23/tooling/V23P02C04GenerationLeasePruneCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P02-C04-tooling-manifest.json"
+  ]
+}

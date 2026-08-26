@@ -52,6 +52,7 @@ final class StartupRouter: ObservableObject {
     private var hasStarted = false
     private var isRunning = false
     private var pendingEraseDrainProof: EraseGenerationDrainProof?
+    private var retainsGenerationsUntilColdLaunch = false
 
     init(
         applicationSupportURL: URL,
@@ -138,6 +139,14 @@ final class StartupRouter: ObservableObject {
                 session = try openCurrentGeneration()
             }
             openedSession = session
+            do {
+                try reconcileGenerationLeasesForStartup()
+            } catch {
+                throw StartupMaintenanceReason.dataPointerInvalid
+            }
+            let coordinator = try StoreSessionCoordinator(
+                validatingSession: session
+            )
 
             didBeginStep(.finalization)
             do {
@@ -210,7 +219,7 @@ final class StartupRouter: ObservableObject {
                 throw StartupMaintenanceReason.finalizationInconsistent
             }
             route = .ready(
-                StoreSessionCoordinator(session: session),
+                coordinator,
                 diagnosticsStore,
                 reportRecoveryService
             )
@@ -262,7 +271,12 @@ final class StartupRouter: ObservableObject {
         maintenanceRestoreSession = nil
         maintenanceEraseSession = nil
         route = .checking
-        coordinator.activate(session: session)
+        do {
+            try coordinator.activateValidating(session: session)
+        } catch {
+            failClosedErase()
+            return
+        }
         await Task.yield()
     }
 
@@ -284,6 +298,7 @@ final class StartupRouter: ObservableObject {
                   ) else {
                 throw StartupMaintenanceReason.eraseInconsistent
             }
+            try reconcileGenerationLeasesForStartup()
             let recovery = try ReportRecoveryService(
                 modelContext: session.modelContext,
                 generationRootURL: session.generationRootURL,
@@ -352,16 +367,23 @@ final class StartupRouter: ObservableObject {
         defer { isRunning = false }
 
         do {
+            // Restore has no equivalent of EraseGenerationDrainProof. Keep all
+            // retired generation bytes for the remainder of this process even
+            // after the coordinator releases its old session lease.
+            retainsGenerationsUntilColdLaunch = true
             guard try generationFactory.currentGenerationID() == session.generationID
             else {
                 throw StartupMaintenanceReason.restoreInconsistent
             }
+            try reconcileGenerationLeasesForStartup()
             let activeCoordinator: StoreSessionCoordinator
             if let coordinator {
-                coordinator.activate(session: session)
+                try coordinator.activateValidating(session: session)
                 activeCoordinator = coordinator
             } else {
-                activeCoordinator = StoreSessionCoordinator(session: session)
+                activeCoordinator = try StoreSessionCoordinator(
+                    validatingSession: session
+                )
             }
 
             do {
@@ -431,6 +453,22 @@ final class StartupRouter: ObservableObject {
             }
         } catch {
             throw StartupMaintenanceReason.dataPointerInvalid
+        }
+    }
+
+    private func reconcileGenerationLeasesForStartup() throws {
+        if retainsGenerationsUntilColdLaunch {
+            let retainAllPolicy = try GenerationPrunePolicyV1(
+                retainedInactiveAcceptedGenerationCount:
+                    GenerationPrunePolicyV1
+                        .productionRetainedInactiveAcceptedGenerationCount,
+                pruningEnabled: false
+            )
+            _ = try generationFactory.reconcileGenerationLeasesAndPrune(
+                policy: retainAllPolicy
+            )
+        } else {
+            _ = try generationFactory.reconcileGenerationLeasesAndPrune()
         }
     }
 

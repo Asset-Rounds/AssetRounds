@@ -623,10 +623,13 @@ private extension StoreGenerationFactory {
     ) throws {
         let retired = try authority.retiredGenerationIDs()
         if !retired.contains(journal.sourceGenerationID) {
-            try authority.retireGeneration(
-                oldID: journal.sourceGenerationID,
-                currentID: journal.targetGenerationID
-            )
+            let registry = try makeGenerationLeaseRegistry()
+            try registry.withExclusiveGenerationMutationLock {
+                try authority.retireGeneration(
+                    oldID: journal.sourceGenerationID,
+                    currentID: journal.targetGenerationID
+                )
+            }
         }
         try reachMigrationBoundary(.beforeJournalRemoval)
         try store.removeJournal(expected: journal)
@@ -817,6 +820,16 @@ private extension StoreGenerationFactory {
     }
 
     private func publishMigrationPointerForwardOnly(
+        _ journal: StoreMigrationJournalV1,
+        store: StoreMigrationJournalStoreV1
+    ) throws {
+        let registry = try makeGenerationLeaseRegistry()
+        try registry.withExclusiveGenerationMutationLock {
+            try publishMigrationPointerForwardOnlyLocked(journal, store: store)
+        }
+    }
+
+    private func publishMigrationPointerForwardOnlyLocked(
         _ journal: StoreMigrationJournalV1,
         store: StoreMigrationJournalStoreV1
     ) throws {
@@ -1024,7 +1037,8 @@ private extension StoreGenerationFactory {
         pointer: CurrentGenerationPointerV2,
         dataRootURL: URL,
         store: StoreMigrationJournalStoreV1,
-        identity: WorkspaceReplicaIdentityV1
+        identity: WorkspaceReplicaIdentityV1,
+        expectedPointerData: Data? = nil
     ) throws -> StoreGenerationSession {
         try pointer.validate()
         guard let generationID = canonicalUUID(from: pointer.generationID) else {
@@ -1045,6 +1059,15 @@ private extension StoreGenerationFactory {
               manifest.storeSchemaRelease == expectedRelease else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
+        let epoch = try GenerationEpochV1(
+            generationID: generationID,
+            generationManifestSHA256: pointer.generationManifestSHA256
+        )
+        let readerLease = try acquireCurrentReaderLease(
+            epoch: epoch,
+            expectedPointerData: expectedPointerData
+                ?? (try pointer.canonicalData())
+        )
         let generationRootURL = dataRootURL
             .appendingPathComponent(Self.generationsDirectoryName, isDirectory: true)
             .appendingPathComponent(pointer.generationID, isDirectory: true)
@@ -1083,6 +1106,8 @@ private extension StoreGenerationFactory {
             generationRootURL: generationRootURL,
             workspaceIdentity: identity,
             modelContainer: container,
+            generationEpoch: epoch,
+            readerLeaseHandle: readerLease,
             afterSaveReproof: { [self] in
                 try self.protectGeneration(
                     at: generationRootURL,
@@ -1108,7 +1133,8 @@ private extension StoreGenerationFactory {
                 ),
                 dataRootURL: dataRootURL,
                 store: store,
-                identity: identity
+                identity: identity,
+                expectedPointerData: try pointer.canonicalData()
             )
         }
         guard (pointer.storeSchemaVersion == 3 || pointer.storeSchemaVersion == 4),
@@ -1123,6 +1149,14 @@ private extension StoreGenerationFactory {
         guard manifest.storeSchemaRelease == release else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
+        let epoch = try GenerationEpochV1(
+            generationID: generationID,
+            generationManifestSHA256: pointer.generationManifestSHA256
+        )
+        let readerLease = try acquireCurrentReaderLease(
+            epoch: epoch,
+            expectedPointerData: try pointer.canonicalData()
+        )
         let generationRootURL = installedGenerationURL(id: generationID)
         let modelStoreURL = generationRootURL.appendingPathComponent(Self.modelStoreName)
         try protectGeneration(at: generationRootURL, staging: false, requireModel: true)
@@ -1138,25 +1172,14 @@ private extension StoreGenerationFactory {
             guard manifest.semanticSHA256 == (try semanticDigest(at: modelStoreURL, release: release)) else {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
-        } else {
-            let journal = try MutationJournalStoreV1(
-                modelContext: container.mainContext,
-                identity: identity,
-                generationID: generationID,
-                allowStateBootstrap: false
-            )
-            do {
-                try MutationReceiptRecoveryServiceV1(store: journal)
-                    .recoverBeforeWriterActivation()
-            } catch {
-                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
-            }
         }
         return StoreGenerationSession(
             generationID: generationID,
             generationRootURL: generationRootURL,
             workspaceIdentity: identity,
             modelContainer: container,
+            generationEpoch: epoch,
+            readerLeaseHandle: readerLease,
             afterSaveReproof: { [self] in
                 try self.protectGeneration(
                     at: generationRootURL,
@@ -1236,13 +1259,6 @@ private extension StoreGenerationFactory {
                       pointer.storeSchemaVersion == 3 else {
                     throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
                 }
-                let journal = try MutationJournalStoreV1(
-                    modelContext: context,
-                    identity: try pointer.identity(),
-                    generationID: targetGenerationID
-                )
-                try MutationReceiptRecoveryServiceV1(store: journal)
-                    .recoverBeforeWriterActivation()
                 return StoreMigrationCanonicalJSONV1.sha256(
                     try semanticExportV4(in: context)
                 )
@@ -2058,8 +2074,14 @@ final class StoreGenerationSession {
     let replicaID: ReplicaID
     let workspaceIdentity: WorkspaceReplicaIdentityV1
     let modelContext: ModelContext
+    let generationEpoch: GenerationEpochV1?
+
+    var readerLeaseToken: GenerationLeaseTokenV1? {
+        readerLeaseHandle?.token
+    }
 
     private let modelContainer: ModelContainer
+    private let readerLeaseHandle: GenerationLeaseHandleV1?
     private let afterSaveReproof: () throws -> Void
     private var didSaveObserver: NSObjectProtocol? = nil
     private var afterSaveFailure: Error? = nil
@@ -2069,6 +2091,8 @@ final class StoreGenerationSession {
         generationRootURL: URL,
         workspaceIdentity: WorkspaceReplicaIdentityV1,
         modelContainer: ModelContainer,
+        generationEpoch: GenerationEpochV1? = nil,
+        readerLeaseHandle: GenerationLeaseHandleV1? = nil,
         afterSaveReproof: @escaping () throws -> Void
     ) {
         self.generationID = generationID
@@ -2078,6 +2102,8 @@ final class StoreGenerationSession {
         self.workspaceIdentity = workspaceIdentity
         self.modelContainer = modelContainer
         self.modelContext = modelContainer.mainContext
+        self.generationEpoch = generationEpoch
+        self.readerLeaseHandle = readerLeaseHandle
         self.afterSaveReproof = afterSaveReproof
         let context = self.modelContext
         self.didSaveObserver = NotificationCenter.default.addObserver(
@@ -4298,7 +4324,7 @@ final class StoreRestoreGenerationAuthority {
         return true
     }
 
-    private static func requiredDirectoryIdentity(
+    fileprivate static func requiredDirectoryIdentity(
         parent: Int32,
         name: String
     ) throws -> Identity {
@@ -4687,6 +4713,33 @@ final class StoreRestoreGenerationAuthority {
     }
 }
 
+enum StoreGenerationPruneFaultBoundaryV1: String, CaseIterable, Equatable, Sendable {
+    case prepared
+    case bytesRemoved
+    case retiredPointerPublished
+    case receiptPublished
+}
+
+#if DEBUG
+enum StoreGenerationPruneInjectedFailureV1: Error, Equatable {
+    case injectedFault(StoreGenerationPruneFaultBoundaryV1)
+}
+
+final class StoreGenerationPruneFailureInjectionV1 {
+    private var pending: StoreGenerationPruneFaultBoundaryV1?
+
+    init(failOnceAt boundary: StoreGenerationPruneFaultBoundaryV1) {
+        self.pending = boundary
+    }
+
+    func reach(_ boundary: StoreGenerationPruneFaultBoundaryV1) throws {
+        guard pending == boundary else { return }
+        pending = nil
+        throw StoreGenerationPruneInjectedFailureV1.injectedFault(boundary)
+    }
+}
+#endif
+
 struct StoreGenerationFactory {
     private static let dataDirectoryName = "FieldEvidenceData"
     private static let bootstrapDirectoryName = ".FieldEvidenceData.bootstrap"
@@ -4706,8 +4759,10 @@ struct StoreGenerationFactory {
     private let fileManager: FileManager
     private let migrationIdentitySource: StoreMigrationIdentitySourceV1?
     private let pointerEnrichmentIdentity: WorkspaceReplicaIdentityV1
+    private let generationLeaseRegistryProvider: StoreGenerationLeaseRegistryProvider
 #if DEBUG
     private let migrationFailureInjection: StoreMigrationFailureInjection?
+    private let pruneFailureInjection: StoreGenerationPruneFailureInjectionV1?
 #endif
 
     init(
@@ -4721,8 +4776,10 @@ struct StoreGenerationFactory {
         self.migrationIdentitySource = migrationIdentitySource
         self.pointerEnrichmentIdentity = pointerEnrichmentIdentity
             ?? Self.makeLiveWorkspaceIdentity()
+        self.generationLeaseRegistryProvider = StoreGenerationLeaseRegistryProvider()
         #if DEBUG
         self.migrationFailureInjection = nil
+        self.pruneFailureInjection = nil
         #endif
     }
 
@@ -4739,7 +4796,26 @@ struct StoreGenerationFactory {
         self.migrationIdentitySource = migrationIdentitySource
         self.pointerEnrichmentIdentity = pointerEnrichmentIdentity
             ?? Self.makeLiveWorkspaceIdentity()
+        self.generationLeaseRegistryProvider = StoreGenerationLeaseRegistryProvider()
         self.migrationFailureInjection = migrationFailureInjection
+        self.pruneFailureInjection = nil
+    }
+
+    init(
+        applicationSupportURL: URL,
+        fileManager: FileManager = .default,
+        migrationIdentitySource: StoreMigrationIdentitySourceV1? = nil,
+        pointerEnrichmentIdentity: WorkspaceReplicaIdentityV1? = nil,
+        pruneFailureInjection: StoreGenerationPruneFailureInjectionV1
+    ) {
+        self.applicationSupportURL = applicationSupportURL
+        self.fileManager = fileManager
+        self.migrationIdentitySource = migrationIdentitySource
+        self.pointerEnrichmentIdentity = pointerEnrichmentIdentity
+            ?? Self.makeLiveWorkspaceIdentity()
+        self.generationLeaseRegistryProvider = StoreGenerationLeaseRegistryProvider()
+        self.migrationFailureInjection = nil
+        self.pruneFailureInjection = pruneFailureInjection
     }
 #endif
 
@@ -4767,8 +4843,96 @@ struct StoreGenerationFactory {
 #endif
     }
 
+    private func reachPruneBoundary(
+        _ boundary: StoreGenerationPruneFaultBoundaryV1
+    ) throws {
+#if DEBUG
+        try pruneFailureInjection?.reach(boundary)
+#else
+        _ = boundary
+#endif
+    }
+
     var restoreApplicationSupportURL: URL {
         applicationSupportURL
+    }
+
+    func makeGenerationLeaseRegistry() throws -> GenerationLeaseRegistryV1 {
+        try generationLeaseRegistryProvider.registry(
+            applicationSupportURL: applicationSupportURL
+        )
+    }
+
+    func makeGenerationLeaseRegistry(
+        ownerID: UUID
+    ) throws -> GenerationLeaseRegistryV1 {
+        try GenerationLeaseRegistryV1(
+            applicationSupportURL: applicationSupportURL,
+            ownerID: ownerID
+        )
+    }
+
+    @MainActor
+    func currentGenerationEpoch() throws -> GenerationEpochV1 {
+        let pointer = try currentGenerationPointerV3(
+            expectedGenerationID: currentGenerationID()
+        )
+        guard let generationID = canonicalUUID(from: pointer.generationID) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return try GenerationEpochV1(
+            generationID: generationID,
+            generationManifestSHA256: pointer.generationManifestSHA256
+        )
+    }
+
+    @MainActor
+    func makeWriterFence(
+        expectedGenerationEpoch: GenerationEpochV1,
+        writerLeaseToken: GenerationLeaseTokenV1,
+        registry: GenerationLeaseRegistryV1
+    ) throws -> StaleWriterFenceV1 {
+        try StaleWriterFenceV1(
+            expectedGenerationEpoch: expectedGenerationEpoch,
+            writerLeaseToken: writerLeaseToken,
+            registry: registry,
+            currentGenerationEpoch: { [self] in
+                try self.currentGenerationEpoch()
+            }
+        )
+    }
+
+    private func acquireCurrentReaderLease(
+        epoch: GenerationEpochV1,
+        expectedPointerData: Data
+    ) throws -> GenerationLeaseHandleV1 {
+        let registry = try makeGenerationLeaseRegistry()
+        return try registry.withExclusiveGenerationMutationLock {
+            let current = try decodeCurrentPointer(
+                at: dataRootURL.appendingPathComponent(Self.currentPointerName)
+            )
+            guard current.data == expectedPointerData else {
+                throw GenerationLeaseRegistryFailureV1.staleGeneration
+            }
+            return try registry.acquireHandle(epoch: epoch, role: .reader)
+        }
+    }
+
+    private func acquireAcceptedReaderLease(
+        epoch: GenerationEpochV1
+    ) throws -> GenerationLeaseHandleV1 {
+        let registry = try makeGenerationLeaseRegistry()
+        return try registry.withExclusiveGenerationMutationLock {
+            let authority = try makeRestoreGenerationAuthority()
+            let acceptedIDs = Set(
+                [try authority.currentGenerationID()]
+                    + authority.retiredGenerationIDs()
+            )
+            guard acceptedIDs.contains(epoch.generationID) else {
+                throw GenerationLeaseRegistryFailureV1.staleGeneration
+            }
+            return try registry.acquireHandle(epoch: epoch, role: .reader)
+        }
     }
 
     @MainActor
@@ -4915,12 +5079,15 @@ struct StoreGenerationFactory {
         guard try deletionLedgerProof(in: session.modelContext) == expectedEmptyLedger else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
-        try authority.switchCurrentGeneration(
-            expected: expectedOldPointer.generationID,
-            to: targetPointer.generationID,
-            pointer: target,
-            expectedCurrentPointer: old
-        )
+        let registry = try makeGenerationLeaseRegistry()
+        try registry.withExclusiveGenerationMutationLock {
+            try authority.switchCurrentGeneration(
+                expected: expectedOldPointer.generationID,
+                to: targetPointer.generationID,
+                pointer: target,
+                expectedCurrentPointer: old
+            )
+        }
     }
 
     @MainActor
@@ -5064,7 +5231,15 @@ struct StoreGenerationFactory {
         }
 
         _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
-        try authority.removeInstalledGeneration(id: targetGenerationID)
+        let registry = try makeGenerationLeaseRegistry()
+        try registry.withExclusiveGenerationMutationLock {
+            guard try !registry.activeEpochs().contains(where: {
+                $0.generationID == targetGenerationID
+            }) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try authority.removeInstalledGeneration(id: targetGenerationID)
+        }
         let finalPresence = try authority.presence(id: targetGenerationID)
         guard !finalPresence.staging,
               !finalPresence.installed,
@@ -5474,11 +5649,35 @@ struct StoreGenerationFactory {
         guard id != currentID else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
-        try authority.removeInstalledGeneration(id: id)
+        let registry = try makeGenerationLeaseRegistry()
+        try registry.withExclusiveGenerationMutationLock {
+            guard try !registry.activeEpochs().contains(where: {
+                $0.generationID == id
+            }) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try authority.removeInstalledGeneration(id: id)
+        }
     }
 
     @MainActor
     func switchCurrentGeneration(
+        expected oldID: UUID,
+        to newID: UUID,
+        authority: StoreRestoreGenerationAuthority
+    ) throws {
+        let registry = try makeGenerationLeaseRegistry()
+        try registry.withExclusiveGenerationMutationLock {
+            try switchCurrentGenerationLocked(
+                expected: oldID,
+                to: newID,
+                authority: authority
+            )
+        }
+    }
+
+    @MainActor
+    private func switchCurrentGenerationLocked(
         expected oldID: UUID,
         to newID: UUID,
         authority: StoreRestoreGenerationAuthority
@@ -5543,6 +5742,33 @@ struct StoreGenerationFactory {
         preparedGenerationManifestSHA256: String,
         authority: StoreRestoreGenerationAuthority
     ) throws {
+        let registry = try makeGenerationLeaseRegistry()
+        try registry.withExclusiveGenerationMutationLock {
+            try switchCurrentGenerationLocked(
+                expected: oldID,
+                to: newID,
+                expectedCurrentPointer: expectedCurrentPointer,
+                identity: identity,
+                sourceReplicaID: sourceReplicaID,
+                knownReplicaIDs: knownReplicaIDs,
+                preparedGenerationManifestSHA256:
+                    preparedGenerationManifestSHA256,
+                authority: authority
+            )
+        }
+    }
+
+    @MainActor
+    private func switchCurrentGenerationLocked(
+        expected oldID: UUID,
+        to newID: UUID,
+        expectedCurrentPointer: CurrentGenerationPointerV3,
+        identity: WorkspaceReplicaIdentityV1,
+        sourceReplicaID: ReplicaID?,
+        knownReplicaIDs: Set<ReplicaID>,
+        preparedGenerationManifestSHA256: String,
+        authority: StoreRestoreGenerationAuthority
+    ) throws {
         guard expectedCurrentPointer.generationID == canonicalString(for: oldID),
               try currentGenerationPointerV3(
                   expectedGenerationID: oldID,
@@ -5583,6 +5809,17 @@ struct StoreGenerationFactory {
 
     @MainActor
     func switchCurrentGeneration(expected oldID: UUID, to newID: UUID) throws {
+        let registry = try makeGenerationLeaseRegistry()
+        try registry.withExclusiveGenerationMutationLock {
+            try switchCurrentGenerationLocked(expected: oldID, to: newID)
+        }
+    }
+
+    @MainActor
+    private func switchCurrentGenerationLocked(
+        expected oldID: UUID,
+        to newID: UUID
+    ) throws {
         guard oldID != newID,
               try currentGenerationID() == oldID,
               try itemType(at: installedGenerationURL(id: oldID)) == .typeDirectory,
@@ -5593,7 +5830,7 @@ struct StoreGenerationFactory {
             at: dataRootURL.appendingPathComponent(Self.currentPointerName)
         ) {
         case .legacy:
-            try replacePointer(
+            try replacePointerLocked(
                 name: Self.currentPointerName,
                 value: try makeRestoreCurrentPointer(
                     expectedOldID: oldID,
@@ -5601,7 +5838,7 @@ struct StoreGenerationFactory {
                 )
             )
         case .v2:
-            try replacePointer(
+            try replacePointerLocked(
                 name: Self.currentPointerName,
                 value: try makeRestoreCurrentPointer(
                     expectedOldID: oldID,
@@ -5614,7 +5851,7 @@ struct StoreGenerationFactory {
                 expectedOldID: oldID,
                 newID: newID
             ).generationManifestSHA256
-            try replacePointer(
+            try replacePointerLocked(
                 name: Self.currentPointerName,
                 value: try makeRestoreCurrentPointerV3(
                     expectedOldID: oldID,
@@ -5640,6 +5877,31 @@ struct StoreGenerationFactory {
         knownReplicaIDs: Set<ReplicaID> = [],
         preparedGenerationManifestSHA256: String
     ) throws {
+        let registry = try makeGenerationLeaseRegistry()
+        try registry.withExclusiveGenerationMutationLock {
+            try switchCurrentGenerationLocked(
+                expected: oldID,
+                to: newID,
+                expectedCurrentPointer: expectedCurrentPointer,
+                identity: identity,
+                sourceReplicaID: sourceReplicaID,
+                knownReplicaIDs: knownReplicaIDs,
+                preparedGenerationManifestSHA256:
+                    preparedGenerationManifestSHA256
+            )
+        }
+    }
+
+    @MainActor
+    private func switchCurrentGenerationLocked(
+        expected oldID: UUID,
+        to newID: UUID,
+        expectedCurrentPointer: CurrentGenerationPointerV3,
+        identity: WorkspaceReplicaIdentityV1,
+        sourceReplicaID: ReplicaID?,
+        knownReplicaIDs: Set<ReplicaID>,
+        preparedGenerationManifestSHA256: String
+    ) throws {
         guard expectedCurrentPointer.generationID == canonicalString(for: oldID),
               try currentGenerationPointerV3(
                   expectedGenerationID: oldID
@@ -5662,7 +5924,7 @@ struct StoreGenerationFactory {
         if pointer.generationManifestSHA256 != preparedGenerationManifestSHA256 {
             throw StoreGenerationFailure.dataPointerInvalid
         }
-        try replacePointer(
+        try replacePointerLocked(
             name: Self.currentPointerName,
             value: pointer,
             expectedData: try expectedCurrentPointer.canonicalData()
@@ -5678,7 +5940,10 @@ struct StoreGenerationFactory {
         currentID: UUID,
         authority: StoreRestoreGenerationAuthority
     ) throws {
-        try authority.retireGeneration(oldID: oldID, currentID: currentID)
+        let registry = try makeGenerationLeaseRegistry()
+        try registry.withExclusiveGenerationMutationLock {
+            try authority.retireGeneration(oldID: oldID, currentID: currentID)
+        }
     }
 
     func replaceRetiredGenerationIDs(
@@ -5687,15 +5952,29 @@ struct StoreGenerationFactory {
         currentID: UUID,
         authority: StoreRestoreGenerationAuthority
     ) throws {
-        try authority.replaceRetiredGenerationIDs(
-            expected: expected,
-            with: replacement,
-            currentID: currentID
-        )
+        let registry = try makeGenerationLeaseRegistry()
+        try registry.withExclusiveGenerationMutationLock {
+            try authority.replaceRetiredGenerationIDs(
+                expected: expected,
+                with: replacement,
+                currentID: currentID
+            )
+        }
     }
 
     @MainActor
     func retireGeneration(oldID: UUID, currentID: UUID) throws {
+        let registry = try makeGenerationLeaseRegistry()
+        try registry.withExclusiveGenerationMutationLock {
+            try retireGenerationLocked(oldID: oldID, currentID: currentID)
+        }
+    }
+
+    @MainActor
+    private func retireGenerationLocked(
+        oldID: UUID,
+        currentID: UUID
+    ) throws {
         guard oldID != currentID,
               try currentGenerationID() == currentID,
               try itemType(at: installedGenerationURL(id: oldID)) == .typeDirectory,
@@ -5713,7 +5992,7 @@ struct StoreGenerationFactory {
             generationIDs: values.map { canonicalString(for: $0) },
             schemaVersion: StorePointerSchemaRegistry.retiredVersion
         )
-        try replacePointer(name: Self.retiredPointerName, value: pointer)
+        try replacePointerLocked(name: Self.retiredPointerName, value: pointer)
         guard try retiredGenerationIDs() == values else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
@@ -5722,6 +6001,613 @@ struct StoreGenerationFactory {
     func retiredGenerationIDs() throws -> [UUID] {
         let authority = try makeRestoreGenerationAuthority()
         return try authority.retiredGenerationIDs()
+    }
+
+    @MainActor
+    @discardableResult
+    func reconcileGenerationLeasesAndPrune(
+        policy: GenerationPrunePolicyV1 = .production
+    ) throws -> GenerationPruneReceiptV1 {
+        try policy.validate()
+        let registry = try makeGenerationLeaseRegistry()
+        return try registry.withExclusiveGenerationMutationLock {
+            var ownershipIsCertain = true
+            do {
+                _ = try registry.reconcileAbandonedOwners()
+            } catch let failure as GenerationLeaseRegistryFailureV1
+                where failure == .uncertainOwner {
+                ownershipIsCertain = false
+            }
+
+            if let intent = try registry.loadPruneIntent() {
+                return try recoverPruneLocked(intent, registry: registry)
+            }
+
+            let currentEpoch = try currentGenerationEpoch()
+            let authority = try makeRestoreGenerationAuthority()
+            let retiredIDs = try authority.retiredGenerationIDs()
+            let activeEpochs: Set<GenerationEpochV1>
+            var leaseInventoryIsReadable = true
+            do {
+                activeEpochs = try registry.activeEpochs()
+            } catch {
+                guard !ownershipIsCertain else { throw error }
+                activeEpochs = []
+                leaseInventoryIsReadable = false
+            }
+            let store = try StoreMigrationJournalStoreV1(
+                applicationSupportURL: applicationSupportURL
+            )
+            var acceptedRetired: [GenerationEpochV1] = []
+            var uncertainIDs: [UUID] = []
+            let expectedNames = Set(
+                ([currentEpoch.generationID] + retiredIDs).map {
+                    canonicalString(for: $0)
+                }
+            )
+            let actualNames = Set(try authority.installedGenerationNames())
+            if actualNames != expectedNames {
+                ownershipIsCertain = false
+                let difference = actualNames.symmetricDifference(expectedNames)
+                let uncertainDifference = difference.compactMap {
+                    canonicalUUID(from: $0)
+                }
+                guard uncertainDifference.count == difference.count else {
+                    throw GenerationLeaseRegistryFailureV1.invalidIdentity
+                }
+                uncertainIDs.append(contentsOf: uncertainDifference)
+            }
+            for id in retiredIDs {
+                do {
+                    guard let epoch = try acceptedGenerationEpoch(
+                        id: id,
+                        store: store
+                    ) else {
+                        uncertainIDs.append(id)
+                        continue
+                    }
+                    acceptedRetired.append(epoch)
+                } catch {
+                    if ProtectedFilePolicyV1.isProtectedDataUnavailable(error) {
+                        throw error
+                    }
+                    uncertainIDs.append(id)
+                }
+            }
+            acceptedRetired.sort(by: Self.epochOrder)
+            uncertainIDs = Array(Set(uncertainIDs)).sorted(by: Self.idOrder)
+
+            if !ownershipIsCertain {
+                let durableLeaseGenerationIDs = activeEpochs.map(\.generationID)
+                if leaseInventoryIsReadable,
+                   !durableLeaseGenerationIDs.isEmpty {
+                    uncertainIDs.append(contentsOf: durableLeaseGenerationIDs)
+                } else {
+                    uncertainIDs.append(currentEpoch.generationID)
+                    uncertainIDs.append(contentsOf: retiredIDs)
+                    uncertainIDs.append(contentsOf: actualNames.compactMap {
+                        canonicalUUID(from: $0)
+                    })
+                }
+                uncertainIDs = Array(Set(uncertainIDs)).sorted(by: Self.idOrder)
+            }
+
+            let knownEpochs = Set(acceptedRetired + [currentEpoch])
+            if activeEpochs.contains(where: { !knownEpochs.contains($0) }) {
+                ownershipIsCertain = false
+                uncertainIDs = Array(Set(
+                    uncertainIDs + activeEpochs
+                        .filter { !knownEpochs.contains($0) }
+                        .map(\.generationID)
+                )).sorted(by: Self.idOrder)
+            }
+            let activeRetired = acceptedRetired.filter(activeEpochs.contains)
+            let inactive = acceptedRetired.filter { !activeEpochs.contains($0) }
+            let retainCount = min(
+                policy.retainedInactiveAcceptedGenerationCount,
+                inactive.count
+            )
+            let retainedInactive = Array(inactive.suffix(retainCount))
+            let candidates = Array(inactive.dropLast(retainCount))
+            let retainedRetired = (activeRetired + retainedInactive)
+                .sorted(by: Self.epochOrder)
+            let retainedEpochs = ([currentEpoch] + retainedRetired)
+                .sorted(by: Self.epochOrder)
+            let activeRetained = retainedEpochs.filter(activeEpochs.contains)
+            let acceptedGenerationIDs = Set(
+                ([currentEpoch] + acceptedRetired).map(\.generationID)
+            )
+            let receiptUncertainIDs = uncertainIDs.filter {
+                !acceptedGenerationIDs.contains($0)
+            }
+            let beforeDigest = try pruneInventoryDigest(
+                currentEpoch: currentEpoch,
+                retiredEpochs: acceptedRetired,
+                activeEpochs: activeEpochs,
+                uncertainGenerationIDs: uncertainIDs
+            )
+
+            guard policy.pruningEnabled else {
+                let receipt = try GenerationPruneReceiptV1(
+                    operationID: UUID(),
+                    currentEpoch: currentEpoch,
+                    retainedEpochs: ([currentEpoch] + acceptedRetired)
+                        .sorted(by: Self.epochOrder),
+                    prunedEpochs: [],
+                    activeRetainedEpochs: activeRetained,
+                    uncertainRetainedGenerationIDs: receiptUncertainIDs,
+                    inventoryBeforeSHA256: beforeDigest,
+                    inventoryAfterSHA256: beforeDigest,
+                    disposition: .disabledRetainAll
+                )
+                try registry.publishPruneReceipt(receipt)
+                return receipt
+            }
+            guard ownershipIsCertain, uncertainIDs.isEmpty else {
+                let receipt = try GenerationPruneReceiptV1(
+                    operationID: UUID(),
+                    currentEpoch: currentEpoch,
+                    retainedEpochs: ([currentEpoch] + acceptedRetired)
+                        .sorted(by: Self.epochOrder),
+                    prunedEpochs: [],
+                    activeRetainedEpochs: activeRetained,
+                    uncertainRetainedGenerationIDs: receiptUncertainIDs,
+                    ownerLivenessUncertain: !ownershipIsCertain,
+                    inventoryBeforeSHA256: beforeDigest,
+                    inventoryAfterSHA256: beforeDigest,
+                    disposition: .uncertainRetainAll
+                )
+                try registry.publishPruneReceipt(receipt)
+                return receipt
+            }
+            guard !candidates.isEmpty else {
+                let receipt = try GenerationPruneReceiptV1(
+                    operationID: UUID(),
+                    currentEpoch: currentEpoch,
+                    retainedEpochs: retainedEpochs,
+                    prunedEpochs: [],
+                    activeRetainedEpochs: activeRetained,
+                    uncertainRetainedGenerationIDs: [],
+                    inventoryBeforeSHA256: beforeDigest,
+                    inventoryAfterSHA256: beforeDigest,
+                    disposition: .noEligibleGenerations
+                )
+                try registry.publishPruneReceipt(receipt)
+                return receipt
+            }
+
+            let desiredRetiredIDs = retainedRetired.map(\.generationID)
+                .sorted(by: Self.idOrder)
+            let intent = try GenerationPruneIntentV1(
+                operationID: UUID(),
+                currentEpoch: currentEpoch,
+                candidateEpochs: candidates,
+                retainedEpochs: retainedEpochs,
+                activeRetainedEpochs: activeRetained,
+                uncertainRetainedGenerationIDs: [],
+                inventoryBeforeSHA256: beforeDigest,
+                expectedRetiredGenerationIDs: retiredIDs,
+                desiredRetiredGenerationIDs: desiredRetiredIDs
+            )
+            try registry.createPruneIntent(intent)
+            try reachPruneBoundary(.prepared)
+            return try recoverPruneLocked(intent, registry: registry)
+        }
+    }
+
+    @MainActor
+    private func recoverPruneLocked(
+        _ initialIntent: GenerationPruneIntentV1,
+        registry: GenerationLeaseRegistryV1
+    ) throws -> GenerationPruneReceiptV1 {
+        var intent = initialIntent
+        guard try currentGenerationEpoch() == intent.currentEpoch else {
+            throw GenerationLeaseRegistryFailureV1.staleGeneration
+        }
+        let activeEpochs = try registry.activeEpochs()
+        let candidateIDs = Set(intent.candidateEpochs.map(\.generationID))
+        guard activeEpochs.allSatisfy({ !candidateIDs.contains($0.generationID) }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let authority = try makeRestoreGenerationAuthority()
+        let retiredIDs = try authority.retiredGenerationIDs()
+        let store = try StoreMigrationJournalStoreV1(
+            applicationSupportURL: applicationSupportURL
+        )
+
+        if intent.phase == .prepared {
+            guard retiredIDs == intent.expectedRetiredGenerationIDs else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            for epoch in intent.candidateEpochs {
+                try quarantineAndRemovePruneCandidate(
+                    epoch,
+                    operationID: intent.operationID,
+                    store: store
+                )
+                if let manifest = try store.loadManifestIfPresent(
+                    targetGenerationID: epoch.generationID
+                ) {
+                    guard manifest.digest == epoch.generationManifestSHA256 else {
+                        throw GenerationLeaseRegistryFailureV1.corruptRegistry
+                    }
+                    try store.removeManifest(
+                        targetGenerationID: epoch.generationID,
+                        expectedDigest: manifest.digest
+                    )
+                }
+            }
+            let next = try intent.advancing(to: .bytesRemoved)
+            try registry.replacePruneIntent(expected: intent, with: next)
+            intent = next
+            try reachPruneBoundary(.bytesRemoved)
+        }
+
+        if intent.phase == .bytesRemoved {
+            guard intent.candidateEpochs.allSatisfy({
+                (try? itemType(at: installedGenerationURL(id: $0.generationID))) == nil
+            }) else {
+                throw GenerationLeaseRegistryFailureV1.corruptRegistry
+            }
+            let currentRetired = try authority.retiredGenerationIDs()
+            if currentRetired == intent.expectedRetiredGenerationIDs {
+                try replacePointerLocked(
+                    name: Self.retiredPointerName,
+                    value: RetiredPointerV1(
+                        generationIDs: intent.desiredRetiredGenerationIDs.map {
+                            canonicalString(for: $0)
+                        },
+                        schemaVersion: StorePointerSchemaRegistry.retiredVersion
+                    )
+                )
+            } else if currentRetired != intent.desiredRetiredGenerationIDs {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let next = try intent.advancing(to: .retiredPointerPublished)
+            try registry.replacePruneIntent(expected: intent, with: next)
+            intent = next
+            try reachPruneBoundary(.retiredPointerPublished)
+        }
+
+        if intent.phase == .retiredPointerPublished {
+            guard try authority.retiredGenerationIDs()
+                    == intent.desiredRetiredGenerationIDs else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let next = try intent.advancing(to: .receiptPublished)
+            try registry.replacePruneIntent(expected: intent, with: next)
+            intent = next
+            try reachPruneBoundary(.receiptPublished)
+        }
+
+        let afterDigest = try pruneInventoryDigest(
+            currentEpoch: intent.currentEpoch,
+            retiredEpochs: intent.retainedEpochs.filter {
+                $0.generationID != intent.currentEpoch.generationID
+            },
+            activeEpochs: activeEpochs,
+            uncertainGenerationIDs: intent.uncertainRetainedGenerationIDs
+        )
+        let receipt = try GenerationPruneReceiptV1(
+            operationID: intent.operationID,
+            currentEpoch: intent.currentEpoch,
+            retainedEpochs: intent.retainedEpochs,
+            prunedEpochs: intent.candidateEpochs,
+            activeRetainedEpochs: intent.activeRetainedEpochs,
+            uncertainRetainedGenerationIDs:
+                intent.uncertainRetainedGenerationIDs,
+            inventoryBeforeSHA256: intent.inventoryBeforeSHA256,
+            inventoryAfterSHA256: afterDigest,
+            disposition: .pruned
+        )
+        try registry.publishPruneReceipt(receipt, completing: intent)
+        return receipt
+    }
+
+    @MainActor
+    private func acceptedGenerationEpoch(
+        id: UUID,
+        store: StoreMigrationJournalStoreV1,
+        expectedRootIdentity: StoreRestoreGenerationAuthority.Identity? = nil
+    ) throws -> GenerationEpochV1? {
+        guard let loaded = try store.loadManifestIfPresent(
+            targetGenerationID: id
+        ) else {
+            return nil
+        }
+        let root = installedGenerationURL(id: id)
+        guard try itemType(at: root) == .typeDirectory,
+              loaded.manifest.generationID == id else {
+            return nil
+        }
+        try protectGeneration(at: root, staging: false, requireModel: true)
+        let descriptor = try openOwnedDirectory(at: root)
+        defer { _ = Darwin.close(descriptor) }
+        let provedIdentity = try StoreRestoreGenerationAuthority
+            .directoryIdentity(descriptor: descriptor)
+        guard expectedRootIdentity.map({ $0 == provedIdentity }) ?? true else {
+            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+        }
+        try verifyOwnedDirectory(at: root, descriptor: descriptor)
+        _ = try StoreRestoreGenerationAuthority.exactGenerationEntries(
+            parent: descriptor,
+            requireModel: true
+        )
+        let modelURL = root.appendingPathComponent(Self.modelStoreName)
+        // A V4 manifest is the immutable logical-lineage authority, while its
+        // SQLite bytes and sidecars are intentionally mutable. Install-time
+        // file/inode identity cannot be a semantic anchor: normal WAL/SHM
+        // lifecycle and a legitimate backup/replace restore assign new
+        // identities. V4 therefore proves the manifest-bound schema and
+        // migration marker plus the unique workspace/replica state and its
+        // canonical mutable semantics below. Physical identity is only a
+        // local TOCTOU boundary: it starts at `provedIdentity` and, for prune,
+        // must match the descriptor identity consumed by quarantine removal.
+        if loaded.manifest.storeSchemaRelease != .v4 {
+            let observedFiles = try generationFileDigests(
+                at: root,
+                durable: true
+            )
+            guard observedFiles == loaded.manifest.files,
+                  loaded.manifest.frozenIdentityDigest
+                    == (try frozenIdentityDigest(for: root)),
+                  loaded.manifest.semanticSHA256
+                    == (try semanticDigest(
+                        at: modelURL,
+                        release: loaded.manifest.storeSchemaRelease
+                    )) else {
+                throw GenerationLeaseRegistryFailureV1.corruptRegistry
+            }
+        }
+        try autoreleasepool {
+            let container: ModelContainer
+            switch loaded.manifest.storeSchemaRelease {
+            case .v1:
+                container = try makeV1Container(at: modelURL)
+            case .v2:
+                container = try makeV2Container(at: modelURL, migrate: false)
+                _ = try requireV2Marker(
+                    in: container.mainContext,
+                    expectedMigrationID: loaded.manifest.migrationID
+                )
+            case .v3:
+                container = try makeV3Container(at: modelURL, migrate: false)
+                _ = try requireV3Marker(
+                    in: container.mainContext,
+                    expectedMigrationID: loaded.manifest.migrationID
+                )
+            case .v4:
+                container = try makeV4Container(at: modelURL, migrate: false)
+                _ = try requireV4Marker(
+                    in: container.mainContext,
+                    expectedMigrationID: loaded.manifest.migrationID
+                )
+                let states = try container.mainContext.fetch(
+                    FetchDescriptor<WorkspaceMutationStateRow>()
+                )
+                guard states.count == 1,
+                      let state = states.first,
+                      state.generationID == id else {
+                    throw GenerationLeaseRegistryFailureV1.corruptRegistry
+                }
+                let identity = try WorkspaceReplicaIdentityV1(
+                    workspaceID: WorkspaceID(rawValue: state.workspaceID),
+                    replicaID: ReplicaID(rawValue: state.activeReplicaID)
+                )
+                let journal = try MutationJournalStoreV1(
+                    modelContext: container.mainContext,
+                    identity: identity,
+                    generationID: id,
+                    allowStateBootstrap: false
+                )
+                try journal.validateAll()
+            }
+        }
+        try verifyOwnedDirectory(at: root, descriptor: descriptor)
+        guard try StoreRestoreGenerationAuthority.directoryIdentity(
+                  descriptor: descriptor
+              ) == provedIdentity else {
+            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+        }
+        if loaded.manifest.storeSchemaRelease != .v4,
+           loaded.manifest.frozenIdentityDigest
+            != (try frozenIdentityDigest(for: root)) {
+            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+        }
+        return try GenerationEpochV1(
+            generationID: id,
+            generationManifestSHA256: loaded.digest
+        )
+    }
+
+    private func quarantineAndRemovePruneCandidate(
+        _ epoch: GenerationEpochV1,
+        operationID: UUID,
+        store: StoreMigrationJournalStoreV1
+    ) throws {
+        let parent = try openOwnedDirectory(at: generationsURL)
+        defer { _ = Darwin.close(parent) }
+        try verifyOwnedDirectory(at: generationsURL, descriptor: parent)
+        let sourceName = canonicalString(for: epoch.generationID)
+        let prefix = ".prune-\(canonicalString(for: operationID))-\(sourceName)-"
+        let existing = try StoreRestoreGenerationAuthority.names(in: parent)
+            .filter { $0.hasPrefix(prefix) }
+        guard existing.count <= 1 else {
+            throw GenerationLeaseRegistryFailureV1.corruptRegistry
+        }
+
+        let quarantineName: String
+        let expectedIdentity: StoreRestoreGenerationAuthority.Identity
+        if try StoreRestoreGenerationAuthority.itemExists(
+            parent: parent,
+            name: sourceName
+        ) {
+            guard existing.isEmpty else {
+                throw GenerationLeaseRegistryFailureV1.corruptRegistry
+            }
+            let source = Darwin.openat(
+                parent,
+                sourceName,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard source >= 0 else {
+                throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            }
+            defer { _ = Darwin.close(source) }
+            expectedIdentity = try StoreRestoreGenerationAuthority
+                .directoryIdentity(descriptor: source)
+            guard let provedEpoch = try acceptedGenerationEpoch(
+                id: epoch.generationID,
+                store: store,
+                expectedRootIdentity: expectedIdentity
+            ), provedEpoch == epoch,
+                  try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(
+                      parent: parent,
+                      name: sourceName
+                  ) == expectedIdentity else {
+                throw GenerationLeaseRegistryFailureV1.corruptRegistry
+            }
+            quarantineName = "\(prefix)\(expectedIdentity.device)-\(expectedIdentity.inode)"
+            guard Darwin.renameatx_np(
+                parent,
+                sourceName,
+                parent,
+                quarantineName,
+                UInt32(RENAME_EXCL)
+            ) == 0,
+                  Darwin.fsync(parent) == 0 else {
+                throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            }
+            let renamedIdentity = try StoreRestoreGenerationAuthority
+                .requiredDirectoryIdentity(parent: parent, name: quarantineName)
+            guard renamedIdentity == expectedIdentity else {
+                throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            }
+            try removeQuarantinedGeneration(
+                parent: parent,
+                name: quarantineName,
+                expectedIdentity: expectedIdentity
+            )
+            return
+        }
+
+        guard let recoveredName = existing.first,
+              let recoveredIdentity = pruneQuarantineIdentity(
+                  name: recoveredName,
+                  prefix: prefix
+              ) else {
+            // Neither source nor quarantine exists: a prior attempt completed
+            // byte removal before it could advance the durable intent.
+            return
+        }
+        quarantineName = recoveredName
+        expectedIdentity = recoveredIdentity
+        try removeQuarantinedGeneration(
+            parent: parent,
+            name: quarantineName,
+            expectedIdentity: expectedIdentity
+        )
+    }
+
+    private func removeQuarantinedGeneration(
+        parent: Int32,
+        name: String,
+        expectedIdentity: StoreRestoreGenerationAuthority.Identity
+    ) throws {
+        guard try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(
+            parent: parent,
+            name: name
+        ) == expectedIdentity else {
+            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+        }
+        let descriptor = Darwin.openat(
+            parent,
+            name,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard descriptor >= 0 else {
+            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+        }
+        defer { _ = Darwin.close(descriptor) }
+        guard try StoreRestoreGenerationAuthority.directoryIdentity(
+            descriptor: descriptor
+        ) == expectedIdentity else {
+            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+        }
+        let names = try StoreRestoreGenerationAuthority.names(in: descriptor)
+        guard Set(names).isSubset(
+            of: StoreRestoreGenerationAuthority.generationStoreNames
+        ) else {
+            throw GenerationLeaseRegistryFailureV1.corruptRegistry
+        }
+        for childName in names {
+            let captured = try StoreRestoreGenerationAuthority
+                .regularFileIdentity(parent: descriptor, name: childName)
+            guard captured.linkCount == 1,
+                  try StoreRestoreGenerationAuthority.regularFileIdentity(
+                      parent: descriptor,
+                      name: childName
+                  ) == captured,
+                  Darwin.unlinkat(descriptor, childName, 0) == 0 else {
+                throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            }
+        }
+        guard Darwin.fsync(descriptor) == 0,
+              try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(
+                  parent: parent,
+                  name: name
+              ) == expectedIdentity,
+              Darwin.unlinkat(parent, name, AT_REMOVEDIR) == 0,
+              Darwin.fsync(parent) == 0 else {
+            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+        }
+    }
+
+    private func pruneQuarantineIdentity(
+        name: String,
+        prefix: String
+    ) -> StoreRestoreGenerationAuthority.Identity? {
+        guard name.hasPrefix(prefix) else { return nil }
+        let components = name.dropFirst(prefix.count).split(separator: "-")
+        guard components.count == 2,
+              let device = UInt64(components[0]),
+              let inode = UInt64(components[1]) else {
+            return nil
+        }
+        return StoreRestoreGenerationAuthority.Identity(
+            device: dev_t(device),
+            inode: ino_t(inode)
+        )
+    }
+
+    private func pruneInventoryDigest(
+        currentEpoch: GenerationEpochV1,
+        retiredEpochs: [GenerationEpochV1],
+        activeEpochs: Set<GenerationEpochV1>,
+        uncertainGenerationIDs: [UUID]
+    ) throws -> String {
+        let inventory = StoreGenerationPruneInventoryV1(
+            currentEpoch: currentEpoch,
+            retiredEpochs: retiredEpochs.sorted(by: Self.epochOrder),
+            activeEpochs: activeEpochs.sorted(by: Self.epochOrder),
+            uncertainGenerationIDs: uncertainGenerationIDs.sorted(
+                by: Self.idOrder
+            )
+        )
+        return StoreMigrationCanonicalJSONV1.sha256(
+            try StoreMigrationCanonicalJSONV1.encode(inventory)
+        )
+    }
+
+    private static func epochOrder(
+        _ lhs: GenerationEpochV1,
+        _ rhs: GenerationEpochV1
+    ) -> Bool {
+        idOrder(lhs.generationID, rhs.generationID)
+    }
+
+    private static func idOrder(_ lhs: UUID, _ rhs: UUID) -> Bool {
+        lhs.uuidString.lowercased() < rhs.uuidString.lowercased()
     }
 
     @MainActor
@@ -5737,8 +6623,6 @@ struct StoreGenerationFactory {
         id: UUID,
         authority: StoreRestoreGenerationAuthority
     ) throws -> StoreGenerationSession {
-        try authority.requireInstalledGeneration(id: id)
-        try authority.protectInstalledGeneration(id: id)
         let currentBefore = try authority.currentGenerationID()
         let identity = try installedOpenIdentity(
             id: id,
@@ -5763,8 +6647,6 @@ struct StoreGenerationFactory {
         identity: WorkspaceReplicaIdentityV1,
         authority: StoreRestoreGenerationAuthority
     ) throws -> StoreGenerationSession {
-        try authority.requireInstalledGeneration(id: id)
-        try authority.protectInstalledGeneration(id: id)
         let session = try openGeneration(
             id: id,
             at: installedGenerationURL(id: id),
@@ -6195,6 +7077,17 @@ struct StoreGenerationFactory {
         value: Value,
         in root: URL
     ) throws {
+        let registry = try makeGenerationLeaseRegistry()
+        try registry.withExclusiveGenerationMutationLock {
+            try publishPointerLocked(name: name, value: value, in: root)
+        }
+    }
+
+    private func publishPointerLocked<Value: Encodable>(
+        name: String,
+        value: Value,
+        in root: URL
+    ) throws {
         Self.pointerMutationLock.lock()
         defer { Self.pointerMutationLock.unlock() }
         try StoreRestoreGenerationAuthority.requireSafeBasename(name)
@@ -6283,6 +7176,21 @@ struct StoreGenerationFactory {
     }
 
     private func replacePointer<Value: Encodable>(
+        name: String,
+        value: Value,
+        expectedData requiredExpectedData: Data? = nil
+    ) throws {
+        let registry = try makeGenerationLeaseRegistry()
+        try registry.withExclusiveGenerationMutationLock {
+            try replacePointerLocked(
+                name: name,
+                value: value,
+                expectedData: requiredExpectedData
+            )
+        }
+    }
+
+    private func replacePointerLocked<Value: Encodable>(
         name: String,
         value: Value,
         expectedData requiredExpectedData: Data? = nil
@@ -6580,6 +7488,10 @@ struct StoreGenerationFactory {
         let pointerAuthority = try makeRestoreGenerationAuthority()
         _ = try pointerAuthority.currentGenerationID()
         _ = try pointerAuthority.retiredGenerationIDs()
+        let leaseRegistry = try makeGenerationLeaseRegistry()
+        if try leaseRegistry.loadPruneIntent() != nil {
+            _ = try reconcileGenerationLeasesAndPrune()
+        }
 
         do {
             let migrationStore = try StoreMigrationJournalStoreV1(
@@ -6882,36 +7794,6 @@ struct StoreGenerationFactory {
             throw StoreGenerationFailure.dataGenerationMissing
         }
 
-        for generationName in expectedGenerationNames {
-            let generationURL = generationsURL.appendingPathComponent(
-                generationName,
-                isDirectory: true
-            )
-            guard let generationType = try itemType(at: generationURL) else {
-                throw StoreGenerationFailure.dataGenerationMissing
-            }
-            guard generationType == .typeDirectory else {
-                throw StoreGenerationFailure.dataPointerInvalid
-            }
-            try protectGeneration(at: generationURL, staging: false, requireModel: true)
-        }
-
-        let generationRootURL = generationsURL.appendingPathComponent(
-            currentName,
-            isDirectory: true
-        )
-        let modelStoreURL = generationRootURL.appendingPathComponent(
-            Self.modelStoreName,
-            isDirectory: false
-        )
-        guard let modelStoreType = try itemType(at: modelStoreURL) else {
-            throw StoreGenerationFailure.dataGenerationMissing
-        }
-        guard modelStoreType == .typeRegular else {
-            throw StoreGenerationFailure.dataPointerInvalid
-        }
-        try protectGeneration(at: generationRootURL, staging: false, requireModel: true)
-
         switch current {
         case .legacy(let pointer, let data):
             return try beginMigration(
@@ -6924,24 +7806,44 @@ struct StoreGenerationFactory {
             )
         case .v2(let pointer, _):
             let enriched = try enrichCurrentPointer(pointer)
-            return try beginMigration(
-                sourcePointer: enriched,
-                sourcePointerData: try enriched.canonicalData(),
-                retired: retired,
-                dataRootURL: dataRootURL,
-                store: store,
-                processID: processID
+            let sourceLease = try acquireCurrentReaderLease(
+                epoch: GenerationEpochV1(
+                    generationID: currentID,
+                    generationManifestSHA256:
+                        enriched.generationManifestSHA256
+                ),
+                expectedPointerData: try enriched.canonicalData()
             )
-        case .v3(let pointer, let data):
-            if pointer.storeSchemaVersion < 4 {
-                return try beginMigration(
-                    sourcePointer: pointer,
-                    sourcePointerData: data,
+            return try withExtendedLifetime(sourceLease) {
+                try beginMigration(
+                    sourcePointer: enriched,
+                    sourcePointerData: try enriched.canonicalData(),
                     retired: retired,
                     dataRootURL: dataRootURL,
                     store: store,
                     processID: processID
                 )
+            }
+        case .v3(let pointer, let data):
+            if pointer.storeSchemaVersion < 4 {
+                let sourceLease = try acquireCurrentReaderLease(
+                    epoch: GenerationEpochV1(
+                        generationID: currentID,
+                        generationManifestSHA256:
+                            pointer.generationManifestSHA256
+                    ),
+                    expectedPointerData: data
+                )
+                return try withExtendedLifetime(sourceLease) {
+                    try beginMigration(
+                        sourcePointer: pointer,
+                        sourcePointerData: data,
+                        retired: retired,
+                        dataRootURL: dataRootURL,
+                        store: store,
+                        processID: processID
+                    )
+                }
             }
             return try openValidatedV3Current(pointer: pointer, dataRootURL: dataRootURL, store: store)
         }
@@ -6978,12 +7880,41 @@ struct StoreGenerationFactory {
         at generationRootURL: URL,
         identity: WorkspaceReplicaIdentityV1? = nil
     ) throws -> StoreGenerationSession {
-        guard generationRootURL.lastPathComponent == canonicalString(for: id),
-              try itemType(at: generationRootURL) == .typeDirectory else {
+        guard generationRootURL.lastPathComponent == canonicalString(for: id) else {
             throw StoreGenerationFailure.dataGenerationMissing
         }
         let restoreRoot = restoreStagingGenerationURL(id: id)
         let staging = generationRootURL.standardizedFileURL == restoreRoot.standardizedFileURL
+        let epoch: GenerationEpochV1?
+        let readerLease: GenerationLeaseHandleV1?
+        let acceptedInstalledGeneration: Bool
+        if staging {
+            acceptedInstalledGeneration = false
+        } else {
+            let authority = try makeRestoreGenerationAuthority()
+            acceptedInstalledGeneration = try authority.currentGenerationID() == id
+                || authority.retiredGenerationIDs().contains(id)
+        }
+        if acceptedInstalledGeneration {
+            guard let manifest = try StoreMigrationJournalStoreV1(
+                applicationSupportURL: applicationSupportURL
+            ).loadManifestIfPresent(targetGenerationID: id),
+                  manifest.manifest.generationID == id else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let acceptedEpoch = try GenerationEpochV1(
+                generationID: id,
+                generationManifestSHA256: manifest.digest
+            )
+            epoch = acceptedEpoch
+            readerLease = try acquireAcceptedReaderLease(epoch: acceptedEpoch)
+        } else {
+            epoch = nil
+            readerLease = nil
+        }
+        guard try itemType(at: generationRootURL) == .typeDirectory else {
+            throw StoreGenerationFailure.dataGenerationMissing
+        }
         try protectGeneration(at: generationRootURL, staging: staging, requireModel: true)
         let modelStoreURL = generationRootURL.appendingPathComponent(
             Self.modelStoreName,
@@ -7005,6 +7936,8 @@ struct StoreGenerationFactory {
             generationRootURL: generationRootURL,
             workspaceIdentity: resolvedIdentity,
             modelContainer: container,
+            generationEpoch: epoch,
+            readerLeaseHandle: readerLease,
             afterSaveReproof: { [self] in
                 try self.protectGeneration(
                     at: generationRootURL,
@@ -7110,6 +8043,33 @@ struct StoreGenerationFactory {
             return .typeUnknown
         }
     }
+}
+
+private final class StoreGenerationLeaseRegistryProvider: @unchecked Sendable {
+    private let lock = NSLock()
+    private var retainedRegistry: GenerationLeaseRegistryV1?
+
+    func registry(
+        applicationSupportURL: URL
+    ) throws -> GenerationLeaseRegistryV1 {
+        lock.lock()
+        defer { lock.unlock() }
+        if let retainedRegistry {
+            return retainedRegistry
+        }
+        let registry = try GenerationLeaseRegistryV1(
+            applicationSupportURL: applicationSupportURL
+        )
+        retainedRegistry = registry
+        return registry
+    }
+}
+
+private struct StoreGenerationPruneInventoryV1: Codable {
+    let currentEpoch: GenerationEpochV1
+    let retiredEpochs: [GenerationEpochV1]
+    let activeEpochs: [GenerationEpochV1]
+    let uncertainGenerationIDs: [UUID]
 }
 
 private struct StoreSemanticEnvelopeV3: Codable {

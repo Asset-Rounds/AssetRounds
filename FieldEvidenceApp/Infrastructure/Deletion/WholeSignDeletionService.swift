@@ -113,6 +113,9 @@ final class WholeSignDeletionService {
     private let journal: DeletionJournalStore
     private let files: DeletionGenerationFiles
     private let ledgerStore: DeletionLedgerStore
+    private let writerLeaseHandle: GenerationLeaseHandleV1?
+    private let staleWriterFence: StaleWriterFenceV1?
+    private let allowsLegacyXCTestFallback: Bool
     private let now: () -> Date
     private let makeUUID: () -> UUID
     private let failureInjection: WholeSignDeletionFailureInjection?
@@ -131,12 +134,28 @@ final class WholeSignDeletionService {
         self.now = now
         self.makeUUID = makeUUID
         self.failureInjection = failureInjection
-        _ = fileManager // Kept for source-compatible test construction only.
 
         let root = generationRootURL.standardizedFileURL
         let generations = root.deletingLastPathComponent()
         let dataRoot = generations.deletingLastPathComponent()
         let applicationSupport = dataRoot.deletingLastPathComponent()
+#if DEBUG
+        let canonicalCurrentPointer = applicationSupport
+            .appendingPathComponent("FieldEvidenceData", isDirectory: true)
+            .appendingPathComponent("current.json")
+        let migrationAuthorityDirectory = applicationSupport
+            .appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
+            .appendingPathComponent("schema-migration", isDirectory: true)
+        allowsLegacyXCTestFallback = Self.isRunningUnderXCTest
+            && !fileManager.fileExists(atPath: canonicalCurrentPointer.path)
+            && !fileManager.fileExists(
+                atPath: migrationAuthorityDirectory.path
+            )
+#else
+        allowsLegacyXCTestFallback = false
+#endif
+        var derivedWriterLeaseHandle: GenerationLeaseHandleV1?
+        var derivedStaleWriterFence: StaleWriterFenceV1?
         if generations.lastPathComponent == "generations",
            dataRoot.lastPathComponent == "FieldEvidenceData",
            let parsed = UUID(uuidString: root.lastPathComponent),
@@ -148,11 +167,47 @@ final class WholeSignDeletionService {
             generationID = parsed
             files = fileAuthority
             journal = journalAuthority
+            do {
+                let generationFactory = StoreGenerationFactory(
+                    applicationSupportURL: applicationSupport
+                )
+                let registry = try generationFactory
+                    .makeGenerationLeaseRegistry()
+                let epoch = try generationFactory.currentGenerationEpoch()
+                guard epoch.generationID == parsed else {
+                    throw GenerationLeaseRegistryFailureV1.staleGeneration
+                }
+                let leaseHandle = try registry.acquireHandle(
+                    epoch: epoch,
+                    role: .writer
+                )
+                do {
+                    derivedStaleWriterFence = try generationFactory
+                        .makeWriterFence(
+                            expectedGenerationEpoch: epoch,
+                            writerLeaseToken: leaseHandle.token,
+                            registry: registry
+                        )
+                    derivedWriterLeaseHandle = leaseHandle
+                } catch {
+                    // Retain a lease whose fence could not be constructed.
+                    // Releasing it here could fail ambiguously; keeping it is
+                    // fail-closed and prevents this service from authorizing
+                    // deletion or making the generation prune-eligible.
+                    derivedWriterLeaseHandle = leaseHandle
+                    derivedStaleWriterFence = nil
+                }
+            } catch {
+                derivedWriterLeaseHandle = nil
+                derivedStaleWriterFence = nil
+            }
         } else {
             generationID = UUID()
             files = DeletionGenerationFiles.invalid
             journal = DeletionJournalStore.invalid
         }
+        writerLeaseHandle = derivedWriterLeaseHandle
+        staleWriterFence = derivedStaleWriterFence
     }
 
     func delete(assetID: UUID) async throws -> WholeSignDeletionOutcome {
@@ -209,9 +264,7 @@ final class WholeSignDeletionService {
         do {
             try ledgerStore.stageUnion(plan.intent.ledgerEntries)
             try apply(plan: plan, rows: rows)
-            try stageMutationSemanticState()
-            try inject(.databaseSave)
-            try modelContext.save()
+            try saveStagedMutationWithAuthority()
         } catch {
             for packet in rows.packets {
                 if let state = packetStates[packet.id] {
@@ -328,9 +381,7 @@ final class WholeSignDeletionService {
                 try apply(plan: plan, rows: rows)
             }
             modelContext.delete(site)
-            try stageMutationSemanticState()
-            try inject(.databaseSave)
-            try modelContext.save()
+            try saveStagedMutationWithAuthority()
         } catch {
             for packet in rows.packets {
                 if let state = packetStates[packet.id] {
@@ -413,9 +464,7 @@ final class WholeSignDeletionService {
                 do {
                     try ledgerStore.stageUnion(intent.ledgerEntries)
                     try apply(plan: plan, rows: rows)
-                    try stageMutationSemanticState()
-                    try inject(.databaseSave)
-                    try modelContext.save()
+                    try saveStagedMutationWithAuthority()
                 } catch {
                     for packet in rows.packets {
                         if let state = packetStates[packet.id] {
@@ -463,7 +512,78 @@ final class WholeSignDeletionService {
               files.generationID == generationID else {
             throw WholeSignDeletionServiceError.invalidGeneration
         }
+        if let writerLeaseHandle, let staleWriterFence {
+            guard writerLeaseHandle.token
+                    == staleWriterFence.writerLeaseToken,
+                  writerLeaseHandle.token.epoch.generationID
+                    == generationID else {
+                throw WholeSignDeletionServiceError.invalidGeneration
+            }
+            do {
+                try staleWriterFence.validateCurrent()
+                return
+            } catch {
+                throw WholeSignDeletionServiceError.invalidGeneration
+            }
+        }
+        guard writerLeaseHandle == nil, staleWriterFence == nil else {
+            throw WholeSignDeletionServiceError.invalidGeneration
+        }
+#if DEBUG
+        guard allowsLegacyXCTestFallback else {
+            throw WholeSignDeletionServiceError.invalidGeneration
+        }
+#else
+        throw WholeSignDeletionServiceError.invalidGeneration
+#endif
     }
+
+    /// The mutation lock covers only the synchronous semantic checkpoint and
+    /// SwiftData commit. Journal phase publication and file cleanup remain
+    /// outside it, and no suspension is possible while it is held.
+    private func saveStagedMutationWithAuthority() throws {
+        if let staleWriterFence {
+            do {
+                try staleWriterFence.withAuthorizedCommit { [self] in
+                    try stageMutationSemanticState()
+                    try inject(.databaseSave)
+                    try modelContext.save()
+                }
+            } catch let failure as GenerationLeaseRegistryFailureV1 {
+                switch failure {
+                case .staleGeneration, .leaseNotActive, .wrongLeaseRole:
+                    throw WholeSignDeletionServiceError.invalidGeneration
+                case .invalidContract, .invalidPath, .invalidIdentity,
+                        .corruptRegistry, .registryLimitExceeded,
+                        .duplicateLease, .uncertainOwner,
+                        .protectedDataUnavailable:
+                    throw WholeSignDeletionServiceError.saveFailed
+                }
+            }
+            return
+        }
+#if DEBUG
+        guard writerLeaseHandle == nil, allowsLegacyXCTestFallback else {
+            throw WholeSignDeletionServiceError.invalidGeneration
+        }
+        // Synthetic pre-generation test stores have no current pointer or
+        // manifest from which production authority can be derived. Preserve
+        // their historical fault-injection and rollback behavior only in the
+        // XCTest process; this branch is not compiled into RELEASE.
+        try stageMutationSemanticState()
+        try inject(.databaseSave)
+        try modelContext.save()
+#else
+        throw WholeSignDeletionServiceError.invalidGeneration
+#endif
+    }
+
+#if DEBUG
+    private static var isRunningUnderXCTest: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"]
+            != nil
+    }
+#endif
 
     private func inject(_ point: WholeSignDeletionFailurePoint) throws {
         if failureInjection?.consume(point) == true {
@@ -524,11 +644,8 @@ private extension WholeSignDeletionService {
                 workspaceID: WorkspaceID(rawValue: state.workspaceID),
                 replicaID: ReplicaID(rawValue: state.activeReplicaID)
             )
-            try MutationJournalStoreV1(
-                modelContext: modelContext,
-                identity: identity,
-                generationID: generationID
-            ).stageMutableSemanticStateAfterAuthorizedExternalMutation()
+            try mutationJournalStore(identity: identity)
+                .stageMutableSemanticStateAfterAuthorizedExternalMutation()
         } catch {
             throw WholeSignDeletionServiceError.journalInvalid
         }
@@ -563,14 +680,37 @@ private extension WholeSignDeletionService {
                 workspaceID: WorkspaceID(rawValue: state.workspaceID),
                 replicaID: ReplicaID(rawValue: state.activeReplicaID)
             )
-            return try MutationJournalStoreV1(
-                modelContext: modelContext,
-                identity: identity,
-                generationID: generationID
-            ).exportSnapshot()
+            return try mutationJournalStore(identity: identity)
+                .exportSnapshot()
         } catch {
             throw WholeSignDeletionServiceError.journalInvalid
         }
+    }
+
+    func mutationJournalStore(
+        identity: WorkspaceReplicaIdentityV1
+    ) throws -> MutationJournalStoreV1 {
+        if let staleWriterFence {
+            return try MutationJournalStoreV1(
+                modelContext: modelContext,
+                identity: identity,
+                generationID: generationID,
+                allowStateBootstrap: false,
+                staleWriterFence: staleWriterFence
+            )
+        }
+#if DEBUG
+        guard writerLeaseHandle == nil, allowsLegacyXCTestFallback else {
+            throw WholeSignDeletionServiceError.invalidGeneration
+        }
+        return try MutationJournalStoreV1(
+            modelContext: modelContext,
+            identity: identity,
+            generationID: generationID
+        )
+#else
+        throw WholeSignDeletionServiceError.invalidGeneration
+#endif
     }
 
     struct Rows {
