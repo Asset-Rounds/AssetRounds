@@ -14,7 +14,7 @@ concurrency:
 jobs:
   probe:
     runs-on: bitrise-m4-pro
-    timeout-minutes: 30
+    timeout-minutes: 90
     env:
       EXPECTED_XCODE_VERSION: Xcode 26.6
       EXPECTED_XCODE_BUILD: Build version 17F113
@@ -59,6 +59,17 @@ jobs:
           test -f Scripts/build-smoke.sh
           test -f "$PROJECT_PATH/project.pbxproj"
           test -f "$PROJECT_PATH/xcshareddata/xcschemes/$SCHEME.xcscheme"
+          test "$GITHUB_REF" = refs/heads/phase/s10-brand-refresh
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -n "${RUNNER_NAME:-}"
+          test "${RUNNER_ARCH:-}" = ARM64
+
+          expected_developer_dir=/Applications/Xcode-26.6.0.app/Contents/Developer
+          test "$(env -u DEVELOPER_DIR xcode-select -p)" = "$expected_developer_dir"
+          test -d "$expected_developer_dir"
+          DEVELOPER_DIR="$expected_developer_dir"
+          export DEVELOPER_DIR
+          printf 'DEVELOPER_DIR=%s\n' "$DEVELOPER_DIR" >> "$GITHUB_ENV"
 
           installer="$RUNNER_TEMP/bitrise-build-cache-installer.sh"
           release_archive="$RUNNER_TEMP/bitrise-build-cache_3.6.2_darwin_arm64.tar.gz"
@@ -96,12 +107,16 @@ jobs:
             '2DFBFA4364A3A133370071715B9A7D0F9C6D7661B71ABAC839F723901C547BC3' \
             > "$CI_ARTIFACT_DIR/cli-verification.txt"
 
-          set +e
-          /tmp/bin/bitrise-build-cache activate xcode --cache --cache-push \
-            > "$activation_raw" 2>&1
-          activation_status=$?
-          set -e
-          python3 - "$activation_raw" "$CI_ARTIFACT_DIR/cache-activation.log" <<'PY'
+          activation_ordinal=0
+          activate_bitrise_xcode_cache() {
+            activation_ordinal="$(( activation_ordinal + 1 ))"
+            set +e
+            /tmp/bin/bitrise-build-cache activate xcode --cache --cache-push \
+              > "$activation_raw" 2>&1
+            activation_status=$?
+            set -e
+            python3 - "$activation_raw" "$CI_ARTIFACT_DIR/cache-activation.log" \
+              "$activation_ordinal" <<'PY'
           import os
           import pathlib
           import sys
@@ -111,21 +126,27 @@ jobs:
               value = os.environ.get(name, "")
               if value:
                   source = source.replace(value, "[REDACTED]")
-          pathlib.Path(sys.argv[2]).write_text(source)
+          with pathlib.Path(sys.argv[2]).open("a") as stream:
+              stream.write(f"activation_ordinal={sys.argv[3]}\n")
+              stream.write(source)
+              if not source.endswith("\n"):
+                  stream.write("\n")
           PY
-          rm -f "$activation_raw"
-          test "$activation_status" -eq 0
-          printf 'activation_exit=0\ncache=true\ncache_push=true\n' \
-            >> "$CI_ARTIFACT_DIR/cache-activation.log"
+            rm -f "$activation_raw"
+            test "$activation_status" -eq 0
+            printf 'activation_exit=0\ncache=true\ncache_push=true\n' \
+              >> "$CI_ARTIFACT_DIR/cache-activation.log"
+          }
+          activate_bitrise_xcode_cache
+          export PATH="$HOME/.bitrise-xcelerate/bin:$PATH"
+          test "$(command -v xcodebuild)" = "$HOME/.bitrise-xcelerate/bin/xcodebuild"
+          test "$(command -v xcrun)" = "$HOME/.bitrise-xcelerate/bin/xcrun"
+          printf 'xcodebuild=%s\nxcrun=%s\n' \
+            "$(command -v xcodebuild)" "$(command -v xcrun)" \
+            > "$CI_ARTIFACT_DIR/cache-wrapper-paths.txt"
 
-          resolved_developer_dir="$(env -u DEVELOPER_DIR xcode-select -p)"
-          case "$resolved_developer_dir" in /*/Contents/Developer) ;; *) exit 1 ;; esac
-          test -d "$resolved_developer_dir"
-          DEVELOPER_DIR="$resolved_developer_dir"
-          export DEVELOPER_DIR
-          printf 'DEVELOPER_DIR=%s\n' "$DEVELOPER_DIR" >> "$GITHUB_ENV"
           printf 'runner_name=%s\nrunner_arch=%s\nuname_arch=%s\nmacos=%s\ndeveloper_dir=%s\n' \
-            "${RUNNER_NAME:-unknown}" "${RUNNER_ARCH:-unknown}" "$(uname -m)" \
+            "$RUNNER_NAME" "$RUNNER_ARCH" "$(uname -m)" \
             "$(sw_vers -productVersion)" "$DEVELOPER_DIR" \
             > "$CI_ARTIFACT_DIR/runner-toolchain.txt"
           printf 'repository=%s\nref=%s\nsha=%s\nrun_id=%s\nrun_attempt=%s\n' \
@@ -133,14 +154,17 @@ jobs:
             "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
             > "$CI_ARTIFACT_DIR/github-run.txt"
 
+          activate_bitrise_xcode_cache
           xcodebuild -version | tee "$CI_ARTIFACT_DIR/xcode-version.txt"
           grep -Fxq "$EXPECTED_XCODE_VERSION" "$CI_ARTIFACT_DIR/xcode-version.txt"
           grep -Fxq "$EXPECTED_XCODE_BUILD" "$CI_ARTIFACT_DIR/xcode-version.txt"
+          activate_bitrise_xcode_cache
           xcodebuild -list -json -project "$PROJECT_PATH" \
             | tee "$CI_ARTIFACT_DIR/xcode-list.json"
           jq -e --arg scheme "$SCHEME" \
             '.project.schemes | index($scheme) != null' \
             "$CI_ARTIFACT_DIR/xcode-list.json" > /dev/null
+          activate_bitrise_xcode_cache
           xcodebuild -showBuildSettings -project "$PROJECT_PATH" -scheme "$SCHEME" \
             -configuration "$CONFIGURATION" \
             | tee "$CI_ARTIFACT_DIR/build-settings.txt"
@@ -150,7 +174,54 @@ jobs:
           test "$(printf '%s\n' "$deployment_targets" | sed '/^$/d' | wc -l | tr -d ' ')" -eq 1
           test "$deployment_targets" = "$EXPECTED_MINIMUM_IOS"
 
+          simulator_budget_start_epoch="$(date +%s)"
           xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
+          cp "$CI_ARTIFACT_DIR/simulator-runtimes.json" \
+            "$CI_ARTIFACT_DIR/simulator-runtimes-before-provision.json"
+          exact_runtime_available=false
+          if jq -e --arg name "$SIMULATOR_RUNTIME" --arg build "$SIMULATOR_RUNTIME_BUILD" '
+            any(.runtimes[];
+              .name == $name and .buildversion == $build and .isAvailable == true)
+          ' "$CI_ARTIFACT_DIR/simulator-runtimes.json" > /dev/null; then
+            exact_runtime_available=true
+          fi
+          runtime_provisioned=false
+          if test "$exact_runtime_available" != true; then
+            simulator_elapsed_seconds="$(( $(date +%s) - simulator_budget_start_epoch ))"
+            runtime_provision_budget_seconds="$(( CI_SIMULATOR_BOOT_TIMEOUT_SECONDS - simulator_elapsed_seconds ))"
+            test "$runtime_provision_budget_seconds" -gt 0
+            activate_bitrise_xcode_cache
+            set +e
+            bash Scripts/run-with-timeout.sh "$runtime_provision_budget_seconds" \
+              xcodebuild -downloadPlatform iOS \
+                -buildVersion "$SIMULATOR_RUNTIME_BUILD" \
+                -architectureVariant universal \
+              2>&1 | tee "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+            provision_pipeline_status=( "${PIPESTATUS[@]}" )
+            set -e
+            test "${#provision_pipeline_status[@]}" -eq 2
+            printf '\nprovision_exit=%s\nprovision_tee_exit=%s\n' \
+              "${provision_pipeline_status[0]}" "${provision_pipeline_status[1]}" \
+              | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+            if test "${provision_pipeline_status[1]}" -ne 0; then
+              exit "${provision_pipeline_status[1]}"
+            fi
+            xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
+            test "${provision_pipeline_status[0]}" -eq 0
+            if jq -e --arg name "$SIMULATOR_RUNTIME" --arg build "$SIMULATOR_RUNTIME_BUILD" '
+              any(.runtimes[];
+                .name == $name and .buildversion == $build and .isAvailable == true)
+            ' "$CI_ARTIFACT_DIR/simulator-runtimes.json" > /dev/null; then
+              exact_runtime_available=true
+              runtime_provisioned=true
+            fi
+            test "$exact_runtime_available" = true
+            printf 'provision_zero_and_exact_runtime_verified=true\n' \
+              | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+          else
+            printf 'exact_runtime_preinstalled=true\n' \
+              > "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+          fi
           xcrun simctl list devices available -j > "$CI_ARTIFACT_DIR/simulator-devices.json"
           xcrun simctl list devicetypes -j > "$CI_ARTIFACT_DIR/simulator-device-types.json"
           runtime_id="$(jq -r --arg name "$SIMULATOR_RUNTIME" --arg build "$SIMULATOR_RUNTIME_BUILD" '
@@ -174,21 +245,32 @@ jobs:
             [.devices[$runtime][] | select(.udid == $udid) | .state]
             | if length == 1 then .[0] else error("selected simulator cardinality") end')"
           case "$simulator_state" in
-            Shutdown) xcrun simctl boot "$simulator_udid" ;;
+            Shutdown)
+              simulator_elapsed_seconds="$(( $(date +%s) - simulator_budget_start_epoch ))"
+              simulator_boot_budget_seconds="$(( CI_SIMULATOR_BOOT_TIMEOUT_SECONDS - simulator_elapsed_seconds ))"
+              test "$simulator_boot_budget_seconds" -gt 0
+              bash Scripts/run-with-timeout.sh "$simulator_boot_budget_seconds" \
+                xcrun simctl boot "$simulator_udid" \
+                2>&1 | tee "$CI_ARTIFACT_DIR/simulator-boot.log"
+              ;;
             Booted) ;;
             *) exit 1 ;;
           esac
-          bash Scripts/run-with-timeout.sh "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
+          simulator_elapsed_seconds="$(( $(date +%s) - simulator_budget_start_epoch ))"
+          simulator_boot_budget_seconds="$(( CI_SIMULATOR_BOOT_TIMEOUT_SECONDS - simulator_elapsed_seconds ))"
+          test "$simulator_boot_budget_seconds" -gt 0
+          bash Scripts/run-with-timeout.sh "$simulator_boot_budget_seconds" \
             xcrun simctl bootstatus "$simulator_udid" -b \
-            2>&1 | tee "$CI_ARTIFACT_DIR/simulator-boot.log"
-          printf 'runtime=%s\nruntime_build=%s\nname=%s\nudid=%s\ninitial_state=%s\n' \
+            2>&1 | tee -a "$CI_ARTIFACT_DIR/simulator-boot.log"
+          printf 'runtime=%s\nruntime_build=%s\nname=%s\nudid=%s\ninitial_state=%s\nruntime_provisioned=%s\n' \
             "$SIMULATOR_RUNTIME" "$SIMULATOR_RUNTIME_BUILD" "$SIMULATOR_NAME" \
-            "$simulator_udid" "$simulator_state" \
+            "$simulator_udid" "$simulator_state" "$runtime_provisioned" \
             > "$CI_ARTIFACT_DIR/simulator-selection.txt"
           CI_SIMULATOR_UDID="$simulator_udid"
           CI_DESTINATION="platform=iOS Simulator,id=$simulator_udid"
           export CI_SIMULATOR_UDID CI_DESTINATION
 
+          activate_bitrise_xcode_cache
           set +e
           bash Scripts/run-with-timeout.sh "$CI_BUILD_TIMEOUT_SECONDS" \
             bash Scripts/build-smoke.sh \
@@ -351,4 +433,5 @@ jobs:
           name: bitrise-build-hub-probe-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/BitriseBuildHubProbe
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 14

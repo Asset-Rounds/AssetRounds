@@ -110,7 +110,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             sha256: "F8D676B0757F45F0977DCD12E07F72875696B07D96A197CBD8346B6A08112316"
         )
         let dispatcherSource = try text(dispatcherPath)
-        let bitriseProbeSource = try text(".github/workflows/bitrise-build-hub-probe.yml")
+        let bitriseProbePath = ".github/workflows/bitrise-build-hub-probe.yml"
+        try assertFile(
+            bitriseProbePath,
+            byteCount: 20_714,
+            sha256: "A0064EE27D79ECE5974CAB913AF5C1D9237A4F2FE726C4666BB2F6353279A83C"
+        )
+        let bitriseProbeSource = try text(bitriseProbePath)
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
@@ -324,6 +330,159 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         XCTAssertEqual(bitriseProbeSource.components(separatedBy: "concurrency:").count - 1, 1)
+        let bitriseActivation =
+            "/tmp/bin/bitrise-build-cache activate xcode --cache --cache-push"
+        let bitriseExactDeveloper =
+            "expected_developer_dir=/Applications/Xcode-26.6.0.app/Contents/Developer"
+        let bitriseWrapperExport = #"export PATH="$HOME/.bitrise-xcelerate/bin:$PATH""#
+        let bitriseXcodeVersion = "xcodebuild -version | tee"
+        let bitriseRuntimeInventory = "simulator-runtimes-before-provision.json"
+        let bitriseRuntimeProvision = "xcodebuild -downloadPlatform iOS"
+        let bitriseUnsignedBuild = "bash Scripts/build-smoke.sh"
+        XCTAssertEqual(bitriseProbeSource.components(separatedBy: bitriseActivation).count - 1, 1)
+        XCTAssertEqual(
+            bitriseProbeSource.components(separatedBy: bitriseExactDeveloper).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            bitriseProbeSource.components(
+                separatedBy: #"test "$GITHUB_REF" = refs/heads/phase/s10-brand-refresh"#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            bitriseProbeSource.components(
+                separatedBy: #"test "$(git rev-parse HEAD)" = "$GITHUB_SHA""#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            bitriseProbeSource.components(separatedBy: "    timeout-minutes: 90").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            bitriseProbeSource.components(separatedBy: "activate_bitrise_xcode_cache").count - 1,
+            7
+        )
+        var cacheActivatedSincePriorXcodeInvocation = false
+        var xcodeInvocationCount = 0
+        for line in bitriseProbeSource.components(separatedBy: "\n") {
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+            if trimmedLine == "activate_bitrise_xcode_cache" {
+                cacheActivatedSincePriorXcodeInvocation = true
+            }
+            if trimmedLine.hasPrefix("xcodebuild ")
+                || trimmedLine == #"bash Scripts/build-smoke.sh \"# {
+                XCTAssertTrue(
+                    cacheActivatedSincePriorXcodeInvocation,
+                    "Bitrise cache activation must precede every Xcode invocation"
+                )
+                cacheActivatedSincePriorXcodeInvocation = false
+                xcodeInvocationCount += 1
+            }
+        }
+        XCTAssertEqual(xcodeInvocationCount, 5)
+        XCTAssertEqual(bitriseProbeSource.components(separatedBy: bitriseWrapperExport).count - 1, 1)
+        XCTAssertEqual(
+            bitriseProbeSource.components(
+                separatedBy: #"test "$(command -v xcodebuild)" = "$HOME/.bitrise-xcelerate/bin/xcodebuild""#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            bitriseProbeSource.components(
+                separatedBy: #"test "$(command -v xcrun)" = "$HOME/.bitrise-xcelerate/bin/xcrun""#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(bitriseProbeSource.components(separatedBy: bitriseXcodeVersion).count - 1, 1)
+        XCTAssertEqual(bitriseProbeSource.components(separatedBy: bitriseRuntimeInventory).count - 1, 1)
+        XCTAssertEqual(bitriseProbeSource.components(separatedBy: bitriseRuntimeProvision).count - 1, 1)
+        XCTAssertEqual(
+            bitriseProbeSource.components(
+                separatedBy: #"-buildVersion "$SIMULATOR_RUNTIME_BUILD""#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            bitriseProbeSource.components(separatedBy: "-architectureVariant universal").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            bitriseProbeSource.components(
+                separatedBy: #"runtime_provision_budget_seconds="$(( CI_SIMULATOR_BOOT_TIMEOUT_SECONDS - simulator_elapsed_seconds ))""#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            bitriseProbeSource.components(
+                separatedBy: #"simulator_boot_budget_seconds="$(( CI_SIMULATOR_BOOT_TIMEOUT_SECONDS - simulator_elapsed_seconds ))""#
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            bitriseProbeSource.components(
+                separatedBy: #"test "${provision_pipeline_status[0]}" -eq 0"#
+            ).count - 1,
+            1
+        )
+        XCTAssertFalse(
+            bitriseProbeSource.contains("provision_nonzero_but_exact_runtime_available=true")
+        )
+        XCTAssertEqual(
+            bitriseProbeSource.components(
+                separatedBy: #"run-with-timeout.sh "$simulator_boot_budget_seconds""#
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            bitriseProbeSource.components(separatedBy: "include-hidden-files: true").count - 1,
+            1
+        )
+        XCTAssertEqual(bitriseProbeSource.components(separatedBy: bitriseUnsignedBuild).count - 1, 1)
+        XCTAssertEqual(
+            bitriseProbeSource.components(separatedBy: "runtime_provisioned=%s").count - 1,
+            1
+        )
+        for forbiddenRuntime in ["iOS 26.3", "iOS 26.4", "iOS 26.5"] {
+            XCTAssertFalse(bitriseProbeSource.contains(forbiddenRuntime), forbiddenRuntime)
+        }
+        guard
+            let bitriseDeveloperRange = bitriseProbeSource.range(of: bitriseExactDeveloper),
+            let bitriseActivationRange = bitriseProbeSource.range(
+                of: bitriseActivation,
+                range: bitriseDeveloperRange.upperBound..<bitriseProbeSource.endIndex
+            ),
+            let bitriseWrapperRange = bitriseProbeSource.range(
+                of: bitriseWrapperExport,
+                range: bitriseActivationRange.upperBound..<bitriseProbeSource.endIndex
+            ),
+            let bitriseXcodeRange = bitriseProbeSource.range(
+                of: bitriseXcodeVersion,
+                range: bitriseWrapperRange.upperBound..<bitriseProbeSource.endIndex
+            ),
+            let bitriseInventoryRange = bitriseProbeSource.range(
+                of: bitriseRuntimeInventory,
+                range: bitriseXcodeRange.upperBound..<bitriseProbeSource.endIndex
+            ),
+            let bitriseProvisionRange = bitriseProbeSource.range(
+                of: bitriseRuntimeProvision,
+                range: bitriseInventoryRange.upperBound..<bitriseProbeSource.endIndex
+            ),
+            let bitriseBuildRange = bitriseProbeSource.range(
+                of: bitriseUnsignedBuild,
+                range: bitriseProvisionRange.upperBound..<bitriseProbeSource.endIndex
+            )
+        else {
+            XCTFail("Bitrise toolchain, activation, wrapper, runtime provisioning, and build order drifted")
+            return
+        }
+        XCTAssertLessThan(bitriseDeveloperRange.lowerBound, bitriseActivationRange.lowerBound)
+        XCTAssertLessThan(bitriseActivationRange.lowerBound, bitriseWrapperRange.lowerBound)
+        XCTAssertLessThan(bitriseWrapperRange.lowerBound, bitriseXcodeRange.lowerBound)
+        XCTAssertLessThan(bitriseXcodeRange.lowerBound, bitriseInventoryRange.lowerBound)
+        XCTAssertLessThan(bitriseInventoryRange.lowerBound, bitriseProvisionRange.lowerBound)
+        XCTAssertLessThan(bitriseProvisionRange.lowerBound, bitriseBuildRange.lowerBound)
 
         let jobsMarker = "jobs:\n"
         let githubJobMarker = "  github-shard:\n"
