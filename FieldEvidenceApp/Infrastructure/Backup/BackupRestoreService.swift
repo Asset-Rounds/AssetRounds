@@ -148,6 +148,11 @@ final class BackupRestoreService {
                 && modelContext.fetchCount(FetchDescriptor<Packet>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<Report>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<DeletionLedgerRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<MutationQuarantineRow>()) == 0
+                && modelContext.fetchCount(
+                    FetchDescriptor<EntityMutationRevisionRow>()
+                ) == 0
         } catch {
             return false
         }
@@ -209,6 +214,20 @@ final class BackupRestoreService {
                 ),
                try intentStore.load() == nil else {
             throw BackupRestoreServiceError.currentGenerationInvalid
+        }
+        let frozenCurrentIdentity: WorkspaceReplicaIdentityV1
+        let incomingIdentity: WorkspaceReplicaIdentityV1?
+        do {
+            frozenCurrentIdentity = try generationFactory
+                .currentWorkspaceIdentity(
+                    expectedGenerationID: currentGenerationID,
+                    authority: generationAuthority
+                )
+            incomingIdentity = try sourceWorkspaceIdentity(
+                validatedPackage.manifest.source
+            )
+        } catch {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         let initialIsEmpty = Self.isEmptyCurrent(currentModelContext)
         let frozenCurrentRecords: V4BackupRecordsV1?
@@ -283,18 +302,33 @@ final class BackupRestoreService {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
         }
-        let expectedRecords: V4BackupRecordsV1
+        var expectedRecords: V4BackupRecordsV1
         do {
             expectedRecords = try ReplacementRestoreRule.makeDeletionWinningPlan(
                 DeletionWinningRestoreInputV2(
                     currentRecords: frozenCurrentRecords,
+                    currentIdentity: frozenCurrentIdentity,
                     incomingRecords: validatedPackage.records,
+                    incomingIdentity: incomingIdentity,
                     mode: mode,
                     replacementAt: now()
                 )
             ).recordsAfter
         } catch {
             throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        if validatedPackage.manifest.source.recordsSchemaVersion <= 2,
+           expectedRecords.mutationHistory == nil {
+            expectedRecords = replacingMutationHistoryForCurrentWriter(
+                in: expectedRecords,
+                with: MutationHistorySnapshotV1(
+                    workspaceRevision: 0,
+                    lastLocalSequence: 0,
+                    receipts: [],
+                    quarantines: [],
+                    entityRevisions: []
+                )
+            )
         }
         guard uniqueModelIDs(in: expectedRecords) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
@@ -311,44 +345,80 @@ final class BackupRestoreService {
 
         do {
             try Task.checkCancellation()
+            let preliminaryIdentityDecision = try makeIdentityDecision(
+                package: validatedPackage,
+                mode: mode,
+                currentGenerationID: currentGenerationID,
+                newGenerationID: newGenerationID,
+                targetManifestDigest: String(repeating: "0", count: 64)
+            )
+            expectedRecords = try recordsForMaterialization(
+                expectedRecords,
+                identityDecision: preliminaryIdentityDecision
+            )
             try materialize(
                 validatedPackage,
                 records: expectedRecords,
-                generationID: newGenerationID
+                generationID: newGenerationID,
+                identityDecision: preliminaryIdentityDecision,
+                legacyDestinationIdentity: frozenCurrentIdentity
             )
             try Task.checkCancellation()
             try validateStagingGeneration(
                 id: newGenerationID,
-                expected: expectedRecords
+                expected: expectedRecords,
+                identity: try preliminaryIdentityDecision.map {
+                    try workspaceIdentity($0)
+                } ?? frozenCurrentIdentity
             )
             try Task.checkCancellation()
-            let hasSourceIdentity = validatedPackage.manifest.source.workspaceID
-                != nil
-            let targetManifestDigest: String
-            if hasSourceIdentity {
-                targetManifestDigest = try generationFactory
-                    .prepareRestoreStagingGenerationManifest(
-                        expectedOldID: currentGenerationID,
-                        newID: newGenerationID,
-                        authority: generationAuthority
-                    )
-            } else {
-                targetManifestDigest = ""
+            let targetManifestDigest = try generationFactory
+                .prepareRestoreStagingGenerationManifest(
+                    expectedOldID: currentGenerationID,
+                    newID: newGenerationID,
+                    authority: generationAuthority
+                )
+            guard try generationFactory.currentWorkspaceIdentity(
+                    expectedGenerationID: currentGenerationID,
+                    authority: generationAuthority
+                  ) == frozenCurrentIdentity else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
             }
             let identityDecision = try makeIdentityDecision(
                 package: validatedPackage,
                 mode: mode,
                 currentGenerationID: currentGenerationID,
                 newGenerationID: newGenerationID,
-                targetManifestDigest: targetManifestDigest
+                targetManifestDigest: targetManifestDigest,
+                frozenWorkspaceID: preliminaryIdentityDecision.flatMap {
+                    $0.mode == .clone || $0.mode == .fork
+                        ? $0.targetPointer.workspaceID
+                        : nil
+                },
+                frozenReplicaID: preliminaryIdentityDecision.flatMap {
+                    let requiresReplica = $0.mode != .replaceExisting
+                        || $0.oldPointer.replicaID == $0.source.replicaID
+                    return requiresReplica ? $0.targetPointer.replicaID : nil
+                }
             )
-            if let identityDecision {
-                try validateStagingGeneration(
-                    id: newGenerationID,
-                    expected: expectedRecords,
-                    identity: try workspaceIdentity(identityDecision)
-                )
+            switch (preliminaryIdentityDecision, identityDecision) {
+            case (nil, nil):
+                break
+            case (let preliminary?, let final?):
+                guard try workspaceIdentity(preliminary)
+                        == workspaceIdentity(final) else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+            default:
+                throw BackupRestoreServiceError.invalidRestoreAuthority
             }
+            try validateStagingGeneration(
+                id: newGenerationID,
+                expected: expectedRecords,
+                identity: try identityDecision.map {
+                    try workspaceIdentity($0)
+                } ?? frozenCurrentIdentity
+            )
             let intent: RestoreIntentV1
             if let identityDecision {
                 intent = RestoreIntentV1(
@@ -413,7 +483,9 @@ final class BackupRestoreService {
             try validateInstalledGeneration(
                 id: newGenerationID,
                 expected: expectedRecords,
-                identity: try identityDecision.map { try workspaceIdentity($0) }
+                identity: try identityDecision.map {
+                    try workspaceIdentity($0)
+                } ?? frozenCurrentIdentity
             )
             try Task.checkCancellation()
             try inject(.afterGenerationInstall)
@@ -421,6 +493,12 @@ final class BackupRestoreService {
             try inject(.beforePointerSwitch)
             try Task.checkCancellation()
             try protectDataPointer(named: "current.json")
+            guard try generationFactory.currentWorkspaceIdentity(
+                    expectedGenerationID: currentGenerationID,
+                    authority: generationAuthority
+                  ) == frozenCurrentIdentity else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
             if let identityDecision {
                 let expectedCurrentPointer = try currentPointer(
                     identityDecision.oldPointer
@@ -534,6 +612,16 @@ final class BackupRestoreService {
         )
         try requireCurrentPointerBinding(intent, currentID: currentID)
         let retiredIDs = try generationAuthority.retiredGenerationIDs()
+        let retainedLegacyIdentity: WorkspaceReplicaIdentityV1?
+        if intent.identity == nil {
+            retainedLegacyIdentity = try? generationFactory
+                .currentWorkspaceIdentity(
+                    expectedGenerationID: currentID,
+                    authority: generationAuthority
+                )
+        } else {
+            retainedLegacyIdentity = nil
+        }
         let presence = try generationFactory.generationPresence(
             id: intent.newGenerationID,
             authority: generationAuthority
@@ -557,7 +645,7 @@ final class BackupRestoreService {
             id: intent.oldGenerationID,
             identity: try intent.identity.map {
                 try workspaceIdentity($0.oldPointer)
-            },
+            } ?? retainedLegacyIdentity,
             requireExportReconciliation:
                 currentID == intent.oldGenerationID
         ), let oldRecords = try? records(in: oldSession.modelContext) else {
@@ -627,7 +715,7 @@ final class BackupRestoreService {
                 id: intent.newGenerationID,
                 identity: try intent.identity.map {
                     try workspaceIdentity($0.targetPointer)
-                },
+                } ?? retainedLegacyIdentity,
                 requireExportReconciliation:
                     currentID == intent.newGenerationID
             )
@@ -870,12 +958,18 @@ private extension BackupRestoreService {
         guard let plan = try? ReplacementRestoreRule.makeDeletionWinningPlan(
             DeletionWinningRestoreInputV2(
                 currentRecords: old,
+                currentIdentity: try? workspaceIdentity(identity.oldPointer),
                 incomingRecords: target,
+                incomingIdentity: try? sourceWorkspaceIdentity(identity.source),
                 mode: identity.mode,
                 replacementAt: now()
             )
         ) else { return false }
-        return plan.recordsAfter == target
+        guard let normalized = try? recordsForMaterialization(
+            plan.recordsAfter,
+            identityDecision: identity
+        ) else { return false }
+        return normalized == target
     }
 
     func makeIdentityDecision(
@@ -883,7 +977,9 @@ private extension BackupRestoreService {
         mode: BackupRestoreMode,
         currentGenerationID: UUID,
         newGenerationID: UUID,
-        targetManifestDigest: String
+        targetManifestDigest: String,
+        frozenWorkspaceID: UUID? = nil,
+        frozenReplicaID: UUID? = nil
     ) throws -> RestoreIdentityV1? {
         let source = package.manifest.source
         switch (source.workspaceID, source.replicaID) {
@@ -893,7 +989,8 @@ private extension BackupRestoreService {
             }
             return nil
         case (let workspaceID?, let replicaID?):
-            guard package.manifest.backupSchemaVersion == 2,
+            guard package.manifest.backupSchemaVersion == 2
+                    || package.manifest.backupSchemaVersion == 3,
                   workspaceID != replicaID else {
                 throw BackupRestoreServiceError.invalidPackage
             }
@@ -935,9 +1032,13 @@ private extension BackupRestoreService {
             let allocatedWorkspaceID: UUID?
             switch mode {
             case .clone, .fork:
-                allocatedWorkspaceID = try destinationWorkspaceID(
-                    excluding: unavailableWorkspaces
-                )
+                if let frozenWorkspaceID {
+                    allocatedWorkspaceID = frozenWorkspaceID
+                } else {
+                    allocatedWorkspaceID = try destinationWorkspaceID(
+                        excluding: unavailableWorkspaces
+                    )
+                }
             case .emptyInstall, .replaceExisting: allocatedWorkspaceID = nil
             }
             let targetWorkspaceID: UUID
@@ -965,17 +1066,21 @@ private extension BackupRestoreService {
             ])
             let allocatedReplicaID: UUID?
             if requiresReplica {
-                do {
-                    allocatedReplicaID = try ReplicaID
-                        .destinationOwnedForRestore(
-                            excluding: ReplicaID(rawValue: replicaID),
-                            disallowed: Set(unavailableReplicas.map {
-                                ReplicaID(rawValue: $0)
-                            }),
-                            generate: makeUUID
-                        ).rawValue
-                } catch {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                if let frozenReplicaID {
+                    allocatedReplicaID = frozenReplicaID
+                } else {
+                    do {
+                        allocatedReplicaID = try ReplicaID
+                            .destinationOwnedForRestore(
+                                excluding: ReplicaID(rawValue: replicaID),
+                                disallowed: Set(unavailableReplicas.map {
+                                    ReplicaID(rawValue: $0)
+                                }),
+                                generate: makeUUID
+                            ).rawValue
+                    } catch {
+                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                    }
                 }
             } else {
                 allocatedReplicaID = nil
@@ -1038,6 +1143,38 @@ private extension BackupRestoreService {
             workspaceID: WorkspaceID(rawValue: pointer.workspaceID),
             replicaID: ReplicaID(rawValue: pointer.replicaID)
         )
+    }
+
+    func sourceWorkspaceIdentity(
+        _ source: V4BackupSourceV1
+    ) throws -> WorkspaceReplicaIdentityV1? {
+        switch (source.workspaceID, source.replicaID) {
+        case (nil, nil):
+            return nil
+        case (let workspaceID?, let replicaID?):
+            return try WorkspaceReplicaIdentityV1(
+                workspaceID: WorkspaceID(rawValue: workspaceID),
+                replicaID: ReplicaID(rawValue: replicaID)
+            )
+        default:
+            throw BackupRestoreServiceError.invalidPackage
+        }
+    }
+
+    func sourceWorkspaceIdentity(
+        _ source: RestoreSourceIdentityV1
+    ) throws -> WorkspaceReplicaIdentityV1? {
+        switch (source.workspaceID, source.replicaID) {
+        case (nil, nil):
+            return nil
+        case (let workspaceID?, let replicaID?):
+            return try WorkspaceReplicaIdentityV1(
+                workspaceID: WorkspaceID(rawValue: workspaceID),
+                replicaID: ReplicaID(rawValue: replicaID)
+            )
+        default:
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
     }
 
     func knownReplicaIDs(_ decision: RestoreIdentityV1) -> Set<ReplicaID> {
@@ -1121,6 +1258,7 @@ private extension BackupRestoreService {
             deletionLedger: records.deletionLedger,
             evidenceFiles: records.evidenceFiles,
             issues: records.issues,
+            mutationHistory: records.mutationHistory,
             packets: packets,
             recordsSchemaVersion: records.recordsSchemaVersion,
             reports: records.reports,
@@ -1140,17 +1278,74 @@ private extension BackupRestoreService {
         return Set(ids).count == ids.count
     }
 
+    func replacingMutationHistoryForCurrentWriter(
+        in records: V4BackupRecordsV1,
+        with history: MutationHistorySnapshotV1
+    ) -> V4BackupRecordsV1 {
+        V4BackupRecordsV1(
+            assets: records.assets,
+            deletionLedger: records.deletionLedger ?? .empty,
+            evidenceFiles: records.evidenceFiles,
+            issues: records.issues,
+            mutationHistory: history,
+            packets: records.packets,
+            recordsSchemaVersion: 3,
+            reports: records.reports,
+            sites: records.sites,
+            workflowRecords: records.workflowRecords
+        )
+    }
+
+    func recordsForMaterialization(
+        _ records: V4BackupRecordsV1,
+        identityDecision: RestoreIdentityV1?
+    ) throws -> V4BackupRecordsV1 {
+        guard let history = records.mutationHistory else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let resetsLocalSequence: Bool
+        if let identityDecision {
+            let target = try workspaceIdentity(identityDecision)
+            let old = try workspaceIdentity(identityDecision.oldPointer)
+            resetsLocalSequence = identityDecision.mode != .replaceExisting
+                || target != old
+        } else {
+            resetsLocalSequence = false
+        }
+        guard resetsLocalSequence, history.lastLocalSequence != 0 else {
+            return records
+        }
+        return replacingMutationHistoryForCurrentWriter(
+            in: records,
+            with: MutationHistorySnapshotV1(
+                workspaceRevision: history.workspaceRevision,
+                lastLocalSequence: 0,
+                receipts: history.receipts,
+                quarantines: history.quarantines,
+                entityRevisions: history.entityRevisions
+            )
+        )
+    }
+
     func materialize(
         _ value: ValidatedV4BackupPackageV1,
         records: V4BackupRecordsV1,
-        generationID: UUID
+        generationID: UUID,
+        identityDecision: RestoreIdentityV1?,
+        legacyDestinationIdentity: WorkspaceReplicaIdentityV1
     ) throws {
         do {
             try generationFactory.createRestoreStagingGeneration(
                 id: generationID,
                 authority: generationAuthority
             ) { context in
-                try insert(records, into: context)
+                try insert(
+                    records,
+                    into: context,
+                    generationID: generationID,
+                    identityDecision: identityDecision,
+                    legacyDestinationIdentity: legacyDestinationIdentity
+                )
             }
             try writeMembers(
                 value,
@@ -1189,11 +1384,25 @@ private extension BackupRestoreService {
         }
     }
 
-    func insert(_ records: V4BackupRecordsV1, into context: ModelContext) throws {
-        switch (records.recordsSchemaVersion, records.deletionLedger) {
-        case (1, nil):
+    func insert(
+        _ records: V4BackupRecordsV1,
+        into context: ModelContext,
+        generationID: UUID,
+        identityDecision: RestoreIdentityV1?,
+        legacyDestinationIdentity: WorkspaceReplicaIdentityV1
+    ) throws {
+        guard (records.recordsSchemaVersion == 3)
+                == (records.mutationHistory != nil) else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        switch (
+            records.recordsSchemaVersion,
+            records.deletionLedger,
+            records.mutationHistory
+        ) {
+        case (1, nil, nil):
             break
-        case (2, let ledger?):
+        case (2, let ledger?, nil), (3, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -1341,6 +1550,41 @@ private extension BackupRestoreService {
                 createdAt: value.createdAt,
                 replacesReportID: value.replacesReportID
             ))
+        }
+        if let mutationHistory = records.mutationHistory {
+            guard records.recordsSchemaVersion == 3 else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            do {
+                let identity = try identityDecision.map {
+                    try workspaceIdentity($0)
+                } ?? legacyDestinationIdentity
+                let journal = try MutationJournalStoreV1(
+                    modelContext: context,
+                    identity: identity,
+                    generationID: generationID
+                )
+                let disposition: MutationHistoryRestoreIdentityV1
+                if identityDecision == nil
+                    || (identityDecision?.mode == .replaceExisting
+                        && identityDecision?.targetPointer.workspaceID
+                            == identityDecision?.oldPointer.workspaceID
+                        && identityDecision?.targetPointer.replicaID
+                            == identityDecision?.oldPointer.replicaID) {
+                    disposition = .preserve
+                } else {
+                    disposition = .destination(
+                        identity,
+                        generationID: generationID
+                    )
+                }
+                try journal.replaceHistory(
+                    with: mutationHistory,
+                    identityDisposition: disposition
+                )
+            } catch {
+                throw BackupRestoreServiceError.invalidPackage
+            }
         }
     }
 
@@ -2456,10 +2700,13 @@ private extension BackupRestoreService {
         let packets = try context.fetch(FetchDescriptor<Packet>())
         let reports = try context.fetch(FetchDescriptor<Report>())
         let deletionLedger: DeletionLedgerV2?
+        let mutationHistory: MutationHistorySnapshotV1?
         if includingDeletionLedger {
             deletionLedger = try DeletionLedgerStore(context: context).snapshot()
+            mutationHistory = try mutationHistory(in: context)
         } else {
             deletionLedger = nil
+            mutationHistory = nil
         }
         return V4BackupRecordsV1(
             assets: assets.map {
@@ -2494,6 +2741,7 @@ private extension BackupRestoreService {
                     createdAt: $0.createdAt, updatedAt: $0.updatedAt
                 )
             }.sorted { canonical($0.id) < canonical($1.id) },
+            mutationHistory: mutationHistory,
             packets: packets.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2504,7 +2752,9 @@ private extension BackupRestoreService {
                     createdAt: $0.createdAt
                 )
             }.sorted { canonical($0.id) < canonical($1.id) },
-            recordsSchemaVersion: includingDeletionLedger ? 2 : 1,
+            recordsSchemaVersion: mutationHistory == nil
+                ? (includingDeletionLedger ? 2 : 1)
+                : 3,
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2528,6 +2778,47 @@ private extension BackupRestoreService {
             workflowRecords: workflow.map(workflowDTO)
                 .sorted { canonical($0.id) < canonical($1.id) }
         )
+    }
+
+    func mutationHistory(
+        in context: ModelContext
+    ) throws -> MutationHistorySnapshotV1? {
+        var descriptor = FetchDescriptor<WorkspaceMutationStateRow>()
+        descriptor.fetchLimit = 2
+        let states = try context.fetch(descriptor)
+        guard states.count <= 1 else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        guard let state = states.first else {
+            let receiptCount = try context.fetchCount(
+                FetchDescriptor<MutationReceiptRow>()
+            )
+            let quarantineCount = try context.fetchCount(
+                FetchDescriptor<MutationQuarantineRow>()
+            )
+            let revisionCount = try context.fetchCount(
+                FetchDescriptor<EntityMutationRevisionRow>()
+            )
+            guard receiptCount == 0,
+                  quarantineCount == 0,
+                  revisionCount == 0 else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            return nil
+        }
+        do {
+            let identity = try WorkspaceReplicaIdentityV1(
+                workspaceID: WorkspaceID(rawValue: state.workspaceID),
+                replicaID: ReplicaID(rawValue: state.activeReplicaID)
+            )
+            return try MutationJournalStoreV1(
+                modelContext: context,
+                identity: identity,
+                generationID: state.generationID
+            ).exportSnapshot()
+        } catch {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
     }
 
     func workflowDTO(_ value: WorkflowRecord) -> V4BackupWorkflowRecordDTO {

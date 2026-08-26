@@ -1,0 +1,81 @@
+{
+  "schema": "V21P02C02MutationEnvelopeReceiptCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P02-C02",
+  "canonicalVector": {
+    "workspaceID": "01000000-0000-0000-0000-000000000001",
+    "replicaID": "02000000-0000-0000-0000-000000000002",
+    "generationID": "03000000-0000-0000-0000-000000000003",
+    "mutationID": "0a000000-0000-0000-0000-00000000000a",
+    "commandKind": "create_first_sign",
+    "contentDependencyIDs": [
+      "content-a",
+      "content-b"
+    ],
+    "sourceKind": "LOCAL_USER",
+    "expectedWorkspaceRevision": 0,
+    "resultingWorkspaceRevision": 1,
+    "localSequence": 1
+  },
+  "hostileCases": [
+    "unknown_schema_version",
+    "unknown_command_kind",
+    "stale_workspace_revision",
+    "stale_entity_revision",
+    "foreign_workspace",
+    "source_replica_reuse",
+    "tampered_envelope_hash",
+    "tampered_receipt_hash",
+    "sequence_collision",
+    "missing_reversal_basis",
+    "tampered_reversal_plan"
+  ],
+  "interruptionBoundaries": [
+    "before_effect_transaction",
+    "after_effect_before_envelope_insert",
+    "after_envelope_before_basis_insert",
+    "after_basis_before_receipt_insert",
+    "after_receipt_before_transaction_commit",
+    "after_transaction_commit_before_return",
+    "after_quarantine_commit_before_return"
+  ],
+  "restoreMatrix": [
+    {
+      "mode": "empty",
+      "preservesDestinationWorkspaceID": false,
+      "mintsDestinationReplicaID": true,
+      "preservesReceiptHistory": true
+    },
+    {
+      "mode": "replace",
+      "preservesDestinationWorkspaceID": true,
+      "mintsDestinationReplicaID": false,
+      "preservesReceiptHistory": true
+    },
+    {
+      "mode": "clone",
+      "preservesDestinationWorkspaceID": false,
+      "mintsDestinationReplicaID": true,
+      "preservesReceiptHistory": true
+    },
+    {
+      "mode": "fork",
+      "preservesDestinationWorkspaceID": false,
+      "mintsDestinationReplicaID": true,
+      "preservesReceiptHistory": true
+    }
+  ],
+  "lifecycle": {
+    "persistentSchemaVersion": 4,
+    "backupSchemaVersion": 3,
+    "recordsSchemaVersion": 3,
+    "ordinaryDeletionPreservesReceipts": true,
+    "verifiedEraseClearsReceiptsQuarantineAndRevisionState": true,
+    "migrationV3ToV4FabricatesHistoricReceipts": false,
+    "downgradePolicy": "FORWARD_FIX_ONLY"
+  },
+  "privacy": {
+    "containsCustomerData": false,
+    "containsSecrets": false
+  }
+}

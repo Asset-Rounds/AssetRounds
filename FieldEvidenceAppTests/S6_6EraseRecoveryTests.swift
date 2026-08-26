@@ -48,6 +48,32 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         defer { cleanup(harness) }
         let coordinator = try XCTUnwrap(harness.coordinator)
         let oldID = coordinator.generationID
+        let mutationID = try MutationIDV1(rawValue: uuid(
+            "66000000-0000-0000-0000-000000000100"
+        ))
+        let writer = coordinator.workspaceWriter
+        let beforeMutation = try writer.currentRevision()
+        let eraseSiteIdentity = try WorkspaceEntityIdentityV1(
+            kind: .site,
+            id: uuid("66000000-0000-0000-0000-000000000001")
+        )
+        let mutationExpected = try WorkspaceExpectedRevisionV1(
+            workspaceID: beforeMutation.workspaceID,
+            generationID: beforeMutation.generationID,
+            writerInstanceID: beforeMutation.writerInstanceID,
+            workspaceRevision: beforeMutation.revision,
+            entityRevisions: [.init(identity: eraseSiteIdentity, revision: 0)]
+        )
+        _ = try writer.execute(WorkspaceMutationRequestV1(
+            mutationID: mutationID,
+            expectedRevision: mutationExpected,
+            command: .updateSiteTimeZone(.init(
+                siteID: uuid("66000000-0000-0000-0000-000000000001"),
+                timeZoneID: "UTC",
+                confirmedAt: Date(timeIntervalSince1970: 1_786_800_010)
+            ))
+        ))
+        XCTAssertNotNil(try writer.durableReceipt(mutationID: mutationID))
         let newID = uuid("66000000-0000-0000-0000-000000000101")
         let service = EraseAllService(
             applicationSupportURL: harness.support,
@@ -77,6 +103,18 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         XCTAssertEqual(
             try counts(erased.session.modelContext),
             [0, 0, 0, 0, 0, 0, 0]
+        )
+        XCTAssertEqual(
+            try erased.session.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()),
+            0
+        )
+        XCTAssertEqual(
+            try erased.session.modelContext.fetchCount(FetchDescriptor<MutationQuarantineRow>()),
+            0
+        )
+        XCTAssertEqual(
+            try erased.session.modelContext.fetchCount(FetchDescriptor<EntityMutationRevisionRow>()),
+            0
         )
         let diagnosticsAfterErase = await harness.diagnostics.snapshot()
         XCTAssertEqual(diagnosticsAfterErase, .zero)

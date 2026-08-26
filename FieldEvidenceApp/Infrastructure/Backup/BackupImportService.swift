@@ -785,7 +785,8 @@ private extension BackupImportService {
         ) {
         case (1, nil, nil):
             sourceIdentityIsValid = true
-        case (2, let workspaceID?, let replicaID?):
+        case (2, let workspaceID?, let replicaID?),
+             (3, let workspaceID?, let replicaID?):
             sourceIdentityIsValid = workspaceID != zero
                 && replicaID != zero
                 && workspaceID != replicaID
@@ -798,7 +799,7 @@ private extension BackupImportService {
             manifest.source.persistentSchemaVersion,
             manifest.source.recordsSchemaVersion
         ) {
-        case (1, 1, 1), (2, 1, 1), (2, 3, 2):
+        case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false

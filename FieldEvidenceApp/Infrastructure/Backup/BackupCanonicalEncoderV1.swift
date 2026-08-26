@@ -28,6 +28,9 @@ struct BackupCanonicalEncoderV1 {
         if let deletionLedger = records.deletionLedger {
             fields["deletionLedger"] = Self.deletionLedger(deletionLedger)
         }
+        if let mutationHistory = records.mutationHistory {
+            fields["mutationHistory"] = try Self.mutationHistory(mutationHistory)
+        }
         return try encoded(.object(fields))
     }
 
@@ -57,11 +60,19 @@ struct BackupCanonicalEncoderV1 {
 private extension BackupCanonicalEncoderV1 {
     static func valid(_ records: V4BackupRecordsV1) -> Bool {
         let ledgerIsValid: Bool
-        switch (records.recordsSchemaVersion, records.deletionLedger) {
-        case (1, nil):
+        switch (
+            records.recordsSchemaVersion,
+            records.deletionLedger,
+            records.mutationHistory
+        ) {
+        case (1, nil, nil):
             ledgerIsValid = true
-        case (2, let ledger?):
+        case (2, let ledger?, nil):
             ledgerIsValid = (try? ledger.validate()) != nil
+        case (3, let ledger?, let history?):
+            ledgerIsValid = (try? ledger.validate()) != nil
+                && (try? MutationJournalStoreV1.validateImportedSnapshot(history)) != nil
+                && validMutationHistoryOrder(history)
         default:
             ledgerIsValid = false
         }
@@ -95,7 +106,8 @@ private extension BackupCanonicalEncoderV1 {
         ) {
         case (1, nil, nil):
             sourceIdentityIsValid = true
-        case (2, let workspaceID?, let replicaID?):
+        case (2, let workspaceID?, let replicaID?),
+             (3, let workspaceID?, let replicaID?):
             sourceIdentityIsValid = workspaceID != zero
                 && replicaID != zero
                 && workspaceID != replicaID
@@ -108,7 +120,7 @@ private extension BackupCanonicalEncoderV1 {
             manifest.source.persistentSchemaVersion,
             manifest.source.recordsSchemaVersion
         ) {
-        case (1, 1, 1), (2, 1, 1), (2, 3, 2):
+        case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false
@@ -379,6 +391,131 @@ private extension BackupCanonicalEncoderV1 {
             ]),
             "schemaVersion": .integer(value.schemaVersion),
         ])
+    }
+
+    static func mutationHistory(
+        _ value: MutationHistorySnapshotV1
+    ) throws -> CanonicalJSONValueV1 {
+        guard validMutationHistoryOrder(value),
+              value.workspaceRevision <= UInt64(Int.max),
+              value.lastLocalSequence <= UInt64(Int.max) else {
+            throw BackupCanonicalEncodingErrorV1.invalidRecords
+        }
+        return .object([
+            "entityRevisions": .array(value.entityRevisions.map {
+                var fields: [String: CanonicalJSONValueV1] = [
+                    "identity": .object([
+                        "id": CanonicalJSONV1.uuid($0.identity.id),
+                        "kind": .string($0.identity.kind.rawValue),
+                    ]),
+                    "revision": .integer(Int($0.revision)),
+                ]
+                if let digest = $0.externalProjectionSHA256 {
+                    fields["externalProjectionSHA256"] = .string(digest)
+                }
+                return .object(fields)
+            }),
+            "lastLocalSequence": .integer(Int(value.lastLocalSequence)),
+            "quarantines": .array(value.quarantines.map {
+                .object([
+                    "acceptedIdentitySHA256": .string(
+                        $0.acceptedIdentitySHA256
+                    ),
+                    "conflictingIdentitySHA256": .string(
+                        $0.conflictingIdentitySHA256
+                    ),
+                    "detectedAt": CanonicalJSONV1.date($0.detectedAt),
+                    "identityDomain": .string($0.identityDomain.rawValue),
+                    "mutationID": CanonicalJSONV1.uuid($0.mutationID),
+                    "workspaceID": CanonicalJSONV1.uuid(
+                        $0.workspaceID.rawValue
+                    ),
+                ])
+            }),
+            "receipts": .array(value.receipts.map(mutationReceiptRecord)),
+            "schemaVersion": .integer(value.schemaVersion),
+            "workspaceRevision": .integer(Int(value.workspaceRevision)),
+        ])
+    }
+
+    static func mutationReceiptRecord(
+        _ value: MutationHistoryReceiptRecordV1
+    ) -> CanonicalJSONValueV1 {
+        var fields: [String: CanonicalJSONValueV1] = [
+            "envelopeData": .string(value.envelopeData.base64EncodedString()),
+            "receiptData": .string(value.receiptData.base64EncodedString()),
+        ]
+        if let reversalBasisData = value.reversalBasisData {
+            fields["reversalBasisData"] = .string(
+                reversalBasisData.base64EncodedString()
+            )
+        }
+        if let semanticReversalData = value.semanticReversalData {
+            fields["semanticReversalData"] = .string(
+                semanticReversalData.base64EncodedString()
+            )
+        }
+        return .object(fields)
+    }
+
+    static func validMutationHistoryOrder(
+        _ value: MutationHistorySnapshotV1
+    ) -> Bool {
+        guard value.schemaVersion == MutationHistorySnapshotV1.schemaVersion,
+              value.receipts.count
+                <= MutationJournalStoreV1.maximumReceiptValidationCount,
+              value.quarantines.count
+                <= MutationJournalStoreV1.maximumReceiptValidationCount,
+              value.entityRevisions.count
+                <= MutationReceiptV1.maximumPostImageCount,
+              value.workspaceRevision <= UInt64(Int.max),
+              value.lastLocalSequence <= UInt64(Int.max),
+              value.entityRevisions.allSatisfy({
+                  $0.revision > 0
+                    && $0.revision <= UInt64(Int.max)
+                    && $0.externalProjectionSHA256.map {
+                        validSHA256($0)
+                    } != false
+              }),
+              value.quarantines.allSatisfy({
+                  validSHA256($0.acceptedIdentitySHA256)
+                    && validSHA256($0.conflictingIdentitySHA256)
+                    && $0.acceptedIdentitySHA256
+                        != $0.conflictingIdentitySHA256
+                    && validDate($0.detectedAt)
+              }) else {
+            return false
+        }
+        let receiptKeys: [String]
+        do {
+            receiptKeys = try value.receipts.map {
+                try MutationReceiptV1.decodeCanonical(from: $0.receiptData)
+                    .identity.stableKey
+            }
+        } catch {
+            return false
+        }
+        let quarantineKeys = value.quarantines.map {
+            "\($0.workspaceID.rawValue.uuidString.lowercased()):\($0.mutationID.uuidString.lowercased())"
+        }
+        let revisionKeys = value.entityRevisions.map(\.identity.stableKey)
+        return receiptKeys == receiptKeys.sorted()
+            && Set(receiptKeys).count == receiptKeys.count
+            && quarantineKeys == quarantineKeys.sorted()
+            && Set(quarantineKeys).count == quarantineKeys.count
+            && revisionKeys == revisionKeys.sorted()
+            && Set(revisionKeys).count == revisionKeys.count
+    }
+
+    static func validSHA256(_ value: String) -> Bool {
+        value.count == 64 && value.unicodeScalars.allSatisfy {
+            (48...57).contains(Int($0.value))
+                || (97...102).contains(Int($0.value))
+        }
+    }
+
+    static func validDate(_ value: Date) -> Bool {
+        value.timeIntervalSinceReferenceDate.isFinite
     }
 
     static func source(_ value: V4BackupSourceV1) -> CanonicalJSONValueV1 {

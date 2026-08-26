@@ -1,0 +1,691 @@
+{
+  "$id": "https://assetrounds.invalid/v23/MutationReceiptContractV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "atomicity": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedEffectAndEnvelopeAndBasisAndReceipt": {
+          "const": "ONE_STORE_TRANSACTION"
+        },
+        "effectWithoutReceiptAllowed": {
+          "const": false
+        },
+        "failedAttemptReceiptAllowed": {
+          "const": false
+        },
+        "receiptCardinalityPerAcceptedMutation": {
+          "const": 1
+        },
+        "receiptWithoutEffectAllowed": {
+          "const": false
+        }
+      },
+      "required": [
+        "acceptedEffectAndEnvelopeAndBasisAndReceipt",
+        "receiptCardinalityPerAcceptedMutation",
+        "effectWithoutReceiptAllowed",
+        "receiptWithoutEffectAllowed",
+        "failedAttemptReceiptAllowed"
+      ],
+      "type": "object"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateAcceptanceMemberships": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "AutonomousRequiredAcceptedSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "appBaseHead": {
+          "const": "56e53031b0f598b2395c5060dd2243136e4af66a"
+        },
+        "appBaseTree": {
+          "const": "5989170055899a3ab5bcdfea1b2306175109199d"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P02-C02"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "const": "7a640c0d6bf190ccb6f0193d09b7760e60ff5f96c66bf785f2ba971b8cf608a6"
+        },
+        "coordinationAuthorityHead": {
+          "const": "5ab409463ed33b2c21f9c6007a5dd0fb1bffb9ef"
+        },
+        "coordinationAuthorityTree": {
+          "const": "bdb4e2e9168e980a2ac63f7ed3c4e49fdc790a66"
+        },
+        "coordinationCASSequence": {
+          "const": 88
+        },
+        "coordinationLedgerDigest": {
+          "const": "c5f704a60c123e9b71e7d95178cd410e5d884a6bf4a24ae58889da64d9fa70fe"
+        },
+        "dependencyDispositionDigest": {
+          "const": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C02-G01"
+            },
+            {
+              "const": "V23-P02-C02-A01"
+            },
+            {
+              "const": "V23-P02-C02-H01"
+            },
+            {
+              "const": "V23-P02-C02-I01"
+            },
+            {
+              "const": "V23-P02-C02-R01"
+            }
+          ],
+          "type": "array"
+        },
+        "directGraphDigest": {
+          "const": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C01"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "const": "844d28364a666c3abb4a480ba86a11c731b4a2c105c47dc1d99cc2d70575e1af"
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "const": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f"
+        },
+        "foundationRegisterDigest": {
+          "const": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd"
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "hydrationProjectionDigest": {
+          "const": "5594a8413614532282f1e8507618d0ce34c0c9d90ba283669d781e363229acc2"
+        },
+        "hydrationTransitionDigest": {
+          "const": "f04daba62cda24e4345a2def0ba0cdad9ae622bf45935e8bd20d6833856d1a02"
+        },
+        "impactManifestDigest": {
+          "const": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b"
+        },
+        "inheritedV21BlockDigest": {
+          "const": "fa87a8ab94d8ff3d543e48f8367c167e58eae400f6a9abfb4d5764c5676af26a"
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C03"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "EXACT_WITH_GENERATION_REBIND"
+        },
+        "lineageSource": {
+          "const": "V21-P02-C02"
+        },
+        "ownerParallelOverrideAuthorityReceiptDigest": {
+          "const": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452"
+        },
+        "pathFenceDigest": {
+          "const": "9593de9026efe12b8b89b59c9811ba8848d445f3dc681b637e34c17e6900aaef"
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "const": "0860b9b744561a99230db53a1b4803ded94c69cb034663d658559a6ea5e3bd3b"
+        },
+        "registerOrdinal": {
+          "const": 22
+        },
+        "registerRowDigest": {
+          "const": "73dd7fcd314d63bc9e9244a9da68ef67e0c81a85c09343e031117e7b0a0da577"
+        },
+        "relationManifestDigest": {
+          "const": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4"
+        },
+        "selectorManifestDigest": {
+          "const": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+        },
+        "title": {
+          "const": "Portable MutationEnvelopeV1 and atomic durable MutationReceiptV1"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "lineageSource",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationAuthorityHead",
+        "coordinationAuthorityTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "hydrationProjectionDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "hydrationTransitionDigest",
+        "registerRowDigest",
+        "dossierDigest",
+        "inheritedV21BlockDigest",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "ownerParallelOverrideAuthorityReceiptDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "aggregateAcceptanceMemberships",
+        "conformanceSubjects",
+        "deterministicEvidenceIDs"
+      ],
+      "type": "object"
+    },
+    "bounds": {
+      "additionalProperties": false,
+      "properties": {
+        "maximumPostImageCount": {
+          "const": 1024
+        }
+      },
+      "required": [
+        "maximumPostImageCount"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P02-C02"
+    },
+    "contentDependencyBinding": {
+      "const": "RECEIPT_CONTENT_DEPENDENCY_IDS_BYTE_SEMANTICALLY_EQUAL_ENVELOPE"
+    },
+    "durableIdempotency": {
+      "additionalProperties": false,
+      "properties": {
+        "lookupKey": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "workspaceID"
+            },
+            {
+              "const": "mutationID"
+            }
+          ],
+          "type": "array"
+        },
+        "persistentCompositeKey": {
+          "const": "LOWERCASE_WORKSPACE_UUID_COLON_MUTATION_UUID"
+        },
+        "quarantineSurvivesRestart": {
+          "const": true
+        },
+        "receiptAndQuarantineBothUseCompositeKey": {
+          "const": true
+        },
+        "sameIDDifferentEnvelopeHash": {
+          "const": "DURABLE_QUARANTINE_NO_EFFECT"
+        },
+        "sameIDSameEnvelopeHash": {
+          "const": "RETURN_BYTE_IDENTICAL_PRIOR_RECEIPT_AFTER_RESTART"
+        },
+        "sameMutationIDDifferentWorkspace": {
+          "const": "DISTINCT_HISTORY"
+        }
+      },
+      "required": [
+        "lookupKey",
+        "persistentCompositeKey",
+        "receiptAndQuarantineBothUseCompositeKey",
+        "sameMutationIDDifferentWorkspace",
+        "sameIDSameEnvelopeHash",
+        "sameIDDifferentEnvelopeHash",
+        "quarantineSurvivesRestart"
+      ],
+      "type": "object"
+    },
+    "entityRepresentation": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedForms": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "CANONICAL_POST_IMAGE"
+            },
+            {
+              "const": "TYPED_TOMBSTONE"
+            }
+          ],
+          "type": "array"
+        },
+        "forbiddenForms": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "STORAGE_DIFF"
+            },
+            {
+              "const": "JSON_PATCH"
+            },
+            {
+              "const": "GENERIC_JSON_EAV"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": [
+        "acceptedForms",
+        "forbiddenForms"
+      ],
+      "type": "object"
+    },
+    "evidenceIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "V23-P02-C02-G01"
+        },
+        {
+          "const": "V23-P02-C02-A01"
+        },
+        {
+          "const": "V23-P02-C02-H01"
+        },
+        {
+          "const": "V23-P02-C02-I01"
+        },
+        {
+          "const": "V23-P02-C02-R01"
+        }
+      ],
+      "type": "array"
+    },
+    "hashFields": {
+      "items": false,
+      "maxItems": 4,
+      "minItems": 4,
+      "prefixItems": [
+        {
+          "const": "envelopeSHA256"
+        },
+        {
+          "const": "commandBodySHA256"
+        },
+        {
+          "const": "postImages.semanticSHA256"
+        },
+        {
+          "const": "resultSHA256"
+        }
+      ],
+      "type": "array"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "ordering": {
+      "additionalProperties": false,
+      "properties": {
+        "bareSequenceIsGlobalOrder": {
+          "const": false
+        },
+        "committedAtOrdersReceipts": {
+          "const": false
+        },
+        "key": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "workspaceID"
+            },
+            {
+              "const": "replicaID"
+            },
+            {
+              "const": "localSequence"
+            }
+          ],
+          "type": "array"
+        },
+        "localSequenceStartsAt": {
+          "const": 1
+        },
+        "sequenceCollision": {
+          "const": "FAIL_CLOSED_QUARANTINE_NO_EFFECT"
+        },
+        "strictlyMonotonicPerReplica": {
+          "const": true
+        }
+      },
+      "required": [
+        "key",
+        "localSequenceStartsAt",
+        "strictlyMonotonicPerReplica",
+        "bareSequenceIsGlobalOrder",
+        "committedAtOrdersReceipts",
+        "sequenceCollision"
+      ],
+      "type": "object"
+    },
+    "persistentChangeMode": {
+      "const": "NEW_SCHEMA_VERSION"
+    },
+    "persistentSchema": {
+      "const": "MUTATION_RECEIPT_V1"
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "prohibitedFields": {
+      "items": false,
+      "maxItems": 15,
+      "minItems": 15,
+      "prefixItems": [
+        {
+          "const": "accountID"
+        },
+        {
+          "const": "authenticatedUserID"
+        },
+        {
+          "const": "tenantID"
+        },
+        {
+          "const": "providerOutbox"
+        },
+        {
+          "const": "providerInbox"
+        },
+        {
+          "const": "providerAcknowledgement"
+        },
+        {
+          "const": "providerURL"
+        },
+        {
+          "const": "serverCursor"
+        },
+        {
+          "const": "serverRevision"
+        },
+        {
+          "const": "vectorClock"
+        },
+        {
+          "const": "remoteAcknowledgement"
+        },
+        {
+          "const": "signedURL"
+        },
+        {
+          "const": "uploadState"
+        },
+        {
+          "const": "accessToken"
+        },
+        {
+          "const": "serviceCredential"
+        }
+      ],
+      "type": "array"
+    },
+    "provisional": {
+      "const": true
+    },
+    "quarantineIdentityContract": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedAndConflictingMustDiffer": {
+          "const": true
+        },
+        "closedDomains": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "MUTATION_ENVELOPE"
+            },
+            {
+              "const": "SEMANTIC_REVERSAL_REPLAY_IDENTITY"
+            }
+          ],
+          "type": "array"
+        },
+        "fields": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "identityDomain"
+            },
+            {
+              "const": "acceptedIdentitySHA256"
+            },
+            {
+              "const": "conflictingIdentitySHA256"
+            }
+          ],
+          "type": "array"
+        },
+        "mixedOrUnknownDomain": {
+          "const": "FAIL_CLOSED_AS_CORRUPT_HISTORY"
+        },
+        "mutationEnvelopeAcceptedIdentity": {
+          "const": "PERSISTED_RECEIPT_ENVELOPE_SHA256"
+        },
+        "semanticReversalAcceptedIdentity": {
+          "const": "PERSISTED_ENVELOPE_SEMANTIC_REVERSAL_REPLAY_IDENTITY_SHA256"
+        }
+      },
+      "required": [
+        "closedDomains",
+        "fields",
+        "mutationEnvelopeAcceptedIdentity",
+        "semanticReversalAcceptedIdentity",
+        "mixedOrUnknownDomain",
+        "acceptedAndConflictingMustDiffer"
+      ],
+      "type": "object"
+    },
+    "receiptMeaning": {
+      "const": "OPERATIONAL_EVIDENCE_NOT_LEGAL_OR_AUTHENTICATED_USER_AUDIT"
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiredReceiptFields": {
+      "items": false,
+      "maxItems": 15,
+      "minItems": 15,
+      "prefixItems": [
+        {
+          "const": "schemaVersion"
+        },
+        {
+          "const": "identity"
+        },
+        {
+          "const": "mutationID"
+        },
+        {
+          "const": "envelopeSHA256"
+        },
+        {
+          "const": "commandBodySHA256"
+        },
+        {
+          "const": "expectedRevision"
+        },
+        {
+          "const": "resultingRevision"
+        },
+        {
+          "const": "postImages"
+        },
+        {
+          "const": "contentDependencyIDs"
+        },
+        {
+          "const": "resultSHA256"
+        },
+        {
+          "const": "sourceKind"
+        },
+        {
+          "const": "causationMutationID"
+        },
+        {
+          "const": "correlationID"
+        },
+        {
+          "const": "reversesMutationID"
+        },
+        {
+          "const": "committedAt"
+        }
+      ],
+      "type": "array"
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "schema": {
+      "const": "MutationReceiptContractV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "persistentSchema",
+    "persistentChangeMode",
+    "requiredReceiptFields",
+    "hashFields",
+    "bounds",
+    "atomicity",
+    "durableIdempotency",
+    "quarantineIdentityContract",
+    "contentDependencyBinding",
+    "ordering",
+    "entityRepresentation",
+    "receiptMeaning",
+    "prohibitedFields",
+    "evidenceIDs",
+    "provisional",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "phase10PollingDuringParallelExecution",
+    "requiresAcceptedS10_6Reconciliation",
+    "artifactDigest"
+  ],
+  "title": "MutationReceiptContractV1",
+  "type": "object"
+}

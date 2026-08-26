@@ -163,6 +163,7 @@ final class WholeSignDeletionService {
         guard try journal.loadAll().isEmpty else {
             throw WholeSignDeletionServiceError.recoveryRequired
         }
+        let frozenMutationHistory = try mutationHistorySnapshot()
 
         let rows = try fetchRows()
         let deletionID = makeUUID()
@@ -208,6 +209,7 @@ final class WholeSignDeletionService {
         do {
             try ledgerStore.stageUnion(plan.intent.ledgerEntries)
             try apply(plan: plan, rows: rows)
+            try stageMutationSemanticState()
             try inject(.databaseSave)
             try modelContext.save()
         } catch {
@@ -238,6 +240,12 @@ final class WholeSignDeletionService {
             throw error
         } catch {
             throw WholeSignDeletionServiceError.cleanupFailed
+        }
+        guard mutationHistoryAuthorityMatches(
+            frozenMutationHistory,
+            try mutationHistorySnapshot()
+        ) else {
+            throw WholeSignDeletionServiceError.journalInvalid
         }
         return WholeSignDeletionOutcome(
             assetID: assetID,
@@ -286,6 +294,7 @@ final class WholeSignDeletionService {
               preview.schemaVersion == 1 else {
             throw WholeSignDeletionServiceError.recoveryRequired
         }
+        let frozenMutationHistory = try mutationHistorySnapshot()
         let rows = try fetchRows()
         guard let site = rows.sites.first(where: { $0.id == preview.siteID }) else {
             throw WholeSignDeletionServiceError.graphInvalid
@@ -319,6 +328,7 @@ final class WholeSignDeletionService {
                 try apply(plan: plan, rows: rows)
             }
             modelContext.delete(site)
+            try stageMutationSemanticState()
             try inject(.databaseSave)
             try modelContext.save()
         } catch {
@@ -343,6 +353,12 @@ final class WholeSignDeletionService {
         } catch {
             throw WholeSignDeletionServiceError.cleanupFailed
         }
+        guard mutationHistoryAuthorityMatches(
+            frozenMutationHistory,
+            try mutationHistorySnapshot()
+        ) else {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
         return ExplicitSiteDeletionOutcomeV1(
             siteID: preview.siteID,
             deletionID: preview.deletionID
@@ -354,6 +370,7 @@ final class WholeSignDeletionService {
         guard !modelContext.hasChanges else {
             throw WholeSignDeletionServiceError.contextHasChanges
         }
+        let frozenMutationHistory = try mutationHistorySnapshot()
         let intents = try journal.loadAll()
         let intentPaths = intents.flatMap(\.relativePaths)
         let intentPacketIDs = intents.flatMap {
@@ -396,6 +413,7 @@ final class WholeSignDeletionService {
                 do {
                     try ledgerStore.stageUnion(intent.ledgerEntries)
                     try apply(plan: plan, rows: rows)
+                    try stageMutationSemanticState()
                     try inject(.databaseSave)
                     try modelContext.save()
                 } catch {
@@ -427,6 +445,12 @@ final class WholeSignDeletionService {
             try cleanup(intent)
             try journal.remove(intent.withPhase(.databaseCommitted))
             completed += 1
+        }
+        guard mutationHistoryAuthorityMatches(
+            frozenMutationHistory,
+            try mutationHistorySnapshot()
+        ) else {
+            throw WholeSignDeletionServiceError.journalInvalid
         }
         return WholeSignDeletionRecoverySummary(
             cancelledPreparedCount: cancelled,
@@ -469,6 +493,86 @@ final class WholeSignDeletionService {
 }
 
 private extension WholeSignDeletionService {
+    func mutationHistoryAuthorityMatches(
+        _ before: MutationHistorySnapshotV1?,
+        _ after: MutationHistorySnapshotV1?
+    ) -> Bool {
+        guard let before, let after else { return before == nil && after == nil }
+        return before.schemaVersion == after.schemaVersion
+            && before.workspaceRevision == after.workspaceRevision
+            && before.lastLocalSequence == after.lastLocalSequence
+            && before.receipts == after.receipts
+            && before.quarantines == after.quarantines
+            && before.entityRevisions.map {
+                "\($0.identity.stableKey):\($0.revision)"
+            } == after.entityRevisions.map {
+                "\($0.identity.stableKey):\($0.revision)"
+            }
+    }
+
+    func stageMutationSemanticState() throws {
+        var descriptor = FetchDescriptor<WorkspaceMutationStateRow>()
+        descriptor.fetchLimit = 2
+        let states = try modelContext.fetch(descriptor)
+        guard states.count == 1,
+              let state = states.first,
+              state.generationID == generationID else {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
+        do {
+            let identity = try WorkspaceReplicaIdentityV1(
+                workspaceID: WorkspaceID(rawValue: state.workspaceID),
+                replicaID: ReplicaID(rawValue: state.activeReplicaID)
+            )
+            try MutationJournalStoreV1(
+                modelContext: modelContext,
+                identity: identity,
+                generationID: generationID
+            ).stageMutableSemanticStateAfterAuthorizedExternalMutation()
+        } catch {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
+    }
+
+    func mutationHistorySnapshot() throws -> MutationHistorySnapshotV1? {
+        var descriptor = FetchDescriptor<WorkspaceMutationStateRow>()
+        descriptor.fetchLimit = 2
+        let states = try modelContext.fetch(descriptor)
+        guard states.count <= 1 else {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
+        guard let state = states.first else {
+            guard try modelContext.fetchCount(
+                    FetchDescriptor<MutationReceiptRow>()
+                  ) == 0,
+                  try modelContext.fetchCount(
+                    FetchDescriptor<MutationQuarantineRow>()
+                  ) == 0,
+                  try modelContext.fetchCount(
+                    FetchDescriptor<EntityMutationRevisionRow>()
+                  ) == 0 else {
+                throw WholeSignDeletionServiceError.journalInvalid
+            }
+            return nil
+        }
+        guard state.generationID == generationID else {
+            throw WholeSignDeletionServiceError.invalidGeneration
+        }
+        do {
+            let identity = try WorkspaceReplicaIdentityV1(
+                workspaceID: WorkspaceID(rawValue: state.workspaceID),
+                replicaID: ReplicaID(rawValue: state.activeReplicaID)
+            )
+            return try MutationJournalStoreV1(
+                modelContext: modelContext,
+                identity: identity,
+                generationID: generationID
+            ).exportSnapshot()
+        } catch {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
+    }
+
     struct Rows {
         let sites: [Site]
         let assets: [Asset]

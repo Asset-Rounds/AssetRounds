@@ -79,6 +79,15 @@ final class StoreSessionCoordinator: ObservableObject {
         fileAuthority: any ApplicationFileAuthorityV1
     ) -> WorkspaceWriterV1 {
         do {
+            let journalStore = try MutationJournalStoreV1(
+                modelContext: session.modelContext,
+                identity: session.workspaceIdentity,
+                generationID: session.generationID,
+                allowStateBootstrap: false
+            )
+            try MutationReceiptRecoveryServiceV1(
+                store: journalStore
+            ).recoverBeforeWriterActivation()
             let revision = try WorkspaceRevisionV1(
                 workspaceID: session.workspaceID,
                 generationID: session.generationID,
@@ -92,7 +101,8 @@ final class StoreSessionCoordinator: ObservableObject {
                 clock: clock,
                 idSource: idSource,
                 fileAuthority: fileAuthority,
-                adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext)
+                adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext),
+                journalStore: journalStore
             )
         } catch {
             preconditionFailure("Store generation identity could not install WorkspaceWriterV1: \(error)")

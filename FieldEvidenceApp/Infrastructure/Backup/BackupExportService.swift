@@ -483,6 +483,7 @@ private extension BackupExportService {
             throw BackupExportServiceError.invalidGeneration
         }
         let sourceIdentity = try currentStreamingWorkspaceIdentity()
+        let generationID = try currentStreamingGenerationID()
         let rows = try fetchRows()
         try validateGraph(rows)
         let deletionLedger: DeletionLedgerV2
@@ -492,7 +493,21 @@ private extension BackupExportService {
         } catch {
             throw BackupExportServiceError.invalidAuthority
         }
-        let records = makeRecords(rows, deletionLedger: deletionLedger)
+        let mutationHistory: MutationHistorySnapshotV1
+        do {
+            mutationHistory = try MutationJournalStoreV1(
+                modelContext: modelContext,
+                identity: sourceIdentity,
+                generationID: generationID
+            ).exportSnapshot()
+        } catch {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        let records = makeRecords(
+            rows,
+            deletionLedger: deletionLedger,
+            mutationHistory: mutationHistory
+        )
         let recordsData: Data
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
@@ -636,6 +651,11 @@ private extension BackupExportService {
               try currentStreamingWorkspaceIdentity() == sourceIdentity,
               try DeletionLedgerStore(context: modelContext).snapshot()
                 == deletionLedger,
+              try MutationJournalStoreV1(
+                  modelContext: modelContext,
+                  identity: sourceIdentity,
+                  generationID: generationID
+              ).exportSnapshot() == mutationHistory,
               !modelContext.hasChanges else {
             throw BackupExportServiceError.invalidGeneration
         }
@@ -687,7 +707,7 @@ private extension BackupExportService {
             throw BackupExportServiceError.invalidAuthority
         }
         let manifest = V4BackupManifestV1(
-            backupSchemaVersion: 2,
+            backupSchemaVersion: 3,
             consumedEvaluationRootIDs: rows.packets
                 .filter(\.evaluationCounted)
                 .map(\.stableRootID)
@@ -699,9 +719,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 3,
+                persistentSchemaVersion: 4,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 2,
+                recordsSchemaVersion: 3,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
         )
@@ -732,11 +752,7 @@ private extension BackupExportService {
     }
 
     func currentStreamingWorkspaceIdentity() throws -> WorkspaceReplicaIdentityV1 {
-        guard let generationID = UUID(uuidString: generationRootURL.lastPathComponent),
-              generationID.uuidString.lowercased()
-                == generationRootURL.lastPathComponent else {
-            throw BackupExportServiceError.invalidGeneration
-        }
+        let generationID = try currentStreamingGenerationID()
         let applicationSupportURL = generationRootURL
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -749,6 +765,15 @@ private extension BackupExportService {
         } catch {
             throw BackupExportServiceError.invalidGeneration
         }
+    }
+
+    func currentStreamingGenerationID() throws -> UUID {
+        guard let generationID = UUID(uuidString: generationRootURL.lastPathComponent),
+              generationID.uuidString.lowercased()
+                == generationRootURL.lastPathComponent else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        return generationID
     }
 
     func buildPrepared(
@@ -1372,7 +1397,8 @@ private extension BackupExportService {
 
     private func makeRecords(
         _ rows: Rows,
-        deletionLedger: DeletionLedgerV2? = nil
+        deletionLedger: DeletionLedgerV2? = nil,
+        mutationHistory: MutationHistorySnapshotV1? = nil
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             assets: rows.assets.map {
@@ -1404,6 +1430,7 @@ private extension BackupExportService {
                     createdAt: $0.createdAt, updatedAt: $0.updatedAt
                 )
             }.sorted(by: dtoOrder),
+            mutationHistory: mutationHistory,
             packets: rows.packets.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -1413,7 +1440,9 @@ private extension BackupExportService {
                     contentDeletedAt: $0.contentDeletedAt, createdAt: $0.createdAt
                 )
             }.sorted(by: dtoOrder),
-            recordsSchemaVersion: deletionLedger == nil ? 1 : 2,
+            recordsSchemaVersion: mutationHistory == nil
+                ? (deletionLedger == nil ? 1 : 2)
+                : 3,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,

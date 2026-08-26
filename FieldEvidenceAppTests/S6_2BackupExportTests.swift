@@ -42,9 +42,10 @@ final class S6_2BackupExportTests: XCTestCase {
         )
         let validated = try importer.stageAndValidate(selectedPackageURL: package)
         defer { try? importer.discard(validated) }
-        XCTAssertEqual(validated.manifest.backupSchemaVersion, 2)
-        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 3)
-        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 2)
+        XCTAssertEqual(validated.manifest.backupSchemaVersion, 3)
+        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 4)
+        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 3)
+        XCTAssertNotNil(validated.records.mutationHistory)
 
         let recordsData = try XCTUnwrap(validated.members["records.json"])
         let records = try XCTUnwrap(try JSONSerialization.jsonObject(with: recordsData) as? [String: Any])

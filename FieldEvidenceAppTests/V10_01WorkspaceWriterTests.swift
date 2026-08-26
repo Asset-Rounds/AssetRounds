@@ -209,7 +209,7 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
         ])
         XCTAssertFalse(MutationBoundaryClosureReceiptV1.kernel.fullyClosed)
         XCTAssertTrue(MutationBoundaryClosureReceiptV1.kernel.reconciliationRequired)
-        XCTAssertFalse(MutationBoundaryClosureReceiptV1.kernel.durableMutationSchemaPresent)
+        XCTAssertTrue(MutationBoundaryClosureReceiptV1.kernel.durableMutationSchemaPresent)
 
         let harness = try Harness()
         let target = try WorkspaceEntityIdentityV1(kind: .site, id: Harness.id(40))

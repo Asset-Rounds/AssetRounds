@@ -1,8 +1,8 @@
 import Foundation
 import SwiftData
 
-/// Temporary C01 bridge to the accepted SwiftData mutation shapes. C02 removes
-/// this type when durable envelopes and atomic receipts become authoritative.
+/// Applies content changes without saving. MutationJournalStoreV1 owns the
+/// single atomic save containing content, revisions, and immutable receipt.
 @MainActor
 final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     static let supportedCommandKinds: Set<WorkspaceCommandKindV1> = [
@@ -125,7 +125,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             label: value.assetLabel,
             createdAt: value.createdAt
         ))
-        return try save(effect)
+        return effect
     }
 
     func createCheckDraft(
@@ -215,7 +215,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             note: nil,
             finalizationMutationID: nil
         ))
-        return try save(effect)
+        return effect
     }
 
     func acceptCheckEvidence(
@@ -272,7 +272,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             thumbnailByteCount: value.thumbnailByteCount,
             thumbnailSHA256: value.thumbnailSHA256
         ))
-        return try save(effect)
+        return effect
     }
 
     func updateSiteTimeZone(
@@ -297,17 +297,11 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         )
         site.timeZoneID = value.timeZoneID
         site.updatedAt = value.confirmedAt
-        return try save(effect)
+        return effect
     }
 
-    private func save(_ effect: WorkspaceMutationEffectV1) throws -> WorkspaceMutationEffectV1 {
-        do {
-            try modelContext.save()
-            return effect
-        } catch {
-            modelContext.rollback()
-            throw WorkspaceMutationFailureV1.persistenceFailed
-        }
+    func rollback() {
+        modelContext.rollback()
     }
 
     private static func isSHA256(_ value: String) -> Bool {

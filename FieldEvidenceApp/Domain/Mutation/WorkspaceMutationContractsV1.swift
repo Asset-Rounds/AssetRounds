@@ -45,6 +45,25 @@ struct WorkspaceEntityIdentityV1: Codable, Hashable, Sendable {
         self.id = id
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case kind, id
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            kind: container.decode(WorkspaceEntityKindV1.self, forKey: .kind),
+            id: container.decode(UUID.self, forKey: .id)
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        _ = try Self(kind: kind, id: id)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(id, forKey: .id)
+    }
+
     var stableKey: String { "\(kind.rawValue):\(id.uuidString.lowercased())" }
 }
 
@@ -336,6 +355,11 @@ enum WorkspaceMutationFailureV1: Error, Equatable {
     case revisionOverflow
     case unsupportedCommand
     case invalidCommand
+    case invalidEnvelope
+    case invalidReceipt
+    case invalidReversal
+    case receiptHistoryCorrupt
+    case sequenceCollision
     case persistenceFailed
 }
 
@@ -510,7 +534,7 @@ struct MutationBoundaryClosureReceiptV1: Codable, Equatable, Sendable {
         fullyClosed: false,
         reconciliationRequired: true,
         temporaryAdapterType: "WorkspaceWriterAdapterV1",
-        durableMutationSchemaPresent: false
+        durableMutationSchemaPresent: true
     )
 }
 
@@ -533,6 +557,20 @@ extension WorkspaceID: Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.init(rawValue: try container.decode(UUID.self, forKey: .rawValue))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(rawValue, forKey: .rawValue)
+    }
+}
+
+extension ReplicaID: Codable {
+    private enum CodingKeys: String, CodingKey { case rawValue }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(rawValue: container.decode(UUID.self, forKey: .rawValue))
     }
 
     func encode(to encoder: Encoder) throws {

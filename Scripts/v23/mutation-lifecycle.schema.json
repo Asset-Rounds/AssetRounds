@@ -1,0 +1,622 @@
+{
+  "$id": "https://assetrounds.invalid/v23/MutationLifecycleContractV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateAcceptanceMemberships": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "AutonomousRequiredAcceptedSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "appBaseHead": {
+          "const": "56e53031b0f598b2395c5060dd2243136e4af66a"
+        },
+        "appBaseTree": {
+          "const": "5989170055899a3ab5bcdfea1b2306175109199d"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P02-C02"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "const": "7a640c0d6bf190ccb6f0193d09b7760e60ff5f96c66bf785f2ba971b8cf608a6"
+        },
+        "coordinationAuthorityHead": {
+          "const": "5ab409463ed33b2c21f9c6007a5dd0fb1bffb9ef"
+        },
+        "coordinationAuthorityTree": {
+          "const": "bdb4e2e9168e980a2ac63f7ed3c4e49fdc790a66"
+        },
+        "coordinationCASSequence": {
+          "const": 88
+        },
+        "coordinationLedgerDigest": {
+          "const": "c5f704a60c123e9b71e7d95178cd410e5d884a6bf4a24ae58889da64d9fa70fe"
+        },
+        "dependencyDispositionDigest": {
+          "const": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C02-G01"
+            },
+            {
+              "const": "V23-P02-C02-A01"
+            },
+            {
+              "const": "V23-P02-C02-H01"
+            },
+            {
+              "const": "V23-P02-C02-I01"
+            },
+            {
+              "const": "V23-P02-C02-R01"
+            }
+          ],
+          "type": "array"
+        },
+        "directGraphDigest": {
+          "const": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C01"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "const": "844d28364a666c3abb4a480ba86a11c731b4a2c105c47dc1d99cc2d70575e1af"
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "const": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f"
+        },
+        "foundationRegisterDigest": {
+          "const": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd"
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "hydrationProjectionDigest": {
+          "const": "5594a8413614532282f1e8507618d0ce34c0c9d90ba283669d781e363229acc2"
+        },
+        "hydrationTransitionDigest": {
+          "const": "f04daba62cda24e4345a2def0ba0cdad9ae622bf45935e8bd20d6833856d1a02"
+        },
+        "impactManifestDigest": {
+          "const": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b"
+        },
+        "inheritedV21BlockDigest": {
+          "const": "fa87a8ab94d8ff3d543e48f8367c167e58eae400f6a9abfb4d5764c5676af26a"
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C03"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "EXACT_WITH_GENERATION_REBIND"
+        },
+        "lineageSource": {
+          "const": "V21-P02-C02"
+        },
+        "ownerParallelOverrideAuthorityReceiptDigest": {
+          "const": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452"
+        },
+        "pathFenceDigest": {
+          "const": "9593de9026efe12b8b89b59c9811ba8848d445f3dc681b637e34c17e6900aaef"
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "const": "0860b9b744561a99230db53a1b4803ded94c69cb034663d658559a6ea5e3bd3b"
+        },
+        "registerOrdinal": {
+          "const": 22
+        },
+        "registerRowDigest": {
+          "const": "73dd7fcd314d63bc9e9244a9da68ef67e0c81a85c09343e031117e7b0a0da577"
+        },
+        "relationManifestDigest": {
+          "const": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4"
+        },
+        "selectorManifestDigest": {
+          "const": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+        },
+        "title": {
+          "const": "Portable MutationEnvelopeV1 and atomic durable MutationReceiptV1"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "lineageSource",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationAuthorityHead",
+        "coordinationAuthorityTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "hydrationProjectionDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "hydrationTransitionDigest",
+        "registerRowDigest",
+        "dossierDigest",
+        "inheritedV21BlockDigest",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "ownerParallelOverrideAuthorityReceiptDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "aggregateAcceptanceMemberships",
+        "conformanceSubjects",
+        "deterministicEvidenceIDs"
+      ],
+      "type": "object"
+    },
+    "backup": {
+      "additionalProperties": false,
+      "properties": {
+        "backupContract": {
+          "const": "V4BackupContracts"
+        },
+        "canonicalHashesReprovedOnImport": {
+          "const": true
+        },
+        "envelopesReceiptsBasisAndQuarantineIncluded": {
+          "const": true
+        },
+        "legacySchema1Or2JournalBootstrap": {
+          "const": "EMPTY_SCHEMA3_MUTATION_HISTORY_BEFORE_V4_MATERIALIZATION"
+        },
+        "manifestSchemaVersion": {
+          "const": 3
+        },
+        "recordsSchemaVersion": {
+          "const": 3
+        },
+        "unknownVersionDisposition": {
+          "const": "FAIL_CLOSED"
+        }
+      },
+      "required": [
+        "backupContract",
+        "manifestSchemaVersion",
+        "recordsSchemaVersion",
+        "envelopesReceiptsBasisAndQuarantineIncluded",
+        "canonicalHashesReprovedOnImport",
+        "unknownVersionDisposition",
+        "legacySchema1Or2JournalBootstrap"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P02-C02"
+    },
+    "delete": {
+      "const": "TYPED_TOMBSTONE_AND_RECEIPT_PRESERVED_BY_RETENTION_POLICY"
+    },
+    "evidenceIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "V23-P02-C02-G01"
+        },
+        {
+          "const": "V23-P02-C02-A01"
+        },
+        {
+          "const": "V23-P02-C02-H01"
+        },
+        {
+          "const": "V23-P02-C02-I01"
+        },
+        {
+          "const": "V23-P02-C02-R01"
+        }
+      ],
+      "type": "array"
+    },
+    "export": {
+      "const": "SECRET_FREE_CANONICAL_RECEIPT_HISTORY_WITH_HASH_AND_PROVENANCE"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "journalLifecycleAPIs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "exportSnapshot"
+        },
+        {
+          "const": "validateImportedSnapshot"
+        },
+        {
+          "const": "replaceHistory"
+        },
+        {
+          "const": "stageMutableSemanticStateAfterAuthorizedExternalMutation"
+        },
+        {
+          "const": "clearForErase"
+        }
+      ],
+      "type": "array"
+    },
+    "mergedHistorySequence": {
+      "additionalProperties": false,
+      "properties": {
+        "differentIdentity": {
+          "const": "PRESERVE_CURRENT_SEQUENCE_UNTIL_DESTINATION_POLICY_RESETS"
+        },
+        "newDestinationReplica": {
+          "const": "RESET_TO_ZERO"
+        },
+        "nextWrite": {
+          "const": "STRICTLY_GREATER_THAN_RETAINED_LOCAL_SEQUENCE"
+        },
+        "sameWorkspaceAndReplica": {
+          "const": "MAX_CURRENT_AND_INCOMING_LOCAL_SEQUENCE"
+        }
+      },
+      "required": [
+        "sameWorkspaceAndReplica",
+        "differentIdentity",
+        "newDestinationReplica",
+        "nextWrite"
+      ],
+      "type": "object"
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "networkOrProviderArtifactsAllowed": {
+      "const": false
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "provisional": {
+      "const": true
+    },
+    "rawRecordUUIDsRemappedForCloneOrFork": {
+      "const": false
+    },
+    "rebuildReplay": {
+      "const": "DETERMINISTIC_BOUNDED_RECEIPT_ORDER_AND_CONSUMER_CHECKPOINTS"
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "restoreReplicaMatrix": {
+      "items": false,
+      "maxItems": 4,
+      "minItems": 4,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "destinationReplicaIdentity": {
+              "const": "MINT_NEW_DESTINATION_REPLICA"
+            },
+            "mode": {
+              "const": "empty"
+            },
+            "receiptHistory": {
+              "const": "PRESERVE_SOURCE_RECEIPTS_IMMUTABLY"
+            },
+            "sourceReplicaMayBecomeDestination": {
+              "const": false
+            },
+            "workspaceIdentity": {
+              "const": "SOURCE_WORKSPACE_ID"
+            }
+          },
+          "required": [
+            "mode",
+            "workspaceIdentity",
+            "destinationReplicaIdentity",
+            "receiptHistory",
+            "sourceReplicaMayBecomeDestination"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "destinationReplicaIdentity": {
+              "const": "RETAIN_DESTINATION_REPLICA_OR_MINT_IF_ABSENT"
+            },
+            "mode": {
+              "const": "replace"
+            },
+            "receiptHistory": {
+              "const": "PRESERVE_DESTINATION_HISTORY_AND_RECORD_SOURCE_PROVENANCE"
+            },
+            "sourceReplicaMayBecomeDestination": {
+              "const": false
+            },
+            "workspaceIdentity": {
+              "const": "PRESERVE_DESTINATION_WORKSPACE_ID"
+            }
+          },
+          "required": [
+            "mode",
+            "workspaceIdentity",
+            "destinationReplicaIdentity",
+            "receiptHistory",
+            "sourceReplicaMayBecomeDestination"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "destinationReplicaIdentity": {
+              "const": "MINT_NEW_DESTINATION_REPLICA"
+            },
+            "mode": {
+              "const": "clone"
+            },
+            "receiptHistory": {
+              "const": "PRESERVE_RAW_RECORD_IDS_AND_SOURCE_RECEIPTS_AS_PROVENANCE"
+            },
+            "sourceReplicaMayBecomeDestination": {
+              "const": false
+            },
+            "workspaceIdentity": {
+              "const": "MINT_NEW_WORKSPACE_ID"
+            }
+          },
+          "required": [
+            "mode",
+            "workspaceIdentity",
+            "destinationReplicaIdentity",
+            "receiptHistory",
+            "sourceReplicaMayBecomeDestination"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "destinationReplicaIdentity": {
+              "const": "MINT_NEW_DESTINATION_REPLICA"
+            },
+            "mode": {
+              "const": "fork"
+            },
+            "receiptHistory": {
+              "const": "PRESERVE_RAW_RECORD_IDS_AND_SOURCE_RECEIPTS_AS_PROVENANCE"
+            },
+            "sourceReplicaMayBecomeDestination": {
+              "const": false
+            },
+            "workspaceIdentity": {
+              "const": "MINT_NEW_WORKSPACE_ID_WITH_EXPLICIT_SOURCE_LINEAGE"
+            }
+          },
+          "required": [
+            "mode",
+            "workspaceIdentity",
+            "destinationReplicaIdentity",
+            "receiptHistory",
+            "sourceReplicaMayBecomeDestination"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "schema": {
+      "const": "MutationLifecycleContractV1"
+    },
+    "schemaActivation": {
+      "additionalProperties": false,
+      "properties": {
+        "afterFirstSchemaWriteRollback": {
+          "const": "RETAIN_READ_EXPORT_AND_SHIP_COMPATIBLE_FORWARD_FIX"
+        },
+        "backupRestoreRequired": {
+          "const": true
+        },
+        "beforeFirstSchemaWriteRollback": {
+          "const": "DISCARD_CANDIDATE_GENERATION"
+        },
+        "deleteEraseRequired": {
+          "const": true
+        },
+        "downgradeDisposition": {
+          "const": "FORWARD_FIX_ONLY"
+        },
+        "exportReportRequired": {
+          "const": true
+        },
+        "migrationRequired": {
+          "const": true
+        },
+        "persistentChangeMode": {
+          "const": "NEW_SCHEMA_VERSION"
+        },
+        "persistentSchemaVersion": {
+          "const": 4
+        },
+        "receiptDeletionToHideDefectAllowed": {
+          "const": false
+        },
+        "schema": {
+          "const": "MUTATION_RECEIPT_V1"
+        }
+      },
+      "required": [
+        "persistentChangeMode",
+        "schema",
+        "persistentSchemaVersion",
+        "migrationRequired",
+        "backupRestoreRequired",
+        "deleteEraseRequired",
+        "exportReportRequired",
+        "downgradeDisposition",
+        "beforeFirstSchemaWriteRollback",
+        "afterFirstSchemaWriteRollback",
+        "receiptDeletionToHideDefectAllowed"
+      ],
+      "type": "object"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "v3ToV4Migration": {
+      "additionalProperties": false,
+      "properties": {
+        "crashRetryIdempotent": {
+          "const": true
+        },
+        "historicReceiptsFabricated": {
+          "const": false
+        },
+        "postMigrationRecoveryValidationRequired": {
+          "const": true
+        },
+        "retryAfterMarkerSaveBeforeJournalAdvance": {
+          "const": "REVALIDATE_V3_SEMANTIC_THEN_REQUIRE_OR_BACKFILL_V4_MARKER"
+        },
+        "stage": {
+          "const": "LIGHTWEIGHT_V3_TO_V4"
+        }
+      },
+      "required": [
+        "stage",
+        "historicReceiptsFabricated",
+        "retryAfterMarkerSaveBeforeJournalAdvance",
+        "crashRetryIdempotent",
+        "postMigrationRecoveryValidationRequired"
+      ],
+      "type": "object"
+    },
+    "verifiedErase": {
+      "const": "REMOVE_WORKSPACE_DATA_ENVELOPES_RECEIPTS_BASIS_QUARANTINE_AND_KEYS_WITHOUT_REVERSAL_CLAIM"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "schemaActivation",
+    "v3ToV4Migration",
+    "backup",
+    "mergedHistorySequence",
+    "restoreReplicaMatrix",
+    "delete",
+    "verifiedErase",
+    "export",
+    "rebuildReplay",
+    "journalLifecycleAPIs",
+    "rawRecordUUIDsRemappedForCloneOrFork",
+    "networkOrProviderArtifactsAllowed",
+    "evidenceIDs",
+    "provisional",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "phase10PollingDuringParallelExecution",
+    "requiresAcceptedS10_6Reconciliation",
+    "artifactDigest"
+  ],
+  "title": "MutationLifecycleContractV1",
+  "type": "object"
+}

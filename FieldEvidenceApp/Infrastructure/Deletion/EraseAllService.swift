@@ -257,6 +257,20 @@ final class EraseAllService {
             guard EraseIntentCodecV1.valid(intent) else {
                 throw EraseAllServiceError.invalidAuthority
             }
+            let emptySession = try validatedEmptySession(
+                id: newGenerationID,
+                identity: targetIdentity,
+                expectedEmptyLedger: expectedEmptyLedger,
+                authority: generationAuthority
+            )
+            try MutationJournalStoreV1(
+                modelContext: emptySession.modelContext,
+                identity: targetIdentity,
+                generationID: newGenerationID
+            ).clearForErase(
+                expectedWorkspaceID: targetIdentity.workspaceID,
+                expectedGenerationID: newGenerationID
+            )
             _ = try validatedEmptySession(
                 id: newGenerationID,
                 identity: targetIdentity,
@@ -950,6 +964,20 @@ private extension EraseAllService {
               tree.files.contains("model.sqlite"),
               tree.files.isSubset(of: allowedFiles) else {
             throw EraseAllServiceError.invalidAuthority
+        }
+        if let identity {
+            let history = try MutationJournalStoreV1(
+                modelContext: session.modelContext,
+                identity: identity,
+                generationID: id
+            ).exportSnapshot()
+            guard history.workspaceRevision == 0,
+                  history.lastLocalSequence == 0,
+                  history.receipts.isEmpty,
+                  history.quarantines.isEmpty,
+                  history.entityRevisions.isEmpty else {
+                throw EraseAllServiceError.invalidAuthority
+            }
         }
         if let expectedEmptyLedger {
             let ledger = try DeletionLedgerStore(

@@ -24,9 +24,35 @@ final class V9_06DeletionRightsTests: XCTestCase {
         let deletedAssetID = try XCTUnwrap(
             source.session.modelContext.fetch(FetchDescriptor<Asset>()).first?.id
         )
+        let sourceSiteID = try XCTUnwrap(
+            source.session.modelContext.fetch(FetchDescriptor<Site>()).first?.id
+        )
+        let retainedMutationID = try MutationIDV1(rawValue: V906Integration.id(49))
+        let sourceWriter = StoreSessionCoordinator(session: source.session).workspaceWriter
+        let sourceRevision = try sourceWriter.currentRevision()
+        let mutationExpected = try WorkspaceExpectedRevisionV1(
+            workspaceID: sourceRevision.workspaceID,
+            generationID: sourceRevision.generationID,
+            writerInstanceID: sourceRevision.writerInstanceID,
+            workspaceRevision: sourceRevision.revision,
+            entityRevisions: [.init(
+                identity: try WorkspaceEntityIdentityV1(kind: .site, id: sourceSiteID),
+                revision: 0
+            )]
+        )
+        _ = try sourceWriter.execute(.init(
+            mutationID: retainedMutationID,
+            expectedRevision: mutationExpected,
+            command: .updateSiteTimeZone(.init(
+                siteID: sourceSiteID,
+                timeZoneID: "UTC",
+                confirmedAt: V906Integration.deletedAt.addingTimeInterval(-1)
+            ))
+        ))
         _ = try await V906Integration.deletionService(source).delete(assetID: deletedAssetID)
         XCTAssertEqual(try source.session.modelContext.fetchCount(FetchDescriptor<Site>()), 1)
         XCTAssertEqual(try source.session.modelContext.fetchCount(FetchDescriptor<Asset>()), 0)
+        XCTAssertNotNil(try sourceWriter.durableReceipt(mutationID: retainedMutationID))
         let archive = try V906Integration.exportStreaming(source)
 
         for (offset, mode) in BackupRestoreMode.allCases.enumerated() {
@@ -47,6 +73,15 @@ final class V9_06DeletionRightsTests: XCTestCase {
             XCTAssertTrue(ledger.entries.contains {
                 $0.identity.kind == .asset && $0.identity.id == deletedAssetID
             }, mode.rawValue)
+            let restoredJournal = try MutationJournalStoreV1(
+                modelContext: restored.modelContext,
+                identity: restored.workspaceIdentity,
+                generationID: restored.generationID
+            )
+            XCTAssertNotNil(
+                try restoredJournal.receipt(mutationID: retainedMutationID),
+                mode.rawValue
+            )
         }
     }
 

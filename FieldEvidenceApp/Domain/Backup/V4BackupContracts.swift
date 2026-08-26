@@ -124,6 +124,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let deletionLedger: DeletionLedgerV2?
     let evidenceFiles: [V4BackupEvidenceFileDTO]
     let issues: [V4BackupIssueDTO]
+    let mutationHistory: MutationHistorySnapshotV1?
     let packets: [V4BackupPacketDTO]
     let recordsSchemaVersion: Int
     let reports: [V4BackupReportDTO]
@@ -135,6 +136,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         deletionLedger: DeletionLedgerV2? = nil,
         evidenceFiles: [V4BackupEvidenceFileDTO],
         issues: [V4BackupIssueDTO],
+        mutationHistory: MutationHistorySnapshotV1? = nil,
         packets: [V4BackupPacketDTO],
         recordsSchemaVersion: Int,
         reports: [V4BackupReportDTO],
@@ -145,6 +147,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         self.deletionLedger = deletionLedger
         self.evidenceFiles = evidenceFiles
         self.issues = issues
+        self.mutationHistory = mutationHistory
         self.packets = packets
         self.recordsSchemaVersion = recordsSchemaVersion
         self.reports = reports

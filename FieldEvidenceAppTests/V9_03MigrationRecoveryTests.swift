@@ -13,6 +13,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let migrationID: UUID
         let targetID: UUID
         let v3TargetID: UUID
+        let v4TargetID: UUID
         let siteID: UUID
         let assetID: UUID
         let processIDs: [UUID]
@@ -164,12 +165,25 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
 
         var thirdLaunch: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
         let third = try XCTUnwrap(thirdLaunch)
-        XCTAssertEqual(third.generationID, fixture.v3TargetID)
+        XCTAssertEqual(third.generationID, fixture.v4TargetID)
         XCTAssertEqual(
             try DeletionLedgerStore(context: third.modelContext).snapshot(),
             .empty
         )
+        XCTAssertEqual(try third.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
         thirdLaunch = nil
+
+        let v4FirstLaunch = try XCTUnwrap(try store.loadJournal())
+        XCTAssertEqual(v4FirstLaunch.sourceRelease, .v3)
+        XCTAssertEqual(v4FirstLaunch.targetRelease, .v4)
+        XCTAssertEqual(v4FirstLaunch.phase, .firstLaunchValidated)
+        XCTAssertEqual(try pointerSchema(in: fixture.root), 3)
+
+        var fourthLaunch: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
+        let fourth = try XCTUnwrap(fourthLaunch)
+        XCTAssertEqual(fourth.generationID, fixture.v4TargetID)
+        XCTAssertEqual(try fourth.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+        fourthLaunch = nil
         XCTAssertNil(try store.loadJournal())
         XCTAssertEqual(try pointerSchema(in: fixture.root), 3)
     }
@@ -335,6 +349,112 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
             XCTAssertNil(try loadJournal(in: fixture.root), boundary.rawValue)
             XCTAssertEqual(try pointerSchema(in: fixture.root), 3, boundary.rawValue)
         }
+
+        let markerRetry = try makeLegacyFixture(suffix: "V4MarkerRetry")
+        defer { try? fileManager.removeItem(at: markerRetry.root) }
+        let markerRetryCursor = ProcessCursor()
+        let advanceFactory = makeFactory(
+            fixture: markerRetry,
+            processCursor: markerRetryCursor
+        )
+        var advanced: StoreGenerationSession? = try advanceFactory.openOrBootstrapCurrent()
+        advanced = nil
+        advanced = try advanceFactory.openOrBootstrapCurrent()
+        XCTAssertEqual(try XCTUnwrap(advanced).generationID, markerRetry.v3TargetID)
+        advanced = nil
+
+        let retryFactory = makeFactory(
+            fixture: markerRetry,
+            processCursor: markerRetryCursor,
+            injection: StoreMigrationFailureInjection(failOnceAt: .afterV2Validation)
+        )
+        XCTAssertThrowsError(try retryFactory.openOrBootstrapCurrent()) {
+            XCTAssertEqual(
+                $0 as? StoreMigrationFailure,
+                .injectedFault(.afterV2Validation)
+            )
+        }
+        let retryStaging = retryFactory.restoreStagingGenerationURL(
+            id: markerRetry.v4TargetID
+        )
+        try assertMarker(
+            at: retryStaging.appendingPathComponent("model.sqlite"),
+            migrationID: markerRetry.migrationID,
+            release: .v4
+        )
+        var recovered: StoreGenerationSession? = try retryFactory.openOrBootstrapCurrent()
+        XCTAssertEqual(try XCTUnwrap(recovered).generationID, markerRetry.v4TargetID)
+        XCTAssertEqual(
+            try XCTUnwrap(recovered).modelContext.fetchCount(
+                FetchDescriptor<MutationReceiptRow>()
+            ),
+            0
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(recovered).modelContext.fetchCount(
+                FetchDescriptor<WorkspaceMutationStateRow>()
+            ),
+            1
+        )
+        recovered = nil
+        let secondRecovery = try retryFactory.openOrBootstrapCurrent()
+        XCTAssertEqual(secondRecovery.generationID, markerRetry.v4TargetID)
+        XCTAssertEqual(
+            try secondRecovery.modelContext.fetchCount(
+                FetchDescriptor<WorkspaceMutationStateRow>()
+            ),
+            1
+        )
+
+        let exactMarkerSchema = Schema(
+            PersistentSchemaV4.models,
+            version: PersistentSchemaV4.versionIdentifier
+        )
+        let exactMarkerContainer = try ModelContainer(
+            for: exactMarkerSchema,
+            migrationPlan: nil,
+            configurations: [ModelConfiguration(
+                "V9_03V4ExactMarkerRetry",
+                schema: exactMarkerSchema,
+                isStoredInMemoryOnly: true,
+                allowsSave: true,
+                cloudKitDatabase: .none
+            )]
+        )
+        let exactMarkerContext = exactMarkerContainer.mainContext
+        exactMarkerContext.autosaveEnabled = false
+        exactMarkerContext.insert(PersistentSchemaReleaseMarker(
+            id: PersistentSchemaReleaseRegistryV1.v2MarkerID,
+            schemaVersion: 4,
+            releaseID: PersistentSchemaReleaseRegistryV1.v4CompatibilityID,
+            predecessorReleaseID: PersistentSchemaReleaseRegistryV1.v3CompatibilityID,
+            migrationID: markerRetry.migrationID
+        ))
+        try exactMarkerContext.save()
+        let exactIdentity = try WorkspaceReplicaIdentityV1(
+            workspaceID: WorkspaceID(rawValue: fixedUUID("00000000-0000-0000-0000-000000000091")),
+            replicaID: ReplicaID(rawValue: fixedUUID("00000000-0000-0000-0000-000000000092"))
+        )
+        _ = try MutationJournalStoreV1(
+            modelContext: exactMarkerContext,
+            identity: exactIdentity,
+            generationID: fixedUUID("00000000-0000-0000-0000-000000000093")
+        )
+        var exactStates = try exactMarkerContext.fetch(
+            FetchDescriptor<WorkspaceMutationStateRow>()
+        )
+        XCTAssertEqual(exactStates.count, 1)
+        let incompleteState = try XCTUnwrap(exactStates.first)
+        incompleteState.mutableSemanticSHA256 = nil
+        try exactMarkerContext.save()
+        _ = try MutationJournalStoreV1(
+            modelContext: exactMarkerContext,
+            identity: exactIdentity,
+            generationID: fixedUUID("00000000-0000-0000-0000-000000000093")
+        )
+        exactStates = try exactMarkerContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+        XCTAssertEqual(exactStates.count, 1)
+        XCTAssertNotNil(try XCTUnwrap(exactStates.first).mutableSemanticSHA256)
     }
 
     func testSourceCloneRecoveryReclonesButAuthorizedRecoveryIsForwardOnly() throws {
@@ -671,6 +791,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let migrationID = fixedUUID("00000000-0000-0000-0000-000000000011")
         let targetID = fixedUUID("00000000-0000-0000-0000-000000000012")
         let v3TargetID = fixedUUID("00000000-0000-0000-0000-000000000015")
+        let v4TargetID = fixedUUID("00000000-0000-0000-0000-000000000016")
         let siteID = fixedUUID("00000000-0000-0000-0000-000000000013")
         let assetID = fixedUUID("00000000-0000-0000-0000-000000000014")
         let processIDs = (0..<8).map {
@@ -748,6 +869,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
             migrationID: migrationID,
             targetID: targetID,
             v3TargetID: v3TargetID,
+            v4TargetID: v4TargetID,
             siteID: siteID,
             assetID: assetID,
             processIDs: processIDs
@@ -785,7 +907,13 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
                 } else {
                     schemaVersion = nil
                 }
-                return schemaVersion == 1 ? fixture.targetID : fixture.v3TargetID
+                if schemaVersion == 1 { return fixture.targetID }
+                if let data = try? Data(contentsOf: pointerURL),
+                   let pointer = try? CurrentGenerationPointerV3.decodeCanonical(from: data),
+                   pointer.storeSchemaVersion == 3 {
+                    return fixture.v4TargetID
+                }
+                return fixture.v3TargetID
             },
             makeProcessID: {
                 defer { processCursor.index += 1 }
@@ -845,6 +973,11 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
                 version: PersistentSchemaV2.versionIdentifier
             )
         case .v3:
+            schema = Schema(
+                PersistentSchemaV3.models,
+                version: PersistentSchemaV3.versionIdentifier
+            )
+        case .v4:
             schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
         }
         let configuration = ModelConfiguration(
@@ -865,18 +998,33 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let marker = try XCTUnwrap(markers.first)
         XCTAssertEqual(markers.count, 1)
         XCTAssertEqual(marker.id, PersistentSchemaReleaseRegistryV1.v2MarkerID)
-        XCTAssertEqual(marker.schemaVersion, release == .v3 ? 3 : 2)
+        let expectedSchemaVersion: Int
+        let expectedReleaseID: String
+        let expectedPredecessorID: String
+        switch release {
+        case .v1:
+            throw StoreMigrationFailure.invalidContract
+        case .v2:
+            expectedSchemaVersion = 2
+            expectedReleaseID = PersistentSchemaReleaseRegistryV1.v2CompatibilityID
+            expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v1CompatibilityID
+        case .v3:
+            expectedSchemaVersion = 3
+            expectedReleaseID = PersistentSchemaReleaseRegistryV1.v3CompatibilityID
+            expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v2CompatibilityID
+        case .v4:
+            expectedSchemaVersion = 4
+            expectedReleaseID = PersistentSchemaReleaseRegistryV1.v4CompatibilityID
+            expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v3CompatibilityID
+        }
+        XCTAssertEqual(marker.schemaVersion, expectedSchemaVersion)
         XCTAssertEqual(
             marker.releaseID,
-            release == .v3
-                ? PersistentSchemaReleaseRegistryV1.v3CompatibilityID
-                : PersistentSchemaReleaseRegistryV1.v2CompatibilityID
+            expectedReleaseID
         )
         XCTAssertEqual(
             marker.predecessorReleaseID,
-            release == .v3
-                ? PersistentSchemaReleaseRegistryV1.v2CompatibilityID
-                : PersistentSchemaReleaseRegistryV1.v1CompatibilityID
+            expectedPredecessorID
         )
         XCTAssertEqual(marker.migrationID, migrationID)
     }
@@ -896,6 +1044,11 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
                 version: PersistentSchemaV2.versionIdentifier
             )
         case .v3:
+            schema = Schema(
+                PersistentSchemaV3.models,
+                version: PersistentSchemaV3.versionIdentifier
+            )
+        case .v4:
             schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
         }
         let configuration = ModelConfiguration(

@@ -14,9 +14,27 @@ struct ReplacementRestorePlan: Equatable, Sendable {
 
 struct DeletionWinningRestoreInputV2: Equatable, Sendable {
     let currentRecords: V4BackupRecordsV1
+    let currentIdentity: WorkspaceReplicaIdentityV1?
     let incomingRecords: V4BackupRecordsV1
+    let incomingIdentity: WorkspaceReplicaIdentityV1?
     let mode: BackupRestoreMode
     let replacementAt: Date
+
+    init(
+        currentRecords: V4BackupRecordsV1,
+        currentIdentity: WorkspaceReplicaIdentityV1? = nil,
+        incomingRecords: V4BackupRecordsV1,
+        incomingIdentity: WorkspaceReplicaIdentityV1? = nil,
+        mode: BackupRestoreMode,
+        replacementAt: Date
+    ) {
+        self.currentRecords = currentRecords
+        self.currentIdentity = currentIdentity
+        self.incomingRecords = incomingRecords
+        self.incomingIdentity = incomingIdentity
+        self.mode = mode
+        self.replacementAt = replacementAt
+    }
 }
 
 struct DeletionWinningRestorePlanV2: Equatable, Sendable {
@@ -144,6 +162,19 @@ enum ReplacementRestoreRule {
             ))
         }
 
+        let mutationHistory: MutationHistorySnapshotV1?
+        switch input.mode {
+        case .emptyInstall, .clone, .fork:
+            mutationHistory = input.incomingRecords.mutationHistory
+        case .replaceExisting:
+            mutationHistory = try mergedMutationHistory(
+                current: input.currentRecords.mutationHistory,
+                currentIdentity: input.currentIdentity,
+                incoming: input.incomingRecords.mutationHistory,
+                incomingIdentity: input.incomingIdentity
+            )
+        }
+        incoming = replacingMutationHistory(in: incoming, with: mutationHistory)
         let recordsAfter = try filtering(incoming, through: ledger)
         return DeletionWinningRestorePlanV2(
             recordsAfter: recordsAfter,
@@ -156,11 +187,19 @@ private extension ReplacementRestoreRule {
     static func normalizedLedger(_ records: V4BackupRecordsV1) throws
         -> DeletionLedgerV2 {
         let explicit: DeletionLedgerV2
-        switch (records.recordsSchemaVersion, records.deletionLedger) {
-        case (1, nil):
+        switch (
+            records.recordsSchemaVersion,
+            records.deletionLedger,
+            records.mutationHistory
+        ) {
+        case (1, nil, nil):
             explicit = .empty
-        case (2, let ledger?):
+        case (2, let ledger?, nil):
             try ledger.validate()
+            explicit = ledger
+        case (3, let ledger?, let history?):
+            try ledger.validate()
+            try MutationJournalStoreV1.validateImportedSnapshot(history)
             explicit = ledger
         default:
             throw ReplacementRestoreRuleError.invalidAuthority
@@ -222,8 +261,9 @@ private extension ReplacementRestoreRule {
             deletionLedger: ledger,
             evidenceFiles: evidence,
             issues: issues,
+            mutationHistory: records.mutationHistory,
             packets: packets,
-            recordsSchemaVersion: 2,
+            recordsSchemaVersion: records.mutationHistory == nil ? 2 : 3,
             reports: reports,
             sites: sites,
             workflowRecords: workflow
@@ -243,12 +283,135 @@ private extension ReplacementRestoreRule {
             deletionLedger: records.deletionLedger,
             evidenceFiles: records.evidenceFiles,
             issues: records.issues,
+            mutationHistory: records.mutationHistory,
             packets: packets,
             recordsSchemaVersion: records.recordsSchemaVersion,
             reports: records.reports,
             sites: records.sites,
             workflowRecords: records.workflowRecords
         )
+    }
+
+    static func replacingMutationHistory(
+        in records: V4BackupRecordsV1,
+        with mutationHistory: MutationHistorySnapshotV1?
+    ) -> V4BackupRecordsV1 {
+        V4BackupRecordsV1(
+            assets: records.assets,
+            deletionLedger: records.deletionLedger,
+            evidenceFiles: records.evidenceFiles,
+            issues: records.issues,
+            mutationHistory: mutationHistory,
+            packets: records.packets,
+            recordsSchemaVersion: mutationHistory == nil
+                ? min(records.recordsSchemaVersion, 2)
+                : 3,
+            reports: records.reports,
+            sites: records.sites,
+            workflowRecords: records.workflowRecords
+        )
+    }
+
+    static func mergedMutationHistory(
+        current: MutationHistorySnapshotV1?,
+        currentIdentity: WorkspaceReplicaIdentityV1?,
+        incoming: MutationHistorySnapshotV1?,
+        incomingIdentity: WorkspaceReplicaIdentityV1?
+    ) throws -> MutationHistorySnapshotV1? {
+        guard let current else { return incoming }
+        guard let incoming else { return current }
+        do {
+            try MutationJournalStoreV1.validateImportedSnapshot(current)
+            try MutationJournalStoreV1.validateImportedSnapshot(incoming)
+        } catch {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+
+        var receiptByMutationID: [String: MutationHistoryReceiptRecordV1] = [:]
+        var receiptIdentityByMutationID: [String: String] = [:]
+        var mutationIDByReceiptIdentity: [String: String] = [:]
+        for record in current.receipts + incoming.receipts {
+            let envelope: MutationEnvelopeV1
+            let receipt: MutationReceiptV1
+            do {
+                envelope = try MutationEnvelopeV1.decodeCanonical(
+                    from: record.envelopeData
+                )
+                receipt = try MutationReceiptV1.decodeCanonical(
+                    from: record.receiptData
+                )
+            } catch {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            let mutationID = MutationWorkspaceKeyV1.value(
+                workspaceID: envelope.workspaceID,
+                mutationID: envelope.mutationID
+            )
+            let receiptIdentity = receipt.identity.stableKey
+            if let existing = receiptByMutationID[mutationID], existing != record {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            if let existing = mutationIDByReceiptIdentity[receiptIdentity],
+               existing != mutationID {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            receiptByMutationID[mutationID] = record
+            receiptIdentityByMutationID[mutationID] = receiptIdentity
+            mutationIDByReceiptIdentity[receiptIdentity] = mutationID
+        }
+        let receipts = receiptByMutationID.keys.sorted {
+            receiptIdentityByMutationID[$0]! < receiptIdentityByMutationID[$1]!
+        }.map { receiptByMutationID[$0]! }
+
+        var quarantines: [String: MutationHistoryQuarantineRecordV1] = [:]
+        for value in current.quarantines + incoming.quarantines {
+            let key = MutationWorkspaceKeyV1.value(
+                workspaceID: value.workspaceID,
+                mutationID: try MutationIDV1(rawValue: value.mutationID)
+            )
+            if let existing = quarantines[key], existing != value {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            quarantines[key] = value
+        }
+        let orderedQuarantines = quarantines.values.sorted {
+            let lhs = "\($0.workspaceID.rawValue.uuidString.lowercased()):\($0.mutationID.uuidString.lowercased())"
+            let rhs = "\($1.workspaceID.rawValue.uuidString.lowercased()):\($1.mutationID.uuidString.lowercased())"
+            return lhs < rhs
+        }
+
+        var revisions: [
+            WorkspaceEntityIdentityV1: MutationHistoryEntityRevisionV1
+        ] = [:]
+        for value in current.entityRevisions + incoming.entityRevisions {
+            guard let existing = revisions[value.identity] else {
+                revisions[value.identity] = value
+                continue
+            }
+            if value.revision > existing.revision {
+                revisions[value.identity] = value
+            }
+        }
+        let entityRevisions = revisions.values.sorted {
+            $0.identity.stableKey < $1.identity.stableKey
+        }
+        let retainedSequence = currentIdentity != nil
+            && currentIdentity == incomingIdentity
+            ? max(current.lastLocalSequence, incoming.lastLocalSequence)
+            : current.lastLocalSequence
+        let result = MutationHistorySnapshotV1(
+            workspaceRevision: max(
+                current.workspaceRevision,
+                incoming.workspaceRevision
+            ),
+            lastLocalSequence: retainedSequence,
+            receipts: receipts,
+            quarantines: orderedQuarantines,
+            entityRevisions: entityRevisions
+        )
+        do { try MutationJournalStoreV1.validateImportedSnapshot(result) }
+        catch { throw ReplacementRestoreRuleError.invalidAuthority }
+        return result
     }
 
     static func noDeletedLiveIdentity(

@@ -44,6 +44,25 @@ final class V9_05RestoreIdentityTests: XCTestCase {
                 XCTAssertEqual(restored.replicaID.rawValue, freshReplica)
             }
             XCTAssertEqual(try recordIDs(in: restored), scenario.sourceRecordIDs, mode.rawValue)
+            let restoredJournal = try MutationJournalStoreV1(
+                modelContext: restored.modelContext,
+                identity: restored.workspaceIdentity,
+                generationID: restored.generationID
+            )
+            let historicReceipt = try XCTUnwrap(
+                restoredJournal.receipt(mutationID: scenario.sourceMutationID),
+                mode.rawValue
+            )
+            XCTAssertEqual(
+                historicReceipt.identity.replicaID.rawValue,
+                scenario.sourceReplicaID,
+                mode.rawValue
+            )
+            XCTAssertEqual(
+                try restoredJournal.exportSnapshot().quarantines,
+                [scenario.sourceQuarantine],
+                mode.rawValue
+            )
             XCTAssertNil(try RestoreIntentStore(applicationSupportURL: scenario.target.support).load())
         }
     }
@@ -370,13 +389,103 @@ final class V9_05RestoreIdentityTests: XCTestCase {
         let verification = try makeHarness(at: scenario.root, name: "verification", nonempty: false)
         let validated = try importArchive(archive, into: verification.session)
         let pointer = try scenario.target.factory.currentGenerationPointerV3(expectedGenerationID: secondLaunch.generationID)
-        XCTAssertEqual(validated.manifest.backupSchemaVersion, 2)
+        XCTAssertEqual(validated.manifest.backupSchemaVersion, 3)
+        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 4)
+        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 3)
+        XCTAssertNotNil(validated.records.mutationHistory)
         XCTAssertEqual(validated.manifest.source.workspaceID?.uuidString.lowercased(), pointer.workspaceID)
         XCTAssertEqual(validated.manifest.source.replicaID?.uuidString.lowercased(), pointer.replicaID)
         XCTAssertNotEqual(validated.manifest.source.replicaID, scenario.sourceReplicaID)
         XCTAssertEqual(Set(validated.records.sites.map(\.id) + validated.records.assets.map(\.id)), scenario.sourceRecordIDs)
         try BackupImportService(generationRootURL: verification.session.generationRootURL, storagePreflight: unlimitedStorage, scopedAccess: .alreadyAuthorized).discard(validated)
         try assertNoRestoreResidue(in: scenario.target.support, point: "relaunch")
+
+        let legacySource = try makeHarness(
+            at: scenario.root,
+            name: "legacy-records1-source",
+            nonempty: true
+        )
+        let legacyDestination = scenario.root.appendingPathComponent(
+            "legacy-records1-export",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(
+            at: legacyDestination,
+            withIntermediateDirectories: false
+        )
+        let legacyExporter = BackupExportService(
+            modelContext: legacySource.session.modelContext,
+            generationRootURL: legacySource.session.generationRootURL,
+            storagePreflight: unlimitedStorage,
+            now: { Date(timeIntervalSince1970: 1_800_000_100) },
+            makeUUID: sequence([id(820), id(821), id(822), id(823)])
+        )
+        let legacyPreview = try legacyExporter.prepareCompatibilityFixtureLegacyDirectoryPackage()
+        let legacyArchive = try legacyExporter.exportCompatibilityFixtureLegacyDirectoryPackage(
+            previewID: legacyPreview.id,
+            to: legacyDestination
+        )
+        let legacyTarget = try makeHarness(
+            at: scenario.root,
+            name: "legacy-records1-target",
+            nonempty: false
+        )
+        let legacyValidated = try importArchive(legacyArchive, into: legacyTarget.session)
+        XCTAssertEqual(legacyValidated.manifest.backupSchemaVersion, 1)
+        XCTAssertEqual(legacyValidated.manifest.source.recordsSchemaVersion, 1)
+        XCTAssertNil(legacyValidated.records.mutationHistory)
+        let legacyRestore = try BackupRestoreService(
+            applicationSupportURL: legacyTarget.support,
+            storagePreflight: unlimitedStorage,
+            makeUUID: sequence((830..<850).map { id($0) })
+        )
+        var legacyRestored: StoreGenerationSession? = try await legacyRestore.restore(
+            validatedPackage: legacyValidated,
+            currentModelContext: legacyTarget.session.modelContext,
+            currentGenerationID: legacyTarget.session.generationID,
+            currentGenerationRootURL: legacyTarget.session.generationRootURL,
+            mode: .emptyInstall
+        )
+        var legacyCoordinator: StoreSessionCoordinator? = StoreSessionCoordinator(
+            session: legacyTarget.session
+        )
+        try XCTUnwrap(legacyCoordinator).activate(session: try XCTUnwrap(legacyRestored))
+        XCTAssertEqual(
+            try XCTUnwrap(legacyRestored).modelContext.fetchCount(
+                FetchDescriptor<WorkspaceMutationStateRow>()
+            ),
+            1
+        )
+        XCTAssertEqual(
+            try legacyTarget.factory.currentGenerationPointerV3(
+                expectedGenerationID: try XCTUnwrap(legacyRestored).generationID
+            ).storeSchemaVersion,
+            4
+        )
+        XCTAssertNoThrow(try XCTUnwrap(legacyCoordinator).workspaceWriter.currentRevision())
+        let legacyGenerationID = try XCTUnwrap(legacyRestored).generationID
+        let legacyIdentity = try XCTUnwrap(legacyRestored).workspaceIdentity
+        legacyCoordinator = nil
+        legacyRestored = nil
+        let legacyReopened = try legacyTarget.factory.openOrBootstrapCurrent()
+        XCTAssertEqual(legacyReopened.generationID, legacyGenerationID)
+        XCTAssertEqual(legacyReopened.workspaceIdentity, legacyIdentity)
+        XCTAssertEqual(
+            try legacyReopened.modelContext.fetchCount(
+                FetchDescriptor<WorkspaceMutationStateRow>()
+            ),
+            1
+        )
+        let legacyJournal = try MutationJournalStoreV1(
+            modelContext: legacyReopened.modelContext,
+            identity: legacyReopened.workspaceIdentity,
+            generationID: legacyReopened.generationID,
+            allowStateBootstrap: false
+        )
+        XCTAssertNoThrow(
+            try MutationReceiptRecoveryServiceV1(store: legacyJournal)
+                .recoverBeforeWriterActivation()
+        )
     }
 }
 
@@ -389,6 +498,8 @@ private extension V9_05RestoreIdentityTests {
         let sourceWorkspaceID: UUID
         let sourceReplicaID: UUID
         let sourceRecordIDs: Set<UUID>
+        let sourceMutationID: MutationIDV1
+        let sourceQuarantine: MutationHistoryQuarantineRecordV1
     }
     struct ManifestAbsentCrash {
         let scenario: Scenario
@@ -412,6 +523,54 @@ private extension V9_05RestoreIdentityTests {
         try fileManager.createDirectory(at: root, withIntermediateDirectories: false)
         let source = try makeHarness(at: root, name: "source", nonempty: true)
         let sourceRecordIDs = try recordIDs(in: source.session)
+        let sourceSiteID = try XCTUnwrap(
+            try source.session.modelContext.fetch(FetchDescriptor<Site>()).first?.id
+        )
+        let sourceMutationID = try MutationIDV1(rawValue: id(89))
+        let writer = StoreSessionCoordinator(session: source.session).workspaceWriter
+        let before = try writer.currentRevision()
+        let expected = try WorkspaceExpectedRevisionV1(
+            workspaceID: before.workspaceID,
+            generationID: before.generationID,
+            writerInstanceID: before.writerInstanceID,
+            workspaceRevision: before.revision,
+            entityRevisions: [.init(
+                identity: try WorkspaceEntityIdentityV1(kind: .site, id: sourceSiteID),
+                revision: 0
+            )]
+        )
+        let sourceRequest = WorkspaceMutationRequestV1(
+            mutationID: sourceMutationID,
+            expectedRevision: expected,
+            command: .updateSiteTimeZone(.init(
+                siteID: sourceSiteID,
+                timeZoneID: "UTC",
+                confirmedAt: Date(timeIntervalSince1970: 1_799_999_010)
+            ))
+        )
+        _ = try writer.execute(sourceRequest)
+        let conflictingRequest = WorkspaceMutationRequestV1(
+            mutationID: sourceMutationID,
+            expectedRevision: expected,
+            command: .updateSiteTimeZone(.init(
+                siteID: sourceSiteID,
+                timeZoneID: "Europe/Paris",
+                confirmedAt: Date(timeIntervalSince1970: 1_799_999_011)
+            ))
+        )
+        XCTAssertThrowsError(try writer.execute(conflictingRequest)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
+        }
+        let sourceJournal = try MutationJournalStoreV1(
+            modelContext: source.session.modelContext,
+            identity: source.session.workspaceIdentity,
+            generationID: source.session.generationID,
+            allowStateBootstrap: false
+        )
+        let sourceQuarantine = try XCTUnwrap(
+            try sourceJournal.exportSnapshot().quarantines.first
+        )
+        XCTAssertEqual(sourceQuarantine.identityDomain, .mutationEnvelope)
         let destination = root.appendingPathComponent("source-export", isDirectory: true)
         try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
         let exporter = BackupExportService(
@@ -424,7 +583,7 @@ private extension V9_05RestoreIdentityTests {
         let preview = try exporter.prepareStreaming()
         let archive = try exporter.exportStreaming(previewID: preview.id, to: destination)
         let target = try makeHarness(at: root, name: "target", nonempty: targetIsNonempty)
-        return Scenario(root: root, target: target, archiveURL: archive, sourceWorkspaceID: source.session.workspaceID.rawValue, sourceReplicaID: source.session.replicaID.rawValue, sourceRecordIDs: sourceRecordIDs)
+        return Scenario(root: root, target: target, archiveURL: archive, sourceWorkspaceID: source.session.workspaceID.rawValue, sourceReplicaID: source.session.replicaID.rawValue, sourceRecordIDs: sourceRecordIDs, sourceMutationID: sourceMutationID, sourceQuarantine: sourceQuarantine)
     }
 
     @MainActor

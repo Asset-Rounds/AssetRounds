@@ -469,7 +469,8 @@ private extension BackupPackageValidatorV1 {
         ) {
         case (1, nil, nil):
             sourceIdentityIsValid = true
-        case (2, let workspaceID?, let replicaID?):
+        case (2, let workspaceID?, let replicaID?),
+             (3, let workspaceID?, let replicaID?):
             sourceIdentityIsValid = workspaceID != zero
                 && replicaID != zero
                 && workspaceID != replicaID
@@ -482,7 +483,7 @@ private extension BackupPackageValidatorV1 {
             manifest.source.persistentSchemaVersion,
             manifest.source.recordsSchemaVersion
         ) {
-        case (1, 1, 1), (2, 1, 1), (2, 3, 2):
+        case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false
@@ -817,47 +818,65 @@ private extension BackupPackageValidatorV1 {
         guard records.recordsSchemaVersion == manifest.source.recordsSchemaVersion else {
             throw invalid()
         }
-        switch (records.recordsSchemaVersion, records.deletionLedger) {
-        case (1, nil):
+        let ledger: DeletionLedgerV2
+        switch (
+            records.recordsSchemaVersion,
+            records.deletionLedger,
+            records.mutationHistory
+        ) {
+        case (1, nil, nil):
             return
-        case (2, let ledger?):
-            do { try ledger.validate() }
+        case (2, let value?, nil):
+            ledger = value
+        case (3, let value?, let history?):
+            ledger = value
+            do { try MutationJournalStoreV1.validateImportedSnapshot(history) }
             catch { throw invalid() }
-            guard ledger.entries.count <= DeletionLedgerV2.maximumEntryCount else {
+            guard history.receipts.count
+                    <= MutationJournalStoreV1.maximumReceiptValidationCount,
+                  history.quarantines.count
+                    <= MutationJournalStoreV1.maximumReceiptValidationCount,
+                  history.entityRevisions.count
+                    <= MutationReceiptV1.maximumPostImageCount else {
                 throw invalid()
-            }
-            let byIdentity = Dictionary(
-                uniqueKeysWithValues: ledger.entries.map { ($0.identity, $0) }
-            )
-            func deleted(_ kind: DeletionRecordKindV2, _ id: UUID) throws -> Bool {
-                byIdentity[try DeletionIdentityV2(kind: kind, id: id)] != nil
-            }
-            guard try records.sites.allSatisfy({ try !deleted(.site, $0.id) }),
-                  try records.assets.allSatisfy({ try !deleted(.asset, $0.id) }),
-                  try records.workflowRecords.allSatisfy({
-                      try !deleted(.workflowRecord, $0.id)
-                  }),
-                  try records.evidenceFiles.allSatisfy({
-                      try !deleted(.evidenceFile, $0.id)
-                  }),
-                  try records.issues.allSatisfy({ try !deleted(.issue, $0.id) }),
-                  try records.reports.allSatisfy({ try !deleted(.report, $0.id) }) else {
-                throw invalid()
-            }
-            for packet in records.packets {
-                let identity = try DeletionIdentityV2(kind: .packet, id: packet.id)
-                if packet.currentRecordID == nil {
-                    guard packet.evaluationCounted,
-                          let deletedAt = packet.contentDeletedAt,
-                          byIdentity[identity]?.deletedAt == deletedAt else {
-                        throw invalid()
-                    }
-                } else if byIdentity[identity] != nil {
-                    throw invalid()
-                }
             }
         default:
             throw invalid()
+        }
+        do { try ledger.validate() }
+        catch { throw invalid() }
+        guard ledger.entries.count <= DeletionLedgerV2.maximumEntryCount else {
+            throw invalid()
+        }
+        let byIdentity = Dictionary(
+            uniqueKeysWithValues: ledger.entries.map { ($0.identity, $0) }
+        )
+        func deleted(_ kind: DeletionRecordKindV2, _ id: UUID) throws -> Bool {
+            byIdentity[try DeletionIdentityV2(kind: kind, id: id)] != nil
+        }
+        guard try records.sites.allSatisfy({ try !deleted(.site, $0.id) }),
+              try records.assets.allSatisfy({ try !deleted(.asset, $0.id) }),
+              try records.workflowRecords.allSatisfy({
+                  try !deleted(.workflowRecord, $0.id)
+              }),
+              try records.evidenceFiles.allSatisfy({
+                  try !deleted(.evidenceFile, $0.id)
+              }),
+              try records.issues.allSatisfy({ try !deleted(.issue, $0.id) }),
+              try records.reports.allSatisfy({ try !deleted(.report, $0.id) }) else {
+            throw invalid()
+        }
+        for packet in records.packets {
+            let identity = try DeletionIdentityV2(kind: .packet, id: packet.id)
+            if packet.currentRecordID == nil {
+                guard packet.evaluationCounted,
+                      let deletedAt = packet.contentDeletedAt,
+                      byIdentity[identity]?.deletedAt == deletedAt else {
+                    throw invalid()
+                }
+            } else if byIdentity[identity] != nil {
+                throw invalid()
+            }
         }
     }
 
