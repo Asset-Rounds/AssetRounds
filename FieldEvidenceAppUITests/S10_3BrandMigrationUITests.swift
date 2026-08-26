@@ -9272,10 +9272,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     "AX-text Report-correction-completed gesture receiver is too small."
                 )
             }
-            let requestedMagnitude = max(
-                abs(targetDistance) + measuredUndertravel,
-                minimumGestureDistance
-            )
+            let compensatedMagnitude =
+                abs(targetDistance) + measuredUndertravel
+            let requestedMagnitude = completedGestureCount == 0
+                ? max(compensatedMagnitude, minimumGestureDistance)
+                : compensatedMagnitude
             let dragMagnitude = min(requestedMagnitude, receiverCapacity)
             let dragDistance = direction * dragMagnitude
             let dragStartY = direction > 0 ? receiverTop : receiverBottom
@@ -10929,7 +10930,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 -minimumGestureDistance
             )
             if recognizedMinimum <= recognizedMaximum {
-                dragDistance = recognizedMaximum
+                dragDistance = (recognizedMinimum + recognizedMaximum) / 2
             } else {
                 let stagedDistance = max(
                     -receiverCapacity,

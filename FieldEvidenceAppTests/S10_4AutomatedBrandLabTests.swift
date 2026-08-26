@@ -1769,11 +1769,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             preflightAfterDarkPositioningHelperSource.utf8.count,
-            17_190
+            17_216
         )
         XCTAssertEqual(
             Data(preflightAfterDarkPositioningHelperSource.utf8).sha256,
-            "1262F5610EC60C1D20D0055F5275B08A51E53EEAFEAD433E3FBD16C50A675973"
+            "2BE4A598DAA2690A25791586E15F0AF4F6F9ED477DFAA86DEA0BC78B03B95219"
         )
         let preflightAfterDarkBindingLocks = [
             #"identifier: "s3.preflight.screen""#,
@@ -1905,7 +1905,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                -minimumGestureDistance\n" +
                 "            )",
             "if recognizedMinimum <= recognizedMaximum {\n" +
-                "                dragDistance = recognizedMaximum\n" +
+                "                dragDistance = (recognizedMinimum + recognizedMaximum) / 2\n" +
                 "            } else {",
             "let stagedDistance = max(\n" +
                 "                    -receiverCapacity,\n" +
@@ -1947,6 +1947,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 lock
             )
         }
+        XCTAssertEqual(
+            preflightAfterDarkPositioningHelperSource.components(
+                separatedBy: "dragDistance = recognizedMaximum"
+            ).count - 1,
+            0
+        )
         let preflightAfterDarkFinalLocks = [
             #""It is dark enough to observe the sign's visible illumination.""#,
             "guard stablePrePositionRoute(),",
@@ -18543,10 +18549,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "    private func positionReportCorrectionCompletedForAXText(",
             before: "\n    @MainActor\n    private func captureBaseline("
         )
-        XCTAssertEqual(k134State56HelperSource.utf8.count, 30_664)
+        XCTAssertEqual(k134State56HelperSource.utf8.count, 30_778)
         XCTAssertEqual(
             Data(k134State56HelperSource.utf8).sha256,
-            "690A20B20E36091667F2EABCA2DA4768C4225DE23BF977D0BE0BD65A397C8C48"
+            "AB9FB2F044B8296AFC84E4314CA66BD31A529CFA76333035A00DFCF22B6AD75D"
+        )
+        let k143State56MagnitudeSource = try boundedSource(
+            k134State56HelperSource,
+            from: "            let compensatedMagnitude =",
+            before: "            let dragMagnitude"
+        )
+        XCTAssertEqual(k143State56MagnitudeSource.utf8.count, 268)
+        XCTAssertEqual(
+            Data(k143State56MagnitudeSource.utf8).sha256,
+            "5167EADE1DE524E262A7EC5CE3E7242BF08801E4863F0BF632305F634BD674C0"
         )
         for exact in [
             #"automationShard?.shardID == "s10.4.current.ax-text""#,
@@ -18575,6 +18591,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "positioningDirection == direction",
             "receiverCapacity >= minimumGestureDistance",
             "abs(targetDistance) + measuredUndertravel",
+            "let requestedMagnitude = completedGestureCount == 0",
+            "? max(compensatedMagnitude, minimumGestureDistance)",
+            ": compensatedMagnitude",
             "dragStart.press(",
             "completedGestureCount += 1",
             "readyShift * dragDistance > 0",
