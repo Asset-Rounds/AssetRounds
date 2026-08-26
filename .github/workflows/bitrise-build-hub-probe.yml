@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: bitrise-build-hub-probe-${{ github.ref }}
+  group: bitrise-build-hub-probe-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:

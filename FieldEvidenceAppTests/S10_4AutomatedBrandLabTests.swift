@@ -106,10 +106,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             dispatcherPath,
-            byteCount: 54_539,
-            sha256: "D4023452D24C63D03FE41985279C777BEF0C801A35E872D4A7C7B4008B81BBD0"
+            byteCount: 54_655,
+            sha256: "F8D676B0757F45F0977DCD12E07F72875696B07D96A197CBD8346B6A08112316"
         )
         let dispatcherSource = try text(dispatcherPath)
+        let bitriseProbeSource = try text(".github/workflows/bitrise-build-hub-probe.yml")
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
@@ -298,11 +299,31 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let dispatcherConcurrency =
             "concurrency:\n" +
-                #"  group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}"# +
+                #"  group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' && format('-{0}', github.sha) || '' }}"# +
                 "\n  cancel-in-progress: false"
         XCTAssertEqual(dispatcherSource.components(separatedBy: dispatcherConcurrency).count - 1, 1)
         XCTAssertEqual(dispatcherSource.components(separatedBy: "concurrency:").count - 1, 1)
-        XCTAssertFalse(dispatcherConcurrency.contains("execution_lane"))
+        XCTAssertEqual(
+            dispatcherConcurrency.components(
+                separatedBy: "inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only'"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            dispatcherConcurrency.components(
+                separatedBy: #"format('-{0}', github.sha) || ''"#
+            ).count - 1,
+            1
+        )
+        let bitriseProbeConcurrency =
+            "concurrency:\n" +
+                #"  group: bitrise-build-hub-probe-${{ github.ref }}-${{ github.sha }}"# +
+                "\n  cancel-in-progress: false"
+        XCTAssertEqual(
+            bitriseProbeSource.components(separatedBy: bitriseProbeConcurrency).count - 1,
+            1
+        )
+        XCTAssertEqual(bitriseProbeSource.components(separatedBy: "concurrency:").count - 1, 1)
 
         let jobsMarker = "jobs:\n"
         let githubJobMarker = "  github-shard:\n"

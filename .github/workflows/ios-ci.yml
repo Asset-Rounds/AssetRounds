@@ -46,7 +46,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}
+  group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' && format('-{0}', github.sha) || '' }}
   cancel-in-progress: false
 
 jobs:
