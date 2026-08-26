@@ -26,12 +26,16 @@ on:
         required: true
         default: none
         type: string
+    secrets:
+      BITRISE_BUILD_CACHE_AUTH_TOKEN:
+        description: Bitrise Build Cache token used only by the closed Bitrise development lane
+        required: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id) }}
+  group: ${{ inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, inputs.runner_provider == 'bitrise' && format('-{0}', github.sha) || '') }}
   cancel-in-progress: false
 
 jobs:
@@ -79,7 +83,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" in
-            github:macos-26 | getmac:getmac-tahoe) ;;
+            github:macos-26 | getmac:getmac-tahoe | bitrise:bitrise-m4-pro) ;;
             *) exit 1 ;;
           esac
           test -f Scripts/ci-selection.json
@@ -389,7 +393,7 @@ jobs:
                 CI_ARTIFACT_SUFFIX="-$CI_S10_4_SHARD_ID"
                 ;;
               segment-1 | segment-2 | segment-3)
-                test "$CI_RUNNER_PROVIDER" = "github"
+                case "$CI_RUNNER_PROVIDER" in github | bitrise) ;; *) exit 1 ;; esac
                 test "$CI_RUN_UI_SMOKE" = "true"
                 test "$CI_S10_4_SHARD_ID" = "s10.4.current.ax-text"
                 test -f Scripts/s10-4-segment-plan.json
@@ -435,6 +439,16 @@ jobs:
                 *) exit 1 ;;
               esac
             fi
+            if test "$CI_RUNNER_PROVIDER" = "bitrise"; then
+              test "$CI_RUNNER_LABEL" = "bitrise-m4-pro"
+              test "$CI_S10_4_SHARD_ID" = "s10.4.current.ax-text"
+              test "$CI_S10_4_SEGMENT_ID" != "none"
+              test "$CI_S10_4_DEVICE_PROFILE_ID" = "iphone-17-ios-26.2-current"
+              test "$CI_S10_4_PROVISION_RUNTIME" = "false"
+              test -z "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION"
+              CI_S10_4_EFFECTIVE_PROVISION_RUNTIME=true
+              CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION="$SIMULATOR_RUNTIME_BUILD"
+            fi
           else
             test "$DISPATCH_S10_4_SHARD_ID" = "none"
             test "$DISPATCH_S10_4_SEGMENT_ID" = "none"
@@ -460,6 +474,25 @@ jobs:
                 and .executionLane == "github-xcode-26.6-segmented-acceptance"
                 and .runnerProvider == "github"
                 and .runnerLabel == "macos-26"
+                and .developmentExecutionBinding == {
+                  executionLane: "bitrise-build-hub-xcode-26.6-segmented-development-only",
+                  runnerProvider: "bitrise",
+                  runnerLabel: "bitrise-m4-pro",
+                  maximumParallelWorkers: 3,
+                  independentWorkers: true,
+                  cacheEnabled: true,
+                  cachePushEnabled: true,
+                  workspaceID: "c70b2962648b79fb",
+                  installerCommit: "d971b485dd0519fdebb41240f1a2997d77dbf3a6",
+                  installerBytes: 14322,
+                  installerSHA256: "8B4C6BF5F75F064B2F95B7E8A7CFA47FD2FD48FBF7DE16464713BE3A317FB5D4",
+                  cliRelease: "v3.6.2",
+                  cliArchiveSHA256: "17898081D7E6EA64B0393C50482CB00D84B6AA459E9954B1F26F0D64B4BF510E",
+                  cliBinaryBytes: 20335490,
+                  cliBinarySHA256: "2DFBFA4364A3A133370071715B9A7D0F9C6D7661B71ABAC839F723901C547BC3",
+                  feedsAcceptanceAssembler: false,
+                  finalAcceptanceEligible: false
+                }
                 and .xcodeVersion == "Xcode 26.6"
                 and .xcodeBuild == "17F113"
                 and .sdkName == "iphonesimulator26.5"
@@ -564,6 +597,18 @@ jobs:
                 })
                 and any(.segments[]; .segmentID == $segment)
               ' Scripts/s10-4-segment-plan.json > /dev/null
+            if test "$CI_RUNNER_PROVIDER" = "bitrise"; then
+              jq -e \
+                --arg provider "$CI_RUNNER_PROVIDER" \
+                --arg label "$CI_RUNNER_LABEL" '
+                  .developmentExecutionBinding.runnerProvider == $provider
+                  and .developmentExecutionBinding.runnerLabel == $label
+                  and .developmentExecutionBinding.finalAcceptanceEligible == false
+                  and .developmentExecutionBinding.feedsAcceptanceAssembler == false
+                ' Scripts/s10-4-segment-plan.json > /dev/null
+            else
+              test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "github:macos-26"
+            fi
             evidence_kernel_json="$(jq -cS '
               {
                 productHead,
@@ -648,15 +693,158 @@ jobs:
           if test "$CI_TASK_ID" = "S10.4"; then
             cp Scripts/s10-4-shards.json "$CI_ARTIFACT_DIR/s10-4-shards.json"
             if test "$CI_S10_4_SEGMENT_ID" != "none"; then
-              cp Scripts/s10-4-segment-plan.json "$CI_ARTIFACT_DIR/s10-4-segment-plan.json"
+              if test "$CI_RUNNER_PROVIDER" = "bitrise"; then
+                shasum -a 256 Scripts/s10-4-segment-plan.json \
+                  | awk '{print toupper($1) "  Scripts/s10-4-segment-plan.json"}' \
+                  > "$CI_ARTIFACT_DIR/s10-4-segment-plan-source-sha256.txt"
+                jq -cS '
+                  .developmentExecutionBinding
+                  | .workspaceID = "[REDACTED]"
+                ' Scripts/s10-4-segment-plan.json \
+                  > "$CI_ARTIFACT_DIR/s10-4-segment-plan-development-binding-redacted.json"
+              else
+                cp Scripts/s10-4-segment-plan.json "$CI_ARTIFACT_DIR/s10-4-segment-plan.json"
+              fi
             fi
           fi
           printf 'task_id=%s\ntier=%s\ndispatch_run_ui_smoke=%s\ns10_4_shard_id=%s\ns10_4_segment_id=%s\n' \
             "$CI_TASK_ID" "$CI_TIER" "$DISPATCH_RUN_UI_SMOKE" "$CI_S10_4_SHARD_ID" "$CI_S10_4_SEGMENT_ID" \
             | tee "$CI_ARTIFACT_DIR/ci-selection-validation.txt"
 
+      - name: Install pinned Bitrise Build Cache command wrappers
+        if: ${{ inputs.runner_provider == 'bitrise' }}
+        shell: bash
+        env:
+          BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN }}
+          BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ vars.BITRISE_BUILD_CACHE_WORKSPACE_ID }}
+        run: |
+          set -euo pipefail
+          test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-m4-pro"
+          test "$CI_S10_4_SHARD_ID" = "s10.4.current.ax-text"
+          case "$CI_S10_4_SEGMENT_ID" in segment-1 | segment-2 | segment-3) ;; *) exit 1 ;; esac
+          test -n "$BITRISE_BUILD_CACHE_AUTH_TOKEN"
+          test "$BITRISE_BUILD_CACHE_WORKSPACE_ID" = "c70b2962648b79fb"
+          test "${RUNNER_ARCH:-}" = "ARM64"
+          test "$(uname -m)" = "arm64"
+          test "$(sw_vers -productVersion)" = "26.6.1"
+
+          expected_developer_dir=/Applications/Xcode-26.6.0.app/Contents/Developer
+          test "$(env -u DEVELOPER_DIR xcode-select -p)" = "$expected_developer_dir"
+          test -d "$expected_developer_dir"
+          DEVELOPER_DIR="$expected_developer_dir"
+          export DEVELOPER_DIR
+          printf 'DEVELOPER_DIR=%s\n' "$DEVELOPER_DIR" >> "$GITHUB_ENV"
+
+          installer="$RUNNER_TEMP/bitrise-build-cache-installer.sh"
+          release_archive="$RUNNER_TEMP/bitrise-build-cache_3.6.2_darwin_arm64.tar.gz"
+          curl --retry 5 --retry-all-errors -sSfL \
+            'https://raw.githubusercontent.com/bitrise-io/bitrise-build-cache-cli/d971b485dd0519fdebb41240f1a2997d77dbf3a6/install/installer.sh' \
+            -o "$installer"
+          test "$(stat -f '%z' "$installer")" = 14322
+          printf '%s  %s\n' \
+            '8b4c6bf5f75f064b2f95b7e8a7cfa47fd2fd48fbf7de16464713be3a317fb5d4' \
+            "$installer" | shasum -a 256 -c -
+          cp "$installer" "$CI_ARTIFACT_DIR/bitrise-build-cache-installer.sh"
+
+          curl --retry 5 --retry-all-errors -sSfL \
+            'https://github.com/bitrise-io/bitrise-build-cache-cli/releases/download/v3.6.2/bitrise-build-cache_3.6.2_darwin_arm64.tar.gz' \
+            -o "$release_archive"
+          printf '%s  %s\n' \
+            '17898081d7e6ea64b0393c50482cb00d84b6aa459e9954b1f26f0d64b4bf510e' \
+            "$release_archive" | shasum -a 256 -c -
+          cp "$release_archive" "$CI_ARTIFACT_DIR/bitrise-build-cache_3.6.2_darwin_arm64.tar.gz"
+
+          mkdir -p /tmp/bin
+          rm -f /tmp/bin/bitrise-build-cache
+          /bin/sh "$installer" -b /tmp/bin -d v3.6.2 \
+            > "$CI_ARTIFACT_DIR/bitrise-build-cache-installer-execution.log" 2>&1
+          test -x /tmp/bin/bitrise-build-cache
+          test "$(stat -f '%z' /tmp/bin/bitrise-build-cache)" = 20335490
+          printf '%s  %s\n' \
+            '2dfbfa4364a3a133370071715b9a7d0f9c6d7661b71abac839f723901c547bc3' \
+            /tmp/bin/bitrise-build-cache | shasum -a 256 -c -
+          /tmp/bin/bitrise-build-cache version \
+            > "$CI_ARTIFACT_DIR/bitrise-build-cache-version.txt" 2>&1
+          printf 'release=v3.6.2\narchive_sha256=%s\nbinary_bytes=20335490\nbinary_sha256=%s\n' \
+            '17898081D7E6EA64B0393C50482CB00D84B6AA459E9954B1F26F0D64B4BF510E' \
+            '2DFBFA4364A3A133370071715B9A7D0F9C6D7661B71ABAC839F723901C547BC3' \
+            > "$CI_ARTIFACT_DIR/bitrise-build-cache-cli-verification.txt"
+
+          helper_dir="$RUNNER_TEMP/bitrise-build-cache-command"
+          command_dir="$helper_dir/bin"
+          activation_helper="$helper_dir/activate.sh"
+          mkdir -p "$command_dir"
+          printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' \
+            'test -n "${BITRISE_BUILD_CACHE_AUTH_TOKEN:-}"' \
+            'test "${BITRISE_BUILD_CACHE_WORKSPACE_ID:-}" = "c70b2962648b79fb"' \
+            'counter_file="$RUNNER_TEMP/bitrise-build-cache-activation-counter.txt"' \
+            'activation_raw="$RUNNER_TEMP/bitrise-build-cache-activation.raw.log"' \
+            'activation_ordinal=0' \
+            'if test -s "$counter_file"; then activation_ordinal="$(cat "$counter_file")"; fi' \
+            'case "$activation_ordinal" in "" | *[!0-9]*) exit 1 ;; esac' \
+            'activation_ordinal="$((activation_ordinal + 1))"' \
+            'printf "%s\n" "$activation_ordinal" > "$counter_file"' \
+            'set +e' \
+            '/tmp/bin/bitrise-build-cache activate xcode --cache --cache-push > "$activation_raw" 2>&1' \
+            'activation_status=$?' \
+            'set -e' \
+            'python3 - "$activation_raw" "$CI_ARTIFACT_DIR/bitrise-build-cache-activation.log" "$activation_ordinal" <<'"'"'PY'"'"'' \
+            'import os' \
+            'import pathlib' \
+            'import sys' \
+            'source = pathlib.Path(sys.argv[1]).read_text(errors="replace")' \
+            'for name in ("BITRISE_BUILD_CACHE_AUTH_TOKEN", "BITRISE_BUILD_CACHE_WORKSPACE_ID"):' \
+            '    value = os.environ.get(name, "")' \
+            '    if value:' \
+            '        source = source.replace(value, "[REDACTED]")' \
+            'with pathlib.Path(sys.argv[2]).open("a") as stream:' \
+            '    stream.write(f"activation_ordinal={sys.argv[3]}\n")' \
+            '    stream.write(source)' \
+            '    if not source.endswith("\n"):' \
+            '        stream.write("\n")' \
+            'PY' \
+            'rm -f "$activation_raw"' \
+            'test "$activation_status" -eq 0' \
+            'printf "activation_exit=0\ncache=true\ncache_push=true\n" >> "$CI_ARTIFACT_DIR/bitrise-build-cache-activation.log"' \
+            > "$activation_helper"
+          chmod 700 "$activation_helper"
+          bash "$activation_helper"
+
+          bitrise_wrapper_dir="$HOME/.bitrise-xcelerate/bin"
+          bitrise_xcodebuild_wrapper="$bitrise_wrapper_dir/xcodebuild"
+          bitrise_xcrun_wrapper="$bitrise_wrapper_dir/xcrun"
+          test -x "$bitrise_xcodebuild_wrapper"
+          test -x "$bitrise_xcrun_wrapper"
+          printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' \
+            'bash "$CI_BITRISE_CACHE_ACTIVATE_HELPER"' \
+            'exec env -u BITRISE_BUILD_CACHE_AUTH_TOKEN -u BITRISE_BUILD_CACHE_WORKSPACE_ID "$CI_BITRISE_XCODEBUILD_WRAPPER" "$@"' \
+            > "$command_dir/xcodebuild"
+          printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' \
+            'exec env -u BITRISE_BUILD_CACHE_AUTH_TOKEN -u BITRISE_BUILD_CACHE_WORKSPACE_ID "$CI_BITRISE_XCRUN_WRAPPER" "$@"' \
+            > "$command_dir/xcrun"
+          chmod 700 "$command_dir/xcodebuild" "$command_dir/xcrun"
+          printf '%s\n' \
+            "CI_BITRISE_CACHE_ACTIVATE_HELPER=$activation_helper" \
+            "CI_BITRISE_XCODEBUILD_WRAPPER=$bitrise_xcodebuild_wrapper" \
+            "CI_BITRISE_XCRUN_WRAPPER=$bitrise_xcrun_wrapper" \
+            >> "$GITHUB_ENV"
+          printf '%s\n' "$command_dir" >> "$GITHUB_PATH"
+          export CI_BITRISE_CACHE_ACTIVATE_HELPER="$activation_helper"
+          export CI_BITRISE_XCODEBUILD_WRAPPER="$bitrise_xcodebuild_wrapper"
+          export CI_BITRISE_XCRUN_WRAPPER="$bitrise_xcrun_wrapper"
+          export PATH="$command_dir:$PATH"
+          test "$(command -v xcodebuild)" = "$command_dir/xcodebuild"
+          test "$(command -v xcrun)" = "$command_dir/xcrun"
+          printf 'command_xcodebuild=%s\ncommand_xcrun=%s\nbitrise_xcodebuild=%s\nbitrise_xcrun=%s\n' \
+            "$(command -v xcodebuild)" "$(command -v xcrun)" \
+            "$bitrise_xcodebuild_wrapper" "$bitrise_xcrun_wrapper" \
+            > "$CI_ARTIFACT_DIR/bitrise-build-cache-wrapper-paths.txt"
+
       - name: Verify pinned toolchain, shared scheme, and simulator
         shell: bash
+        env:
+          BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ inputs.runner_provider == 'bitrise' && secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN || '' }}
+          BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ inputs.runner_provider == 'bitrise' && vars.BITRISE_BUILD_CACHE_WORKSPACE_ID || '' }}
         run: |
           set -euo pipefail
           mkdir -p "$CI_ARTIFACT_DIR"
@@ -676,6 +864,19 @@ jobs:
               DEVELOPER_DIR="$resolved_developer_dir"
               export DEVELOPER_DIR
               printf 'DEVELOPER_DIR=%s\n' "$DEVELOPER_DIR" >> "$GITHUB_ENV"
+              ;;
+            bitrise:bitrise-m4-pro)
+              test "$RUNNER_ARCH" = "ARM64"
+              test "$(uname -m)" = "arm64"
+              test "$(sw_vers -productVersion)" = "26.6.1"
+              test "$DEVELOPER_DIR" = "/Applications/Xcode-26.6.0.app/Contents/Developer"
+              test -x "$CI_BITRISE_CACHE_ACTIVATE_HELPER"
+              test -x "$CI_BITRISE_XCODEBUILD_WRAPPER"
+              test -x "$CI_BITRISE_XCRUN_WRAPPER"
+              test "$(command -v xcodebuild)" = "$RUNNER_TEMP/bitrise-build-cache-command/bin/xcodebuild"
+              test "$(command -v xcrun)" = "$RUNNER_TEMP/bitrise-build-cache-command/bin/xcrun"
+              test "$CI_BITRISE_XCODEBUILD_WRAPPER" = "$HOME/.bitrise-xcelerate/bin/xcodebuild"
+              test "$CI_BITRISE_XCRUN_WRAPPER" = "$HOME/.bitrise-xcelerate/bin/xcrun"
               ;;
             *) exit 1 ;;
           esac
@@ -725,6 +926,50 @@ jobs:
           fi
 
           if test "${CI_TASK_ID:-}" = "S10.4" && \
+             test "$CI_RUNNER_PROVIDER" = "bitrise" && \
+             test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = "true"; then
+            bitrise_simulator_budget_start_epoch="$(date +%s)"
+            printf 'CI_BITRISE_SIMULATOR_BUDGET_START_EPOCH=%s\n' \
+              "$bitrise_simulator_budget_start_epoch" >> "$GITHUB_ENV"
+            test "$SIMULATOR_RUNTIME:$SIMULATOR_RUNTIME_BUILD:$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" = \
+              "iOS 26.2:23C54:23C54"
+            xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes-before-provision.json"
+            if jq -e --arg name "$SIMULATOR_RUNTIME" --arg build "$SIMULATOR_RUNTIME_BUILD" '
+              any(.runtimes[];
+                .name == $name and .buildversion == $build and .isAvailable == true)
+            ' "$CI_ARTIFACT_DIR/simulator-runtimes-before-provision.json" > /dev/null; then
+              printf 'exact_runtime_preinstalled=true\n' \
+                > "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+            else
+              simulator_elapsed_seconds="$(( $(date +%s) - bitrise_simulator_budget_start_epoch ))"
+              runtime_provision_budget_seconds="$(( CI_SIMULATOR_BOOT_TIMEOUT_SECONDS - simulator_elapsed_seconds ))"
+              test "$runtime_provision_budget_seconds" -gt 0
+              set +e
+              bash Scripts/run-with-timeout.sh "$runtime_provision_budget_seconds" \
+                xcodebuild -downloadPlatform iOS \
+                  -buildVersion "$SIMULATOR_RUNTIME_BUILD" \
+                  -architectureVariant universal \
+                2>&1 | tee "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+              provision_pipeline_status=( "${PIPESTATUS[@]}" )
+              set -e
+              test "${#provision_pipeline_status[@]}" -eq 2
+              printf '\nprovision_exit=%s\nprovision_tee_exit=%s\n' \
+                "${provision_pipeline_status[0]}" "${provision_pipeline_status[1]}" \
+                | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+              test "${provision_pipeline_status[0]}" -eq 0
+              test "${provision_pipeline_status[1]}" -eq 0
+              xcrun simctl list runtimes -j > "$CI_ARTIFACT_DIR/simulator-runtimes.json"
+              jq -e --arg name "$SIMULATOR_RUNTIME" --arg build "$SIMULATOR_RUNTIME_BUILD" '
+                any(.runtimes[];
+                  .name == $name and .buildversion == $build and .isAvailable == true)
+              ' "$CI_ARTIFACT_DIR/simulator-runtimes.json" > /dev/null
+              printf 'provision_zero_and_exact_runtime_verified=true\n' \
+                | tee -a "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+            fi
+          fi
+
+          if test "${CI_TASK_ID:-}" = "S10.4" && \
+             test "$CI_RUNNER_PROVIDER" != "bitrise" && \
              test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = "true"; then
             case "$SIMULATOR_RUNTIME:$SIMULATOR_RUNTIME_BUILD:$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" in
               "iOS 18.0:22A3351:18.0" | "iOS 26.2:23C54:26.2") ;;
@@ -890,15 +1135,22 @@ jobs:
           case "${CI_BUDGET_START_EPOCH:?}" in *[!0-9]* | "") exit 1 ;; esac
           case "$simulator_boot_start_epoch" in *[!0-9]* | "") exit 1 ;; esac
           test "$simulator_boot_start_epoch" -ge "$CI_BUDGET_START_EPOCH"
+          simulator_boot_budget_seconds="$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS"
+          if test "$CI_RUNNER_PROVIDER" = "bitrise"; then
+            case "${CI_BITRISE_SIMULATOR_BUDGET_START_EPOCH:-}" in *[!0-9]* | "") exit 1 ;; esac
+            simulator_elapsed_seconds="$(( simulator_boot_start_epoch - CI_BITRISE_SIMULATOR_BUDGET_START_EPOCH ))"
+            simulator_boot_budget_seconds="$(( CI_SIMULATOR_BOOT_TIMEOUT_SECONDS - simulator_elapsed_seconds ))"
+            test "$simulator_boot_budget_seconds" -gt 0
+          fi
           printf 'start_epoch=%s\nudid=%s\ninitial_state=%s\naction=%s\nbudget_seconds=%s\ncommand=xcrun simctl bootstatus %s -b\n' \
             "$simulator_boot_start_epoch" "$CI_SIMULATOR_UDID" \
             "$CI_SIMULATOR_INITIAL_STATE" "$simulator_boot_action" \
-            "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" "$CI_SIMULATOR_UDID" \
+            "$simulator_boot_budget_seconds" "$CI_SIMULATOR_UDID" \
             | tee "$CI_ARTIFACT_DIR/simulator-boot-start.log"
           printf 'CI_SIMULATOR_BOOT_START_EPOCH=%s\n' \
             "$simulator_boot_start_epoch" >> "$GITHUB_ENV"
           set +e
-          bash Scripts/run-with-timeout.sh "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
+          bash Scripts/run-with-timeout.sh "$simulator_boot_budget_seconds" \
             xcrun simctl bootstatus "$CI_SIMULATOR_UDID" -b \
             2>&1 | tee "$CI_ARTIFACT_DIR/simulator-boot.log"
           simulator_boot_pipeline_status=( "${PIPESTATUS[@]}" )
@@ -934,6 +1186,13 @@ jobs:
             | tee -a "$CI_ARTIFACT_DIR/simulator-boot.log"
           test "$simulator_boot_ready_elapsed_seconds" -ge 0
           test "$simulator_boot_ready_elapsed_seconds" -le "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS"
+          if test "$CI_RUNNER_PROVIDER" = "bitrise"; then
+            bitrise_simulator_total_elapsed_seconds="$(( simulator_boot_end_epoch - CI_BITRISE_SIMULATOR_BUDGET_START_EPOCH ))"
+            test "$bitrise_simulator_total_elapsed_seconds" -le "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS"
+            printf 'bitrise_simulator_total_elapsed_seconds=%s\n' \
+              "$bitrise_simulator_total_elapsed_seconds" \
+              | tee -a "$CI_ARTIFACT_DIR/simulator-boot.log"
+          fi
           printf '%s\n' \
             "CI_SIMULATOR_READY_UDID=$CI_SIMULATOR_UDID" \
             "CI_SIMULATOR_READY_EPOCH=$simulator_boot_end_epoch" \
@@ -942,6 +1201,9 @@ jobs:
 
       - name: Build unsigned simulator app
         shell: bash
+        env:
+          BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ inputs.runner_provider == 'bitrise' && secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN || '' }}
+          BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ inputs.runner_provider == 'bitrise' && vars.BITRISE_BUILD_CACHE_WORKSPACE_ID || '' }}
         run: |
           set -euo pipefail
           bash Scripts/run-with-timeout.sh "$CI_BUILD_TIMEOUT_SECONDS" \
@@ -953,6 +1215,9 @@ jobs:
 
       - name: Run targeted tests
         shell: bash
+        env:
+          BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ inputs.runner_provider == 'bitrise' && secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN || '' }}
+          BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ inputs.runner_provider == 'bitrise' && vars.BITRISE_BUILD_CACHE_WORKSPACE_ID || '' }}
         run: |
           set -euo pipefail
           bash Scripts/run-with-timeout.sh "$CI_TEST_TIMEOUT_SECONDS" \
@@ -961,13 +1226,110 @@ jobs:
       - name: Run task-authorized UI smoke
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_ui_smoke == true }}
         shell: bash
+        env:
+          BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ inputs.runner_provider == 'bitrise' && secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN || '' }}
+          BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ inputs.runner_provider == 'bitrise' && vars.BITRISE_BUILD_CACHE_WORKSPACE_ID || '' }}
         run: |
           set -euo pipefail
           bash Scripts/run-with-timeout.sh "$CI_UI_TIMEOUT_SECONDS" \
             bash Scripts/ui-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/ui-smoke.log"
 
+      - name: Retain Bitrise development-only segment evidence
+        if: ${{ always() && inputs.runner_provider == 'bitrise' }}
+        shell: bash
+        env:
+          BITRISE_PRIOR_JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-m4-pro"
+          test "$CI_S10_4_SHARD_ID" = "s10.4.current.ax-text"
+          case "$CI_S10_4_SEGMENT_ID" in segment-1 | segment-2 | segment-3) ;; *) exit 1 ;; esac
+          development_path="$CI_ARTIFACT_DIR/bitrise-development/$CI_S10_4_SEGMENT_ID"
+          mkdir -p "$development_path"
+          if test -d "$RUNNER_TEMP/FieldEvidenceUISmokeAttachments"; then
+            cp -R "$RUNNER_TEMP/FieldEvidenceUISmokeAttachments" \
+              "$development_path/ui-attachments"
+          fi
+          test ! -e "$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID/segment-receipt.json"
+          test ! -e "$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID/segment-receipt.pending.json"
+          plan_sha256="$(shasum -a 256 Scripts/s10-4-segment-plan.json | awk '{print toupper($1)}')"
+          activation_count=0
+          if test -s "$RUNNER_TEMP/bitrise-build-cache-activation-counter.txt"; then
+            activation_count="$(cat "$RUNNER_TEMP/bitrise-build-cache-activation-counter.txt")"
+          fi
+          case "$activation_count" in "" | *[!0-9]*) exit 1 ;; esac
+          artifact_name="ios-ci-development-only-bitrise-xcode-26.6-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$CI_S10_4_SHARD_ID-$CI_S10_4_SEGMENT_ID"
+          jq -n \
+            --arg laneID "bitrise-build-hub-xcode-26.6-segmented-development-only" \
+            --arg provider "$CI_RUNNER_PROVIDER" \
+            --arg runnerLabel "$CI_RUNNER_LABEL" \
+            --arg runnerName "$RUNNER_NAME" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg ref "$GITHUB_REF" \
+            --arg head "$GITHUB_SHA" \
+            --arg runID "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg shardID "$CI_S10_4_SHARD_ID" \
+            --arg segmentID "$CI_S10_4_SEGMENT_ID" \
+            --arg artifactName "$artifact_name" \
+            --arg planSHA256 "$plan_sha256" \
+            --arg priorJobStatus "$BITRISE_PRIOR_JOB_STATUS" \
+            --argjson activationCount "$activation_count" '
+              {
+                schemaVersion: 1,
+                laneID: $laneID,
+                provider: $provider,
+                runnerLabel: $runnerLabel,
+                runnerName: $runnerName,
+                repository: $repository,
+                ref: $ref,
+                head: $head,
+                runID: ($runID | tonumber),
+                runAttempt: ($runAttempt | tonumber),
+                shardID: $shardID,
+                segmentID: $segmentID,
+                artifactName: $artifactName,
+                segmentPlanSHA256: $planSHA256,
+                priorJobStatus: $priorJobStatus,
+                cacheEnabled: true,
+                cachePushEnabled: true,
+                cacheActivationCount: $activationCount,
+                workspaceConfigured: true,
+                independentSession: true,
+                crossSessionBuildReuse: false,
+                crossSessionResultReuse: false,
+                crossSessionSimulatorReuse: false,
+                crossSessionTestWithoutBuilding: false,
+                acceptingSegmentReceipt: false,
+                feedsAcceptanceAssembler: false,
+                rawEvidenceOnly: true,
+                finalAcceptanceEligible: false
+              }
+            ' > "$development_path/development-segment-record.json"
+          jq -e '
+            .schemaVersion == 1
+            and .laneID == "bitrise-build-hub-xcode-26.6-segmented-development-only"
+            and .provider == "bitrise"
+            and .runnerLabel == "bitrise-m4-pro"
+            and .shardID == "s10.4.current.ax-text"
+            and (.segmentID | IN("segment-1", "segment-2", "segment-3"))
+            and .cacheEnabled == true
+            and .cachePushEnabled == true
+            and .cacheActivationCount >= 1
+            and .workspaceConfigured == true
+            and .independentSession == true
+            and .crossSessionBuildReuse == false
+            and .crossSessionResultReuse == false
+            and .crossSessionSimulatorReuse == false
+            and .crossSessionTestWithoutBuilding == false
+            and .acceptingSegmentReceipt == false
+            and .feedsAcceptanceAssembler == false
+            and .rawEvidenceOnly == true
+            and .finalAcceptanceEligible == false
+          ' "$development_path/development-segment-record.json" > /dev/null
+
       - name: Retain S10.4 segment evidence
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' && inputs.s10_4_segment_id != 'none' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_provider == 'github' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' && inputs.s10_4_segment_id != 'none' }}
         shell: bash
         env:
           DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
@@ -2825,7 +3187,7 @@ jobs:
           printf 'CI_ARTIFACT_START_EPOCH=%s\n' "$CI_ARTIFACT_START_EPOCH" >> "$GITHUB_ENV"
 
       - name: Validate required build and test evidence
-        if: always()
+        if: ${{ always() && inputs.runner_provider != 'bitrise' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -3180,8 +3542,58 @@ jobs:
             test ! -e "$CI_ARTIFACT_DIR/ui-final.png"
           fi
 
+      - name: Validate Bitrise development-only segment evidence
+        if: ${{ always() && inputs.runner_provider == 'bitrise' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          require_nonempty_directory() {
+            test -d "$1"
+            test -n "$(find "$1" -mindepth 1 -print -quit)"
+          }
+          development_path="$CI_ARTIFACT_DIR/bitrise-development/$CI_S10_4_SEGMENT_ID"
+          test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-m4-pro"
+          test "$CI_S10_4_SHARD_ID" = "s10.4.current.ax-text"
+          case "$CI_S10_4_SEGMENT_ID" in segment-1 | segment-2 | segment-3) ;; *) exit 1 ;; esac
+          test -s "$CI_ARTIFACT_DIR/runner-provider.txt"
+          test -s "$CI_ARTIFACT_DIR/github-run.txt"
+          test -s "$CI_ARTIFACT_DIR/bitrise-build-cache-activation.log"
+          test -s "$CI_ARTIFACT_DIR/bitrise-build-cache-wrapper-paths.txt"
+          test -s "$CI_ARTIFACT_DIR/bitrise-build-cache-cli-verification.txt"
+          test -s "$CI_ARTIFACT_DIR/build-smoke.log"
+          test -s "$CI_ARTIFACT_DIR/test-smoke.log"
+          test -s "$CI_ARTIFACT_DIR/ui-smoke.log"
+          require_nonempty_directory "$CI_ARTIFACT_DIR/Build.xcresult"
+          require_nonempty_directory "$CI_ARTIFACT_DIR/UnitTests.xcresult"
+          require_nonempty_directory "$CI_ARTIFACT_DIR/UISmoke.xcresult"
+          test -s "$development_path/development-segment-record.json"
+          test -s "$CI_ARTIFACT_DIR/s10-4-segment-plan-source-sha256.txt"
+          test -s "$CI_ARTIFACT_DIR/s10-4-segment-plan-development-binding-redacted.json"
+          test ! -e "$CI_ARTIFACT_DIR/s10-4-segment-plan.json"
+          test ! -e "$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID/segment-receipt.json"
+          test ! -e "$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID/segment-receipt.pending.json"
+          test ! -e "$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID/shard-receipt.json"
+          test "$(cat "$RUNNER_TEMP/bitrise-build-cache-activation-counter.txt")" -ge 6
+          jq -e '
+            .laneID == "bitrise-build-hub-xcode-26.6-segmented-development-only"
+            and .provider == "bitrise"
+            and .runnerLabel == "bitrise-m4-pro"
+            and .acceptingSegmentReceipt == false
+            and .feedsAcceptanceAssembler == false
+            and .rawEvidenceOnly == true
+            and .finalAcceptanceEligible == false
+          ' "$development_path/development-segment-record.json" > /dev/null
+          jq -e '
+            .executionLane == "bitrise-build-hub-xcode-26.6-segmented-development-only"
+            and .runnerProvider == "bitrise"
+            and .runnerLabel == "bitrise-m4-pro"
+            and .workspaceID == "[REDACTED]"
+            and .feedsAcceptanceAssembler == false
+            and .finalAcceptanceEligible == false
+          ' "$CI_ARTIFACT_DIR/s10-4-segment-plan-development-binding-redacted.json" > /dev/null
+
       - name: Finalize successful S10.4 segment receipt
-        if: ${{ success() && inputs.s10_4_segment_id != 'none' }}
+        if: ${{ success() && inputs.runner_provider == 'github' && inputs.s10_4_segment_id != 'none' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -3339,8 +3751,63 @@ jobs:
             and (.finalAcceptanceEligible == false)
           ' "$artifact_dir/getmac-development-only-lane.json" > /dev/null
 
+      - name: Verify Bitrise evidence contains no cache credentials
+        id: bitrise_credential_scan
+        if: ${{ always() && inputs.runner_provider == 'bitrise' }}
+        shell: bash
+        env:
+          BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN }}
+          BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ vars.BITRISE_BUILD_CACHE_WORKSPACE_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$BITRISE_BUILD_CACHE_AUTH_TOKEN"
+          test "$BITRISE_BUILD_CACHE_WORKSPACE_ID" = "c70b2962648b79fb"
+          mkdir -p "$CI_ARTIFACT_DIR"
+          set +e
+          contaminated_file_count="$(python3 - "$CI_ARTIFACT_DIR" <<'PY'
+          import os
+          import pathlib
+          import sys
+
+          root = pathlib.Path(sys.argv[1])
+          needles = [
+              value.encode()
+              for name in ("BITRISE_BUILD_CACHE_AUTH_TOKEN", "BITRISE_BUILD_CACHE_WORKSPACE_ID")
+              if (value := os.environ.get(name, ""))
+          ]
+          contaminated = 0
+          max_tail = max((len(needle) for needle in needles), default=1) - 1
+          for path in root.rglob("*"):
+              if not path.is_file():
+                  continue
+              matched = False
+              tail = b""
+              with path.open("rb") as stream:
+                  while chunk := stream.read(1024 * 1024):
+                      candidate = tail + chunk
+                      if any(needle in candidate for needle in needles):
+                          matched = True
+                          break
+                      tail = candidate[-max_tail:] if max_tail else b""
+              contaminated += int(matched)
+          print(contaminated)
+          PY
+          )"
+          scan_status=$?
+          set -e
+          case "$contaminated_file_count" in "" | *[!0-9]*) contaminated_file_count=unknown ;; esac
+          if test "$scan_status" -ne 0 || test "$contaminated_file_count" != 0; then
+            printf 'credential_scan_passed=false\ncontaminated_file_count=%s\n' \
+              "$contaminated_file_count" > "$CI_ARTIFACT_DIR/bitrise-credential-scan.txt"
+            printf 'safe_to_upload=false\n' >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          printf 'credential_scan_passed=true\ncontaminated_file_count=0\n' \
+            > "$CI_ARTIFACT_DIR/bitrise-credential-scan.txt"
+          printf 'safe_to_upload=true\n' >> "$GITHUB_OUTPUT"
+
       - name: Hash collected evidence
-        if: always()
+        if: ${{ always() && (inputs.runner_provider != 'bitrise' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -3370,7 +3837,7 @@ jobs:
           test "$setup_artifact_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
 
       - name: Recheck evidence-finalization budget
-        if: always()
+        if: ${{ always() && (inputs.runner_provider != 'bitrise' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -3382,7 +3849,7 @@ jobs:
           test "$setup_artifact_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
 
       - name: Verify selected total budget before upload
-        if: always()
+        if: ${{ always() && (inputs.runner_provider != 'bitrise' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -3397,7 +3864,7 @@ jobs:
           test "$elapsed_seconds" -le "$CI_TOTAL_BUDGET_SECONDS"
 
       - name: Remove nonaccepting partial S10.4 segment receipt
-        if: ${{ always() && inputs.s10_4_segment_id != 'none' && (failure() || cancelled()) }}
+        if: ${{ always() && inputs.runner_provider == 'github' && inputs.s10_4_segment_id != 'none' && (failure() || cancelled()) }}
         shell: bash
         run: |
           set -euo pipefail
@@ -3411,13 +3878,21 @@ jobs:
           test ! -e "$CI_ARTIFACT_DIR/SHA256SUMS.txt"
 
       - name: Upload build evidence
-        if: always()
+        id: upload_evidence
+        if: ${{ always() && (inputs.runner_provider != 'bitrise' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id))) }}
+          name: ${{ inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id)))) }}
           path: ${{ runner.temp }}/FieldEvidenceCI
           if-no-files-found: error
           retention-days: 14
+
+      - name: Fail closed after Bitrise development-only evidence
+        if: ${{ always() && inputs.runner_provider == 'bitrise' && steps.upload_evidence.outcome == 'success' }}
+        shell: bash
+        run: |
+          printf '%s\n' 'Bitrise Build Hub Xcode 26.6 segmented development-only evidence is not eligible for S10.4 final acceptance.' >&2
+          exit 1
 
       - name: Fail closed after GetMac development-only evidence
         if: ${{ always() && inputs.runner_provider == 'getmac' }}

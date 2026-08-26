@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       execution_lane:
-        description: Select GitHub acceptance, GetMac development, or WarpBuild development execution
+        description: Select GitHub acceptance or one exact development-only execution lane
         required: true
         default: github-xcode-26.6-acceptance
         type: choice
@@ -15,6 +15,7 @@ on:
           - getmac-xcode-26.6-development-only
           - warp-xcode-26.5-development-only
           - bitrise-build-hub-cache-probe-development-only
+          - bitrise-build-hub-xcode-26.6-segmented-development-only
       run_ui_smoke:
         description: Run the task-authorized XCUITest smoke after build and unit tests
         required: true
@@ -46,7 +47,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' && format('-{0}', github.sha) || '' }}
+  group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ (inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '' }}
   cancel-in-progress: false
 
 jobs:
@@ -80,7 +81,7 @@ jobs:
 
   reject-invalid-segmented-selection:
     name: Reject invalid segmented selection
-    if: ${{ inputs.execution_lane == 'github-xcode-26.6-segmented-acceptance' && (inputs.run_ui_smoke != true || inputs.s10_4_shard_id != 's10.4.current.ax-text') }}
+    if: ${{ (inputs.execution_lane == 'github-xcode-26.6-segmented-acceptance' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && (inputs.run_ui_smoke != true || inputs.s10_4_shard_id != 's10.4.current.ax-text') }}
     runs-on: ubuntu-24.04
     steps:
       - name: Reject invalid segmented provider, shard, or UI selection
@@ -191,6 +192,26 @@ jobs:
           path: ${{ runner.temp }}/FieldEvidenceCI
           if-no-files-found: error
           retention-days: 14
+
+  bitrise-segmented-development-shard:
+    name: Bitrise Build Hub Xcode 26.6 segmented development-only · ${{ matrix.segment_id }}
+    if: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 's10.4.current.ax-text' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        segment_id:
+          - segment-1
+          - segment-2
+          - segment-3
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: bitrise-m4-pro
+      runner_provider: bitrise
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.ax-text
+      s10_4_segment_id: ${{ matrix.segment_id }}
+    secrets: inherit
 
   warpbuild-shard:
     name: WarpBuild Xcode 26.5 development-only · ${{ inputs.s10_4_shard_id }}

@@ -106,8 +106,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             dispatcherPath,
-            byteCount: 54_655,
-            sha256: "F8D676B0757F45F0977DCD12E07F72875696B07D96A197CBD8346B6A08112316"
+            byteCount: 55_625,
+            sha256: "6E4501D551192E18D15AC9C272617AB98C522EF1B7575B34C5B849911C77490B"
         )
         let dispatcherSource = try text(dispatcherPath)
         let bitriseProbePath = ".github/workflows/bitrise-build-hub-probe.yml"
@@ -120,8 +120,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 188_925,
-            sha256: "BEBF40A6BFCA92F5AA8F2A0EE60BDF8737B60B009E4EBEE33D48991EB5630E6C"
+            byteCount: 216_723,
+            sha256: "BBE69221FAC2E5554E354A275C2E0AE2A6FB21E579E5D42D446F1538F87EDFB0"
         )
         let workflowSource = try text(workflowPath)
         let workerCallHeader =
@@ -263,7 +263,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         XCTAssertEqual(executionLaneSource.components(separatedBy: "        type: choice").count - 1, 1)
-        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 5)
+        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 6)
         XCTAssertEqual(
             executionLaneSource.components(
                 separatedBy: "          - github-xcode-26.6-acceptance"
@@ -294,6 +294,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        XCTAssertEqual(
+            executionLaneSource.components(
+                separatedBy: "          - bitrise-build-hub-xcode-26.6-segmented-development-only"
+            ).count - 1,
+            1
+        )
         XCTAssertFalse(executionLaneSource.contains("default: getmac-xcode-26.6-development-only"))
         XCTAssertFalse(executionLaneSource.contains("default: warp-xcode-26.5-development-only"))
         XCTAssertFalse(
@@ -301,17 +307,28 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "default: bitrise-build-hub-cache-probe-development-only"
             )
         )
+        XCTAssertFalse(
+            executionLaneSource.contains(
+                "default: bitrise-build-hub-xcode-26.6-segmented-development-only"
+            )
+        )
         XCTAssertFalse(executionLaneSource.contains("type: string"))
 
         let dispatcherConcurrency =
             "concurrency:\n" +
-                #"  group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' && format('-{0}', github.sha) || '' }}"# +
+                #"  group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ (inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '' }}"# +
                 "\n  cancel-in-progress: false"
         XCTAssertEqual(dispatcherSource.components(separatedBy: dispatcherConcurrency).count - 1, 1)
         XCTAssertEqual(dispatcherSource.components(separatedBy: "concurrency:").count - 1, 1)
         XCTAssertEqual(
             dispatcherConcurrency.components(
                 separatedBy: "inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only'"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            dispatcherConcurrency.components(
+                separatedBy: "inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only'"
             ).count - 1,
             1
         )
@@ -539,7 +556,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 in: jobsSource,
                 range: NSRange(location: 0, length: jobsSource.utf16.count)
             ),
-            7
+            8
         )
 
         let githubLaneGate =
@@ -583,7 +600,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             dispatcherSource.components(
                 separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml"
             ).count - 1,
-            3
+            4
         )
         XCTAssertEqual(
             githubJobSource.components(
@@ -735,10 +752,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 77_245)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 98_283)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "2C1221E2849046EB63E80BE943A8C096C0AD55897F8B1625E3E29006032AE775"
+            "9ED34B8F389430B5D5CE54506D5A4C53A856025C68B32D73FE4F86EF38CF098F"
         )
         let warpScopeSource = String(
             warpJobSource[warpScopeStart.lowerBound..<warpExecutionStart.lowerBound]
@@ -780,21 +797,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         let exactProviderPolicyFragments = [
-            "            github:macos-26 | getmac:getmac-tahoe) ;;",
+            "            github:macos-26 | getmac:getmac-tahoe | bitrise:bitrise-m4-pro) ;;",
             "            github:macos-26)",
             "            getmac:getmac-tahoe)",
             #"test "$DEVELOPER_DIR" = "/Applications/Xcode_26.6.app/Contents/Developer""#,
-            #"test "$RUNNER_ARCH" = "ARM64""#,
-            #"test "$(uname -m)" = "arm64""#,
             #"test "$(sw_vers -productVersion)" = "26.5.2""#,
             #"resolved_developer_dir="$(env -u DEVELOPER_DIR xcode-select -p)""#,
             #"case "$resolved_developer_dir" in /*/Contents/Developer) ;; *) exit 1 ;; esac"#,
-            #"printf 'DEVELOPER_DIR=%s\n' "$DEVELOPER_DIR" >> "$GITHUB_ENV""#,
             #"| tee "$CI_ARTIFACT_DIR/runner-provider.txt""#,
         ]
         for fragment in exactProviderPolicyFragments {
             XCTAssertEqual(workflowSource.components(separatedBy: fragment).count - 1, 1, fragment)
         }
+        XCTAssertEqual(
+            workflowSource.components(separatedBy: #"test "$RUNNER_ARCH" = "ARM64""#).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            workflowSource.components(separatedBy: #"test "$(uname -m)" = "arm64""#).count - 1,
+            3
+        )
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: #"printf 'DEVELOPER_DIR=%s\n' "$DEVELOPER_DIR" >> "$GITHUB_ENV""#
+            ).count - 1,
+            2
+        )
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: #"case "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" in"#
@@ -805,7 +833,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workflowSource.components(
                 separatedBy: #"test -s "$CI_ARTIFACT_DIR/runner-provider.txt""#
             ).count - 1,
-            1
+            2
         )
         XCTAssertFalse(workflowSource.contains("getmac-latest"))
         XCTAssertFalse(workflowSource.contains("getmac-macos"))
@@ -814,10 +842,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"CI_S10_4_EFFECTIVE_PROVISION_RUNTIME="$CI_S10_4_PROVISION_RUNTIME""#,
             #"CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION="$CI_S10_4_RUNTIME_DOWNLOAD_VERSION""#,
             #"if test "$CI_RUNNER_PROVIDER" = "getmac"; then"#,
-            "              CI_S10_4_EFFECTIVE_PROVISION_RUNTIME=true",
             "                iphone-17-ios-26.2-current)",
-            #"test "$CI_S10_4_PROVISION_RUNTIME" = "false""#,
-            #"test -z "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION""#,
             "                  CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION=26.2",
             "                iphone-se-3-ios-18.0-minimum)",
             #"test "$CI_S10_4_PROVISION_RUNTIME" = "true""#,
@@ -836,11 +861,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for fragment in exactRuntimeOverlayFragments {
             XCTAssertEqual(workflowSource.components(separatedBy: fragment).count - 1, 1, fragment)
         }
+        for fragment in [
+            "              CI_S10_4_EFFECTIVE_PROVISION_RUNTIME=true",
+            #"test "$CI_S10_4_PROVISION_RUNTIME" = "false""#,
+            #"test -z "$CI_S10_4_RUNTIME_DOWNLOAD_VERSION""#,
+        ] {
+            XCTAssertEqual(workflowSource.components(separatedBy: fragment).count - 1, 2, fragment)
+        }
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: #"test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = "true"; then"#
             ).count - 1,
-            2
+            3
         )
         XCTAssertFalse(
             workflowSource.contains(#"xcodebuild -downloadPlatform iOS -buildVersion 26.2"#)
@@ -1060,14 +1092,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertLessThan(forcedRedMessageRange.lowerBound, forcedRedExitRange.lowerBound)
 
         let getMacRecordMarker = "      - name: Record GetMac development-only lane\n"
+        let bitriseCredentialScanMarker =
+            "      - name: Verify Bitrise evidence contains no cache credentials\n"
         let workerHashMarker = "      - name: Hash collected evidence\n"
         let workerUploadMarker = "      - name: Upload build evidence\n"
         let getMacFailMarker = "      - name: Fail closed after GetMac development-only evidence\n"
         guard
             let getMacRecordRange = workflowSource.range(of: getMacRecordMarker),
+            let bitriseCredentialScanRange = workflowSource.range(
+                of: bitriseCredentialScanMarker,
+                range: getMacRecordRange.upperBound..<workflowSource.endIndex
+            ),
             let workerHashRange = workflowSource.range(
                 of: workerHashMarker,
-                range: getMacRecordRange.upperBound..<workflowSource.endIndex
+                range: bitriseCredentialScanRange.upperBound..<workflowSource.endIndex
             ),
             let workerUploadRange = workflowSource.range(
                 of: workerUploadMarker,
@@ -1082,7 +1120,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             return
         }
         let getMacRecordSource = String(
-            workflowSource[getMacRecordRange.lowerBound..<workerHashRange.lowerBound]
+            workflowSource[
+                getMacRecordRange.lowerBound..<bitriseCredentialScanRange.lowerBound
+            ]
         )
         let getMacHashAndBudgetSource = String(
             workflowSource[workerHashRange.lowerBound..<workerUploadRange.lowerBound]
@@ -1244,7 +1284,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         XCTAssertEqual(
             workflowSource.components(
-                separatedBy: #"  group: ${{ inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id) }}"#
+                separatedBy: #"  group: ${{ inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, inputs.runner_provider == 'bitrise' && format('-{0}', github.sha) || '') }}"#
             ).count - 1,
             1
         )
@@ -18992,8 +19032,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let planSource = try text(planPath)
         try assertFile(
             planPath,
-            byteCount: 16_648,
-            sha256: "455D3F6A8F9FC0FC31530FA8AC56CFC5AF4F47ADD33B2E7BA215E1916D83C4A1"
+            byteCount: 17_504,
+            sha256: "5BBEC871E5B016EE8918A834382FF524666A0B0DA2CA15D2B410C415DDEFA0F8"
         )
         XCTAssertFalse(planSource.contains("\r"))
         XCTAssertEqual(try int(plan, "schemaVersion"), 1)
@@ -19010,6 +19050,51 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(try string(plan, "runnerProvider"), "github")
         XCTAssertEqual(try string(plan, "runnerLabel"), "macos-26")
+        let developmentExecutionBinding = try XCTUnwrap(
+            plan["developmentExecutionBinding"] as? [String: Any]
+        )
+        XCTAssertEqual(Set(developmentExecutionBinding.keys), Set([
+            "executionLane", "runnerProvider", "runnerLabel", "maximumParallelWorkers",
+            "independentWorkers", "cacheEnabled", "cachePushEnabled", "workspaceID",
+            "installerCommit", "installerBytes", "installerSHA256", "cliRelease",
+            "cliArchiveSHA256", "cliBinaryBytes", "cliBinarySHA256",
+            "feedsAcceptanceAssembler", "finalAcceptanceEligible",
+        ]))
+        XCTAssertEqual(
+            try string(developmentExecutionBinding, "executionLane"),
+            "bitrise-build-hub-xcode-26.6-segmented-development-only"
+        )
+        XCTAssertEqual(try string(developmentExecutionBinding, "runnerProvider"), "bitrise")
+        XCTAssertEqual(try string(developmentExecutionBinding, "runnerLabel"), "bitrise-m4-pro")
+        XCTAssertEqual(try int(developmentExecutionBinding, "maximumParallelWorkers"), 3)
+        XCTAssertEqual(developmentExecutionBinding["independentWorkers"] as? Bool, true)
+        XCTAssertEqual(developmentExecutionBinding["cacheEnabled"] as? Bool, true)
+        XCTAssertEqual(developmentExecutionBinding["cachePushEnabled"] as? Bool, true)
+        XCTAssertEqual(
+            try string(developmentExecutionBinding, "workspaceID"),
+            "c70b2962648b79fb"
+        )
+        XCTAssertEqual(
+            try string(developmentExecutionBinding, "installerCommit"),
+            "d971b485dd0519fdebb41240f1a2997d77dbf3a6"
+        )
+        XCTAssertEqual(try int(developmentExecutionBinding, "installerBytes"), 14_322)
+        XCTAssertEqual(
+            try string(developmentExecutionBinding, "installerSHA256"),
+            "8B4C6BF5F75F064B2F95B7E8A7CFA47FD2FD48FBF7DE16464713BE3A317FB5D4"
+        )
+        XCTAssertEqual(try string(developmentExecutionBinding, "cliRelease"), "v3.6.2")
+        XCTAssertEqual(
+            try string(developmentExecutionBinding, "cliArchiveSHA256"),
+            "17898081D7E6EA64B0393C50482CB00D84B6AA459E9954B1F26F0D64B4BF510E"
+        )
+        XCTAssertEqual(try int(developmentExecutionBinding, "cliBinaryBytes"), 20_335_490)
+        XCTAssertEqual(
+            try string(developmentExecutionBinding, "cliBinarySHA256"),
+            "2DFBFA4364A3A133370071715B9A7D0F9C6D7661B71ABAC839F723901C547BC3"
+        )
+        XCTAssertEqual(developmentExecutionBinding["feedsAcceptanceAssembler"] as? Bool, false)
+        XCTAssertEqual(developmentExecutionBinding["finalAcceptanceEligible"] as? Bool, false)
         XCTAssertEqual(try string(plan, "xcodeVersion"), "Xcode 26.6")
         XCTAssertEqual(try string(plan, "xcodeBuild"), "17F113")
         XCTAssertEqual(try string(plan, "sdkName"), "iphonesimulator26.5")
@@ -20786,7 +20871,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let aggregationSource = try boundedSource(
             dispatcherSource,
             from: "  assemble-segmented-shard:",
-            before: "\n\n  warpbuild-shard:"
+            before: "\n\n  bitrise-segmented-development-shard:"
         )
         for exact in [
             "needs: github-segmented-shard",
@@ -20803,6 +20888,35 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "SHA256SUMS.txt",
         ] {
             XCTAssertTrue(aggregationSource.contains(exact), exact)
+        }
+        XCTAssertFalse(aggregationSource.contains("bitrise"))
+        let bitriseMatrixSource = try boundedSource(
+            dispatcherSource,
+            from: "  bitrise-segmented-development-shard:",
+            before: "\n\n  warpbuild-shard:"
+        )
+        for exact in [
+            "inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only'",
+            "inputs.run_ui_smoke == true",
+            "inputs.s10_4_shard_id == 's10.4.current.ax-text'",
+            "fail-fast: false",
+            "max-parallel: 3",
+            "segment_id:\n          - segment-1\n          - segment-2\n          - segment-3",
+            "uses: ./.github/workflows/ios-ci-worker.yml",
+            "runner_label: bitrise-m4-pro",
+            "runner_provider: bitrise",
+            "run_ui_smoke: true",
+            "s10_4_shard_id: s10.4.current.ax-text",
+            "s10_4_segment_id: ${{ matrix.segment_id }}",
+            "secrets: inherit",
+        ] {
+            XCTAssertTrue(bitriseMatrixSource.contains(exact), exact)
+        }
+        for prohibited in [
+            "needs: github-segmented-shard", "segment-assembler", "shard-receipt.json",
+            "finalAcceptanceEligible: true", "runner_provider: github",
+        ] {
+            XCTAssertFalse(bitriseMatrixSource.contains(prohibited), prohibited)
         }
         let warpStart = try XCTUnwrap(
             dispatcherSource.range(of: "  warpbuild-shard:")
@@ -20828,9 +20942,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(workerInputSource.contains("required: true"))
         XCTAssertTrue(workerInputSource.contains("default: none"))
         XCTAssertTrue(workerInputSource.contains("type: string"))
+        XCTAssertTrue(workerInputSource.contains("BITRISE_BUILD_CACHE_AUTH_TOKEN:"))
+        XCTAssertTrue(workerInputSource.contains("required: false"))
         XCTAssertTrue(
             workerSource.contains(
-                "inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id)"
+                "inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, inputs.runner_provider == 'bitrise' && format('-{0}', github.sha) || '')"
             )
         )
         let workerSegmentSelection = try boundedSource(
@@ -20841,7 +20957,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for exact in [
             "none)\n                CI_ARTIFACT_SUFFIX=\"-$CI_S10_4_SHARD_ID\"",
             "segment-1 | segment-2 | segment-3)",
-            "test \"$CI_RUNNER_PROVIDER\" = \"github\"",
+            "case \"$CI_RUNNER_PROVIDER\" in github | bitrise) ;; *) exit 1 ;; esac",
             "test \"$CI_RUN_UI_SMOKE\" = \"true\"",
             "test \"$CI_S10_4_SHARD_ID\" = \"s10.4.current.ax-text\"",
             "CI_ARTIFACT_SUFFIX=\"-$CI_S10_4_SHARD_ID-$CI_S10_4_SEGMENT_ID\"",
@@ -20861,10 +20977,76 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         )
 
+        let bitriseCacheInstallSource = try boundedSource(
+            workerSource,
+            from: "      - name: Install pinned Bitrise Build Cache command wrappers",
+            before: "\n\n      - name: Verify pinned toolchain, shared scheme, and simulator"
+        )
+        for exact in [
+            "if: ${{ inputs.runner_provider == 'bitrise' }}",
+            "BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN }}",
+            "BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ vars.BITRISE_BUILD_CACHE_WORKSPACE_ID }}",
+            "bitrise:bitrise-m4-pro",
+            "test \"${RUNNER_ARCH:-}\" = \"ARM64\"",
+            "test \"$(uname -m)\" = \"arm64\"",
+            "test \"$(sw_vers -productVersion)\" = \"26.6.1\"",
+            "/Applications/Xcode-26.6.0.app/Contents/Developer",
+            "d971b485dd0519fdebb41240f1a2997d77dbf3a6/install/installer.sh",
+            "8b4c6bf5f75f064b2f95b7e8a7cfa47fd2fd48fbf7de16464713be3a317fb5d4",
+            "bitrise-build-cache_3.6.2_darwin_arm64.tar.gz",
+            "17898081d7e6ea64b0393c50482cb00d84b6aa459e9954b1f26f0d64b4bf510e",
+            "test \"$(stat -f '%z' /tmp/bin/bitrise-build-cache)\" = 20335490",
+            "2dfbfa4364a3a133370071715b9a7d0f9c6d7661b71abac839f723901c547bc3",
+            "/tmp/bin/bitrise-build-cache activate xcode --cache --cache-push",
+            "env -u BITRISE_BUILD_CACHE_AUTH_TOKEN -u BITRISE_BUILD_CACHE_WORKSPACE_ID",
+            "$HOME/.bitrise-xcelerate/bin/xcodebuild",
+            "$HOME/.bitrise-xcelerate/bin/xcrun",
+            "source.replace(value, \"[REDACTED]\")",
+            "rm -f \"$activation_raw\"",
+        ] {
+            XCTAssertTrue(bitriseCacheInstallSource.contains(exact), exact)
+        }
+        XCTAssertFalse(bitriseCacheInstallSource.contains("/main/install/installer.sh"))
+        XCTAssertFalse(bitriseCacheInstallSource.contains("curl | sh"))
+        XCTAssertFalse(bitriseCacheInstallSource.contains("curl --retry 5 -sSfL"))
+        XCTAssertEqual(
+            bitriseCacheInstallSource.components(
+                separatedBy: "activate xcode --cache --cache-push"
+            ).count - 1,
+            1
+        )
+
+        let bitriseDevelopmentRetentionSource = try boundedSource(
+            workerSource,
+            from: "      - name: Retain Bitrise development-only segment evidence",
+            before: "\n\n      - name: Retain S10.4 segment evidence"
+        )
+        for exact in [
+            "inputs.runner_provider == 'bitrise'",
+            "bitrise-development/$CI_S10_4_SEGMENT_ID",
+            "development-segment-record.json",
+            "independentSession: true",
+            "crossSessionBuildReuse: false",
+            "crossSessionResultReuse: false",
+            "crossSessionSimulatorReuse: false",
+            "crossSessionTestWithoutBuilding: false",
+            "acceptingSegmentReceipt: false",
+            "feedsAcceptanceAssembler: false",
+            "rawEvidenceOnly: true",
+            "finalAcceptanceEligible: false",
+        ] {
+            XCTAssertTrue(bitriseDevelopmentRetentionSource.contains(exact), exact)
+        }
+        XCTAssertFalse(bitriseDevelopmentRetentionSource.contains("complete: true"))
+        XCTAssertFalse(bitriseDevelopmentRetentionSource.contains("receiptKind: \"s10.4-segment\""))
+
         let retainSegmentSource = try boundedSource(
             workerSource,
             from: "      - name: Retain S10.4 segment evidence",
             before: "\n\n      - name: Retain S10.4 shard evidence"
+        )
+        XCTAssertTrue(
+            retainSegmentSource.contains("inputs.runner_provider == 'github'")
         )
         for exact in [
             "cmp -s \"$expected_owned_path\" \"$observed_marker_path\"",
@@ -21064,7 +21246,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before: "\n\n      - name: Record GetMac development-only lane"
         )
         XCTAssertTrue(
-            finalReceiptSource.contains("if: ${{ success() && inputs.s10_4_segment_id != 'none' }}")
+            finalReceiptSource.contains(
+                "if: ${{ success() && inputs.runner_provider == 'github' && inputs.s10_4_segment_id != 'none' }}"
+            )
         )
         XCTAssertTrue(finalReceiptSource.contains(".receiptKind = \"s10.4-segment\""))
         XCTAssertTrue(finalReceiptSource.contains(".complete = true"))
@@ -21086,13 +21270,58 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before: "\n\n      - name: Upload build evidence"
         )
         XCTAssertTrue(partialCleanupSource.contains("failure() || cancelled()"))
+        XCTAssertTrue(partialCleanupSource.contains("inputs.runner_provider == 'github'"))
         XCTAssertTrue(partialCleanupSource.contains("segment-receipt.json"))
         XCTAssertTrue(partialCleanupSource.contains("segment-receipt.pending.json"))
         XCTAssertTrue(partialCleanupSource.contains("SHA256SUMS.txt"))
         XCTAssertTrue(
             workerSource.contains(
-                "name: ${{ inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id)"
+                "name: ${{ inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id)"
             )
+        )
+        let bitriseScanMarker = "      - name: Verify Bitrise evidence contains no cache credentials"
+        let workerHashMarker = "      - name: Hash collected evidence"
+        let workerUploadMarker = "      - name: Upload build evidence"
+        let bitriseFailMarker = "      - name: Fail closed after Bitrise development-only evidence"
+        let bitriseScanRange = try XCTUnwrap(workerSource.range(of: bitriseScanMarker))
+        let workerHashRange = try XCTUnwrap(
+            workerSource.range(of: workerHashMarker, range: bitriseScanRange.upperBound..<workerSource.endIndex)
+        )
+        let workerUploadRange = try XCTUnwrap(
+            workerSource.range(of: workerUploadMarker, range: workerHashRange.upperBound..<workerSource.endIndex)
+        )
+        let bitriseFailRange = try XCTUnwrap(
+            workerSource.range(of: bitriseFailMarker, range: workerUploadRange.upperBound..<workerSource.endIndex)
+        )
+        let getMacFailRange = try XCTUnwrap(
+            workerSource.range(
+                of: "      - name: Fail closed after GetMac development-only evidence",
+                range: bitriseFailRange.upperBound..<workerSource.endIndex
+            )
+        )
+        XCTAssertLessThan(bitriseScanRange.lowerBound, workerHashRange.lowerBound)
+        XCTAssertLessThan(workerHashRange.lowerBound, workerUploadRange.lowerBound)
+        XCTAssertLessThan(workerUploadRange.lowerBound, bitriseFailRange.lowerBound)
+        let bitriseSecuritySource = String(
+            workerSource[bitriseScanRange.lowerBound..<getMacFailRange.lowerBound]
+        )
+        for exact in [
+            "BITRISE_BUILD_CACHE_AUTH_TOKEN",
+            "BITRISE_BUILD_CACHE_WORKSPACE_ID",
+            "root.rglob(\"*\")",
+            "safe_to_upload=false",
+            "safe_to_upload=true",
+            "steps.bitrise_credential_scan.outputs.safe_to_upload == 'true'",
+            "steps.upload_evidence.outcome == 'success'",
+            "exit 1",
+        ] {
+            XCTAssertTrue(bitriseSecuritySource.contains(exact), exact)
+        }
+        XCTAssertTrue(
+            workerSource.contains("test ! -e \"$CI_ARTIFACT_DIR/s10-4-segment-plan.json\"")
+        )
+        XCTAssertTrue(
+            workerSource.contains("s10-4-segment-plan-development-binding-redacted.json")
         )
 
         for prohibited in [
