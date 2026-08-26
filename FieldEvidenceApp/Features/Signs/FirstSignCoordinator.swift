@@ -66,6 +66,11 @@ enum FirstSignCoordinatorError: Error, Equatable {
 @MainActor
 final class FirstSignCoordinator: ObservableObject {
     private let modelContext: ModelContext
+    private let workspaceWriter: WorkspaceWriterV1?
+    private let mutationAdapter: WorkspaceWriterAdapterV1
+    private let clock: any ApplicationClock
+    private let idSource: any ApplicationIDSource
+    private let fileAuthority: any ApplicationFileAuthorityV1
     private let diagnosticsStore: DiagnosticsStore
     private let signPack: SignPack
     private let accessState: (@MainActor () -> DraftAccessNormalizedStateV1)?
@@ -74,9 +79,18 @@ final class FirstSignCoordinator: ObservableObject {
         modelContext: ModelContext,
         diagnosticsStore: DiagnosticsStore,
         signPack: SignPack,
+        workspaceWriter: WorkspaceWriterV1? = nil,
+        clock: any ApplicationClock = SystemApplicationClock(),
+        idSource: any ApplicationIDSource = SystemApplicationIDSource(),
+        fileAuthority: any ApplicationFileAuthorityV1 = SystemApplicationFileAuthorityV1(),
         accessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil
     ) {
         self.modelContext = modelContext
+        self.workspaceWriter = workspaceWriter
+        self.mutationAdapter = WorkspaceWriterAdapterV1(modelContext: modelContext)
+        self.clock = clock
+        self.idSource = idSource
+        self.fileAuthority = fileAuthority
         self.diagnosticsStore = diagnosticsStore
         self.signPack = signPack
         self.accessState = accessState
@@ -165,7 +179,7 @@ final class FirstSignCoordinator: ObservableObject {
             throw FirstSignCoordinatorError.accessDenied(decision)
         }
 
-        let now = Date()
+        let now = clock.now()
         let site: Site
         let insertsSite: Bool
         if let existingSiteID = normalized.existingSiteID {
@@ -177,6 +191,7 @@ final class FirstSignCoordinator: ObservableObject {
             insertsSite = false
         } else {
             site = Site(
+                id: idSource.makeID(),
                 label: normalized.siteLabel,
                 address: normalized.address,
                 timeZoneID: normalized.timeZoneID,
@@ -185,6 +200,7 @@ final class FirstSignCoordinator: ObservableObject {
             insertsSite = true
         }
         let asset = Asset(
+            id: idSource.makeID(),
             siteID: site.id,
             packID: signPack.packID,
             packSchemaVersion: signPack.schemaVersion,
@@ -193,22 +209,95 @@ final class FirstSignCoordinator: ObservableObject {
             createdAt: now
         )
 
-        if insertsSite {
-            modelContext.insert(site)
-        }
-        modelContext.insert(asset)
-
         do {
-            try modelContext.save()
+            let value = FirstSignMutationV1(
+                siteID: site.id,
+                newSite: insertsSite ? .init(
+                    id: site.id,
+                    label: site.label,
+                    address: site.address,
+                    timeZoneID: site.timeZoneID
+                ) : nil,
+                assetID: asset.id,
+                assetLabel: asset.label,
+                packID: asset.packID,
+                packSchemaVersion: asset.packSchemaVersion,
+                packContentVersion: asset.packContentVersion,
+                createdAt: now
+            )
+            try executeWorkspaceMutation(.createFirstSign(value), occurredAt: now)
         } catch {
             modelContext.rollback()
+            throw FirstSignCoordinatorError.saveFailed
+        }
+
+        let siteID = site.id
+        let assetID = asset.id
+        guard let persistedSites = try? modelContext.fetch(FetchDescriptor<Site>(
+            predicate: #Predicate { $0.id == siteID }
+        )),
+        let persistedAssets = try? modelContext.fetch(FetchDescriptor<Asset>(
+            predicate: #Predicate { $0.id == assetID }
+        )),
+        persistedSites.count == 1,
+        persistedAssets.count == 1,
+        let persistedSite = persistedSites.first,
+        let persistedAsset = persistedAssets.first else {
             throw FirstSignCoordinatorError.saveFailed
         }
 
         if (await diagnosticsStore.snapshot()).firstSignCreated == 0 {
             await diagnosticsStore.increment(.firstSignCreated)
         }
-        return snapshot(site: site, asset: asset)
+        return snapshot(site: persistedSite, asset: persistedAsset)
+    }
+
+    private func executeWorkspaceMutation(
+        _ command: WorkspaceCommandV1,
+        occurredAt: Date
+    ) throws {
+        let mutationID = try workspaceWriter?.makeMutationID()
+            ?? MutationIDV1(rawValue: idSource.makeID())
+        if let workspaceWriter {
+            let current = try workspaceWriter.currentRevision()
+            let targets: [WorkspaceEntityIdentityV1]
+            switch command {
+            case let .createFirstSign(value):
+                targets = try [
+                    WorkspaceEntityIdentityV1(kind: .site, id: value.siteID),
+                    WorkspaceEntityIdentityV1(kind: .asset, id: value.assetID),
+                ]
+            default:
+                throw WorkspaceMutationFailureV1.unsupportedCommand
+            }
+            let known = Dictionary(
+                uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) }
+            )
+            let scoped = try WorkspaceRevisionV1(
+                workspaceID: current.workspaceID,
+                generationID: current.generationID,
+                writerInstanceID: current.writerInstanceID,
+                revision: current.revision,
+                entityRevisions: targets.map {
+                    WorkspaceEntityRevisionV1(identity: $0, revision: known[$0, default: 0])
+                }
+            )
+            _ = try workspaceWriter.execute(WorkspaceMutationRequestV1(
+                mutationID: mutationID,
+                expectedRevision: WorkspaceExpectedRevisionV1(snapshot: scoped),
+                command: command
+            ))
+        } else {
+            let temporaryPath = try fileAuthority.temporaryRelativePath(
+                mutationID: mutationID,
+                component: command.kind.rawValue
+            )
+            _ = try mutationAdapter.apply(
+                command,
+                occurredAt: occurredAt,
+                temporaryRelativePath: temporaryPath
+            )
+        }
     }
 
     private func validated(_ input: FirstSignInput) throws -> NormalizedFirstSignInput {

@@ -1,0 +1,843 @@
+{
+  "$id": "https://assetrounds.invalid/v23/MutationReversalPolicyRegistryV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "activation": {
+      "additionalProperties": false,
+      "properties": {
+        "activationOwner": {
+          "const": "V23-P02-C02"
+        },
+        "basisPersistenceEnabled": {
+          "const": false
+        },
+        "commitEnabled": {
+          "const": false
+        },
+        "previewOnly": {
+          "const": true
+        },
+        "receiptPersistenceEnabled": {
+          "const": false
+        }
+      },
+      "required": [
+        "previewOnly",
+        "commitEnabled",
+        "basisPersistenceEnabled",
+        "receiptPersistenceEnabled",
+        "activationOwner"
+      ],
+      "type": "object"
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateAcceptanceMemberships": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "AutonomousRequiredAcceptedSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "appBaseHead": {
+          "const": "f271eae43631d17aee2c1c1651018f1ff800949e"
+        },
+        "appBaseTree": {
+          "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "authorityReceiptDigest": {
+          "const": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752"
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P02-C01"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "const": "a167a0be18594ed94e61b7a58a6418abc1bf345d1ddaeceb144cf813dee9f768"
+        },
+        "coordinationAuthorityHead": {
+          "const": "08254606545bb7b42a5286930b769e560816c268"
+        },
+        "coordinationAuthorityTree": {
+          "const": "148626c3301ce57f895a52013b1aee315b037f61"
+        },
+        "coordinationCASSequence": {
+          "const": 84
+        },
+        "coordinationLedgerDigest": {
+          "const": "c37bdad80bf23ac544fb3c49bf7920f1c59bfa246e3b8af35cee39af5003fdb0"
+        },
+        "dependencyDispositionDigest": {
+          "const": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C01-G01"
+            },
+            {
+              "const": "V23-P02-C01-A01"
+            },
+            {
+              "const": "V23-P02-C01-H01"
+            },
+            {
+              "const": "V23-P02-C01-I01"
+            },
+            {
+              "const": "V23-P02-C01-R01"
+            }
+          ],
+          "type": "array"
+        },
+        "directGraphDigest": {
+          "const": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P01-C07"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "const": "d8470d77c977b6c4076ecc5c044f9a024b46a8fe84313d7d4c1ba737e62680d4"
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "const": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f"
+        },
+        "foundationRegisterDigest": {
+          "const": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd"
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "hydrationProjectionDigest": {
+          "const": "4ddb4e577159c8d8d94fc390510ad74c3f8108ec09cca6ddaf7bdf772c38ea45"
+        },
+        "hydrationTransitionDigest": {
+          "const": "82a15e7313b9f98f41c4abb58397b68e3cf650c9d2913625cca7f2fcbd51d112"
+        },
+        "impactManifestDigest": {
+          "const": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b"
+        },
+        "inheritedV21BlockDigest": {
+          "const": "f38651e27c4b0a0856978b9f8d1ee8df8434e9eaf45333bc758a670af1266299"
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C02"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "EXACT_WITH_GENERATION_REBIND"
+        },
+        "ownerParallelOverrideAuthorityReceiptDigest": {
+          "const": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452"
+        },
+        "pathFenceDigest": {
+          "const": "55bcd0764981d6db9bdd26874f9b70779c7a9a0c4e3c2ee19a4d51dc51c465a0"
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "const": "39cd7ce015fa9084728870762f06ca4dec85bd9f41320ef29730dcc782fa6b15"
+        },
+        "registerOrdinal": {
+          "const": 21
+        },
+        "registerRowDigest": {
+          "const": "277c6a52c582ac6fcae446557f7a790909395805d90441a262da6bdf68d63687"
+        },
+        "relationManifestDigest": {
+          "const": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4"
+        },
+        "selectorManifestDigest": {
+          "const": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+        },
+        "title": {
+          "const": "Serialized WorkspaceWriter, expected revisions, idempotent MutationID, deterministic authorities, and semantic reversal"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationAuthorityHead",
+        "coordinationAuthorityTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "hydrationProjectionDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "hydrationTransitionDigest",
+        "registerRowDigest",
+        "dossierDigest",
+        "inheritedV21BlockDigest",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "authorityReceiptDigest",
+        "ownerParallelOverrideAuthorityReceiptDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "aggregateAcceptanceMemberships",
+        "conformanceSubjects",
+        "deterministicEvidenceIDs"
+      ],
+      "type": "object"
+    },
+    "c02Reservation": {
+      "items": false,
+      "maxItems": 6,
+      "minItems": 6,
+      "prefixItems": [
+        {
+          "const": "MutationEnvelopeV1"
+        },
+        {
+          "const": "MutationReceiptV1"
+        },
+        {
+          "const": "ReversalBasisV1"
+        },
+        {
+          "const": "SemanticReversalReceiptV1"
+        },
+        {
+          "const": "durableReplayIndex"
+        },
+        {
+          "const": "durableMutationQuarantine"
+        }
+      ],
+      "type": "array"
+    },
+    "cardID": {
+      "const": "V23-P02-C01"
+    },
+    "closedCommandKinds": {
+      "items": false,
+      "maxItems": 12,
+      "minItems": 12,
+      "prefixItems": [
+        {
+          "const": "archive_entities_preview_compensation"
+        },
+        {
+          "const": "begin_check_draft"
+        },
+        {
+          "const": "capture_evidence"
+        },
+        {
+          "const": "confirm_site_timezone"
+        },
+        {
+          "const": "create_first_sign"
+        },
+        {
+          "const": "delete_asset"
+        },
+        {
+          "const": "delete_site"
+        },
+        {
+          "const": "erase_workspace"
+        },
+        {
+          "const": "finalize_check"
+        },
+        {
+          "const": "finalize_correction"
+        },
+        {
+          "const": "record_work"
+        },
+        {
+          "const": "restore_workspace"
+        }
+      ],
+      "type": "array"
+    },
+    "evidenceIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "V23-P02-C01-G01"
+        },
+        {
+          "const": "V23-P02-C01-A01"
+        },
+        {
+          "const": "V23-P02-C01-H01"
+        },
+        {
+          "const": "V23-P02-C01-I01"
+        },
+        {
+          "const": "V23-P02-C01-R01"
+        }
+      ],
+      "type": "array"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "preview": {
+      "additionalProperties": false,
+      "properties": {
+        "batchSemantics": {
+          "const": "ALL_OR_NOTHING_UNLESS_NEW_ELIGIBLE_ITEMS_ONLY_PLAN"
+        },
+        "eligibilityBasis": {
+          "const": "GRAPH_AND_REVISION_NOT_TIME_ONLY"
+        },
+        "maximumDependencyCount": {
+          "const": 256
+        },
+        "maximumSemanticValueBytes": {
+          "const": 1048576
+        },
+        "requiredBindings": {
+          "items": false,
+          "maxItems": 10,
+          "minItems": 10,
+          "prefixItems": [
+            {
+              "const": "mutationID"
+            },
+            {
+              "const": "currentWorkspaceRevision"
+            },
+            {
+              "const": "currentEntityRevisions"
+            },
+            {
+              "const": "prospectiveTargetIdentity"
+            },
+            {
+              "const": "boundedSemanticValues"
+            },
+            {
+              "const": "contentReferences"
+            },
+            {
+              "const": "dependencyGraph"
+            },
+            {
+              "const": "conflicts"
+            },
+            {
+              "const": "compensatingCommands"
+            },
+            {
+              "const": "planDigest"
+            }
+          ],
+          "type": "array"
+        },
+        "type": {
+          "const": "SemanticReversalPlanV1"
+        },
+        "unboundedPreimageAllowed": {
+          "const": false
+        }
+      },
+      "required": [
+        "type",
+        "requiredBindings",
+        "eligibilityBasis",
+        "batchSemantics",
+        "maximumSemanticValueBytes",
+        "maximumDependencyCount",
+        "unboundedPreimageAllowed"
+      ],
+      "type": "object"
+    },
+    "previewOnlyCommandKinds": {
+      "items": false,
+      "maxItems": 1,
+      "minItems": 1,
+      "prefixItems": [
+        {
+          "const": "archive_entities_preview_compensation"
+        }
+      ],
+      "type": "array"
+    },
+    "provisional": {
+      "const": true
+    },
+    "registry": {
+      "items": false,
+      "maxItems": 12,
+      "minItems": 12,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "classification": {
+              "const": "COMPENSATABLE"
+            },
+            "commandKind": {
+              "const": "archive_entities_preview_compensation"
+            },
+            "commitActive": {
+              "const": false
+            },
+            "previewAvailable": {
+              "const": true
+            },
+            "reason": {
+              "const": "APPEND_SEMANTIC_SUCCESSOR_ONLY"
+            }
+          },
+          "required": [
+            "commandKind",
+            "classification",
+            "reason",
+            "previewAvailable",
+            "commitActive"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "classification": {
+              "const": "REVERSIBLE"
+            },
+            "commandKind": {
+              "const": "begin_check_draft"
+            },
+            "commitActive": {
+              "const": false
+            },
+            "previewAvailable": {
+              "const": true
+            },
+            "reason": {
+              "const": "RESTORE_BOUNDED_DRAFT_PREIMAGE"
+            }
+          },
+          "required": [
+            "commandKind",
+            "classification",
+            "reason",
+            "previewAvailable",
+            "commitActive"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "classification": {
+              "const": "IRREVERSIBLE"
+            },
+            "commandKind": {
+              "const": "capture_evidence"
+            },
+            "commitActive": {
+              "const": false
+            },
+            "previewAvailable": {
+              "const": false
+            },
+            "reason": {
+              "const": "PURGED_OR_ESCAPED_MEDIA_MUST_NOT_BE_RESURRECTED"
+            }
+          },
+          "required": [
+            "commandKind",
+            "classification",
+            "reason",
+            "previewAvailable",
+            "commitActive"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "classification": {
+              "const": "REVERSIBLE"
+            },
+            "commandKind": {
+              "const": "confirm_site_timezone"
+            },
+            "commitActive": {
+              "const": false
+            },
+            "previewAvailable": {
+              "const": true
+            },
+            "reason": {
+              "const": "RESTORE_PRIOR_CANONICAL_TIMEZONE_IF_UNCHANGED"
+            }
+          },
+          "required": [
+            "commandKind",
+            "classification",
+            "reason",
+            "previewAvailable",
+            "commitActive"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "classification": {
+              "const": "COMPENSATABLE"
+            },
+            "commandKind": {
+              "const": "create_first_sign"
+            },
+            "commitActive": {
+              "const": false
+            },
+            "previewAvailable": {
+              "const": true
+            },
+            "reason": {
+              "const": "EXPLICIT_DEPENDENCY_CHECKED_DELETE_ONLY"
+            }
+          },
+          "required": [
+            "commandKind",
+            "classification",
+            "reason",
+            "previewAvailable",
+            "commitActive"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "classification": {
+              "const": "IRREVERSIBLE"
+            },
+            "commandKind": {
+              "const": "delete_asset"
+            },
+            "commitActive": {
+              "const": false
+            },
+            "previewAvailable": {
+              "const": false
+            },
+            "reason": {
+              "const": "DELETION_LEDGER_AND_PURGED_CONTENT"
+            }
+          },
+          "required": [
+            "commandKind",
+            "classification",
+            "reason",
+            "previewAvailable",
+            "commitActive"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "classification": {
+              "const": "IRREVERSIBLE"
+            },
+            "commandKind": {
+              "const": "delete_site"
+            },
+            "commitActive": {
+              "const": false
+            },
+            "previewAvailable": {
+              "const": false
+            },
+            "reason": {
+              "const": "DELETION_LEDGER_AND_PURGED_CONTENT"
+            }
+          },
+          "required": [
+            "commandKind",
+            "classification",
+            "reason",
+            "previewAvailable",
+            "commitActive"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "classification": {
+              "const": "IRREVERSIBLE"
+            },
+            "commandKind": {
+              "const": "erase_workspace"
+            },
+            "commitActive": {
+              "const": false
+            },
+            "previewAvailable": {
+              "const": false
+            },
+            "reason": {
+              "const": "ERASE_IS_NEVER_REVERSIBLE"
+            }
+          },
+          "required": [
+            "commandKind",
+            "classification",
+            "reason",
+            "previewAvailable",
+            "commitActive"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "classification": {
+              "const": "IRREVERSIBLE"
+            },
+            "commandKind": {
+              "const": "finalize_check"
+            },
+            "commitActive": {
+              "const": false
+            },
+            "previewAvailable": {
+              "const": false
+            },
+            "reason": {
+              "const": "IMMUTABLE_FINALIZED_ARTIFACT_SUPERSESSION_ONLY"
+            }
+          },
+          "required": [
+            "commandKind",
+            "classification",
+            "reason",
+            "previewAvailable",
+            "commitActive"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "classification": {
+              "const": "IRREVERSIBLE"
+            },
+            "commandKind": {
+              "const": "finalize_correction"
+            },
+            "commitActive": {
+              "const": false
+            },
+            "previewAvailable": {
+              "const": false
+            },
+            "reason": {
+              "const": "IMMUTABLE_CORRECTION_CHAIN_SUPERSESSION_ONLY"
+            }
+          },
+          "required": [
+            "commandKind",
+            "classification",
+            "reason",
+            "previewAvailable",
+            "commitActive"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "classification": {
+              "const": "IRREVERSIBLE"
+            },
+            "commandKind": {
+              "const": "record_work"
+            },
+            "commitActive": {
+              "const": false
+            },
+            "previewAvailable": {
+              "const": false
+            },
+            "reason": {
+              "const": "COMPLETED_RECORD_AND_EVIDENCE_SUPERSESSION_ONLY"
+            }
+          },
+          "required": [
+            "commandKind",
+            "classification",
+            "reason",
+            "previewAvailable",
+            "commitActive"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "classification": {
+              "const": "IRREVERSIBLE"
+            },
+            "commandKind": {
+              "const": "restore_workspace"
+            },
+            "commitActive": {
+              "const": false
+            },
+            "previewAvailable": {
+              "const": false
+            },
+            "reason": {
+              "const": "GENERATION_PUBLICATION_AND_IDENTITY_TRANSFORMATION"
+            }
+          },
+          "required": [
+            "commandKind",
+            "classification",
+            "reason",
+            "previewAvailable",
+            "commitActive"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "schema": {
+      "const": "MutationReversalPolicyRegistryV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "unknownCommandDisposition": {
+      "const": "FAIL_CLOSED_IRREVERSIBLE"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "registry",
+    "closedCommandKinds",
+    "previewOnlyCommandKinds",
+    "unknownCommandDisposition",
+    "preview",
+    "activation",
+    "c02Reservation",
+    "evidenceIDs",
+    "provisional",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "phase10PollingDuringParallelExecution",
+    "requiresAcceptedS10_6Reconciliation",
+    "artifactDigest"
+  ],
+  "title": "MutationReversalPolicyRegistryV1",
+  "type": "object"
+}

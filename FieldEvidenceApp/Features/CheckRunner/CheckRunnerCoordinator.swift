@@ -32,6 +32,11 @@ final class CheckRunnerCoordinator {
     ]
 
     private let modelContext: ModelContext
+    private let workspaceWriter: WorkspaceWriterV1?
+    private let mutationAdapter: WorkspaceWriterAdapterV1
+    private let clock: any ApplicationClock
+    private let idSource: any ApplicationIDSource
+    private let fileAuthority: any ApplicationFileAuthorityV1
     private let signPack: SignPack
     private let diagnosticsStore: DiagnosticsStore?
     private let storagePreflight: StoragePreflightService
@@ -59,6 +64,10 @@ final class CheckRunnerCoordinator {
     init(
         modelContext: ModelContext,
         signPack: SignPack,
+        workspaceWriter: WorkspaceWriterV1? = nil,
+        clock: any ApplicationClock = SystemApplicationClock(),
+        idSource: any ApplicationIDSource = SystemApplicationIDSource(),
+        fileAuthority: any ApplicationFileAuthorityV1 = SystemApplicationFileAuthorityV1(),
         diagnosticsStore: DiagnosticsStore? = nil,
         storagePreflight: StoragePreflightService = StoragePreflightService(),
         evidenceStoreFailureInjection: EvidenceBundleStoreFailureInjection? = nil,
@@ -69,6 +78,11 @@ final class CheckRunnerCoordinator {
         draftAccessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil
     ) {
         self.modelContext = modelContext
+        self.workspaceWriter = workspaceWriter
+        self.mutationAdapter = WorkspaceWriterAdapterV1(modelContext: modelContext)
+        self.clock = clock
+        self.idSource = idSource
+        self.fileAuthority = fileAuthority
         self.signPack = signPack
         self.diagnosticsStore = diagnosticsStore
         self.evidenceStoreFailureInjection = evidenceStoreFailureInjection
@@ -266,14 +280,16 @@ final class CheckRunnerCoordinator {
                 snapshotCreatedAt: snapshotCreatedAt,
                 sourceApp: sourceApp,
                 identifiers: FinalizationIdentifiers(
-                    mutationID: UUID(),
-                    packetID: UUID(),
-                    stableRootID: UUID(),
-                    reportID: UUID(),
+                    mutationID: idSource.makeID(),
+                    packetID: idSource.makeID(),
+                    stableRootID: idSource.makeID(),
+                    reportID: idSource.makeID(),
                     issueID: isRecheck
                         ? existingIssueID
-                        : outcome.issueLabel == nil ? nil : UUID(),
-                    newIssueID: isRecheck && outcome.issueLabel != nil ? UUID() : nil
+                        : outcome.issueLabel == nil ? nil : idSource.makeID(),
+                    newIssueID: isRecheck && outcome.issueLabel != nil
+                        ? idSource.makeID()
+                        : nil
                 )
             )
         }
@@ -485,7 +501,7 @@ final class CheckRunnerCoordinator {
             throw CheckRunnerCoordinatorError.mediaImportFailed
         }
 
-        let evidenceID = UUID()
+        let evidenceID = idSource.makeID()
         let staged: StagedEvidenceBundle
         do {
             staged = try await evidenceBundleStore.stage(
@@ -586,15 +602,38 @@ final class CheckRunnerCoordinator {
                 thumbnailByteCount: promoted.thumbnailByteCount,
                 thumbnailSHA256: promoted.thumbnailSHA256
             )
-            modelContext.insert(evidence)
-            draft.draftStepKey = preparation.step == .wide
+            let nextDraftStepKey = preparation.step == .wide
                 ? WorkflowDraftStep.close.rawValue
                 : WorkflowDraftStep.outcome.rawValue
             if evidenceSaveFailureInjection?.consume(.evidenceModelSave) == true {
                 throw CheckRunnerCoordinatorError.saveFailed
             }
-            try modelContext.save()
-            return evidence
+            try executeWorkspaceMutation(
+                .acceptCheckEvidence(CheckEvidenceMutationV1(
+                    evidenceID: candidate.id,
+                    draftID: candidate.recordID,
+                    purposeKey: candidate.purposeKey,
+                    relativePath: promoted.originalRelativePath,
+                    mimeType: "image/jpeg",
+                    byteCount: promoted.originalByteCount,
+                    sha256: promoted.originalSHA256,
+                    thumbnailRelativePath: promoted.thumbnailRelativePath,
+                    thumbnailByteCount: promoted.thumbnailByteCount,
+                    thumbnailSHA256: promoted.thumbnailSHA256,
+                    nextDraftStepKey: nextDraftStepKey,
+                    createdAt: candidate.createdAt
+                )),
+                mutationID: try MutationIDV1(rawValue: candidate.id),
+                occurredAt: candidate.createdAt
+            )
+            let evidenceID = candidate.id
+            let persisted = try modelContext.fetch(FetchDescriptor<EvidenceFile>(
+                predicate: #Predicate { $0.id == evidenceID }
+            ))
+            guard persisted.count == 1, let accepted = persisted.first else {
+                throw CheckRunnerCoordinatorError.saveFailed
+            }
+            return accepted
         } catch {
             let saveError = error
             modelContext.rollback()
@@ -771,7 +810,7 @@ final class CheckRunnerCoordinator {
         guard let requestedEntry = draftAccessEntry(for: requestedStage) else {
             return .blockInvalidRequest
         }
-        let gateCheckedAt = Date()
+        let gateCheckedAt = clock.now()
         if let draft = try existingDraft(assetID: assetID) {
             guard draftAccessEntry(for: draft) == requestedEntry,
                   draft.issueID == issueID,
@@ -886,7 +925,7 @@ final class CheckRunnerCoordinator {
             parentRecordID: parentRecordID,
             timeContext: nil,
             acknowledgementSnapshots: nil,
-            startedAt: Date()
+            startedAt: clock.now()
         )
     }
 
@@ -926,7 +965,7 @@ final class CheckRunnerCoordinator {
                 parentRecordID: parentRecordID,
                 timeContext: nil,
                 acknowledgementSnapshots: nil,
-                startedAt: submission.observedAtUTC ?? Date()
+                startedAt: submission.observedAtUTC ?? clock.now()
             )
 
         case .check, .recheck:
@@ -1159,10 +1198,16 @@ final class CheckRunnerCoordinator {
     ) throws {
         guard resolution.requiresSave else { return }
 
-        resolution.site.timeZoneID = resolution.timeZoneID
-        resolution.site.updatedAt = confirmedAt
         do {
-            try modelContext.save()
+            try executeWorkspaceMutation(
+                .updateSiteTimeZone(SiteTimeZoneMutationV1(
+                    siteID: resolution.site.id,
+                    timeZoneID: resolution.timeZoneID,
+                    confirmedAt: confirmedAt
+                )),
+                mutationID: nil,
+                occurredAt: confirmedAt
+            )
         } catch {
             modelContext.rollback()
             throw CheckRunnerCoordinatorError.saveFailed
@@ -1176,6 +1221,85 @@ final class CheckRunnerCoordinator {
               persistedSite.count == 1,
               persistedSite.first?.timeZoneID == resolution.timeZoneID else {
             throw CheckRunnerCoordinatorError.saveFailed
+        }
+    }
+
+    private func executeWorkspaceMutation(
+        _ command: WorkspaceCommandV1,
+        mutationID suppliedMutationID: MutationIDV1?,
+        occurredAt: Date
+    ) throws {
+        let mutationID = try suppliedMutationID
+            ?? workspaceWriter?.makeMutationID()
+            ?? MutationIDV1(rawValue: idSource.makeID())
+        if let workspaceWriter {
+            let current = try workspaceWriter.currentRevision()
+            let targets = try workspaceTargets(command)
+            let known = Dictionary(
+                uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) }
+            )
+            let scoped = try WorkspaceRevisionV1(
+                workspaceID: current.workspaceID,
+                generationID: current.generationID,
+                writerInstanceID: current.writerInstanceID,
+                revision: current.revision,
+                entityRevisions: targets.map {
+                    WorkspaceEntityRevisionV1(identity: $0, revision: known[$0, default: 0])
+                }
+            )
+            _ = try workspaceWriter.execute(WorkspaceMutationRequestV1(
+                mutationID: mutationID,
+                expectedRevision: WorkspaceExpectedRevisionV1(snapshot: scoped),
+                command: command
+            ))
+        } else {
+            let temporaryPath = try fileAuthority.temporaryRelativePath(
+                mutationID: mutationID,
+                component: command.kind.rawValue
+            )
+            _ = try mutationAdapter.apply(
+                command,
+                occurredAt: occurredAt,
+                temporaryRelativePath: temporaryPath
+            )
+        }
+    }
+
+    private func workspaceTargets(
+        _ command: WorkspaceCommandV1
+    ) throws -> [WorkspaceEntityIdentityV1] {
+        switch command {
+        case let .createFirstSign(value):
+            return try [
+                WorkspaceEntityIdentityV1(kind: .site, id: value.siteID),
+                WorkspaceEntityIdentityV1(kind: .asset, id: value.assetID),
+            ]
+        case let .createCheckDraft(value):
+            var dependencies = try [
+                WorkspaceEntityIdentityV1(kind: .workflowRecord, id: value.recordID),
+                WorkspaceEntityIdentityV1(kind: .asset, id: value.assetID),
+            ]
+            if let issueID = value.issueID {
+                dependencies.append(try WorkspaceEntityIdentityV1(kind: .issue, id: issueID))
+            }
+            if let parentRecordID = value.parentRecordID {
+                dependencies.append(try WorkspaceEntityIdentityV1(
+                    kind: .workflowRecord,
+                    id: parentRecordID
+                ))
+            }
+            return dependencies
+        case let .acceptCheckEvidence(value):
+            return try [
+                WorkspaceEntityIdentityV1(kind: .workflowRecord, id: value.draftID),
+                WorkspaceEntityIdentityV1(kind: .evidenceFile, id: value.evidenceID),
+            ]
+        case let .updateSiteTimeZone(value):
+            return [try WorkspaceEntityIdentityV1(kind: .site, id: value.siteID)]
+        case let .archiveEntities(value):
+            return value.identities
+        default:
+            throw WorkspaceMutationFailureV1.unsupportedCommand
         }
     }
 
@@ -1546,58 +1670,52 @@ final class CheckRunnerCoordinator {
             throw CheckRunnerCoordinatorError.invalidLineage
         }
 
-        let id = UUID()
-        let draft = WorkflowRecord(
-            id: id,
-            assetID: asset.id,
-            packetID: nil,
-            issueID: issueID,
-            parentRecordID: parentRecordID,
-            recordRevisionRootID: id,
-            revisesRecordID: nil,
-            evidenceSourceRecordID: nil,
-            revisionKind: .original,
-            stage: requestedStage,
-            state: .draft,
-            draftStepKey: requestedStage == .work ? nil : .wide,
-            startedAt: startedAt,
-            completedAt: nil,
-            observedAtUTC: timeContext?.observedAtUTC,
-            timeZoneID: timeContext?.timeZoneID,
-            utcOffsetMinutes: timeContext?.utcOffsetMinutes,
-            localDate: timeContext?.localDate,
-            localTime: timeContext?.localTime,
-            afterDarkAcknowledgementKey: acknowledgementSnapshots?.afterDark.key,
-            afterDarkAcknowledgementCopy: acknowledgementSnapshots?.afterDark.copy,
-            afterDarkAcknowledgementVersion: acknowledgementSnapshots?.afterDark.version,
-            afterDarkAcknowledgementAccepted: acknowledgementSnapshots == nil ? nil : true,
-            safePositionAcknowledgementKey: acknowledgementSnapshots?.safePosition.key,
-            safePositionAcknowledgementCopy: acknowledgementSnapshots?.safePosition.copy,
-            safePositionAcknowledgementVersion: acknowledgementSnapshots?.safePosition.version,
-            safePositionAcknowledgementAccepted: acknowledgementSnapshots == nil ? nil : true,
-            packID: asset.packID,
-            packSchemaVersion: asset.packSchemaVersion,
-            packContentVersion: asset.packContentVersion,
-            pdfTemplateID: Self.pdfTemplateID,
-            pdfTemplateVersion: Self.pdfTemplateVersion,
-            outcomeKey: nil,
-            couldNotVerifyKey: nil,
-            couldNotVerifyDisplaySnapshot: nil,
-            couldNotVerifyRegistryVersion: nil,
-            workPerformedLocalDate: nil,
-            workDescription: nil,
-            note: nil,
-            finalizationMutationID: nil
-        )
-
-        modelContext.insert(draft)
+        let id = idSource.makeID()
         do {
-            try modelContext.save()
+            try executeWorkspaceMutation(
+                .createCheckDraft(CheckDraftMutationV1(
+                    recordID: id,
+                    assetID: asset.id,
+                    issueID: issueID,
+                    parentRecordID: parentRecordID,
+                    stage: requestedStage.rawValue,
+                    draftStepKey: requestedStage == .work
+                        ? nil
+                        : WorkflowDraftStep.wide.rawValue,
+                    startedAt: startedAt,
+                    observedAtUTC: timeContext?.observedAtUTC,
+                    timeZoneID: timeContext?.timeZoneID,
+                    utcOffsetMinutes: timeContext?.utcOffsetMinutes,
+                    localDate: timeContext?.localDate,
+                    localTime: timeContext?.localTime,
+                    afterDarkAcknowledgementKey: acknowledgementSnapshots?.afterDark.key,
+                    afterDarkAcknowledgementCopy: acknowledgementSnapshots?.afterDark.copy,
+                    afterDarkAcknowledgementVersion: acknowledgementSnapshots?.afterDark.version,
+                    afterDarkAcknowledgementAccepted: acknowledgementSnapshots == nil ? nil : true,
+                    safePositionAcknowledgementKey: acknowledgementSnapshots?.safePosition.key,
+                    safePositionAcknowledgementCopy: acknowledgementSnapshots?.safePosition.copy,
+                    safePositionAcknowledgementVersion: acknowledgementSnapshots?.safePosition.version,
+                    safePositionAcknowledgementAccepted: acknowledgementSnapshots == nil ? nil : true,
+                    packID: asset.packID,
+                    packSchemaVersion: asset.packSchemaVersion,
+                    packContentVersion: asset.packContentVersion,
+                    pdfTemplateID: Self.pdfTemplateID,
+                    pdfTemplateVersion: Self.pdfTemplateVersion
+                )),
+                mutationID: try MutationIDV1(rawValue: id),
+                occurredAt: startedAt
+            )
         } catch {
             modelContext.rollback()
             throw CheckRunnerCoordinatorError.saveFailed
         }
-        return draft
+        let persisted = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(
+            predicate: #Predicate { $0.id == id }
+        ))
+        guard persisted.count == 1, let accepted = persisted.first else {
+            throw CheckRunnerCoordinatorError.saveFailed
+        }
+        return accepted
     }
 }
 

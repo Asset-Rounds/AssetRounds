@@ -1,0 +1,1113 @@
+{
+  "$id": "https://assetrounds.invalid/v23/MutationBoundaryClosureReceiptV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateAcceptanceMemberships": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "AutonomousRequiredAcceptedSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "appBaseHead": {
+          "const": "f271eae43631d17aee2c1c1651018f1ff800949e"
+        },
+        "appBaseTree": {
+          "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "authorityReceiptDigest": {
+          "const": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752"
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P02-C01"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "const": "a167a0be18594ed94e61b7a58a6418abc1bf345d1ddaeceb144cf813dee9f768"
+        },
+        "coordinationAuthorityHead": {
+          "const": "08254606545bb7b42a5286930b769e560816c268"
+        },
+        "coordinationAuthorityTree": {
+          "const": "148626c3301ce57f895a52013b1aee315b037f61"
+        },
+        "coordinationCASSequence": {
+          "const": 84
+        },
+        "coordinationLedgerDigest": {
+          "const": "c37bdad80bf23ac544fb3c49bf7920f1c59bfa246e3b8af35cee39af5003fdb0"
+        },
+        "dependencyDispositionDigest": {
+          "const": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C01-G01"
+            },
+            {
+              "const": "V23-P02-C01-A01"
+            },
+            {
+              "const": "V23-P02-C01-H01"
+            },
+            {
+              "const": "V23-P02-C01-I01"
+            },
+            {
+              "const": "V23-P02-C01-R01"
+            }
+          ],
+          "type": "array"
+        },
+        "directGraphDigest": {
+          "const": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P01-C07"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "const": "d8470d77c977b6c4076ecc5c044f9a024b46a8fe84313d7d4c1ba737e62680d4"
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "const": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f"
+        },
+        "foundationRegisterDigest": {
+          "const": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd"
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "hydrationProjectionDigest": {
+          "const": "4ddb4e577159c8d8d94fc390510ad74c3f8108ec09cca6ddaf7bdf772c38ea45"
+        },
+        "hydrationTransitionDigest": {
+          "const": "82a15e7313b9f98f41c4abb58397b68e3cf650c9d2913625cca7f2fcbd51d112"
+        },
+        "impactManifestDigest": {
+          "const": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b"
+        },
+        "inheritedV21BlockDigest": {
+          "const": "f38651e27c4b0a0856978b9f8d1ee8df8434e9eaf45333bc758a670af1266299"
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C02"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "EXACT_WITH_GENERATION_REBIND"
+        },
+        "ownerParallelOverrideAuthorityReceiptDigest": {
+          "const": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452"
+        },
+        "pathFenceDigest": {
+          "const": "55bcd0764981d6db9bdd26874f9b70779c7a9a0c4e3c2ee19a4d51dc51c465a0"
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "const": "39cd7ce015fa9084728870762f06ca4dec85bd9f41320ef29730dcc782fa6b15"
+        },
+        "registerOrdinal": {
+          "const": 21
+        },
+        "registerRowDigest": {
+          "const": "277c6a52c582ac6fcae446557f7a790909395805d90441a262da6bdf68d63687"
+        },
+        "relationManifestDigest": {
+          "const": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4"
+        },
+        "selectorManifestDigest": {
+          "const": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+        },
+        "title": {
+          "const": "Serialized WorkspaceWriter, expected revisions, idempotent MutationID, deterministic authorities, and semantic reversal"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationAuthorityHead",
+        "coordinationAuthorityTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "hydrationProjectionDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "hydrationTransitionDigest",
+        "registerRowDigest",
+        "dossierDigest",
+        "inheritedV21BlockDigest",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "authorityReceiptDigest",
+        "ownerParallelOverrideAuthorityReceiptDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "aggregateAcceptanceMemberships",
+        "conformanceSubjects",
+        "deterministicEvidenceIDs"
+      ],
+      "type": "object"
+    },
+    "c02AbsenceProof": {
+      "additionalProperties": false,
+      "properties": {
+        "durableEnvelopeSchemaPresent": {
+          "const": false
+        },
+        "durableReceiptSchemaPresent": {
+          "const": false
+        },
+        "durableReplayOrQuarantinePresent": {
+          "const": false
+        },
+        "durableReversalBasisPresent": {
+          "const": false
+        },
+        "reservedNames": {
+          "items": false,
+          "maxItems": 6,
+          "minItems": 6,
+          "prefixItems": [
+            {
+              "const": "MutationEnvelopeV1"
+            },
+            {
+              "const": "MutationReceiptV1"
+            },
+            {
+              "const": "ReversalBasisV1"
+            },
+            {
+              "const": "SemanticReversalReceiptV1"
+            },
+            {
+              "const": "durableReplayIndex"
+            },
+            {
+              "const": "durableMutationQuarantine"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": [
+        "reservedNames",
+        "durableEnvelopeSchemaPresent",
+        "durableReceiptSchemaPresent",
+        "durableReversalBasisPresent",
+        "durableReplayOrQuarantinePresent"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P02-C01"
+    },
+    "closureClaimed": {
+      "const": false
+    },
+    "evidenceIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "V23-P02-C01-G01"
+        },
+        {
+          "const": "V23-P02-C01-A01"
+        },
+        {
+          "const": "V23-P02-C01-H01"
+        },
+        {
+          "const": "V23-P02-C01-I01"
+        },
+        {
+          "const": "V23-P02-C01-R01"
+        }
+      ],
+      "type": "array"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "observedProvisionalBoundary": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptanceBlockedUntilReconciliation": {
+          "const": true
+        },
+        "featureCoordinatorsOwnRawModelContextWrites": {
+          "const": true
+        },
+        "fencedCandidateReboundPaths": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "FieldEvidenceApp/Features/Signs/FirstSignCoordinator.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift"
+            }
+          ],
+          "type": "array"
+        },
+        "productionFeatureOwnedInsertSaveDeleteRemaining": {
+          "const": 2
+        },
+        "reservedFeatureDirectWritePaths": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Features/Shell/AppShellView.swift"
+            }
+          ],
+          "type": "array"
+        },
+        "viewsOwnRawModelContextWrites": {
+          "const": true
+        }
+      },
+      "required": [
+        "fencedCandidateReboundPaths",
+        "reservedFeatureDirectWritePaths",
+        "productionFeatureOwnedInsertSaveDeleteRemaining",
+        "viewsOwnRawModelContextWrites",
+        "featureCoordinatorsOwnRawModelContextWrites",
+        "acceptanceBlockedUntilReconciliation"
+      ],
+      "type": "object"
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "provisional": {
+      "const": true
+    },
+    "receiptStatus": {
+      "const": "PROVISIONAL_INVENTORY_NOT_CLOSURE_ACCEPTANCE"
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiredClosure": {
+      "additionalProperties": false,
+      "properties": {
+        "backupExportImportAreQueriesUntilRestore": {
+          "const": true
+        },
+        "featureCoordinatorsOwnRawModelContextWrites": {
+          "const": false
+        },
+        "productionFeatureOwnedInsertSaveDeleteRemaining": {
+          "const": 0
+        },
+        "recoveryServicesRemainAdapterSubauthorities": {
+          "const": true
+        },
+        "viewsOwnRawModelContextWrites": {
+          "const": false
+        },
+        "writerInstancesPerActiveWorkspaceGeneration": {
+          "const": 1
+        }
+      },
+      "required": [
+        "productionFeatureOwnedInsertSaveDeleteRemaining",
+        "writerInstancesPerActiveWorkspaceGeneration",
+        "viewsOwnRawModelContextWrites",
+        "featureCoordinatorsOwnRawModelContextWrites",
+        "recoveryServicesRemainAdapterSubauthorities",
+        "backupExportImportAreQueriesUntilRestore"
+      ],
+      "type": "object"
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "reservedDeferredDirectWriters": {
+      "items": false,
+      "maxItems": 19,
+      "minItems": 19,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "FENCED_CANDIDATE_REBIND_IMPLEMENTED_STATIC_ONLY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Features/Signs/FirstSignCoordinator.swift"
+            },
+            "role": {
+              "const": "CREATE_FIRST_SIGN"
+            },
+            "symbol": {
+              "const": "FirstSignCoordinator.create"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "FENCED_CANDIDATE_REBIND_IMPLEMENTED_STATIC_ONLY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift"
+            },
+            "role": {
+              "const": "DRAFT_EVIDENCE_TIMEZONE_FINALIZATION"
+            },
+            "symbol": {
+              "const": "CheckRunnerCoordinator"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift"
+            },
+            "role": {
+              "const": "RECORD_WORK"
+            },
+            "symbol": {
+              "const": "WorkCoordinator.saveWork"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Features/Shell/AppShellView.swift"
+            },
+            "role": {
+              "const": "COMPATIBILITY_FIXTURE_ONLY"
+            },
+            "symbol": {
+              "const": "materializeMixedFixture"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift"
+            },
+            "role": {
+              "const": "FINALIZATION_AUTHORITY"
+            },
+            "symbol": {
+              "const": "FinalizationService"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift"
+            },
+            "role": {
+              "const": "RECOVERY_ONLY"
+            },
+            "symbol": {
+              "const": "FinalizationRecoveryService"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift"
+            },
+            "role": {
+              "const": "FINALIZATION_JOURNAL_SUBAUTHORITY"
+            },
+            "symbol": {
+              "const": "FinalizationIntentStore"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift"
+            },
+            "role": {
+              "const": "DELETION_AUTHORITY"
+            },
+            "symbol": {
+              "const": "WholeSignDeletionService"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Deletion/DeletionLedgerStore.swift"
+            },
+            "role": {
+              "const": "DELETION_SUBAUTHORITY"
+            },
+            "symbol": {
+              "const": "DeletionLedgerStore"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift"
+            },
+            "role": {
+              "const": "ERASE_AUTHORITY"
+            },
+            "symbol": {
+              "const": "EraseAllService"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift"
+            },
+            "role": {
+              "const": "ERASE_JOURNAL_SUBAUTHORITY"
+            },
+            "symbol": {
+              "const": "EraseIntentStore"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Deletion/OrphanFileCleanupService.swift"
+            },
+            "role": {
+              "const": "RECOVERY_ONLY"
+            },
+            "symbol": {
+              "const": "OrphanFileCleanupService"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift"
+            },
+            "role": {
+              "const": "RESTORE_AUTHORITY"
+            },
+            "symbol": {
+              "const": "BackupRestoreService.restore"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Backup/RestoreIntentStore.swift"
+            },
+            "role": {
+              "const": "RESTORE_JOURNAL_SUBAUTHORITY"
+            },
+            "symbol": {
+              "const": "RestoreIntentStore"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
+            },
+            "role": {
+              "const": "GENERATION_SUBAUTHORITY"
+            },
+            "symbol": {
+              "const": "StoreGenerationFactory"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift"
+            },
+            "role": {
+              "const": "MEDIA_FILE_SUBAUTHORITY"
+            },
+            "symbol": {
+              "const": "EvidenceBundleStore"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift"
+            },
+            "role": {
+              "const": "FINALIZATION_DERIVED_SUBAUTHORITY"
+            },
+            "symbol": {
+              "const": "ReportRenderService"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift"
+            },
+            "role": {
+              "const": "RECOVERY_ONLY"
+            },
+            "symbol": {
+              "const": "ReportRecoveryService"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closureClaimed": {
+              "const": false
+            },
+            "disposition": {
+              "const": "RESERVED_DEFERRED_TO_RECONCILIATION_OR_ACCEPTED_SUBAUTHORITY"
+            },
+            "observedAtBaseTree": {
+              "const": "65c69840898153109d8b0f0d2809d369eacdabb3"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift"
+            },
+            "role": {
+              "const": "REPORT_FILE_SUBAUTHORITY"
+            },
+            "symbol": {
+              "const": "WorklightPDFRendererV1"
+            }
+          },
+          "required": [
+            "path",
+            "symbol",
+            "role",
+            "observedAtBaseTree",
+            "disposition",
+            "closureClaimed"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "scannerRules": {
+      "additionalProperties": false,
+      "properties": {
+        "allowedBehindTemporaryAdapterOnly": {
+          "const": true
+        },
+        "forbiddenProductionCalls": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "ModelContext.insert"
+            },
+            {
+              "const": "ModelContext.save"
+            },
+            {
+              "const": "ModelContext.delete"
+            }
+          ],
+          "type": "array"
+        },
+        "testAndCompatibilityFixtureExceptionsMustBeNamed": {
+          "const": true
+        },
+        "unknownWriterDisposition": {
+          "const": "FAIL_CLOSED"
+        }
+      },
+      "required": [
+        "forbiddenProductionCalls",
+        "allowedBehindTemporaryAdapterOnly",
+        "testAndCompatibilityFixtureExceptionsMustBeNamed",
+        "unknownWriterDisposition"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "const": "MutationBoundaryClosureReceiptV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "receiptStatus",
+    "closureClaimed",
+    "reservedDeferredDirectWriters",
+    "requiredClosure",
+    "observedProvisionalBoundary",
+    "scannerRules",
+    "c02AbsenceProof",
+    "evidenceIDs",
+    "provisional",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "phase10PollingDuringParallelExecution",
+    "requiresAcceptedS10_6Reconciliation",
+    "artifactDigest"
+  ],
+  "title": "MutationBoundaryClosureReceiptV1",
+  "type": "object"
+}

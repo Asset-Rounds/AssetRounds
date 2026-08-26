@@ -1,0 +1,162 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactCount": 10,
+  "artifactDigest": "080aea82d3f3b600265115ee286e14e3c9150d6a704dcd36f0030c7feb5de611",
+  "artifactSetDigest": "ea6b2bc6ae416c9165dff94609a3f5ddb78f63667d549e39349ab26a9733535c",
+  "artifacts": [
+    {
+      "bytes": 8371,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Mutation/V21P02C01WorkspaceMutationVectorsV1.json",
+      "sha256": "e1209baa8c0d572ca8225ac7d3da2f90916f6eaaf9736d1147e40a57b03db233"
+    },
+    {
+      "bytes": 26478,
+      "path": "Scripts/v23/p02_c01_contracts.py",
+      "sha256": "592bb5cea0e684f20695b206db40cc1c5f05481e472a7e91d5afa0d92a6b1d36"
+    },
+    {
+      "bytes": 1468,
+      "path": "Scripts/v23/generate_p02_c01_contracts.py",
+      "sha256": "73498ac13ad76fa6ee02ba1277780e59d53a7309ffa3fb37b204150287d64578"
+    },
+    {
+      "bytes": 19797,
+      "path": "Scripts/v23/verify_p02_c01_contracts.py",
+      "sha256": "15ef81342588fef4f1323739bc3fb67722238ecee08f511e89cbf46793ad5f2a"
+    },
+    {
+      "bytes": 20755,
+      "path": "Scripts/v23/workspace-writer.schema.json",
+      "sha256": "b260b8f79066538507b637689583a7f1ff96fd365060d637f9658304694f88e4"
+    },
+    {
+      "bytes": 21904,
+      "path": "Scripts/v23/mutation-reversal-policy.schema.json",
+      "sha256": "a6ef2c684a852d26960b957ccf85e93eb9073280ad8fadbee2bf3008e11a9989"
+    },
+    {
+      "bytes": 31945,
+      "path": "Scripts/v23/mutation-boundary-closure.schema.json",
+      "sha256": "8e6e5866791390a20e05d0bdd10dba2861dba705828ba47844075c1f2e8a1d39"
+    },
+    {
+      "bytes": 7719,
+      "path": "docs/design/v23/tooling/V23P02C01WorkspaceWriterContractV1.json",
+      "sha256": "18c10ddafbfb466584336559809b2892639ee258110179a36f9d7230c729377c"
+    },
+    {
+      "bytes": 7836,
+      "path": "docs/design/v23/tooling/V23P02C01MutationReversalPolicyRegistryV1.json",
+      "sha256": "c0c20b2c7a8f23cb65e1a880aead0f87fa3cc9941bdafdbefa9d4e9b67c91a9d"
+    },
+    {
+      "bytes": 12486,
+      "path": "docs/design/v23/tooling/V23P02C01MutationBoundaryClosureReceiptV1.json",
+      "sha256": "fed5ecfe4ef7827d952fa17108e66c4980fc532f0af7e46880b59e3d8e89f0bf"
+    }
+  ],
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "f271eae43631d17aee2c1c1651018f1ff800949e",
+    "appBaseTree": "65c69840898153109d8b0f0d2809d369eacdabb3",
+    "attemptID": 1,
+    "authorityReceiptDigest": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752",
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C01",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "a167a0be18594ed94e61b7a58a6418abc1bf345d1ddaeceb144cf813dee9f768",
+    "coordinationAuthorityHead": "08254606545bb7b42a5286930b769e560816c268",
+    "coordinationAuthorityTree": "148626c3301ce57f895a52013b1aee315b037f61",
+    "coordinationCASSequence": 84,
+    "coordinationLedgerDigest": "c37bdad80bf23ac544fb3c49bf7920f1c59bfa246e3b8af35cee39af5003fdb0",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P02-C01-G01",
+      "V23-P02-C01-A01",
+      "V23-P02-C01-H01",
+      "V23-P02-C01-I01",
+      "V23-P02-C01-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P01-C07"
+    ],
+    "dossierDigest": "d8470d77c977b6c4076ecc5c044f9a024b46a8fe84313d7d4c1ba737e62680d4",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "4ddb4e577159c8d8d94fc390510ad74c3f8108ec09cca6ddaf7bdf772c38ea45",
+    "hydrationTransitionDigest": "82a15e7313b9f98f41c4abb58397b68e3cf650c9d2913625cca7f2fcbd51d112",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "f38651e27c4b0a0856978b9f8d1ee8df8434e9eaf45333bc758a670af1266299",
+    "invalidationConsumers": [
+      "V23-P02-C02"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "ownerParallelOverrideAuthorityReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "pathFenceDigest": "55bcd0764981d6db9bdd26874f9b70779c7a9a0c4e3c2ee19a4d51dc51c465a0",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "39cd7ce015fa9084728870762f06ca4dec85bd9f41320ef29730dcc782fa6b15",
+    "registerOrdinal": 21,
+    "registerRowDigest": "277c6a52c582ac6fcae446557f7a790909395805d90441a262da6bdf68d63687",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Serialized WorkspaceWriter, expected revisions, idempotent MutationID, deterministic authorities, and semantic reversal"
+  },
+  "boundaryClosureClaimed": false,
+  "c02ArtifactsActivated": false,
+  "cardID": "V23-P02-C01",
+  "evidenceIDs": [
+    "V23-P02-C01-G01",
+    "V23-P02-C01-A01",
+    "V23-P02-C01-H01",
+    "V23-P02-C01-I01",
+    "V23-P02-C01-R01"
+  ],
+  "generatedPaths": [
+    "FieldEvidenceAppTests/Fixtures/V21/Mutation/V21P02C01WorkspaceMutationVectorsV1.json",
+    "Scripts/v23/workspace-writer.schema.json",
+    "Scripts/v23/mutation-reversal-policy.schema.json",
+    "Scripts/v23/mutation-boundary-closure.schema.json",
+    "docs/design/v23/tooling/V23P02C01WorkspaceWriterContractV1.json",
+    "docs/design/v23/tooling/V23P02C01MutationReversalPolicyRegistryV1.json",
+    "docs/design/v23/tooling/V23P02C01MutationBoundaryClosureReceiptV1.json",
+    "docs/design/v23/tooling/V23-P02-C01-tooling-manifest.json"
+  ],
+  "generator": {
+    "seed": 230201,
+    "version": "p02-c01-contracts-v1"
+  },
+  "hostedDispatchRan": false,
+  "nativeCompileRan": false,
+  "pathFence": [
+    "FieldEvidenceAppTests/Fixtures/V21/Mutation/V21P02C01WorkspaceMutationVectorsV1.json",
+    "Scripts/v23/p02_c01_contracts.py",
+    "Scripts/v23/generate_p02_c01_contracts.py",
+    "Scripts/v23/verify_p02_c01_contracts.py",
+    "Scripts/v23/workspace-writer.schema.json",
+    "Scripts/v23/mutation-reversal-policy.schema.json",
+    "Scripts/v23/mutation-boundary-closure.schema.json",
+    "docs/design/v23/tooling/V23P02C01WorkspaceWriterContractV1.json",
+    "docs/design/v23/tooling/V23P02C01MutationReversalPolicyRegistryV1.json",
+    "docs/design/v23/tooling/V23P02C01MutationBoundaryClosureReceiptV1.json",
+    "docs/design/v23/tooling/V23-P02-C01-tooling-manifest.json"
+  ],
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "provisional": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23-P02-C01-tooling-manifest",
+  "schemaVersion": 1,
+  "toolingPathCount": 11
+}
