@@ -486,8 +486,11 @@ private extension S6_3BackupValidationTests {
             appVersion: { "4.0" },
             appBuild: { "42" }
         )
-        let preview = try service.prepare()
-        return try service.export(previewID: preview.id, to: destination)
+        let preview = try service.prepareCompatibilityFixtureLegacyDirectoryPackage()
+        return try service.exportCompatibilityFixtureLegacyDirectoryPackage(
+            previewID: preview.id,
+            to: destination
+        )
     }
 
     @MainActor

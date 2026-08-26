@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "compatibility-corpus-manifest.schema.json",
+  "title": "CompatibilityCorpusManifestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "corpusID", "sealState", "policyManifestSHA256", "cases"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "corpusID": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:/+\\-]+$"
+    },
+    "sealState": { "enum": ["provisional_pre_public", "first_public"] },
+    "policyManifestSHA256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "cases": {
+      "type": "array",
+      "minItems": 4,
+      "uniqueItems": true,
+      "items": { "$ref": "compatibility-case-manifest.schema.json" },
+      "allOf": [
+        { "contains": { "type": "object", "properties": { "kind": { "const": "positive" } }, "required": ["kind"] }, "minContains": 1 },
+        { "contains": { "type": "object", "properties": { "kind": { "const": "hostile" } }, "required": ["kind"] }, "minContains": 1 },
+        { "contains": { "type": "object", "properties": { "kind": { "const": "interruption" } }, "required": ["kind"] }, "minContains": 1 },
+        { "contains": { "type": "object", "properties": { "kind": { "const": "recovery" } }, "required": ["kind"] }, "minContains": 1 },
+        { "contains": { "type": "object", "properties": { "representative": { "const": true } }, "required": ["representative"] }, "minContains": 1 }
+      ]
+    }
+  }
+}

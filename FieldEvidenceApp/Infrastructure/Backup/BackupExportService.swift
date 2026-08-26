@@ -116,23 +116,6 @@ final class BackupExportService {
         guard !modelContext.hasChanges else {
             throw BackupExportServiceError.contextHasChanges
         }
-        let value = try buildPrepared(
-            previewID: makeUUID(),
-            exportedAt: now()
-        )
-        guard !modelContext.hasChanges else {
-            throw BackupExportServiceError.contextHasChanges
-        }
-        prepared = value
-        return value.preview
-    }
-
-    /// Prepares the regular-file archive without retaining media, snapshots,
-    /// or PDFs. `prepare()` remains the legacy V4 directory-package API.
-    func prepareStreaming() throws -> BackupExportPreviewV1 {
-        guard !modelContext.hasChanges else {
-            throw BackupExportServiceError.contextHasChanges
-        }
         let value = try buildStreamingPrepared(
             previewID: makeUUID(),
             exportedAt: now()
@@ -144,7 +127,43 @@ final class BackupExportService {
         return value.preview
     }
 
+    /// Compatibility alias for callers introduced with the V23 streaming
+    /// archive. All shipping preparation now selects the current writer.
+    func prepareStreaming() throws -> BackupExportPreviewV1 {
+        try prepare()
+    }
+
+    /// Test-only compatibility fixture seam for producing the historic V1
+    /// directory package. Shipping call sites must use `prepare()`.
+    func prepareCompatibilityFixtureLegacyDirectoryPackage() throws -> BackupExportPreviewV1 {
+        guard !modelContext.hasChanges else {
+            throw BackupExportServiceError.contextHasChanges
+        }
+        let value = try buildPrepared(
+            previewID: makeUUID(),
+            exportedAt: now()
+        )
+        guard !modelContext.hasChanges else {
+            throw BackupExportServiceError.contextHasChanges
+        }
+        prepared = value
+        return value.preview
+    }
+
     func export(
+        previewID: UUID,
+        to destinationDirectoryURL: URL
+    ) throws -> URL {
+        try exportStreaming(
+            previewID: previewID,
+            to: destinationDirectoryURL,
+            cancellation: .none
+        )
+    }
+
+    /// Test-only compatibility fixture seam for producing the historic V1
+    /// directory package. Shipping call sites must use `export(previewID:to:)`.
+    func exportCompatibilityFixtureLegacyDirectoryPackage(
         previewID: UUID,
         to destinationDirectoryURL: URL
     ) throws -> URL {
@@ -238,9 +257,8 @@ final class BackupExportService {
         return packageURL
     }
 
-    /// Writes the bounded V23 regular-file archive. This is intentionally a
-    /// separate entry point so accepted V4 callers continue receiving the
-    /// directory package they traverse directly.
+    /// Compatibility alias for callers introduced with the V23 streaming
+    /// archive. `export(previewID:to:)` uses this same current writer.
     func exportStreaming(
         previewID: UUID,
         to destinationDirectoryURL: URL,

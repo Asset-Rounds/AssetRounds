@@ -1,0 +1,117 @@
+{
+  "affectedFamilies": [],
+  "corpusSHA256": "bef47bcf94d4bbbcec1df4c1166ed2e48644e646214febbee07c56160fc8c561",
+  "mode": "diagnostic_continue",
+  "results": [
+    {
+      "caseID": "positive-backup-package-archive1-backup2-persistent3-records2",
+      "caseManifestSHA256": "c25b51a5d750506c07e874667536330fbdbb0e88491a7425e23285580573bf60",
+      "normalizedOutputSHA256": "ab412f9923dcfe0b07916e5d30383e23c81559958252192d5994b764d27dbc10",
+      "outcome": "passed"
+    },
+    {
+      "caseID": "positive-current-generation-pointer-3",
+      "caseManifestSHA256": "516e86df7689433f4e841b85d2b7dc97610c93ae696318c8d5ff0b4a776301a4",
+      "normalizedOutputSHA256": "dae371aa9df46c3a9d6e455ab726957fc73fb7d5aec823a1a1460f124db768a8",
+      "outcome": "passed"
+    },
+    {
+      "caseID": "positive-deletion-intent-2",
+      "caseManifestSHA256": "408428d464ed0088417d04edb2ae4c64ff5d44d98908bba3b8c9312ed3d4fa41",
+      "normalizedOutputSHA256": "cb0eb2fafd5d9c5124d9b689b1c35d1457061a635dba2c9e62d9910947430ec1",
+      "outcome": "passed"
+    },
+    {
+      "caseID": "positive-deletion-ledger-2",
+      "caseManifestSHA256": "01d04654ec8e13abb42a4ef445188d9a7e12ea8e9764affc4da8dbfbae129fc1",
+      "normalizedOutputSHA256": "28d1ddccfb1388230051a99c199b75d393321a88629390cdb408ab5da93f63f1",
+      "outcome": "passed"
+    },
+    {
+      "caseID": "positive-durable-media-canonical-jpeg-v1",
+      "caseManifestSHA256": "8d28032e3b02f5ac5935a50c06854b3bdea85c796db31b36ae99872aab5bfcba",
+      "normalizedOutputSHA256": "01fee65c7d4ba1b98d5b086778ad36ccf0daf6da5c328f569fe1bcfbb6340fc6",
+      "outcome": "passed"
+    },
+    {
+      "caseID": "positive-erase-intent-2",
+      "caseManifestSHA256": "701e551fd51410a00bdc7746de06f6391bcfb804ee9fa3ea91cd2b26a0e591ba",
+      "normalizedOutputSHA256": "43dfc10748a545404114c01eb477eb62d5b4192c5898b0e92ed69cbc77d3ee7a",
+      "outcome": "passed"
+    },
+    {
+      "caseID": "positive-finalization-intent-1",
+      "caseManifestSHA256": "f43e4f7f5145cd77e3339a978db33b36ee80ed7e37987ca65029ba530c43725c",
+      "normalizedOutputSHA256": "1deba7d5dc75b55cb409133a7c28777fbf24f4934fb097c741a70a0f753cc165",
+      "outcome": "passed"
+    },
+    {
+      "caseID": "positive-live-store-3.0.0",
+      "caseManifestSHA256": "22fd3a69308a26286303798d253cde755dab78fb96b80c011958209e5b0cefad",
+      "normalizedOutputSHA256": "78b0ee8d08046f823ee693514fcd0342620755d5e740032814bdf20ad8df859b",
+      "outcome": "passed"
+    },
+    {
+      "caseID": "positive-report-open-json-snapshot1",
+      "caseManifestSHA256": "7411ff31402ba075aca7d638c914eb156faf8cfa688b67034c16696a185f38ee",
+      "normalizedOutputSHA256": "3675469de64040dd16f3312b4f8cb9c3ffa8d15645684320a0387acf4b66399a",
+      "outcome": "passed"
+    },
+    {
+      "caseID": "positive-report-pdf-template1",
+      "caseManifestSHA256": "bafc9595d5b8142b63fce8cd3a20245c577284f52df03b293bca33d7f790a12e",
+      "normalizedOutputSHA256": "52503c0ec947b60ff8929d868228345bdeccd438d9426a038cd7dc0c37a9b009",
+      "outcome": "passed"
+    },
+    {
+      "caseID": "positive-restore-intent-2",
+      "caseManifestSHA256": "0513055cf674d5ecc29fca4f463b987ad8ba988b72f67c2acd72453f241047ef",
+      "normalizedOutputSHA256": "948647edf9ea6539bb8907e13f54267ab271464a0db98143717b309d7100f216",
+      "outcome": "passed"
+    },
+    {
+      "caseID": "positive-sign-pack-schema1-content1",
+      "caseManifestSHA256": "5fa0470d70406afd66def5450a9ede26672f1a5701fd1ad1d9b4464772cbf6fa",
+      "normalizedOutputSHA256": "73b9e001cac1049d802a0e38b74eb10da6d6c77b73cee6cf9bcfc01820cad887",
+      "outcome": "passed"
+    },
+    {
+      "caseID": "positive-store-generation-manifest-1",
+      "caseManifestSHA256": "3ab47d7bbcde4c614cb3e20a183bf8c37ff5f98e6ce0eb79d98610fcfda1fe38",
+      "normalizedOutputSHA256": "bb7ac4e511ca3e39b87dfe73f0abf76547b8c556af22245e98fff858a35e01c1",
+      "outcome": "passed"
+    },
+    {
+      "caseID": "positive-store-migration-journal-1",
+      "caseManifestSHA256": "733c2cdc9af69e5b21c63ee80d8d4bf9476fcf76e903debaf14b1297b8bce705",
+      "normalizedOutputSHA256": "db34b21da271c0ce4c3b9d3af19670a7bbebd897eaba3dcea1b772283ba0f456",
+      "outcome": "passed"
+    },
+    {
+      "caseID": "positive-streaming-archive-header1-index1",
+      "caseManifestSHA256": "cd287e23a9b8c2ec61ee8078d2835e06e75069750d84b65b49be1d05c209955d",
+      "normalizedOutputSHA256": "02ffa520dd7cc25421e0f424ef2ba0be44e869cb80a4838b258ec628813763b3",
+      "outcome": "passed"
+    }
+  ],
+  "runID": "V23-P01-C07-representative-sentinel",
+  "schemaVersion": 1,
+  "selectedCaseIDs": [
+    "positive-backup-package-archive1-backup2-persistent3-records2",
+    "positive-current-generation-pointer-3",
+    "positive-deletion-intent-2",
+    "positive-deletion-ledger-2",
+    "positive-durable-media-canonical-jpeg-v1",
+    "positive-erase-intent-2",
+    "positive-finalization-intent-1",
+    "positive-live-store-3.0.0",
+    "positive-report-open-json-snapshot1",
+    "positive-report-pdf-template1",
+    "positive-restore-intent-2",
+    "positive-sign-pack-schema1-content1",
+    "positive-store-generation-manifest-1",
+    "positive-store-migration-journal-1",
+    "positive-streaming-archive-header1-index1"
+  ],
+  "selection": "representative_sentinel"
+}

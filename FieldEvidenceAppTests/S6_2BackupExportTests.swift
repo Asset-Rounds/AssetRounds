@@ -26,9 +26,27 @@ final class S6_2BackupExportTests: XCTestCase {
         XCTAssertEqual(preview.photoCount, 6)
         let package = try service.export(previewID: preview.id, to: destination)
         XCTAssertEqual(package.lastPathComponent, "AssetRounds.fieldrecordbackup")
+        XCTAssertEqual(
+            try package.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile,
+            true
+        )
         XCTAssertEqual(try treeFacts(harness.session.generationRootURL), before)
 
-        let recordsData = try Data(contentsOf: package.appendingPathComponent("records.json"))
+        let importer = try BackupImportService(
+            generationRootURL: harness.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+            makeUUID: {
+                UUID(uuidString: "62000000-0000-0000-0000-000000000098")!
+            },
+            scopedAccess: .alreadyAuthorized
+        )
+        let validated = try importer.stageAndValidate(selectedPackageURL: package)
+        defer { try? importer.discard(validated) }
+        XCTAssertEqual(validated.manifest.backupSchemaVersion, 2)
+        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 3)
+        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 2)
+
+        let recordsData = try XCTUnwrap(validated.members["records.json"])
         let records = try XCTUnwrap(try JSONSerialization.jsonObject(with: recordsData) as? [String: Any])
         XCTAssertEqual((records["assets"] as? [Any])?.count, 1)
         XCTAssertEqual((records["reports"] as? [Any])?.count, 3)
@@ -36,10 +54,17 @@ final class S6_2BackupExportTests: XCTestCase {
         let packetJSON = try XCTUnwrap(records["packets"] as? [[String: Any]])
         XCTAssertEqual(packetJSON.filter { $0["contentDeletedAt"] is String && $0["currentRecordID"] is NSNull }.count, 1)
 
-        let manifestData = try Data(contentsOf: package.appendingPathComponent("manifest.json"))
+        let manifestData = try XCTUnwrap(validated.members["manifest.json"])
         let manifest = try XCTUnwrap(try JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
         let entries = try XCTUnwrap(manifest["entries"] as? [[String: Any]])
-        let actual = try packagePayloadFacts(package)
+        let actual = validated.manifest.entries.map {
+            PayloadFact(
+                path: $0.path,
+                byteCount: $0.byteCount,
+                mimeType: $0.mimeType,
+                sha256: $0.sha256
+            )
+        }
         XCTAssertEqual(entries.compactMap { $0["path"] as? String }, actual.map(\.path))
         XCTAssertEqual(entries.compactMap { $0["byteCount"] as? Int }, actual.map(\.byteCount))
         XCTAssertEqual(entries.compactMap { $0["sha256"] as? String }, actual.map(\.sha256))
@@ -57,8 +82,7 @@ final class S6_2BackupExportTests: XCTestCase {
             XCTAssertEqual(paths.contains("pdfs/\(id).pdf"), report.pdfState == ReportPDFState.ready.rawValue)
         }
         for fact in sourceFacts {
-            let exported = package.appendingPathComponent(fact.exportPath)
-            XCTAssertEqual(try Data(contentsOf: exported).sha256, fact.sha256)
+            XCTAssertEqual(validated.members[fact.exportPath]?.sha256, fact.sha256)
             XCTAssertEqual(try Data(contentsOf: harness.session.generationRootURL.appendingPathComponent(fact.sourcePath)).sha256, fact.sha256)
         }
     }
@@ -101,12 +125,10 @@ final class S6_2BackupExportTests: XCTestCase {
         let beforeRecords = try modelFacts(harness.context)
 
         XCTAssertThrowsError(try service.export(previewID: preview.id, to: destination)) {
-            guard let typed = $0 as? StoragePreflightError else {
+            guard let typed = $0 as? BackupExportServiceError else {
                 return XCTFail("Expected exact capacity failure, got \($0)")
             }
-            guard case .insufficientCapacity = typed else {
-                return XCTFail("Expected insufficient capacity, got \(typed)")
-            }
+            XCTAssertEqual(typed, .insufficientStorage)
         }
         XCTAssertFalse(fileManager.fileExists(atPath: destination.appendingPathComponent("AssetRounds.fieldrecordbackup").path))
         XCTAssertEqual(try treeFacts(harness.session.generationRootURL), beforeFiles)

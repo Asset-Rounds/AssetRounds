@@ -1,0 +1,237 @@
+{
+  "candidateHead": "e576a3ca91d597fff41d0f23209bab009ff8de6b",
+  "internalScratchIndefiniteSupport": false,
+  "schemaVersion": 1,
+  "supportedUpgradePaths": [
+    {
+      "currentWriterVersion": "3.0.0",
+      "family": "live_store",
+      "forwardUpgradeTransitions": [
+        {
+          "fromVersion": "1.0.0",
+          "toVersion": "2.0.0"
+        },
+        {
+          "fromVersion": "2.0.0",
+          "toVersion": "3.0.0"
+        }
+      ],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "1.0.0",
+        "2.0.0",
+        "3.0.0"
+      ],
+      "rebuildDisposition": "available",
+      "schemaVersion": 1,
+      "searchDisposition": "unavailable_at_this_head",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "3",
+      "family": "current_generation_pointer",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "1",
+        "2",
+        "3"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "1",
+      "family": "store_generation_manifest",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "1",
+      "family": "store_migration_journal",
+      "forwardUpgradeTransitions": [],
+      "persistence": "internal_recovery",
+      "readableVersions": [
+        "1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "archive1-backup2-persistent3-records2",
+      "family": "backup_package",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "archive1-backup2-persistent1-records1",
+        "archive1-backup2-persistent3-records2",
+        "directory-v4-backup1-persistent1-records1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "header1-index1",
+      "family": "streaming_archive",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "header1-index1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "snapshot1",
+      "family": "report_open_json",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "snapshot1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "deferred_to_v23_p03_c09",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "template1",
+      "family": "report_pdf",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "template1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "deferred_to_v23_p03_c09",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "1",
+      "family": "finalization_intent",
+      "forwardUpgradeTransitions": [],
+      "persistence": "internal_recovery",
+      "readableVersions": [
+        "1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "schema1-content1",
+      "family": "sign_pack",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "schema1-content1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "canonical-jpeg-v1",
+      "family": "durable_media",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "canonical-jpeg-v1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "2",
+      "family": "deletion_ledger",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "2"
+      ],
+      "rebuildDisposition": "available",
+      "schemaVersion": 1,
+      "searchDisposition": "unavailable_at_this_head",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "2",
+      "family": "deletion_intent",
+      "forwardUpgradeTransitions": [],
+      "persistence": "internal_recovery",
+      "readableVersions": [
+        "1",
+        "2"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "2",
+      "family": "erase_intent",
+      "forwardUpgradeTransitions": [],
+      "persistence": "internal_recovery",
+      "readableVersions": [
+        "1",
+        "2"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "2",
+      "family": "restore_intent",
+      "forwardUpgradeTransitions": [],
+      "persistence": "internal_recovery",
+      "readableVersions": [
+        "1",
+        "2"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    }
+  ],
+  "unknownVersionsFailClosed": true,
+  "writersEmitCurrentVersionsOnly": true
+}

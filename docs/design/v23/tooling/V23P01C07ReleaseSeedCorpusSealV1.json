@@ -1,0 +1,8 @@
+{
+  "corpusID": "V21-P01-C07-IMMUTABLE-SYNTHETIC-CORPUS-V1",
+  "corpusSHA256": "bef47bcf94d4bbbcec1df4c1166ed2e48644e646214febbee07c56160fc8c561",
+  "owner": "V23-P01-C07",
+  "policyManifestSHA256": "4ee52447841f0063a80aab0af4b2bba3c655f9f467b54115351091bb31bee34c",
+  "schemaVersion": 1,
+  "state": "provisional_pre_public"
+}

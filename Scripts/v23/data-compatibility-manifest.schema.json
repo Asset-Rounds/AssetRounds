@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "data-compatibility-manifest.schema.json",
+  "title": "DataCompatibilityManifestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "candidateHead",
+    "supportedUpgradePaths",
+    "internalScratchIndefiniteSupport",
+    "unknownVersionsFailClosed",
+    "writersEmitCurrentVersionsOnly"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "candidateHead": { "$ref": "#/$defs/gitObjectID" },
+    "supportedUpgradePaths": {
+      "type": "array",
+      "minItems": 15,
+      "maxItems": 15,
+      "uniqueItems": true,
+      "prefixItems": [
+        { "allOf": [{ "$ref": "supported-upgrade-path.schema.json" }, { "$ref": "#/$defs/liveStorePath" }] },
+        { "allOf": [{ "$ref": "supported-upgrade-path.schema.json" }, { "$ref": "#/$defs/currentGenerationPointerPath" }] },
+        { "allOf": [{ "$ref": "supported-upgrade-path.schema.json" }, { "$ref": "#/$defs/storeGenerationManifestPath" }] },
+        { "allOf": [{ "$ref": "supported-upgrade-path.schema.json" }, { "$ref": "#/$defs/storeMigrationJournalPath" }] },
+        { "allOf": [{ "$ref": "supported-upgrade-path.schema.json" }, { "$ref": "#/$defs/backupPackagePath" }] },
+        { "allOf": [{ "$ref": "supported-upgrade-path.schema.json" }, { "$ref": "#/$defs/streamingArchivePath" }] },
+        { "allOf": [{ "$ref": "supported-upgrade-path.schema.json" }, { "$ref": "#/$defs/reportOpenJSONPath" }] },
+        { "allOf": [{ "$ref": "supported-upgrade-path.schema.json" }, { "$ref": "#/$defs/reportPDFPath" }] },
+        { "allOf": [{ "$ref": "supported-upgrade-path.schema.json" }, { "$ref": "#/$defs/finalizationIntentPath" }] },
+        { "allOf": [{ "$ref": "supported-upgrade-path.schema.json" }, { "$ref": "#/$defs/signPackPath" }] },
+        { "allOf": [{ "$ref": "supported-upgrade-path.schema.json" }, { "$ref": "#/$defs/durableMediaPath" }] },
+        { "allOf": [{ "$ref": "supported-upgrade-path.schema.json" }, { "$ref": "#/$defs/deletionLedgerPath" }] },
+        { "allOf": [{ "$ref": "supported-upgrade-path.schema.json" }, { "$ref": "#/$defs/deletionIntentPath" }] },
+        { "allOf": [{ "$ref": "supported-upgrade-path.schema.json" }, { "$ref": "#/$defs/eraseIntentPath" }] },
+        { "allOf": [{ "$ref": "supported-upgrade-path.schema.json" }, { "$ref": "#/$defs/restoreIntentPath" }] }
+      ],
+      "items": false
+    },
+    "internalScratchIndefiniteSupport": { "const": false },
+    "unknownVersionsFailClosed": { "const": true },
+    "writersEmitCurrentVersionsOnly": { "const": true }
+  },
+  "$defs": {
+    "gitObjectID": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "liveStorePath": { "type": "object", "properties": { "family": { "const": "live_store" } }, "required": ["family"] },
+    "currentGenerationPointerPath": { "type": "object", "properties": { "family": { "const": "current_generation_pointer" } }, "required": ["family"] },
+    "storeGenerationManifestPath": { "type": "object", "properties": { "family": { "const": "store_generation_manifest" } }, "required": ["family"] },
+    "storeMigrationJournalPath": { "type": "object", "properties": { "family": { "const": "store_migration_journal" } }, "required": ["family"] },
+    "backupPackagePath": { "type": "object", "properties": { "family": { "const": "backup_package" } }, "required": ["family"] },
+    "streamingArchivePath": { "type": "object", "properties": { "family": { "const": "streaming_archive" } }, "required": ["family"] },
+    "reportOpenJSONPath": { "type": "object", "properties": { "family": { "const": "report_open_json" } }, "required": ["family"] },
+    "reportPDFPath": { "type": "object", "properties": { "family": { "const": "report_pdf" } }, "required": ["family"] },
+    "finalizationIntentPath": { "type": "object", "properties": { "family": { "const": "finalization_intent" } }, "required": ["family"] },
+    "signPackPath": { "type": "object", "properties": { "family": { "const": "sign_pack" } }, "required": ["family"] },
+    "durableMediaPath": { "type": "object", "properties": { "family": { "const": "durable_media" } }, "required": ["family"] },
+    "deletionLedgerPath": { "type": "object", "properties": { "family": { "const": "deletion_ledger" } }, "required": ["family"] },
+    "deletionIntentPath": { "type": "object", "properties": { "family": { "const": "deletion_intent" } }, "required": ["family"] },
+    "eraseIntentPath": { "type": "object", "properties": { "family": { "const": "erase_intent" } }, "required": ["family"] },
+    "restoreIntentPath": { "type": "object", "properties": { "family": { "const": "restore_intent" } }, "required": ["family"] }
+  }
+}

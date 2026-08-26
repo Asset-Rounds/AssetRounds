@@ -1,0 +1,26 @@
+{
+  "artifactRelativePath": "generatedCaseArtifacts/positive-backup-package-archive1-backup2-persistent3-records2.bin",
+  "artifactSHA256": "ab412f9923dcfe0b07916e5d30383e23c81559958252192d5994b764d27dbc10",
+  "artifactVersion": "archive1-backup2-persistent3-records2",
+  "caseID": "positive-backup-package-archive1-backup2-persistent3-records2",
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "dependencyFamilies": [
+    "live_store"
+  ],
+  "expectedDisposition": "succeeds",
+  "family": "backup_package",
+  "generatorSeed": 230116,
+  "generatorVersion": "p01-c07-seed-v1",
+  "immutable": true,
+  "kind": "positive",
+  "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+  "representative": true,
+  "scenarioTags": [
+    "current",
+    "maximal"
+  ],
+  "schemaVersion": 1,
+  "source": "deterministic_generator",
+  "synthetic": true
+}

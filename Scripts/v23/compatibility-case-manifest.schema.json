@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "compatibility-case-manifest.schema.json",
+  "title": "CompatibilityCaseManifestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "caseID",
+    "family",
+    "artifactVersion",
+    "kind",
+    "artifactRelativePath",
+    "artifactSHA256",
+    "source",
+    "dependencyFamilies",
+    "scenarioTags",
+    "expectedDisposition",
+    "synthetic",
+    "licenseIdentifier",
+    "containsCustomerData",
+    "containsSecrets",
+    "immutable",
+    "representative"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "caseID": { "$ref": "#/$defs/token" },
+    "family": { "$ref": "#/$defs/artifactFamily" },
+    "artifactVersion": { "$ref": "#/$defs/versionToken" },
+    "kind": { "enum": ["positive", "hostile", "interruption", "recovery"] },
+    "artifactRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*:)(?!.*//)(?!.*\/$)[^\\u0000]+$"
+    },
+    "artifactSHA256": { "$ref": "#/$defs/sha256" },
+    "normalizedExpectedSHA256": { "$ref": "#/$defs/sha256" },
+    "source": { "enum": ["checked_fixture", "deterministic_generator"] },
+    "generatorVersion": { "$ref": "#/$defs/token" },
+    "generatorSeed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 18446744073709551615
+    },
+    "dependencyFamilies": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/artifactFamily" }
+    },
+    "scenarioTags": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/token" }
+    },
+    "expectedDisposition": {
+      "enum": [
+        "succeeds",
+        "fails_closed_unsupported_version",
+        "fails_closed_invalid_data",
+        "resumes_idempotently"
+      ]
+    },
+    "synthetic": { "const": true },
+    "licenseIdentifier": { "$ref": "#/$defs/token" },
+    "containsCustomerData": { "const": false },
+    "containsSecrets": { "const": false },
+    "immutable": { "const": true },
+    "representative": { "type": "boolean" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "source": { "const": "checked_fixture" } }, "required": ["source"] },
+      "then": {
+        "properties": { "generatorVersion": false, "generatorSeed": false }
+      },
+      "else": { "required": ["generatorVersion", "generatorSeed"] }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "positive" } }, "required": ["kind"] },
+      "then": { "properties": { "expectedDisposition": { "const": "succeeds" } } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "hostile" } }, "required": ["kind"] },
+      "then": { "properties": { "expectedDisposition": { "enum": ["fails_closed_unsupported_version", "fails_closed_invalid_data"] } } }
+    },
+    {
+      "if": { "properties": { "kind": { "enum": ["interruption", "recovery"] } }, "required": ["kind"] },
+      "then": { "properties": { "expectedDisposition": { "const": "resumes_idempotently" } } }
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "token": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:/+\\-]+$"
+    },
+    "versionToken": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9._:/+\\-]+$"
+    },
+    "artifactFamily": {
+      "enum": [
+        "live_store",
+        "current_generation_pointer",
+        "store_generation_manifest",
+        "store_migration_journal",
+        "backup_package",
+        "streaming_archive",
+        "report_open_json",
+        "report_pdf",
+        "finalization_intent",
+        "sign_pack",
+        "durable_media",
+        "deletion_ledger",
+        "deletion_intent",
+        "erase_intent",
+        "restore_intent"
+      ]
+    }
+  }
+}

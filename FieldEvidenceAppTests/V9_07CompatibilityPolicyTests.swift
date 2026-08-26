@@ -1,0 +1,244 @@
+import Foundation
+import XCTest
+
+@testable import FieldEvidenceApp
+
+final class V9_07CompatibilityPolicyTests: XCTestCase {
+    func testV9_07A01DeterministicBoundaryAndInternationalSeedCases() throws {
+        let policy = ReleasedDataCompatibilityPolicyV1.current
+        let corpus = try V907CompatibilitySupport.corpus()
+        let seed = try V907CompatibilitySupport.seed()
+        let metadata = try V907CompatibilitySupport.seedMetadata()
+        try policy.validate()
+        try seed.validate(against: policy)
+
+        let expectedVariants = ["minimum", "maximal", "unicode", "rtl", "long", "empty", "dst"]
+        XCTAssertEqual(metadata.schema, "V21P01C07PreV23SeedV1")
+        XCTAssertEqual(metadata.schemaVersion, 1)
+        XCTAssertTrue(CompatibilityCanonicalV1.validSHA256(metadata.artifactDigest))
+        XCTAssertEqual(metadata.generator.name, "p01_c07_contracts.py")
+        XCTAssertEqual(metadata.generator.version, "p01-c07-seed-v1")
+        XCTAssertEqual(metadata.generator.seed, 230_107)
+        XCTAssertEqual(metadata.scenarioTags, expectedVariants.sorted())
+        XCTAssertEqual(metadata.workspaceVariants.map(\.id), expectedVariants)
+        XCTAssertEqual(metadata.workspaceVariants.map(\.recordCount), [1, 32, 2, 2, 128, 0, 2])
+        XCTAssertEqual(metadata.workspaceVariants.filter(\.dstBoundary).map(\.id), ["dst"])
+        XCTAssertEqual(metadata.workspaceVariants.filter(\.unicode).map(\.id), ["unicode", "rtl"])
+        XCTAssertTrue(metadata.immutable && metadata.synthetic)
+        XCTAssertFalse(metadata.containsCustomerData || metadata.containsSecrets)
+
+        for token in expectedVariants {
+            XCTAssertTrue(
+                V907CompatibilitySupport.containsCase(corpus, tokens: [token]),
+                "Missing deterministic \(token) seed case"
+            )
+        }
+        let generated = corpus.cases.filter { $0.source == .deterministicGenerator }
+        XCTAssertFalse(generated.isEmpty)
+        XCTAssertTrue(generated.allSatisfy { $0.generatorVersion != nil && $0.generatorSeed != nil })
+        XCTAssertTrue(corpus.cases.allSatisfy { $0.synthetic && !$0.containsCustomerData && !$0.containsSecrets })
+    }
+
+    func testV9_07H01FutureChangedDigestHostileArchiveAndPrivacyRejection() throws {
+        let policy = ReleasedDataCompatibilityPolicyV1.current
+        let corpus = try V907CompatibilitySupport.corpus()
+        try corpus.validate(against: policy.dataManifest)
+        let template = try XCTUnwrap(corpus.cases.first)
+
+        let future = V907CompatibilitySupport.replacing(
+            template,
+            artifactVersion: "999",
+            kind: .hostile,
+            expectedDisposition: .failsClosedUnsupportedVersion
+        )
+        XCTAssertNoThrow(try future.validate(against: policy.dataManifest))
+        XCTAssertThrowsError(
+            try policy.dataManifest.validateReadableVersion("999", for: template.family)
+        ) { XCTAssertEqual($0 as? CompatibilityContractErrorV1, .unsupportedVersion) }
+
+        var changedCases = corpus.cases
+        let changedDigest = template.artifactSHA256 == String(repeating: "f", count: 64)
+            ? String(repeating: "e", count: 64)
+            : String(repeating: "f", count: 64)
+        changedCases[0] = V907CompatibilitySupport.replacing(
+            template,
+            artifactSHA256: changedDigest
+        )
+        let changed = CompatibilityCorpusManifestV1(
+            corpusID: corpus.corpusID,
+            sealState: corpus.sealState,
+            policyManifestSHA256: corpus.policyManifestSHA256,
+            cases: changedCases
+        )
+        XCTAssertThrowsError(try changed.validateExtension(of: corpus)) {
+            XCTAssertEqual($0 as? CompatibilityContractErrorV1, .quarantinedCaseIDReuse)
+        }
+
+        for token in ["tamper", "truncat", "path", "bomb"] {
+            XCTAssertTrue(
+                V907CompatibilitySupport.containsCase(corpus, tokens: [token]),
+                "Missing hostile \(token) archive case"
+            )
+        }
+        let canonical = try corpus.canonicalData()
+        XCTAssertThrowsError(
+            try CompatibilityCorpusManifestV1.decodeCanonical(
+                Data(canonical.dropLast()),
+                against: policy.dataManifest
+            )
+        )
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: canonical) as? [String: Any]
+        )
+        object["unexpectedSecretBearingExtension"] = true
+        let alternate = try JSONSerialization.data(
+            withJSONObject: object,
+            options: [.sortedKeys, .withoutEscapingSlashes]
+        )
+        XCTAssertThrowsError(try CompatibilityCorpusManifestV1.decodeCanonical(
+            alternate,
+            against: policy.dataManifest
+        ))
+        XCTAssertThrowsError(try V907CompatibilitySupport.replacing(
+            template,
+            artifactRelativePath: "../customer.json"
+        ).validate(against: policy.dataManifest))
+        XCTAssertThrowsError(try V907CompatibilitySupport.replacing(
+            template,
+            containsCustomerData: true
+        ).validate(against: policy.dataManifest))
+        XCTAssertThrowsError(try V907CompatibilitySupport.replacing(
+            template,
+            containsSecrets: true
+        ).validate(against: policy.dataManifest))
+    }
+
+    func testV9_07R01ReplayQuarantineImmutabilityAndAcceptanceModeSeparation() throws {
+        let policy = ReleasedDataCompatibilityPolicyV1.current
+        let corpus = try V907CompatibilitySupport.corpus()
+        let seed = try V907CompatibilitySupport.seed()
+        try seed.validate(against: policy)
+        let priorSeedDigest = try seed.canonicalSHA256()
+        let selected = corpus.caseIDs(for: .representativeSentinel)
+        let byID = Dictionary(uniqueKeysWithValues: corpus.cases.map { ($0.caseID, $0) })
+        let passed = try selected.map { caseID in
+            let item = try XCTUnwrap(byID[caseID])
+            return try V907CompatibilitySupport.result(
+                for: item,
+                observedOutputSHA256: V907CompatibilitySupport.executeCase(
+                    for: item
+                )
+            )
+        }
+        let accepted = try V907CompatibilitySupport.receipt(
+            runID: "v23-p01-c07-r01",
+            corpus: corpus,
+            selection: .representativeSentinel,
+            mode: .acceptingFailFast,
+            results: passed
+        )
+        try accepted.requireAccepting(against: corpus)
+        XCTAssertEqual(try accepted.replayDisposition(comparedTo: accepted), .idempotentReplay)
+
+        let first = try XCTUnwrap(byID[try XCTUnwrap(selected.first)])
+        let nilObserved = CompatibilityCaseRunResultV1(
+            caseID: first.caseID,
+            caseManifestSHA256: try first.canonicalSHA256(),
+            outcome: .passed,
+            normalizedOutputSHA256: nil
+        )
+        XCTAssertThrowsError(try nilObserved.validate()) {
+            XCTAssertEqual($0 as? CompatibilityContractErrorV1, .invalidRunReceipt)
+        }
+        let nilObservedReceipt = try V907CompatibilitySupport.receipt(
+            runID: "v23-p01-c07-r01-output-nil",
+            corpus: corpus,
+            selection: .representativeSentinel,
+            mode: .acceptingFailFast,
+            results: [nilObserved]
+        )
+        XCTAssertThrowsError(try nilObservedReceipt.validate(against: corpus)) {
+            XCTAssertEqual($0 as? CompatibilityContractErrorV1, .invalidRunReceipt)
+        }
+        XCTAssertFalse(nilObservedReceipt.isAccepting)
+        XCTAssertThrowsError(try nilObservedReceipt.requireAccepting(against: corpus))
+        let expectedOutput = first.normalizedExpectedSHA256 ?? first.artifactSHA256
+        let mismatchedOutput = expectedOutput == String(repeating: "f", count: 64)
+            ? String(repeating: "e", count: 64)
+            : String(repeating: "f", count: 64)
+        let mismatchedResult = try V907CompatibilitySupport.result(
+            for: first,
+            observedOutputSHA256: mismatchedOutput
+        )
+        let mismatchedReceipt = try V907CompatibilitySupport.receipt(
+            runID: "v23-p01-c07-r01-output-mismatch",
+            corpus: corpus,
+            selection: .representativeSentinel,
+            mode: .acceptingFailFast,
+            results: [mismatchedResult]
+        )
+        XCTAssertThrowsError(try mismatchedReceipt.validate(against: corpus)) {
+            XCTAssertEqual($0 as? CompatibilityContractErrorV1, .invalidRunReceipt)
+        }
+        XCTAssertThrowsError(try mismatchedReceipt.requireAccepting(against: corpus))
+
+        let changedResult = try V907CompatibilitySupport.result(
+            for: XCTUnwrap(byID[selected[0]]),
+            outcome: .failed,
+            failureCode: "changed_input"
+        )
+        let changedRun = try V907CompatibilitySupport.receipt(
+            runID: accepted.runID,
+            corpus: corpus,
+            selection: .representativeSentinel,
+            mode: .acceptingFailFast,
+            results: [changedResult]
+        )
+        XCTAssertThrowsError(try changedRun.replayDisposition(comparedTo: accepted)) {
+            XCTAssertEqual($0 as? CompatibilityContractErrorV1, .quarantinedRunIDReuse)
+        }
+
+        let diagnosticResults = try selected.enumerated().map { offset, caseID in
+            let item = try XCTUnwrap(byID[caseID])
+            let outcome: CompatibilityCaseRunOutcomeV1 = offset == 0 ? .failed : .passed
+            if outcome == .passed {
+                let observedOutputSHA256 = try V907CompatibilitySupport.executeCase(
+                    for: item
+                )
+                return try V907CompatibilitySupport.result(
+                    for: item,
+                    observedOutputSHA256: observedOutputSHA256
+                )
+            } else {
+                return try V907CompatibilitySupport.result(
+                    for: item,
+                    outcome: outcome,
+                    failureCode: "diagnostic_failure"
+                )
+            }
+        }
+        let diagnostic = try V907CompatibilitySupport.receipt(
+            runID: "v23-p01-c07-r01-diagnostic",
+            corpus: corpus,
+            selection: .representativeSentinel,
+            mode: .diagnosticContinue,
+            results: diagnosticResults
+        )
+        try diagnostic.validate(against: corpus)
+        XCTAssertFalse(diagnostic.isAccepting)
+        XCTAssertThrowsError(try diagnostic.requireAccepting(against: corpus))
+
+        let priorDigest = try corpus.canonicalSHA256()
+        try corpus.validate(against: policy.dataManifest, previous: corpus)
+        XCTAssertEqual(try corpus.canonicalSHA256(), priorDigest)
+        XCTAssertEqual(try V907CompatibilitySupport.seed().canonicalSHA256(), priorSeedDigest)
+        let historicPDF = try V907CompatibilitySupport.fixtureData(
+            "V21P01C07HistoricReportV1",
+            extension: "pdf"
+        )
+        XCTAssertEqual(
+            historicPDF,
+            try V907CompatibilitySupport.fixtureData("V21P01C07HistoricReportV1", extension: "pdf")
+        )
+    }
+}

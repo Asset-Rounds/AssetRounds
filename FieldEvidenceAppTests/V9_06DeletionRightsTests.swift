@@ -244,8 +244,11 @@ enum V906Integration {
             now: { deletedAt },
             makeUUID: { id(64) }
         )
-        let preview = try service.prepare()
-        return try service.export(previewID: preview.id, to: destination)
+        let preview = try service.prepareCompatibilityFixtureLegacyDirectoryPackage()
+        return try service.exportCompatibilityFixtureLegacyDirectoryPackage(
+            previewID: preview.id,
+            to: destination
+        )
     }
 
     static func injectUnknownLedgerKind(intoLegacyPackage package: URL) throws -> Data {

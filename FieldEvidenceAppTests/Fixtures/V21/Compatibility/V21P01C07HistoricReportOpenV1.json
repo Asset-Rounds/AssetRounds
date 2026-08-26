@@ -1,0 +1,37 @@
+{
+  "artifactDigest": "3d0554b9a13df03ccfd1408ebb88261976ba9f47ff45785d23f534766e375e37",
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "displaySnapshot": {
+    "sections": [
+      {
+        "body": "Synthetic compatibility evidence",
+        "heading": "Summary",
+        "id": "summary"
+      },
+      {
+        "body": "Historic bytes remain immutable",
+        "heading": "Details",
+        "id": "details"
+      }
+    ],
+    "title": "Synthetic historic report"
+  },
+  "fixtureID": "V21-P01-C07-HISTORIC-REPORT-OPEN-V1",
+  "generator": {
+    "name": "p01_c07_contracts.py",
+    "seed": 230107,
+    "version": "p01-c07-seed-v1"
+  },
+  "immutable": true,
+  "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+  "nativeCompileRan": false,
+  "pdfFixturePath": "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07HistoricReportV1.pdf",
+  "pdfSHA256": "52503c0ec947b60ff8929d868228345bdeccd438d9426a038cd7dc0c37a9b009",
+  "rendererProof": false,
+  "reportSchema": "ReportSnapshotV1",
+  "reportVersion": "snapshot1",
+  "schema": "V21P01C07HistoricReportOpenV1",
+  "schemaVersion": 1,
+  "synthetic": true
+}
