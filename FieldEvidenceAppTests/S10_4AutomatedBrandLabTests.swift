@@ -3224,10 +3224,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     reportComparisonRouteStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 29_806)
+        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 38_217)
         XCTAssertEqual(
             Data(workValidationPositioningHelperSource.utf8).sha256,
-            "A7BA3E6CA2373BDB229C6D626EFC460EB2CA92FB1804DDC6949C8C8A2E4B0F74"
+            "2D02148E3A79C16E5F3CFFF7E1FB25AAFFF13DB287D2F43FC23D83C1FC4ADAF8"
         )
 
         let signDetailPositioningGate =
@@ -3999,6 +3999,160 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         )
 
+        let k144WorkValidationDiagnosticSource = try boundedSource(
+            workValidationPositioningHelperSource,
+            from: "        func diagnoseSegment2FinalSemantics(\n",
+            before: "        var restorationDirection: CGFloat?"
+        )
+        XCTAssertEqual(k144WorkValidationDiagnosticSource.utf8.count, 8_211)
+        XCTAssertEqual(
+            Data(k144WorkValidationDiagnosticSource.utf8).sha256,
+            "C0E2AA771BF8CDCF3D658AA4384363D3584251785560370749CE3A681C39B797"
+        )
+        for exactContext in [
+            "guard automationSegment == .segment2",
+            #"shard.shardID == "s10.4.current.ax-text""#,
+            "automationSegment.replayCount == 22",
+            "automationSegment.ownedCount == 28",
+            "automationSegment.finalOrdinal == 50",
+            "segmentedRouteStateCursor == 22",
+            "migratedStateIDs.isEmpty",
+            "!automatedSegmentFinished",
+            "app.state == .runningForeground",
+            #""stateID": "state.work.validation-error""#,
+            #""stateOrdinal": 23"#,
+            #""predecessorStateID": "state.sign-detail.open-issue""#,
+            #""predecessorOrdinal": 22"#,
+            #""successorStateID": "state.work.editing""#,
+            #""successorOrdinal": 24"#,
+            #""applicationState""#,
+            #""applicationStateRawValue""#,
+            #""applicationForeground""#,
+            #""applicationFrame""#,
+            #""targetFieldLabelMinY""#,
+            #""finalPositionComposition": true"#,
+            #""orderedFinalSemanticRelations""#,
+            #""failedFinalSemanticRelations""#,
+            #""frozenFrames""#,
+            #""currentFrames""#,
+        ] {
+            XCTAssertTrue(
+                k144WorkValidationDiagnosticSource.contains(exactContext),
+                exactContext
+            )
+        }
+        for publicNodeField in [
+            #""exists": element.exists"#,
+            #""isEnabled": element.isEnabled"#,
+            #""isHittable": element.isHittable"#,
+            #""identifier": element.identifier"#,
+            #""label": element.label"#,
+            #""value": (element.value as? String).map { $0 as Any }"#,
+            #"?? NSNull()"#,
+            #""elementTypeRawValue": element.elementType.rawValue"#,
+            #""elementTypeDescription": String(describing: element.elementType)"#,
+            #""frame": self.auditFrameObject(element.frame)"#,
+        ] {
+            XCTAssertEqual(
+                k144WorkValidationDiagnosticSource.components(
+                    separatedBy: publicNodeField
+                ).count - 1,
+                1,
+                publicNodeField
+            )
+        }
+        XCTAssertEqual(
+            k144WorkValidationDiagnosticSource.components(
+                separatedBy: "let actualCount = query.count"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            k144WorkValidationDiagnosticSource.components(
+                separatedBy: "query.element(boundBy: index)"
+            ).count - 1,
+            1
+        )
+        for queryFamily in [
+            "workScreens", "descriptionFields", "focusedDescriptionFields",
+            "validationLabels", "shortDescriptionStaticTexts",
+            "shortDescriptionFieldLabels", "noteStaticTexts",
+            "descriptionScrollViews", "navigationBars", "tabBars", "keyboards",
+        ] {
+            XCTAssertEqual(
+                k144WorkValidationDiagnosticSource.components(
+                    separatedBy: #""\#(queryFamily)": publicQueryObject("#
+                ).count - 1,
+                1,
+                queryFamily
+            )
+        }
+        XCTAssertTrue(
+            k144WorkValidationDiagnosticSource.contains(
+                "let orderedRelations: [[String: Any]] = finalSemanticRelations.map"
+            )
+        )
+        XCTAssertTrue(
+            k144WorkValidationDiagnosticSource.contains(
+                "let failedRelations = finalSemanticRelations.compactMap"
+            )
+        )
+        XCTAssertTrue(
+            k144WorkValidationDiagnosticSource.contains("options: [.sortedKeys]")
+        )
+        XCTAssertEqual(
+            k144WorkValidationDiagnosticSource.components(
+                separatedBy:
+                    "S10_4_AX_TEXT_WORK_VALIDATION_FINAL_SEMANTICS_DIAGNOSTIC"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            k144WorkValidationDiagnosticSource.components(
+                separatedBy: "XCTAttachment("
+            ).count - 1,
+            3
+        )
+        XCTAssertEqual(
+            k144WorkValidationDiagnosticSource.components(
+                separatedBy: ".lifetime = .keepAlways"
+            ).count - 1,
+            3
+        )
+        XCTAssertEqual(
+            k144WorkValidationDiagnosticSource.components(separatedBy: "add(").count - 1,
+            3
+        )
+        var k144DiagnosticTail =
+            k144WorkValidationDiagnosticSource[k144WorkValidationDiagnosticSource.startIndex...]
+        for orderedToken in [
+            "let context: [String: Any] = [",
+            "options: [.sortedKeys]",
+            "self.printJSONLine(",
+            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
+            "let contextAttachment = XCTAttachment(string: contextText)",
+            "XCTFail(\n                \"S10.4 AX-text work-validation final-semantics diagnostic is nonaccepting\"",
+            "return false",
+        ] {
+            let range = try XCTUnwrap(k144DiagnosticTail.range(of: orderedToken), orderedToken)
+            k144DiagnosticTail = k144DiagnosticTail[range.upperBound...]
+        }
+        for prohibitedDiagnosticForm in [
+            "performAccessibilityAudit", "captureBaseline(", "attachCandidate(",
+            "S10_MIGRATION_STATE", "S10_4_AX_STATE", "S10_4_CONTRAST",
+            "S10_4_CANDIDATE", "S10_4_TASK", "S10_4_SHARD_RECEIPT",
+            ".tap(", ".typeText(", "setToggle(", "navigateBack(",
+            "waitForExistence", "waitForNonExistence", ".press(", ".swipe",
+            "scroll(", "sleep(", "NotificationCenter", "migratedStateIDs.append",
+            "segmentedRouteStateCursor +=", "automatedSegmentFinished = true",
+        ] {
+            XCTAssertFalse(
+                k144WorkValidationDiagnosticSource.contains(prohibitedDiagnosticForm),
+                prohibitedDiagnosticForm
+            )
+        }
+
         for exactLiveRestorationLock in [
             "        let frozenApplicationFrame = app.frame",
             "        let frozenKeyboardFrame = keyboard.frame",
@@ -4053,7 +4207,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                  observedValidationShift * dragDistance > 0,",
             "                  observedNoteShift * dragDistance > 0,",
             "        guard hasFinalPositionComposition() else {",
-            "        guard finalStrictSemanticRelations().allSatisfy({ relation in relation.1 }) else {",
+            "        let finalSemanticRelations = finalStrictSemanticRelations()",
+            "        guard finalSemanticRelations.allSatisfy({ relation in relation.1 }) else {",
+            "            if automationSegment == .segment2 {",
+            "                return diagnoseSegment2FinalSemantics(finalSemanticRelations)",
             "            XCTFail(\"AX-text work-validation final semantics are invalid.\")",
         ] {
             XCTAssertTrue(
@@ -4079,10 +4236,30 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 token
             )
         }
+        XCTAssertTrue(
+            workValidationPositioningHelperSource.contains(
+                "        let finalSemanticRelations = finalStrictSemanticRelations()\n" +
+                    "        guard finalSemanticRelations.allSatisfy({ relation in relation.1 }) else {\n" +
+                    "            if automationSegment == .segment2 {\n" +
+                    "                return diagnoseSegment2FinalSemantics(finalSemanticRelations)\n" +
+                    "            }\n" +
+                    "            XCTFail(\"AX-text work-validation final semantics are invalid.\")\n" +
+                    "            return false\n" +
+                    "        }"
+            )
+        )
 
         let workValidationGeometryClosureRange = try XCTUnwrap(
             workValidationPositioningHelperSource.range(
                 of: "        let hasFinalPositionComposition: () -> Bool = {"
+            )
+        )
+        let workValidationDiagnosticRange = try XCTUnwrap(
+            workValidationPositioningHelperSource.range(
+                of: "        func diagnoseSegment2FinalSemantics(\n",
+                range:
+                    workValidationGeometryClosureRange.upperBound ..<
+                    workValidationPositioningHelperSource.endIndex
             )
         )
         let workValidationLoopRange = try XCTUnwrap(
@@ -4096,7 +4273,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workValidationGeometryClosureSource = String(
             workValidationPositioningHelperSource[
                 workValidationGeometryClosureRange.lowerBound ..<
-                    workValidationLoopRange.lowerBound
+                    workValidationDiagnosticRange.lowerBound
             ]
         )
         XCTAssertFalse(workValidationGeometryClosureSource.contains(".isHittable"))
@@ -4111,7 +4288,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workValidationFinalSemanticGuardRange = try XCTUnwrap(
             workValidationPositioningHelperSource.range(
                 of:
-                    "        guard finalStrictSemanticRelations().allSatisfy({ relation in relation.1 }) else {",
+                    "        let finalSemanticRelations = finalStrictSemanticRelations()\n" +
+                    "        guard finalSemanticRelations.allSatisfy({ relation in relation.1 }) else {",
                 range:
                     workValidationFinalGeometryGuardRange.upperBound ..<
                     workValidationPositioningHelperSource.endIndex
@@ -4153,8 +4331,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "performAccessibilityAudit",
             "captureBaseline(",
             "attachCandidate(",
-            "XCTAttachment(",
-            "printJSONLine(",
             #"prefix: "S10_4_AX_STATE""#,
             #"prefix: "S10_4_CONTRAST""#,
             "S10_4_CANDIDATE",
@@ -18549,10 +18725,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "    private func positionReportCorrectionCompletedForAXText(",
             before: "\n    @MainActor\n    private func captureBaseline("
         )
-        XCTAssertEqual(k134State56HelperSource.utf8.count, 30_778)
+        XCTAssertEqual(k134State56HelperSource.utf8.count, 30_626)
         XCTAssertEqual(
             Data(k134State56HelperSource.utf8).sha256,
-            "AB9FB2F044B8296AFC84E4314CA66BD31A529CFA76333035A00DFCF22B6AD75D"
+            "48031803CA9F45E20164AD25C2BE522809EB00478FF4CD226B8371C05E4156E6"
         )
         let k143State56MagnitudeSource = try boundedSource(
             k134State56HelperSource,
@@ -18669,6 +18845,49 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             k134State56HelperSource.contains(
                 "let hasFinalStrictRoute: () -> Bool = {\n" +
                     "            finalStrictRouteRelations().allSatisfy { relation in relation.1 }"
+            )
+        )
+        let k144State56FinalStrictRouteSource = try boundedSource(
+            k134State56HelperSource,
+            from: "        let finalStrictRouteRelations: () -> [(String, Bool)] = {",
+            before: "        let hasFinalStrictRoute: () -> Bool = {"
+        )
+        XCTAssertEqual(k144State56FinalStrictRouteSource.utf8.count, 424)
+        XCTAssertEqual(
+            Data(k144State56FinalStrictRouteSource.utf8).sha256,
+            "F527C4649BC5B667B03DE4697E803BE598FB6D6B652FBE0CEA9D8050DF7E5710"
+        )
+        for retainedFrozenRelation in [
+            #"("applicationFrameFrozen", app.frame == frozenApplicationFrame)"#,
+            #""navigationFrameFrozen""#,
+            "navigationBar.frame == frozenNavigationFrame",
+            #"("tabFrameFrozen", tabBar.frame == frozenTabFrame)"#,
+        ] {
+            XCTAssertTrue(
+                k144State56FinalStrictRouteSource.contains(retainedFrozenRelation),
+                retainedFrozenRelation
+            )
+        }
+        for removedVolatileContainerFreeze in [
+            "screenFrameFrozen", "scrollFrameFrozen",
+            "screen.frame == frozenScreenFrame",
+            "scrollView.frame == frozenScrollFrame",
+        ] {
+            XCTAssertFalse(
+                k144State56FinalStrictRouteSource.contains(removedVolatileContainerFreeze),
+                removedVolatileContainerFreeze
+            )
+        }
+        XCTAssertTrue(
+            k134State56HelperSource.contains(
+                "                screenFrame,\n" +
+                    "                scrollFrame,"
+            )
+        )
+        XCTAssertTrue(
+            k134State56HelperSource.contains(
+                "            ].allSatisfy(isValidFrame),\n" +
+                    "                  screenFrame == scrollFrame else {"
             )
         )
         XCTAssertTrue(
