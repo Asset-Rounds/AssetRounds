@@ -1,6 +1,7 @@
 name: Bitrise Build Hub cache probe
 
 on:
+  workflow_call:
   workflow_dispatch:
 
 permissions:

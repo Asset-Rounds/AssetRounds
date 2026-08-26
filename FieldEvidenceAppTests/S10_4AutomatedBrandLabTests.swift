@@ -106,8 +106,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             dispatcherPath,
-            byteCount: 54_154,
-            sha256: "32F28BEA03F369D623E9A107A386641C81089B0E4223C70B10BECFB99E8433F1"
+            byteCount: 54_539,
+            sha256: "D4023452D24C63D03FE41985279C777BEF0C801A35E872D4A7C7B4008B81BBD0"
         )
         let dispatcherSource = try text(dispatcherPath)
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
@@ -256,7 +256,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         XCTAssertEqual(executionLaneSource.components(separatedBy: "        type: choice").count - 1, 1)
-        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 4)
+        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 5)
         XCTAssertEqual(
             executionLaneSource.components(
                 separatedBy: "          - github-xcode-26.6-acceptance"
@@ -281,8 +281,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        XCTAssertEqual(
+            executionLaneSource.components(
+                separatedBy: "          - bitrise-build-hub-cache-probe-development-only"
+            ).count - 1,
+            1
+        )
         XCTAssertFalse(executionLaneSource.contains("default: getmac-xcode-26.6-development-only"))
         XCTAssertFalse(executionLaneSource.contains("default: warp-xcode-26.5-development-only"))
+        XCTAssertFalse(
+            executionLaneSource.contains(
+                "default: bitrise-build-hub-cache-probe-development-only"
+            )
+        )
         XCTAssertFalse(executionLaneSource.contains("type: string"))
 
         let dispatcherConcurrency =
@@ -296,6 +307,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let jobsMarker = "jobs:\n"
         let githubJobMarker = "  github-shard:\n"
         let getMacJobMarker = "  getmac-shard:\n"
+        let bitriseProbeJobMarker = "  bitrise-build-hub-cache-probe:\n"
         let rejectSegmentedJobMarker = "  reject-invalid-segmented-selection:\n"
         let warpJobMarker = "  warpbuild-shard:\n"
         guard
@@ -308,9 +320,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 of: getMacJobMarker,
                 range: githubJobRange.upperBound..<dispatcherSource.endIndex
             ),
+            let bitriseProbeJobRange = dispatcherSource.range(
+                of: bitriseProbeJobMarker,
+                range: getMacJobRange.upperBound..<dispatcherSource.endIndex
+            ),
             let rejectSegmentedJobRange = dispatcherSource.range(
                 of: rejectSegmentedJobMarker,
-                range: getMacJobRange.upperBound..<dispatcherSource.endIndex
+                range: bitriseProbeJobRange.upperBound..<dispatcherSource.endIndex
             ),
             let warpJobRange = dispatcherSource.range(
                 of: warpJobMarker,
@@ -326,7 +342,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let getMacJobSource = String(
             dispatcherSource[
-                getMacJobRange.lowerBound..<rejectSegmentedJobRange.lowerBound
+                getMacJobRange.lowerBound..<bitriseProbeJobRange.lowerBound
+            ]
+        )
+        let bitriseProbeJobSource = String(
+            dispatcherSource[
+                bitriseProbeJobRange.lowerBound..<rejectSegmentedJobRange.lowerBound
             ]
         )
         let warpJobSource = String(dispatcherSource[warpJobRange.lowerBound...])
@@ -338,7 +359,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 in: jobsSource,
                 range: NSRange(location: 0, length: jobsSource.utf16.count)
             ),
-            6
+            7
         )
 
         let githubLaneGate =
@@ -347,9 +368,25 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"    if: ${{ inputs.execution_lane == 'getmac-xcode-26.6-development-only' }}"#
         let warpLaneGate =
             #"    if: ${{ inputs.execution_lane == 'warp-xcode-26.5-development-only' }}"#
+        let bitriseProbeLaneGate =
+            #"    if: ${{ inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' && inputs.run_ui_smoke == false && inputs.s10_4_shard_id == 'none' }}"#
         XCTAssertEqual(githubJobSource.components(separatedBy: githubLaneGate).count - 1, 1)
         XCTAssertEqual(getMacJobSource.components(separatedBy: getMacLaneGate).count - 1, 1)
         XCTAssertEqual(warpJobSource.components(separatedBy: warpLaneGate).count - 1, 1)
+        XCTAssertEqual(
+            bitriseProbeJobSource.components(separatedBy: bitriseProbeLaneGate).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            bitriseProbeJobSource.components(
+                separatedBy: "    uses: ./.github/workflows/bitrise-build-hub-probe.yml"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            bitriseProbeJobSource.components(separatedBy: "    secrets: inherit").count - 1,
+            1
+        )
         XCTAssertEqual(
             getMacJobSource.components(
                 separatedBy: #"    name: GetMac Xcode 26.6 development-only · ${{ inputs.s10_4_shard_id }}"#
