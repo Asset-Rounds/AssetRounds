@@ -11176,6 +11176,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let feedbackEntries = app.descendants(matching: .any).matching(
             identifier: "s8.4.feedback.settings-entry"
         )
+        let inspectionStaticTexts = app.staticTexts.matching(
+            NSPredicate(
+                format: "identifier == '' AND label == %@",
+                "Inspection data and photos are device-local and do not sync with the subscription."
+            )
+        )
         let navigationBars = app.navigationBars
         let tabBars = app.tabBars
         let keyboards = app.keyboards
@@ -11186,11 +11192,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let settingsScrollView = settingsScrollViews.firstMatch
         let diagnosticsEntry = diagnosticsEntries.firstMatch
         let feedbackEntry = feedbackEntries.firstMatch
+        let inspectionStaticText = inspectionStaticTexts.firstMatch
         let navigationBar = navigationBars.firstMatch
         let tabBar = tabBars.firstMatch
         let contentInset: CGFloat = 16
         let receiverInset: CGFloat = 24
         let minimumGestureDistance: CGFloat = 44
+        let shiftAllowance: CGFloat = 1
         let isValidFrame: (CGRect) -> Bool = { frame in
             !frame.isNull
                 && !frame.isEmpty
@@ -11206,6 +11214,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               settingsScrollViews.count == 1,
               diagnosticsEntries.count == 1,
               feedbackEntries.count == 1,
+              inspectionStaticTexts.count == 1,
               navigationBars.count == 1,
               tabBars.count == 1,
               keyboards.count == 0,
@@ -11225,6 +11234,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               feedbackEntry.identifier == "s8.4.feedback.settings-entry",
               feedbackEntry.label == "Send feedback",
               feedbackEntry.elementType == .button,
+              inspectionStaticText.exists,
+              inspectionStaticText.isEnabled,
+              inspectionStaticText.identifier.isEmpty,
+              inspectionStaticText.label
+                == "Inspection data and photos are device-local and do not sync with the subscription.",
+              inspectionStaticText.elementType == .staticText,
               navigationBar.exists,
               tabBar.exists else {
             XCTFail("AX-text settings-hub positioning route is invalid.")
@@ -11245,6 +11260,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             XCTFail("AX-text settings-hub positioning geometry is invalid.")
             return false
         }
+        var measuredInitialOvertravel: CGFloat?
 
         for _ in 0..<4 {
             guard app.state == .runningForeground,
@@ -11252,6 +11268,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   settingsScrollViews.count == 1,
                   diagnosticsEntries.count == 1,
                   feedbackEntries.count == 1,
+                  inspectionStaticTexts.count == 1,
                   navigationBars.count == 1,
                   tabBars.count == 1,
                   keyboards.count == 0,
@@ -11273,12 +11290,18 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   feedbackEntry.identifier == "s8.4.feedback.settings-entry",
                   feedbackEntry.label == "Send feedback",
                   feedbackEntry.elementType == .button,
+                  inspectionStaticText.exists,
+                  inspectionStaticText.isEnabled,
+                  inspectionStaticText.identifier.isEmpty,
+                  inspectionStaticText.label
+                    == "Inspection data and photos are device-local and do not sync with the subscription.",
+                  inspectionStaticText.elementType == .staticText,
                   navigationBar.exists,
                   navigationBar.frame == frozenNavigationFrame,
                   tabBar.exists,
                   tabBar.frame == frozenTabBarFrame,
                   app.frame == frozenApplicationFrame else {
-                XCTFail("AX-text settings-hub route changed during positioning.")
+                XCTFail("AX-text settings-hub route changed during initial positioning.")
                 return false
             }
 
@@ -11305,7 +11328,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   receiverBottom > receiverTop,
                   diagnosticsFrame.height <= safeBottom - safeTop,
                   feedbackFrame.height <= safeBottom - safeTop else {
-                XCTFail("AX-text settings-hub live geometry is invalid.")
+                XCTFail("AX-text settings-hub initial live geometry is invalid.")
                 return false
             }
             if diagnosticsFrame.minY >= safeTop,
@@ -11314,7 +11337,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                feedbackFrame.maxY <= safeBottom,
                diagnosticsEntry.isHittable,
                feedbackEntry.isHittable {
-                return true
+                break
             }
 
             let minimumShift = max(
@@ -11329,7 +11352,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             guard minimumShift <= maximumShift,
                   maximumShift < 0,
                   receiverCapacity >= minimumGestureDistance else {
-                XCTFail("AX-text settings-hub requires no feasible upward shift.")
+                XCTFail("AX-text settings-hub requires no feasible initial upward shift.")
                 return false
             }
             let recognizedMinimum = max(
@@ -11342,7 +11365,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
             guard recognizedMinimum <= recognizedMaximum,
                   recognizedMaximum < 0 else {
-                XCTFail("AX-text settings-hub upward shift is not recognizable.")
+                XCTFail("AX-text settings-hub initial upward shift is not recognizable.")
                 return false
             }
             let dragDistance = recognizedMaximum
@@ -11371,6 +11394,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   settingsScrollViews.count == 1,
                   diagnosticsEntries.count == 1,
                   feedbackEntries.count == 1,
+                  inspectionStaticTexts.count == 1,
                   navigationBars.count == 1,
                   tabBars.count == 1,
                   keyboards.count == 0,
@@ -11389,32 +11413,65 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   feedbackEntry.identifier == "s8.4.feedback.settings-entry",
                   feedbackEntry.label == "Send feedback",
                   feedbackEntry.elementType == .button,
+                  inspectionStaticText.exists,
+                  inspectionStaticText.isEnabled,
+                  inspectionStaticText.identifier.isEmpty,
+                  inspectionStaticText.label
+                    == "Inspection data and photos are device-local and do not sync with the subscription.",
+                  inspectionStaticText.elementType == .staticText,
                   navigationBar.exists,
                   navigationBar.frame == frozenNavigationFrame,
                   tabBar.exists,
                   tabBar.frame == frozenTabBarFrame,
                   app.frame == frozenApplicationFrame else {
-                XCTFail("AX-text settings-hub route changed after positioning.")
+                XCTFail("AX-text settings-hub route changed after initial positioning.")
                 return false
             }
             let observedDiagnosticsShift =
                 diagnosticsEntry.frame.minY - diagnosticsMinYBeforeDrag
             let observedFeedbackShift = feedbackEntry.frame.minY - feedbackMinYBeforeDrag
+            let diagnosticsOvertravel = dragDistance - observedDiagnosticsShift
+            let feedbackOvertravel = dragDistance - observedFeedbackShift
             guard observedDiagnosticsShift < 0,
                   observedFeedbackShift < 0,
                   observedDiagnosticsShift * dragDistance > 0,
                   observedFeedbackShift * dragDistance > 0,
-                  abs(observedDiagnosticsShift - observedFeedbackShift) <= 1 else {
-                XCTFail("AX-text settings-hub positioning gesture made no signed progress.")
+                  abs(observedDiagnosticsShift - observedFeedbackShift) <= shiftAllowance,
+                  diagnosticsOvertravel.isFinite,
+                  feedbackOvertravel.isFinite,
+                  diagnosticsOvertravel >= 0,
+                  feedbackOvertravel >= 0,
+                  diagnosticsOvertravel <= receiverInset + shiftAllowance,
+                  feedbackOvertravel <= receiverInset + shiftAllowance,
+                  abs(diagnosticsOvertravel - feedbackOvertravel) <= shiftAllowance else {
+                XCTFail("AX-text settings-hub initial positioning gesture made no signed progress.")
                 return false
             }
+            measuredInitialOvertravel = (
+                diagnosticsOvertravel + feedbackOvertravel
+            ) / 2
         }
 
+        let initialApplicationFrame = app.frame
+        let initialScrollFrame = settingsScrollView.frame.intersection(
+            initialApplicationFrame
+        )
+        let initialSafeTop = max(
+            initialScrollFrame.minY,
+            navigationBar.frame.maxY
+        ) + contentInset
+        let initialSafeBottom = min(
+            initialScrollFrame.maxY,
+            min(initialApplicationFrame.maxY, tabBar.frame.minY)
+        ) - contentInset
+        let initialDiagnosticsFrame = diagnosticsEntry.frame
+        let initialFeedbackFrame = feedbackEntry.frame
         guard app.state == .runningForeground,
               settingsScreens.count == 1,
               settingsScrollViews.count == 1,
               diagnosticsEntries.count == 1,
               feedbackEntries.count == 1,
+              inspectionStaticTexts.count == 1,
               navigationBars.count == 1,
               tabBars.count == 1,
               keyboards.count == 0,
@@ -11433,6 +11490,272 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               feedbackEntry.identifier == "s8.4.feedback.settings-entry",
               feedbackEntry.label == "Send feedback",
               feedbackEntry.elementType == .button,
+              inspectionStaticText.exists,
+              inspectionStaticText.isEnabled,
+              inspectionStaticText.identifier.isEmpty,
+              inspectionStaticText.label
+                == "Inspection data and photos are device-local and do not sync with the subscription.",
+              inspectionStaticText.elementType == .staticText,
+              navigationBar.exists,
+              navigationBar.frame == frozenNavigationFrame,
+              tabBar.exists,
+              tabBar.frame == frozenTabBarFrame,
+              app.frame == frozenApplicationFrame,
+              isValidFrame(initialScrollFrame),
+              isValidFrame(initialDiagnosticsFrame),
+              isValidFrame(initialFeedbackFrame),
+              initialSafeBottom > initialSafeTop,
+              initialDiagnosticsFrame.minY >= initialSafeTop,
+              initialDiagnosticsFrame.maxY <= initialSafeBottom,
+              initialFeedbackFrame.minY >= initialSafeTop,
+              initialFeedbackFrame.maxY <= initialSafeBottom,
+              diagnosticsEntry.isHittable,
+              feedbackEntry.isHittable else {
+            XCTFail("AX-text settings-hub initial composition is unsafe.")
+            return false
+        }
+
+        for _ in 0..<4 {
+            guard app.state == .runningForeground,
+                  settingsScreens.count == 1,
+                  settingsScrollViews.count == 1,
+                  diagnosticsEntries.count == 1,
+                  feedbackEntries.count == 1,
+                  inspectionStaticTexts.count == 1,
+                  navigationBars.count == 1,
+                  tabBars.count == 1,
+                  keyboards.count == 0,
+                  inputViews.count == 0,
+                  settingsScreen.exists,
+                  settingsScreen.identifier == "s1.settings.screen",
+                  settingsScreen.frame == frozenScreenFrame,
+                  settingsScrollView.exists,
+                  settingsScrollView.identifier == "s1.settings.screen",
+                  settingsScrollView.elementType == .scrollView,
+                  settingsScrollView.frame == frozenScrollFrame,
+                  diagnosticsEntry.exists,
+                  diagnosticsEntry.isEnabled,
+                  diagnosticsEntry.identifier == "s8.3.diagnostics.settings-entry",
+                  diagnosticsEntry.label == "View diagnostics",
+                  diagnosticsEntry.elementType == .button,
+                  feedbackEntry.exists,
+                  feedbackEntry.isEnabled,
+                  feedbackEntry.identifier == "s8.4.feedback.settings-entry",
+                  feedbackEntry.label == "Send feedback",
+                  feedbackEntry.elementType == .button,
+                  inspectionStaticText.exists,
+                  inspectionStaticText.isEnabled,
+                  inspectionStaticText.identifier.isEmpty,
+                  inspectionStaticText.label
+                    == "Inspection data and photos are device-local and do not sync with the subscription.",
+                  inspectionStaticText.elementType == .staticText,
+                  navigationBar.exists,
+                  navigationBar.frame == frozenNavigationFrame,
+                  tabBar.exists,
+                  tabBar.frame == frozenTabBarFrame,
+                  app.frame == frozenApplicationFrame else {
+                XCTFail("AX-text settings-hub route changed during positioning.")
+                return false
+            }
+
+            let applicationFrame = app.frame
+            let scrollFrame = settingsScrollView.frame
+            let navigationFrame = navigationBar.frame
+            let tabBarFrame = tabBar.frame
+            let liveScrollFrame = scrollFrame.intersection(applicationFrame)
+            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)
+            let liveBottom = min(
+                liveScrollFrame.maxY,
+                min(applicationFrame.maxY, tabBarFrame.minY)
+            )
+            let safeTop = liveTop + contentInset
+            let safeBottom = liveBottom - contentInset
+            let receiverTop = liveTop + receiverInset
+            let receiverBottom = liveBottom - receiverInset
+            let diagnosticsFrame = diagnosticsEntry.frame
+            let feedbackFrame = feedbackEntry.frame
+            let inspectionFrame = inspectionStaticText.frame
+            guard isValidFrame(liveScrollFrame),
+                  isValidFrame(diagnosticsFrame),
+                  isValidFrame(feedbackFrame),
+                  isValidFrame(inspectionFrame),
+                  safeBottom > safeTop,
+                  receiverBottom > receiverTop,
+                  diagnosticsFrame.height <= safeBottom - safeTop,
+                  feedbackFrame.height <= safeBottom - safeTop,
+                  inspectionFrame.height <= safeBottom - safeTop else {
+                XCTFail("AX-text settings-hub live geometry is invalid.")
+                return false
+            }
+            if diagnosticsFrame.minY >= liveTop,
+               diagnosticsFrame.maxY <= safeBottom,
+               feedbackFrame.minY >= safeTop,
+               feedbackFrame.maxY <= safeBottom,
+               inspectionFrame.minY >= safeTop,
+               inspectionFrame.maxY <= safeBottom,
+               diagnosticsEntry.isHittable,
+               feedbackEntry.isHittable,
+               inspectionStaticText.isHittable {
+                return true
+            }
+
+            let minimumShift = max(
+                liveTop - diagnosticsFrame.minY,
+                max(
+                    safeTop - feedbackFrame.minY,
+                    safeTop - inspectionFrame.minY
+                )
+            )
+            let maximumShift = min(
+                safeBottom - diagnosticsFrame.maxY,
+                min(
+                    safeBottom - feedbackFrame.maxY,
+                    safeBottom - inspectionFrame.maxY
+                )
+            )
+            let receiverCapacity = receiverBottom - receiverTop
+            guard minimumShift <= maximumShift,
+                  maximumShift < 0,
+                  receiverCapacity >= minimumGestureDistance else {
+                XCTFail("AX-text settings-hub requires no feasible upward shift.")
+                return false
+            }
+            guard let measuredInitialOvertravel,
+                  measuredInitialOvertravel.isFinite,
+                  measuredInitialOvertravel >= 0,
+                  measuredInitialOvertravel <= receiverInset + shiftAllowance else {
+                XCTFail("AX-text settings-hub initial overtravel is unavailable.")
+                return false
+            }
+            let recognizedMinimum = max(
+                minimumShift + measuredInitialOvertravel,
+                -receiverCapacity
+            )
+            let recognizedMaximum = min(
+                maximumShift + measuredInitialOvertravel,
+                -minimumGestureDistance
+            )
+            guard recognizedMinimum <= recognizedMaximum,
+                  recognizedMaximum < 0 else {
+                XCTFail("AX-text settings-hub upward shift is not recognizable.")
+                return false
+            }
+            let dragDistance = (recognizedMinimum + recognizedMaximum) / 2
+            let expectedObservedShift = dragDistance - measuredInitialOvertravel
+            guard expectedObservedShift >= minimumShift,
+                  expectedObservedShift <= maximumShift else {
+                XCTFail("AX-text settings-hub compensated shift is outside its interval.")
+                return false
+            }
+            let scrollOrigin = settingsScrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStart = scrollOrigin.withOffset(
+                CGVector(
+                    dx: scrollFrame.width / 2,
+                    dy: receiverBottom - scrollFrame.minY
+                )
+            )
+            let dragEnd = dragStart.withOffset(
+                CGVector(dx: 0, dy: dragDistance)
+            )
+            let diagnosticsMinYBeforeDrag = diagnosticsFrame.minY
+            let feedbackMinYBeforeDrag = feedbackFrame.minY
+            let inspectionMinYBeforeDrag = inspectionFrame.minY
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            guard app.state == .runningForeground,
+                  settingsScreens.count == 1,
+                  settingsScrollViews.count == 1,
+                  diagnosticsEntries.count == 1,
+                  feedbackEntries.count == 1,
+                  inspectionStaticTexts.count == 1,
+                  navigationBars.count == 1,
+                  tabBars.count == 1,
+                  keyboards.count == 0,
+                  inputViews.count == 0,
+                  settingsScreen.exists,
+                  settingsScreen.frame == frozenScreenFrame,
+                  settingsScrollView.exists,
+                  settingsScrollView.frame == frozenScrollFrame,
+                  diagnosticsEntry.exists,
+                  diagnosticsEntry.isEnabled,
+                  diagnosticsEntry.identifier == "s8.3.diagnostics.settings-entry",
+                  diagnosticsEntry.label == "View diagnostics",
+                  diagnosticsEntry.elementType == .button,
+                  feedbackEntry.exists,
+                  feedbackEntry.isEnabled,
+                  feedbackEntry.identifier == "s8.4.feedback.settings-entry",
+                  feedbackEntry.label == "Send feedback",
+                  feedbackEntry.elementType == .button,
+                  inspectionStaticText.exists,
+                  inspectionStaticText.isEnabled,
+                  inspectionStaticText.identifier.isEmpty,
+                  inspectionStaticText.label
+                    == "Inspection data and photos are device-local and do not sync with the subscription.",
+                  inspectionStaticText.elementType == .staticText,
+                  navigationBar.exists,
+                  navigationBar.frame == frozenNavigationFrame,
+                  tabBar.exists,
+                  tabBar.frame == frozenTabBarFrame,
+                  app.frame == frozenApplicationFrame else {
+                XCTFail("AX-text settings-hub route changed after positioning.")
+                return false
+            }
+            let observedDiagnosticsShift =
+                diagnosticsEntry.frame.minY - diagnosticsMinYBeforeDrag
+            let observedFeedbackShift = feedbackEntry.frame.minY - feedbackMinYBeforeDrag
+            let observedInspectionShift =
+                inspectionStaticText.frame.minY - inspectionMinYBeforeDrag
+            guard observedDiagnosticsShift < 0,
+                  observedFeedbackShift < 0,
+                  observedInspectionShift < 0,
+                  observedDiagnosticsShift * dragDistance > 0,
+                  observedFeedbackShift * dragDistance > 0,
+                  observedInspectionShift * dragDistance > 0,
+                  abs(observedDiagnosticsShift - observedFeedbackShift) <= shiftAllowance,
+                  abs(observedFeedbackShift - observedInspectionShift) <= shiftAllowance,
+                  observedDiagnosticsShift >= minimumShift,
+                  observedDiagnosticsShift <= maximumShift else {
+                XCTFail("AX-text settings-hub positioning gesture made no signed progress.")
+                return false
+            }
+        }
+
+        guard app.state == .runningForeground,
+              settingsScreens.count == 1,
+              settingsScrollViews.count == 1,
+              diagnosticsEntries.count == 1,
+              feedbackEntries.count == 1,
+              inspectionStaticTexts.count == 1,
+              navigationBars.count == 1,
+              tabBars.count == 1,
+              keyboards.count == 0,
+              inputViews.count == 0,
+              settingsScreen.exists,
+              settingsScreen.frame == frozenScreenFrame,
+              settingsScrollView.exists,
+              settingsScrollView.frame == frozenScrollFrame,
+              diagnosticsEntry.exists,
+              diagnosticsEntry.isEnabled,
+              diagnosticsEntry.identifier == "s8.3.diagnostics.settings-entry",
+              diagnosticsEntry.label == "View diagnostics",
+              diagnosticsEntry.elementType == .button,
+              feedbackEntry.exists,
+              feedbackEntry.isEnabled,
+              feedbackEntry.identifier == "s8.4.feedback.settings-entry",
+              feedbackEntry.label == "Send feedback",
+              feedbackEntry.elementType == .button,
+              inspectionStaticText.exists,
+              inspectionStaticText.isEnabled,
+              inspectionStaticText.identifier.isEmpty,
+              inspectionStaticText.label
+                == "Inspection data and photos are device-local and do not sync with the subscription.",
+              inspectionStaticText.elementType == .staticText,
               navigationBar.exists,
               navigationBar.frame == frozenNavigationFrame,
               tabBar.exists,
@@ -11455,16 +11778,21 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         ) - contentInset
         let finalDiagnosticsFrame = diagnosticsEntry.frame
         let finalFeedbackFrame = feedbackEntry.frame
+        let finalInspectionFrame = inspectionStaticText.frame
         guard isValidFrame(finalScrollFrame),
               isValidFrame(finalDiagnosticsFrame),
               isValidFrame(finalFeedbackFrame),
+              isValidFrame(finalInspectionFrame),
               finalSafeBottom > finalSafeTop,
-              finalDiagnosticsFrame.minY >= finalSafeTop,
+              finalDiagnosticsFrame.minY >= finalScrollFrame.minY,
               finalDiagnosticsFrame.maxY <= finalSafeBottom,
               finalFeedbackFrame.minY >= finalSafeTop,
               finalFeedbackFrame.maxY <= finalSafeBottom,
+              finalInspectionFrame.minY >= finalSafeTop,
+              finalInspectionFrame.maxY <= finalSafeBottom,
               diagnosticsEntry.isHittable,
-              feedbackEntry.isHittable else {
+              feedbackEntry.isHittable,
+              inspectionStaticText.isHittable else {
             XCTFail("AX-text settings-hub final composition is unsafe.")
             return false
         }

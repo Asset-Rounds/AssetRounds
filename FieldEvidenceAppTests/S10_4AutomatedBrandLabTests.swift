@@ -20435,10 +20435,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n\n    @MainActor\n" +
                     "    private func diagnoseSegment3AXTextSettingsHubNativeContrast("
         )
-        XCTAssertEqual(settingsHubPositioningSource.utf8.count, 13_949)
+        XCTAssertEqual(settingsHubPositioningSource.utf8.count, 30_279)
         XCTAssertEqual(
             Data(settingsHubPositioningSource.utf8).sha256,
-            "466F6B4ADF04F146E517CC5CD29A1F435819C276FC5D1A153CB28F484E9198D1"
+            "C0A4BC7FA0ED72852037CED2F52DC442D691490C5FAA991B00B1031DB4A0EBF1"
         )
         for exact in [
             #"identifier: "s1.settings.screen""#,
@@ -20448,39 +20448,72 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"identifier: "s8.4.feedback.settings-entry""#,
             #"feedbackEntry.label == "Send feedback""#,
             #"feedbackEntry.elementType == .button"#,
+            #"format: "identifier == '' AND label == %@""#,
+            #""Inspection data and photos are device-local and do not sync with the subscription.""#,
+            #"inspectionStaticText.identifier.isEmpty"#,
+            #"inspectionStaticText.elementType == .staticText"#,
             #"settingsScrollView.elementType == .scrollView"#,
             #"keyboards.count == 0"#,
             #"inputViews.count == 0"#,
             #"let contentInset: CGFloat = 16"#,
             #"let receiverInset: CGFloat = 24"#,
             #"let minimumGestureDistance: CGFloat = 44"#,
+            #"let shiftAllowance: CGFloat = 1"#,
             #"let isValidFrame: (CGRect) -> Bool = { frame in"#,
+            #"var measuredInitialOvertravel: CGFloat?"#,
             #"for _ in 0..<4"#,
             #"let minimumShift = max("#,
             #"safeTop - diagnosticsFrame.minY"#,
+            #"liveTop - diagnosticsFrame.minY"#,
             #"safeTop - feedbackFrame.minY"#,
+            #"safeTop - inspectionFrame.minY"#,
             #"let maximumShift = min("#,
             #"safeBottom - diagnosticsFrame.maxY"#,
             #"safeBottom - feedbackFrame.maxY"#,
+            #"safeBottom - inspectionFrame.maxY"#,
             #"maximumShift < 0"#,
             #"let recognizedMinimum = max("#,
             #"let recognizedMaximum = min("#,
             #"let dragDistance = recognizedMaximum"#,
+            #"let dragDistance = (recognizedMinimum + recognizedMaximum) / 2"#,
             #"let scrollOrigin = settingsScrollView.coordinate("#,
             #"forDuration: 0.2"#,
             #"withVelocity: .slow"#,
             #"thenHoldForDuration: 0.2"#,
             #"observedDiagnosticsShift < 0"#,
             #"observedFeedbackShift < 0"#,
+            #"observedInspectionShift < 0"#,
             #"observedDiagnosticsShift * dragDistance > 0"#,
             #"observedFeedbackShift * dragDistance > 0"#,
-            #"abs(observedDiagnosticsShift - observedFeedbackShift) <= 1"#,
-            #"finalDiagnosticsFrame.minY >= finalSafeTop"#,
+            #"observedInspectionShift * dragDistance > 0"#,
+            #"let diagnosticsOvertravel = dragDistance - observedDiagnosticsShift"#,
+            #"let feedbackOvertravel = dragDistance - observedFeedbackShift"#,
+            #"diagnosticsOvertravel <= receiverInset + shiftAllowance"#,
+            #"feedbackOvertravel <= receiverInset + shiftAllowance"#,
+            #"measuredInitialOvertravel <= receiverInset + shiftAllowance"#,
+            #"measuredInitialOvertravel = ("#,
+            #"minimumShift + measuredInitialOvertravel"#,
+            #"maximumShift + measuredInitialOvertravel"#,
+            #"let expectedObservedShift = dragDistance - measuredInitialOvertravel"#,
+            #"expectedObservedShift >= minimumShift"#,
+            #"expectedObservedShift <= maximumShift"#,
+            #"abs(observedDiagnosticsShift - observedFeedbackShift) <= shiftAllowance"#,
+            #"abs(observedFeedbackShift - observedInspectionShift) <= shiftAllowance"#,
+            #"observedDiagnosticsShift >= minimumShift"#,
+            #"observedDiagnosticsShift <= maximumShift"#,
+            #"initialDiagnosticsFrame.minY >= initialSafeTop"#,
+            #"initialDiagnosticsFrame.maxY <= initialSafeBottom"#,
+            #"initialFeedbackFrame.minY >= initialSafeTop"#,
+            #"initialFeedbackFrame.maxY <= initialSafeBottom"#,
+            #"finalDiagnosticsFrame.minY >= finalScrollFrame.minY"#,
             #"finalDiagnosticsFrame.maxY <= finalSafeBottom"#,
             #"finalFeedbackFrame.minY >= finalSafeTop"#,
             #"finalFeedbackFrame.maxY <= finalSafeBottom"#,
+            #"finalInspectionFrame.minY >= finalSafeTop"#,
+            #"finalInspectionFrame.maxY <= finalSafeBottom"#,
             #"diagnosticsEntry.isHittable"#,
             #"feedbackEntry.isHittable"#,
+            #"inspectionStaticText.isHittable"#,
             #"return true"#,
         ] {
             XCTAssertTrue(settingsHubPositioningSource.contains(exact), exact)
@@ -20489,25 +20522,55 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             settingsHubPositioningSource.components(
                 separatedBy: "dragStart.press("
             ).count - 1,
-            1
+            2
         )
         XCTAssertEqual(
             settingsHubPositioningSource.components(
                 separatedBy: "for _ in 0..<4"
             ).count - 1,
-            1
+            2
         )
         XCTAssertEqual(
             settingsHubPositioningSource.components(
                 separatedBy: "feedbackEntries.count == 1"
             ).count - 1,
-            4
+            7
         )
         XCTAssertEqual(
             settingsHubPositioningSource.components(
                 separatedBy: "feedbackEntry.isEnabled"
             ).count - 1,
-            4
+            7
+        )
+        XCTAssertEqual(
+            settingsHubPositioningSource.components(
+                separatedBy: "inspectionStaticTexts.count == 1"
+            ).count - 1,
+            7
+        )
+        XCTAssertEqual(
+            settingsHubPositioningSource.components(
+                separatedBy: "inspectionStaticText.isEnabled"
+            ).count - 1,
+            7
+        )
+        XCTAssertEqual(
+            settingsHubPositioningSource.components(
+                separatedBy: "inspectionStaticText.identifier.isEmpty"
+            ).count - 1,
+            7
+        )
+        XCTAssertEqual(
+            settingsHubPositioningSource.components(
+                separatedBy: "let minimumShift = max("
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            settingsHubPositioningSource.components(
+                separatedBy: "let maximumShift = min("
+            ).count - 1,
+            2
         )
         for prohibited in [
             "performAccessibilityAudit", "ContrastAuditExceptionSignature(",
