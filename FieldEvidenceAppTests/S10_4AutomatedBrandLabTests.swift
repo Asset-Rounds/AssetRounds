@@ -3308,7 +3308,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"let reportsScreen = element("s4.4.reports.screen", in: app)"#,
         ] {
             XCTAssertEqual(
-                uiSource.components(
+                reportsIndexSource.components(
                     separatedBy: removedReportsIndexDiagnosticForm
                 ).count - 1,
                 0,
@@ -9569,10 +9569,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_461)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_858)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "3CA42F8D3D5A4231652F7031E1A9334779B9E2FF48D3DE87FB7CD323A5670E35"
+            "BDBFCDA883037F22686C8D473364DD53F9197520171C1241E75D35A71476C516"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
@@ -20866,7 +20866,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from:
                 "    @MainActor\n" +
                     "    private func diagnoseSegment3AXTextSettingsHubNativeContrast(",
-            before: "\n\n    private func publicAuditSignatureObject("
+            before:
+                "\n\n    @MainActor\n" +
+                    "    private func diagnoseSegment3AXTextSignSelectionNativeContrast("
         )
         XCTAssertEqual(settingsHubDiagnosticSource.utf8.count, 11_968)
         XCTAssertEqual(
