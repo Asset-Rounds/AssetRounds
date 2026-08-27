@@ -20748,10 +20748,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n    @MainActor\n" +
                     "    private func diagnoseSegment2AXTextRecheckOutcomeDifferentIssueInterval("
         )
-        XCTAssertEqual(alternativeRecheckSource.utf8.count, 9_272)
+        XCTAssertEqual(alternativeRecheckSource.utf8.count, 17_197)
         XCTAssertEqual(
             Data(alternativeRecheckSource.utf8).sha256,
-            "5295F944FC65C83F4D23156710693B36A9E9C245C729A60273902DD7507C1D7B"
+            "84ACF5222FD660C12B836F1E04B61A3E177AB4B5D2F917B3D831126E50A72DC0"
         )
         for exact in [
             "emitsEvidence: Bool = true",
@@ -20765,9 +20765,76 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "viewReportValues.count == 0",
             "return true",
             "return false",
+            "let acceptsAXTextLowerSelectionComposition: () -> Bool = {",
+            #"self.automationShard?.shardID == "s10.4.current.ax-text""#,
+            "self.automationSegment == .segment2",
+            "self.automationSegment.replayCount == 22",
+            "self.automationSegment.ownedStartOrdinal == 23",
+            "self.automationSegment.ownedCount == 28",
+            "self.automationSegment.finalOrdinal == 50",
+            "Self.segmentedRouteStateIDs.count == 67",
+            "Set(Self.segmentedRouteStateIDs).count == 67",
+            #"== "state.recheck-outcome.different-issue""#,
+            "self.segmentedRouteStateCursor == 47",
+            "self.migratedStateIDs == expectedMigratedStateIDs",
+            "self.automationAXTreeDigests.keys.sorted()",
+            "self.automationContrastExceptions.keys.sorted()",
+            "!self.automatedSegmentFinished",
+            "resolved.frame.maxY <= navigationBottom",
+            "issueStillVisible.frame.maxY <= navigationBottom",
+            "value.frame.maxY <= navigationBottom",
+            "label.frame.minY >= navigationBottom",
+            "label.frame.maxY <= viewportBottom",
+            "resolved.frame.maxY <= issueStillVisible.frame.minY",
+            "issueStillVisible.frame.maxY <= value.frame.minY",
+            "value.frame.maxY <= label.frame.minY",
+            "allFrameTermsFinite",
+            "app.frame.contains(outcomeScreen.frame)",
+            "if !usesAXTextLowerSelectionComposition {",
+            "XCTAssertTrue(acceptsAXTextLowerSelectionComposition())",
             "try diagnoseSegment2AXTextRecheckOutcomeDifferentIssueInterval(",
         ] {
             XCTAssertTrue(alternativeRecheckSource.contains(exact), exact)
+        }
+        XCTAssertEqual(
+            alternativeRecheckSource.components(
+                separatedBy: "acceptsAXTextLowerSelectionComposition"
+            ).count - 1,
+            3
+        )
+        XCTAssertEqual(
+            alternativeRecheckSource.components(
+                separatedBy: "usesAXTextLowerSelectionComposition"
+            ).count - 1,
+            3
+        )
+        let lowerSelectionCompositionSource = try boundedSource(
+            alternativeRecheckSource,
+            from:
+                "                let acceptsAXTextLowerSelectionComposition: " +
+                    "() -> Bool = {",
+            before:
+                "                let usesAXTextLowerSelectionComposition ="
+        )
+        XCTAssertEqual(lowerSelectionCompositionSource.utf8.count, 5_848)
+        XCTAssertEqual(
+            Data(lowerSelectionCompositionSource.utf8).sha256,
+            "4579C45ED293EA18AB890A420B250A7F978FCA28687BBBF33459CC4E4801E515"
+        )
+        for prohibitedLowerSelectionToken in [
+            "performAccessibilityAudit", "ContrastAuditExceptionSignature(",
+            "captureBaseline(", "attachCandidate(", "S10_MIGRATION_STATE",
+            "S10_4_AX_STATE", "S10_4_CONTRAST", "S10_4_CANDIDATE",
+            "migratedStateIDs.append", "segmentedRouteStateCursor +=",
+            ".tap()", "press(", "swipeUp", "swipeDown", "sleep(",
+            "waitForExistence(",
+        ] {
+            XCTAssertFalse(
+                lowerSelectionCompositionSource.contains(
+                    prohibitedLowerSelectionToken
+                ),
+                prohibitedLowerSelectionToken
+            )
         }
         XCTAssertEqual(
             alternativeRecheckSource.components(
