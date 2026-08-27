@@ -54,9 +54,11 @@ struct SignPack: Codable, Equatable, Sendable {
 }
 
 extension SignPack {
+    static let illuminatedSignPackageID = "field.evidence.illuminated_sign.v1"
+
     static let illuminatedSignV1 = SignPack(
         schemaVersion: 1,
-        packID: "field.evidence.illuminated_sign.v1",
+        packID: illuminatedSignPackageID,
         contentVersion: 1,
         nouns: Nouns(
             asset: DisplayNoun(singular: "sign", plural: "signs"),

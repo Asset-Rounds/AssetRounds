@@ -1,0 +1,402 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "acceptanceOrReleaseClaimed": false,
+  "adoptionEnabled": false,
+  "artifactCount": 23,
+  "artifactDigest": "ee4b039a82dd7220cca97aff4ddb2bdfcd9bff03938902f54817f2b99a4a1d95",
+  "artifactSetDigest": "11f5c4bde4a37490f0b82d7e7d3063e2fbe0ad97658d1f8b26ba6482478775ab",
+  "artifacts": [
+    {
+      "bytes": 5225,
+      "path": "FieldEvidenceApp/Domain/Packs/SignPack.swift",
+      "sha256": "49b7525d60fb46ebf46f74f382be6e2214058b1ab28c113357ec0dace6a11373"
+    },
+    {
+      "bytes": 7827,
+      "path": "FieldEvidenceApp/Domain/Packs/SignPackLoader.swift",
+      "sha256": "0d017c2ded9b7b9160318ac0892d01958cd40578f2ccdecaea535e9c667e5f44"
+    },
+    {
+      "bytes": 3300,
+      "path": "FieldEvidenceApp/Resources/Packs/IlluminatedSignPack.json",
+      "sha256": "16eb7ba240668775fdeab66c93f1149e5ba205969e2e736c2f27c4d0f7e39e5f"
+    },
+    {
+      "bytes": 22790,
+      "path": "FieldEvidenceApp/Domain/Packs/InspectionPackageContractsV2.swift",
+      "sha256": "80f042ff71d3a229af654bfeaeef5489cf69760e7afa756d53471f628f0126d3"
+    },
+    {
+      "bytes": 6053,
+      "path": "FieldEvidenceApp/Domain/Packs/InspectionPackageRegistryV2.swift",
+      "sha256": "96759096ce42cf9a42142e5beebaf9587aff3ae0d49fddc14e479eb8e6c6aaa8"
+    },
+    {
+      "bytes": 1650,
+      "path": "FieldEvidenceApp/Infrastructure/Packs/BundledInspectionPackageRegistryV2.swift",
+      "sha256": "92b23fab32c148d06d56d3168ce691665f00e864b25cb9a12ca852b9b509ad4a"
+    },
+    {
+      "bytes": 6995,
+      "path": "FieldEvidenceApp/Infrastructure/Packs/ShippingIlluminatedSignAdapterV1.swift",
+      "sha256": "4a6e35e70736f0bb6f7db9d71fcd40bb6250cd99252340eafc3a4fc354aecb19"
+    },
+    {
+      "bytes": 18208,
+      "path": "FieldEvidenceAppTests/V9_11PackRegistryTests.swift",
+      "sha256": "5e2ed5b7c10f16a919039e29d7f53ee608e719532323828d1b7473e1dcdc64da"
+    },
+    {
+      "bytes": 2086,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Packs/V21P03C01AlternatePackV1.json",
+      "sha256": "4ed3b2cc72778cdd0564cc260d115068db4b207c21d670eb40017a460191cad4"
+    },
+    {
+      "bytes": 39885,
+      "path": "Scripts/v23/p03_c01_contracts.py",
+      "sha256": "b2e46557b14f9cda33441fbb7447d1cf770f5f29f5688efbf02363656f429126"
+    },
+    {
+      "bytes": 1660,
+      "path": "Scripts/v23/generate_p03_c01_contracts.py",
+      "sha256": "315fca97330bc0bf75a3d0a58812dd173e0072264ca32e4a1a17e7ae8e01705e"
+    },
+    {
+      "bytes": 27571,
+      "path": "Scripts/v23/verify_p03_c01_contracts.py",
+      "sha256": "f8a15c80681e082de0fa458af7073ea1c4608e09916ca1d170f43fc090c0eba9"
+    },
+    {
+      "bytes": 40879,
+      "path": "Scripts/v23/package-registry.schema.json",
+      "sha256": "f01b7ee44cb2676c317bb5b25547bd8f6828f735127be0a61630055cb3c718e7"
+    },
+    {
+      "bytes": 40480,
+      "path": "Scripts/v23/package-capability.schema.json",
+      "sha256": "541a1d449b4dbb0c5d080bcb709bfcc0733f616a1b944299b66f4d1ae4ad662a"
+    },
+    {
+      "bytes": 37619,
+      "path": "Scripts/v23/package-guidance.schema.json",
+      "sha256": "abe257a0072e938a6ec83728760b2095bbc0477e0c4a038c50904d2972463214"
+    },
+    {
+      "bytes": 37929,
+      "path": "Scripts/v23/package-compatibility.schema.json",
+      "sha256": "239f874269bee47d2c487df123c27ef838f1200ca5466afc3de3cf849a95aa76"
+    },
+    {
+      "bytes": 37021,
+      "path": "Scripts/v23/shipping-sign-adapter.schema.json",
+      "sha256": "cb03f49d35dec1e16f67b77f0a1cbbb298211d2430b662ec52ebbf937cba093c"
+    },
+    {
+      "bytes": 42835,
+      "path": "Scripts/v23/package-registry-evidence-receipt.schema.json",
+      "sha256": "98a07eef6b609fe3b1810038b532c9ee1d5b56d2624e0f67bd0845e7d5485f71"
+    },
+    {
+      "bytes": 14380,
+      "path": "docs/design/v23/tooling/V23P03C01PackageRegistryContractV2.json",
+      "sha256": "a058c16063486a27abc946f126af75be19eccbbfe40d104c607aad07a9fade9e"
+    },
+    {
+      "bytes": 13914,
+      "path": "docs/design/v23/tooling/V23P03C01CapabilityGuidanceContractV1.json",
+      "sha256": "ec69306a193f4ceb63ecda55f0268d6c84471f225a99c7eb16418c16f368f523"
+    },
+    {
+      "bytes": 13423,
+      "path": "docs/design/v23/tooling/V23P03C01PackageCompatibilityContractV1.json",
+      "sha256": "65dbdfac39b3886d498ea3e9e74360bbb213b2f03df7174af2942d07a7f534b9"
+    },
+    {
+      "bytes": 13205,
+      "path": "docs/design/v23/tooling/V23P03C01ShippingSignAdapterContractV1.json",
+      "sha256": "dbec1c0e4bcb02580737c6b4d321c9e87a30a6b1ab6d7f0553787227f694f08e"
+    },
+    {
+      "bytes": 15275,
+      "path": "docs/design/v23/tooling/V23P03C01PackageRegistryEvidenceReceiptV1.json",
+      "sha256": "1488a0d3b5e288680c00bc4faf918da3c1d38a319ad02ed13bba9301ae409cf6"
+    }
+  ],
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "05d5bac1918bdb3b48d173a9d6e574c35411829b",
+    "appBaseTree": "a03292d69db1ee420f4cfe7fd4154b141ff35986",
+    "attemptID": 1,
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P03-C01",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "ef2dadc0ee20fd773c39f1589d951f1c042c3509e0a674c28bcf0ab6ae910243",
+    "coordinationAuthorityHead": "040dfd4a5da8d97d3c32bd70cd650d048d5a7730",
+    "coordinationAuthorityTree": "6342fce34624dff2dfd0b4aca96878d6f27ac504",
+    "coordinationCASSequence": 134,
+    "coordinationLedgerDigest": "dc945f72e400706d7debfbb6d6912d9e732add838cedda35e0c4399fc67f456d",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P03-C01-G01",
+      "V23-P03-C01-A01",
+      "V23-P03-C01-H01",
+      "V23-P03-C01-I01",
+      "V23-P03-C01-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P02-C09"
+    ],
+    "dossierDigest": "4a6b946aa6bd6afdaab69fe4900e6283063bfb1ef8ee000923b30d96f50d79e2",
+    "dossierLength": 7075,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "3d86b4dcb59f6547a9a80ce6dff79b4c351a23a178f0a33614415fbe1ef3dee7",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "04eca5f8e695c815d008f1f9163d06af41b4afff0473e90709f5ec7a9db91aa0",
+    "inheritedV21BlockLength": 7084,
+    "invalidationConsumers": [
+      "V23-P03-C02",
+      "V23-P04-C27:STATE_INVENTORY",
+      "V23-P04-C29:EXACT_CANDIDATE",
+      "V23-P05-C01:RELEASE_SELECTOR"
+    ],
+    "lineage": "REFINED_WITHOUT_LOSS",
+    "lineageSource": "V21-P03-C01",
+    "pathFenceDigest": "c9ce98f31882295a3625773820c878d414945b8088c5cc3fe69b40c355ed0357",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "dfbe448a81c15d933055d5f640c82e13ea993ccc670669e70f247d875e6726b9",
+    "registerOrdinal": 32,
+    "registerRowDigest": "daf6b02630cb67cbeff9c84d57d064d62bf1ce81a2c4a4c558c5af9e83bbc81a",
+    "registerRowLength": 271,
+    "registerSectionDigest": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "registerSectionLength": 44217,
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Closed package registry, declared capabilities/guidance, and shipping-sign adapter"
+  },
+  "backupBehaviorDelta": true,
+  "backupRestoreRequired": false,
+  "brandSurfaceDelta": false,
+  "cardID": "V23-P03-C01",
+  "deleteBehaviorDelta": true,
+  "deleteEraseRequired": false,
+  "downgradeDisposition": "DORMANT_REVERT_ALLOWED",
+  "evidenceIDs": [
+    "V23-P03-C01-G01",
+    "V23-P03-C01-A01",
+    "V23-P03-C01-H01",
+    "V23-P03-C01-I01",
+    "V23-P03-C01-R01"
+  ],
+  "existingPaths": [
+    "FieldEvidenceApp/Domain/Packs/SignPack.swift",
+    "FieldEvidenceApp/Domain/Packs/SignPackLoader.swift",
+    "FieldEvidenceApp/Resources/Packs/IlluminatedSignPack.json"
+  ],
+  "exportBehaviorDelta": true,
+  "exportReportRequired": false,
+  "fenceProof": {
+    "activeS10Overlap": false,
+    "activeS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "allowedDeletePaths": [],
+    "allowedPathCount": 24,
+    "allowedRenamePaths": [],
+    "authorizedPriorFenceOverlapCount": 0,
+    "baseHead": "05d5bac1918bdb3b48d173a9d6e574c35411829b",
+    "baseTree": "a03292d69db1ee420f4cfe7fd4154b141ff35986",
+    "existingPathCount": 3,
+    "newPathCount": 21,
+    "pathFenceDigest": "c9ce98f31882295a3625773820c878d414945b8088c5cc3fe69b40c355ed0357",
+    "priorFenceOverlapCount": 0,
+    "unauthorizedPriorFenceOverlapCount": 0
+  },
+  "generatedPaths": [
+    "Scripts/v23/package-registry.schema.json",
+    "Scripts/v23/package-capability.schema.json",
+    "Scripts/v23/package-guidance.schema.json",
+    "Scripts/v23/package-compatibility.schema.json",
+    "Scripts/v23/shipping-sign-adapter.schema.json",
+    "Scripts/v23/package-registry-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P03C01PackageRegistryContractV2.json",
+    "docs/design/v23/tooling/V23P03C01CapabilityGuidanceContractV1.json",
+    "docs/design/v23/tooling/V23P03C01PackageCompatibilityContractV1.json",
+    "docs/design/v23/tooling/V23P03C01ShippingSignAdapterContractV1.json",
+    "docs/design/v23/tooling/V23P03C01PackageRegistryEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C01-tooling-manifest.json"
+  ],
+  "generator": {
+    "seed": 230301,
+    "version": "p03-c01-contracts-v1"
+  },
+  "hostedDispatchEnabled": false,
+  "hostedDispatchRan": false,
+  "migrationBehaviorDelta": true,
+  "migrationRequired": false,
+  "nativeCompileRan": false,
+  "nativeOrHostedEvidenceClaimed": false,
+  "newPaths": [
+    "FieldEvidenceApp/Domain/Packs/InspectionPackageContractsV2.swift",
+    "FieldEvidenceApp/Domain/Packs/InspectionPackageRegistryV2.swift",
+    "FieldEvidenceApp/Infrastructure/Packs/BundledInspectionPackageRegistryV2.swift",
+    "FieldEvidenceApp/Infrastructure/Packs/ShippingIlluminatedSignAdapterV1.swift",
+    "FieldEvidenceAppTests/V9_11PackRegistryTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Packs/V21P03C01AlternatePackV1.json",
+    "Scripts/v23/p03_c01_contracts.py",
+    "Scripts/v23/generate_p03_c01_contracts.py",
+    "Scripts/v23/verify_p03_c01_contracts.py",
+    "Scripts/v23/package-registry.schema.json",
+    "Scripts/v23/package-capability.schema.json",
+    "Scripts/v23/package-guidance.schema.json",
+    "Scripts/v23/package-compatibility.schema.json",
+    "Scripts/v23/shipping-sign-adapter.schema.json",
+    "Scripts/v23/package-registry-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P03C01PackageRegistryContractV2.json",
+    "docs/design/v23/tooling/V23P03C01CapabilityGuidanceContractV1.json",
+    "docs/design/v23/tooling/V23P03C01PackageCompatibilityContractV1.json",
+    "docs/design/v23/tooling/V23P03C01ShippingSignAdapterContractV1.json",
+    "docs/design/v23/tooling/V23P03C01PackageRegistryEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C01-tooling-manifest.json"
+  ],
+  "noNetwork": true,
+  "noNewSwiftDataV6Entity": true,
+  "noRuntimeDownloads": true,
+  "packageRegistry": {
+    "advisoryGuidance": [
+      {
+        "guidanceID": "evidence.required_views",
+        "kind": "EVIDENCE",
+        "localizationKey": "package.illuminated_sign.guidance.required_views"
+      },
+      {
+        "guidanceID": "limitation.visible_conditions_only",
+        "kind": "LIMITATION",
+        "localizationKey": "package.illuminated_sign.guidance.visible_conditions_only"
+      },
+      {
+        "guidanceID": "safety.authorized_position",
+        "kind": "SAFETY",
+        "localizationKey": "package.illuminated_sign.guidance.authorized_position"
+      }
+    ],
+    "capabilities": [
+      "COULD_NOT_VERIFY",
+      "PHOTO_CAPTURE",
+      "PHOTO_IMPORT",
+      "RECHECK",
+      "VISIBLE_ISSUE_CLASSIFICATION",
+      "WORK_EVIDENCE"
+    ],
+    "contentVersion": 1,
+    "inspectionPackageSchemaVersion": 2,
+    "maximumPackageCount": 32,
+    "maximumRegistryVersion": 2,
+    "minimumRegistryVersion": 2,
+    "orderedPackageIDs": [
+      "field.evidence.illuminated_sign.v1"
+    ],
+    "packageID": "field.evidence.illuminated_sign.v1",
+    "permissions": [
+      "CAMERA",
+      "PHOTO_LIBRARY_SELECTION"
+    ],
+    "registryName": "PACKAGE_REGISTRY_V2",
+    "registryVersion": 2,
+    "resourceSchema": 1,
+    "sourceCanonicalSHA256": "1ff58a1bc562aa3dc49316b9724f43531d5d69e3b71f23678a5b7ab2fb2e7fab",
+    "sourceResourcePath": "FieldEvidenceApp/Resources/Packs/IlluminatedSignPack.json",
+    "sourceResourceSHA256": "16eb7ba240668775fdeab66c93f1149e5ba205969e2e736c2f27c4d0f7e39e5f",
+    "sourceSchemaVersion": 1
+  },
+  "pathFence": [
+    "FieldEvidenceApp/Domain/Packs/SignPack.swift",
+    "FieldEvidenceApp/Domain/Packs/SignPackLoader.swift",
+    "FieldEvidenceApp/Resources/Packs/IlluminatedSignPack.json",
+    "FieldEvidenceApp/Domain/Packs/InspectionPackageContractsV2.swift",
+    "FieldEvidenceApp/Domain/Packs/InspectionPackageRegistryV2.swift",
+    "FieldEvidenceApp/Infrastructure/Packs/BundledInspectionPackageRegistryV2.swift",
+    "FieldEvidenceApp/Infrastructure/Packs/ShippingIlluminatedSignAdapterV1.swift",
+    "FieldEvidenceAppTests/V9_11PackRegistryTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Packs/V21P03C01AlternatePackV1.json",
+    "Scripts/v23/p03_c01_contracts.py",
+    "Scripts/v23/generate_p03_c01_contracts.py",
+    "Scripts/v23/verify_p03_c01_contracts.py",
+    "Scripts/v23/package-registry.schema.json",
+    "Scripts/v23/package-capability.schema.json",
+    "Scripts/v23/package-guidance.schema.json",
+    "Scripts/v23/package-compatibility.schema.json",
+    "Scripts/v23/shipping-sign-adapter.schema.json",
+    "Scripts/v23/package-registry-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P03C01PackageRegistryContractV2.json",
+    "docs/design/v23/tooling/V23P03C01CapabilityGuidanceContractV1.json",
+    "docs/design/v23/tooling/V23P03C01PackageCompatibilityContractV1.json",
+    "docs/design/v23/tooling/V23P03C01ShippingSignAdapterContractV1.json",
+    "docs/design/v23/tooling/V23P03C01PackageRegistryEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C01-tooling-manifest.json"
+  ],
+  "pathFenceCount": 24,
+  "pendingArtifactCount": 0,
+  "pendingFencePaths": [],
+  "persistentChangeMode": "DECLARATION_ONLY",
+  "persistentContractSchema": "PACKAGE_REGISTRY_V2",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "privacyAllowlistOnly": true,
+  "provisional": true,
+  "provisionalKernelOnly": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "restoreBehaviorDelta": true,
+  "schema": "V23-P03-C01-tooling-manifest",
+  "schemaBehaviorDelta": true,
+  "schemaVersion": 1,
+  "shippingBoundaryAdoption": "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION",
+  "sourcePathCount": 9,
+  "sourcePaths": [
+    "FieldEvidenceApp/Domain/Packs/SignPack.swift",
+    "FieldEvidenceApp/Domain/Packs/SignPackLoader.swift",
+    "FieldEvidenceApp/Resources/Packs/IlluminatedSignPack.json",
+    "FieldEvidenceApp/Domain/Packs/InspectionPackageContractsV2.swift",
+    "FieldEvidenceApp/Domain/Packs/InspectionPackageRegistryV2.swift",
+    "FieldEvidenceApp/Infrastructure/Packs/BundledInspectionPackageRegistryV2.swift",
+    "FieldEvidenceApp/Infrastructure/Packs/ShippingIlluminatedSignAdapterV1.swift",
+    "FieldEvidenceAppTests/V9_11PackRegistryTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Packs/V21P03C01AlternatePackV1.json"
+  ],
+  "testMethods": [
+    "testV9_11G01ShippingAdapterPreservesIlluminatedSignV1Parity",
+    "testV9_11A01DuplicateUnknownAndIncompatiblePackagesFailClosed",
+    "testV9_11H01ProductionRegistryAndKernelRemainClosed",
+    "testV9_11I01InterruptedRegistryPublicationExposesNoPartialAcceptance",
+    "testV9_11R01DormantRecoveryReturnsSameValidatedShippingPackage"
+  ],
+  "toolingPathCount": 15,
+  "toolingPaths": [
+    "Scripts/v23/p03_c01_contracts.py",
+    "Scripts/v23/generate_p03_c01_contracts.py",
+    "Scripts/v23/verify_p03_c01_contracts.py",
+    "Scripts/v23/package-registry.schema.json",
+    "Scripts/v23/package-capability.schema.json",
+    "Scripts/v23/package-guidance.schema.json",
+    "Scripts/v23/package-compatibility.schema.json",
+    "Scripts/v23/shipping-sign-adapter.schema.json",
+    "Scripts/v23/package-registry-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P03C01PackageRegistryContractV2.json",
+    "docs/design/v23/tooling/V23P03C01CapabilityGuidanceContractV1.json",
+    "docs/design/v23/tooling/V23P03C01PackageCompatibilityContractV1.json",
+    "docs/design/v23/tooling/V23P03C01ShippingSignAdapterContractV1.json",
+    "docs/design/v23/tooling/V23P03C01PackageRegistryEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C01-tooling-manifest.json"
+  ],
+  "uiSurfaceDelta": false
+}

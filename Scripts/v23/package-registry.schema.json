@@ -1,0 +1,1573 @@
+{
+  "$id": "https://assetrounds.invalid/v23/V23P03C01PackageRegistryContractV2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "acceptanceOrReleaseClaimed": {
+      "const": false
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateAcceptanceMemberships": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "AutonomousRequiredAcceptedSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "appBaseHead": {
+          "const": "05d5bac1918bdb3b48d173a9d6e574c35411829b"
+        },
+        "appBaseTree": {
+          "const": "a03292d69db1ee420f4cfe7fd4154b141ff35986"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P03-C01"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "coordinationAuthorityHead": {
+          "const": "040dfd4a5da8d97d3c32bd70cd650d048d5a7730"
+        },
+        "coordinationAuthorityTree": {
+          "const": "6342fce34624dff2dfd0b4aca96878d6f27ac504"
+        },
+        "coordinationCASSequence": {
+          "const": 134
+        },
+        "coordinationLedgerDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "dependencyDispositionDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P03-C01-G01"
+            },
+            {
+              "const": "V23-P03-C01-A01"
+            },
+            {
+              "const": "V23-P03-C01-H01"
+            },
+            {
+              "const": "V23-P03-C01-I01"
+            },
+            {
+              "const": "V23-P03-C01-R01"
+            }
+          ],
+          "type": "array"
+        },
+        "directGraphDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C09"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "dossierLength": {
+          "const": 7075
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "foundationRegisterDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "frozenS10ReservationDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "hydrationProjectionDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "impactManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "inheritedV21BlockDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "inheritedV21BlockLength": {
+          "const": 7084
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "const": "V23-P03-C02"
+            },
+            {
+              "const": "V23-P04-C27:STATE_INVENTORY"
+            },
+            {
+              "const": "V23-P04-C29:EXACT_CANDIDATE"
+            },
+            {
+              "const": "V23-P05-C01:RELEASE_SELECTOR"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "REFINED_WITHOUT_LOSS"
+        },
+        "lineageSource": {
+          "const": "V21-P03-C01"
+        },
+        "pathFenceDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registerOrdinal": {
+          "const": 32
+        },
+        "registerRowDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registerRowLength": {
+          "const": 271
+        },
+        "registerSectionDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registerSectionLength": {
+          "const": 44217
+        },
+        "relationManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "selectorManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "title": {
+          "const": "Closed package registry, declared capabilities/guidance, and shipping-sign adapter"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "lineageSource",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationAuthorityHead",
+        "coordinationAuthorityTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "hydrationProjectionDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "registerSectionDigest",
+        "registerSectionLength",
+        "registerRowDigest",
+        "registerRowLength",
+        "dossierDigest",
+        "dossierLength",
+        "inheritedV21BlockDigest",
+        "inheritedV21BlockLength",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "aggregateAcceptanceMemberships",
+        "conformanceSubjects",
+        "deterministicEvidenceIDs"
+      ],
+      "type": "object"
+    },
+    "backupBehaviorDelta": {
+      "const": true
+    },
+    "backupRestoreRequired": {
+      "const": false
+    },
+    "brandSurfaceDelta": {
+      "const": false
+    },
+    "cardID": {
+      "const": "V23-P03-C01"
+    },
+    "coding": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalCodec": {
+          "const": "InspectionPackageCanonicalCodecV2"
+        },
+        "canonicalEqualityRequired": {
+          "const": true
+        },
+        "contentVersionExact": {
+          "const": 1
+        },
+        "duplicateKeyDisposition": {
+          "const": "FAIL_CLOSED"
+        },
+        "exactCodingKeys": {
+          "const": true
+        },
+        "maximumCanonicalBytes": {
+          "const": 1048576
+        },
+        "nonCanonicalDataDisposition": {
+          "const": "FAIL_CLOSED"
+        },
+        "sortedKeys": {
+          "const": true
+        },
+        "strictDecodable": {
+          "const": true
+        },
+        "unknownKeyDisposition": {
+          "const": "FAIL_CLOSED"
+        },
+        "withoutEscapingSlashes": {
+          "const": true
+        }
+      },
+      "required": [
+        "strictDecodable",
+        "exactCodingKeys",
+        "unknownKeyDisposition",
+        "duplicateKeyDisposition",
+        "nonCanonicalDataDisposition",
+        "canonicalCodec",
+        "canonicalEqualityRequired",
+        "sortedKeys",
+        "withoutEscapingSlashes",
+        "maximumCanonicalBytes",
+        "contentVersionExact"
+      ],
+      "type": "object"
+    },
+    "deleteBehaviorDelta": {
+      "const": true
+    },
+    "deleteEraseRequired": {
+      "const": false
+    },
+    "downgradeDisposition": {
+      "const": "DORMANT_REVERT_ALLOWED"
+    },
+    "evidenceIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "V23-P03-C01-G01"
+        },
+        {
+          "const": "V23-P03-C01-A01"
+        },
+        {
+          "const": "V23-P03-C01-H01"
+        },
+        {
+          "const": "V23-P03-C01-I01"
+        },
+        {
+          "const": "V23-P03-C01-R01"
+        }
+      ],
+      "type": "array"
+    },
+    "exportBehaviorDelta": {
+      "const": true
+    },
+    "exportReportRequired": {
+      "const": false
+    },
+    "hostedDispatchEnabled": {
+      "const": false
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "kernelBoundary": {
+      "additionalProperties": false,
+      "properties": {
+        "adapterOnlyShippingResolution": {
+          "const": true
+        },
+        "signFeatureTypeImported": {
+          "const": false
+        },
+        "signUITypeImported": {
+          "const": false
+        }
+      },
+      "required": [
+        "signUITypeImported",
+        "signFeatureTypeImported",
+        "adapterOnlyShippingResolution"
+      ],
+      "type": "object"
+    },
+    "migrationBehaviorDelta": {
+      "const": true
+    },
+    "migrationRequired": {
+      "const": false
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "nativeOrHostedEvidenceClaimed": {
+      "const": false
+    },
+    "noNewSwiftDataV6Entity": {
+      "const": true
+    },
+    "package": {
+      "additionalProperties": false,
+      "properties": {
+        "advisoryGuidance": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "guidanceID": {
+                  "const": "evidence.required_views"
+                },
+                "kind": {
+                  "const": "EVIDENCE"
+                },
+                "localizationKey": {
+                  "const": "package.illuminated_sign.guidance.required_views"
+                }
+              },
+              "required": [
+                "guidanceID",
+                "kind",
+                "localizationKey"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "guidanceID": {
+                  "const": "limitation.visible_conditions_only"
+                },
+                "kind": {
+                  "const": "LIMITATION"
+                },
+                "localizationKey": {
+                  "const": "package.illuminated_sign.guidance.visible_conditions_only"
+                }
+              },
+              "required": [
+                "guidanceID",
+                "kind",
+                "localizationKey"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "guidanceID": {
+                  "const": "safety.authorized_position"
+                },
+                "kind": {
+                  "const": "SAFETY"
+                },
+                "localizationKey": {
+                  "const": "package.illuminated_sign.guidance.authorized_position"
+                }
+              },
+              "required": [
+                "guidanceID",
+                "kind",
+                "localizationKey"
+              ],
+              "type": "object"
+            }
+          ],
+          "type": "array"
+        },
+        "capabilities": {
+          "items": false,
+          "maxItems": 6,
+          "minItems": 6,
+          "prefixItems": [
+            {
+              "const": "COULD_NOT_VERIFY"
+            },
+            {
+              "const": "PHOTO_CAPTURE"
+            },
+            {
+              "const": "PHOTO_IMPORT"
+            },
+            {
+              "const": "RECHECK"
+            },
+            {
+              "const": "VISIBLE_ISSUE_CLASSIFICATION"
+            },
+            {
+              "const": "WORK_EVIDENCE"
+            }
+          ],
+          "type": "array"
+        },
+        "contentVersion": {
+          "const": 1
+        },
+        "inspectionPackageSchemaVersion": {
+          "const": 2
+        },
+        "maximumPackageCount": {
+          "const": 32
+        },
+        "maximumRegistryVersion": {
+          "const": 2
+        },
+        "minimumRegistryVersion": {
+          "const": 2
+        },
+        "orderedPackageIDs": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "field.evidence.illuminated_sign.v1"
+            }
+          ],
+          "type": "array"
+        },
+        "packageID": {
+          "const": "field.evidence.illuminated_sign.v1"
+        },
+        "permissions": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "CAMERA"
+            },
+            {
+              "const": "PHOTO_LIBRARY_SELECTION"
+            }
+          ],
+          "type": "array"
+        },
+        "registryName": {
+          "const": "PACKAGE_REGISTRY_V2"
+        },
+        "registryVersion": {
+          "const": 2
+        },
+        "resourceSchema": {
+          "const": 1
+        },
+        "sourceCanonicalSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "sourceResourcePath": {
+          "const": "FieldEvidenceApp/Resources/Packs/IlluminatedSignPack.json"
+        },
+        "sourceResourceSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "sourceSchemaVersion": {
+          "const": 1
+        }
+      },
+      "required": [
+        "packageID",
+        "sourceSchemaVersion",
+        "contentVersion",
+        "inspectionPackageSchemaVersion",
+        "minimumRegistryVersion",
+        "maximumRegistryVersion",
+        "capabilities",
+        "permissions",
+        "advisoryGuidance",
+        "sourceResourcePath",
+        "sourceResourceSHA256",
+        "sourceCanonicalSHA256",
+        "resourceSchema",
+        "registryName",
+        "registryVersion",
+        "maximumPackageCount",
+        "orderedPackageIDs"
+      ],
+      "type": "object"
+    },
+    "persistentChangeMode": {
+      "const": "DECLARATION_ONLY"
+    },
+    "persistentContractSchema": {
+      "const": "PACKAGE_REGISTRY_V2"
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "physicalLockedState": {
+      "const": "REQUIRED_PENDING_OWNER"
+    },
+    "provisionalKernelOnly": {
+      "const": true
+    },
+    "publication": {
+      "additionalProperties": false,
+      "properties": {
+        "boundaries": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "BEFORE_VALIDATION"
+            },
+            {
+              "const": "AFTER_VALIDATION_BEFORE_PUBLICATION"
+            },
+            {
+              "const": "AFTER_PUBLICATION_BEFORE_RECEIPT"
+            }
+          ],
+          "type": "array"
+        },
+        "interruptionDisposition": {
+          "const": "ZERO_OR_COMPLETE_VALIDATED_RESULT"
+        },
+        "partialPublicationAllowed": {
+          "const": false
+        },
+        "publisher": {
+          "const": "InspectionPackageRegistryPublisherV2"
+        },
+        "receiptRequired": {
+          "const": true
+        },
+        "retryDisposition": {
+          "const": "DETERMINISTIC_IDEMPOTENT_RECONSTRUCTION"
+        }
+      },
+      "required": [
+        "publisher",
+        "boundaries",
+        "interruptionDisposition",
+        "retryDisposition",
+        "partialPublicationAllowed",
+        "receiptRequired"
+      ],
+      "type": "object"
+    },
+    "registry": {
+      "additionalProperties": false,
+      "properties": {
+        "backupRestoreRequired": {
+          "const": false
+        },
+        "closed": {
+          "const": true
+        },
+        "declarationOnly": {
+          "const": true
+        },
+        "deleteEraseRequired": {
+          "const": false
+        },
+        "deterministicOrdering": {
+          "const": "SORTED_ASCENDING_PACKAGE_ID"
+        },
+        "downgradeDisposition": {
+          "const": "DORMANT_REVERT_ALLOWED"
+        },
+        "duplicateDeclarationDisposition": {
+          "const": "FAIL_CLOSED"
+        },
+        "duplicatePackageIDDisposition": {
+          "const": "FAIL_CLOSED"
+        },
+        "exportReportRequired": {
+          "const": false
+        },
+        "failureKinds": {
+          "items": false,
+          "maxItems": 11,
+          "minItems": 11,
+          "prefixItems": [
+            {
+              "const": "invalidValue"
+            },
+            {
+              "const": "duplicatePackageID"
+            },
+            {
+              "const": "duplicateDeclaration"
+            },
+            {
+              "const": "unknownPackage"
+            },
+            {
+              "const": "incompatiblePackage"
+            },
+            {
+              "const": "undeclaredCapability"
+            },
+            {
+              "const": "undeclaredPermission"
+            },
+            {
+              "const": "undeclaredGuidance"
+            },
+            {
+              "const": "nonCanonicalData"
+            },
+            {
+              "const": "publicationInterrupted"
+            },
+            {
+              "const": "bundledPackageUnavailable"
+            }
+          ],
+          "type": "array"
+        },
+        "incompatiblePackageDisposition": {
+          "const": "FAIL_CLOSED"
+        },
+        "maximumPackageCount": {
+          "const": 32
+        },
+        "migrationRequired": {
+          "const": false
+        },
+        "name": {
+          "const": "PACKAGE_REGISTRY_V2"
+        },
+        "orderedPackageIDs": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "field.evidence.illuminated_sign.v1"
+            }
+          ],
+          "type": "array"
+        },
+        "persistentWriteOccurred": {
+          "const": false
+        },
+        "runtimeDownloadsAllowed": {
+          "const": false
+        },
+        "secondShippingVerticalAllowed": {
+          "const": false
+        },
+        "shippingPackageIDs": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "field.evidence.illuminated_sign.v1"
+            }
+          ],
+          "type": "array"
+        },
+        "source": {
+          "const": "BUNDLED_ONLY"
+        },
+        "undeclaredCapabilityDisposition": {
+          "const": "FAIL_CLOSED"
+        },
+        "undeclaredPermissionDisposition": {
+          "const": "FAIL_CLOSED"
+        },
+        "unknownPackageDisposition": {
+          "const": "FAIL_CLOSED"
+        },
+        "userAuthoredPackagesAllowed": {
+          "const": false
+        },
+        "version": {
+          "const": 2
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "source",
+        "closed",
+        "maximumPackageCount",
+        "shippingPackageIDs",
+        "orderedPackageIDs",
+        "deterministicOrdering",
+        "duplicatePackageIDDisposition",
+        "duplicateDeclarationDisposition",
+        "unknownPackageDisposition",
+        "incompatiblePackageDisposition",
+        "undeclaredCapabilityDisposition",
+        "undeclaredPermissionDisposition",
+        "runtimeDownloadsAllowed",
+        "userAuthoredPackagesAllowed",
+        "secondShippingVerticalAllowed",
+        "persistentWriteOccurred",
+        "declarationOnly",
+        "migrationRequired",
+        "backupRestoreRequired",
+        "deleteEraseRequired",
+        "exportReportRequired",
+        "downgradeDisposition",
+        "failureKinds"
+      ],
+      "type": "object"
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "restoreBehaviorDelta": {
+      "const": true
+    },
+    "schema": {
+      "const": "V23P03C01PackageRegistryContractV2"
+    },
+    "schemaBehaviorDelta": {
+      "const": true
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "shippingBoundaryAdoption": {
+      "const": "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION"
+    },
+    "sourceBindings": {
+      "items": false,
+      "maxItems": 9,
+      "minItems": 9,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 5225
+            },
+            "owner": {
+              "const": "shipping-source"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Packs/SignPack.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "SignPack"
+                },
+                {
+                  "const": "illuminatedSignV1"
+                },
+                {
+                  "const": "illuminatedSignPackageID"
+                }
+              ],
+              "type": "array"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "SignPack"
+                },
+                {
+                  "const": "illuminatedSignV1"
+                },
+                {
+                  "const": "illuminatedSignPackageID"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens",
+            "bytes",
+            "sha256"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 7827
+            },
+            "owner": {
+              "const": "shipping-source-loader"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Packs/SignPackLoader.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "SignPackLoader"
+                },
+                {
+                  "const": "loadBundled"
+                },
+                {
+                  "const": "IlluminatedSignPack"
+                }
+              ],
+              "type": "array"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "SignPackLoader"
+                },
+                {
+                  "const": "loadBundled"
+                },
+                {
+                  "const": "load(data:"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens",
+            "bytes",
+            "sha256"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 3300
+            },
+            "owner": {
+              "const": "shipping-resource"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Resources/Packs/IlluminatedSignPack.json"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "schemaVersion"
+                },
+                {
+                  "const": "packID"
+                },
+                {
+                  "const": "contentVersion"
+                },
+                {
+                  "const": "field.evidence.illuminated_sign.v1"
+                }
+              ],
+              "type": "array"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "schemaVersion"
+                },
+                {
+                  "const": "packID"
+                },
+                {
+                  "const": "contentVersion"
+                },
+                {
+                  "const": "field.evidence.illuminated_sign.v1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens",
+            "bytes",
+            "sha256"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 22790
+            },
+            "owner": {
+              "const": "package-contracts"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Packs/InspectionPackageContractsV2.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 11,
+              "minItems": 11,
+              "prefixItems": [
+                {
+                  "const": "PACKAGE_REGISTRY_V2"
+                },
+                {
+                  "const": "DECLARATION_ONLY"
+                },
+                {
+                  "const": "DORMANT_REVERT_ALLOWED"
+                },
+                {
+                  "const": "canonical"
+                },
+                {
+                  "const": "sortedKeys"
+                },
+                {
+                  "const": "undeclaredGuidance"
+                },
+                {
+                  "const": "requireExactKeys"
+                },
+                {
+                  "const": "CaseIterable"
+                },
+                {
+                  "const": "allCases"
+                },
+                {
+                  "const": "nonCanonicalData"
+                },
+                {
+                  "const": "contentVersion == 1"
+                }
+              ],
+              "type": "array"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 8,
+              "minItems": 8,
+              "prefixItems": [
+                {
+                  "const": "InspectionPackageV2"
+                },
+                {
+                  "const": "InspectionPackageCapabilityV2"
+                },
+                {
+                  "const": "InspectionPackagePermissionV2"
+                },
+                {
+                  "const": "InspectionPackageGuidanceV2"
+                },
+                {
+                  "const": "InspectionPackageCanonicalCodecV2"
+                },
+                {
+                  "const": "InspectionPackageCompatibilityValidatorV2"
+                },
+                {
+                  "const": "InspectionPackageLifecycleV2"
+                },
+                {
+                  "const": "InspectionPackageClosedCodingV2"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens",
+            "bytes",
+            "sha256"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 6053
+            },
+            "owner": {
+              "const": "package-registry"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Packs/InspectionPackageRegistryV2.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 8,
+              "minItems": 8,
+              "prefixItems": [
+                {
+                  "const": "orderedPackageIDs"
+                },
+                {
+                  "const": "publicationReceipt"
+                },
+                {
+                  "const": "beforeValidation"
+                },
+                {
+                  "const": "afterValidationBeforePublication"
+                },
+                {
+                  "const": "afterPublicationBeforeReceipt"
+                },
+                {
+                  "const": "persistentWriteOccurred"
+                },
+                {
+                  "const": "canonicalPackages"
+                },
+                {
+                  "const": "recover"
+                }
+              ],
+              "type": "array"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "InspectionPackageRegistryV2"
+                },
+                {
+                  "const": "InspectionPackageRegistryPublisherV2"
+                },
+                {
+                  "const": "InspectionPackageRegistryPublicationReceiptV2"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens",
+            "bytes",
+            "sha256"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 1650
+            },
+            "owner": {
+              "const": "bundled-registry"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Packs/BundledInspectionPackageRegistryV2.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "runtimeDownloadsAllowed"
+                },
+                {
+                  "const": "InspectionPackageRegistryPublisherV2.publish"
+                },
+                {
+                  "const": "bundledPackageUnavailable"
+                }
+              ],
+              "type": "array"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "BundledInspectionPackageRegistryV2"
+                },
+                {
+                  "const": "BUNDLED_ONLY"
+                },
+                {
+                  "const": "shippingPackageIDs"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens",
+            "bytes",
+            "sha256"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 6995
+            },
+            "owner": {
+              "const": "shipping-adapter"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Packs/ShippingIlluminatedSignAdapterV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 6,
+              "minItems": 6,
+              "prefixItems": [
+                {
+                  "const": "inspectionPackage"
+                },
+                {
+                  "const": "signPack"
+                },
+                {
+                  "const": "parityReceipt"
+                },
+                {
+                  "const": "exactParity"
+                },
+                {
+                  "const": "sourceCanonicalSHA256"
+                },
+                {
+                  "const": "roundTripCanonicalSHA256"
+                }
+              ],
+              "type": "array"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "const": "ShippingIlluminatedSignAdapterV1"
+                },
+                {
+                  "const": "ShippingIlluminatedSignParityReceiptV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens",
+            "bytes",
+            "sha256"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 18208
+            },
+            "owner": {
+              "const": "evidence-tests"
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/V9_11PackRegistryTests.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 7,
+              "minItems": 7,
+              "prefixItems": [
+                {
+                  "const": "XCTestCase"
+                },
+                {
+                  "const": "XCTAssert"
+                },
+                {
+                  "const": "XCTAssertThrowsError"
+                },
+                {
+                  "const": "duplicate"
+                },
+                {
+                  "const": "unknown"
+                },
+                {
+                  "const": "publicationInterrupted"
+                },
+                {
+                  "const": "recover"
+                }
+              ],
+              "type": "array"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 5,
+              "minItems": 5,
+              "prefixItems": [
+                {
+                  "const": "testV9_11G01ShippingAdapterPreservesIlluminatedSignV1Parity"
+                },
+                {
+                  "const": "testV9_11A01DuplicateUnknownAndIncompatiblePackagesFailClosed"
+                },
+                {
+                  "const": "testV9_11H01ProductionRegistryAndKernelRemainClosed"
+                },
+                {
+                  "const": "testV9_11I01InterruptedRegistryPublicationExposesNoPartialAcceptance"
+                },
+                {
+                  "const": "testV9_11R01DormantRecoveryReturnsSameValidatedShippingPackage"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens",
+            "bytes",
+            "sha256"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 2086
+            },
+            "owner": {
+              "const": "alternate-fixture"
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/Fixtures/V21/Packs/V21P03C01AlternatePackV1.json"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "schemaVersion"
+                },
+                {
+                  "const": "packageID"
+                },
+                {
+                  "const": "advisoryGuidance"
+                },
+                {
+                  "const": "presentation"
+                }
+              ],
+              "type": "array"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "schemaVersion"
+                },
+                {
+                  "const": "packageID"
+                },
+                {
+                  "const": "advisoryGuidance"
+                },
+                {
+                  "const": "presentation"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens",
+            "bytes",
+            "sha256"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "testMethods": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "testV9_11G01ShippingAdapterPreservesIlluminatedSignV1Parity"
+        },
+        {
+          "const": "testV9_11A01DuplicateUnknownAndIncompatiblePackagesFailClosed"
+        },
+        {
+          "const": "testV9_11H01ProductionRegistryAndKernelRemainClosed"
+        },
+        {
+          "const": "testV9_11I01InterruptedRegistryPublicationExposesNoPartialAcceptance"
+        },
+        {
+          "const": "testV9_11R01DormantRecoveryReturnsSameValidatedShippingPackage"
+        }
+      ],
+      "type": "array"
+    },
+    "uiSurfaceDelta": {
+      "const": false
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "persistentChangeMode",
+    "persistentContractSchema",
+    "migrationRequired",
+    "backupRestoreRequired",
+    "deleteEraseRequired",
+    "exportReportRequired",
+    "downgradeDisposition",
+    "schemaBehaviorDelta",
+    "migrationBehaviorDelta",
+    "backupBehaviorDelta",
+    "restoreBehaviorDelta",
+    "deleteBehaviorDelta",
+    "exportBehaviorDelta",
+    "evidenceIDs",
+    "provisionalKernelOnly",
+    "shippingBoundaryAdoption",
+    "noNewSwiftDataV6Entity",
+    "phase10PollingDuringParallelExecution",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "hostedDispatchEnabled",
+    "physicalEvidenceComplete",
+    "physicalLockedState",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "nativeOrHostedEvidenceClaimed",
+    "acceptanceOrReleaseClaimed",
+    "uiSurfaceDelta",
+    "brandSurfaceDelta",
+    "requiresAcceptedS10_6Reconciliation",
+    "package",
+    "testMethods",
+    "sourceBindings",
+    "registry",
+    "coding",
+    "publication",
+    "kernelBoundary",
+    "artifactDigest"
+  ],
+  "title": "V23P03C01PackageRegistryContractV2",
+  "type": "object"
+}

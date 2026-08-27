@@ -41,7 +41,9 @@ enum SignPackLoader {
         return .available(decoded)
     }
 
-    private static func valid(_ pack: SignPack) -> Bool {
+    /// Shared with the shipping adapter so V2 publication cannot accept a
+    /// structurally plausible pack that the established V1 loader rejects.
+    static func valid(_ pack: SignPack) -> Bool {
         let purposeKeys = ["wide_context", "close_detail", "work_context"]
         let acknowledgementKeys = ["after_dark", "safe_authorized_position"]
         let issueKeys = [

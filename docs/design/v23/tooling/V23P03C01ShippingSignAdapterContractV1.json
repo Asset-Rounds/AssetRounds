@@ -1,0 +1,368 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "acceptanceOrReleaseClaimed": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "6707e62bb388a08f5e24958ff8a95fa3ffeba063dc93300a76967e1a41a6b33e",
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "05d5bac1918bdb3b48d173a9d6e574c35411829b",
+    "appBaseTree": "a03292d69db1ee420f4cfe7fd4154b141ff35986",
+    "attemptID": 1,
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P03-C01",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "ef2dadc0ee20fd773c39f1589d951f1c042c3509e0a674c28bcf0ab6ae910243",
+    "coordinationAuthorityHead": "040dfd4a5da8d97d3c32bd70cd650d048d5a7730",
+    "coordinationAuthorityTree": "6342fce34624dff2dfd0b4aca96878d6f27ac504",
+    "coordinationCASSequence": 134,
+    "coordinationLedgerDigest": "dc945f72e400706d7debfbb6d6912d9e732add838cedda35e0c4399fc67f456d",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P03-C01-G01",
+      "V23-P03-C01-A01",
+      "V23-P03-C01-H01",
+      "V23-P03-C01-I01",
+      "V23-P03-C01-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P02-C09"
+    ],
+    "dossierDigest": "4a6b946aa6bd6afdaab69fe4900e6283063bfb1ef8ee000923b30d96f50d79e2",
+    "dossierLength": 7075,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "3d86b4dcb59f6547a9a80ce6dff79b4c351a23a178f0a33614415fbe1ef3dee7",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "04eca5f8e695c815d008f1f9163d06af41b4afff0473e90709f5ec7a9db91aa0",
+    "inheritedV21BlockLength": 7084,
+    "invalidationConsumers": [
+      "V23-P03-C02",
+      "V23-P04-C27:STATE_INVENTORY",
+      "V23-P04-C29:EXACT_CANDIDATE",
+      "V23-P05-C01:RELEASE_SELECTOR"
+    ],
+    "lineage": "REFINED_WITHOUT_LOSS",
+    "lineageSource": "V21-P03-C01",
+    "pathFenceDigest": "c9ce98f31882295a3625773820c878d414945b8088c5cc3fe69b40c355ed0357",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "dfbe448a81c15d933055d5f640c82e13ea993ccc670669e70f247d875e6726b9",
+    "registerOrdinal": 32,
+    "registerRowDigest": "daf6b02630cb67cbeff9c84d57d064d62bf1ce81a2c4a4c558c5af9e83bbc81a",
+    "registerRowLength": 271,
+    "registerSectionDigest": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "registerSectionLength": 44217,
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Closed package registry, declared capabilities/guidance, and shipping-sign adapter"
+  },
+  "backupBehaviorDelta": true,
+  "backupRestoreRequired": false,
+  "brandSurfaceDelta": false,
+  "bundleBoundary": {
+    "resourceExtension": "json",
+    "resourceName": "IlluminatedSignPack",
+    "runtimeDownloadsAllowed": false,
+    "source": "BUNDLED_ONLY",
+    "testOnlyAlternateInProduction": false
+  },
+  "cardID": "V23-P03-C01",
+  "deleteBehaviorDelta": true,
+  "deleteEraseRequired": false,
+  "downgradeDisposition": "DORMANT_REVERT_ALLOWED",
+  "evidenceIDs": [
+    "V23-P03-C01-G01",
+    "V23-P03-C01-A01",
+    "V23-P03-C01-H01",
+    "V23-P03-C01-I01",
+    "V23-P03-C01-R01"
+  ],
+  "exportBehaviorDelta": true,
+  "exportReportRequired": false,
+  "hostedDispatchEnabled": false,
+  "hostedDispatchRan": false,
+  "migrationBehaviorDelta": true,
+  "migrationRequired": false,
+  "nativeCompileRan": false,
+  "nativeOrHostedEvidenceClaimed": false,
+  "noNewSwiftDataV6Entity": true,
+  "package": {
+    "advisoryGuidance": [
+      {
+        "guidanceID": "evidence.required_views",
+        "kind": "EVIDENCE",
+        "localizationKey": "package.illuminated_sign.guidance.required_views"
+      },
+      {
+        "guidanceID": "limitation.visible_conditions_only",
+        "kind": "LIMITATION",
+        "localizationKey": "package.illuminated_sign.guidance.visible_conditions_only"
+      },
+      {
+        "guidanceID": "safety.authorized_position",
+        "kind": "SAFETY",
+        "localizationKey": "package.illuminated_sign.guidance.authorized_position"
+      }
+    ],
+    "capabilities": [
+      "COULD_NOT_VERIFY",
+      "PHOTO_CAPTURE",
+      "PHOTO_IMPORT",
+      "RECHECK",
+      "VISIBLE_ISSUE_CLASSIFICATION",
+      "WORK_EVIDENCE"
+    ],
+    "contentVersion": 1,
+    "inspectionPackageSchemaVersion": 2,
+    "maximumPackageCount": 32,
+    "maximumRegistryVersion": 2,
+    "minimumRegistryVersion": 2,
+    "orderedPackageIDs": [
+      "field.evidence.illuminated_sign.v1"
+    ],
+    "packageID": "field.evidence.illuminated_sign.v1",
+    "permissions": [
+      "CAMERA",
+      "PHOTO_LIBRARY_SELECTION"
+    ],
+    "registryName": "PACKAGE_REGISTRY_V2",
+    "registryVersion": 2,
+    "resourceSchema": 1,
+    "sourceCanonicalSHA256": "1ff58a1bc562aa3dc49316b9724f43531d5d69e3b71f23678a5b7ab2fb2e7fab",
+    "sourceResourcePath": "FieldEvidenceApp/Resources/Packs/IlluminatedSignPack.json",
+    "sourceResourceSHA256": "16eb7ba240668775fdeab66c93f1149e5ba205969e2e736c2f27c4d0f7e39e5f",
+    "sourceSchemaVersion": 1
+  },
+  "persistentChangeMode": "DECLARATION_ONLY",
+  "persistentContractSchema": "PACKAGE_REGISTRY_V2",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "provisionalKernelOnly": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "restoreBehaviorDelta": true,
+  "schema": "V23P03C01ShippingSignAdapterContractV1",
+  "schemaBehaviorDelta": true,
+  "schemaVersion": 1,
+  "shippingAdapter": {
+    "adapterOnly": true,
+    "behaviorParityRequired": true,
+    "byteOrderParityRequired": true,
+    "displayParityRequired": true,
+    "exactParityRequired": true,
+    "inspectionPackageSchemaVersion": 2,
+    "packageID": "field.evidence.illuminated_sign.v1",
+    "parityReceiptFields": [
+      "packageID",
+      "sourceSchemaVersion",
+      "sourceContentVersion",
+      "inspectionPackageSchemaVersion",
+      "sourceCanonicalSHA256",
+      "roundTripCanonicalSHA256",
+      "exactParity"
+    ],
+    "parityReceiptType": "ShippingIlluminatedSignParityReceiptV1",
+    "roundTripCanonicalSHA256": "1ff58a1bc562aa3dc49316b9724f43531d5d69e3b71f23678a5b7ab2fb2e7fab",
+    "signUITypeInKernel": false,
+    "sourceCanonicalSHA256": "1ff58a1bc562aa3dc49316b9724f43531d5d69e3b71f23678a5b7ab2fb2e7fab",
+    "sourceContentVersion": 1,
+    "sourceResourcePath": "FieldEvidenceApp/Resources/Packs/IlluminatedSignPack.json",
+    "sourceSchemaVersion": 1,
+    "type": "ShippingIlluminatedSignAdapterV1"
+  },
+  "shippingBoundaryAdoption": "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION",
+  "sourceBindings": [
+    {
+      "bytes": 5225,
+      "owner": "shipping-source",
+      "path": "FieldEvidenceApp/Domain/Packs/SignPack.swift",
+      "requiredTokens": [
+        "SignPack",
+        "illuminatedSignV1",
+        "illuminatedSignPackageID"
+      ],
+      "sha256": "49b7525d60fb46ebf46f74f382be6e2214058b1ab28c113357ec0dace6a11373",
+      "symbols": [
+        "SignPack",
+        "illuminatedSignV1",
+        "illuminatedSignPackageID"
+      ]
+    },
+    {
+      "bytes": 7827,
+      "owner": "shipping-source-loader",
+      "path": "FieldEvidenceApp/Domain/Packs/SignPackLoader.swift",
+      "requiredTokens": [
+        "SignPackLoader",
+        "loadBundled",
+        "IlluminatedSignPack"
+      ],
+      "sha256": "0d017c2ded9b7b9160318ac0892d01958cd40578f2ccdecaea535e9c667e5f44",
+      "symbols": [
+        "SignPackLoader",
+        "loadBundled",
+        "load(data:"
+      ]
+    },
+    {
+      "bytes": 3300,
+      "owner": "shipping-resource",
+      "path": "FieldEvidenceApp/Resources/Packs/IlluminatedSignPack.json",
+      "requiredTokens": [
+        "schemaVersion",
+        "packID",
+        "contentVersion",
+        "field.evidence.illuminated_sign.v1"
+      ],
+      "sha256": "16eb7ba240668775fdeab66c93f1149e5ba205969e2e736c2f27c4d0f7e39e5f",
+      "symbols": [
+        "schemaVersion",
+        "packID",
+        "contentVersion",
+        "field.evidence.illuminated_sign.v1"
+      ]
+    },
+    {
+      "bytes": 22790,
+      "owner": "package-contracts",
+      "path": "FieldEvidenceApp/Domain/Packs/InspectionPackageContractsV2.swift",
+      "requiredTokens": [
+        "PACKAGE_REGISTRY_V2",
+        "DECLARATION_ONLY",
+        "DORMANT_REVERT_ALLOWED",
+        "canonical",
+        "sortedKeys",
+        "undeclaredGuidance",
+        "requireExactKeys",
+        "CaseIterable",
+        "allCases",
+        "nonCanonicalData",
+        "contentVersion == 1"
+      ],
+      "sha256": "80f042ff71d3a229af654bfeaeef5489cf69760e7afa756d53471f628f0126d3",
+      "symbols": [
+        "InspectionPackageV2",
+        "InspectionPackageCapabilityV2",
+        "InspectionPackagePermissionV2",
+        "InspectionPackageGuidanceV2",
+        "InspectionPackageCanonicalCodecV2",
+        "InspectionPackageCompatibilityValidatorV2",
+        "InspectionPackageLifecycleV2",
+        "InspectionPackageClosedCodingV2"
+      ]
+    },
+    {
+      "bytes": 6053,
+      "owner": "package-registry",
+      "path": "FieldEvidenceApp/Domain/Packs/InspectionPackageRegistryV2.swift",
+      "requiredTokens": [
+        "orderedPackageIDs",
+        "publicationReceipt",
+        "beforeValidation",
+        "afterValidationBeforePublication",
+        "afterPublicationBeforeReceipt",
+        "persistentWriteOccurred",
+        "canonicalPackages",
+        "recover"
+      ],
+      "sha256": "96759096ce42cf9a42142e5beebaf9587aff3ae0d49fddc14e479eb8e6c6aaa8",
+      "symbols": [
+        "InspectionPackageRegistryV2",
+        "InspectionPackageRegistryPublisherV2",
+        "InspectionPackageRegistryPublicationReceiptV2"
+      ]
+    },
+    {
+      "bytes": 1650,
+      "owner": "bundled-registry",
+      "path": "FieldEvidenceApp/Infrastructure/Packs/BundledInspectionPackageRegistryV2.swift",
+      "requiredTokens": [
+        "runtimeDownloadsAllowed",
+        "InspectionPackageRegistryPublisherV2.publish",
+        "bundledPackageUnavailable"
+      ],
+      "sha256": "92b23fab32c148d06d56d3168ce691665f00e864b25cb9a12ca852b9b509ad4a",
+      "symbols": [
+        "BundledInspectionPackageRegistryV2",
+        "BUNDLED_ONLY",
+        "shippingPackageIDs"
+      ]
+    },
+    {
+      "bytes": 6995,
+      "owner": "shipping-adapter",
+      "path": "FieldEvidenceApp/Infrastructure/Packs/ShippingIlluminatedSignAdapterV1.swift",
+      "requiredTokens": [
+        "inspectionPackage",
+        "signPack",
+        "parityReceipt",
+        "exactParity",
+        "sourceCanonicalSHA256",
+        "roundTripCanonicalSHA256"
+      ],
+      "sha256": "4a6e35e70736f0bb6f7db9d71fcd40bb6250cd99252340eafc3a4fc354aecb19",
+      "symbols": [
+        "ShippingIlluminatedSignAdapterV1",
+        "ShippingIlluminatedSignParityReceiptV1"
+      ]
+    },
+    {
+      "bytes": 18208,
+      "owner": "evidence-tests",
+      "path": "FieldEvidenceAppTests/V9_11PackRegistryTests.swift",
+      "requiredTokens": [
+        "XCTestCase",
+        "XCTAssert",
+        "XCTAssertThrowsError",
+        "duplicate",
+        "unknown",
+        "publicationInterrupted",
+        "recover"
+      ],
+      "sha256": "5e2ed5b7c10f16a919039e29d7f53ee608e719532323828d1b7473e1dcdc64da",
+      "symbols": [
+        "testV9_11G01ShippingAdapterPreservesIlluminatedSignV1Parity",
+        "testV9_11A01DuplicateUnknownAndIncompatiblePackagesFailClosed",
+        "testV9_11H01ProductionRegistryAndKernelRemainClosed",
+        "testV9_11I01InterruptedRegistryPublicationExposesNoPartialAcceptance",
+        "testV9_11R01DormantRecoveryReturnsSameValidatedShippingPackage"
+      ]
+    },
+    {
+      "bytes": 2086,
+      "owner": "alternate-fixture",
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Packs/V21P03C01AlternatePackV1.json",
+      "requiredTokens": [
+        "schemaVersion",
+        "packageID",
+        "advisoryGuidance",
+        "presentation"
+      ],
+      "sha256": "4ed3b2cc72778cdd0564cc260d115068db4b207c21d670eb40017a460191cad4",
+      "symbols": [
+        "schemaVersion",
+        "packageID",
+        "advisoryGuidance",
+        "presentation"
+      ]
+    }
+  ],
+  "testMethods": [
+    "testV9_11G01ShippingAdapterPreservesIlluminatedSignV1Parity",
+    "testV9_11A01DuplicateUnknownAndIncompatiblePackagesFailClosed",
+    "testV9_11H01ProductionRegistryAndKernelRemainClosed",
+    "testV9_11I01InterruptedRegistryPublicationExposesNoPartialAcceptance",
+    "testV9_11R01DormantRecoveryReturnsSameValidatedShippingPackage"
+  ],
+  "uiSurfaceDelta": false
+}
