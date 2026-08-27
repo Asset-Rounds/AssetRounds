@@ -9976,16 +9976,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         print("S10_MIGRATION_STATE state=\(stateID)")
 
         guard let shard = automationShard else { return }
-        if shard.shardID == "s10.4.current.ax-text",
-           automationSegment == .segment3,
-           stateID == "state.settings.hub" {
-            do {
-                try diagnoseSegment3AXTextSettingsHubNativeContrast(in: app)
-            } catch {
-                XCTFail(String(describing: error), file: file, line: line)
-            }
-            return
-        }
         dismissHostedAppleIntelligenceNotificationIfPresent(
             in: app,
             file: file,

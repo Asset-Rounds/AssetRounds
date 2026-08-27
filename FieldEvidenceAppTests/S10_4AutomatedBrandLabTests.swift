@@ -20921,10 +20921,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 8_821)
+        XCTAssertEqual(captureSource.utf8.count, 8_446)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "5267A6499930E4A3AD2D367EE265F26ADC0A0F114DC546D4E47767B7004C9437"
+            "EB987FE672AE2804733C3E0428CD68E7F072307531C415C550EB90D679919ABC"
         )
         let captureReplayGateSource = try boundedSource(
             captureSource,
@@ -20950,11 +20950,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let normalMarker = try XCTUnwrap(
             captureSource.range(of: "print(\"S10_MIGRATION_STATE state=\\(stateID)\")")
         )
-        let settingsHubDiagnosticCall = try XCTUnwrap(
-            captureSource.range(
-                of: "try diagnoseSegment3AXTextSettingsHubNativeContrast(in: app)"
-            )
-        )
         let normalExceptionLookup = try XCTUnwrap(
             captureSource.range(of: "let eligibleExceptions =")
         )
@@ -20962,8 +20957,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertLessThan(issueResolvedDiagnosticCall.lowerBound, normalAppend.lowerBound)
         XCTAssertLessThan(issueResolvedDiagnosticCall.lowerBound, normalExceptionLookup.lowerBound)
         XCTAssertLessThan(normalAppend.lowerBound, normalMarker.lowerBound)
-        XCTAssertLessThan(normalMarker.lowerBound, settingsHubDiagnosticCall.lowerBound)
-        XCTAssertLessThan(settingsHubDiagnosticCall.lowerBound, normalExceptionLookup.lowerBound)
+        XCTAssertLessThan(normalMarker.lowerBound, normalExceptionLookup.lowerBound)
         XCTAssertTrue(
             captureReplayGateSource.contains(
                 "automationShard?.shardID == \"s10.4.current.ax-text\""
@@ -20979,6 +20973,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(captureSource.contains("printJSONLine(prefix: \"S10_4_AX_STATE\""))
         XCTAssertTrue(captureSource.contains("printJSONLine(prefix: \"S10_4_CONTRAST\""))
         XCTAssertTrue(captureSource.contains("XCUIScreen.main.screenshot().pngRepresentation"))
+        XCTAssertFalse(
+            captureSource.contains(
+                "try diagnoseSegment3AXTextSettingsHubNativeContrast(in: app)"
+            )
+        )
         XCTAssertFalse(captureSource.contains("segmentedRouteStateCursor += 1"))
 
         let preparationPredicateSource = try boundedSource(
