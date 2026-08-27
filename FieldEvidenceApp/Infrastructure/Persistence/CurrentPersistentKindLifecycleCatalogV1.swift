@@ -218,6 +218,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c07 = TemporalOriginV1(card: "V23_P02_C07", ordinal: 27)
         let c08 = TemporalOriginV1(card: "V23_P02_C08", ordinal: 28)
         let c35 = TemporalOriginV1(card: "V23_P03_C35", ordinal: 41)
+        let c42 = TemporalOriginV1(card: "V23_P03_C09", ordinal: 42)
         let groups: [(TemporalOriginV1, [String])] = [
             (c16, [
                 "JOURNAL:CurrentGenerationPointerV2",
@@ -289,6 +290,13 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 "PERSISTENT_MODEL:LocationMigrationReceiptRow",
                 "PERSISTENT_MODEL:LocationNodeRow",
             ]),
+            (c42, [
+                "INDEX:SearchIndexProjectionV1",
+                "OWNED_FILE_CLASS:searchIndex",
+                "PERSISTENT_MODEL:SavedSmartView",
+                "PROJECTION:SavedSmartViewDescriptorV1",
+                "PROJECTION:StoreSemanticEnvelopeV7",
+            ]),
         ]
         return groups.reduce(into: [:]) { result, group in
             for kindID in group.1 {
@@ -301,9 +309,17 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         for registrations: [SyncClassificationRegistrationV1]
     ) throws -> [String: PersistentKindTemporalEvidenceV1] {
         let kindIDs = registrations.map { $0.subject.canonicalKey }.sorted()
-        guard kindIDs.count == 108,
+        let c09KindIDs = Set([
+            "INDEX:SearchIndexProjectionV1",
+            "OWNED_FILE_CLASS:searchIndex",
+            "PERSISTENT_MODEL:SavedSmartView",
+            "PROJECTION:SavedSmartViewDescriptorV1",
+            "PROJECTION:StoreSemanticEnvelopeV7",
+        ])
+        guard kindIDs.count == 113,
               Set(kindIDs).count == kindIDs.count,
-              laterTemporalOrigins.count == 52,
+              laterTemporalOrigins.count == 57,
+              c09KindIDs.isSubset(of: Set(kindIDs)),
               Set(laterTemporalOrigins.keys).isSubset(of: Set(kindIDs)) else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
@@ -312,10 +328,12 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 registration.subject
             ) ? registration.subject.canonicalKey : nil
         })
-        guard durableKindIDs.count == 71 else {
+        guard durableKindIDs.count == 73 else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
-        let universeBytes = try CompatibilityCanonicalV1.encode(kindIDs)
+        let universeBytes = try CompatibilityCanonicalV1.encode(
+            kindIDs.filter { !c09KindIDs.contains($0) }
+        )
         guard CompatibilityCanonicalV1.sha256(universeBytes)
                 == acceptedTemporalUniverseDigest else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage

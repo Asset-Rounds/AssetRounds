@@ -64,6 +64,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case assetPlacementEvent(id: UUID, revision: UInt64, semanticSHA256: String)
     case assetCompositionEdge(id: UUID, revision: UInt64, semanticSHA256: String)
     case assetCompositionEvent(id: UUID, revision: UInt64, semanticSHA256: String)
+    case savedSmartView(id: UUID, revision: UInt64, semanticSHA256: String)
     case workflowRecord(id: UUID, revision: UInt64, semanticSHA256: String)
     case evidenceFile(id: UUID, revision: UInt64, semanticSHA256: String)
     case issue(id: UUID, revision: UInt64, semanticSHA256: String)
@@ -81,6 +82,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .assetPlacementEvent(id, _, _): return try .init(kind: .assetPlacementEvent, id: id)
             case let .assetCompositionEdge(id, _, _): return try .init(kind: .assetCompositionEdge, id: id)
             case let .assetCompositionEvent(id, _, _): return try .init(kind: .assetCompositionEvent, id: id)
+            case let .savedSmartView(id, _, _): return try .init(kind: .savedSmartView, id: id)
             case let .workflowRecord(id, _, _): return try .init(kind: .workflowRecord, id: id)
             case let .evidenceFile(id, _, _): return try .init(kind: .evidenceFile, id: id)
             case let .issue(id, _, _): return try .init(kind: .issue, id: id)
@@ -96,7 +98,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
         switch self {
         case let .site(_, _, value), let .asset(_, _, value), let .locationNode(_, _, value),
              let .assetPlacementEvent(_, _, value), let .assetCompositionEdge(_, _, value),
-             let .assetCompositionEvent(_, _, value), let .workflowRecord(_, _, value),
+             let .assetCompositionEvent(_, _, value), let .savedSmartView(_, _, value),
+             let .workflowRecord(_, _, value),
              let .evidenceFile(_, _, value), let .issue(_, _, value), let .packet(_, _, value),
              let .report(_, _, value), let .deletionLedgerEntry(_, _, value),
              let .tombstone(_, _, value): return value
@@ -108,6 +111,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
         case let .site(_, value, _), let .asset(_, value, _),
              let .locationNode(_, value, _), let .assetPlacementEvent(_, value, _),
              let .assetCompositionEdge(_, value, _), let .assetCompositionEvent(_, value, _),
+             let .savedSmartView(_, value, _),
              let .workflowRecord(_, value, _), let .evidenceFile(_, value, _),
              let .issue(_, value, _), let .packet(_, value, _),
              let .report(_, value, _), let .deletionLedgerEntry(_, value, _),

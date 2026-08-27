@@ -18,6 +18,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         .applyAssetCompositionChange,
     ]
     static let activeSupportedCommandKinds = supportedCommandKinds.union(locationSupportedCommandKinds)
+        .union([.applySavedSmartView])
 
     private let modelContext: ModelContext
 
@@ -85,6 +86,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             return try applyAssetPlacementChange(plan, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath)
         case let .applyAssetCompositionChange(plan):
             return try applyAssetCompositionChange(plan, temporaryRelativePath: temporaryRelativePath)
+        case let .applySavedSmartView(value):
+            return try applySavedSmartView(value, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -166,6 +169,12 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                 exists = values.count == 1
             case .assetCompositionEvent:
                 let values = try modelContext.fetch(FetchDescriptor<AssetCompositionEventRow>(predicate: #Predicate { $0.id == id }))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                exists = values.count == 1
+            case .savedSmartView:
+                let values = try modelContext.fetch(FetchDescriptor<SavedSmartViewRowV1>(
+                    predicate: #Predicate { $0.id == id }
+                ))
                 guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
                 exists = values.count == 1
             case .workflowRecord:
@@ -886,6 +895,66 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                 .init(kind: .assetCompositionEdge, id: event.edge.id),
                 .init(kind: .assetCompositionEvent, id: event.id),
             ],
+            temporaryRelativePath: temporaryRelativePath
+        )
+    }
+
+    private func applySavedSmartView(
+        _ mutation: SavedSmartViewMutationV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        try mutation.validate()
+        let id = mutation.id
+        let stableKey = SavedSmartViewRowV1.key(
+            workspaceID: mutation.workspaceID,
+            stableID: mutation.stableID
+        )
+        let byID = try modelContext.fetch(FetchDescriptor<SavedSmartViewRowV1>(
+            predicate: #Predicate { $0.id == id }
+        ))
+        let byStableKey = try modelContext.fetch(FetchDescriptor<SavedSmartViewRowV1>(
+            predicate: #Predicate { $0.workspaceStableKey == stableKey }
+        ))
+        guard byID.count <= 1, byStableKey.count <= 1,
+              Set((byID + byStableKey).map(\.id)).count <= 1 else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let existing = byID.first ?? byStableKey.first
+        if let existing {
+            guard existing.id == id,
+                  existing.workspaceStableKey == stableKey,
+                  existing.workspaceID == mutation.workspaceID,
+                  existing.stableID == mutation.stableID else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
+        let existingDescriptor = try existing?.descriptor()
+        switch mutation.disposition {
+        case .upsert:
+            guard let descriptor = mutation.descriptor,
+                  descriptor.origin == .userSaved,
+                  existingDescriptor.map({
+                      $0.revision == mutation.expectedDescriptorRevision
+                  })
+                    ?? (mutation.expectedDescriptorRevision == 0) else {
+                throw WorkspaceMutationFailureV1.staleEntityRevision(
+                    try .init(kind: .savedSmartView, id: id)
+                )
+            }
+            if let existing { modelContext.delete(existing) }
+            modelContext.insert(try SavedSmartViewRowV1(descriptor))
+        case .delete:
+            guard let existing,
+                  existingDescriptor?.origin == .userSaved,
+                  existingDescriptor?.revision == mutation.expectedDescriptorRevision,
+                  existing.workspaceID == mutation.workspaceID,
+                  existing.stableID == mutation.stableID else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            modelContext.delete(existing)
+        }
+        return try WorkspaceMutationEffectV1(
+            affectedEntities: [.init(kind: .savedSmartView, id: id)],
             temporaryRelativePath: temporaryRelativePath
         )
     }

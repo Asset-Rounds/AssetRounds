@@ -215,6 +215,22 @@ struct KernelRemovalReceiptV4: Codable, Equatable, Sendable {
 }
 
 enum KernelDeletionEraseRegistryV4 {
+    /// Search V1 has one canonical workspace-owned record and one disposable
+    /// local projection. Keeping these routes beside the kernel registry makes
+    /// delete/Erase audits distinguish canonical deletion from index rebuild.
+    static let savedSmartViewLifecycle = SavedSmartViewLifecycleDispositionV1.allCases
+    static let searchIndexLifecycle = SearchIndexLifecycleDispositionV1.allCases
+
+    static func validateSearchLifecycle() throws {
+        guard savedSmartViewLifecycle.contains(.deleteWithWorkspace),
+              savedSmartViewLifecycle.contains(.erase),
+              searchIndexLifecycle.contains(.purgeOnDelete),
+              searchIndexLifecycle.contains(.purgeOnErase),
+              searchIndexLifecycle.contains(.dropAndRebuildAfterRestore) else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+
     static let registrations: [KernelDeletionEraseRegistrationV4] = {
         do {
             return try KernelPersistenceV4RecordKind.allCases.map { kind in
@@ -246,6 +262,7 @@ enum KernelDeletionEraseRegistryV4 {
     }
 
     static func validate() throws {
+        try validateSearchLifecycle()
         try validate(registrations)
     }
 

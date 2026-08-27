@@ -1,0 +1,1070 @@
+import Foundation
+
+enum SearchContractFailureV1: Error, Equatable, Sendable {
+    case unsupportedSchemaVersion
+    case invalidIdentifier
+    case invalidText
+    case invalidField
+    case duplicateField
+    case forbiddenField
+    case scopeMismatch
+    case invalidQuery
+    case invalidFilter
+    case invalidRanking
+    case invalidSuggestion
+    case invalidContext
+    case invalidSession
+    case invalidRevision
+    case indexAheadOfSource
+    case staleIndex
+    case duplicateProjection
+    case invalidSmartView
+    case builtInViewMutation
+    case limitExceeded
+}
+
+enum SearchContractLimitsV1 {
+    static let maximumIdentifierBytes = 160
+    static let maximumQueryBytes = 512
+    static let maximumNormalizedTokenBytes = 128
+    static let maximumQueryTokens = 32
+    static let exactSearchableFieldCount = 10
+    static let maximumFieldRegistrations = 13
+    static let maximumFilters = 16
+    static let maximumSuggestions = 5
+    static let maximumSnippetBytes = 320
+    static let maximumBreadcrumbComponents = 16
+    static let maximumProjectionTokens = 128
+    static let maximumCanonicalRecords = 10_000
+    static let maximumProjectionRecords = maximumCanonicalRecords * exactSearchableFieldCount
+    static let maximumSavedViewNameBytes = 120
+}
+
+enum SearchContractValidationV1 {
+    static let zeroUUID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    private static let bidiFormattingScalars: Set<UInt32> = [
+        0x061C, 0x200E, 0x200F,
+        0x202A, 0x202B, 0x202C, 0x202D, 0x202E,
+        0x2066, 0x2067, 0x2068, 0x2069,
+    ]
+
+    static func validID(_ value: String, maximumBytes: Int = SearchContractLimitsV1.maximumIdentifierBytes) -> Bool {
+        !value.isEmpty && value.utf8.count <= maximumBytes
+            && value.unicodeScalars.allSatisfy { scalar in
+                !CharacterSet.controlCharacters.contains(scalar)
+                    && !CharacterSet.whitespacesAndNewlines.contains(scalar)
+            }
+    }
+
+    static func validDisplayText(_ value: String, maximumBytes: Int, allowEmpty: Bool = false) -> Bool {
+        (value.isEmpty ? allowEmpty : !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            && value.utf8.count <= maximumBytes
+            && !value.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
+    }
+
+    static func validDate(_ value: Date) -> Bool { value.timeIntervalSinceReferenceDate.isFinite }
+
+    static func normalizeSearchText(_ value: String) -> String {
+        let safeScalars = value.unicodeScalars.filter {
+            !CharacterSet.controlCharacters.contains($0)
+                && !bidiFormattingScalars.contains($0.value)
+        }
+        let safe = String(String.UnicodeScalarView(safeScalars))
+        return safe
+            .decomposedStringWithCompatibilityMapping
+            .folding(
+                options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                locale: Locale(identifier: "en_US_POSIX")
+            )
+            .precomposedStringWithCanonicalMapping
+            .lowercased(with: Locale(identifier: "en_US_POSIX"))
+    }
+
+    static func isCanonicalSearchToken(_ value: String) -> Bool {
+        validDisplayText(value, maximumBytes: SearchContractLimitsV1.maximumNormalizedTokenBytes)
+            && value.unicodeScalars.allSatisfy { CharacterSet.alphanumerics.contains($0) }
+            && value == normalizeSearchText(value)
+    }
+
+    static func normalizedTokensAreCanonical(_ values: [String]) -> Bool {
+        values.count <= SearchContractLimitsV1.maximumQueryTokens
+            && Set(values).count == values.count
+            && values.allSatisfy(isCanonicalSearchToken)
+    }
+}
+
+enum SearchScopeV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case all = "ALL"
+    case assets = "ASSETS"
+    case locations = "LOCATIONS"
+    case work = "WORK"
+    case reports = "REPORTS"
+
+    func contains(_ kind: SearchSourceKindV1) -> Bool {
+        switch self {
+        case .all: return true
+        case .assets: return kind == .asset
+        case .locations: return kind == .location
+        case .work: return kind == .work
+        case .reports: return kind == .report
+        }
+    }
+}
+
+enum SearchSourceKindV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case asset = "ASSET"
+    case location = "LOCATION"
+    case work = "WORK"
+    case report = "REPORT"
+}
+
+enum SearchFieldPrivacyClassV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case userVisibleIdentifier = "USER_VISIBLE_IDENTIFIER"
+    case approvedCustomerText = "APPROVED_CUSTOMER_TEXT"
+    case approvedOperationalState = "APPROVED_OPERATIONAL_STATE"
+}
+
+enum SearchTokenizationV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case exactIdentity = "EXACT_IDENTITY"
+    case unicodeWords = "UNICODE_WORDS"
+    case keyword = "KEYWORD"
+}
+
+enum SearchNormalizationV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case stableIdentity = "STABLE_IDENTITY"
+    case unicodeCaseAndDiacriticFoldedNFC = "UNICODE_CASE_DIACRITIC_FOLDED_NFC"
+}
+
+enum SearchSnippetPermissionV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case prohibited = "PROHIBITED"
+    case boundedUserVisibleExcerpt = "BOUNDED_USER_VISIBLE_EXCERPT"
+    case exactDisplayValue = "EXACT_DISPLAY_VALUE"
+}
+
+enum SearchFieldRetentionV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case whileCanonicalSourceExists = "WHILE_CANONICAL_SOURCE_EXISTS"
+    case untilSourceFieldIsAmended = "UNTIL_SOURCE_FIELD_IS_AMENDED"
+}
+
+enum SearchPurgeOwnerV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case canonicalWriterReconciler = "CANONICAL_WRITER_RECONCILER"
+    case indexRebuildCoordinator = "INDEX_REBUILD_COORDINATOR"
+}
+
+enum FrozenSearchableFieldV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case assetIdentifier = "asset_identifier"
+    case assetLabel = "asset_label"
+    case locationIdentifier = "location_identifier"
+    case locationLabel = "location_label"
+    case locationBreadcrumb = "location_breadcrumb"
+    case workIdentifier = "work_identifier"
+    case workSummary = "work_summary"
+    case reportIdentifier = "report_identifier"
+    case reportSummary = "report_summary"
+    case status = "status"
+
+    var allowedSourceKinds: Set<SearchSourceKindV1> {
+        switch self {
+        case .assetIdentifier, .assetLabel: return [.asset]
+        case .locationIdentifier, .locationLabel, .locationBreadcrumb: return [.location]
+        case .workIdentifier, .workSummary: return [.work]
+        case .reportIdentifier, .reportSummary: return [.report]
+        case .status: return Set(SearchSourceKindV1.allCases)
+        }
+    }
+
+    var isIdentifier: Bool {
+        switch self {
+        case .assetIdentifier, .locationIdentifier, .workIdentifier, .reportIdentifier: return true
+        default: return false
+        }
+    }
+}
+
+struct SearchableFieldDescriptorV1: Codable, Equatable, Hashable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let fieldID: String
+    let sourceKind: SearchSourceKindV1
+    let privacyClass: SearchFieldPrivacyClassV1
+    let tokenization: SearchTokenizationV1
+    let normalization: SearchNormalizationV1
+    let snippetPermission: SearchSnippetPermissionV1
+    let retention: SearchFieldRetentionV1
+    let purgeOwner: SearchPurgeOwnerV1
+
+    init(
+        fieldID: String,
+        sourceKind: SearchSourceKindV1,
+        privacyClass: SearchFieldPrivacyClassV1,
+        tokenization: SearchTokenizationV1,
+        normalization: SearchNormalizationV1,
+        snippetPermission: SearchSnippetPermissionV1,
+        retention: SearchFieldRetentionV1,
+        purgeOwner: SearchPurgeOwnerV1
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.fieldID = fieldID
+        self.sourceKind = sourceKind
+        self.privacyClass = privacyClass
+        self.tokenization = tokenization
+        self.normalization = normalization
+        self.snippetPermission = snippetPermission
+        self.retention = retention
+        self.purgeOwner = purgeOwner
+        try validate()
+    }
+
+    func validate() throws {
+        guard let frozenField = FrozenSearchableFieldV1(rawValue: fieldID),
+              frozenField.allowedSourceKinds.contains(sourceKind),
+              !Self.explicitlyExcludedFieldIDs.contains(fieldID),
+              !fieldID.contains("uncommitted") else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        guard schemaVersion == Self.schemaVersion,
+              SearchContractValidationV1.validID(fieldID),
+              !Self.forbiddenFieldFragments.contains(where: { fieldID.lowercased().contains($0) }) else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        if frozenField.isIdentifier {
+            guard privacyClass == .userVisibleIdentifier,
+                  tokenization == .exactIdentity,
+                  normalization == .stableIdentity,
+                  snippetPermission == .exactDisplayValue else {
+                throw SearchContractFailureV1.invalidField
+            }
+        } else if frozenField == .status {
+            guard privacyClass == .approvedOperationalState,
+                  tokenization == .keyword,
+                  normalization == .unicodeCaseAndDiacriticFoldedNFC,
+                  snippetPermission == .exactDisplayValue else {
+                throw SearchContractFailureV1.invalidField
+            }
+        } else {
+            guard privacyClass == .approvedCustomerText,
+                  tokenization == .unicodeWords,
+                  normalization == .unicodeCaseAndDiacriticFoldedNFC,
+                  snippetPermission == .boundedUserVisibleExcerpt else {
+                throw SearchContractFailureV1.invalidField
+            }
+        }
+        guard retention == .untilSourceFieldIsAmended,
+              purgeOwner == .indexRebuildCoordinator else {
+            throw SearchContractFailureV1.invalidField
+        }
+        if privacyClass == .approvedCustomerText && tokenization != .unicodeWords {
+            throw SearchContractFailureV1.invalidField
+        }
+        if tokenization == .exactIdentity {
+            guard privacyClass == .userVisibleIdentifier,
+                  normalization == .stableIdentity else { throw SearchContractFailureV1.invalidField }
+        }
+        if snippetPermission == .exactDisplayValue && privacyClass == .approvedCustomerText {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+
+    private static let forbiddenFieldFragments = [
+        "media", "binary", "original", "ocr", "hidden", "metadata", "support", "feedback", "draft",
+        "uncommitted"
+    ]
+    private static let explicitlyExcludedFieldIDs: Set<String> = [
+        "media_bytes", "raw_ocr", "hidden_metadata", "support_draft", "feedback_draft",
+        "uncommitted_c36",
+    ]
+}
+
+struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let fields: [SearchableFieldDescriptorV1]
+
+    init(fields: [SearchableFieldDescriptorV1]) throws {
+        schemaVersion = Self.schemaVersion
+        self.fields = fields.sorted {
+            if $0.fieldID != $1.fieldID { return $0.fieldID < $1.fieldID }
+            return $0.sourceKind.rawValue < $1.sourceKind.rawValue
+        }
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              fields.count <= SearchContractLimitsV1.maximumFieldRegistrations else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        guard fields.count == SearchContractLimitsV1.maximumFieldRegistrations else {
+            throw SearchContractFailureV1.invalidField
+        }
+        let identities = fields.map { $0.fieldID + ":" + $0.sourceKind.rawValue }
+        guard Set(identities).count == fields.count else {
+            throw SearchContractFailureV1.duplicateField
+        }
+        guard Set(identities) == Self.frozenRegistrationIdentities else {
+            throw SearchContractFailureV1.invalidField
+        }
+        try fields.forEach { try $0.validate() }
+    }
+
+    private static let frozenRegistrationIdentities: Set<String> = [
+        "asset_identifier:ASSET",
+        "asset_label:ASSET",
+        "location_identifier:LOCATION",
+        "location_label:LOCATION",
+        "location_breadcrumb:LOCATION",
+        "work_identifier:WORK",
+        "work_summary:WORK",
+        "report_identifier:REPORT",
+        "report_summary:REPORT",
+        "status:ASSET",
+        "status:LOCATION",
+        "status:WORK",
+        "status:REPORT",
+    ]
+
+    func descriptor(fieldID: String, sourceKind: SearchSourceKindV1) throws -> SearchableFieldDescriptorV1 {
+        guard let value = fields.first(where: { $0.fieldID == fieldID && $0.sourceKind == sourceKind }) else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        return value
+    }
+}
+
+enum SearchFilterKindV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case incomplete = "INCOMPLETE"
+    case recheckDue = "RECHECK_DUE"
+    case reportFailed = "REPORT_FAILED"
+    case backupStale = "BACKUP_STALE"
+}
+
+struct SearchFilterV1: Codable, Equatable, Hashable, Comparable, Sendable {
+    let kind: SearchFilterKindV1
+    let canonicalValue: String
+
+    init(kind: SearchFilterKindV1, canonicalValue: String = "true") throws {
+        self.kind = kind
+        self.canonicalValue = canonicalValue
+        guard canonicalValue == "true" else { throw SearchContractFailureV1.invalidFilter }
+    }
+
+    func validate() throws {
+        guard canonicalValue == "true" else { throw SearchContractFailureV1.invalidFilter }
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool { lhs.kind.rawValue < rhs.kind.rawValue }
+}
+
+enum SearchSortV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case deterministicRelevance = "DETERMINISTIC_RELEVANCE"
+    case mostRecent = "MOST_RECENT"
+    case oldestFirst = "OLDEST_FIRST"
+    case statusThenStableID = "STATUS_THEN_STABLE_ID"
+    case dueDateThenStableID = "DUE_DATE_THEN_STABLE_ID"
+}
+
+struct SearchQueryPlanV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let query: String
+    let normalizedTokens: [String]
+    let scope: SearchScopeV1
+    let filters: [SearchFilterV1]
+    let sort: SearchSortV1
+    let maximumResults: Int
+    let sourceRevision: UInt64
+    let permitsTypoSuggestions: Bool
+
+    init(
+        query: String,
+        normalizedTokens: [String],
+        scope: SearchScopeV1 = .all,
+        filters: [SearchFilterV1] = [],
+        sort: SearchSortV1 = .deterministicRelevance,
+        maximumResults: Int = 100,
+        sourceRevision: UInt64,
+        permitsTypoSuggestions: Bool = true
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.query = query
+        self.normalizedTokens = normalizedTokens
+        self.scope = scope
+        self.filters = filters.sorted()
+        self.sort = sort
+        self.maximumResults = maximumResults
+        self.sourceRevision = sourceRevision
+        self.permitsTypoSuggestions = permitsTypoSuggestions
+        try validate()
+    }
+
+    func validate() throws {
+        let hasExecutableCriterion = !query.isEmpty || !filters.isEmpty || sort == .mostRecent
+        guard schemaVersion == Self.schemaVersion, hasExecutableCriterion,
+              SearchContractValidationV1.validDisplayText(
+                query,
+                maximumBytes: SearchContractLimitsV1.maximumQueryBytes,
+                allowEmpty: true
+              ),
+              query.isEmpty == normalizedTokens.isEmpty,
+              SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens),
+              filters.count <= SearchContractLimitsV1.maximumFilters,
+              Set(filters).count == filters.count,
+              (1...500).contains(maximumResults) else {
+            throw SearchContractFailureV1.invalidQuery
+        }
+        try filters.forEach { try $0.validate() }
+    }
+}
+
+enum SearchMatchTierV1: Int, CaseIterable, Codable, Comparable, Hashable, Sendable {
+    case exactStableOrDisplayIdentity = 0
+    case normalizedExactToken = 1
+    case prefix = 2
+    case tokenPrefix = 3
+    case substring = 4
+
+    static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
+}
+
+struct SearchRankingKeyV1: Codable, Equatable, Comparable, Sendable {
+    let tier: SearchMatchTierV1
+    let stableID: String
+    let timestamp: Date
+
+    init(tier: SearchMatchTierV1, stableID: String, timestamp: Date) throws {
+        guard SearchContractValidationV1.validID(stableID), SearchContractValidationV1.validDate(timestamp) else {
+            throw SearchContractFailureV1.invalidRanking
+        }
+        self.tier = tier
+        self.stableID = stableID
+        self.timestamp = timestamp
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        if lhs.tier != rhs.tier { return lhs.tier < rhs.tier }
+        if lhs.stableID != rhs.stableID { return lhs.stableID < rhs.stableID }
+        return lhs.timestamp < rhs.timestamp
+    }
+}
+
+enum SearchSuggestionReasonV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case editDistanceOne = "EDIT_DISTANCE_ONE"
+    case editDistanceTwo = "EDIT_DISTANCE_TWO"
+}
+
+struct SearchSuggestionV1: Codable, Equatable, Comparable, Sendable {
+    let suggestedToken: String
+    let editDistance: Int
+    let reason: SearchSuggestionReasonV1
+    let sourceStableID: String
+
+    init(suggestedToken: String, editDistance: Int, sourceStableID: String) throws {
+        self.suggestedToken = suggestedToken
+        self.editDistance = editDistance
+        self.reason = editDistance == 1 ? .editDistanceOne : .editDistanceTwo
+        self.sourceStableID = sourceStableID
+        try validate()
+    }
+
+    func validate() throws {
+        guard SearchContractValidationV1.validDisplayText(
+            suggestedToken,
+            maximumBytes: SearchContractLimitsV1.maximumNormalizedTokenBytes
+        ), SearchContractValidationV1.isCanonicalSearchToken(suggestedToken),
+           SearchContractValidationV1.validID(sourceStableID),
+           editDistance == 1 || editDistance == 2,
+           reason == (editDistance == 1 ? .editDistanceOne : .editDistanceTwo) else {
+            throw SearchContractFailureV1.invalidSuggestion
+        }
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        if lhs.editDistance != rhs.editDistance { return lhs.editDistance < rhs.editDistance }
+        if lhs.suggestedToken != rhs.suggestedToken { return lhs.suggestedToken < rhs.suggestedToken }
+        return lhs.sourceStableID < rhs.sourceStableID
+    }
+
+    static func validatedSet(_ values: [Self]) throws -> [Self] {
+        let sorted = values.sorted()
+        guard sorted.count <= SearchContractLimitsV1.maximumSuggestions,
+              Set(sorted.map(\.suggestedToken)).count == sorted.count else {
+            throw SearchContractFailureV1.invalidSuggestion
+        }
+        try sorted.forEach { try $0.validate() }
+        return sorted
+    }
+}
+
+struct SearchResultContextV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let workspaceID: UUID
+    let sourceKind: SearchSourceKindV1
+    let stableID: String
+    let displayIdentity: String
+    let locationBreadcrumb: [String]
+    let status: String
+    let openWorkStableIDs: [String]
+    let snippet: String?
+    let dueAt: Date?
+    let rankingKey: SearchRankingKeyV1
+    let sourceRevision: UInt64
+    let indexRevision: UInt64
+
+    init(
+        workspaceID: UUID,
+        sourceKind: SearchSourceKindV1,
+        stableID: String,
+        displayIdentity: String,
+        locationBreadcrumb: [String],
+        status: String,
+        openWorkStableIDs: [String] = [],
+        snippet: String? = nil,
+        dueAt: Date? = nil,
+        rankingKey: SearchRankingKeyV1,
+        sourceRevision: UInt64,
+        indexRevision: UInt64
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.workspaceID = workspaceID
+        self.sourceKind = sourceKind
+        self.stableID = stableID
+        self.displayIdentity = displayIdentity
+        self.locationBreadcrumb = locationBreadcrumb
+        self.status = status
+        self.openWorkStableIDs = openWorkStableIDs.sorted()
+        self.snippet = snippet
+        self.dueAt = dueAt
+        self.rankingKey = rankingKey
+        self.sourceRevision = sourceRevision
+        self.indexRevision = indexRevision
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion, workspaceID != SearchContractValidationV1.zeroUUID,
+              SearchContractValidationV1.validID(stableID), rankingKey.stableID == stableID,
+              SearchContractValidationV1.validDisplayText(displayIdentity, maximumBytes: 240),
+              SearchContractValidationV1.validDisplayText(status, maximumBytes: 120),
+              locationBreadcrumb.count <= SearchContractLimitsV1.maximumBreadcrumbComponents,
+              locationBreadcrumb.allSatisfy({ SearchContractValidationV1.validDisplayText($0, maximumBytes: 160) }),
+              Set(openWorkStableIDs).count == openWorkStableIDs.count,
+              openWorkStableIDs.allSatisfy({ SearchContractValidationV1.validID($0) }),
+              snippet.map({ SearchContractValidationV1.validDisplayText($0, maximumBytes: SearchContractLimitsV1.maximumSnippetBytes) }) ?? true,
+              dueAt.map(SearchContractValidationV1.validDate) ?? true,
+              indexRevision <= sourceRevision else {
+            throw indexRevision > sourceRevision ? .indexAheadOfSource : .invalidContext
+        }
+    }
+}
+
+struct SearchScrollAnchorV1: Codable, Equatable, Sendable {
+    let stableID: String
+    let offset: Double
+    init(stableID: String, offset: Double) throws {
+        guard SearchContractValidationV1.validID(stableID), offset.isFinite else {
+            throw SearchContractFailureV1.invalidSession
+        }
+        self.stableID = stableID
+        self.offset = offset
+    }
+}
+
+struct SearchSessionStateV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let query: String
+    let scope: SearchScopeV1
+    let filters: [SearchFilterV1]
+    let selectedStableID: String?
+    let scrollAnchor: SearchScrollAnchorV1?
+
+    init(
+        query: String,
+        scope: SearchScopeV1,
+        filters: [SearchFilterV1] = [],
+        selectedStableID: String? = nil,
+        scrollAnchor: SearchScrollAnchorV1? = nil
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.query = query
+        self.scope = scope
+        self.filters = filters.sorted()
+        self.selectedStableID = selectedStableID
+        self.scrollAnchor = scrollAnchor
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion, query.utf8.count <= SearchContractLimitsV1.maximumQueryBytes,
+              !query.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
+              filters.count <= SearchContractLimitsV1.maximumFilters, Set(filters).count == filters.count,
+              selectedStableID.map({ SearchContractValidationV1.validID($0) }) ?? true else {
+            throw SearchContractFailureV1.invalidSession
+        }
+        try filters.forEach { try $0.validate() }
+    }
+
+    /// Detail/back navigation remains live and therefore retains the query.
+    func liveNavigationState() -> Self { self }
+
+    /// Scene/cold persistence never retains user-entered search text.
+    func coldRestorationState(validStableIDs: Set<String>) throws -> Self {
+        let selected = selectedStableID.flatMap { validStableIDs.contains($0) ? $0 : nil }
+        let anchor = scrollAnchor.flatMap { validStableIDs.contains($0.stableID) ? $0 : nil }
+        return try Self(query: "", scope: scope, filters: filters, selectedStableID: selected, scrollAnchor: anchor)
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, scope, filters, selectedStableID, scrollAnchor
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard try container.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SearchContractFailureV1.unsupportedSchemaVersion
+        }
+        try self.init(
+            query: "",
+            scope: container.decode(SearchScopeV1.self, forKey: .scope),
+            filters: container.decode([SearchFilterV1].self, forKey: .filters),
+            selectedStableID: container.decodeIfPresent(String.self, forKey: .selectedStableID),
+            scrollAnchor: container.decodeIfPresent(SearchScrollAnchorV1.self, forKey: .scrollAnchor)
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try validate()
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(Self.schemaVersion, forKey: .schemaVersion)
+        try container.encode(scope, forKey: .scope)
+        try container.encode(filters, forKey: .filters)
+        try container.encodeIfPresent(selectedStableID, forKey: .selectedStableID)
+        try container.encodeIfPresent(scrollAnchor, forKey: .scrollAnchor)
+    }
+}
+
+struct SearchSourceRevisionV1: Codable, Equatable, Hashable, Sendable {
+    let workspaceID: UUID
+    let generationID: UUID
+    let commitRevision: UInt64
+    init(workspaceID: UUID, generationID: UUID, commitRevision: UInt64) throws {
+        guard workspaceID != SearchContractValidationV1.zeroUUID,
+              generationID != SearchContractValidationV1.zeroUUID else {
+            throw SearchContractFailureV1.invalidRevision
+        }
+        self.workspaceID = workspaceID
+        self.generationID = generationID
+        self.commitRevision = commitRevision
+    }
+}
+
+struct SearchIndexRevisionV1: Codable, Equatable, Hashable, Sendable {
+    let workspaceID: UUID
+    let generationID: UUID
+    let projectionFormatVersion: Int
+    let indexedCommitRevision: UInt64
+    init(workspaceID: UUID, generationID: UUID, projectionFormatVersion: Int = 1, indexedCommitRevision: UInt64) throws {
+        guard workspaceID != SearchContractValidationV1.zeroUUID,
+              generationID != SearchContractValidationV1.zeroUUID,
+              projectionFormatVersion > 0 else { throw SearchContractFailureV1.invalidRevision }
+        self.workspaceID = workspaceID
+        self.generationID = generationID
+        self.projectionFormatVersion = projectionFormatVersion
+        self.indexedCommitRevision = indexedCommitRevision
+    }
+}
+
+enum SearchIndexReconciliationV1: String, Codable, Equatable, Sendable {
+    case current = "CURRENT"
+    case staleDropAndRebuild = "STALE_DROP_AND_REBUILD"
+    case aheadDropAndRebuild = "AHEAD_DROP_AND_REBUILD"
+    case incompatibleFormatDropAndRebuild = "INCOMPATIBLE_FORMAT_DROP_AND_REBUILD"
+    case wrongGenerationDropAndRebuild = "WRONG_GENERATION_DROP_AND_REBUILD"
+    case absentBuild = "ABSENT_BUILD"
+
+    static func disposition(source: SearchSourceRevisionV1, index: SearchIndexRevisionV1?) -> Self {
+        guard let index else { return .absentBuild }
+        guard index.workspaceID == source.workspaceID, index.generationID == source.generationID else {
+            return .wrongGenerationDropAndRebuild
+        }
+        guard index.projectionFormatVersion == SearchPersistenceReleaseV1.derivedProjectionFormatVersion else {
+            return .incompatibleFormatDropAndRebuild
+        }
+        if index.indexedCommitRevision < source.commitRevision { return .staleDropAndRebuild }
+        if index.indexedCommitRevision > source.commitRevision { return .aheadDropAndRebuild }
+        return .current
+    }
+}
+
+struct SearchIndexProjectionRecordV1: Codable, Equatable, Comparable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let workspaceID: UUID
+    let sourceKind: SearchSourceKindV1
+    let sourceStableID: String
+    let sourceRevision: UInt64
+    let fieldID: String
+    let normalizedTokens: [String]
+    let displayIdentity: String
+    let locationBreadcrumb: [String]
+    let status: String
+    let openWorkStableIDs: [String]
+    let permittedSnippet: String?
+    let dueAt: Date?
+    let sourceTimestamp: Date
+
+    init(
+        workspaceID: UUID, sourceKind: SearchSourceKindV1, sourceStableID: String,
+        sourceRevision: UInt64, fieldID: String, normalizedTokens: [String],
+        displayIdentity: String, locationBreadcrumb: [String], status: String,
+        openWorkStableIDs: [String] = [], permittedSnippet: String? = nil,
+        dueAt: Date? = nil, sourceTimestamp: Date
+    ) throws {
+        schemaVersion = Self.schemaVersion; self.workspaceID = workspaceID; self.sourceKind = sourceKind
+        self.sourceStableID = sourceStableID; self.sourceRevision = sourceRevision; self.fieldID = fieldID
+        self.normalizedTokens = normalizedTokens; self.displayIdentity = displayIdentity
+        self.locationBreadcrumb = locationBreadcrumb; self.status = status
+        self.openWorkStableIDs = openWorkStableIDs.sorted(); self.permittedSnippet = permittedSnippet
+        self.dueAt = dueAt
+        self.sourceTimestamp = sourceTimestamp
+        try validate()
+    }
+
+    var projectionIdentity: String { "\(sourceKind.rawValue):\(sourceStableID):\(fieldID)" }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion, workspaceID != SearchContractValidationV1.zeroUUID,
+              SearchContractValidationV1.validID(sourceStableID), SearchContractValidationV1.validID(fieldID),
+              normalizedTokens.count <= SearchContractLimitsV1.maximumProjectionTokens,
+              !normalizedTokens.isEmpty,
+              Set(normalizedTokens).count == normalizedTokens.count,
+              normalizedTokens.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken),
+              SearchContractValidationV1.validDisplayText(displayIdentity, maximumBytes: 240),
+              locationBreadcrumb.count <= SearchContractLimitsV1.maximumBreadcrumbComponents,
+              locationBreadcrumb.allSatisfy({ SearchContractValidationV1.validDisplayText($0, maximumBytes: 160) }),
+              SearchContractValidationV1.validDisplayText(status, maximumBytes: 120),
+              Set(openWorkStableIDs).count == openWorkStableIDs.count,
+              openWorkStableIDs.allSatisfy({ SearchContractValidationV1.validID($0) }),
+              permittedSnippet.map({ SearchContractValidationV1.validDisplayText($0, maximumBytes: SearchContractLimitsV1.maximumSnippetBytes) }) ?? true,
+              dueAt.map(SearchContractValidationV1.validDate) ?? true,
+              SearchContractValidationV1.validDate(sourceTimestamp) else { throw SearchContractFailureV1.invalidField }
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool { lhs.projectionIdentity < rhs.projectionIdentity }
+
+    static func validateProjection(_ records: [Self], against registry: SearchableFieldRegistryV1) throws -> [Self] {
+        guard records.count <= SearchContractLimitsV1.maximumProjectionRecords else { throw SearchContractFailureV1.limitExceeded }
+        let sorted = records.sorted()
+        guard Set(sorted.map(\.projectionIdentity)).count == sorted.count else { throw SearchContractFailureV1.duplicateProjection }
+        for record in sorted {
+            try record.validate()
+            let field = try registry.descriptor(fieldID: record.fieldID, sourceKind: record.sourceKind)
+            if record.permittedSnippet != nil && field.snippetPermission == .prohibited {
+                throw SearchContractFailureV1.forbiddenField
+            }
+        }
+        return sorted
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, workspaceID, sourceKind, sourceStableID, sourceRevision, fieldID
+        case normalizedTokens, displayIdentity, locationBreadcrumb, status, openWorkStableIDs
+        case permittedSnippet, dueAt, sourceTimestamp
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard try container.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SearchContractFailureV1.unsupportedSchemaVersion
+        }
+        try self.init(
+            workspaceID: container.decode(UUID.self, forKey: .workspaceID),
+            sourceKind: container.decode(SearchSourceKindV1.self, forKey: .sourceKind),
+            sourceStableID: container.decode(String.self, forKey: .sourceStableID),
+            sourceRevision: container.decode(UInt64.self, forKey: .sourceRevision),
+            fieldID: container.decode(String.self, forKey: .fieldID),
+            normalizedTokens: container.decode([String].self, forKey: .normalizedTokens),
+            displayIdentity: container.decode(String.self, forKey: .displayIdentity),
+            locationBreadcrumb: container.decode([String].self, forKey: .locationBreadcrumb),
+            status: container.decode(String.self, forKey: .status),
+            openWorkStableIDs: container.decode([String].self, forKey: .openWorkStableIDs),
+            permittedSnippet: container.decodeIfPresent(String.self, forKey: .permittedSnippet),
+            dueAt: container.decodeIfPresent(Date.self, forKey: .dueAt),
+            sourceTimestamp: container.decode(Date.self, forKey: .sourceTimestamp)
+        )
+    }
+}
+
+enum SearchIndexBuildStateV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case building = "BUILDING"
+    case complete = "COMPLETE"
+}
+
+struct SearchIndexRebuildCheckpointV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let operationID: UUID
+    let source: SearchSourceRevisionV1
+    let projectionFormatVersion: Int
+    let nextCanonicalOffset: Int
+    let projectedRecordCount: Int
+    let state: SearchIndexBuildStateV1
+
+    init(
+        operationID: UUID,
+        source: SearchSourceRevisionV1,
+        projectionFormatVersion: Int = SearchPersistenceReleaseV1.derivedProjectionFormatVersion,
+        nextCanonicalOffset: Int,
+        projectedRecordCount: Int,
+        state: SearchIndexBuildStateV1
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.operationID = operationID
+        self.source = source
+        self.projectionFormatVersion = projectionFormatVersion
+        self.nextCanonicalOffset = nextCanonicalOffset
+        self.projectedRecordCount = projectedRecordCount
+        self.state = state
+        try validate()
+    }
+
+    func validate() throws {
+        guard operationID != SearchContractValidationV1.zeroUUID,
+              source.workspaceID != SearchContractValidationV1.zeroUUID,
+              source.generationID != SearchContractValidationV1.zeroUUID,
+              projectionFormatVersion == SearchPersistenceReleaseV1.derivedProjectionFormatVersion,
+              nextCanonicalOffset >= 0,
+              projectedRecordCount >= 0,
+              projectedRecordCount <= SearchContractLimitsV1.maximumProjectionRecords else {
+            throw SearchContractFailureV1.invalidRevision
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, operationID, source, projectionFormatVersion
+        case nextCanonicalOffset, projectedRecordCount, state
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard try container.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SearchContractFailureV1.unsupportedSchemaVersion
+        }
+        try self.init(
+            operationID: container.decode(UUID.self, forKey: .operationID),
+            source: container.decode(SearchSourceRevisionV1.self, forKey: .source),
+            projectionFormatVersion: container.decode(Int.self, forKey: .projectionFormatVersion),
+            nextCanonicalOffset: container.decode(Int.self, forKey: .nextCanonicalOffset),
+            projectedRecordCount: container.decode(Int.self, forKey: .projectedRecordCount),
+            state: container.decode(SearchIndexBuildStateV1.self, forKey: .state)
+        )
+    }
+}
+
+/// A disposable, source-revision-bound snapshot. It contains no canonical
+/// writer state and is never admitted to the SwiftData schema or backups.
+struct SearchIndexProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let source: SearchSourceRevisionV1
+    let index: SearchIndexRevisionV1
+    let records: [SearchIndexProjectionRecordV1]
+
+    init(
+        source: SearchSourceRevisionV1,
+        index: SearchIndexRevisionV1,
+        records: [SearchIndexProjectionRecordV1],
+        registry: SearchableFieldRegistryV1
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.source = source
+        self.index = index
+        self.records = try SearchIndexProjectionRecordV1.validateProjection(records, against: registry)
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              source.workspaceID != SearchContractValidationV1.zeroUUID,
+              source.generationID != SearchContractValidationV1.zeroUUID,
+              source.workspaceID == index.workspaceID,
+              source.generationID == index.generationID,
+              index.projectionFormatVersion == SearchPersistenceReleaseV1.derivedProjectionFormatVersion,
+              index.indexedCommitRevision == source.commitRevision,
+              records.count <= SearchContractLimitsV1.maximumProjectionRecords,
+              records == records.sorted(),
+              Set(records.map(\.projectionIdentity)).count == records.count,
+              records.allSatisfy({
+                  $0.workspaceID == source.workspaceID && $0.sourceRevision <= source.commitRevision
+              }) else {
+            throw index.indexedCommitRevision > source.commitRevision
+                ? .indexAheadOfSource : .staleIndex
+        }
+        try records.forEach { try $0.validate() }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, source, index, records
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        source = try container.decode(SearchSourceRevisionV1.self, forKey: .source)
+        index = try container.decode(SearchIndexRevisionV1.self, forKey: .index)
+        records = try container.decode([SearchIndexProjectionRecordV1].self, forKey: .records)
+        try validate()
+    }
+}
+
+enum BuiltInSmartViewV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case recent = "RECENT"
+    case incomplete = "INCOMPLETE"
+    case recheckDue = "RECHECK_DUE"
+    case reportFailed = "REPORT_FAILED"
+    case backupStale = "BACKUP_STALE"
+
+    var stableID: String { "builtin.search.\(rawValue.lowercased())" }
+}
+
+struct BuiltInSmartViewDefinitionV1: Codable, Equatable, Sendable {
+    let kind: BuiltInSmartViewV1
+    let stableID: String
+    let nameLocalizationKey: String
+    let scope: SearchScopeV1
+    let filters: [SearchFilterV1]
+    let sort: SearchSortV1
+
+    init(kind: BuiltInSmartViewV1) throws {
+        self.kind = kind
+        stableID = kind.stableID
+        nameLocalizationKey = "search.smartView.\(kind.rawValue.lowercased()).name"
+        switch kind {
+        case .recent:
+            scope = .all; filters = []; sort = .mostRecent
+        case .incomplete:
+            scope = .work; filters = [try SearchFilterV1(kind: .incomplete)]; sort = .statusThenStableID
+        case .recheckDue:
+            scope = .work; filters = [try SearchFilterV1(kind: .recheckDue)]; sort = .dueDateThenStableID
+        case .reportFailed:
+            scope = .reports; filters = [try SearchFilterV1(kind: .reportFailed)]; sort = .mostRecent
+        case .backupStale:
+            scope = .all; filters = [try SearchFilterV1(kind: .backupStale)]; sort = .mostRecent
+        }
+    }
+
+    static func catalog() throws -> [Self] { try BuiltInSmartViewV1.allCases.map { try Self(kind: $0) } }
+}
+
+enum SmartViewOriginV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case builtIn = "BUILT_IN"
+    case userSaved = "USER_SAVED"
+}
+
+struct SavedSmartViewDescriptorV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let id: UUID
+    let workspaceID: UUID
+    let stableID: String
+    let origin: SmartViewOriginV1
+    let builtInKind: BuiltInSmartViewV1?
+    let name: String
+    let query: String
+    let scope: SearchScopeV1
+    let filters: [SearchFilterV1]
+    let sort: SearchSortV1
+    let revision: UInt64
+    let mutationID: UUID
+    let createdAt: Date
+    let updatedAt: Date
+
+    init(
+        id: UUID, workspaceID: UUID, stableID: String, origin: SmartViewOriginV1,
+        builtInKind: BuiltInSmartViewV1? = nil, name: String, query: String,
+        scope: SearchScopeV1, filters: [SearchFilterV1] = [], sort: SearchSortV1,
+        revision: UInt64, mutationID: UUID, createdAt: Date, updatedAt: Date
+    ) throws {
+        schemaVersion = Self.schemaVersion; self.id = id; self.workspaceID = workspaceID; self.stableID = stableID
+        self.origin = origin; self.builtInKind = builtInKind; self.name = name; self.query = query
+        self.scope = scope; self.filters = filters.sorted(); self.sort = sort; self.revision = revision
+        self.mutationID = mutationID; self.createdAt = createdAt; self.updatedAt = updatedAt
+        try validate()
+    }
+
+    func validate() throws {
+        let hasUserExecutableCriterion = !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !filters.isEmpty
+            || sort == .mostRecent
+        guard schemaVersion == Self.schemaVersion, id != SearchContractValidationV1.zeroUUID,
+              workspaceID != SearchContractValidationV1.zeroUUID, mutationID != SearchContractValidationV1.zeroUUID,
+              SearchContractValidationV1.validID(stableID),
+              SearchContractValidationV1.validDisplayText(name, maximumBytes: SearchContractLimitsV1.maximumSavedViewNameBytes),
+              query.utf8.count <= SearchContractLimitsV1.maximumQueryBytes,
+              !query.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
+              filters.count <= SearchContractLimitsV1.maximumFilters, Set(filters).count == filters.count,
+              revision > 0, SearchContractValidationV1.validDate(createdAt),
+              SearchContractValidationV1.validDate(updatedAt), updatedAt >= createdAt else {
+            throw SearchContractFailureV1.invalidSmartView
+        }
+        try filters.forEach { try $0.validate() }
+        switch origin {
+        case .builtIn:
+            guard let builtInKind else { throw SearchContractFailureV1.invalidSmartView }
+            let definition = try BuiltInSmartViewDefinitionV1(kind: builtInKind)
+            guard stableID == definition.stableID,
+                  query.isEmpty,
+                  scope == definition.scope,
+                  filters == definition.filters,
+                  sort == definition.sort else {
+                throw SearchContractFailureV1.invalidSmartView
+            }
+        case .userSaved:
+            guard builtInKind == nil,
+                  !stableID.hasPrefix("builtin.search."),
+                  hasUserExecutableCriterion else {
+                throw SearchContractFailureV1.invalidSmartView
+            }
+        }
+    }
+
+    func replacingUserDefinition(
+        name: String, query: String, scope: SearchScopeV1, filters: [SearchFilterV1],
+        sort: SearchSortV1, mutationID: UUID, updatedAt: Date
+    ) throws -> Self {
+        guard origin == .userSaved else { throw SearchContractFailureV1.builtInViewMutation }
+        guard revision < UInt64.max else { throw SearchContractFailureV1.invalidRevision }
+        return try Self(id: id, workspaceID: workspaceID, stableID: stableID, origin: origin,
+                        name: name, query: query, scope: scope, filters: filters, sort: sort,
+                        revision: revision + 1, mutationID: mutationID, createdAt: createdAt, updatedAt: updatedAt)
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, id, workspaceID, stableID, origin, builtInKind, name, query
+        case scope, filters, sort, revision, mutationID, createdAt, updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard try container.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SearchContractFailureV1.unsupportedSchemaVersion
+        }
+        try self.init(
+            id: container.decode(UUID.self, forKey: .id),
+            workspaceID: container.decode(UUID.self, forKey: .workspaceID),
+            stableID: container.decode(String.self, forKey: .stableID),
+            origin: container.decode(SmartViewOriginV1.self, forKey: .origin),
+            builtInKind: container.decodeIfPresent(BuiltInSmartViewV1.self, forKey: .builtInKind),
+            name: container.decode(String.self, forKey: .name),
+            query: container.decode(String.self, forKey: .query),
+            scope: container.decode(SearchScopeV1.self, forKey: .scope),
+            filters: container.decode([SearchFilterV1].self, forKey: .filters),
+            sort: container.decode(SearchSortV1.self, forKey: .sort),
+            revision: container.decode(UInt64.self, forKey: .revision),
+            mutationID: container.decode(UUID.self, forKey: .mutationID),
+            createdAt: container.decode(Date.self, forKey: .createdAt),
+            updatedAt: container.decode(Date.self, forKey: .updatedAt)
+        )
+    }
+}

@@ -12,6 +12,7 @@ final class V9_02FileAuthorityTests: XCTestCase {
             .durableDirectory,
             .stagingDirectory,
             .restoreStaging,
+            .generationLeaseDirectory,
             .cache,
             .scratch,
         ]
@@ -21,15 +22,19 @@ final class V9_02FileAuthorityTests: XCTestCase {
             .stagingFile,
             .temporaryFile,
             .generationPointerTemporary,
+            .generationLeaseControl,
+            .generationLeaseControlTemporary,
+            .generationLeaseOwnerLock,
             .journal,
             .journalTemporary,
             .diagnostics,
             .commerceEntitlementCache,
             .cache,
             .scratch,
+            .searchIndex,
         ]
 
-        XCTAssertEqual(OwnedFileKindV1.allCases.count, 20)
+        XCTAssertEqual(OwnedFileKindV1.allCases.count, 25)
         XCTAssertEqual(
             Set(OwnedFileKindV1.allCases),
             directoryKinds.union(excludedKinds).union(Set([

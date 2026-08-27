@@ -171,6 +171,7 @@ final class WholeSignDeletionService {
     private let makeUUID: () -> UUID
     private let failureInjection: WholeSignDeletionFailureInjection?
     private let lifecycleRoute: WholeSignDeletionLifecycleRouteV1
+    private let searchIndexStore: LocalSearchIndexStoreV1
 
     convenience init(
         modelContext: ModelContext,
@@ -233,6 +234,14 @@ final class WholeSignDeletionService {
         let generations = root.deletingLastPathComponent()
         let dataRoot = generations.deletingLastPathComponent()
         let applicationSupport = dataRoot.deletingLastPathComponent()
+        do {
+            searchIndexStore = try LocalSearchIndexStoreV1(
+                applicationSupportURL: applicationSupport,
+                fileManager: fileManager
+            )
+        } catch {
+            preconditionFailure("Search-index lifecycle could not be bound: \(error)")
+        }
 #if DEBUG
         let canonicalCurrentPointer = applicationSupport
             .appendingPathComponent("FieldEvidenceData", isDirectory: true)
@@ -309,7 +318,7 @@ final class WholeSignDeletionService {
         guard !modelContext.hasChanges else {
             throw WholeSignDeletionServiceError.contextHasChanges
         }
-        guard try journal.loadAll().isEmpty else {
+        guard try journal.isEmpty() else {
             throw WholeSignDeletionServiceError.recoveryRequired
         }
         let frozenMutationHistory = try mutationHistorySnapshot()
@@ -394,8 +403,6 @@ final class WholeSignDeletionService {
             try inject(.committedPhase)
             try journal.replace(plan.intent.withPhase(.databaseCommitted))
             try cleanup(plan.intent)
-            try inject(.journalRemoval)
-            try journal.remove(plan.intent.withPhase(.databaseCommitted))
         } catch let error as WholeSignDeletionServiceError {
             throw error
         } catch {
@@ -406,6 +413,15 @@ final class WholeSignDeletionService {
             try mutationHistorySnapshot()
         ) else {
             throw WholeSignDeletionServiceError.journalInvalid
+        }
+        try await purgeSearchProjectionAfterDeletion()
+        do {
+            try inject(.journalRemoval)
+            try journal.remove(plan.intent.withPhase(.databaseCommitted))
+        } catch let error as WholeSignDeletionServiceError {
+            throw error
+        } catch {
+            throw WholeSignDeletionServiceError.cleanupFailed
         }
         return WholeSignDeletionOutcome(
             assetID: assetID,
@@ -421,7 +437,7 @@ final class WholeSignDeletionService {
         guard !modelContext.hasChanges else {
             throw WholeSignDeletionServiceError.contextHasChanges
         }
-        guard try journal.loadAll().isEmpty else {
+        guard try journal.isEmpty() else {
             throw WholeSignDeletionServiceError.recoveryRequired
         }
         let rows = try fetchRows()
@@ -459,7 +475,7 @@ final class WholeSignDeletionService {
         guard !modelContext.hasChanges else {
             throw WholeSignDeletionServiceError.contextHasChanges
         }
-        guard try journal.loadAll().isEmpty,
+        guard try journal.isEmpty(),
               preview.generationID == generationID,
               preview.schemaVersion == 1 else {
             throw WholeSignDeletionServiceError.recoveryRequired
@@ -506,6 +522,13 @@ final class WholeSignDeletionService {
             )
         }
         try requireLedgerIdentitiesUnseen(preview.ledgerEntries.map(\.identity))
+        let siteSearchPurgeMarker = SiteSearchPurgeMarkerV1(
+            siteID: preview.siteID,
+            deletionID: preview.deletionID,
+            generationID: generationID
+        )
+        try journal.createSiteSearchPurgeMarker(siteSearchPurgeMarker)
+        try inject(.preparedJournal)
         let packetStates = Dictionary(uniqueKeysWithValues: rows.packets.map {
             ($0.id, ($0.currentRecordID, $0.evaluationCounted, $0.contentDeletedAt))
         })
@@ -525,10 +548,19 @@ final class WholeSignDeletionService {
                 }
             }
             modelContext.rollback()
+            do {
+                try journal.removeSiteSearchPurgeMarker(siteSearchPurgeMarker)
+            } catch {
+                throw WholeSignDeletionServiceError.recoveryRequired
+            }
             if error is WholeSignDeletionServiceError { throw error }
             throw WholeSignDeletionServiceError.saveFailed
         }
         do {
+            try inject(.committedPhase)
+            try journal.replaceSiteSearchPurgeMarker(
+                siteSearchPurgeMarker.withPhase(.databaseCommitted)
+            )
             try inject(.fileCleanup)
             for plan in preview.assetPlans {
                 try cleanup(plan.intent)
@@ -544,10 +576,41 @@ final class WholeSignDeletionService {
         ) else {
             throw WholeSignDeletionServiceError.journalInvalid
         }
+        try await purgeSearchProjectionAfterDeletion()
+        do {
+            try inject(.journalRemoval)
+            try journal.removeSiteSearchPurgeMarker(
+                siteSearchPurgeMarker.withPhase(.databaseCommitted)
+            )
+        } catch let error as WholeSignDeletionServiceError {
+            throw error
+        } catch {
+            throw WholeSignDeletionServiceError.cleanupFailed
+        }
         return ExplicitSiteDeletionOutcomeV1(
             siteID: preview.siteID,
             deletionID: preview.deletionID
         )
+    }
+
+    private func purgeSearchProjectionAfterDeletion() async throws {
+        let workspaceID: UUID?
+        switch lifecycleRoute {
+        case .live(let dependencies):
+            workspaceID = dependencies.workspaceID.rawValue
+        case .expiringCompatibility:
+            let states = try modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+            guard states.count <= 1 else {
+                throw WholeSignDeletionServiceError.journalInvalid
+            }
+            workspaceID = states.first?.workspaceID
+        }
+        guard let workspaceID else { return }
+        do {
+            try await searchIndexStore.purgeWorkspace(workspaceID)
+        } catch {
+            throw WholeSignDeletionServiceError.cleanupFailed
+        }
     }
 
     func reconcile() async throws -> WholeSignDeletionRecoverySummary {
@@ -557,6 +620,7 @@ final class WholeSignDeletionService {
         }
         let frozenMutationHistory = try mutationHistorySnapshot()
         let intents = try journal.loadAll()
+        let siteSearchPurgeMarkers = try journal.loadAllSiteSearchPurgeMarkers()
         let intentPaths = intents.flatMap(\.relativePaths)
         let intentPacketIDs = intents.flatMap {
             $0.countedPacketTombstones.map(\.id)
@@ -565,6 +629,13 @@ final class WholeSignDeletionService {
             $0.ledgerEntries.map(\.identity)
         }
         guard Set(intents.map(\.assetID)).count == intents.count,
+              Set(siteSearchPurgeMarkers.map(\.siteID)).count
+                == siteSearchPurgeMarkers.count,
+              Set(siteSearchPurgeMarkers.map(\.deletionID)).count
+                == siteSearchPurgeMarkers.count,
+              Set(intents.map(\.deletionID)).isDisjoint(
+                with: Set(siteSearchPurgeMarkers.map(\.deletionID))
+              ),
               Set(intentPaths).count == intentPaths.count,
               Set(intentPacketIDs).count == intentPacketIDs.count,
               Set(intentLedgerIdentities).count == intentLedgerIdentities.count else {
@@ -627,6 +698,7 @@ final class WholeSignDeletionService {
                 try inject(.committedPhase)
                 try journal.replace(intent.withPhase(.databaseCommitted))
                 try cleanup(intent)
+                try await purgeSearchProjectionAfterDeletion()
                 try inject(.journalRemoval)
                 try journal.remove(intent.withPhase(.databaseCommitted))
                 completed += 1
@@ -639,7 +711,32 @@ final class WholeSignDeletionService {
                 try journal.replace(intent.withPhase(.databaseCommitted))
             }
             try cleanup(intent)
+            try await purgeSearchProjectionAfterDeletion()
             try journal.remove(intent.withPhase(.databaseCommitted))
+            completed += 1
+        }
+        for marker in siteSearchPurgeMarkers {
+            guard marker.generationID == generationID else {
+                throw WholeSignDeletionServiceError.journalInvalid
+            }
+            let rows = try fetchRows()
+            if rows.sites.contains(where: { $0.id == marker.siteID }) {
+                guard marker.phase == .prepared else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+                try journal.removeSiteSearchPurgeMarker(marker)
+                cancelled += 1
+                continue
+            }
+            if marker.phase == .prepared {
+                try journal.replaceSiteSearchPurgeMarker(
+                    marker.withPhase(.databaseCommitted)
+                )
+            }
+            try await purgeSearchProjectionAfterDeletion()
+            try journal.removeSiteSearchPurgeMarker(
+                marker.withPhase(.databaseCommitted)
+            )
             completed += 1
         }
         guard mutationHistoryAuthorityMatches(
@@ -1986,6 +2083,36 @@ private final class DeletionGenerationFiles {
     }
 }
 
+private struct SiteSearchPurgeMarkerV1: Codable, Equatable {
+    let schemaVersion: Int
+    let siteID: UUID
+    let deletionID: UUID
+    let generationID: UUID
+    let phase: DeletionPhaseV1
+
+    init(
+        siteID: UUID,
+        deletionID: UUID,
+        generationID: UUID,
+        phase: DeletionPhaseV1 = .prepared
+    ) {
+        schemaVersion = 1
+        self.siteID = siteID
+        self.deletionID = deletionID
+        self.generationID = generationID
+        self.phase = phase
+    }
+
+    func withPhase(_ phase: DeletionPhaseV1) -> Self {
+        Self(
+            siteID: siteID,
+            deletionID: deletionID,
+            generationID: generationID,
+            phase: phase
+        )
+    }
+}
+
 private final class DeletionJournalStore {
     private static let maximumJournalEntryCount = 1_024
     private static let maximumJournalFileByteCount = 64 * 1_024 * 1_024
@@ -2066,6 +2193,13 @@ private final class DeletionJournalStore {
         try write(intent, exclusive: true)
     }
 
+    func createSiteSearchPurgeMarker(_ marker: SiteSearchPurgeMarkerV1) throws {
+        guard marker.phase == .prepared else {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
+        try write(marker, exclusive: true)
+    }
+
     func replace(_ intent: DeletionIntentV1) throws {
         guard intent.phase == .databaseCommitted else {
             throw WholeSignDeletionServiceError.journalInvalid
@@ -2083,6 +2217,24 @@ private final class DeletionJournalStore {
         try write(intent, exclusive: false)
     }
 
+    func replaceSiteSearchPurgeMarker(_ marker: SiteSearchPurgeMarkerV1) throws {
+        guard marker.phase == .databaseCommitted else {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
+        let expected = marker.withPhase(.prepared)
+        let name = Self.siteMarkerName(marker.deletionID)
+        try verifyExistingPolicy(.journal, name: name)
+        try withDeletionDirectory { descriptor in
+            let existing = try Self.decodeSiteMarker(
+                Self.read(descriptor: descriptor, name: name)
+            )
+            guard existing == expected else {
+                throw WholeSignDeletionServiceError.journalInvalid
+            }
+        }
+        try write(marker, exclusive: false)
+    }
+
     func remove(_ expected: DeletionIntentV1) throws {
         try verifyExistingPolicy(.journal, name: Self.name(expected.deletionID))
         try withDeletionDirectory { descriptor in
@@ -2096,6 +2248,27 @@ private final class DeletionJournalStore {
                 throw WholeSignDeletionServiceError.journalInvalid
             }
         }
+    }
+
+    func removeSiteSearchPurgeMarker(_ expected: SiteSearchPurgeMarkerV1) throws {
+        let name = Self.siteMarkerName(expected.deletionID)
+        try verifyExistingPolicy(.journal, name: name)
+        try withDeletionDirectory { descriptor in
+            let existing = try Self.decodeSiteMarker(
+                Self.read(descriptor: descriptor, name: name)
+            )
+            guard existing == expected,
+                  Darwin.unlinkat(descriptor, name, 0) == 0,
+                  Darwin.fsync(descriptor) == 0 else {
+                throw WholeSignDeletionServiceError.journalInvalid
+            }
+        }
+    }
+
+    func isEmpty() throws -> Bool {
+        let assetIntents = try loadAll()
+        let siteMarkers = try loadAllSiteSearchPurgeMarkers()
+        return assetIntents.isEmpty && siteMarkers.isEmpty
     }
 
     func loadAll() throws -> [DeletionIntentV1] {
@@ -2129,7 +2302,14 @@ private final class DeletionJournalStore {
             }
             let temporaryNames = names.filter { Self.temporaryIdentifier($0) != nil }
             let journalNames = names.filter { Self.journalIdentifier($0) != nil }
-            guard temporaryNames.count + journalNames.count == names.count else {
+            let siteTemporaryNames = names.filter {
+                Self.siteTemporaryIdentifier($0) != nil
+            }
+            let siteMarkerNames = names.filter {
+                Self.siteMarkerIdentifier($0) != nil
+            }
+            guard temporaryNames.count + journalNames.count
+                    + siteTemporaryNames.count + siteMarkerNames.count == names.count else {
                 throw WholeSignDeletionServiceError.journalInvalid
             }
             var enumeratedBytes: Int64 = 0
@@ -2180,9 +2360,12 @@ private final class DeletionJournalStore {
                     let replacement = try Self.decode(
                         Self.read(descriptor: descriptor, name: temporary)
                     )
+                    let beforeSwap = existing.phase == .prepared
+                        && replacement == existing.withPhase(.databaseCommitted)
+                    let afterSwap = existing.phase == .databaseCommitted
+                        && replacement == existing.withPhase(.prepared)
                     guard existing.deletionID == temporaryID,
-                          existing.phase == .prepared,
-                          replacement == existing.withPhase(.databaseCommitted) else {
+                          beforeSwap || afterSwap else {
                         throw WholeSignDeletionServiceError.journalInvalid
                     }
                 }
@@ -2192,7 +2375,47 @@ private final class DeletionJournalStore {
                     expected: expectedTemporary
                 )
             }
-            if !temporaryNames.isEmpty, Darwin.fsync(descriptor) != 0 {
+            let siteMarkerIDs = Set(
+                siteMarkerNames.compactMap(Self.siteMarkerIdentifier)
+            )
+            for temporary in siteTemporaryNames {
+                try verifyExistingPolicy(.journalTemporary, name: temporary)
+                guard let temporaryID = Self.siteTemporaryIdentifier(temporary) else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+                let file = Darwin.openat(descriptor, temporary, O_RDONLY | O_NOFOLLOW)
+                guard file >= 0 else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+                let expectedTemporary = try Self.fileIdentity(file)
+                Darwin.close(file)
+                if siteMarkerIDs.contains(temporaryID) {
+                    let existing = try Self.decodeSiteMarker(
+                        Self.read(
+                            descriptor: descriptor,
+                            name: Self.siteMarkerName(temporaryID)
+                        )
+                    )
+                    let replacement = try Self.decodeSiteMarker(
+                        Self.read(descriptor: descriptor, name: temporary)
+                    )
+                    let beforeSwap = existing.phase == .prepared
+                        && replacement == existing.withPhase(.databaseCommitted)
+                    let afterSwap = existing.phase == .databaseCommitted
+                        && replacement == existing.withPhase(.prepared)
+                    guard existing.deletionID == temporaryID,
+                          beforeSwap || afterSwap else {
+                        throw WholeSignDeletionServiceError.journalInvalid
+                    }
+                }
+                try Self.removeIfExact(
+                    descriptor: descriptor,
+                    name: temporary,
+                    expected: expectedTemporary
+                )
+            }
+            if (!temporaryNames.isEmpty || !siteTemporaryNames.isEmpty),
+               Darwin.fsync(descriptor) != 0 {
                 throw WholeSignDeletionServiceError.journalInvalid
             }
             return try journalNames.sorted().map { name in
@@ -2210,13 +2433,103 @@ private final class DeletionJournalStore {
         }
     }
 
+    func loadAllSiteSearchPurgeMarkers() throws -> [SiteSearchPurgeMarkerV1] {
+        _ = try loadAll()
+        return try withDeletionDirectory { descriptor in
+            let duplicate = Darwin.dup(descriptor)
+            guard duplicate >= 0, let directory = Darwin.fdopendir(duplicate) else {
+                if duplicate >= 0 { Darwin.close(duplicate) }
+                throw WholeSignDeletionServiceError.journalInvalid
+            }
+            defer { Darwin.closedir(directory) }
+            var names = [String]()
+            errno = 0
+            while let entry = Darwin.readdir(directory) {
+                var tuple = entry.pointee.d_name
+                let capacity = MemoryLayout.size(ofValue: tuple)
+                let name = withUnsafePointer(to: &tuple) { pointer in
+                    pointer.withMemoryRebound(to: CChar.self, capacity: capacity) {
+                        String(cString: $0)
+                    }
+                }
+                if Self.siteMarkerIdentifier(name) != nil {
+                    names.append(name)
+                }
+                errno = 0
+            }
+            guard errno == 0 else {
+                throw WholeSignDeletionServiceError.journalInvalid
+            }
+            return try names.sorted().map { name in
+                try verifyExistingPolicy(.journal, name: name)
+                guard let identifier = Self.siteMarkerIdentifier(name) else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+                let marker = try Self.decodeSiteMarker(
+                    Self.read(descriptor: descriptor, name: name)
+                )
+                guard marker.deletionID == identifier else {
+                    throw WholeSignDeletionServiceError.journalInvalid
+                }
+                return marker
+            }
+        }
+    }
+
     private func write(_ intent: DeletionIntentV1, exclusive: Bool) throws {
         let data: Data
         do { data = try DeletionIntentEncoderV1().encode(intent).data }
         catch { throw WholeSignDeletionServiceError.journalInvalid }
+        let expectedData: Data?
+        if exclusive {
+            expectedData = nil
+        } else {
+            do {
+                expectedData = try DeletionIntentEncoderV1()
+                    .encode(intent.withPhase(.prepared)).data
+            } catch {
+                throw WholeSignDeletionServiceError.journalInvalid
+            }
+        }
+        try write(
+            data: data,
+            name: Self.name(intent.deletionID),
+            temporary: ".\(intent.deletionID.uuidString.lowercased()).tmp",
+            exclusive: exclusive,
+            expectedData: expectedData
+        )
+    }
+
+    private func write(
+        _ marker: SiteSearchPurgeMarkerV1,
+        exclusive: Bool
+    ) throws {
+        let data = try Self.encodeSiteMarker(marker)
+        let expectedData: Data?
+        if exclusive {
+            expectedData = nil
+        } else {
+            expectedData = try Self.encodeSiteMarker(
+                marker.withPhase(.prepared)
+            )
+        }
+        try write(
+            data: data,
+            name: Self.siteMarkerName(marker.deletionID),
+            temporary: Self.siteTemporaryName(marker.deletionID),
+            exclusive: exclusive,
+            expectedData: expectedData
+        )
+    }
+
+    private func write(
+        data: Data,
+        name: String,
+        temporary: String,
+        exclusive: Bool,
+        expectedData: Data?
+    ) throws {
         try withDeletionDirectory { descriptor in
-            let name = Self.name(intent.deletionID)
-            let temporary = ".\(intent.deletionID.uuidString.lowercased()).tmp"
             var temporaryInfo = stat()
             guard Darwin.fstatat(
                 descriptor,
@@ -2274,11 +2587,7 @@ private final class DeletionJournalStore {
             if exclusive {
                 priorValue = nil
             } else {
-                let expectedData: Data
-                do {
-                    expectedData = try DeletionIntentEncoderV1()
-                        .encode(intent.withPhase(.prepared)).data
-                } catch {
+                guard let expectedData else {
                     throw WholeSignDeletionServiceError.journalInvalid
                 }
                 guard let existing = try Self.readValueIfPresent(
@@ -2668,6 +2977,47 @@ private final class DeletionJournalStore {
         catch { throw WholeSignDeletionServiceError.journalInvalid }
     }
 
+    private static func encodeSiteMarker(
+        _ marker: SiteSearchPurgeMarkerV1
+    ) throws -> Data {
+        guard marker.schemaVersion == 1,
+              marker.siteID != zeroUUID,
+              marker.deletionID != zeroUUID,
+              marker.generationID != zeroUUID else {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
+        do {
+            return try CanonicalJSONV1.encode(.object([
+                "deletionID": CanonicalJSONV1.uuid(marker.deletionID),
+                "generationID": CanonicalJSONV1.uuid(marker.generationID),
+                "phase": .string(marker.phase.rawValue),
+                "schemaVersion": .integer(marker.schemaVersion),
+                "siteID": CanonicalJSONV1.uuid(marker.siteID),
+            ]))
+        } catch {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
+    }
+
+    private static func decodeSiteMarker(
+        _ data: Data
+    ) throws -> SiteSearchPurgeMarkerV1 {
+        do {
+            let marker = try JSONDecoder().decode(
+                SiteSearchPurgeMarkerV1.self,
+                from: data
+            )
+            guard try encodeSiteMarker(marker) == data else {
+                throw WholeSignDeletionServiceError.journalInvalid
+            }
+            return marker
+        } catch let error as WholeSignDeletionServiceError {
+            throw error
+        } catch {
+            throw WholeSignDeletionServiceError.journalInvalid
+        }
+    }
+
     private struct Identity: Equatable {
         let device: dev_t
         let inode: ino_t
@@ -2701,6 +3051,14 @@ private final class DeletionJournalStore {
         id.uuidString.lowercased() + ".json"
     }
 
+    private static func siteMarkerName(_ id: UUID) -> String {
+        "site-" + id.uuidString.lowercased() + ".json"
+    }
+
+    private static func siteTemporaryName(_ id: UUID) -> String {
+        ".site-" + id.uuidString.lowercased() + ".tmp"
+    }
+
     private static func journalIdentifier(_ name: String) -> UUID? {
         guard name.count == 41,
               name.hasSuffix(".json"),
@@ -2723,4 +3081,32 @@ private final class DeletionJournalStore {
         }
         return identifier
     }
+
+    private static func siteMarkerIdentifier(_ name: String) -> UUID? {
+        guard name.hasPrefix("site-"),
+              name.hasSuffix(".json"),
+              let identifier = UUID(
+                uuidString: String(name.dropFirst(5).dropLast(5))
+              ),
+              siteMarkerName(identifier) == name else {
+            return nil
+        }
+        return identifier
+    }
+
+    private static func siteTemporaryIdentifier(_ name: String) -> UUID? {
+        guard name.hasPrefix(".site-"),
+              name.hasSuffix(".tmp"),
+              let identifier = UUID(
+                uuidString: String(name.dropFirst(6).dropLast(4))
+              ),
+              siteTemporaryName(identifier) == name else {
+            return nil
+        }
+        return identifier
+    }
+
+    private static let zeroUUID = UUID(
+        uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    )
 }

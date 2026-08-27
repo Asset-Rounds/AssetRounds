@@ -83,6 +83,7 @@ final class BackupRestoreService {
     private let now: () -> Date
     private let makeUUID: () -> UUID
     private let failureInjection: BackupRestoreFailureInjection?
+    private let searchIndexLifecycle: any SearchIndexLifecyclePortV1
 
     init(
         applicationSupportURL: URL,
@@ -122,6 +123,10 @@ final class BackupRestoreService {
         self.now = now
         self.makeUUID = makeUUID
         self.failureInjection = failureInjection
+        self.searchIndexLifecycle = try LocalSearchIndexStoreV1(
+            applicationSupportURL: root,
+            fileManager: fileManager
+        )
     }
 
     convenience init(
@@ -196,6 +201,7 @@ final class BackupRestoreService {
                 && modelContext.fetchCount(FetchDescriptor<Packet>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<Report>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<DeletionLedgerRow>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<SavedSmartViewRowV1>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<MutationQuarantineRow>()) == 0
                 && modelContext.fetchCount(
@@ -655,6 +661,9 @@ final class BackupRestoreService {
             )
             try intentStore.remove(expected: validated)
             try cleanupEmptyRestoreDirectories()
+            try await searchIndexLifecycle.dropProjection(
+                workspaceID: session.workspaceID.rawValue
+            )
             return session
         } catch let failure as ProtectedFilePolicyError
             where failure == .protectedDataUnavailable {
@@ -665,6 +674,9 @@ final class BackupRestoreService {
         } catch {
             do {
                 if let recovered = try reconcileAtStartup() {
+                    try await searchIndexLifecycle.dropProjection(
+                        workspaceID: recovered.workspaceID.rawValue
+                    )
                     return recovered
                 }
             } catch let failure as ProtectedFilePolicyError
@@ -1050,6 +1062,9 @@ private extension BackupRestoreService {
                 + context.fetch(FetchDescriptor<Issue>()).map { (.issue, $0.id) }
                 + context.fetch(FetchDescriptor<Packet>()).map { (.packet, $0.id) }
                 + context.fetch(FetchDescriptor<Report>()).map { (.report, $0.id) }
+                + context.fetch(FetchDescriptor<SavedSmartViewRowV1>()).map {
+                    (.savedSmartView, $0.id)
+                }
             let identities = try pairs.map { try WorkspaceEntityIdentityV1(kind: $0.0, id: $0.1) }
             let revision = try lifecycleDependencies.writer.currentRevision()
             guard revision.workspaceID == lifecycleDependencies.workspaceID,
@@ -1472,6 +1487,7 @@ private extension BackupRestoreService {
             packets: packets,
             recordsSchemaVersion: records.recordsSchemaVersion,
             reports: records.reports,
+            savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords
         )
@@ -1491,6 +1507,7 @@ private extension BackupRestoreService {
             + records.locationHierarchyEvents.map(\.id)
             + records.locationMigrationReceipts.map(\.id)
             + records.locationNodes.map(\.id)
+            + records.savedSmartViews.map(\.id)
         return Set(ids).count == ids.count
     }
 
@@ -1513,6 +1530,7 @@ private extension BackupRestoreService {
             packets: records.packets,
             recordsSchemaVersion: max(3, records.recordsSchemaVersion),
             reports: records.reports,
+            savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords
         )
@@ -1523,7 +1541,7 @@ private extension BackupRestoreService {
         identityDecision: RestoreIdentityV1?
     ) throws -> V4BackupRecordsV1 {
         var normalized = try recordsWithObservationAndTime(records)
-        if normalized.recordsSchemaVersion == 5,
+        if normalized.recordsSchemaVersion >= 5,
            let identityDecision {
             normalized = try rebindingLocationMigrationReceipt(
                 in: normalized,
@@ -1695,6 +1713,26 @@ private extension BackupRestoreService {
                 secondaryCanonicalData: try LocationPersistenceCodecV1.encode(destinationReceipt)
             )
         }
+        let savedSmartViews = try records.savedSmartViews.map { record -> V7BackupSavedSmartViewRecordV1 in
+            let value = try record.descriptor()
+            guard value.workspaceID != workspaceID.rawValue else { return record }
+            return try V7BackupSavedSmartViewRecordV1(SavedSmartViewDescriptorV1(
+                id: value.id,
+                workspaceID: workspaceID.rawValue,
+                stableID: value.stableID,
+                origin: value.origin,
+                builtInKind: value.builtInKind,
+                name: value.name,
+                query: value.query,
+                scope: value.scope,
+                filters: value.filters,
+                sort: value.sort,
+                revision: value.revision,
+                mutationID: value.mutationID,
+                createdAt: value.createdAt,
+                updatedAt: value.updatedAt
+            ))
+        }
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
                 assetCompositionEdges: reboundEdges.map(\.0),
@@ -1707,6 +1745,7 @@ private extension BackupRestoreService {
                 mutationHistory: records.mutationHistory, packets: records.packets,
                 recordsSchemaVersion: records.recordsSchemaVersion,
                 reports: records.reports, sites: records.sites,
+                savedSmartViews: savedSmartViews,
                 workflowRecords: records.workflowRecords
             )
         }
@@ -1718,7 +1757,8 @@ private extension BackupRestoreService {
            nodes == records.locationNodes,
            placements == records.assetPlacementEvents,
            reboundEdges.map(\.0) == records.assetCompositionEdges,
-           compositionEvents == records.assetCompositionEvents {
+           compositionEvents == records.assetCompositionEvents,
+           savedSmartViews == records.savedSmartViews {
             return records
         }
         let rebound = try LocationMigrationReceiptV1(
@@ -1747,6 +1787,7 @@ private extension BackupRestoreService {
             packets: records.packets,
             recordsSchemaVersion: records.recordsSchemaVersion,
             reports: records.reports,
+            savedSmartViews: savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords
         )
@@ -1781,6 +1822,7 @@ private extension BackupRestoreService {
             packets: records.packets,
             recordsSchemaVersion: 4,
             reports: records.reports,
+            savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: workflowRecords
         )
@@ -1852,7 +1894,8 @@ private extension BackupRestoreService {
         recordsSchemaVersion: Int
     ) throws -> (basis: Data?, temporal: Data?) {
         do {
-            if recordsSchemaVersion == 4 || recordsSchemaVersion == 5 {
+            if recordsSchemaVersion == 4 || recordsSchemaVersion == 5
+                || recordsSchemaVersion == 6 {
                 guard let basisData = value.observationBasisV1Data,
                       let temporalData = value.temporalContextV1Data else {
                     throw BackupRestoreServiceError.invalidPackage
@@ -1926,7 +1969,8 @@ private extension BackupRestoreService {
     ) throws {
         guard (records.recordsSchemaVersion == 3
                 || records.recordsSchemaVersion == 4
-                || records.recordsSchemaVersion == 5)
+                || records.recordsSchemaVersion == 5
+                || records.recordsSchemaVersion == 6)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -1938,7 +1982,7 @@ private extension BackupRestoreService {
         case (1, nil, nil):
             break
         case (2, let ledger?, nil), (3, let ledger?, _), (4, let ledger?, _),
-             (5, let ledger?, _):
+             (5, let ledger?, _), (6, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -1970,7 +2014,7 @@ private extension BackupRestoreService {
                 updatedAt: value.updatedAt
             ))
         }
-        if records.recordsSchemaVersion == 5 {
+        if records.recordsSchemaVersion >= 5 {
             do {
                 for record in records.locationNodes {
                     let value = try LocationPersistenceCodecV1.decode(
@@ -2173,10 +2217,24 @@ private extension BackupRestoreService {
                 replacesReportID: value.replacesReportID
             ))
         }
+        if records.recordsSchemaVersion == 6 {
+            do {
+                for record in records.savedSmartViews {
+                    let descriptor = try record.descriptor()
+                    guard descriptor.id == record.id else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    context.insert(try SavedSmartViewRowV1(descriptor))
+                }
+            } catch {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
-                    || records.recordsSchemaVersion == 5 else {
+                    || records.recordsSchemaVersion == 5
+                    || records.recordsSchemaVersion == 6 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -3244,11 +3302,42 @@ private extension BackupRestoreService {
     ) throws {
         let actual = try records(in: context)
         if actual == expected { return }
-        guard expected.recordsSchemaVersion < 5,
-              actual.recordsSchemaVersion == 5,
-              try validLegacyLocationMigration(actual, expected: expected) else {
+        guard expected.recordsSchemaVersion < 6,
+              actual.recordsSchemaVersion == 6 else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
+        if expected.recordsSchemaVersion == 5 {
+            guard recordsByReplacingV7Fields(actual, schemaVersion: 5) == expected else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        } else if try !validLegacyLocationMigration(actual, expected: expected) {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+    }
+
+    func recordsByReplacingV7Fields(
+        _ records: V4BackupRecordsV1,
+        schemaVersion: Int
+    ) -> V4BackupRecordsV1 {
+        V4BackupRecordsV1(
+            assetCompositionEdges: records.assetCompositionEdges,
+            assetCompositionEvents: records.assetCompositionEvents,
+            assetPlacementEvents: records.assetPlacementEvents,
+            assets: records.assets,
+            deletionLedger: records.deletionLedger,
+            evidenceFiles: records.evidenceFiles,
+            issues: records.issues,
+            locationHierarchyEvents: records.locationHierarchyEvents,
+            locationMigrationReceipts: records.locationMigrationReceipts,
+            locationNodes: records.locationNodes,
+            mutationHistory: records.mutationHistory,
+            packets: records.packets,
+            recordsSchemaVersion: schemaVersion,
+            reports: records.reports,
+            savedSmartViews: [],
+            sites: records.sites,
+            workflowRecords: records.workflowRecords
+        )
     }
 
     func validLegacyLocationMigration(
@@ -3399,6 +3488,7 @@ private extension BackupRestoreService {
         let locationHierarchyEvents = try context.fetch(FetchDescriptor<LocationHierarchyEventRow>())
         let locationMigrationReceipts = try context.fetch(FetchDescriptor<LocationMigrationReceiptRow>())
         let locationNodes = try context.fetch(FetchDescriptor<LocationNodeRow>())
+        let savedSmartViews = try context.fetch(FetchDescriptor<SavedSmartViewRowV1>())
         let observationAndTime: [UUID: ObservationAndTimeRow]
         if includesObservationAndTime {
             observationAndTime = try ObservationAndTimeRowStoreV1.validatedIndex(
@@ -3484,13 +3574,7 @@ private extension BackupRestoreService {
             }.sorted { canonical($0.id) < canonical($1.id) },
             recordsSchemaVersion: mutationHistory == nil
                 ? (includingDeletionLedger ? 2 : 1)
-                : (includesObservationAndTime
-                    && (!assetCompositionEdges.isEmpty
-                        || !assetCompositionEvents.isEmpty
-                        || !assetPlacementEvents.isEmpty
-                        || !locationHierarchyEvents.isEmpty
-                        || !locationMigrationReceipts.isEmpty
-                        || !locationNodes.isEmpty) ? 5 : 4),
+                : 6,
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -3502,6 +3586,9 @@ private extension BackupRestoreService {
                     pdfSHA256: $0.pdfSHA256, createdAt: $0.createdAt,
                     replacesReportID: $0.replacesReportID
                 )
+            }.sorted { canonical($0.id) < canonical($1.id) },
+            savedSmartViews: try savedSmartViews.map {
+                try V7BackupSavedSmartViewRecordV1($0.descriptor())
             }.sorted { canonical($0.id) < canonical($1.id) },
             sites: sites.map {
                 .init(

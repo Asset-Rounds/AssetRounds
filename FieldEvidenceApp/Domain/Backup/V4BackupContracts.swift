@@ -16,6 +16,26 @@ struct V5BackupLocationRecordV1: Codable, Equatable, Sendable {
     }
 }
 
+struct V7BackupSavedSmartViewRecordV1: Codable, Equatable, Sendable {
+    let id: UUID
+    let canonicalData: Data
+
+    init(_ descriptor: SavedSmartViewDescriptorV1) throws {
+        try descriptor.validate()
+        id = descriptor.id
+        canonicalData = try SearchPersistenceCodecV1.encode(descriptor)
+    }
+
+    func descriptor() throws -> SavedSmartViewDescriptorV1 {
+        let value = try SearchPersistenceCodecV1.decodeCanonical(
+            SavedSmartViewDescriptorV1.self,
+            from: canonicalData
+        )
+        guard value.id == id else { throw SearchContractFailureV1.invalidSmartView }
+        return value
+    }
+}
+
 struct V4BackupSiteDTO: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     let schemaVersion: Int
@@ -192,6 +212,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let packets: [V4BackupPacketDTO]
     let recordsSchemaVersion: Int
     let reports: [V4BackupReportDTO]
+    let savedSmartViews: [V7BackupSavedSmartViewRecordV1]
     let sites: [V4BackupSiteDTO]
     let workflowRecords: [V4BackupWorkflowRecordDTO]
 
@@ -210,6 +231,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         packets: [V4BackupPacketDTO],
         recordsSchemaVersion: Int,
         reports: [V4BackupReportDTO],
+        savedSmartViews: [V7BackupSavedSmartViewRecordV1] = [],
         sites: [V4BackupSiteDTO],
         workflowRecords: [V4BackupWorkflowRecordDTO]
     ) {
@@ -227,6 +249,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         self.packets = packets
         self.recordsSchemaVersion = recordsSchemaVersion
         self.reports = reports
+        self.savedSmartViews = savedSmartViews
         self.sites = sites
         self.workflowRecords = workflowRecords
     }
@@ -235,7 +258,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         case assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
         case deletionLedger, evidenceFiles, issues, locationHierarchyEvents
         case locationMigrationReceipts, locationNodes, mutationHistory, packets
-        case recordsSchemaVersion, reports, sites, workflowRecords
+        case recordsSchemaVersion, reports, savedSmartViews, sites, workflowRecords
     }
 
     init(from decoder: Decoder) throws {
@@ -256,6 +279,10 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
             packets: try values.decode([V4BackupPacketDTO].self, forKey: .packets),
             recordsSchemaVersion: version,
             reports: try values.decode([V4BackupReportDTO].self, forKey: .reports),
+            savedSmartViews: try values.decodeIfPresent(
+                [V7BackupSavedSmartViewRecordV1].self,
+                forKey: .savedSmartViews
+            ) ?? [],
             sites: try values.decode([V4BackupSiteDTO].self, forKey: .sites),
             workflowRecords: try values.decode([V4BackupWorkflowRecordDTO].self, forKey: .workflowRecords)
         )

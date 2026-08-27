@@ -52,6 +52,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
     private let adapter: any WorkspaceWriterAdapterPortV1
     private let journalStore: MutationJournalStoreV1?
     private let storageAdmission: (any WorkspaceStorageAdmissionPortV1)?
+    private let searchIndexInvalidation: ((SearchSourceRevisionV1) throws -> Void)?
     private let maximumRememberedMutationCount: Int
 
     private var workspaceRevision: UInt64
@@ -71,6 +72,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         adapter: any WorkspaceWriterAdapterPortV1,
         journalStore: MutationJournalStoreV1? = nil,
         storageAdmission: (any WorkspaceStorageAdmissionPortV1)? = nil,
+        searchIndexInvalidation: ((SearchSourceRevisionV1) throws -> Void)? = nil,
         maximumRememberedMutationCount: Int = WorkspaceWriterV1.defaultMaximumRememberedMutationCount
     ) throws {
         guard initialRevision.workspaceID == identity.workspaceID else {
@@ -99,6 +101,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         self.adapter = adapter
         self.journalStore = journalStore
         self.storageAdmission = storageAdmission
+        self.searchIndexInvalidation = searchIndexInvalidation
         self.maximumRememberedMutationCount = maximumRememberedMutationCount
     }
 
@@ -194,12 +197,12 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
                 command: change.envelope.command,
                 expectedRevision: prior.expectedRevision
             )
-            return try outcome(
+            return try notifyingSearchIndex(outcome(
                 from: prior,
                 request: request,
                 digest: prior.envelopeSHA256,
                 occurredAt: prior.committedAt
-            )
+            ))
         }
 
         let request = try importedRequest(
@@ -359,12 +362,12 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
              replayIdentitySHA256: replayIdentitySHA256,
              detectedAt: replayObservedAt
            ) {
-            return try outcome(
+            return try notifyingSearchIndex(outcome(
                 from: prior,
                 request: request,
                 digest: prior.envelopeSHA256,
                 occurredAt: replayObservedAt
-            )
+            ))
         }
         guard let journalStore,
               plan.mutationID == targetMutationID,
@@ -443,6 +446,12 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
                   plan.workspaceID == identity.workspaceID else {
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
+        case .applySavedSmartView(let value):
+            try value.validate()
+            guard value.workspaceID == identity.workspaceID.rawValue,
+                  value.mutationID == request.mutationID.rawValue else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
         default:
             break
         }
@@ -470,7 +479,12 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         let occurredAt = occurredAtOverride ?? clock.now()
         if let journalStore,
            let prior = try journalStore.resolveReplay(envelope: envelope, detectedAt: occurredAt) {
-            return try outcome(from: prior, request: request, digest: digest, occurredAt: occurredAt)
+            return try notifyingSearchIndex(outcome(
+                from: prior,
+                request: request,
+                digest: digest,
+                occurredAt: occurredAt
+            ))
         }
 
         guard !quarantined.contains(request.mutationID) else {
@@ -481,7 +495,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
                 quarantined.insert(request.mutationID)
                 throw WorkspaceMutationFailureV1.mutationIDQuarantined
             }
-            return prior.outcome
+            return try notifyingSearchIndex(prior.outcome)
         }
         guard remembered.count < maximumRememberedMutationCount else {
             throw WorkspaceMutationFailureV1.idempotencyCapacityReached
@@ -597,14 +611,14 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
                     semanticReversalExecution: semanticReversalExecution
                 )
                 let after = try revision(from: receipt.resultingRevision)
-                return WorkspaceMutationOutcomeV1(
+                return try notifyingSearchIndex(WorkspaceMutationOutcomeV1(
                     mutationID: request.mutationID,
                     commandDigest: digest,
                     occurredAt: occurredAt,
                     before: before,
                     after: after,
                     effect: applied
-                )
+                ))
             }
         } catch let failure as MutationJournalFailureV1 {
             adapter.rollback()
@@ -629,6 +643,18 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
             effect: effect
         )
         remembered[request.mutationID] = RememberedMutation(digest: digest, outcome: outcome)
+        return try notifyingSearchIndex(outcome)
+    }
+
+    private func notifyingSearchIndex(
+        _ outcome: WorkspaceMutationOutcomeV1
+    ) throws -> WorkspaceMutationOutcomeV1 {
+        let source = try SearchSourceRevisionV1(
+            workspaceID: identity.workspaceID.rawValue,
+            generationID: generationID,
+            commitRevision: outcome.after.revision
+        )
+        try searchIndexInvalidation?(source)
         return outcome
     }
 
@@ -1026,6 +1052,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
                 WorkspaceEntityIdentityV1(kind: .assetCompositionEdge, id: plan.event.edge.id),
                 WorkspaceEntityIdentityV1(kind: .assetCompositionEvent, id: plan.event.id),
             ]
+        case let .applySavedSmartView(value):
+            try value.validate()
+            values = [try WorkspaceEntityIdentityV1(kind: .savedSmartView, id: value.id)]
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand

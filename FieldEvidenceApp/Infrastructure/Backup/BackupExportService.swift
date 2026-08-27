@@ -58,6 +58,7 @@ final class BackupExportService {
         let locationNodes: [LocationNodeRow]
         let packets: [Packet]
         let reports: [Report]
+        let savedSmartViews: [SavedSmartViewRowV1]
     }
 
     private struct StreamingSource: Equatable, Sendable {
@@ -661,6 +662,7 @@ private extension BackupExportService {
                 packets: records.packets,
                 recordsSchemaVersion: records.recordsSchemaVersion,
                 reports: records.reports,
+                savedSmartViews: records.savedSmartViews,
                 sites: records.sites,
                 workflowRecords: records.workflowRecords
             )
@@ -868,9 +870,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 6,
+                persistentSchemaVersion: 7,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 5,
+                recordsSchemaVersion: 6,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1393,7 +1395,8 @@ private extension BackupExportService {
                 locationMigrationReceipts: try modelContext.fetch(FetchDescriptor<LocationMigrationReceiptRow>()),
                 locationNodes: try modelContext.fetch(FetchDescriptor<LocationNodeRow>()),
                 packets: try modelContext.fetch(FetchDescriptor<Packet>()),
-                reports: try modelContext.fetch(FetchDescriptor<Report>())
+                reports: try modelContext.fetch(FetchDescriptor<Report>()),
+                savedSmartViews: try modelContext.fetch(FetchDescriptor<SavedSmartViewRowV1>())
             )
         } catch {
             throw BackupExportServiceError.invalidAuthority
@@ -1419,13 +1422,23 @@ private extension BackupExportService {
               unique(rows.packets.map(\.id)),
               unique(rows.packets.map(\.stableRootID)),
               unique(rows.reports.map(\.id)),
+              unique(rows.savedSmartViews.map(\.id)),
               rows.sites.allSatisfy({ $0.schemaVersion == 1 }),
               rows.assets.allSatisfy({ $0.schemaVersion == 1 }),
               rows.records.allSatisfy({ $0.schemaVersion == 1 }),
               rows.evidence.allSatisfy({ $0.schemaVersion == 1 }),
               rows.issues.allSatisfy({ $0.schemaVersion == 1 }),
               rows.packets.allSatisfy({ $0.schemaVersion == 1 }),
-              rows.reports.allSatisfy({ $0.schemaVersion == 1 }) else {
+              rows.reports.allSatisfy({ $0.schemaVersion == 1 }),
+              rows.savedSmartViews.allSatisfy({
+                  guard let descriptor = try? $0.descriptor() else { return false }
+                  return descriptor.workspaceID == sourceIdentity.workspaceID.rawValue
+                      && $0.id == descriptor.id
+                      && $0.workspaceStableKey == SavedSmartViewRowV1.key(
+                          workspaceID: descriptor.workspaceID,
+                          stableID: descriptor.stableID
+                      )
+              }) else {
             throw BackupExportServiceError.invalidAuthority
         }
         let siteIDs = Set(rows.sites.map(\.id))
@@ -1634,6 +1647,7 @@ private extension BackupExportService {
             + rows.issues.map { (.issue, $0.id) }
             + rows.packets.map { (.packet, $0.id) }
             + rows.reports.map { (.report, $0.id) }
+            + rows.savedSmartViews.map { (.savedSmartView, $0.id) }
         let identities: [WorkspaceEntityIdentityV1]
         do {
             identities = try pairs.map { try .init(kind: $0.0, id: $0.1) }
@@ -1819,7 +1833,7 @@ private extension BackupExportService {
             }.sorted(by: dtoOrder),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 5,
+                : 6,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -1831,6 +1845,9 @@ private extension BackupExportService {
                     createdAt: $0.createdAt, replacesReportID: $0.replacesReportID
                 )
             }.sorted(by: dtoOrder),
+            savedSmartViews: try (mutationHistory == nil ? [] : rows.savedSmartViews.map {
+                try V7BackupSavedSmartViewRecordV1($0.descriptor())
+            }).sorted { $0.id.uuidString < $1.id.uuidString },
             sites: rows.sites.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion, label: $0.label,

@@ -6,6 +6,24 @@ import XCTest
 
 final class V10_01WorkspaceWriterTests: XCTestCase {
     @MainActor
+    func testCanonicalCommitInvalidatesSearchAtExactWriterRevision() throws {
+        let recorder = SearchRevisionRecorder()
+        let harness = try Harness(searchIndexInvalidation: { recorder.values.append($0) })
+        let before = try harness.writer.currentRevision()
+        let request = try harness.request(mutation: 1, label: "Indexed", expected: before)
+        let outcome = try harness.writer.execute(request)
+
+        XCTAssertEqual(recorder.values.count, 1)
+        XCTAssertEqual(recorder.values.first?.workspaceID, harness.workspaceID.rawValue)
+        XCTAssertEqual(recorder.values.first?.generationID, harness.generationID)
+        XCTAssertEqual(recorder.values.first?.commitRevision, outcome.after.revision)
+
+        let stale = try harness.request(mutation: 2, label: "Rejected", expected: before)
+        XCTAssertThrowsError(try harness.writer.execute(stale))
+        XCTAssertEqual(recorder.values.count, 1)
+    }
+
+    @MainActor
     func testV9_08G01ExpectedRevisionSuccessAndStaleRejection() throws {
         let harness = try Harness()
         let request = try harness.request(mutation: 1, label: "North sign")
@@ -240,7 +258,7 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
                 "create_first_sign", "delete_asset", "delete_site", "erase_workspace",
                 "finalize_check", "finalize_correction", "record_work", "restore_workspace",
                 "apply_location_hierarchy_change", "apply_asset_placement_change",
-                "apply_asset_composition_change",
+                "apply_asset_composition_change", "apply_saved_smart_view",
             ]
         )
         XCTAssertEqual(WorkspaceWriterAdapterV1.supportedCommandKinds, [
@@ -255,7 +273,7 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
             WorkspaceWriterAdapterV1.activeSupportedCommandKinds,
             WorkspaceWriterAdapterV1.supportedCommandKinds.union(
                 WorkspaceWriterAdapterV1.locationSupportedCommandKinds
-            )
+            ).union([.applySavedSmartView])
         )
         XCTAssertFalse(WorkspaceWriterAdapterV1.supportedCommandKinds.contains(.finalizeCheck))
         XCTAssertFalse(WorkspaceWriterAdapterV1.supportedCommandKinds.contains(.eraseWorkspace))
@@ -463,6 +481,11 @@ private struct TestApplicationFileAuthorityV1: ApplicationFileAuthorityV1 {
 }
 
 @MainActor
+private final class SearchRevisionRecorder {
+    var values: [SearchSourceRevisionV1] = []
+}
+
+@MainActor
 private final class Harness {
     let workspaceID = WorkspaceID(rawValue: Harness.id(1))
     let generationID = Harness.id(2)
@@ -471,7 +494,11 @@ private final class Harness {
     let adapter = TestWorkspaceWriterAdapterV1()
     let writer: WorkspaceWriterV1
 
-    init(maximumRemembered: Int = 10, writerInstanceByte: UInt8 = 90) throws {
+    init(
+        maximumRemembered: Int = 10,
+        writerInstanceByte: UInt8 = 90,
+        searchIndexInvalidation: ((SearchSourceRevisionV1) -> Void)? = nil
+    ) throws {
         let identity = try WorkspaceReplicaIdentityV1(
             workspaceID: workspaceID,
             replicaID: ReplicaID(rawValue: Self.id(5))
@@ -495,6 +522,7 @@ private final class Harness {
             idSource: TestApplicationIDSourceV1(value: Self.id(writerInstanceByte)),
             fileAuthority: TestApplicationFileAuthorityV1(),
             adapter: adapter,
+            searchIndexInvalidation: searchIndexInvalidation,
             maximumRememberedMutationCount: maximumRemembered
         )
     }

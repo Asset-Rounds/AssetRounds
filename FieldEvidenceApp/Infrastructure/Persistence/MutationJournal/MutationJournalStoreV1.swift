@@ -1127,6 +1127,15 @@ final class MutationJournalStoreV1 {
             let value = try LocationPersistenceCodecV1.decode(AssetCompositionEventV1.self, from: row.canonicalData)
             try value.validate()
             return try semanticPostImage(identity, revision, value)
+        case .savedSmartView:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<SavedSmartViewRowV1>(
+                predicate: #Predicate { $0.id == id }
+            ))
+            guard let row = try exactlyOneOrAbsent(rows) else {
+                return try tombstone(identity, revision)
+            }
+            return try semanticPostImage(identity, revision, try row.descriptor())
         case .workflowRecord:
             let id = identity.id
             let rows = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(predicate: #Predicate { $0.id == id }))
@@ -1312,6 +1321,7 @@ final class MutationJournalStoreV1 {
         case .assetPlacementEvent: return .assetPlacementEvent(id: identity.id, revision: revision, semanticSHA256: digest)
         case .assetCompositionEdge: return .assetCompositionEdge(id: identity.id, revision: revision, semanticSHA256: digest)
         case .assetCompositionEvent: return .assetCompositionEvent(id: identity.id, revision: revision, semanticSHA256: digest)
+        case .savedSmartView: return .savedSmartView(id: identity.id, revision: revision, semanticSHA256: digest)
         case .workflowRecord: return .workflowRecord(id: identity.id, revision: revision, semanticSHA256: digest)
         case .evidenceFile: return .evidenceFile(id: identity.id, revision: revision, semanticSHA256: digest)
         case .issue: return .issue(id: identity.id, revision: revision, semanticSHA256: digest)

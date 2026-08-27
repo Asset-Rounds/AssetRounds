@@ -554,7 +554,7 @@ private extension BackupPackageValidatorV1 {
             sourceIdentityIsValid = false
         }
         let sourceGenerationIsValid: Bool
-        if manifest.source.recordsSchemaVersion == 5 {
+        if manifest.source.recordsSchemaVersion >= 5 {
             sourceGenerationIsValid = manifest.source.sourceGenerationID.map {
                 $0 != zero && $0 != manifest.source.workspaceID
                     && $0 != manifest.source.replicaID
@@ -569,7 +569,7 @@ private extension BackupPackageValidatorV1 {
             manifest.source.recordsSchemaVersion
         ) {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
-             (4, 5, 4), (4, 6, 5):
+             (4, 5, 4), (4, 6, 5), (4, 7, 6):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false
@@ -716,6 +716,20 @@ private extension BackupPackageValidatorV1 {
         try validateDeletionLedger(records, manifest: manifest)
         try validateObservationAndTime(records)
         try validateLocationRecords(records, manifest: manifest)
+        let savedSmartViews: [SavedSmartViewDescriptorV1]
+        do {
+            savedSmartViews = try records.savedSmartViews.map { try $0.descriptor() }
+        } catch {
+            throw invalid()
+        }
+        guard records.recordsSchemaVersion < 6
+                ? savedSmartViews.isEmpty
+                : (records.recordsSchemaVersion == 6
+                    && savedSmartViews.allSatisfy({
+                        $0.workspaceID == manifest.source.workspaceID
+                    })) else {
+            throw invalid()
+        }
         let allIDs = records.sites.map(\.id) + records.assets.map(\.id)
             + records.workflowRecords.map(\.id) + records.evidenceFiles.map(\.id)
             + records.issues.map(\.id) + records.packets.map(\.id)
@@ -725,6 +739,7 @@ private extension BackupPackageValidatorV1 {
             + records.locationHierarchyEvents.map(\.id)
             + records.locationMigrationReceipts.map(\.id)
             + records.locationNodes.map(\.id)
+            + records.savedSmartViews.map(\.id)
         guard Set(allIDs).count == allIDs.count else { throw invalid() }
         let sites = Dictionary(uniqueKeysWithValues: records.sites.map { ($0.id, $0) })
         let assets = Dictionary(uniqueKeysWithValues: records.assets.map { ($0.id, $0) })
@@ -1035,7 +1050,7 @@ private extension BackupPackageValidatorV1 {
             }) else { throw invalid() }
             return
         }
-        guard (4...5).contains(records.recordsSchemaVersion) else { throw invalid() }
+        guard (4...6).contains(records.recordsSchemaVersion) else { throw invalid() }
         for record in records.workflowRecords {
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else {
@@ -1084,12 +1099,15 @@ private extension BackupPackageValidatorV1 {
             records.assetPlacementEvents, records.locationHierarchyEvents,
             records.locationMigrationReceipts, records.locationNodes,
         ]
-        guard records.recordsSchemaVersion == 5 else {
+        guard records.recordsSchemaVersion >= 5 else {
             guard groups.allSatisfy(\.isEmpty) else { throw invalid() }
             return
         }
         guard manifest.backupSchemaVersion == 4,
-              manifest.source.persistentSchemaVersion == 6,
+              ((records.recordsSchemaVersion == 5
+                    && manifest.source.persistentSchemaVersion == 6)
+                || (records.recordsSchemaVersion == 6
+                    && manifest.source.persistentSchemaVersion == 7)),
               let sourceWorkspaceID = manifest.source.workspaceID else {
             throw invalid()
         }
@@ -1252,7 +1270,7 @@ private extension BackupPackageValidatorV1 {
         case (2, let value?, nil):
             ledger = value
         case (3, let value?, let history?), (4, let value?, let history?),
-             (5, let value?, let history?):
+             (5, let value?, let history?), (6, let value?, let history?):
             ledger = value
             do { try MutationJournalStoreV1.validateImportedSnapshot(history) }
             catch { throw invalid() }

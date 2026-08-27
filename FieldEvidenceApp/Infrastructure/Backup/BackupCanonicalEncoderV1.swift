@@ -83,6 +83,11 @@ struct BackupCanonicalEncoderV1: Sendable {
             fields["locationMigrationReceipts"] = .array(records.locationMigrationReceipts.map(Self.locationRecord))
             fields["locationNodes"] = .array(records.locationNodes.map(Self.locationRecord))
         }
+        if records.recordsSchemaVersion >= 6 {
+            fields["savedSmartViews"] = .array(
+                records.savedSmartViews.map(Self.savedSmartViewRecord)
+            )
+        }
         if let deletionLedger = records.deletionLedger {
             fields["deletionLedger"] = Self.deletionLedger(deletionLedger)
         }
@@ -117,7 +122,7 @@ struct BackupCanonicalEncoderV1: Sendable {
 
 private extension BackupCanonicalEncoderV1 {
     static func validSemantic(_ records: V4BackupRecordsV1) -> Bool {
-        guard (4...5).contains(records.recordsSchemaVersion),
+        guard (4...6).contains(records.recordsSchemaVersion),
               records.mutationHistory == nil,
               let ledger = records.deletionLedger,
               (try? ledger.validate()) != nil else {
@@ -125,6 +130,7 @@ private extension BackupCanonicalEncoderV1 {
         }
         return validObservationAndTime(records)
             && validLocationRecords(records)
+            && validSavedSmartViews(records)
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -153,7 +159,7 @@ private extension BackupCanonicalEncoderV1 {
         case (2, let ledger?, nil):
             ledgerIsValid = (try? ledger.validate()) != nil
         case (3, let ledger?, let history?), (4, let ledger?, let history?),
-             (5, let ledger?, let history?):
+             (5, let ledger?, let history?), (6, let ledger?, let history?):
             ledgerIsValid = (try? ledger.validate()) != nil
                 && (try? MutationJournalStoreV1.validateImportedSnapshot(history)) != nil
                 && validMutationHistoryOrder(history)
@@ -163,6 +169,7 @@ private extension BackupCanonicalEncoderV1 {
         return ledgerIsValid
             && validObservationAndTime(records)
             && validLocationRecords(records)
+            && validSavedSmartViews(records)
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -185,7 +192,7 @@ private extension BackupCanonicalEncoderV1 {
                 $0.observationBasisV1Data == nil && $0.temporalContextV1Data == nil
             }
         }
-        guard (4...5).contains(records.recordsSchemaVersion) else { return false }
+        guard (4...6).contains(records.recordsSchemaVersion) else { return false }
         return records.workflowRecords.allSatisfy { record in
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else { return false }
@@ -319,6 +326,24 @@ private extension BackupCanonicalEncoderV1 {
         }
     }
 
+    static func validSavedSmartViews(_ records: V4BackupRecordsV1) -> Bool {
+        if records.recordsSchemaVersion < 6 { return records.savedSmartViews.isEmpty }
+        guard records.recordsSchemaVersion == 6,
+              records.savedSmartViews.map(\.id.uuidString)
+                == records.savedSmartViews.map(\.id.uuidString).sorted(),
+              Set(records.savedSmartViews.map(\.id)).count == records.savedSmartViews.count else {
+            return false
+        }
+        do {
+            let descriptors = try records.savedSmartViews.map { try $0.descriptor() }
+            return Set(descriptors.map {
+                SavedSmartViewRowV1.key(workspaceID: $0.workspaceID, stableID: $0.stableID)
+            }).count == descriptors.count
+        } catch {
+            return false
+        }
+    }
+
     static func locationRecord(_ value: V5BackupLocationRecordV1) -> CanonicalJSONValueV1 {
         var fields: [String: CanonicalJSONValueV1] = [
             "canonicalData": .string(value.canonicalData.base64EncodedString()),
@@ -328,6 +353,15 @@ private extension BackupCanonicalEncoderV1 {
             fields["secondaryCanonicalData"] = .string(secondary.base64EncodedString())
         }
         return .object(fields)
+    }
+
+    static func savedSmartViewRecord(
+        _ value: V7BackupSavedSmartViewRecordV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "canonicalData": .string(value.canonicalData.base64EncodedString()),
+            "id": CanonicalJSONV1.uuid(value.id),
+        ])
     }
 
     static func valid(_ manifest: V4BackupManifestV1) -> Bool {
@@ -353,7 +387,7 @@ private extension BackupCanonicalEncoderV1 {
             sourceIdentityIsValid = false
         }
         let sourceGenerationIsValid: Bool
-        if manifest.source.recordsSchemaVersion == 5 {
+        if manifest.source.recordsSchemaVersion >= 5 {
             sourceGenerationIsValid = manifest.source.sourceGenerationID.map {
                 $0 != zero && $0 != manifest.source.workspaceID
                     && $0 != manifest.source.replicaID
@@ -368,7 +402,7 @@ private extension BackupCanonicalEncoderV1 {
             manifest.source.recordsSchemaVersion
         ) {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
-             (4, 5, 4), (4, 6, 5):
+             (4, 5, 4), (4, 6, 5), (4, 7, 6):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false

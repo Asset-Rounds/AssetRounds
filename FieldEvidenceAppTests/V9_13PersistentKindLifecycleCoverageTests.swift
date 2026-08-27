@@ -25,6 +25,13 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
             "PERSISTENT_MODEL:LocationMigrationReceiptRow",
             "PERSISTENT_MODEL:LocationNodeRow",
         ])
+        let c09KindIDs = Set([
+            "INDEX:SearchIndexProjectionV1",
+            "OWNED_FILE_CLASS:searchIndex",
+            "PERSISTENT_MODEL:SavedSmartView",
+            "PROJECTION:SavedSmartViewDescriptorV1",
+            "PROJECTION:StoreSemanticEnvelopeV7",
+        ])
         XCTAssertEqual(corpus.declaredKindIDs, corpus.declaredKindIDs.sorted())
         XCTAssertEqual(Set(corpus.declaredKindIDs).count, corpus.declaredKindIDs.count)
         XCTAssertTrue(Set(corpus.declaredKindIDs).isSubset(of: Set(derivedUniverse)))
@@ -37,7 +44,12 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
                 "PERSISTENT_MODEL:LocationHierarchyEventRow",
                 "PERSISTENT_MODEL:LocationMigrationReceiptRow",
                 "PERSISTENT_MODEL:LocationNodeRow",
+                "INDEX:SearchIndexProjectionV1",
+                "OWNED_FILE_CLASS:searchIndex",
+                "PERSISTENT_MODEL:SavedSmartView",
+                "PROJECTION:SavedSmartViewDescriptorV1",
                 "PROJECTION:StoreSemanticEnvelopeV6",
+                "PROJECTION:StoreSemanticEnvelopeV7",
                 "PROJECTION:V5BackupLocationRecordV1",
             ])
         )
@@ -105,13 +117,14 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
                 )
             } else {
                 let isC35Persistent = c35PersistentKindIDs.contains(descriptor.stableKindID)
+                let isC09 = c09KindIDs.contains(descriptor.stableKindID)
                 XCTAssertEqual(
                     descriptor.temporalEvidence.representationSourceCard,
-                    isC35Persistent ? "V23_P03_C35" : "PRE_V23_BASELINE"
+                    isC09 ? "V23_P03_C09" : (isC35Persistent ? "V23_P03_C35" : "PRE_V23_BASELINE")
                 )
                 XCTAssertEqual(
                     descriptor.temporalEvidence.representationSourceOrdinal,
-                    isC35Persistent ? 41 : 0
+                    isC09 ? 42 : (isC35Persistent ? 41 : 0)
                 )
             }
             if descriptor.temporalEvidence.firstWriteVersion

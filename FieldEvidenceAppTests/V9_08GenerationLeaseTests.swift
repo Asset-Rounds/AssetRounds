@@ -1553,7 +1553,8 @@ final class V9_08GenerationLeaseTests: XCTestCase {
             selectedPackageURL: archive
         )
         XCTAssertEqual(validated.manifest.backupSchemaVersion, 4)
-        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 5)
+        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 6)
+        XCTAssertTrue(validated.records.savedSmartViews.isEmpty)
         XCTAssertEqual(
             Set(validated.records.sites.map(\.id)),
             Set([sourceSiteID])

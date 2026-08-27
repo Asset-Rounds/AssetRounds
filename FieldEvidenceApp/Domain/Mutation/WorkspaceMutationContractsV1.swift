@@ -29,6 +29,7 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case assetPlacementEvent
     case assetCompositionEdge
     case assetCompositionEvent
+    case savedSmartView
     case workflowRecord
     case evidenceFile
     case issue
@@ -383,6 +384,82 @@ struct LocationHierarchyMutationV1: Codable, Equatable, Sendable {
     }
 }
 
+enum SavedSmartViewMutationDispositionV1: String, Codable, Equatable, Sendable {
+    case upsert = "UPSERT"
+    case delete = "DELETE"
+}
+
+/// The sole canonical smart-view mutation payload. Query text may occur only
+/// inside the workspace-owned descriptor; device preferences store only a
+/// stable selected-view ID.
+struct SavedSmartViewMutationV1: Codable, Equatable, Sendable {
+    let disposition: SavedSmartViewMutationDispositionV1
+    let workspaceID: UUID
+    let id: UUID
+    let stableID: String
+    let expectedDescriptorRevision: UInt64
+    let mutationID: UUID
+    let descriptor: SavedSmartViewDescriptorV1?
+
+    init(upserting descriptor: SavedSmartViewDescriptorV1) throws {
+        try descriptor.validate()
+        disposition = .upsert
+        workspaceID = descriptor.workspaceID
+        id = descriptor.id
+        stableID = descriptor.stableID
+        expectedDescriptorRevision = descriptor.revision - 1
+        mutationID = descriptor.mutationID
+        self.descriptor = descriptor
+        try validate()
+    }
+
+    init(
+        deletingID id: UUID,
+        workspaceID: UUID,
+        stableID: String,
+        expectedDescriptorRevision: UInt64,
+        mutationID: UUID
+    ) throws {
+        disposition = .delete
+        self.workspaceID = workspaceID
+        self.id = id
+        self.stableID = stableID
+        self.expectedDescriptorRevision = expectedDescriptorRevision
+        self.mutationID = mutationID
+        descriptor = nil
+        try validate()
+    }
+
+    func validate() throws {
+        guard workspaceID != SearchContractValidationV1.zeroUUID,
+              id != SearchContractValidationV1.zeroUUID,
+              mutationID != SearchContractValidationV1.zeroUUID,
+              SearchContractValidationV1.validID(stableID) else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        switch disposition {
+        case .upsert:
+            guard let descriptor,
+                  descriptor.origin == .userSaved,
+                  descriptor.workspaceID == workspaceID,
+                  descriptor.id == id,
+                  descriptor.stableID == stableID,
+                  descriptor.mutationID == mutationID,
+                  expectedDescriptorRevision < UInt64.max,
+                  descriptor.revision == expectedDescriptorRevision + 1 else {
+                throw WorkspaceMutationContractFailureV1.invalidPlan
+            }
+            try descriptor.validate()
+        case .delete:
+            guard descriptor == nil,
+                  expectedDescriptorRevision > 0,
+                  !stableID.hasPrefix("builtin.search.") else {
+                throw WorkspaceMutationContractFailureV1.invalidPlan
+            }
+        }
+    }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -399,6 +476,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyLocationHierarchyChange(LocationHierarchyMutationV1)
     case applyAssetPlacementChange(AssetPlacementChangePlanV1)
     case applyAssetCompositionChange(AssetCompositionChangePlanV1)
+    case applySavedSmartView(SavedSmartViewMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -417,6 +495,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyLocationHierarchyChange: .applyLocationHierarchyChange
         case .applyAssetPlacementChange: .applyAssetPlacementChange
         case .applyAssetCompositionChange: .applyAssetCompositionChange
+        case .applySavedSmartView: .applySavedSmartView
         }
     }
 }
@@ -437,6 +516,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyLocationHierarchyChange = "apply_location_hierarchy_change"
     case applyAssetPlacementChange = "apply_asset_placement_change"
     case applyAssetCompositionChange = "apply_asset_composition_change"
+    case applySavedSmartView = "apply_saved_smart_view"
 }
 
 extension WorkspaceCommandV1 {
@@ -1169,6 +1249,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind: .applyLocationHierarchyChange, disposition: .compensatable, stableReason: "append_hierarchy_successor_only"),
         .init(commandKind: .applyAssetPlacementChange, disposition: .compensatable, stableReason: "append_placement_successor_only"),
         .init(commandKind: .applyAssetCompositionChange, disposition: .compensatable, stableReason: "append_composition_successor_only"),
+        .init(commandKind: .applySavedSmartView, disposition: .compensatable, stableReason: "replace_or_delete_saved_smart_view"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

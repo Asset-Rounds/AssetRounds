@@ -75,8 +75,9 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "AssetPlacementEventRow", "LocationHierarchyEventRow",
         "LocationMigrationReceiptRow", "LocationNodeRow",
     ]
+    static let v7PersistentModelNames = ["SavedSmartView"]
     static let activePersistentModelNames =
-        (persistentModelNames + v6PersistentModelNames).sorted()
+        (persistentModelNames + v6PersistentModelNames + v7PersistentModelNames).sorted()
 
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
@@ -85,7 +86,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "generationLeaseOwnerLock", "generationPointer", "generationPointerTemporary",
         "journal", "journalTemporary", "mediaOriginal", "mediaThumbnail", "reportPDF",
         "reportSnapshot", "restoreStaging", "scratch", "stagingDirectory", "stagingFile",
-        "temporaryFile",
+        "temporaryFile", "searchIndex",
     ]
 
     static let portableContentProjectionNames = [
@@ -105,10 +106,12 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "V4BackupSiteDTO",
         "V4BackupWorkflowRecordDTO",
         "V5BackupLocationRecordV1",
+        "SavedSmartViewDescriptorV1",
     ]
 
     static let derivedIndexNames = [
         "ReportHistoryIndexValue",
+        "SearchIndexProjectionV1",
         "reportHistoryChronology",
     ]
 
@@ -122,6 +125,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "StoreSemanticEnvelopeV4",
         "StoreSemanticEnvelopeV5",
         "StoreSemanticEnvelopeV6",
+        "StoreSemanticEnvelopeV7",
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
@@ -167,9 +171,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "diagnosticCounters",
     ]
 
-    /// No Search implementation ships at this head. Report history is an
-    /// in-memory derived index and is registered above, not a search store.
-    static let declaredSearchImplementationPresent = false
+    static let declaredSearchImplementationPresent = true
 
     /// The accepted portable-secret inventory is explicitly empty and the
     /// application has no Keychain-backed secret at this head.
@@ -401,7 +403,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
               !keychainUsageDeclared else {
             throw CurrentSyncClassificationCatalogFailureV1.unexpectedSecretOrKeychain
         }
-        guard !searchImplementationPresent else {
+        guard searchImplementationPresent else {
             throw CurrentSyncClassificationCatalogFailureV1.unexpectedSearchImplementation
         }
 
@@ -566,6 +568,14 @@ private extension CurrentSyncClassificationCatalogV1 {
                 name: name,
                 profile: mutable ? .replicatedContent : .replicatedMutationHistory,
                 dependencies: try locationPersistentDependencies(for: name)
+            ))
+        }
+        for name in v7PersistentModelNames {
+            specs.append(AdditionalSpec(
+                category: .persistentModel,
+                name: name,
+                profile: .replicatedContent,
+                dependencies: []
             ))
         }
 
@@ -872,6 +882,8 @@ private extension CurrentSyncClassificationCatalogV1 {
             return try contentModelSubjects()
         case "V5BackupLocationRecordV1":
             return try subjects(category: .persistentModel, names: v6PersistentModelNames)
+        case "SavedSmartViewDescriptorV1":
+            return [try subject(category: .persistentModel, name: "SavedSmartView")]
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
@@ -897,6 +909,11 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "StoreSemanticEnvelopeV3", "StoreSemanticEnvelopeV4", "StoreSemanticEnvelopeV5":
             return try subjects(category: .persistentModel, names: persistentModelNames)
         case "StoreSemanticEnvelopeV6":
+            return try subjects(
+                category: .persistentModel,
+                names: persistentModelNames + v6PersistentModelNames
+            )
+        case "StoreSemanticEnvelopeV7":
             return try subjects(category: .persistentModel, names: activePersistentModelNames)
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
@@ -953,8 +970,9 @@ private extension CurrentSyncClassificationCatalogV1 {
             AssetCompositionEdgeRow.self,
             AssetCompositionEventRow.self,
             LocationMigrationReceiptRow.self,
+            SavedSmartViewRowV1.self,
         ]
-        let runtimeNames = PersistentSchemaV6.models.map { modelType in
+        let runtimeNames = PersistentSchemaV7.models.map { modelType in
             String(describing: modelType)
                 .split(separator: ".")
                 .last
@@ -967,8 +985,8 @@ private extension CurrentSyncClassificationCatalogV1 {
               Set(PersistentSchemaV5.models.map { ObjectIdentifier($0) })
                 == Set(frozenV5.map { ObjectIdentifier($0) }),
               frozenNames == persistentModelNames,
-              PersistentSchemaV6.models.count == expected.count,
-              Set(PersistentSchemaV6.models.map { ObjectIdentifier($0) })
+              PersistentSchemaV7.models.count == expected.count,
+              Set(PersistentSchemaV7.models.map { ObjectIdentifier($0) })
                 == Set(expected.map { ObjectIdentifier($0) }),
               runtimeNames.count == Set(runtimeNames).count,
               runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),

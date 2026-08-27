@@ -13,6 +13,8 @@ final class StoreSessionCoordinator: ObservableObject {
     private let generationFactory: StoreGenerationFactory
     private var writerLeaseHandle: GenerationLeaseHandleV1
     private(set) var workspaceWriter: WorkspaceWriterV1
+    private(set) var searchIndexStore: LocalSearchIndexStoreV1
+    private(set) var searchServices: ProductionSearchServicesV1
 
     convenience init(
         session: StoreGenerationSession,
@@ -24,13 +26,23 @@ final class StoreSessionCoordinator: ObservableObject {
             applicationSupportURL: Self.applicationSupportURL(for: session)
         )
         let binding: WriterBinding
+        let searchIndexStore: LocalSearchIndexStoreV1
+        let searchServices: ProductionSearchServicesV1
         do {
+            searchIndexStore = try LocalSearchIndexStoreV1(
+                applicationSupportURL: Self.applicationSupportURL(for: session)
+            )
             binding = try Self.makeWriter(
                 session: session,
                 clock: clock,
                 idSource: idSource,
                 fileAuthority: fileAuthority,
                 generationFactory: resolvedFactory
+            )
+            searchServices = try Self.makeSearchServices(
+                session: session,
+                writer: binding.writer,
+                store: searchIndexStore
             )
         } catch {
             preconditionFailure(
@@ -43,7 +55,9 @@ final class StoreSessionCoordinator: ObservableObject {
             idSource: idSource,
             fileAuthority: fileAuthority,
             generationFactory: resolvedFactory,
-            binding: binding
+            binding: binding,
+            searchIndexStore: searchIndexStore,
+            searchServices: searchServices
         )
     }
 
@@ -56,6 +70,9 @@ final class StoreSessionCoordinator: ObservableObject {
         let resolvedFactory = StoreGenerationFactory(
             applicationSupportURL: Self.applicationSupportURL(for: session)
         )
+        let searchIndexStore = try LocalSearchIndexStoreV1(
+            applicationSupportURL: Self.applicationSupportURL(for: session)
+        )
         let binding = try Self.makeWriter(
             session: session,
             clock: clock,
@@ -63,13 +80,20 @@ final class StoreSessionCoordinator: ObservableObject {
             fileAuthority: fileAuthority,
             generationFactory: resolvedFactory
         )
+        let searchServices = try Self.makeSearchServices(
+            session: session,
+            writer: binding.writer,
+            store: searchIndexStore
+        )
         self.init(
             session: session,
             clock: clock,
             idSource: idSource,
             fileAuthority: fileAuthority,
             generationFactory: resolvedFactory,
-            binding: binding
+            binding: binding,
+            searchIndexStore: searchIndexStore,
+            searchServices: searchServices
         )
     }
 
@@ -79,7 +103,9 @@ final class StoreSessionCoordinator: ObservableObject {
         idSource: any ApplicationIDSource,
         fileAuthority: any ApplicationFileAuthorityV1,
         generationFactory: StoreGenerationFactory,
-        binding: WriterBinding
+        binding: WriterBinding,
+        searchIndexStore: LocalSearchIndexStoreV1,
+        searchServices: ProductionSearchServicesV1
     ) {
         self.session = session
         self.clock = clock
@@ -88,6 +114,8 @@ final class StoreSessionCoordinator: ObservableObject {
         self.generationFactory = generationFactory
         self.writerLeaseHandle = binding.leaseHandle
         self.workspaceWriter = binding.writer
+        self.searchIndexStore = searchIndexStore
+        self.searchServices = searchServices
     }
 
     var modelContext: ModelContext {
@@ -116,6 +144,27 @@ final class StoreSessionCoordinator: ObservableObject {
 
     var workspaceQueryClient: any WorkspaceQueryClientV1 {
         workspaceWriter
+    }
+
+    func dropSearchProjectionForRebuild() async throws {
+        try await searchIndexStore.dropProjection(workspaceID: workspaceID.rawValue)
+    }
+
+    func rebuildSearchProjectionIfNeeded() async throws -> SearchIndexRebuildResultV1 {
+        try await searchServices.rebuildCoordinator.rebuildIfNeeded()
+    }
+
+    func awaitSearchIndexLifecycle() async throws {
+        // Synchronous writer/session hooks complete before their callers
+        // return; this compatibility seam therefore has no pending work.
+    }
+
+    func executeAndSynchronizeSearchIndex(
+        _ command: WorkspaceCommandV1
+    ) async throws -> WorkspaceMutationOutcomeV1 {
+        let outcome = try workspaceWriter.execute(command)
+        try await awaitSearchIndexLifecycle()
+        return outcome
     }
 
     func packageLifecycleDependencies(
@@ -148,6 +197,13 @@ final class StoreSessionCoordinator: ObservableObject {
                 == generationFactory.restoreApplicationSupportURL.standardizedFileURL else {
             throw GenerationLeaseRegistryFailureV1.invalidPath
         }
+        let replacementSearchIndexStore = try LocalSearchIndexStoreV1(
+            applicationSupportURL: Self.applicationSupportURL(for: session)
+        )
+        try LocalSearchIndexStoreV1.synchronouslyDropProjection(
+            workspaceID: session.workspaceID.rawValue,
+            applicationSupportURL: Self.applicationSupportURL(for: session)
+        )
         let binding = try Self.makeWriter(
             session: session,
             clock: clock,
@@ -155,14 +211,28 @@ final class StoreSessionCoordinator: ObservableObject {
             fileAuthority: fileAuthority,
             generationFactory: generationFactory
         )
+        let replacementSearchServices = try Self.makeSearchServices(
+            session: session,
+            writer: binding.writer,
+            store: replacementSearchIndexStore
+        )
         try writerLeaseHandle.close()
         workspaceWriter.invalidate()
         self.session = session
+        searchIndexStore = replacementSearchIndexStore
+        searchServices = replacementSearchServices
         writerLeaseHandle = binding.leaseHandle
         workspaceWriter = binding.writer
         if uiGenerationToken < .max {
             uiGenerationToken += 1
         }
+    }
+
+    func activateValidatingAndSynchronizeSearchIndex(
+        session: StoreGenerationSession
+    ) async throws {
+        try activateValidating(session: session)
+        try await awaitSearchIndexLifecycle()
     }
 
     private struct WriterBinding {
@@ -225,9 +295,40 @@ final class StoreSessionCoordinator: ObservableObject {
             idSource: idSource,
             fileAuthority: fileAuthority,
             adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext),
-            journalStore: journalStore
+            journalStore: journalStore,
+            searchIndexInvalidation: { source in
+                try LocalSearchIndexStoreV1.synchronouslyInvalidateAfterCanonicalCommit(
+                    source: source,
+                    applicationSupportURL: generationFactory.restoreApplicationSupportURL
+                )
+            }
         )
         return WriterBinding(writer: writer, leaseHandle: leaseHandle)
+    }
+
+    private static func makeSearchServices(
+        session: StoreGenerationSession,
+        writer: WorkspaceWriterV1,
+        store: LocalSearchIndexStoreV1
+    ) throws -> ProductionSearchServicesV1 {
+        try ProductionSearchServicesV1(
+            store: store,
+            modelContext: session.modelContext,
+            workspaceID: session.workspaceID.rawValue,
+            generationID: session.generationID,
+            revisionProvider: {
+                let revision = try writer.currentRevision()
+                guard revision.workspaceID == session.workspaceID,
+                      revision.generationID == session.generationID else {
+                    throw WorkspaceMutationFailureV1.wrongGeneration
+                }
+                return try SearchSourceRevisionV1(
+                    workspaceID: revision.workspaceID.rawValue,
+                    generationID: revision.generationID,
+                    commitRevision: revision.revision
+                )
+            }
+        )
     }
 
     private static func applicationSupportURL(

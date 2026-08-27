@@ -43,8 +43,9 @@ final class S6_2BackupExportTests: XCTestCase {
         let validated = try importer.stageAndValidate(selectedPackageURL: package)
         defer { try? importer.discard(validated) }
         XCTAssertEqual(validated.manifest.backupSchemaVersion, 4)
-        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 6)
-        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 5)
+        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 7)
+        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 6)
+        XCTAssertTrue(validated.records.savedSmartViews.isEmpty)
         XCTAssertNotNil(validated.records.mutationHistory)
         let placementHistory = try validated.records.assetPlacementEvents.map {
             try LocationPersistenceCodecV1.decode(

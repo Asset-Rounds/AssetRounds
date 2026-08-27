@@ -387,6 +387,22 @@ struct HapticFeedbackPreferenceV1: Codable, Equatable, Sendable {
     }
 }
 
+/// Device-local navigation preference only. Canonical saved-view definitions
+/// remain WorkspaceWriter-owned V7 records, and raw query text is never stored
+/// through this setting.
+struct LastSelectedSmartViewPreferenceV1: Codable, Equatable, Sendable {
+    static let key = "device.lastSelectedSmartViewID"
+    static let logicalDefault = BuiltInSmartViewV1.recent.stableID
+    let stableID: String
+
+    init(stableID: String) throws {
+        guard SearchContractValidationV1.validID(stableID) else {
+            throw SettingsContractFailureV1.invalidValue
+        }
+        self.stableID = stableID
+    }
+}
+
 enum SuggestionSourceV1: String, CaseIterable, Codable, Hashable, Sendable {
     case reviewedRecentOption = "REVIEWED_RECENT_OPTION"
     case reviewedStableLocalReference = "REVIEWED_STABLE_LOCAL_REFERENCE"
@@ -649,6 +665,9 @@ struct SettingsRegistryV1: Sendable {
             DeviceLocalAppLockSettingV1.disabled.isEnabled
         )
         let recent = try CompatibilityCanonicalV1.encode(RecentInputMemoryV1())
+        let lastSelectedSmartView = try CompatibilityCanonicalV1.encode(
+            LastSelectedSmartViewPreferenceV1.logicalDefault
+        )
         return try SettingsRegistryV1(descriptors: [
             try SettingDescriptorV1(
                 key: DeviceLocalAppLockSettingV1.key,
@@ -678,6 +697,21 @@ struct SettingsRegistryV1: Sendable {
                 erase: .restoreDefault,
                 privacy: .devicePreferenceNoCustomerData,
                 localizationKey: "settings.hapticFeedback"
+            ),
+            try SettingDescriptorV1(
+                key: LastSelectedSmartViewPreferenceV1.key,
+                valueKind: .boundedString,
+                scope: .deviceLocal,
+                storage: .soleDevicePreferencesAdapter,
+                defaultCanonicalValue: lastSelectedSmartView,
+                maximumCanonicalBytes: 200,
+                migrationVersion: 1,
+                backup: .excludedDeviceLocal,
+                reset: .restoreDefault,
+                erase: .restoreDefault,
+                privacy: .devicePreferenceNoCustomerData,
+                localizationKey: "settings.lastSelectedSmartView",
+                changesHistoricOutput: false
             ),
             try SettingDescriptorV1(
                 key: "device.recentInputMemory",

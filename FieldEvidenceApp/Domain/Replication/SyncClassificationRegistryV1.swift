@@ -162,7 +162,7 @@ enum SyncClassificationRegistryV1 {
         "generationLeaseOwnerLock", "generationPointer", "generationPointerTemporary",
         "journal", "journalTemporary", "mediaOriginal", "mediaThumbnail", "reportPDF",
         "reportSnapshot", "restoreStaging", "scratch", "stagingDirectory", "stagingFile",
-        "temporaryFile",
+        "temporaryFile", "searchIndex",
     ]
 
     private static func makeRegistrations() throws -> [SyncClassificationRegistrationV1] {
@@ -254,7 +254,7 @@ enum SyncClassificationRegistryV1 {
              "generationLeaseControl", "generationLeaseControlTemporary",
              "generationLeaseDirectory", "generationLeaseOwnerLock",
              "journalTemporary", "restoreStaging", "stagingDirectory", "stagingFile",
-             "temporaryFile", "scratch":
+             "temporaryFile", "scratch", "searchIndex":
             return (.localOnly, .localOnly)
         default:
             throw SyncClassificationRegistryFailureV1.incompleteInventory

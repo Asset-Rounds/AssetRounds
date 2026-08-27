@@ -198,7 +198,7 @@ private extension ReplacementRestoreRule {
             try ledger.validate()
             explicit = ledger
         case (3, let ledger?, let history?), (4, let ledger?, let history?),
-             (5, let ledger?, let history?):
+             (5, let ledger?, let history?), (6, let ledger?, let history?):
             try ledger.validate()
             try MutationJournalStoreV1.validateImportedSnapshot(history)
             explicit = ledger
@@ -274,6 +274,7 @@ private extension ReplacementRestoreRule {
                 ? 2
                 : records.recordsSchemaVersion,
             reports: reports,
+            savedSmartViews: records.savedSmartViews,
             sites: sites,
             workflowRecords: workflow
         )
@@ -303,6 +304,7 @@ private extension ReplacementRestoreRule {
             packets: packets,
             recordsSchemaVersion: records.recordsSchemaVersion,
             reports: records.reports,
+            savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords
         )
@@ -329,6 +331,7 @@ private extension ReplacementRestoreRule {
                 ? min(records.recordsSchemaVersion, 2)
                 : records.recordsSchemaVersion,
             reports: records.reports,
+            savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords
         )
@@ -470,7 +473,8 @@ private extension ReplacementRestoreRule {
         _ records: V4BackupRecordsV1,
         ledger: DeletionLedgerV2
     ) -> Bool {
-        guard records.recordsSchemaVersion == 5 else {
+        guard records.recordsSchemaVersion == 5
+                || records.recordsSchemaVersion == 6 else {
             return records.locationNodes.isEmpty
                 && records.assetPlacementEvents.isEmpty
                 && records.assetCompositionEdges.isEmpty

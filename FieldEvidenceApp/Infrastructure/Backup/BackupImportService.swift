@@ -857,7 +857,7 @@ private extension BackupImportService {
             manifest.source.recordsSchemaVersion
         ) {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
-             (4, 5, 4), (4, 6, 5):
+             (4, 5, 4), (4, 6, 5), (4, 7, 6):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false

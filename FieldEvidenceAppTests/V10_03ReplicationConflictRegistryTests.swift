@@ -237,7 +237,7 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
         let registeredModelNames = currentCatalog.registrations
             .filter { $0.subject.category == .persistentModel }
             .map(\.subject.stableName)
-        XCTAssertEqual(registeredModelNames.count, 20)
+        XCTAssertEqual(registeredModelNames.count, 21)
         XCTAssertEqual(Set(registeredModelNames).count, registeredModelNames.count)
         XCTAssertEqual(
             registeredModelNames.sorted(),
@@ -264,10 +264,20 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
             XCTAssertEqual(registration.replicationPolicy.persistence, .swiftDataRecord)
             XCTAssertEqual(registration.replicationPolicy.authority, .workspaceWriter)
         }
+        XCTAssertEqual(CurrentSyncClassificationCatalogV1.v7PersistentModelNames, ["SavedSmartView"])
+        for name in CurrentSyncClassificationCatalogV1.v7PersistentModelNames {
+            let registration = try currentCatalog.registration(for: .init(
+                category: .persistentModel,
+                stableName: name
+            ))
+            XCTAssertEqual(registration.replicationPolicy.persistence, .swiftDataRecord)
+            XCTAssertEqual(registration.replicationPolicy.authority, .workspaceWriter)
+        }
         let registeredFileNames = currentCatalog.registrations
             .filter { $0.subject.category == .ownedFileClass }
             .map(\.subject.stableName)
-        XCTAssertEqual(registeredFileNames.count, 20)
+        XCTAssertEqual(registeredFileNames.count, 21)
+        XCTAssertTrue(registeredFileNames.contains("searchIndex"))
         XCTAssertEqual(Set(registeredFileNames).count, registeredFileNames.count)
         XCTAssertEqual(
             registeredFileNames.sorted(),

@@ -29,6 +29,7 @@ enum OwnedFileKindV1: String, CaseIterable, Equatable, Hashable, Sendable {
     case commerceEntitlementCache
     case cache
     case scratch
+    case searchIndex
 }
 
 struct OwnedFileProtectionDispositionV1: Equatable, Sendable {
@@ -117,7 +118,8 @@ enum ProtectedFilePolicyV1 {
              .journal,
              .journalTemporary,
              .diagnostics,
-             .commerceEntitlementCache:
+             .commerceEntitlementCache,
+             .searchIndex:
             return OwnedFileProtectionDispositionV1(
                 expectsDirectory: false,
                 isExcludedFromBackup: true

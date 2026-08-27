@@ -250,13 +250,14 @@ final class LocalChangeJournalV1 {
         let persistentSchemaSHA256 = try Self.sha256(PersistentSchemaDigestBasis(
             persistentSchemaVersion: destination.persistentSchemaVersion,
             compatibilityID: try persistentCompatibilityID(destination.persistentSchemaVersion),
-            modelNames: CurrentSyncClassificationCatalogV1.persistentModelNames
+            modelNames: CurrentSyncClassificationCatalogV1.activePersistentModelNames
         ))
         let recordSchemaSHA256 = try Self.sha256(RecordSchemaDigestBasis(
             recordsSchemaVersion: destination.recordsSchemaVersion,
-            orderedFields: destination.recordsSchemaVersion == 5
-                ? Self.v5BackupRecordFields
-                : Self.v4BackupRecordFields
+            orderedFields: destination.recordsSchemaVersion == 6
+                ? Self.v6BackupRecordFields
+                : (destination.recordsSchemaVersion == 5
+                    ? Self.v5BackupRecordFields : Self.v4BackupRecordFields)
         ))
         guard destination.workspaceIdentity == identity,
               destination.generationID == generationID,
@@ -642,8 +643,8 @@ final class LocalChangeJournalV1 {
         guard basis.workspaceIdentity == identity, basis.generationID == generationID else {
             throw ChangeJournalFailureV1.wrongGeneration
         }
-        guard basis.persistentSchemaVersion == 6,
-              basis.recordsSchemaVersion == 5 else {
+        guard basis.persistentSchemaVersion == 7,
+              basis.recordsSchemaVersion == 6 else {
             throw ChangeJournalFailureV1.incompatibleVersion
         }
         guard basis.memberInventory.map(\.path) == basis.memberInventory.map(\.path).sorted(),
@@ -663,7 +664,7 @@ final class LocalChangeJournalV1 {
         let persistentSchemaSHA256 = try Self.sha256(PersistentSchemaDigestBasis(
             persistentSchemaVersion: basis.persistentSchemaVersion,
             compatibilityID: try persistentCompatibilityID(basis.persistentSchemaVersion),
-            modelNames: CurrentSyncClassificationCatalogV1.persistentModelNames
+            modelNames: CurrentSyncClassificationCatalogV1.activePersistentModelNames
         ))
         let packages = try packageDigests(basis.packageReleases)
         let tombstones = try tombstones(history)
@@ -695,7 +696,7 @@ final class LocalChangeJournalV1 {
             recordSchemaVersion: basis.recordsSchemaVersion,
             recordSchemaSHA256: try Self.sha256(RecordSchemaDigestBasis(
                 recordsSchemaVersion: basis.recordsSchemaVersion,
-                orderedFields: Self.v5BackupRecordFields
+                orderedFields: Self.v6BackupRecordFields
             )),
             packages: packages,
             frontier: currentFrontier,
@@ -1119,6 +1120,7 @@ final class LocalChangeJournalV1 {
         case 4: return PersistentSchemaReleaseV1.v4.compatibilityID
         case 5: return PersistentSchemaReleaseV1.v5.compatibilityID
         case 6: return PersistentSchemaReleaseV1.v6.compatibilityID
+        case 7: return PersistentSchemaReleaseV1.v7.compatibilityID
         default: throw ChangeJournalFailureV1.incompatibleVersion
         }
     }
@@ -1358,6 +1360,13 @@ final class LocalChangeJournalV1 {
         "assets", "deletionLedger", "evidenceFiles", "issues", "locationHierarchyEvents",
         "locationMigrationReceipts", "locationNodes", "mutationHistory", "packets",
         "recordsSchemaVersion", "reports", "sites", "workflowRecords",
+    ]
+
+    private static let v6BackupRecordFields = [
+        "assetCompositionEdges", "assetCompositionEvents", "assetPlacementEvents",
+        "assets", "deletionLedger", "evidenceFiles", "issues", "locationHierarchyEvents",
+        "locationMigrationReceipts", "locationNodes", "mutationHistory", "packets",
+        "recordsSchemaVersion", "reports", "savedSmartViews", "sites", "workflowRecords",
     ]
 
     private static let decoder: JSONDecoder = {

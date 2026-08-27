@@ -1529,6 +1529,7 @@ private final class EraseAuxiliaryAuthority {
             "FieldEvidenceCommerce",
             "FieldEvidenceDiagnostics",
             "FieldEvidenceErase",
+            LocalSearchIndexStoreV1.directoryName,
         ] {
             try Self.requireAbsentOrValidDirectory(
                 parent: applicationSupportDescriptor,
@@ -1596,6 +1597,7 @@ private final class EraseAuxiliaryAuthority {
             "FieldEvidenceOperations",
             "FieldEvidenceCommerce",
             "FieldEvidenceDiagnostics",
+            LocalSearchIndexStoreV1.directoryName,
         ] {
             try Self.removeDirectoryIfPresent(
                 parent: applicationSupportDescriptor,
@@ -1619,6 +1621,7 @@ private final class EraseAuxiliaryAuthority {
             "FieldEvidenceRestore",
             "FieldEvidenceOperations",
             "FieldEvidenceCommerce",
+            LocalSearchIndexStoreV1.directoryName,
         ] {
             guard try !Self.itemExists(
                 parent: applicationSupportDescriptor,

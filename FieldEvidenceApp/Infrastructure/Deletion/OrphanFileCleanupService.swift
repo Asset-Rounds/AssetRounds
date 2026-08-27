@@ -87,7 +87,27 @@ final class OrphanFileCleanupService {
             throw OrphanFileCleanupServiceError.invalidReference
         }
         try validateKernelOrphanMappings()
-        return try reconcile(references: Set(referencedRelativePaths))
+        let summary = try reconcile(references: Set(referencedRelativePaths))
+        try purgeDerivedSearchProjection()
+        return summary
+    }
+
+    /// The local search projection is derived and has no canonical row-owned
+    /// path. Orphan maintenance may therefore drop it wholesale for rebuild.
+    func purgeDerivedSearchProjection() throws {
+        do {
+            try KernelDeletionEraseRegistryV4.validateSearchLifecycle()
+            let applicationSupportURL = generationRootURL
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+            try LocalSearchIndexStoreV1.synchronouslyEraseAll(
+                applicationSupportURL: applicationSupportURL,
+                fileManager: fileManager
+            )
+        } catch {
+            throw OrphanFileCleanupServiceError.cleanupFailed
+        }
     }
 
     /// Package-aware callers must prove the file projection belongs to the
@@ -113,7 +133,9 @@ final class OrphanFileCleanupService {
             dependencies,
             identities: identities
         )
-        return try reconcile(references: Set(referencedRelativePaths))
+        let summary = try reconcile(references: Set(referencedRelativePaths))
+        try purgeDerivedSearchProjection()
+        return summary
     }
 
     private func reconcile(
