@@ -21018,7 +21018,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(signSelectionDiagnosticSource.utf8.count, 11_417)
         XCTAssertEqual(
             Data(signSelectionDiagnosticSource.utf8).sha256,
-            "FA7DBF64ED337AB953CA5FB3B4C9191AC00F55A97B01748DB34912E872A86067"
+            "EE8A59DE270061CF58AF2A9FD0201E23C2A07A65AA44F61FC0AAEB4AD6A59CC5"
         )
         for exact in [
             #"let stateID = "state.sign-selection.ready""#,
@@ -21032,7 +21032,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"automationSegment.ownedCount == 17"#,
             #"automationSegment.finalOrdinal == 67"#,
             #"Self.segmentedRouteStateIDs[65] == stateID"#,
-            #"segmentedRouteStateCursor == 65"#,
+            #"segmentedRouteStateCursor == 66"#,
             #"migratedStateIDs == expectedMigratedStateIDs"#,
             #"automationAXTreeDigests.keys.sorted()"#,
             #"automationContrastExceptions.keys.sorted()"#,
