@@ -1,0 +1,733 @@
+{
+  "schema": "V21P03C10ChecklistFixtureManifestV1",
+  "schemaVersion": 1,
+  "fixtureID": "V21-P03-C10-CHECKLIST-FIXTURE-V1",
+  "shapeID": "CHECKLIST_BRANCHING_EVIDENCE_FIRST",
+  "productionAdapters": [
+    "StoreGenerationFactory",
+    "StoreSessionCoordinator",
+    "WorkspaceWriterV1",
+    "WorkspaceWriterAdapterV1",
+    "CheckRunnerCoordinator",
+    "WorkCoordinator",
+    "PackFinalizationAdapterV1",
+    "ReportProjectionRegistryV2",
+    "BackupExportService",
+    "StreamingArchiveService",
+    "BackupRestoreService",
+    "LocalChangeJournalV1",
+    "SearchCoordinatorV1",
+    "SearchIndexRebuildCoordinatorV1",
+    "WholeSignDeletionService",
+    "EraseAllService"
+  ],
+  "lifecycleTransitions": [
+    {"sequence": 1, "action": "VALIDATE", "adapter": "StoreGenerationFactory", "inputState": "FIXTURE_BYTES", "outputState": "VALIDATED", "persistentConsumers": ["SNAPSHOT"], "brandState": "TEST_ONLY_NO_CHANGED_UI"},
+    {"sequence": 2, "action": "START", "adapter": "CheckRunnerCoordinator", "inputState": "VALIDATED", "outputState": "CHECK_ACTIVE", "persistentConsumers": ["WORKSPACE_WRITER"], "brandState": "TEST_ONLY_NO_CHANGED_UI"},
+    {"sequence": 3, "action": "EVIDENCE", "adapter": "CheckRunnerCoordinator", "inputState": "RESPONSE_RECORDED", "outputState": "EVIDENCE_BOUND", "persistentConsumers": ["SNAPSHOT"], "brandState": "TEST_ONLY_NO_CHANGED_UI"},
+    {"sequence": 4, "action": "RESPOND", "adapter": "WorkspaceWriterAdapterV1", "inputState": "CHECK_ACTIVE", "outputState": "RESPONSE_RECORDED", "persistentConsumers": ["WORKSPACE_WRITER", "CHANGE_JOURNAL"], "brandState": "TEST_ONLY_NO_CHANGED_UI"},
+    {"sequence": 5, "action": "RESUME", "adapter": "StoreSessionCoordinator", "inputState": "EVIDENCE_BOUND", "outputState": "CHECK_RESUMED", "persistentConsumers": ["WORKSPACE_WRITER"], "brandState": "TEST_ONLY_NO_CHANGED_UI"},
+    {"sequence": 6, "action": "FIND", "adapter": "WorkspaceWriterV1", "inputState": "CHECK_RESUMED", "outputState": "FINDING_OPEN", "persistentConsumers": ["WORKSPACE_WRITER", "CHANGE_JOURNAL"], "brandState": "TEST_ONLY_NO_CHANGED_UI"},
+    {"sequence": 7, "action": "FINALIZE", "adapter": "PackFinalizationAdapterV1", "inputState": "RECHECK_VERIFIED", "outputState": "FINALIZED", "persistentConsumers": ["SNAPSHOT", "WORKSPACE_WRITER"], "brandState": "TEST_ONLY_NO_CHANGED_UI"},
+    {"sequence": 8, "action": "WORK", "adapter": "WorkCoordinator", "inputState": "FINDING_OPEN", "outputState": "WORK_RECORDED", "persistentConsumers": ["WORKSPACE_WRITER", "SNAPSHOT"], "brandState": "TEST_ONLY_NO_CHANGED_UI"},
+    {"sequence": 9, "action": "RECHECK", "adapter": "CheckRunnerCoordinator", "inputState": "WORK_RECORDED", "outputState": "RECHECK_VERIFIED", "persistentConsumers": ["WORKSPACE_WRITER", "CHANGE_JOURNAL"], "brandState": "TEST_ONLY_NO_CHANGED_UI"},
+    {"sequence": 10, "action": "PROJECT", "adapter": "ReportProjectionRegistryV2", "inputState": "FINALIZED", "outputState": "PROJECTED", "persistentConsumers": ["REPORT_PROJECTION"], "brandState": "TEST_ONLY_NO_CHANGED_UI"},
+    {"sequence": 11, "action": "ARCHIVE", "adapter": "StreamingArchiveService", "inputState": "PROJECTED", "outputState": "ARCHIVED", "persistentConsumers": ["BACKUP_ARCHIVE", "CHANGE_JOURNAL"], "brandState": "TEST_ONLY_NO_CHANGED_UI"},
+    {"sequence": 12, "action": "RESTORE", "adapter": "BackupRestoreService", "inputState": "ARCHIVED", "outputState": "RESTORED", "persistentConsumers": ["RESTORE", "BACKUP_ARCHIVE"], "brandState": "TEST_ONLY_NO_CHANGED_UI"},
+    {"sequence": 13, "action": "SEARCH", "adapter": "SearchIndexRebuildCoordinatorV1", "inputState": "RESTORED", "outputState": "SEARCHABLE", "persistentConsumers": ["SEARCH_INDEX"], "brandState": "TEST_ONLY_NO_CHANGED_UI"},
+    {"sequence": 14, "action": "DELETE", "adapter": "WholeSignDeletionService", "inputState": "SEARCHABLE", "outputState": "DELETED", "persistentConsumers": ["DELETION_LEDGER", "SEARCH_INDEX"], "brandState": "TEST_ONLY_NO_CHANGED_UI"},
+    {"sequence": 15, "action": "ERASE", "adapter": "EraseAllService", "inputState": "DELETED", "outputState": "ERASED", "persistentConsumers": ["ERASE_GENERATION", "SEARCH_INDEX"], "brandState": "TEST_ONLY_NO_CHANGED_UI"},
+    {"sequence": 16, "action": "RECOVER", "adapter": "StoreSessionCoordinator", "inputState": "ERASED", "outputState": "EMPTY_GENERATION_ACTIVE", "persistentConsumers": ["ERASE_GENERATION", "RESTORE"], "brandState": "TEST_ONLY_NO_CHANGED_UI"}
+  ],
+  "faultInjections": [
+    {
+      "boundary": "FINALIZATION_SNAPSHOT_STAGING_WRITE",
+      "faultClass": "CRASH",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "BEFORE_PUBLICATION_ZERO_OR_COMPLETE_REPLAY_SAFE",
+      "selectors": [
+        "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority",
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-A01",
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "FINALIZATION_SNAPSHOT_PROMOTION_MOVE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "ZERO_OR_COMPLETE_REPLAY_SAFE",
+      "selectors": [
+        "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority",
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-A01",
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "FINALIZATION_INTENT_PHASE_WRITE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "ZERO_OR_COMPLETE_REPLAY_SAFE",
+      "selectors": [
+        "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority",
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-A01",
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "FINALIZATION_MODEL_SAVE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "ZERO_OR_COMPLETE_REPLAY_SAFE",
+      "selectors": [
+        "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority",
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-A01",
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "WORK_MODEL_SAVE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "ZERO_OR_COMPLETE_REPLAY_SAFE",
+      "selectors": [
+        "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-A01"
+      ]
+    },
+    {
+      "boundary": "WORK_AFTER_EVIDENCE_PROMOTION",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "ZERO_OR_COMPLETE_REPLAY_SAFE",
+      "selectors": [
+        "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority",
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-A01",
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "REPORT_RENDER",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "FAILED_OR_READY_EXACTLY_ONCE",
+      "selectors": [
+        "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-A01"
+      ]
+    },
+    {
+      "boundary": "REPORT_STAGE_WRITE",
+      "faultClass": "LOW_SPACE",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "DURING_PUBLICATION_FAILED_OR_READY_EXACTLY_ONCE",
+      "selectors": [
+        "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority",
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-A01",
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "REPORT_PROMOTION",
+      "faultClass": "TAMPER",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "AFTER_PUBLICATION_ZERO_OR_COMPLETE_TAMPER_REJECTED",
+      "selectors": [
+        "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority",
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-A01",
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "REPORT_REREAD",
+      "faultClass": "PROTECTED_DATA",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "DURING_PUBLICATION_FAILED_OR_READY_EXACTLY_ONCE",
+      "selectors": [
+        "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-A01"
+      ]
+    },
+    {
+      "boundary": "REPORT_READY_SAVE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "FAILED_OR_READY_EXACTLY_ONCE",
+      "selectors": [
+        "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority",
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-A01",
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "REPORT_FAILED_STATE_SAVE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "FAILED_OR_READY_EXACTLY_ONCE",
+      "selectors": [
+        "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-A01"
+      ]
+    },
+    {
+      "boundary": "REPORT_RETRY_TRANSITION_SAVE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "FAILED_OR_READY_EXACTLY_ONCE",
+      "selectors": [
+        "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority",
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-A01",
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "JOURNAL_AFTER_CHECKPOINT_PREPARED",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "REPLAY_TWICE_SAME_NORMALIZED_PROJECTION",
+      "selectors": [
+        "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority",
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-A01",
+        "V23-P03-C10-R01"
+      ]
+    },
+    {
+      "boundary": "JOURNAL_AFTER_CHECKPOINT_STATE_WRITTEN",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "REPLAY_TWICE_SAME_NORMALIZED_PROJECTION",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically",
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01",
+        "V23-P03-C10-R01"
+      ]
+    },
+    {
+      "boundary": "JOURNAL_AFTER_REPLAY_MUTATION",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "REPLAY_TWICE_SAME_NORMALIZED_PROJECTION",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically",
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01",
+        "V23-P03-C10-R01"
+      ]
+    },
+    {
+      "boundary": "JOURNAL_AFTER_COMPACTION_STATE_WRITTEN",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "REPLAY_TWICE_SAME_NORMALIZED_PROJECTION",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically",
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01",
+        "V23-P03-C10-R01"
+      ]
+    },
+    {
+      "boundary": "RESTORE_BEFORE_PREPARED_WRITE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "OLD_OR_NEW_GENERATION_NEVER_MIXED",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "RESTORE_AFTER_PREPARED_WRITE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "OLD_OR_NEW_GENERATION_NEVER_MIXED",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "RESTORE_BEFORE_GENERATION_INSTALL",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "OLD_OR_NEW_GENERATION_NEVER_MIXED",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "RESTORE_AFTER_GENERATION_INSTALL",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "OLD_OR_NEW_GENERATION_NEVER_MIXED",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "RESTORE_BEFORE_POINTER_SWITCH",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "OLD_OR_NEW_GENERATION_NEVER_MIXED",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "RESTORE_AFTER_POINTER_SWITCH",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "OLD_OR_NEW_GENERATION_NEVER_MIXED",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically",
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01",
+        "V23-P03-C10-R01"
+      ]
+    },
+    {
+      "boundary": "RESTORE_BEFORE_NEW_GENERATION_VALIDATION",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "OLD_OR_NEW_GENERATION_NEVER_MIXED",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "RESTORE_AFTER_NEW_GENERATION_VALIDATION",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "OLD_OR_NEW_GENERATION_NEVER_MIXED",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "RESTORE_BEFORE_CLEANUP",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "OLD_OR_NEW_GENERATION_NEVER_MIXED",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically",
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01",
+        "V23-P03-C10-R01"
+      ]
+    },
+    {
+      "boundary": "DELETE_PREPARED_JOURNAL",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "DELETE_RESUMES_WITHOUT_RESURRECTION",
+      "selectors": [
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-R01"
+      ]
+    },
+    {
+      "boundary": "DELETE_DATABASE_SAVE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "DELETE_RESUMES_WITHOUT_RESURRECTION",
+      "selectors": [
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-R01"
+      ]
+    },
+    {
+      "boundary": "DELETE_COMMITTED_PHASE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "DELETE_RESUMES_WITHOUT_RESURRECTION",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically",
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01",
+        "V23-P03-C10-R01"
+      ]
+    },
+    {
+      "boundary": "DELETE_FILE_CLEANUP",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "DELETE_RESUMES_WITHOUT_RESURRECTION",
+      "selectors": [
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-R01"
+      ]
+    },
+    {
+      "boundary": "DELETE_JOURNAL_REMOVAL",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "DELETE_RESUMES_WITHOUT_RESURRECTION",
+      "selectors": [
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-R01"
+      ]
+    },
+    {
+      "boundary": "ERASE_AFTER_EMPTY_GENERATION_DIRECTORY_CREATE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "EMPTY_GENERATION_FORWARD_ONLY",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "ERASE_BEFORE_PREPARED_WRITE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "OLD_OR_EMPTY_GENERATION_NEVER_MIXED",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "ERASE_AFTER_PREPARED_WRITE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "OLD_OR_EMPTY_GENERATION_NEVER_MIXED",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "ERASE_BEFORE_POINTER_SWITCH",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "OLD_OR_EMPTY_GENERATION_NEVER_MIXED",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "ERASE_AFTER_POINTER_SWITCH",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "EMPTY_GENERATION_FORWARD_ONLY",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically",
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01",
+        "V23-P03-C10-R01"
+      ]
+    },
+    {
+      "boundary": "ERASE_BEFORE_POINTER_PHASE_WRITE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "EMPTY_GENERATION_FORWARD_ONLY",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "ERASE_AFTER_POINTER_PHASE_WRITE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "EMPTY_GENERATION_FORWARD_ONLY",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "ERASE_BEFORE_SESSION_ACTIVATION",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "EMPTY_GENERATION_FORWARD_ONLY",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "ERASE_AFTER_SESSION_ACTIVATION",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "EMPTY_GENERATION_FORWARD_ONLY",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "ERASE_BEFORE_SESSION_PHASE_WRITE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "EMPTY_GENERATION_FORWARD_ONLY",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "ERASE_AFTER_SESSION_PHASE_WRITE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "EMPTY_GENERATION_FORWARD_ONLY",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "ERASE_BEFORE_CLEANUP",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "EMPTY_GENERATION_FORWARD_ONLY",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "ERASE_AFTER_CLEANUP",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "EMPTY_GENERATION_FORWARD_ONLY",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "ERASE_BEFORE_CLEANUP_PHASE_WRITE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "EMPTY_GENERATION_FORWARD_ONLY",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "ERASE_AFTER_CLEANUP_PHASE_WRITE",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "EMPTY_GENERATION_FORWARD_ONLY",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "ERASE_BEFORE_JOURNAL_REMOVAL",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "EMPTY_GENERATION_FORWARD_ONLY",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically",
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01",
+        "V23-P03-C10-R01"
+      ]
+    },
+    {
+      "boundary": "SEARCH_CANCELLATION",
+      "faultClass": "COOPERATIVE_CANCELLATION",
+      "recoveryAction": "RESUME",
+      "expectedDisposition": "CHECKPOINT_RETAINED",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "SEARCH_CHECKPOINT",
+      "faultClass": "INJECTED_INTERRUPTION",
+      "recoveryAction": "RESUME",
+      "expectedDisposition": "CHECKPOINT_RESUMED",
+      "selectors": [
+        "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-I01"
+      ]
+    },
+    {
+      "boundary": "SEARCH_STALE",
+      "faultClass": "STALE_REVISION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "DROP_AND_REBUILD",
+      "selectors": [
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-R01"
+      ]
+    },
+    {
+      "boundary": "SEARCH_AHEAD",
+      "faultClass": "AHEAD_REVISION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "DROP_AND_REBUILD",
+      "selectors": [
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-R01"
+      ]
+    },
+    {
+      "boundary": "SEARCH_INCOMPATIBLE",
+      "faultClass": "INCOMPATIBLE_FORMAT",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "DROP_AND_REBUILD",
+      "selectors": [
+        "testV9_20H01HostilePortableCorpusFixtureLeakAndReleaseHooksFailClosed",
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-H01",
+        "V23-P03-C10-R01"
+      ]
+    },
+    {
+      "boundary": "SEARCH_PUBLICATION_TOKEN",
+      "faultClass": "STALE_MUTATION",
+      "recoveryAction": "RECOVER",
+      "expectedDisposition": "PUBLICATION_REJECTED",
+      "selectors": [
+        "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority",
+        "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase"
+      ],
+      "evidenceIDs": [
+        "V23-P03-C10-A01",
+        "V23-P03-C10-R01"
+      ]
+    }
+  ],
+  "replicaSchedules": [
+    {"id": "two-replica-golden", "replicas": ["A", "B"], "deliveries": ["A1>B", "B1>A", "A1>B", "A2>B", "B2>A"], "expectedSemanticSHA256": "ba41e97d3792a61e506e312a41f4b5482fe96914af340ed1c99c29560ebca746", "replayCount": 2, "expectedNormalizedSHA256": "ba41e97d3792a61e506e312a41f4b5482fe96914af340ed1c99c29560ebca746"},
+    {"id": "three-replica-adversarial", "replicas": ["A", "B", "C"], "deliveries": ["C1>A", "A1>B", "B1>C", "A1>C", "C1>B", "B1>A", "RESOLUTION>A", "RESOLUTION>B", "RESOLUTION>C", "C2>A", "C2>B"], "expectedSemanticSHA256": "cb52fa8e4803b72f617f423b5205c65930fa7a25b0451fe2da0d3a671fdbb857", "replayCount": 2, "expectedNormalizedSHA256": "cb52fa8e4803b72f617f423b5205c65930fa7a25b0451fe2da0d3a671fdbb857"}
+  ],
+  "expectedNormalizedProjection": {"canonicalUTF8Hex": "7b2261726368697665223a224152434849564544222c2266696e64696e67223a224f50454e222c226d6561737572656d656e74223a2231322e353030206d6d222c227265636f7264494473223a5b22636865636b2d303031222c2266696e64696e672d303031222c226d6561737572656d656e742d303031222c22776f726b2d303031225d2c22736368656d61223a224b65726e656c4e6f726d616c697a656450726f6a656374696f6e5631222c22776f726b7370616365223a22776f726b73706163652d633130227d", "sha256": "ea62b48f7ff4cb50fb9e2415d325181c21418039212e03788619480ed8bac2dc", "recordIDs": ["check-001", "finding-001", "measurement-001", "work-001"]},
+  "releaseAbsence": {"testOnly": true, "shippingAdoptionEnabled": false, "nativeCompileRan": false, "hostedDispatchRan": false, "acceptanceCredit": false, "releaseCredit": false, "requiresAcceptedS10_6Reconciliation": true},
+  "evidenceBindings": [
+    {"selector": "testV9_20G01BothFixtureShapesCompleteFullLifecycleWithPortableSchemaParity", "evidenceID": "V23-P03-C10-G01", "covers": ["FULL_LIFECYCLE", "STRUCTURALLY_DISTINCT_FIXTURE", "PORTABLE_SCHEMA_PARITY", "TEST_ONLY_NO_CHANGED_UI"]},
+    {"selector": "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority", "evidenceID": "V23-P03-C10-A01", "covers": ["ALL_PUBLICATION_BOUNDARIES", "ZERO_OR_COMPLETE_AUTHORITY"]},
+    {"selector": "testV9_20H01HostilePortableCorpusFixtureLeakAndReleaseHooksFailClosed", "evidenceID": "V23-P03-C10-H01", "covers": ["HOSTILE_PORTABLE_CASES", "FIXTURE_LEAK_ABSENCE", "RELEASE_HOOK_ABSENCE"]},
+    {"selector": "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically", "evidenceID": "V23-P03-C10-I01", "covers": ["ALL_DURABLE_BOUNDARIES", "RELAUNCH_RECOVERY"]},
+    {"selector": "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase", "evidenceID": "V23-P03-C10-R01", "covers": ["TWO_REPLICA", "THREE_REPLICA", "REPLAY_TWICE", "ARCHIVE_RESTORE_SEARCH_DELETE_ERASE"]}
+  ]
+}

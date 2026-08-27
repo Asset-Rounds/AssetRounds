@@ -1,0 +1,1695 @@
+{
+  "schema": "V21P03C10KernelConformanceScenarioGraphV1",
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "c-validate",
+      "phase": "VALIDATE",
+      "adapter": "StoreGenerationFactory",
+      "persistentConsumers": [
+        "SNAPSHOT"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "c-start",
+      "phase": "START",
+      "adapter": "CheckRunnerCoordinator",
+      "persistentConsumers": [
+        "WORKSPACE_WRITER"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "c-resume",
+      "phase": "RESUME",
+      "adapter": "StoreSessionCoordinator",
+      "persistentConsumers": [
+        "WORKSPACE_WRITER"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "c-respond",
+      "phase": "RESPOND",
+      "adapter": "WorkspaceWriterAdapterV1",
+      "persistentConsumers": [
+        "WORKSPACE_WRITER",
+        "CHANGE_JOURNAL"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "c-evidence",
+      "phase": "EVIDENCE",
+      "adapter": "CheckRunnerCoordinator",
+      "persistentConsumers": [
+        "SNAPSHOT"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "c-find",
+      "phase": "FIND",
+      "adapter": "WorkspaceWriterV1",
+      "persistentConsumers": [
+        "WORKSPACE_WRITER",
+        "CHANGE_JOURNAL"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "c-work",
+      "phase": "WORK",
+      "adapter": "WorkCoordinator",
+      "persistentConsumers": [
+        "WORKSPACE_WRITER",
+        "SNAPSHOT"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "c-recheck",
+      "phase": "RECHECK",
+      "adapter": "CheckRunnerCoordinator",
+      "persistentConsumers": [
+        "WORKSPACE_WRITER",
+        "CHANGE_JOURNAL"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "c-finalize",
+      "phase": "FINALIZE",
+      "adapter": "PackFinalizationAdapterV1",
+      "persistentConsumers": [
+        "SNAPSHOT",
+        "WORKSPACE_WRITER"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "c-project",
+      "phase": "PROJECT",
+      "adapter": "ReportProjectionRegistryV2",
+      "persistentConsumers": [
+        "REPORT_PROJECTION"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "c-archive",
+      "phase": "ARCHIVE",
+      "adapter": "StreamingArchiveService",
+      "persistentConsumers": [
+        "BACKUP_ARCHIVE",
+        "CHANGE_JOURNAL"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "c-restore",
+      "phase": "RESTORE",
+      "adapter": "BackupRestoreService",
+      "persistentConsumers": [
+        "RESTORE",
+        "BACKUP_ARCHIVE"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "c-search",
+      "phase": "SEARCH",
+      "adapter": "SearchIndexRebuildCoordinatorV1",
+      "persistentConsumers": [
+        "SEARCH_INDEX"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "c-delete",
+      "phase": "DELETE",
+      "adapter": "WholeSignDeletionService",
+      "persistentConsumers": [
+        "DELETION_LEDGER",
+        "SEARCH_INDEX"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "c-erase",
+      "phase": "ERASE",
+      "adapter": "EraseAllService",
+      "persistentConsumers": [
+        "ERASE_GENERATION",
+        "SEARCH_INDEX"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "c-recover",
+      "phase": "RECOVER",
+      "adapter": "StoreSessionCoordinator",
+      "persistentConsumers": [
+        "ERASE_GENERATION",
+        "RESTORE"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-validate",
+      "phase": "VALIDATE",
+      "adapter": "StoreGenerationFactory",
+      "persistentConsumers": [
+        "SNAPSHOT"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-start",
+      "phase": "START",
+      "adapter": "CheckRunnerCoordinator",
+      "persistentConsumers": [
+        "WORKSPACE_WRITER"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-respond-1",
+      "phase": "RESPOND",
+      "adapter": "WorkspaceWriterAdapterV1",
+      "persistentConsumers": [
+        "WORKSPACE_WRITER",
+        "CHANGE_JOURNAL"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-evidence-1",
+      "phase": "EVIDENCE",
+      "adapter": "CheckRunnerCoordinator",
+      "persistentConsumers": [
+        "SNAPSHOT"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-respond-2",
+      "phase": "RESPOND",
+      "adapter": "WorkspaceWriterV1",
+      "persistentConsumers": [
+        "WORKSPACE_WRITER",
+        "CHANGE_JOURNAL"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-evidence-2",
+      "phase": "EVIDENCE",
+      "adapter": "CheckRunnerCoordinator",
+      "persistentConsumers": [
+        "SNAPSHOT"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-find",
+      "phase": "FIND",
+      "adapter": "WorkspaceWriterV1",
+      "persistentConsumers": [
+        "WORKSPACE_WRITER",
+        "CHANGE_JOURNAL"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-work",
+      "phase": "WORK",
+      "adapter": "WorkCoordinator",
+      "persistentConsumers": [
+        "WORKSPACE_WRITER",
+        "SNAPSHOT"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-resume",
+      "phase": "RESUME",
+      "adapter": "StoreSessionCoordinator",
+      "persistentConsumers": [
+        "WORKSPACE_WRITER"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-recheck",
+      "phase": "RECHECK",
+      "adapter": "CheckRunnerCoordinator",
+      "persistentConsumers": [
+        "WORKSPACE_WRITER",
+        "CHANGE_JOURNAL"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-respond-3",
+      "phase": "RESPOND",
+      "adapter": "WorkspaceWriterAdapterV1",
+      "persistentConsumers": [
+        "WORKSPACE_WRITER",
+        "CHANGE_JOURNAL"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-evidence-3",
+      "phase": "EVIDENCE",
+      "adapter": "CheckRunnerCoordinator",
+      "persistentConsumers": [
+        "SNAPSHOT"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-finalize",
+      "phase": "FINALIZE",
+      "adapter": "PackFinalizationAdapterV1",
+      "persistentConsumers": [
+        "SNAPSHOT",
+        "WORKSPACE_WRITER"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-project",
+      "phase": "PROJECT",
+      "adapter": "ReportProjectionRegistryV2",
+      "persistentConsumers": [
+        "REPORT_PROJECTION"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-archive",
+      "phase": "ARCHIVE",
+      "adapter": "BackupExportService",
+      "persistentConsumers": [
+        "BACKUP_ARCHIVE",
+        "CHANGE_JOURNAL"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-restore",
+      "phase": "RESTORE",
+      "adapter": "BackupRestoreService",
+      "persistentConsumers": [
+        "RESTORE",
+        "BACKUP_ARCHIVE"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-search",
+      "phase": "SEARCH",
+      "adapter": "SearchCoordinatorV1",
+      "persistentConsumers": [
+        "SEARCH_INDEX"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-delete",
+      "phase": "DELETE",
+      "adapter": "WholeSignDeletionService",
+      "persistentConsumers": [
+        "DELETION_LEDGER",
+        "SEARCH_INDEX"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-recover",
+      "phase": "RECOVER",
+      "adapter": "WholeSignDeletionService",
+      "persistentConsumers": [
+        "DELETION_LEDGER",
+        "CHANGE_JOURNAL"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    },
+    {
+      "id": "m-erase",
+      "phase": "ERASE",
+      "adapter": "EraseAllService",
+      "persistentConsumers": [
+        "ERASE_GENERATION",
+        "SEARCH_INDEX"
+      ],
+      "brandState": "TEST_ONLY_NO_CHANGED_UI"
+    }
+  ],
+  "edges": [
+    {
+      "id": "c-01",
+      "from": "c-validate",
+      "to": "c-start",
+      "action": "START",
+      "boundary": "NONE"
+    },
+    {
+      "id": "c-02",
+      "from": "c-start",
+      "to": "c-respond",
+      "action": "RESPOND",
+      "boundary": "NONE"
+    },
+    {
+      "id": "c-03",
+      "from": "c-respond",
+      "to": "c-evidence",
+      "action": "EVIDENCE",
+      "boundary": "NONE"
+    },
+    {
+      "id": "c-04",
+      "from": "c-evidence",
+      "to": "c-resume",
+      "action": "RESUME",
+      "boundary": "NONE"
+    },
+    {
+      "id": "c-05a",
+      "from": "c-resume",
+      "to": "c-find",
+      "action": "FIND",
+      "boundary": "NONE"
+    },
+    {
+      "id": "c-05b",
+      "from": "c-resume",
+      "to": "c-recheck",
+      "action": "RECHECK",
+      "boundary": "NONE"
+    },
+    {
+      "id": "c-06",
+      "from": "c-find",
+      "to": "c-work",
+      "action": "WORK",
+      "boundary": "NONE"
+    },
+    {
+      "id": "c-07",
+      "from": "c-work",
+      "to": "c-recheck",
+      "action": "RECHECK",
+      "boundary": "NONE"
+    },
+    {
+      "id": "c-08",
+      "from": "c-recheck",
+      "to": "c-finalize",
+      "action": "FINALIZE",
+      "boundary": "FINALIZATION_MODEL_SAVE"
+    },
+    {
+      "id": "c-09",
+      "from": "c-finalize",
+      "to": "c-project",
+      "action": "PROJECT",
+      "boundary": "REPORT_READY_SAVE"
+    },
+    {
+      "id": "c-10",
+      "from": "c-project",
+      "to": "c-archive",
+      "action": "ARCHIVE",
+      "boundary": "JOURNAL_AFTER_CHECKPOINT_STATE_WRITTEN"
+    },
+    {
+      "id": "c-11",
+      "from": "c-archive",
+      "to": "c-restore",
+      "action": "RESTORE",
+      "boundary": "RESTORE_AFTER_POINTER_SWITCH"
+    },
+    {
+      "id": "c-12",
+      "from": "c-restore",
+      "to": "c-search",
+      "action": "SEARCH",
+      "boundary": "SEARCH_CHECKPOINT"
+    },
+    {
+      "id": "c-13",
+      "from": "c-search",
+      "to": "c-delete",
+      "action": "DELETE",
+      "boundary": "DELETE_COMMITTED_PHASE"
+    },
+    {
+      "id": "c-14",
+      "from": "c-delete",
+      "to": "c-erase",
+      "action": "ERASE",
+      "boundary": "ERASE_AFTER_POINTER_SWITCH"
+    },
+    {
+      "id": "c-15",
+      "from": "c-erase",
+      "to": "c-recover",
+      "action": "RECOVER",
+      "boundary": "ERASE_BEFORE_JOURNAL_REMOVAL"
+    },
+    {
+      "id": "m-01",
+      "from": "m-validate",
+      "to": "m-start",
+      "action": "START",
+      "boundary": "NONE"
+    },
+    {
+      "id": "m-02",
+      "from": "m-start",
+      "to": "m-respond-1",
+      "action": "RESPOND",
+      "boundary": "NONE"
+    },
+    {
+      "id": "m-03",
+      "from": "m-respond-1",
+      "to": "m-evidence-1",
+      "action": "EVIDENCE",
+      "boundary": "NONE"
+    },
+    {
+      "id": "m-04",
+      "from": "m-evidence-1",
+      "to": "m-respond-2",
+      "action": "RESPOND",
+      "boundary": "NONE"
+    },
+    {
+      "id": "m-05",
+      "from": "m-respond-2",
+      "to": "m-evidence-2",
+      "action": "EVIDENCE",
+      "boundary": "NONE"
+    },
+    {
+      "id": "m-06",
+      "from": "m-evidence-2",
+      "to": "m-find",
+      "action": "FIND",
+      "boundary": "NONE"
+    },
+    {
+      "id": "m-07",
+      "from": "m-find",
+      "to": "m-work",
+      "action": "WORK",
+      "boundary": "NONE"
+    },
+    {
+      "id": "m-08",
+      "from": "m-work",
+      "to": "m-resume",
+      "action": "RESUME",
+      "boundary": "WORK_AFTER_EVIDENCE_PROMOTION"
+    },
+    {
+      "id": "m-09",
+      "from": "m-resume",
+      "to": "m-recheck",
+      "action": "RECHECK",
+      "boundary": "NONE"
+    },
+    {
+      "id": "m-10",
+      "from": "m-recheck",
+      "to": "m-respond-3",
+      "action": "RESPOND",
+      "boundary": "NONE"
+    },
+    {
+      "id": "m-11",
+      "from": "m-respond-3",
+      "to": "m-evidence-3",
+      "action": "EVIDENCE",
+      "boundary": "NONE"
+    },
+    {
+      "id": "m-12",
+      "from": "m-evidence-3",
+      "to": "m-finalize",
+      "action": "FINALIZE",
+      "boundary": "FINALIZATION_SNAPSHOT_PROMOTION_MOVE"
+    },
+    {
+      "id": "m-13",
+      "from": "m-finalize",
+      "to": "m-project",
+      "action": "PROJECT",
+      "boundary": "REPORT_PROMOTION"
+    },
+    {
+      "id": "m-14",
+      "from": "m-project",
+      "to": "m-archive",
+      "action": "ARCHIVE",
+      "boundary": "JOURNAL_AFTER_COMPACTION_STATE_WRITTEN"
+    },
+    {
+      "id": "m-15",
+      "from": "m-archive",
+      "to": "m-restore",
+      "action": "RESTORE",
+      "boundary": "RESTORE_AFTER_NEW_GENERATION_VALIDATION"
+    },
+    {
+      "id": "m-16",
+      "from": "m-restore",
+      "to": "m-search",
+      "action": "SEARCH",
+      "boundary": "SEARCH_PUBLICATION_TOKEN"
+    },
+    {
+      "id": "m-17",
+      "from": "m-search",
+      "to": "m-delete",
+      "action": "DELETE",
+      "boundary": "DELETE_FILE_CLEANUP"
+    },
+    {
+      "id": "m-18",
+      "from": "m-delete",
+      "to": "m-recover",
+      "action": "RECOVER",
+      "boundary": "DELETE_JOURNAL_REMOVAL"
+    },
+    {
+      "id": "m-19",
+      "from": "m-recover",
+      "to": "m-erase",
+      "action": "ERASE",
+      "boundary": "ERASE_AFTER_CLEANUP_PHASE_WRITE"
+    },
+    {
+      "id": "m-repeat",
+      "from": "m-evidence-3",
+      "to": "m-recheck",
+      "action": "RECHECK",
+      "boundary": "JOURNAL_AFTER_REPLAY_MUTATION"
+    },
+    {
+      "id": "fault-001",
+      "from": "c-finalize",
+      "to": "c-finalize",
+      "action": "RECOVER",
+      "boundary": "FINALIZATION_SNAPSHOT_STAGING_WRITE"
+    },
+    {
+      "id": "fault-002",
+      "from": "c-finalize",
+      "to": "c-finalize",
+      "action": "RECOVER",
+      "boundary": "FINALIZATION_INTENT_PHASE_WRITE"
+    },
+    {
+      "id": "fault-003",
+      "from": "c-work",
+      "to": "c-work",
+      "action": "RECOVER",
+      "boundary": "WORK_MODEL_SAVE"
+    },
+    {
+      "id": "fault-004",
+      "from": "c-project",
+      "to": "c-project",
+      "action": "RECOVER",
+      "boundary": "REPORT_RENDER"
+    },
+    {
+      "id": "fault-005",
+      "from": "c-project",
+      "to": "c-project",
+      "action": "RECOVER",
+      "boundary": "REPORT_STAGE_WRITE"
+    },
+    {
+      "id": "fault-006",
+      "from": "c-project",
+      "to": "c-project",
+      "action": "RECOVER",
+      "boundary": "REPORT_REREAD"
+    },
+    {
+      "id": "fault-007",
+      "from": "c-project",
+      "to": "c-project",
+      "action": "RECOVER",
+      "boundary": "REPORT_FAILED_STATE_SAVE"
+    },
+    {
+      "id": "fault-008",
+      "from": "c-project",
+      "to": "c-project",
+      "action": "RECOVER",
+      "boundary": "REPORT_RETRY_TRANSITION_SAVE"
+    },
+    {
+      "id": "fault-009",
+      "from": "c-archive",
+      "to": "c-archive",
+      "action": "RECOVER",
+      "boundary": "JOURNAL_AFTER_CHECKPOINT_PREPARED"
+    },
+    {
+      "id": "fault-010",
+      "from": "c-restore",
+      "to": "c-restore",
+      "action": "RECOVER",
+      "boundary": "RESTORE_BEFORE_PREPARED_WRITE"
+    },
+    {
+      "id": "fault-011",
+      "from": "c-restore",
+      "to": "c-restore",
+      "action": "RECOVER",
+      "boundary": "RESTORE_AFTER_PREPARED_WRITE"
+    },
+    {
+      "id": "fault-012",
+      "from": "c-restore",
+      "to": "c-restore",
+      "action": "RECOVER",
+      "boundary": "RESTORE_BEFORE_GENERATION_INSTALL"
+    },
+    {
+      "id": "fault-013",
+      "from": "c-restore",
+      "to": "c-restore",
+      "action": "RECOVER",
+      "boundary": "RESTORE_AFTER_GENERATION_INSTALL"
+    },
+    {
+      "id": "fault-014",
+      "from": "c-restore",
+      "to": "c-restore",
+      "action": "RECOVER",
+      "boundary": "RESTORE_BEFORE_POINTER_SWITCH"
+    },
+    {
+      "id": "fault-015",
+      "from": "c-restore",
+      "to": "c-restore",
+      "action": "RECOVER",
+      "boundary": "RESTORE_BEFORE_NEW_GENERATION_VALIDATION"
+    },
+    {
+      "id": "fault-016",
+      "from": "c-restore",
+      "to": "c-restore",
+      "action": "RECOVER",
+      "boundary": "RESTORE_BEFORE_CLEANUP"
+    },
+    {
+      "id": "fault-017",
+      "from": "c-delete",
+      "to": "c-delete",
+      "action": "RECOVER",
+      "boundary": "DELETE_PREPARED_JOURNAL"
+    },
+    {
+      "id": "fault-018",
+      "from": "c-delete",
+      "to": "c-delete",
+      "action": "RECOVER",
+      "boundary": "DELETE_DATABASE_SAVE"
+    },
+    {
+      "id": "fault-019",
+      "from": "c-erase",
+      "to": "c-erase",
+      "action": "RECOVER",
+      "boundary": "ERASE_AFTER_EMPTY_GENERATION_DIRECTORY_CREATE"
+    },
+    {
+      "id": "fault-020",
+      "from": "c-erase",
+      "to": "c-erase",
+      "action": "RECOVER",
+      "boundary": "ERASE_BEFORE_PREPARED_WRITE"
+    },
+    {
+      "id": "fault-021",
+      "from": "c-erase",
+      "to": "c-erase",
+      "action": "RECOVER",
+      "boundary": "ERASE_AFTER_PREPARED_WRITE"
+    },
+    {
+      "id": "fault-022",
+      "from": "c-erase",
+      "to": "c-erase",
+      "action": "RECOVER",
+      "boundary": "ERASE_BEFORE_POINTER_SWITCH"
+    },
+    {
+      "id": "fault-023",
+      "from": "c-erase",
+      "to": "c-erase",
+      "action": "RECOVER",
+      "boundary": "ERASE_BEFORE_POINTER_PHASE_WRITE"
+    },
+    {
+      "id": "fault-024",
+      "from": "c-erase",
+      "to": "c-erase",
+      "action": "RECOVER",
+      "boundary": "ERASE_AFTER_POINTER_PHASE_WRITE"
+    },
+    {
+      "id": "fault-025",
+      "from": "c-erase",
+      "to": "c-erase",
+      "action": "RECOVER",
+      "boundary": "ERASE_BEFORE_SESSION_ACTIVATION"
+    },
+    {
+      "id": "fault-026",
+      "from": "c-erase",
+      "to": "c-erase",
+      "action": "RECOVER",
+      "boundary": "ERASE_AFTER_SESSION_ACTIVATION"
+    },
+    {
+      "id": "fault-027",
+      "from": "c-erase",
+      "to": "c-erase",
+      "action": "RECOVER",
+      "boundary": "ERASE_BEFORE_SESSION_PHASE_WRITE"
+    },
+    {
+      "id": "fault-028",
+      "from": "c-erase",
+      "to": "c-erase",
+      "action": "RECOVER",
+      "boundary": "ERASE_AFTER_SESSION_PHASE_WRITE"
+    },
+    {
+      "id": "fault-029",
+      "from": "c-erase",
+      "to": "c-erase",
+      "action": "RECOVER",
+      "boundary": "ERASE_BEFORE_CLEANUP"
+    },
+    {
+      "id": "fault-030",
+      "from": "c-erase",
+      "to": "c-erase",
+      "action": "RECOVER",
+      "boundary": "ERASE_AFTER_CLEANUP"
+    },
+    {
+      "id": "fault-031",
+      "from": "c-erase",
+      "to": "c-erase",
+      "action": "RECOVER",
+      "boundary": "ERASE_BEFORE_CLEANUP_PHASE_WRITE"
+    },
+    {
+      "id": "fault-032",
+      "from": "c-search",
+      "to": "c-search",
+      "action": "RESUME",
+      "boundary": "SEARCH_CANCELLATION"
+    },
+    {
+      "id": "fault-033",
+      "from": "c-search",
+      "to": "c-search",
+      "action": "RECOVER",
+      "boundary": "SEARCH_STALE"
+    },
+    {
+      "id": "fault-034",
+      "from": "c-search",
+      "to": "c-search",
+      "action": "RECOVER",
+      "boundary": "SEARCH_AHEAD"
+    },
+    {
+      "id": "fault-035",
+      "from": "c-search",
+      "to": "c-search",
+      "action": "RECOVER",
+      "boundary": "SEARCH_INCOMPATIBLE"
+    }
+  ],
+  "selectorBindings": [
+    {
+      "selector": "testV9_20G01BothFixtureShapesCompleteFullLifecycleWithPortableSchemaParity",
+      "evidenceID": "V23-P03-C10-G01",
+      "nodeIDs": [
+        "c-validate",
+        "c-start",
+        "c-resume",
+        "c-respond",
+        "c-evidence",
+        "c-find",
+        "c-work",
+        "c-recheck",
+        "c-finalize",
+        "c-project",
+        "c-archive",
+        "c-restore",
+        "c-search",
+        "c-delete",
+        "c-erase",
+        "c-recover",
+        "m-validate",
+        "m-start",
+        "m-respond-1",
+        "m-evidence-1",
+        "m-respond-2",
+        "m-evidence-2",
+        "m-find",
+        "m-work",
+        "m-resume",
+        "m-recheck",
+        "m-respond-3",
+        "m-evidence-3",
+        "m-finalize",
+        "m-project",
+        "m-archive",
+        "m-restore",
+        "m-search",
+        "m-delete",
+        "m-recover",
+        "m-erase"
+      ],
+      "boundaries": [
+        "NONE"
+      ]
+    },
+    {
+      "selector": "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority",
+      "evidenceID": "V23-P03-C10-A01",
+      "nodeIDs": [
+        "c-evidence",
+        "c-work",
+        "c-finalize",
+        "c-project",
+        "m-evidence-1",
+        "m-evidence-2",
+        "m-work",
+        "m-evidence-3",
+        "m-finalize",
+        "m-project"
+      ],
+      "boundaries": [
+        "FINALIZATION_SNAPSHOT_STAGING_WRITE",
+        "FINALIZATION_SNAPSHOT_PROMOTION_MOVE",
+        "FINALIZATION_INTENT_PHASE_WRITE",
+        "FINALIZATION_MODEL_SAVE",
+        "WORK_MODEL_SAVE",
+        "WORK_AFTER_EVIDENCE_PROMOTION",
+        "REPORT_RENDER",
+        "REPORT_STAGE_WRITE",
+        "REPORT_PROMOTION",
+        "REPORT_REREAD",
+        "REPORT_READY_SAVE",
+        "REPORT_FAILED_STATE_SAVE",
+        "REPORT_RETRY_TRANSITION_SAVE",
+        "JOURNAL_AFTER_CHECKPOINT_PREPARED",
+        "SEARCH_PUBLICATION_TOKEN"
+      ]
+    },
+    {
+      "selector": "testV9_20H01HostilePortableCorpusFixtureLeakAndReleaseHooksFailClosed",
+      "evidenceID": "V23-P03-C10-H01",
+      "nodeIDs": [
+        "c-validate",
+        "c-search",
+        "m-validate",
+        "m-search"
+      ],
+      "boundaries": [
+        "SEARCH_INCOMPATIBLE"
+      ]
+    },
+    {
+      "selector": "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically",
+      "evidenceID": "V23-P03-C10-I01",
+      "nodeIDs": [
+        "c-resume",
+        "c-restore",
+        "c-erase",
+        "c-recover",
+        "m-resume",
+        "m-restore",
+        "m-recover",
+        "m-erase"
+      ],
+      "boundaries": [
+        "FINALIZATION_SNAPSHOT_STAGING_WRITE",
+        "FINALIZATION_SNAPSHOT_PROMOTION_MOVE",
+        "FINALIZATION_INTENT_PHASE_WRITE",
+        "FINALIZATION_MODEL_SAVE",
+        "WORK_AFTER_EVIDENCE_PROMOTION",
+        "REPORT_STAGE_WRITE",
+        "REPORT_PROMOTION",
+        "REPORT_READY_SAVE",
+        "REPORT_RETRY_TRANSITION_SAVE",
+        "JOURNAL_AFTER_CHECKPOINT_STATE_WRITTEN",
+        "JOURNAL_AFTER_REPLAY_MUTATION",
+        "JOURNAL_AFTER_COMPACTION_STATE_WRITTEN",
+        "RESTORE_BEFORE_PREPARED_WRITE",
+        "RESTORE_AFTER_PREPARED_WRITE",
+        "RESTORE_BEFORE_GENERATION_INSTALL",
+        "RESTORE_AFTER_GENERATION_INSTALL",
+        "RESTORE_BEFORE_POINTER_SWITCH",
+        "RESTORE_AFTER_POINTER_SWITCH",
+        "RESTORE_BEFORE_NEW_GENERATION_VALIDATION",
+        "RESTORE_AFTER_NEW_GENERATION_VALIDATION",
+        "RESTORE_BEFORE_CLEANUP",
+        "DELETE_COMMITTED_PHASE",
+        "ERASE_AFTER_EMPTY_GENERATION_DIRECTORY_CREATE",
+        "ERASE_BEFORE_PREPARED_WRITE",
+        "ERASE_AFTER_PREPARED_WRITE",
+        "ERASE_BEFORE_POINTER_SWITCH",
+        "ERASE_AFTER_POINTER_SWITCH",
+        "ERASE_BEFORE_POINTER_PHASE_WRITE",
+        "ERASE_AFTER_POINTER_PHASE_WRITE",
+        "ERASE_BEFORE_SESSION_ACTIVATION",
+        "ERASE_AFTER_SESSION_ACTIVATION",
+        "ERASE_BEFORE_SESSION_PHASE_WRITE",
+        "ERASE_AFTER_SESSION_PHASE_WRITE",
+        "ERASE_BEFORE_CLEANUP",
+        "ERASE_AFTER_CLEANUP",
+        "ERASE_BEFORE_CLEANUP_PHASE_WRITE",
+        "ERASE_AFTER_CLEANUP_PHASE_WRITE",
+        "ERASE_BEFORE_JOURNAL_REMOVAL",
+        "SEARCH_CANCELLATION",
+        "SEARCH_CHECKPOINT"
+      ]
+    },
+    {
+      "selector": "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase",
+      "evidenceID": "V23-P03-C10-R01",
+      "nodeIDs": [
+        "c-archive",
+        "c-restore",
+        "c-search",
+        "c-delete",
+        "c-erase",
+        "m-archive",
+        "m-restore",
+        "m-search",
+        "m-delete",
+        "m-erase"
+      ],
+      "boundaries": [
+        "JOURNAL_AFTER_CHECKPOINT_PREPARED",
+        "JOURNAL_AFTER_CHECKPOINT_STATE_WRITTEN",
+        "JOURNAL_AFTER_REPLAY_MUTATION",
+        "JOURNAL_AFTER_COMPACTION_STATE_WRITTEN",
+        "RESTORE_AFTER_POINTER_SWITCH",
+        "RESTORE_BEFORE_CLEANUP",
+        "DELETE_PREPARED_JOURNAL",
+        "DELETE_DATABASE_SAVE",
+        "DELETE_COMMITTED_PHASE",
+        "DELETE_FILE_CLEANUP",
+        "DELETE_JOURNAL_REMOVAL",
+        "ERASE_AFTER_POINTER_SWITCH",
+        "ERASE_BEFORE_JOURNAL_REMOVAL",
+        "SEARCH_STALE",
+        "SEARCH_AHEAD",
+        "SEARCH_INCOMPATIBLE",
+        "SEARCH_PUBLICATION_TOKEN"
+      ]
+    }
+  ],
+  "selectorBindings": [
+    {
+      "selector": "testV9_20G01BothFixtureShapesCompleteFullLifecycleWithPortableSchemaParity",
+      "evidenceID": "V23-P03-C10-G01",
+      "nodeIDs": [
+        "c-validate",
+        "c-start",
+        "c-resume",
+        "c-respond",
+        "c-evidence",
+        "c-find",
+        "c-work",
+        "c-recheck",
+        "c-finalize",
+        "c-project",
+        "c-archive",
+        "c-restore",
+        "c-search",
+        "c-delete",
+        "c-erase",
+        "c-recover",
+        "m-validate",
+        "m-start",
+        "m-respond-1",
+        "m-evidence-1",
+        "m-respond-2",
+        "m-evidence-2",
+        "m-find",
+        "m-work",
+        "m-resume",
+        "m-recheck",
+        "m-respond-3",
+        "m-evidence-3",
+        "m-finalize",
+        "m-project",
+        "m-archive",
+        "m-restore",
+        "m-search",
+        "m-delete",
+        "m-recover",
+        "m-erase"
+      ],
+      "boundaries": [
+        "NONE"
+      ]
+    },
+    {
+      "selector": "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority",
+      "evidenceID": "V23-P03-C10-A01",
+      "nodeIDs": [
+        "c-evidence",
+        "c-work",
+        "c-finalize",
+        "c-project",
+        "m-evidence-1",
+        "m-evidence-2",
+        "m-work",
+        "m-evidence-3",
+        "m-finalize",
+        "m-project"
+      ],
+      "boundaries": [
+        "FINALIZATION_SNAPSHOT_STAGING_WRITE",
+        "FINALIZATION_SNAPSHOT_PROMOTION_MOVE",
+        "FINALIZATION_INTENT_PHASE_WRITE",
+        "FINALIZATION_MODEL_SAVE",
+        "WORK_MODEL_SAVE",
+        "WORK_AFTER_EVIDENCE_PROMOTION",
+        "REPORT_RENDER",
+        "REPORT_STAGE_WRITE",
+        "REPORT_PROMOTION",
+        "REPORT_REREAD",
+        "REPORT_READY_SAVE",
+        "REPORT_FAILED_STATE_SAVE",
+        "REPORT_RETRY_TRANSITION_SAVE",
+        "JOURNAL_AFTER_CHECKPOINT_PREPARED",
+        "SEARCH_PUBLICATION_TOKEN",
+        "FINALIZATION_BEFORE_PUBLICATION",
+        "REPORT_DURING_PUBLICATION",
+        "ARCHIVE_AFTER_PUBLICATION"
+      ]
+    },
+    {
+      "selector": "testV9_20H01HostilePortableCorpusFixtureLeakAndReleaseHooksFailClosed",
+      "evidenceID": "V23-P03-C10-H01",
+      "nodeIDs": [
+        "c-validate",
+        "c-search",
+        "m-validate",
+        "m-search"
+      ],
+      "boundaries": [
+        "SEARCH_INCOMPATIBLE",
+        "RESTORE_AFTER_PUBLICATION",
+        "ARCHIVE_AFTER_PUBLICATION"
+      ]
+    },
+    {
+      "selector": "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically",
+      "evidenceID": "V23-P03-C10-I01",
+      "nodeIDs": [
+        "c-resume",
+        "c-restore",
+        "c-erase",
+        "c-recover",
+        "m-resume",
+        "m-restore",
+        "m-recover",
+        "m-erase"
+      ],
+      "boundaries": [
+        "FINALIZATION_SNAPSHOT_STAGING_WRITE",
+        "FINALIZATION_SNAPSHOT_PROMOTION_MOVE",
+        "FINALIZATION_INTENT_PHASE_WRITE",
+        "FINALIZATION_MODEL_SAVE",
+        "WORK_AFTER_EVIDENCE_PROMOTION",
+        "REPORT_STAGE_WRITE",
+        "REPORT_PROMOTION",
+        "REPORT_READY_SAVE",
+        "REPORT_RETRY_TRANSITION_SAVE",
+        "JOURNAL_AFTER_CHECKPOINT_STATE_WRITTEN",
+        "JOURNAL_AFTER_REPLAY_MUTATION",
+        "JOURNAL_AFTER_COMPACTION_STATE_WRITTEN",
+        "RESTORE_BEFORE_PREPARED_WRITE",
+        "RESTORE_AFTER_PREPARED_WRITE",
+        "RESTORE_BEFORE_GENERATION_INSTALL",
+        "RESTORE_AFTER_GENERATION_INSTALL",
+        "RESTORE_BEFORE_POINTER_SWITCH",
+        "RESTORE_AFTER_POINTER_SWITCH",
+        "RESTORE_BEFORE_NEW_GENERATION_VALIDATION",
+        "RESTORE_AFTER_NEW_GENERATION_VALIDATION",
+        "RESTORE_BEFORE_CLEANUP",
+        "DELETE_COMMITTED_PHASE",
+        "ERASE_AFTER_EMPTY_GENERATION_DIRECTORY_CREATE",
+        "ERASE_BEFORE_PREPARED_WRITE",
+        "ERASE_AFTER_PREPARED_WRITE",
+        "ERASE_BEFORE_POINTER_SWITCH",
+        "ERASE_AFTER_POINTER_SWITCH",
+        "ERASE_BEFORE_POINTER_PHASE_WRITE",
+        "ERASE_AFTER_POINTER_PHASE_WRITE",
+        "ERASE_BEFORE_SESSION_ACTIVATION",
+        "ERASE_AFTER_SESSION_ACTIVATION",
+        "ERASE_BEFORE_SESSION_PHASE_WRITE",
+        "ERASE_AFTER_SESSION_PHASE_WRITE",
+        "ERASE_BEFORE_CLEANUP",
+        "ERASE_AFTER_CLEANUP",
+        "ERASE_BEFORE_CLEANUP_PHASE_WRITE",
+        "ERASE_AFTER_CLEANUP_PHASE_WRITE",
+        "ERASE_BEFORE_JOURNAL_REMOVAL",
+        "SEARCH_CANCELLATION",
+        "SEARCH_CHECKPOINT",
+        "FINALIZATION_BEFORE_PUBLICATION",
+        "REPORT_DURING_PUBLICATION",
+        "RESTORE_AFTER_PUBLICATION"
+      ]
+    },
+    {
+      "selector": "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase",
+      "evidenceID": "V23-P03-C10-R01",
+      "nodeIDs": [
+        "c-archive",
+        "c-restore",
+        "c-search",
+        "c-delete",
+        "c-erase",
+        "m-archive",
+        "m-restore",
+        "m-search",
+        "m-delete",
+        "m-erase"
+      ],
+      "boundaries": [
+        "JOURNAL_AFTER_CHECKPOINT_PREPARED",
+        "JOURNAL_AFTER_CHECKPOINT_STATE_WRITTEN",
+        "JOURNAL_AFTER_REPLAY_MUTATION",
+        "JOURNAL_AFTER_COMPACTION_STATE_WRITTEN",
+        "RESTORE_AFTER_POINTER_SWITCH",
+        "RESTORE_BEFORE_CLEANUP",
+        "DELETE_PREPARED_JOURNAL",
+        "DELETE_DATABASE_SAVE",
+        "DELETE_COMMITTED_PHASE",
+        "DELETE_FILE_CLEANUP",
+        "DELETE_JOURNAL_REMOVAL",
+        "ERASE_AFTER_POINTER_SWITCH",
+        "ERASE_BEFORE_JOURNAL_REMOVAL",
+        "SEARCH_STALE",
+        "SEARCH_AHEAD",
+        "SEARCH_INCOMPATIBLE",
+        "SEARCH_PUBLICATION_TOKEN",
+        "RESTORE_AFTER_PUBLICATION",
+        "ARCHIVE_AFTER_PUBLICATION"
+      ]
+    }
+  ],
+  "selectorBindings": [
+    {
+      "selector": "testV9_20G01BothFixtureShapesCompleteFullLifecycleWithPortableSchemaParity",
+      "evidenceID": "V23-P03-C10-G01",
+      "nodeIDs": [
+        "c-validate",
+        "c-start",
+        "c-resume",
+        "c-respond",
+        "c-evidence",
+        "c-find",
+        "c-work",
+        "c-recheck",
+        "c-finalize",
+        "c-project",
+        "c-archive",
+        "c-restore",
+        "c-search",
+        "c-delete",
+        "c-erase",
+        "c-recover",
+        "m-validate",
+        "m-start",
+        "m-respond-1",
+        "m-evidence-1",
+        "m-respond-2",
+        "m-evidence-2",
+        "m-find",
+        "m-work",
+        "m-resume",
+        "m-recheck",
+        "m-respond-3",
+        "m-evidence-3",
+        "m-finalize",
+        "m-project",
+        "m-archive",
+        "m-restore",
+        "m-search",
+        "m-delete",
+        "m-recover",
+        "m-erase"
+      ],
+      "boundaries": [
+        "NONE"
+      ]
+    },
+    {
+      "selector": "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority",
+      "evidenceID": "V23-P03-C10-A01",
+      "nodeIDs": [
+        "c-evidence",
+        "c-work",
+        "c-finalize",
+        "c-project",
+        "m-evidence-1",
+        "m-evidence-2",
+        "m-work",
+        "m-evidence-3",
+        "m-finalize",
+        "m-project"
+      ],
+      "boundaries": [
+        "FINALIZATION_SNAPSHOT_STAGING_WRITE",
+        "FINALIZATION_SNAPSHOT_PROMOTION_MOVE",
+        "FINALIZATION_INTENT_PHASE_WRITE",
+        "FINALIZATION_MODEL_SAVE",
+        "WORK_MODEL_SAVE",
+        "WORK_AFTER_EVIDENCE_PROMOTION",
+        "REPORT_RENDER",
+        "REPORT_STAGE_WRITE",
+        "REPORT_PROMOTION",
+        "REPORT_REREAD",
+        "REPORT_READY_SAVE",
+        "REPORT_FAILED_STATE_SAVE",
+        "REPORT_RETRY_TRANSITION_SAVE",
+        "JOURNAL_AFTER_CHECKPOINT_PREPARED",
+        "SEARCH_PUBLICATION_TOKEN"
+      ]
+    },
+    {
+      "selector": "testV9_20H01HostilePortableCorpusFixtureLeakAndReleaseHooksFailClosed",
+      "evidenceID": "V23-P03-C10-H01",
+      "nodeIDs": [
+        "c-validate",
+        "c-search",
+        "m-validate",
+        "m-search"
+      ],
+      "boundaries": [
+        "SEARCH_INCOMPATIBLE"
+      ]
+    },
+    {
+      "selector": "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically",
+      "evidenceID": "V23-P03-C10-I01",
+      "nodeIDs": [
+        "c-resume",
+        "c-restore",
+        "c-erase",
+        "c-recover",
+        "m-resume",
+        "m-restore",
+        "m-recover",
+        "m-erase"
+      ],
+      "boundaries": [
+        "FINALIZATION_SNAPSHOT_STAGING_WRITE",
+        "FINALIZATION_SNAPSHOT_PROMOTION_MOVE",
+        "FINALIZATION_INTENT_PHASE_WRITE",
+        "FINALIZATION_MODEL_SAVE",
+        "WORK_AFTER_EVIDENCE_PROMOTION",
+        "REPORT_STAGE_WRITE",
+        "REPORT_PROMOTION",
+        "REPORT_READY_SAVE",
+        "REPORT_RETRY_TRANSITION_SAVE",
+        "JOURNAL_AFTER_CHECKPOINT_STATE_WRITTEN",
+        "JOURNAL_AFTER_REPLAY_MUTATION",
+        "JOURNAL_AFTER_COMPACTION_STATE_WRITTEN",
+        "RESTORE_BEFORE_PREPARED_WRITE",
+        "RESTORE_AFTER_PREPARED_WRITE",
+        "RESTORE_BEFORE_GENERATION_INSTALL",
+        "RESTORE_AFTER_GENERATION_INSTALL",
+        "RESTORE_BEFORE_POINTER_SWITCH",
+        "RESTORE_AFTER_POINTER_SWITCH",
+        "RESTORE_BEFORE_NEW_GENERATION_VALIDATION",
+        "RESTORE_AFTER_NEW_GENERATION_VALIDATION",
+        "RESTORE_BEFORE_CLEANUP",
+        "DELETE_COMMITTED_PHASE",
+        "ERASE_AFTER_EMPTY_GENERATION_DIRECTORY_CREATE",
+        "ERASE_BEFORE_PREPARED_WRITE",
+        "ERASE_AFTER_PREPARED_WRITE",
+        "ERASE_BEFORE_POINTER_SWITCH",
+        "ERASE_AFTER_POINTER_SWITCH",
+        "ERASE_BEFORE_POINTER_PHASE_WRITE",
+        "ERASE_AFTER_POINTER_PHASE_WRITE",
+        "ERASE_BEFORE_SESSION_ACTIVATION",
+        "ERASE_AFTER_SESSION_ACTIVATION",
+        "ERASE_BEFORE_SESSION_PHASE_WRITE",
+        "ERASE_AFTER_SESSION_PHASE_WRITE",
+        "ERASE_BEFORE_CLEANUP",
+        "ERASE_AFTER_CLEANUP",
+        "ERASE_BEFORE_CLEANUP_PHASE_WRITE",
+        "ERASE_AFTER_CLEANUP_PHASE_WRITE",
+        "ERASE_BEFORE_JOURNAL_REMOVAL",
+        "SEARCH_CANCELLATION",
+        "SEARCH_CHECKPOINT"
+      ]
+    },
+    {
+      "selector": "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase",
+      "evidenceID": "V23-P03-C10-R01",
+      "nodeIDs": [
+        "c-archive",
+        "c-restore",
+        "c-search",
+        "c-delete",
+        "c-erase",
+        "m-archive",
+        "m-restore",
+        "m-search",
+        "m-delete",
+        "m-erase"
+      ],
+      "boundaries": [
+        "JOURNAL_AFTER_CHECKPOINT_PREPARED",
+        "JOURNAL_AFTER_CHECKPOINT_STATE_WRITTEN",
+        "JOURNAL_AFTER_REPLAY_MUTATION",
+        "JOURNAL_AFTER_COMPACTION_STATE_WRITTEN",
+        "RESTORE_AFTER_POINTER_SWITCH",
+        "RESTORE_BEFORE_CLEANUP",
+        "DELETE_PREPARED_JOURNAL",
+        "DELETE_DATABASE_SAVE",
+        "DELETE_COMMITTED_PHASE",
+        "DELETE_FILE_CLEANUP",
+        "DELETE_JOURNAL_REMOVAL",
+        "ERASE_AFTER_POINTER_SWITCH",
+        "ERASE_BEFORE_JOURNAL_REMOVAL",
+        "SEARCH_STALE",
+        "SEARCH_AHEAD",
+        "SEARCH_INCOMPATIBLE",
+        "SEARCH_PUBLICATION_TOKEN"
+      ]
+    }
+  ],
+  "selectorBindings": [
+    {
+      "selector": "testV9_20G01BothFixtureShapesCompleteFullLifecycleWithPortableSchemaParity",
+      "evidenceID": "V23-P03-C10-G01",
+      "nodeIDs": [
+        "c-validate",
+        "c-start",
+        "c-resume",
+        "c-respond",
+        "c-evidence",
+        "c-find",
+        "c-work",
+        "c-recheck",
+        "c-finalize",
+        "c-project",
+        "c-archive",
+        "c-restore",
+        "c-search",
+        "c-delete",
+        "c-erase",
+        "c-recover",
+        "m-validate",
+        "m-start",
+        "m-respond-1",
+        "m-evidence-1",
+        "m-respond-2",
+        "m-evidence-2",
+        "m-find",
+        "m-work",
+        "m-resume",
+        "m-recheck",
+        "m-respond-3",
+        "m-evidence-3",
+        "m-finalize",
+        "m-project",
+        "m-archive",
+        "m-restore",
+        "m-search",
+        "m-delete",
+        "m-recover",
+        "m-erase"
+      ],
+      "boundaries": []
+    },
+    {
+      "selector": "testV9_20A01EveryPublicationBoundaryFaultRecoversWithoutPartialAuthority",
+      "evidenceID": "V23-P03-C10-A01",
+      "nodeIDs": [
+        "c-evidence",
+        "c-work",
+        "c-finalize",
+        "c-project",
+        "m-evidence-1",
+        "m-evidence-2",
+        "m-work",
+        "m-evidence-3",
+        "m-finalize",
+        "m-project"
+      ],
+      "boundaries": [
+        "FINALIZATION_SNAPSHOT_STAGING_WRITE",
+        "FINALIZATION_SNAPSHOT_PROMOTION_MOVE",
+        "FINALIZATION_INTENT_PHASE_WRITE",
+        "FINALIZATION_MODEL_SAVE",
+        "WORK_MODEL_SAVE",
+        "WORK_AFTER_EVIDENCE_PROMOTION",
+        "REPORT_RENDER",
+        "REPORT_STAGE_WRITE",
+        "REPORT_PROMOTION",
+        "REPORT_REREAD",
+        "REPORT_READY_SAVE",
+        "REPORT_FAILED_STATE_SAVE",
+        "REPORT_RETRY_TRANSITION_SAVE",
+        "JOURNAL_AFTER_CHECKPOINT_PREPARED",
+        "SEARCH_PUBLICATION_TOKEN"
+      ]
+    },
+    {
+      "selector": "testV9_20H01HostilePortableCorpusFixtureLeakAndReleaseHooksFailClosed",
+      "evidenceID": "V23-P03-C10-H01",
+      "nodeIDs": [
+        "c-validate",
+        "c-search",
+        "m-validate",
+        "m-search"
+      ],
+      "boundaries": [
+        "SEARCH_INCOMPATIBLE"
+      ]
+    },
+    {
+      "selector": "testV9_20I01RelaunchResumesOrCleansEveryDurableBoundaryDeterministically",
+      "evidenceID": "V23-P03-C10-I01",
+      "nodeIDs": [
+        "c-resume",
+        "c-restore",
+        "c-erase",
+        "c-recover",
+        "m-resume",
+        "m-restore",
+        "m-recover",
+        "m-erase"
+      ],
+      "boundaries": [
+        "FINALIZATION_SNAPSHOT_STAGING_WRITE",
+        "FINALIZATION_SNAPSHOT_PROMOTION_MOVE",
+        "FINALIZATION_INTENT_PHASE_WRITE",
+        "FINALIZATION_MODEL_SAVE",
+        "WORK_AFTER_EVIDENCE_PROMOTION",
+        "REPORT_STAGE_WRITE",
+        "REPORT_PROMOTION",
+        "REPORT_READY_SAVE",
+        "REPORT_RETRY_TRANSITION_SAVE",
+        "JOURNAL_AFTER_CHECKPOINT_STATE_WRITTEN",
+        "JOURNAL_AFTER_REPLAY_MUTATION",
+        "JOURNAL_AFTER_COMPACTION_STATE_WRITTEN",
+        "RESTORE_BEFORE_PREPARED_WRITE",
+        "RESTORE_AFTER_PREPARED_WRITE",
+        "RESTORE_BEFORE_GENERATION_INSTALL",
+        "RESTORE_AFTER_GENERATION_INSTALL",
+        "RESTORE_BEFORE_POINTER_SWITCH",
+        "RESTORE_AFTER_POINTER_SWITCH",
+        "RESTORE_BEFORE_NEW_GENERATION_VALIDATION",
+        "RESTORE_AFTER_NEW_GENERATION_VALIDATION",
+        "RESTORE_BEFORE_CLEANUP",
+        "DELETE_COMMITTED_PHASE",
+        "ERASE_AFTER_EMPTY_GENERATION_DIRECTORY_CREATE",
+        "ERASE_BEFORE_PREPARED_WRITE",
+        "ERASE_AFTER_PREPARED_WRITE",
+        "ERASE_BEFORE_POINTER_SWITCH",
+        "ERASE_AFTER_POINTER_SWITCH",
+        "ERASE_BEFORE_POINTER_PHASE_WRITE",
+        "ERASE_AFTER_POINTER_PHASE_WRITE",
+        "ERASE_BEFORE_SESSION_ACTIVATION",
+        "ERASE_AFTER_SESSION_ACTIVATION",
+        "ERASE_BEFORE_SESSION_PHASE_WRITE",
+        "ERASE_AFTER_SESSION_PHASE_WRITE",
+        "ERASE_BEFORE_CLEANUP",
+        "ERASE_AFTER_CLEANUP",
+        "ERASE_BEFORE_CLEANUP_PHASE_WRITE",
+        "ERASE_AFTER_CLEANUP_PHASE_WRITE",
+        "ERASE_BEFORE_JOURNAL_REMOVAL",
+        "SEARCH_CANCELLATION",
+        "SEARCH_CHECKPOINT"
+      ]
+    },
+    {
+      "selector": "testV9_20R01TwoAndThreeReplicaSchedulesReconcileArchiveRestoreSearchDeleteAndErase",
+      "evidenceID": "V23-P03-C10-R01",
+      "nodeIDs": [
+        "c-archive",
+        "c-restore",
+        "c-search",
+        "c-delete",
+        "c-erase",
+        "m-archive",
+        "m-restore",
+        "m-search",
+        "m-delete",
+        "m-erase"
+      ],
+      "boundaries": [
+        "JOURNAL_AFTER_CHECKPOINT_PREPARED",
+        "JOURNAL_AFTER_CHECKPOINT_STATE_WRITTEN",
+        "JOURNAL_AFTER_REPLAY_MUTATION",
+        "JOURNAL_AFTER_COMPACTION_STATE_WRITTEN",
+        "RESTORE_AFTER_POINTER_SWITCH",
+        "RESTORE_BEFORE_CLEANUP",
+        "DELETE_PREPARED_JOURNAL",
+        "DELETE_DATABASE_SAVE",
+        "DELETE_COMMITTED_PHASE",
+        "DELETE_FILE_CLEANUP",
+        "DELETE_JOURNAL_REMOVAL",
+        "ERASE_AFTER_POINTER_SWITCH",
+        "ERASE_BEFORE_JOURNAL_REMOVAL",
+        "SEARCH_STALE",
+        "SEARCH_AHEAD",
+        "SEARCH_INCOMPATIBLE",
+        "SEARCH_PUBLICATION_TOKEN"
+      ]
+    }
+  ],
+  "persistentConsumers": [
+    {
+      "id": "WORKSPACE_WRITER",
+      "adapter": "WorkspaceWriterV1",
+      "publicationAuthority": "MODEL_CONTEXT_SAVE_PLUS_WRITER_RECEIPT",
+      "recoveryDisposition": "REPLAY_OR_FAIL_CLOSED"
+    },
+    {
+      "id": "SNAPSHOT",
+      "adapter": "PackFinalizationAdapterV1",
+      "publicationAuthority": "CANONICAL_SNAPSHOT_BYTES_AND_DIGEST",
+      "recoveryDisposition": "ADOPT_EXACT_BYTES_OR_CLEAN_STAGING"
+    },
+    {
+      "id": "REPORT_PROJECTION",
+      "adapter": "ReportProjectionRegistryV2",
+      "publicationAuthority": "READY_REPORT_WITH_EXACT_REREAD",
+      "recoveryDisposition": "RETRY_FAILED_REPORT_WITHOUT_DUPLICATION"
+    },
+    {
+      "id": "CHANGE_JOURNAL",
+      "adapter": "LocalChangeJournalV1",
+      "publicationAuthority": "IMMUTABLE_DELIVERY_NEUTRAL_RECEIPT",
+      "recoveryDisposition": "CHECKPOINT_AND_REPLAY_TWICE_CONVERGE"
+    },
+    {
+      "id": "SEARCH_INDEX",
+      "adapter": "SearchIndexRebuildCoordinatorV1",
+      "publicationAuthority": "REVISION_BOUND_DERIVED_PROJECTION",
+      "recoveryDisposition": "DROP_AND_REBUILD_OR_RESUME_CHECKPOINT"
+    },
+    {
+      "id": "BACKUP_ARCHIVE",
+      "adapter": "StreamingArchiveService",
+      "publicationAuthority": "VERIFIED_STREAMING_ARCHIVE_MANIFEST",
+      "recoveryDisposition": "REJECT_PARTIAL_OR_RESTORE_EXACT_PACKAGE"
+    },
+    {
+      "id": "RESTORE",
+      "adapter": "BackupRestoreService",
+      "publicationAuthority": "ATOMIC_GENERATION_POINTER",
+      "recoveryDisposition": "OLD_OR_NEW_GENERATION_NEVER_MIXED"
+    },
+    {
+      "id": "DELETION_LEDGER",
+      "adapter": "WholeSignDeletionService",
+      "publicationAuthority": "PREPARED_THEN_COMMITTED_DELETION_JOURNAL",
+      "recoveryDisposition": "FORWARD_COMPLETE_WITHOUT_RESURRECTION"
+    },
+    {
+      "id": "ERASE_GENERATION",
+      "adapter": "EraseAllService",
+      "publicationAuthority": "EMPTY_GENERATION_POINTER_AND_SESSION",
+      "recoveryDisposition": "FORWARD_COMPLETE_AND_REMOVE_OLD_GENERATION"
+    }
+  ],
+  "brandStates": [
+    {
+      "id": "TEST_ONLY_NO_CHANGED_UI",
+      "changedUI": false,
+      "nodeIDs": [
+        "c-validate",
+        "c-start",
+        "c-resume",
+        "c-respond",
+        "c-evidence",
+        "c-find",
+        "c-work",
+        "c-recheck",
+        "c-finalize",
+        "c-project",
+        "c-archive",
+        "c-restore",
+        "c-search",
+        "c-delete",
+        "c-erase",
+        "c-recover",
+        "m-validate",
+        "m-start",
+        "m-respond-1",
+        "m-evidence-1",
+        "m-respond-2",
+        "m-evidence-2",
+        "m-find",
+        "m-work",
+        "m-resume",
+        "m-recheck",
+        "m-respond-3",
+        "m-evidence-3",
+        "m-finalize",
+        "m-project",
+        "m-archive",
+        "m-restore",
+        "m-search",
+        "m-delete",
+        "m-recover",
+        "m-erase"
+      ]
+    }
+  ]
+}

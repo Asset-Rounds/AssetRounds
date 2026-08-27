@@ -1,0 +1,86 @@
+{
+  "schema": "V21P03C10PortableContractCorpusV1",
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "positive-check-v1",
+      "input": "{\"schema\":\"KernelPortableEnvelopeV1\",\"schemaVersion\":1,\"kind\":\"CHECK\",\"payload\":{\"id\":\"check-001\",\"status\":\"OPEN\"}}",
+      "expectedClass": "ACCEPTED",
+      "instancePath": "",
+      "schemaPath": "",
+      "goldenUTF8Hex": "7b22736368656d61223a224b65726e656c506f727461626c65456e76656c6f70655631222c22736368656d6156657273696f6e223a312c226b696e64223a22434845434b222c227061796c6f6164223a7b226964223a22636865636b2d303031222c22737461747573223a224f50454e227d7d"
+    },
+    {
+      "id": "positive-measurement-v1",
+      "input": "{\"schema\":\"KernelPortableEnvelopeV1\",\"schemaVersion\":1,\"kind\":\"MEASUREMENT\",\"payload\":{\"id\":\"measurement-001\",\"status\":\"COMPLETE\",\"value\":\"12.500\",\"unit\":\"mm\"}}",
+      "expectedClass": "ACCEPTED",
+      "instancePath": "",
+      "schemaPath": "",
+      "goldenUTF8Hex": "7b22736368656d61223a224b65726e656c506f727461626c65456e76656c6f70655631222c22736368656d6156657273696f6e223a312c226b696e64223a224d4541535552454d454e54222c227061796c6f6164223a7b226964223a226d6561737572656d656e742d303031222c22737461747573223a22434f4d504c455445222c2276616c7565223a2231322e353030222c22756e6974223a226d6d227d7d"
+    },
+    {
+      "id": "unknown-schema-version",
+      "input": "{\"schema\":\"KernelPortableEnvelopeV1\",\"schemaVersion\":2,\"kind\":\"CHECK\",\"payload\":{\"id\":\"check-001\",\"status\":\"OPEN\"}}",
+      "expectedClass": "REJECTED",
+      "instancePath": "/schemaVersion",
+      "schemaPath": "/properties/schemaVersion/const",
+      "goldenUTF8Hex": "7b22736368656d61223a224b65726e656c506f727461626c65456e76656c6f70655631222c22736368656d6156657273696f6e223a322c226b696e64223a22434845434b222c227061796c6f6164223a7b226964223a22636865636b2d303031222c22737461747573223a224f50454e227d7d"
+    },
+    {
+      "id": "unknown-top-level-field",
+      "input": "{\"schema\":\"KernelPortableEnvelopeV1\",\"schemaVersion\":1,\"kind\":\"CHECK\",\"payload\":{\"id\":\"check-001\",\"status\":\"OPEN\"},\"futureField\":true}",
+      "expectedClass": "REJECTED",
+      "instancePath": "/futureField",
+      "schemaPath": "/additionalProperties",
+      "goldenUTF8Hex": "7b22736368656d61223a224b65726e656c506f727461626c65456e76656c6f70655631222c22736368656d6156657273696f6e223a312c226b696e64223a22434845434b222c227061796c6f6164223a7b226964223a22636865636b2d303031222c22737461747573223a224f50454e227d2c226675747572654669656c64223a747275657d"
+    },
+    {
+      "id": "unknown-closed-enum",
+      "input": "{\"schema\":\"KernelPortableEnvelopeV1\",\"schemaVersion\":1,\"kind\":\"CHECK\",\"payload\":{\"id\":\"check-001\",\"status\":\"UNKNOWN_FUTURE_STATE\"}}",
+      "expectedClass": "REJECTED",
+      "instancePath": "/payload/status",
+      "schemaPath": "/properties/payload/properties/status/enum",
+      "goldenUTF8Hex": "7b22736368656d61223a224b65726e656c506f727461626c65456e76656c6f70655631222c22736368656d6156657273696f6e223a312c226b696e64223a22434845434b222c227061796c6f6164223a7b226964223a22636865636b2d303031222c22737461747573223a22554e4b4e4f574e5f4655545552455f5354415445227d7d"
+    },
+    {
+      "id": "hostile-bidi-control",
+      "input": "{\"schema\":\"KernelPortableEnvelopeV1\",\"schemaVersion\":1,\"kind\":\"CHECK\",\"payload\":{\"id\":\"check-001\",\"status\":\"OPEN\",\"label\":\"safe\\u202eevil\"}}",
+      "expectedClass": "REJECTED",
+      "instancePath": "/payload/label",
+      "schemaPath": "/properties/payload/properties/label/pattern",
+      "goldenUTF8Hex": "7b22736368656d61223a224b65726e656c506f727461626c65456e76656c6f70655631222c22736368656d6156657273696f6e223a312c226b696e64223a22434845434b222c227061796c6f6164223a7b226964223a22636865636b2d303031222c22737461747573223a224f50454e222c226c6162656c223a22736166655c75323032656576696c227d7d"
+    },
+    {
+      "id": "crash-before-publication",
+      "input": "{\"schema\":\"KernelPortableEnvelopeV1\",\"schemaVersion\":1,\"kind\":\"CHECK\",\"payload\":{\"id\":\"check-001\",\"status\":\"OPEN\"},\"faultClass\":\"CRASH\"}",
+      "expectedClass": "REJECTED",
+      "instancePath": "/faultClass",
+      "schemaPath": "/additionalProperties",
+      "goldenUTF8Hex": "7b22736368656d61223a224b65726e656c506f727461626c65456e76656c6f70655631222c22736368656d6156657273696f6e223a312c226b696e64223a22434845434b222c227061796c6f6164223a7b226964223a22636865636b2d303031222c22737461747573223a224f50454e227d2c226661756c74436c617373223a224352415348227d"
+    },
+    {
+      "id": "low-space-during-publication",
+      "input": "{\"schema\":\"KernelPortableEnvelopeV1\",\"schemaVersion\":1,\"kind\":\"CHECK\",\"payload\":{\"id\":\"check-001\",\"status\":\"OPEN\"},\"faultClass\":\"LOW_SPACE\"}",
+      "expectedClass": "REJECTED",
+      "instancePath": "/faultClass",
+      "schemaPath": "/additionalProperties",
+      "goldenUTF8Hex": "7b22736368656d61223a224b65726e656c506f727461626c65456e76656c6f70655631222c22736368656d6156657273696f6e223a312c226b696e64223a22434845434b222c227061796c6f6164223a7b226964223a22636865636b2d303031222c22737461747573223a224f50454e227d2c226661756c74436c617373223a224c4f575f5350414345227d"
+    },
+    {
+      "id": "protected-data-after-publication",
+      "input": "{\"schema\":\"KernelPortableEnvelopeV1\",\"schemaVersion\":1,\"kind\":\"CHECK\",\"payload\":{\"id\":\"check-001\",\"status\":\"OPEN\"},\"faultClass\":\"PROTECTED_DATA\"}",
+      "expectedClass": "REJECTED",
+      "instancePath": "/faultClass",
+      "schemaPath": "/additionalProperties",
+      "goldenUTF8Hex": "7b22736368656d61223a224b65726e656c506f727461626c65456e76656c6f70655631222c22736368656d6156657273696f6e223a312c226b696e64223a22434845434b222c227061796c6f6164223a7b226964223a22636865636b2d303031222c22737461747573223a224f50454e227d2c226661756c74436c617373223a2250524f5445435445445f44415441227d"
+    },
+    {
+      "id": "tamper-after-publication",
+      "input": "{\"schema\":\"KernelPortableEnvelopeV1\",\"schemaVersion\":1,\"kind\":\"CHECK\",\"payload\":{\"id\":\"check-001\",\"status\":\"OPEN\"},\"faultClass\":\"TAMPER\"}",
+      "expectedClass": "REJECTED",
+      "instancePath": "/faultClass",
+      "schemaPath": "/additionalProperties",
+      "goldenUTF8Hex": "7b22736368656d61223a224b65726e656c506f727461626c65456e76656c6f70655631222c22736368656d6156657273696f6e223a312c226b696e64223a22434845434b222c227061796c6f6164223a7b226964223a22636865636b2d303031222c22737461747573223a224f50454e227d2c226661756c74436c617373223a2254414d504552227d"
+    }
+  ]
+}
