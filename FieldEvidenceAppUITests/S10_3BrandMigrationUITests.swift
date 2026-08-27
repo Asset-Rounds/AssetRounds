@@ -8698,6 +8698,92 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             "S10_4_AX_TEXT_DIAGNOSTICS_READY_INTERVAL_DIAGNOSTIC",
                         object: diagnosticContext
                     )
+                    var observedIssueCount = 0
+                    var auditedElementCount = 0
+                    try app.performAccessibilityAudit(for: .contrast) { issue in
+                        observedIssueCount += 1
+                        let auditedElement = issue.element
+                        var diagnosticIssue: [String: Any] = [
+                            "schemaVersion": 1,
+                            "acceptanceEligible": false,
+                            "shardID": shard.shardID,
+                            "requirementID": shard.requirementID,
+                            "deviceProfileID": shard.deviceProfileID,
+                            "segmentID": self.automationSegment.rawValue,
+                            "segmentStateCursor": self.segmentedRouteStateCursor,
+                            "stateID": stateID,
+                            "stateOrdinal": 61,
+                            "issueOrdinal": observedIssueCount,
+                            "auditTypeRawValue": String(issue.auditType.rawValue),
+                            "compactDescription": issue.compactDescription,
+                            "detailedDescription": issue.detailedDescription,
+                            "elementExists": NSNull(),
+                            "elementEnabled": NSNull(),
+                            "elementHittable": NSNull(),
+                            "elementIdentifier": NSNull(),
+                            "elementLabel": NSNull(),
+                            "elementValue": NSNull(),
+                            "elementTypeRawValue": NSNull(),
+                            "elementTypeDescription": NSNull(),
+                            "elementFrame": NSNull(),
+                            "applicationFrame": self.auditFrameObject(app.frame),
+                        ]
+                        if let auditedElement {
+                            auditedElementCount += 1
+                            let valueObject: Any
+                            if let value = auditedElement.value as? String {
+                                valueObject = value
+                            } else {
+                                valueObject = NSNull()
+                            }
+                            diagnosticIssue["elementExists"] = auditedElement.exists
+                            diagnosticIssue["elementEnabled"] =
+                                auditedElement.isEnabled
+                            diagnosticIssue["elementHittable"] =
+                                auditedElement.isHittable
+                            diagnosticIssue["elementIdentifier"] =
+                                auditedElement.identifier
+                            diagnosticIssue["elementLabel"] = auditedElement.label
+                            diagnosticIssue["elementValue"] = valueObject
+                            diagnosticIssue["elementTypeRawValue"] =
+                                auditedElement.elementType.rawValue
+                            diagnosticIssue["elementTypeDescription"] =
+                                String(describing: auditedElement.elementType)
+                            diagnosticIssue["elementFrame"] =
+                                self.auditFrameObject(auditedElement.frame)
+                        }
+                        self.printJSONLine(
+                            prefix:
+                                "S10_4_AX_TEXT_DIAGNOSTICS_READY_INTERVAL_ISSUE_DIAGNOSTIC",
+                            object: diagnosticIssue
+                        )
+                        if let auditedElement {
+                            let issueAttachment = XCTAttachment(
+                                screenshot: auditedElement.screenshot()
+                            )
+                            issueAttachment.name =
+                                "S10.4 AX-text diagnostics-ready interval diagnostic audited element "
+                                    + String(observedIssueCount)
+                            issueAttachment.lifetime = .keepAlways
+                            self.add(issueAttachment)
+                        }
+                        return true
+                    }
+                    self.printJSONLine(
+                        prefix:
+                            "S10_4_AX_TEXT_DIAGNOSTICS_READY_INTERVAL_COUNT_DIAGNOSTIC",
+                        object: [
+                            "schemaVersion": 1,
+                            "acceptanceEligible": false,
+                            "shardID": shard.shardID,
+                            "segmentID": self.automationSegment.rawValue,
+                            "stateID": stateID,
+                            "stateOrdinal": 61,
+                            "segmentStateCursor": self.segmentedRouteStateCursor,
+                            "observedIssueCount": observedIssueCount,
+                            "auditedElementCount": auditedElementCount,
+                        ]
+                    )
                     let appAttachment = XCTAttachment(screenshot: app.screenshot())
                     appAttachment.name =
                         "S10.4 AX-text diagnostics-ready interval diagnostic app"

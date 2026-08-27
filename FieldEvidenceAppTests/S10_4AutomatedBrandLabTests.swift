@@ -11371,10 +11371,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (diagnosticsResidualForm, expectedCount) in [
             ("diagnoseIncreasedContrastDiagnosticsPositioning", 0),
             ("S10_4_INCREASED_CONTRAST_DIAGNOSTICS_POSITIONING", 0),
-            ("XCTAttachment(", 3),
+            ("XCTAttachment(", 4),
             ("XCUIScreen.main.screenshot()", 0),
             ("XCTAttachment(string: app.debugDescription)", 1),
-            (".lifetime = .keepAlways", 3),
+            (".lifetime = .keepAlways", 4),
             ("throw AutomationConfigurationError.invalid(", 3),
             ("S10.4 increased-contrast Diagnostics positioning diagnostic", 0),
         ] {
@@ -11455,7 +11455,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("thenHoldForDuration: 0.2", 1),
             ("measuredUndertravel = max(", 1),
             ("XCTFail(", 10),
-            ("return", 11),
+            ("return", 12),
         ] {
             XCTAssertEqual(
                 diagnosticsPositioningSource.components(
@@ -11489,7 +11489,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for acceptingEmitter in [
             "assertMigrationStateCoverage",
             "emitAutomatedLabAccessibilityRowsIfNeeded",
-            "performAccessibilityAudit",
             "eligibleExceptions",
             "S10_MIGRATION_STATE",
             "S10_4_AX_STATE",
@@ -11533,11 +11532,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             diagnosticsReadyIntervalDiagnosticSource.utf8.count,
-            11_536
+            16_502
         )
         XCTAssertEqual(
             Data(diagnosticsReadyIntervalDiagnosticSource.utf8).sha256,
-            "FE1E2CE0BE874FFF4EB384965EE0AF6D904C9C3D8F9590E537DEF9FEAEF6A045"
+            "A142BC74624E470A6F902D970CAE78BF65D80FB1B7572D5577F3A172BF7B42F2"
         )
         for exact in [
             #"shard.shardID == "s10.4.current.ax-text""#,
@@ -11560,6 +11559,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"self.auditFrameObject(element.frame)"#,
             #"options: [.sortedKeys]"#,
             #"S10_4_AX_TEXT_DIAGNOSTICS_READY_INTERVAL_DIAGNOSTIC"#,
+            #"S10_4_AX_TEXT_DIAGNOSTICS_READY_INTERVAL_ISSUE_DIAGNOSTIC"#,
+            #"S10_4_AX_TEXT_DIAGNOSTICS_READY_INTERVAL_COUNT_DIAGNOSTIC"#,
+            #"try app.performAccessibilityAudit(for: .contrast)"#,
+            #""observedIssueCount": observedIssueCount"#,
+            #""auditedElementCount": auditedElementCount"#,
+            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
+            #"self.auditFrameObject(auditedElement.frame)"#,
+            #"return true"#,
+            #"S10.4 AX-text diagnostics-ready interval diagnostic audited element "#,
             #"S10.4 AX-text diagnostics-ready interval diagnostic app"#,
             #"S10.4 AX-text diagnostics-ready interval diagnostic tree"#,
             #"S10.4 AX-text diagnostics-ready interval diagnostic context"#,
@@ -11578,6 +11586,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let diagnosticContext: [String: Any] = [",
             "options: [.sortedKeys]",
             "S10_4_AX_TEXT_DIAGNOSTICS_READY_INTERVAL_DIAGNOSTIC",
+            "try app.performAccessibilityAudit(for: .contrast)",
+            "S10_4_AX_TEXT_DIAGNOSTICS_READY_INTERVAL_ISSUE_DIAGNOSTIC",
+            "S10_4_AX_TEXT_DIAGNOSTICS_READY_INTERVAL_COUNT_DIAGNOSTIC",
             "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
             "let treeAttachment = XCTAttachment(string: app.debugDescription)",
             "let contextAttachment = XCTAttachment(string: contextText)",
@@ -11593,11 +11604,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         for (fragment, expectedCount) in [
             ("S10_4_AX_TEXT_DIAGNOSTICS_READY_INTERVAL_DIAGNOSTIC", 1),
-            ("XCTAttachment(", 3),
-            (".lifetime = .keepAlways", 3),
-            ("add(", 3),
-            ("printJSONLine(", 1),
+            ("XCTAttachment(", 4),
+            (".lifetime = .keepAlways", 4),
+            ("add(", 4),
+            ("printJSONLine(", 3),
             ("throw AutomationConfigurationError.invalid(", 3),
+            ("performAccessibilityAudit(for: .contrast)", 1),
+            ("return true", 1),
         ] {
             XCTAssertEqual(
                 diagnosticsReadyIntervalDiagnosticSource.components(
@@ -11608,7 +11621,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         for prohibited in [
-            "captureBaseline(", "performAccessibilityAudit", "eligibleExceptions",
+            "captureBaseline(", "eligibleExceptions",
             "S10_MIGRATION_STATE", "S10_4_AX_STATE", "S10_4_CONTRAST\"",
             "S10_4_CANDIDATE", "automatedEvidenceIDs.append",
             "automationAXTreeDigests[stateID] =",
@@ -11617,7 +11630,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "waitForExistence(", ".swipe", "sleep(", "NotificationCenter",
             "segmentedRouteStateCursor +=", "automatedSegmentFinished = true",
             "ContrastAuditExceptionSignature(", "exceptionIssueID", "XCTFail(",
-            "return false", "return true",
+            "return false",
         ] {
             XCTAssertFalse(
                 diagnosticsReadyIntervalDiagnosticSource.contains(prohibited),
@@ -11743,10 +11756,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("try diagnoseDefaultLightDiagnosticsPositioning(in: app)", 0),
             ("diagnoseDefaultLightDiagnosticsPositioning", 0),
             ("S10_4_DIAGNOSTICS_POSITIONING_DIAGNOSTIC", 0),
-            ("XCTAttachment(", 3),
+            ("XCTAttachment(", 4),
             ("XCUIScreen.main.screenshot()", 0),
             ("XCTAttachment(string: app.debugDescription)", 1),
-            (".lifetime = .keepAlways", 3),
+            (".lifetime = .keepAlways", 4),
             ("throw AutomationConfigurationError.invalid(", 3),
             ("S10.4 default-light Diagnostics positioning diagnostic", 0),
         ]
