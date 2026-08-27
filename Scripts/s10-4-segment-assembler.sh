@@ -132,8 +132,8 @@ jq -e --arg kernel "$evidence_kernel_sha256" '
     reportFailureRouteVerified: true,
     renderFailureArgumentCount: 1
   }
-  and (.exceptionAuthorities | length) == 9
-  and ([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 9
+  and (.exceptionAuthorities | length) == 13
+  and ([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 13
   and all(.exceptionAuthorities[];
     .shardID == "s10.4.current.ax-text"
     and (.stateID | startswith("state."))
@@ -552,8 +552,8 @@ jq -e --arg today "$(date -u +%F)" --slurpfile plan "$plan_path" '
         and .ignoredAuditIssues == []
       else .result == "EXCEPTION" end)
   and [$actual[].stateID] == [$expected[].stateID]
-  and ($authorities | length) == 9
-  and ($expected | length) == 7
+  and ($authorities | length) == 13
+  and ($expected | length) == 10
   and all($actual[] as $row;
     ($expected[] | select(.stateID == $row.stateID)) as $group
     | $row.exceptionIssueID == ($group.issueIDs | join(" | "))

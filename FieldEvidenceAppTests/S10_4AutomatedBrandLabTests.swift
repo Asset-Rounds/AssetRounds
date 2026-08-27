@@ -120,8 +120,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 220_539,
-            sha256: "F93CF7D386B6AFBF881A5AF74DAA304307B71EB9BEEF19CEF16BBA7402C4677B"
+            byteCount: 222_481,
+            sha256: "45DB7A5ABB560EB3656DD879946E5AE93130F2AB60EF48C0E171CDF01AE1D609"
         )
         let workflowSource = try text(workflowPath)
         let workerCallHeader =
@@ -752,10 +752,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 99_796)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 99_798)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "43AF654F7D301FE9205C5D10293983080BAC8D2F3CE145FAD24E397FBCEF4E80"
+            "A6FD38A40D29659264A0E174803C6309A950F1BF6173AAB43587BF22547FB05A"
         )
         let warpScopeSource = String(
             warpJobSource[warpScopeStart.lowerBound..<warpExecutionStart.lowerBound]
@@ -3498,10 +3498,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     reportComparisonRouteStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 58_691)
+        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 59_954)
         XCTAssertEqual(
             Data(workValidationPositioningHelperSource.utf8).sha256,
-            "0C04AB545D4E1036418C8FFB775CDFAD3E48A62CF4020C862E39309203419B3B"
+            "16CC958851921EE5545B2A384FB3BC6EC7795121B2D3378ABD76E19D742BA707"
         )
 
         let signDetailPositioningGate =
@@ -4120,13 +4120,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workValidationAuthorityLocks = [
             "        let fieldLabelExceptionIssueID =\n" +
                 "            \"S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION\"",
-            "        let activeFieldLabelExceptions = Self.contrastAuditExceptionSignatures.filter {",
-            "            $0.issueID == fieldLabelExceptionIssueID",
-            #"                && $0.shardID == "s10.4.current.ax-text""#,
+            "        let noteExceptionIssueID =\n" +
+                "            \"S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-NOTE\"",
+            "        let workValidationExceptionIssueIDs = Set([",
+            "        let activeWorkValidationExceptions = Self.contrastAuditExceptionSignatures.filter {",
+            #"            $0.shardID == "s10.4.current.ax-text""#,
             #"                && $0.stateID == "state.work.validation-error""#,
             "                && isActive($0)",
-            "        guard activeFieldLabelExceptions.count == 1,",
-            "              let activeFieldLabelException = activeFieldLabelExceptions.first else {",
+            "        guard activeWorkValidationExceptions.count == 2,",
+            #"              Set(activeWorkValidationExceptions.map(\.issueID))"#,
+            "                == workValidationExceptionIssueIDs,",
+            "              let activeFieldLabelException = activeWorkValidationExceptions.first(",
+            "                where: { $0.issueID == fieldLabelExceptionIssueID }",
+            "              let activeNoteException = activeWorkValidationExceptions.first(",
+            "                where: { $0.issueID == noteExceptionIssueID }",
             "        let targetFieldLabelMinY = activeFieldLabelException.elementFrame.minY",
         ]
         for lock in workValidationAuthorityLocks {
@@ -4747,6 +4754,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "validationFrame.minY - frozenValidationFrame.minY == rigidShift",
             "noteFrame.minY - frozenNoteFrame.minY == rigidShift",
             "fieldLabelFrame.minY == targetFieldLabelMinY",
+            "let noteMatchesExceptionAuthorizedBoundaryComposition =",
+            "automationSegment == .segment2",
+            "activeWorkValidationExceptions.count == 2",
+            #"Set(activeWorkValidationExceptions.map(\.issueID))"#,
+            "activeNoteException.applicationFrame == applicationFrame",
+            "frozenNoteFrame == activeNoteException.elementFrame",
+            "noteFrame == activeNoteException.elementFrame",
+            "noteFrame.maxY <= liveBottom",
             "let visibleDescriptionFrame = descriptionFrame.intersection(",
             "visibleDescriptionFrame.width >= minimumGestureDistance",
             "visibleDescriptionFrame.height >= minimumGestureDistance",
@@ -4755,6 +4770,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "validationFrame.maxY <= safeBottom",
             "noteFrame.minY >= safeTop",
             "noteFrame.maxY <= safeBottom",
+            "|| noteMatchesExceptionAuthorizedBoundaryComposition",
             "fieldLabelFrame.maxY <= descriptionFrame.minY",
             "descriptionFrame.maxY <= validationFrame.minY",
             "validationFrame.maxY <= noteFrame.minY",
@@ -11253,7 +11269,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             contrastAuthoritySource.components(
                 separatedBy: "ContrastAuditExceptionSignature("
             ).count - 1,
-            20
+            21
         )
         for prohibitedReduceMotionSavingTaskExpansion in [
             #"case ("s10.4.current.reduce-motion", "work_and_recheck")"#,
@@ -15726,6 +15742,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION",
+            "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-NOTE",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT",
@@ -15748,6 +15765,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Before you begin while the frozen public node frame is bottom-clipped outside the 402x874 application frame in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the I confirm this is the site's time zone label even though the audit-owned crop contains only the iOS keyboard and the frozen public node frame is fully keyboard-occluded in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Short description field label whose frozen public frame intersects native Record work navigation chrome and is not hittable, while the separate identified Short description validation node is fully visible, hittable, and rendered with primaryText; the audit-owned crop confirms the issue is limited to that chrome-overlapped composition, and the exception is limited to the frozen public issue signature.",
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Note label whose frozen public frame is fully inside the live ScrollView and keyboard boundary but extends 6.919677734375 points below the stricter inset-safe bottom; the exact unfiltered audit callback and audit-owned crop prove the complete label at that native keyboard-boundary composition, and the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the lower North Campus label whose frozen public node frame intersects native bottom chrome after bounded positioning makes the header safe and hittable and moves the Visit composite below the application; an exact remaining positive ScrollView drag is unrecognized with zero measured header, lower-label, and Visit movement, while ReportsRootView already renders the label with primaryText; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the Reports-index North Campus label whose frozen public frame intersects native bottom tab chrome even though ReportsRootView already renders it with primaryText; the audit-owned crop confirms the issue is limited to that chrome-overlapped composition, and the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the Reports-index Visit label whose frozen public frame begins inside native bottom tab chrome, extends below the 402x874 application frame, and is not hittable even though ReportsRootView already renders it with primaryText; the audit-owned crop confirms the issue is limited to that chrome-clipped composition, and the exception is limited to the frozen public issue signature.",
@@ -15770,11 +15788,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             exceptionIDs.filter { !$0.hasSuffix("REPORT-CORRECTION-HEADER") }.count,
-            14
+            15
         )
         for lock in exceptionIDs {
-            let uiCount = lock
-                == "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION"
+            let uiCount = lock.hasPrefix(
+                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-"
+            )
                 ? 2
                 : 1
             XCTAssertEqual(
@@ -15798,7 +15817,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("state.new-sign.editing", 1),
             ("state.sample-report.ready", 1),
             ("state.feedback.review-ready", 1),
-            ("state.work.validation-error", 1),
+            ("state.work.validation-error", 2),
             ("state.issue.recheck-due", 1),
             ("state.recheck-preflight.ready", 1),
             ("state.recheck-capture.wide-ready", 1),
@@ -15817,7 +15836,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(separatedBy: "ContrastAuditExceptionSignature(").count - 1,
-            20
+            21
         )
         XCTAssertEqual(
             uiSource.components(
@@ -15829,25 +15848,25 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workflowSource.components(
                 separatedBy: #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            40
+            42
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"owner: "palatis3""#).count - 1,
-            20
+            21
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionOwner: "palatis3""#)
                 .count - 1,
-            20
+            21
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"expiresAt: "2026-11-20""#).count - 1,
-            20
+            21
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionExpiresAt: "2026-11-20""#)
                 .count - 1,
-            20
+            21
         )
 
         let signatureLocks = [
@@ -15888,6 +15907,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"elementIdentifier: "s4.5.correction.header""#,
             #"elementLabel: "Correct report""#,
             #"elementLabel: "Short description""#,
+            #"elementLabel: "Note""#,
             #"elementIdentifier: "s3.capture.cannot-complete""#,
             #"elementLabel: "Cannot complete""#,
             #"elementLabel: "Monument Sign""#,
@@ -15944,6 +15964,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION""#,
+            #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-NOTE""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-SIGN-SELECTION-MONUMENT-SIGN""#,
             #"shardID: "s10.4.current.default-light""#,
             #"shardID: "s10.4.current.increased-contrast""#,
@@ -15960,6 +15981,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"elementIdentifier: "s4.5.correction.header""#,
             #"elementLabel: "Correct report""#,
             #"elementLabel: "Short description""#,
+            #"elementLabel: "Note""#,
             #"elementIdentifier: "s3.capture.cannot-complete""#,
             #"elementLabel: "Cannot complete""#,
             #"elementLabel: "Monument Sign""#,
@@ -16098,9 +16120,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"            elementLabel: "Short description","# + "\n" +
                 #"            elementTypeDescription: "XCUIElementType(rawValue: 48)","# + "\n" +
                 "            elementFrame: CGRect(\n" +
-                "                x: 29.333333333333332,\n" +
+                "                x: 32,\n" +
                 "                y: 36.666666666666686,\n" +
-                "                width: 333.66666666666663,\n" +
+                "                width: 333.66666666666669,\n" +
                 "                height: 51.333333333333314\n" +
                 "            ),\n" +
                 "            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)\n" +
@@ -16123,9 +16145,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                    elementLabel: "Short description","# + "\n" +
                 #"                    elementType: "XCUIElementType(rawValue: 48)","# + "\n" +
                 "                    elementFrame: {\n" +
-                "                      x: 29.333333333333332,\n" +
+                "                      x: 32,\n" +
                 "                      y: 36.666666666666686,\n" +
-                "                      width: 333.66666666666663,\n" +
+                "                      width: 333.66666666666669,\n" +
                 "                      height: 51.333333333333314\n" +
                 "                    },\n" +
                 "                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}\n" +
@@ -16139,6 +16161,67 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                taskID: "work_and_recheck","# + "\n" +
                 "                exceptionIssueID: \"\(workValidationExceptionID)\"\n" +
                 "              },"
+        let workValidationNoteExceptionID =
+            "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-NOTE"
+        let workValidationNoteExceptionRationale =
+            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Note label whose frozen public frame is fully inside the live ScrollView and keyboard boundary but extends 6.919677734375 points below the stricter inset-safe bottom; the exact unfiltered audit callback and audit-owned crop prove the complete label at that native keyboard-boundary composition, and the exception is limited to the frozen public issue signature."
+        let workValidationNoteUIAuthority =
+            "        ContrastAuditExceptionSignature(\n" +
+                "            issueID: \"\(workValidationNoteExceptionID)\",\n" +
+                #"            shardID: "s10.4.current.ax-text","# + "\n" +
+                #"            stateID: "state.work.validation-error","# + "\n" +
+                #"            taskID: "work_and_recheck","# + "\n" +
+                #"            owner: "palatis3","# + "\n" +
+                #"            expiresAt: "2026-11-20","# + "\n" +
+                "            rationale: \"\(workValidationNoteExceptionRationale)\",\n" +
+                #"            auditTypeRawValue: "1","# + "\n" +
+                #"            compactDescription: "Contrast failed","# + "\n" +
+                #"            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode","# + "\n" +
+                #"            elementIdentifier: "","# + "\n" +
+                #"            elementLabel: "Note","# + "\n" +
+                #"            elementTypeDescription: "XCUIElementType(rawValue: 48)","# + "\n" +
+                "            elementFrame: CGRect(\n" +
+                "                x: 32,\n" +
+                "                y: 522.58634440104174,\n" +
+                "                width: 93.333333333333329,\n" +
+                "                height: 51.333333333333258\n" +
+                "            ),\n" +
+                "            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)\n" +
+                "        ),"
+        let workValidationNoteWorkflowAuthority =
+            "              {\n" +
+                #"                shardID: "s10.4.current.ax-text","# + "\n" +
+                #"                stateID: "state.work.validation-error","# + "\n" +
+                #"                taskID: "work_and_recheck","# + "\n" +
+                "                exceptionIssueID: \"\(workValidationNoteExceptionID)\",\n" +
+                #"                exceptionOwner: "palatis3","# + "\n" +
+                #"                exceptionExpiresAt: "2026-11-20","# + "\n" +
+                "                exceptionRationale: \"\(workValidationNoteExceptionRationale)\",\n" +
+                "                ignoredAuditIssues: [\n" +
+                "                  {\n" +
+                #"                    auditTypeRawValue: "1","# + "\n" +
+                #"                    compactDescription: "Contrast failed","# + "\n" +
+                #"                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode","# + "\n" +
+                #"                    elementIdentifier: "","# + "\n" +
+                #"                    elementLabel: "Note","# + "\n" +
+                #"                    elementType: "XCUIElementType(rawValue: 48)","# + "\n" +
+                "                    elementFrame: {\n" +
+                "                      x: 32,\n" +
+                "                      y: 522.58634440104174,\n" +
+                "                      width: 93.333333333333329,\n" +
+                "                      height: 51.333333333333258\n" +
+                "                    },\n" +
+                "                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}\n" +
+                "                  }\n" +
+                "                ]\n" +
+                "              },"
+        let workValidationNoteWorkflowTuple =
+            "              {\n" +
+                #"                shardID: "s10.4.current.ax-text","# + "\n" +
+                #"                stateID: "state.work.validation-error","# + "\n" +
+                #"                taskID: "work_and_recheck","# + "\n" +
+                "                exceptionIssueID: \"\(workValidationNoteExceptionID)\"\n" +
+                "              },"
         for (source, authority, label) in [
             (uiSource, workValidationUIAuthority, "work-validation UI authority"),
             (
@@ -16150,6 +16233,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workflowSource,
                 workValidationWorkflowTuple,
                 "work-validation workflow tuple"
+            ),
+            (uiSource, workValidationNoteUIAuthority, "work-validation Note UI authority"),
+            (
+                workflowSource,
+                workValidationNoteWorkflowAuthority,
+                "work-validation Note workflow authority"
+            ),
+            (
+                workflowSource,
+                workValidationNoteWorkflowTuple,
+                "work-validation Note workflow tuple"
             ),
         ] {
             XCTAssertEqual(
@@ -16213,8 +16307,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "wrong x",
-                "                x: 29.333333333333332,",
-                "                x: 29.333333333333333,"
+                "                x: 32,",
+                "                x: 31,"
             ),
             (
                 "wrong y",
@@ -16223,8 +16317,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "wrong width",
-                "                width: 333.66666666666663,",
-                "                width: 333.66666666666664,"
+                "                width: 333.66666666666669,",
+                "                width: 333.66666666666668,"
             ),
             (
                 "wrong height",
@@ -16285,8 +16379,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "wrong x",
-                "                      x: 29.333333333333332,",
-                "                      x: 29.333333333333333,"
+                "                      x: 32,",
+                "                      x: 31,"
             ),
             (
                 "wrong y",
@@ -16295,8 +16389,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "wrong width",
-                "                      width: 333.66666666666663,",
-                "                      width: 333.66666666666664,"
+                "                      width: 333.66666666666669,",
+                "                      width: 333.66666666666668,"
             ),
             (
                 "wrong height",
@@ -16309,12 +16403,142 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "applicationFrame: {x: 0, y: 0, width: 401, height: 874}"
             ),
         ]
+        let workValidationNoteUIFieldMutations = [
+            (
+                "duplicate Note issue ID",
+                workValidationNoteExceptionID,
+                workValidationExceptionID
+            ),
+            ("wrong Note shard", "s10.4.current.ax-text", "s10.4.current.default-light"),
+            ("wrong Note state", "state.work.validation-error", "state.work.editing"),
+            ("wrong Note task", "work_and_recheck", "one_handed_start"),
+            ("wrong Note owner", #"owner: "palatis3""#, #"owner: "unknown""#),
+            ("expired Note", #"expiresAt: "2026-11-20""#, #"expiresAt: "2026-08-21""#),
+            (
+                "broad Note rationale",
+                workValidationNoteExceptionRationale,
+                "Native keyboard overlap."
+            ),
+            ("wrong Note audit type", #"auditTypeRawValue: "1""#, #"auditTypeRawValue: "2""#),
+            (
+                "wrong Note compact",
+                #"compactDescription: "Contrast failed""#,
+                #"compactDescription: "Contrast passed""#
+            ),
+            (
+                "wrong Note detailed",
+                "Contrast failed for SwiftUI.AccessibilityNode",
+                "Contrast failed for another node"
+            ),
+            ("wrong Note identifier", #"elementIdentifier: """#, #"elementIdentifier: "unexpected""#),
+            ("wrong Note label", #"elementLabel: "Note""#, #"elementLabel: "Notes""#),
+            (
+                "wrong Note type",
+                #"elementTypeDescription: "XCUIElementType(rawValue: 48)""#,
+                #"elementTypeDescription: "XCUIElementType(rawValue: 49)""#
+            ),
+            ("wrong Note x", "                x: 32,", "                x: 31,"),
+            (
+                "wrong Note y",
+                "                y: 522.58634440104174,",
+                "                y: 522.58634440104175,"
+            ),
+            (
+                "wrong Note width",
+                "                width: 93.333333333333329,",
+                "                width: 93.33333333333333,"
+            ),
+            (
+                "wrong Note height",
+                "                height: 51.333333333333258",
+                "                height: 51.333333333333259"
+            ),
+            (
+                "wrong Note application frame",
+                "applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)",
+                "applicationFrame: CGRect(x: 0, y: 0, width: 401, height: 874)"
+            ),
+        ]
+        let workValidationNoteWorkflowFieldMutations = [
+            (
+                "duplicate Note issue ID",
+                workValidationNoteExceptionID,
+                workValidationExceptionID
+            ),
+            ("wrong Note shard", "s10.4.current.ax-text", "s10.4.current.default-light"),
+            ("wrong Note state", "state.work.validation-error", "state.work.editing"),
+            ("wrong Note task", "work_and_recheck", "one_handed_start"),
+            (
+                "wrong Note owner",
+                #"exceptionOwner: "palatis3""#,
+                #"exceptionOwner: "unknown""#
+            ),
+            (
+                "expired Note",
+                #"exceptionExpiresAt: "2026-11-20""#,
+                #"exceptionExpiresAt: "2026-08-21""#
+            ),
+            (
+                "broad Note rationale",
+                workValidationNoteExceptionRationale,
+                "Native keyboard overlap."
+            ),
+            ("wrong Note audit type", #"auditTypeRawValue: "1""#, #"auditTypeRawValue: "2""#),
+            (
+                "wrong Note compact",
+                #"compactDescription: "Contrast failed""#,
+                #"compactDescription: "Contrast passed""#
+            ),
+            (
+                "wrong Note detailed",
+                "Contrast failed for SwiftUI.AccessibilityNode",
+                "Contrast failed for another node"
+            ),
+            ("wrong Note identifier", #"elementIdentifier: """#, #"elementIdentifier: "unexpected""#),
+            ("wrong Note label", #"elementLabel: "Note""#, #"elementLabel: "Notes""#),
+            (
+                "wrong Note type",
+                #"elementType: "XCUIElementType(rawValue: 48)""#,
+                #"elementType: "XCUIElementType(rawValue: 49)""#
+            ),
+            ("wrong Note x", "                      x: 32,", "                      x: 31,"),
+            (
+                "wrong Note y",
+                "                      y: 522.58634440104174,",
+                "                      y: 522.58634440104175,"
+            ),
+            (
+                "wrong Note width",
+                "                      width: 93.333333333333329,",
+                "                      width: 93.33333333333333,"
+            ),
+            (
+                "wrong Note height",
+                "                      height: 51.333333333333258",
+                "                      height: 51.333333333333259"
+            ),
+            (
+                "wrong Note application frame",
+                "applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
+                "applicationFrame: {x: 0, y: 0, width: 401, height: 874}"
+            ),
+        ]
         for (source, authority, mutations) in [
             (uiSource, workValidationUIAuthority, workValidationUIFieldMutations),
             (
                 workflowSource,
                 workValidationWorkflowAuthority,
                 workValidationWorkflowFieldMutations
+            ),
+            (
+                uiSource,
+                workValidationNoteUIAuthority,
+                workValidationNoteUIFieldMutations
+            ),
+            (
+                workflowSource,
+                workValidationNoteWorkflowAuthority,
+                workValidationNoteWorkflowFieldMutations
             ),
         ] {
             for (label, original, mutation) in mutations {
@@ -16355,11 +16579,36 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                    elementFrame: {",
             "                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
         ]
+        let workValidationNoteUIPublicFieldLines = [
+            #"            auditTypeRawValue: "1","#,
+            #"            compactDescription: "Contrast failed","#,
+            #"            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode","#,
+            #"            elementIdentifier: "","#,
+            #"            elementLabel: "Note","#,
+            #"            elementTypeDescription: "XCUIElementType(rawValue: 48)","#,
+            "            elementFrame: CGRect(",
+            "            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)",
+        ]
+        let workValidationNoteWorkflowPublicFieldLines = [
+            #"                    auditTypeRawValue: "1","#,
+            #"                    compactDescription: "Contrast failed","#,
+            #"                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode","#,
+            #"                    elementIdentifier: "","#,
+            #"                    elementLabel: "Note","#,
+            #"                    elementType: "XCUIElementType(rawValue: 48)","#,
+            "                    elementFrame: {",
+            "                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
+        ]
         for (authority, fields) in [
             (workValidationUIAuthority, workValidationUIPublicFieldLines),
             (
                 workValidationWorkflowAuthority,
                 workValidationWorkflowPublicFieldLines
+            ),
+            (workValidationNoteUIAuthority, workValidationNoteUIPublicFieldLines),
+            (
+                workValidationNoteWorkflowAuthority,
+                workValidationNoteWorkflowPublicFieldLines
             ),
         ] {
             for field in fields {
@@ -16382,6 +16631,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertFalse(
             restoredCaptureBaselineSource.contains(workValidationExceptionRationale)
+        )
+        XCTAssertFalse(
+            restoredCaptureBaselineSource.contains(workValidationNoteExceptionID)
+        )
+        XCTAssertFalse(
+            restoredCaptureBaselineSource.contains(workValidationNoteExceptionRationale)
         )
 
         let reportHistoryRationale =
@@ -18278,8 +18533,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                    "state.reports-index.ready","# + "\n" +
                 #"                ]"#,
             #"case ("s10.4.current.ax-text", "work_and_recheck")"#,
+            #"taskIssueLimit = 5"#,
+            #"taskStateLimit = 4"#,
             #"permittedExceptionStateIDs = ["# + "\n" +
                 #"                    "state.issue.recheck-due","# + "\n" +
+                #"                    "state.recheck-capture.wide-ready","# + "\n" +
+                #"                    "state.recheck-preflight.ready","# + "\n" +
                 #"                    "state.work.validation-error","# + "\n" +
                 #"                ]"#,
             #"case ("s10.4.current.increased-contrast", "report_comprehension")"#,
@@ -18508,10 +18767,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let axWorkAndRecheckTaskExceptionBound =
             #"            case ("s10.4.current.ax-text", "work_and_recheck"):"# +
                 "\n" +
-                "                taskIssueLimit = 2\n" +
-                "                taskStateLimit = 2\n" +
+                "                taskIssueLimit = 5\n" +
+                "                taskStateLimit = 4\n" +
                 "                permittedExceptionStateIDs = [\n" +
                 #"                    "state.issue.recheck-due","# + "\n" +
+                #"                    "state.recheck-capture.wide-ready","# + "\n" +
+                #"                    "state.recheck-preflight.ready","# + "\n" +
                 #"                    "state.work.validation-error","# + "\n" +
                 "                ]"
         XCTAssertEqual(
@@ -18536,15 +18797,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (
                 "AX work task issue contraction",
                 axWorkAndRecheckTaskExceptionBound.replacingOccurrences(
-                    of: "taskIssueLimit = 2",
-                    with: "taskIssueLimit = 1"
+                    of: "taskIssueLimit = 5",
+                    with: "taskIssueLimit = 4"
                 )
             ),
             (
                 "AX work task state contraction",
                 axWorkAndRecheckTaskExceptionBound.replacingOccurrences(
-                    of: "taskStateLimit = 2",
-                    with: "taskStateLimit = 1"
+                    of: "taskStateLimit = 4",
+                    with: "taskStateLimit = 3"
                 )
             ),
             (
@@ -18560,6 +18821,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "AX work task missing issue-recheck state",
                 axWorkAndRecheckTaskExceptionBound.replacingOccurrences(
                     of: #"                    "state.issue.recheck-due","# + "\n",
+                    with: ""
+                )
+            ),
+            (
+                "AX work task missing recheck-capture state",
+                axWorkAndRecheckTaskExceptionBound.replacingOccurrences(
+                    of: #"                    "state.recheck-capture.wide-ready","# + "\n",
+                    with: ""
+                )
+            ),
+            (
+                "AX work task missing recheck-preflight state",
+                axWorkAndRecheckTaskExceptionBound.replacingOccurrences(
+                    of: #"                    "state.recheck-preflight.ready","# + "\n",
                     with: ""
                 )
             ),
@@ -18641,10 +18916,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "contrast_exception_authority_path=",
             #"if .result == "PASS" then"#,
             #"elif .result == "EXCEPTION" then"#,
-            #"length == 20"#,
+            #"length == 21"#,
             #"and ([.[] | [.shardID, .stateID] | join("|")] | unique | length) == 18"#,
-            #"and ([.[].exceptionIssueID] | unique | length) == 20"#,
-            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 15"#,
+            #"and ([.[].exceptionIssueID] | unique | length) == 21"#,
+            #"and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 16"#,
             #"| select(.exceptionIssueID | IN("#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER","#,
             #""S10.4-XCUI-CONTRAST-FP-DEFAULT-DARK-REPORT-CORRECTION-HEADER","#,
@@ -18655,7 +18930,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 1"#,
             #"| select((.exceptionIssueID | IN("#,
             #")) | not)"#,
-            #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 14"#,
+            #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 15"#,
             #"and (.exceptionOwner == "palatis3")"#,
             #"and (.exceptionExpiresAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"))"#,
             #"and ($today <= .exceptionExpiresAt)"#,
@@ -18690,7 +18965,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"and $taskID == "one_handed_start" then 4"#,
             #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
                 #"                     and $taskID == "report_comprehension" then 4"#,
-            #"and $taskID == "work_and_recheck" then 4"#,
+            #"and $taskID == "work_and_recheck" then 5"#,
             #"and $taskID == "report_comprehension" then 2"#,
             #"and $taskID == "history_recovery" then 1"#,
             #"and $taskID == "report_comprehension" then 1"#,
@@ -18728,7 +19003,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"($matchedAuthorities | length) > 1"#,
             #"($matchedExceptionStateIDs | length) > 1"#,
             #"elif $shard == "s10.4.current.ax-text" then"#,
-            #"($matchedAuthorities | length) > 12"#,
+            #"($matchedAuthorities | length) > 13"#,
             #"($matchedExceptionStateIDs | length) > 10"#,
             #"stateIssueLimit($shardID; $stateID)"#,
             #"and $stateID == "state.check-preflight.ready" then 2"#,
@@ -18738,7 +19013,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
                 #"                     and $stateID == "state.report-history.ready" then 1"#,
             #"and $stateID == "state.reports-index.ready" then 2"#,
-            #"and $stateID == "state.work.validation-error" then 1"#,
+            #"and $stateID == "state.work.validation-error" then 2"#,
             #"and $stateID == "state.issue.recheck-due" then 1"#,
             #"and $stateID == "state.recheck-capture.wide-ready" then 1"#,
             #"and ($stateID == "state.feedback.review-ready""#,
@@ -18797,10 +19072,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         let workflowAuthorityCardinality =
-            "            length == 20\n" +
+            "            length == 21\n" +
                 "            and ([.[] | [.shardID, .stateID] | join(\"|\")] | unique | length) == 18\n" +
-                "            and ([.[].exceptionIssueID] | unique | length) == 20\n" +
-                "            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 15"
+                "            and ([.[].exceptionIssueID] | unique | length) == 21\n" +
+                "            and ([.[] | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 16"
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: workflowAuthorityCardinality
@@ -18811,8 +19086,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (
                 "authority count contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "length == 20",
-                    with: "length == 19"
+                    of: "length == 21",
+                    with: "length == 20"
                 )
             ),
             (
@@ -18825,15 +19100,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (
                 "authority issue contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "exceptionIssueID] | unique | length) == 20",
-                    with: "exceptionIssueID] | unique | length) == 19"
+                    of: "exceptionIssueID] | unique | length) == 21",
+                    with: "exceptionIssueID] | unique | length) == 20"
                 )
             ),
             (
                 "authority signature contraction",
                 workflowAuthorityCardinality.replacingOccurrences(
-                    of: "tojson)] | unique | length) == 15",
-                    with: "tojson)] | unique | length) == 14"
+                    of: "tojson)] | unique | length) == 16",
+                    with: "tojson)] | unique | length) == 15"
                 )
             ),
         ] {
@@ -18872,7 +19147,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             0
         )
-        let workflowHeaderSharedOneAndNonHeaderFourteen =
+        let workflowHeaderSharedOneAndNonHeaderFifteen =
             "            and ([.[]\n" +
                 "              | select(.exceptionIssueID | IN(\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-DEFAULT-LIGHT-REPORT-CORRECTION-HEADER\",\n" +
@@ -18892,10 +19167,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-MOTION-REPORT-CORRECTION-HEADER\",\n" +
                 "                  \"S10.4-XCUI-CONTRAST-FP-REDUCE-TRANSPARENCY-REPORT-CORRECTION-HEADER\"\n" +
                 "                )) | not)\n" +
-                "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 14"
+                "              | (.ignoredAuditIssues[0] | tojson)] | unique | length) == 15"
         XCTAssertEqual(
             workflowSource.components(
-                separatedBy: workflowHeaderSharedOneAndNonHeaderFourteen
+                separatedBy: workflowHeaderSharedOneAndNonHeaderFifteen
             ).count - 1,
             1
         )
@@ -19150,7 +19425,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let axWorkflowAggregateBound =
             #"elif $shard == "s10.4.current.ax-text""# + "\n" +
-                #"                     and (($matchedAuthorities | length) > 12"# + "\n" +
+                #"                     and (($matchedAuthorities | length) > 13"# + "\n" +
                 #"                       or ($matchedExceptionStateIDs | length) > 10) then"#
         XCTAssertEqual(
             workflowSource.components(separatedBy: axWorkflowAggregateBound).count - 1,
@@ -19170,7 +19445,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
                 #"                     and $taskID == "report_comprehension" then 4"# + "\n" +
                 #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
-                #"                     and $taskID == "work_and_recheck" then 4"#
+                #"                     and $taskID == "work_and_recheck" then 5"#
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: axWorkflowTaskIssueFunctionBound
@@ -19209,7 +19484,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let axWorkflowWorkValidationStateIssueBound =
             #"                elif $shardID == "s10.4.current.ax-text""# + "\n" +
-                #"                     and $stateID == "state.work.validation-error" then 1"#
+                #"                     and $stateID == "state.work.validation-error" then 2"#
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: axWorkflowWorkValidationStateIssueBound
@@ -19237,7 +19512,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let axWorkflowGroupedStateIssueBound =
             #"                     if $shard == "s10.4.current.ax-text""# + "\n" +
                 #"                        and (.[0].stateID == "state.check-preflight.ready""# + "\n" +
-                #"                          or .[0].stateID == "state.reports-index.ready") then 2"#
+                #"                          or .[0].stateID == "state.reports-index.ready""# + "\n" +
+                #"                          or .[0].stateID == "state.work.validation-error") then 2"#
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: axWorkflowGroupedStateIssueBound
@@ -19246,7 +19522,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let axWorkflowDownstreamBound =
             #"                      elif $shard == "s10.4.current.ax-text" then"# + "\n" +
-                #"                        ($matchedAuthorities | length) <= 12"# + "\n" +
+                #"                        ($matchedAuthorities | length) <= 13"# + "\n" +
                 #"                        and ($matchedExceptionStateIDs | length) <= 10"#
         XCTAssertEqual(
             workflowSource.components(separatedBy: axWorkflowDownstreamBound).count - 1,
@@ -19273,8 +19549,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "AX work task issue limit contraction",
                 axWorkflowTaskIssueFunctionBound,
                 axWorkflowTaskIssueFunctionBound.replacingOccurrences(
-                    of: #"and $taskID == "work_and_recheck" then 4"#,
-                    with: #"and $taskID == "work_and_recheck" then 3"#
+                    of: #"and $taskID == "work_and_recheck" then 5"#,
+                    with: #"and $taskID == "work_and_recheck" then 4"#
                 )
             ),
             (
@@ -19321,8 +19597,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "AX work-validation state issue limit expansion",
                 axWorkflowWorkValidationStateIssueBound,
                 axWorkflowWorkValidationStateIssueBound.replacingOccurrences(
-                    of: "then 1",
-                    with: "then 2"
+                    of: "then 2",
+                    with: "then 3"
                 )
             ),
             (
@@ -19347,14 +19623,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "AX aggregate limit expansion",
                 axWorkflowAggregateBound,
                 axWorkflowAggregateBound
-                    .replacingOccurrences(of: "> 12", with: "> 13")
+                    .replacingOccurrences(of: "> 13", with: "> 14")
                     .replacingOccurrences(of: "> 10", with: "> 11")
             ),
             (
                 "AX downstream limit expansion",
                 axWorkflowDownstreamBound,
                 axWorkflowDownstreamBound
-                    .replacingOccurrences(of: "<= 12", with: "<= 13")
+                    .replacingOccurrences(of: "<= 13", with: "<= 14")
                     .replacingOccurrences(of: "<= 10", with: "<= 11")
             ),
         ]
@@ -19436,7 +19712,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workflowSource.components(
                 separatedBy: #"taskID: "work_and_recheck""#
             ).count - 1,
-            8
+            10
         )
         XCTAssertFalse(workflowSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
         XCTAssertFalse(
@@ -19518,8 +19794,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let planSource = try text(planPath)
         try assertFile(
             planPath,
-            byteCount: 17_504,
-            sha256: "5BBEC871E5B016EE8918A834382FF524666A0B0DA2CA15D2B410C415DDEFA0F8"
+            byteCount: 18_752,
+            sha256: "6F242009CE23BA54B03BABFDF1D763A7455284F66C99CB2CDEBDECC46AF1AFEC"
         )
         XCTAssertFalse(planSource.contains("\r"))
         XCTAssertEqual(try int(plan, "schemaVersion"), 1)
@@ -19639,14 +19915,43 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         let planExceptionAuthorities = try rows(plan, "exceptionAuthorities")
-        XCTAssertEqual(planExceptionAuthorities.count, 9)
+        XCTAssertEqual(planExceptionAuthorities.count, 13)
         XCTAssertEqual(
             Set(try planExceptionAuthorities.map { try string($0, "exceptionIssueID") }).count,
-            9
+            13
         )
         XCTAssertEqual(
             Set(try planExceptionAuthorities.map { try string($0, "stateID") }).count,
-            7
+            10
+        )
+        let planExceptionAuthorityTuples = try Set(
+            planExceptionAuthorities.map {
+                [
+                    try string($0, "stateID"),
+                    try string($0, "taskID"),
+                    try string($0, "exceptionIssueID"),
+                    try string($0, "exceptionOwner"),
+                    try string($0, "exceptionExpiresAt"),
+                ].joined(separator: "|")
+            }
+        )
+        XCTAssertEqual(
+            planExceptionAuthorityTuples,
+            Set([
+                "state.check-preflight.ready|one_handed_start|S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN|palatis3|2026-11-20",
+                "state.check-preflight.ready|one_handed_start|S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION|palatis3|2026-11-20",
+                "state.issue.recheck-due|work_and_recheck|S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-RECHECK-DUE-SECTION-APPEARS-DARK|palatis3|2026-11-20",
+                "state.recheck-preflight.ready|work_and_recheck|S10.4-XCUI-CONTRAST-FP-AX-TEXT-RECHECK-PREFLIGHT-SAFE-POSITION-CONFIRMATION|palatis3|2026-11-20",
+                "state.recheck-capture.wide-ready|work_and_recheck|S10.4-XCUI-CONTRAST-FP-AX-TEXT-RECHECK-CAPTURE-WIDE-READY-CANNOT-COMPLETE|palatis3|2026-11-20",
+                "state.new-sign.editing|one_handed_start|S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME|palatis3|2026-11-20",
+                "state.report-history.ready|report_comprehension|S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS|palatis3|2026-11-20",
+                "state.reports-index.ready|report_comprehension|S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS|palatis3|2026-11-20",
+                "state.reports-index.ready|report_comprehension|S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT|palatis3|2026-11-20",
+                "state.work.validation-error|work_and_recheck|S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION|palatis3|2026-11-20",
+                "state.work.validation-error|work_and_recheck|S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-NOTE|palatis3|2026-11-20",
+                "state.report-correction.validation-error|report_comprehension|S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-CORRECTION-COUNT|palatis3|2026-11-20",
+                "state.sign-selection.ready|one_handed_start|S10.4-XCUI-CONTRAST-FP-AX-TEXT-SIGN-SELECTION-MONUMENT-SIGN|palatis3|2026-11-20",
+            ])
         )
         let planReportTaskAuthorities = try planExceptionAuthorities.filter {
             try string($0, "taskID") == "report_comprehension"
@@ -19666,6 +19971,49 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(try string(k130PlanAuthority, "taskID"), "report_comprehension")
         XCTAssertEqual(try string(k130PlanAuthority, "exceptionOwner"), "palatis3")
         XCTAssertEqual(try string(k130PlanAuthority, "exceptionExpiresAt"), "2026-11-20")
+        let k198PlanNoteAuthority = try XCTUnwrap(
+            planExceptionAuthorities.first {
+                try string($0, "exceptionIssueID")
+                    == "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-NOTE"
+            }
+        )
+        XCTAssertEqual(try string(k198PlanNoteAuthority, "shardID"), "s10.4.current.ax-text")
+        XCTAssertEqual(
+            try string(k198PlanNoteAuthority, "stateID"),
+            "state.work.validation-error"
+        )
+        XCTAssertEqual(try string(k198PlanNoteAuthority, "taskID"), "work_and_recheck")
+        XCTAssertEqual(try string(k198PlanNoteAuthority, "exceptionOwner"), "palatis3")
+        XCTAssertEqual(
+            try string(k198PlanNoteAuthority, "exceptionExpiresAt"),
+            "2026-11-20"
+        )
+        let k193PlanSignSelectionAuthority = try XCTUnwrap(
+            planExceptionAuthorities.first {
+                try string($0, "exceptionIssueID")
+                    == "S10.4-XCUI-CONTRAST-FP-AX-TEXT-SIGN-SELECTION-MONUMENT-SIGN"
+            }
+        )
+        XCTAssertEqual(
+            try string(k193PlanSignSelectionAuthority, "shardID"),
+            "s10.4.current.ax-text"
+        )
+        XCTAssertEqual(
+            try string(k193PlanSignSelectionAuthority, "stateID"),
+            "state.sign-selection.ready"
+        )
+        XCTAssertEqual(
+            try string(k193PlanSignSelectionAuthority, "taskID"),
+            "one_handed_start"
+        )
+        XCTAssertEqual(
+            try string(k193PlanSignSelectionAuthority, "exceptionOwner"),
+            "palatis3"
+        )
+        XCTAssertEqual(
+            try string(k193PlanSignSelectionAuthority, "exceptionExpiresAt"),
+            "2026-11-20"
+        )
 
         let segments = try rows(plan, "segments")
         XCTAssertEqual(segments.count, 3)
@@ -19830,7 +20178,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             evidenceKernelData.sha256,
-            "7AE6EF67C35DE3C80D01DA8A69CDFC3EBFA65626543A720563C3293E46D18AC0"
+            "902F444710E53CD5616F9C23FDAC2A9E2141F980744F23846321444BAB0686B5"
         )
         XCTAssertEqual(
             try string(plan, "evidenceKernelSHA256"),
@@ -22508,8 +22856,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let assemblerSource = try text(assemblerPath)
         try assertFile(
             assemblerPath,
-            byteCount: 35_682,
-            sha256: "FDD2ABA03B25D83F5D2683EE60EEA1108C9CBCF3DB3D89B0E3E3C5C677E6CBDB"
+            byteCount: 35_686,
+            sha256: "2321C499B118B49358D4660EBFD3CB8CEA5B2FD92BBE777C6F9700CB89E03CB8"
         )
         XCTAssertFalse(assemblerSource.contains("\r"))
         XCTAssertTrue(
@@ -22525,8 +22873,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "plan_sha256=\"$(sha256_file \"$plan_path\")\"",
             "evidence_kernel_sha256=\"$(sha256_text \"$kernel_json\")\"",
             ".evidenceKernelSHA256 == $kernel",
-            "and (.exceptionAuthorities | length) == 9",
-            "and ([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 9",
+            "and (.exceptionAuthorities | length) == 13",
+            "and ([.exceptionAuthorities[].exceptionIssueID] | unique | length) == 13",
             ".crossSessionBuildReuse == false",
             ".crossSessionTestWithoutBuilding == false",
             "test \"${#source_dirs[@]}\" -eq 3",
@@ -22761,8 +23109,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "test \"$(find \"$combined_shard/candidates\" -type f -name 'state.*.png' | wc -l | tr -d ' ')\" -eq 67",
             "test \"$(find \"$staging_root/ax/$shard_id\" -type f -name 'state.*.json' | wc -l | tr -d ' ')\" -eq 67",
             "test \"$(find \"$staging_root/contrast/$shard_id\" -type f -name 'state.*.json' | wc -l | tr -d ' ')\" -eq 67",
-            "($authorities | length) == 9",
-            "($expected | length) == 7",
+            "($authorities | length) == 13",
+            "($expected | length) == 10",
             "$today <= $row.exceptionExpiresAt",
             ".ignoredAuditIssues == []",
             "else .result == \"EXCEPTION\" end",

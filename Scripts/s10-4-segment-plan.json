@@ -51,7 +51,7 @@
   "stateInventoryPath": "docs/design/s10/s10-screen-state-inventory.json",
   "orderedStateSHA256": "8D5D88D21FB60190B3DF5456FE14902602E420CB1810D0EEBA6E0D6ADA37547C",
   "stateSetSHA256": "5F704F0ED4510CFFC24E162EFFE1D85A536686473E6B23FED2965D864AEC87A3",
-  "evidenceKernelSHA256": "7AE6EF67C35DE3C80D01DA8A69CDFC3EBFA65626543A720563C3293E46D18AC0",
+  "evidenceKernelSHA256": "902F444710E53CD5616F9C23FDAC2A9E2141F980744F23846321444BAB0686B5",
   "orderedStateIDs": [
     "state.pack.unavailable",
     "state.welcome.empty",
@@ -148,6 +148,22 @@
     },
     {
       "shardID": "s10.4.current.ax-text",
+      "stateID": "state.recheck-preflight.ready",
+      "taskID": "work_and_recheck",
+      "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-RECHECK-PREFLIGHT-SAFE-POSITION-CONFIRMATION",
+      "exceptionOwner": "palatis3",
+      "exceptionExpiresAt": "2026-11-20"
+    },
+    {
+      "shardID": "s10.4.current.ax-text",
+      "stateID": "state.recheck-capture.wide-ready",
+      "taskID": "work_and_recheck",
+      "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-RECHECK-CAPTURE-WIDE-READY-CANNOT-COMPLETE",
+      "exceptionOwner": "palatis3",
+      "exceptionExpiresAt": "2026-11-20"
+    },
+    {
+      "shardID": "s10.4.current.ax-text",
       "stateID": "state.new-sign.editing",
       "taskID": "one_handed_start",
       "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME",
@@ -188,9 +204,25 @@
     },
     {
       "shardID": "s10.4.current.ax-text",
+      "stateID": "state.work.validation-error",
+      "taskID": "work_and_recheck",
+      "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-NOTE",
+      "exceptionOwner": "palatis3",
+      "exceptionExpiresAt": "2026-11-20"
+    },
+    {
+      "shardID": "s10.4.current.ax-text",
       "stateID": "state.report-correction.validation-error",
       "taskID": "report_comprehension",
       "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-CORRECTION-COUNT",
+      "exceptionOwner": "palatis3",
+      "exceptionExpiresAt": "2026-11-20"
+    },
+    {
+      "shardID": "s10.4.current.ax-text",
+      "stateID": "state.sign-selection.ready",
+      "taskID": "one_handed_start",
+      "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-SIGN-SELECTION-MONUMENT-SIGN",
       "exceptionOwner": "palatis3",
       "exceptionExpiresAt": "2026-11-20"
     }
