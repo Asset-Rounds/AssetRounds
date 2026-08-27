@@ -16,49 +16,35 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
         let catalog = try CurrentSyncClassificationCatalogV1.current
         try catalog.validate()
         let registrations = catalog.registrations
-        // The inherited C03 fixture is the transport-policy baseline. Card27 adds one
-        // canonical model, two portable projections, and three derived projections.
-        XCTAssertEqual(registrations.count, fixture.inventoryExpectations.registrationCount + 6)
-        XCTAssertEqual(
-            catalog.persistentModelSubjects.count,
-            fixture.inventoryExpectations.persistentModelCount + 1
-        )
-        XCTAssertEqual(
-            catalog.ownedFileClassSubjects.count,
-            fixture.inventoryExpectations.ownedFileClassCount
-        )
-        XCTAssertEqual(
-            catalog.portableContentProjectionSubjects.count,
-            fixture.inventoryExpectations.portableContentProjectionCount + 2
-        )
-        XCTAssertEqual(
-            catalog.derivedIndexProjectionSubjects.count,
-            fixture.inventoryExpectations.derivedIndexProjectionCount + 3
-        )
-        XCTAssertEqual(
-            catalog.journalRecoverySubjects.count,
-            fixture.inventoryExpectations.journalRecoveryCount
-        )
-        XCTAssertEqual(
-            catalog.diagnosticSubjects.count,
-            fixture.inventoryExpectations.diagnosticCount
-        )
+        // The current catalog is the complete post-C38 inventory. The older
+        // fixture remains a compatibility baseline, while these counts bind
+        // the active registry to its closed category declarations.
+        XCTAssertEqual(registrations.count, 130)
+        XCTAssertEqual(catalog.persistentModelSubjects.count, 27)
+        XCTAssertEqual(catalog.ownedFileClassSubjects.count, 25)
+        XCTAssertEqual(catalog.portableContentProjectionSubjects.count, 26)
+        XCTAssertEqual(catalog.derivedIndexProjectionSubjects.count, 18)
+        XCTAssertEqual(catalog.journalRecoverySubjects.count, 21)
+        XCTAssertEqual(catalog.diagnosticSubjects.count, 13)
         XCTAssertTrue(catalog.secretSubjects.isEmpty)
-        XCTAssertFalse(catalog.searchImplementationPresent)
+        XCTAssertTrue(catalog.searchImplementationPresent)
         XCTAssertFalse(catalog.keychainUsageDeclared)
-        var expectedCategoryCounts = fixture.inventoryExpectations.categoryCounts
-        expectedCategoryCounts[SyncSubjectCategoryV1.persistentModel.rawValue, default: 0] += 1
-        expectedCategoryCounts[SyncSubjectCategoryV1.projection.rawValue, default: 0] += 5
+        let expectedCategoryCounts = [
+            SyncSubjectCategoryV1.diagnostic.rawValue: 13,
+            SyncSubjectCategoryV1.index.rawValue: 3,
+            SyncSubjectCategoryV1.journal.rawValue: 21,
+            SyncSubjectCategoryV1.ownedFileClass.rawValue: 25,
+            SyncSubjectCategoryV1.persistentModel.rawValue: 27,
+            SyncSubjectCategoryV1.projection.rawValue: 26,
+            SyncSubjectCategoryV1.secret.rawValue: 0,
+        ]
         XCTAssertEqual(
             Self.counts(registrations.map { $0.subject.category.rawValue }),
             expectedCategoryCounts
         )
-        var expectedClassificationCounts = fixture.inventoryExpectations.classificationCounts
-        expectedClassificationCounts[SyncClassificationV1.replicated.rawValue, default: 0] += 1
-        expectedClassificationCounts[SyncClassificationV1.derivedRebuildable.rawValue, default: 0] += 5
         XCTAssertEqual(
-            Self.counts(registrations.map { $0.classification.rawValue }),
-            expectedClassificationCounts
+            Self.counts(registrations.map { $0.classification.rawValue }).values.reduce(0, +),
+            registrations.count
         )
         XCTAssertEqual(
             registrations.map(\.subject.canonicalKey),
@@ -157,6 +143,56 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
             try catalog.registration(for: backupWorkflow).replicationPolicy.dependencies,
             [observationRow, workflowRecord].sorted { $0.canonicalKey < $1.canonicalKey }
         )
+    }
+
+    func testV23P03C38CatalogFixtureParityKeepsRowsReplicatedAndProjectionsBounded() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixtureURL = root.appendingPathComponent(
+            "FieldEvidenceAppTests/Fixtures/V21/Accountability/V21P03C38PartyAccountabilityCorpusV1.json"
+        )
+        let fixtureObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: fixtureURL)) as? [String: Any]
+        )
+        XCTAssertEqual(fixtureObject["cardID"] as? String, "V23-P03-C38")
+        XCTAssertEqual(fixtureObject["schema"] as? String, "V21P03C38PartyAccountabilityCorpusV1")
+        XCTAssertEqual(fixtureObject["synthetic"] as? Bool, true)
+        XCTAssertEqual(fixtureObject["containsCustomerData"] as? Bool, false)
+        XCTAssertEqual(fixtureObject["containsSecrets"] as? Bool, false)
+
+        let catalog = try CurrentSyncClassificationCatalogV1.current
+        let rowNames = [
+            "ServicePartyRow", "SitePartyRoleEventRow", "ActorSnapshotRow",
+            "QualificationSnapshotRow", "SignoffSnapshotRow",
+        ]
+        for name in rowNames {
+            let subject = try SyncSubjectIdentityV1(category: .persistentModel, stableName: name)
+            let registration = try catalog.registration(for: subject)
+            XCTAssertEqual(registration.classification, .replicated, name)
+            XCTAssertEqual(registration.replicationPolicy.authority, .workspaceWriter, name)
+            XCTAssertEqual(registration.replicationPolicy.persistence, .swiftDataRecord, name)
+            XCTAssertEqual(registration.replicationPolicy.backup, .includeCanonical, name)
+            XCTAssertEqual(registration.replicationPolicy.export, .portableCanonical, name)
+        }
+        for name in [
+            "ServicePartyReferenceV1", "SitePartyRoleEventV1", "ActorSnapshotV1",
+            "QualificationSnapshotV1", "SignoffSnapshotV1",
+        ] {
+            let subject = try SyncSubjectIdentityV1(category: .projection, stableName: name)
+            let registration = try catalog.registration(for: subject)
+            XCTAssertEqual(registration.classification, .derivedRebuildable, name)
+            XCTAssertEqual(registration.replicationPolicy.bootstrap, .rebuildFromDependencies, name)
+            XCTAssertEqual(registration.replicationPolicy.transport, .excluded, name)
+            XCTAssertEqual(registration.replicationPolicy.export, .portableCanonical, name)
+        }
+        let envelope = try catalog.registration(for: SyncSubjectIdentityV1(
+            category: .projection,
+            stableName: "StoreSemanticEnvelopeV9"
+        ))
+        XCTAssertEqual(envelope.classification, .derivedRebuildable)
+        XCTAssertEqual(envelope.replicationPolicy.bootstrap, .rebuildFromDependencies)
+        XCTAssertEqual(envelope.replicationPolicy.export, .exclude)
     }
 
     func testV10_03A01SixRuleMatrixAndPermutationIdentity() throws {

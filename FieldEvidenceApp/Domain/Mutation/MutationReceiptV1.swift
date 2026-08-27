@@ -65,6 +65,11 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case assetCompositionEdge(id: UUID, revision: UInt64, semanticSHA256: String)
     case assetCompositionEvent(id: UUID, revision: UInt64, semanticSHA256: String)
     case savedSmartView(id: UUID, revision: UInt64, semanticSHA256: String)
+    case serviceParty(id: UUID, revision: UInt64, semanticSHA256: String)
+    case sitePartyRoleEvent(id: UUID, revision: UInt64, semanticSHA256: String)
+    case actorSnapshot(id: UUID, revision: UInt64, semanticSHA256: String)
+    case qualificationSnapshot(id: UUID, revision: UInt64, semanticSHA256: String)
+    case signoffSnapshot(id: UUID, revision: UInt64, semanticSHA256: String)
     case workflowRecord(id: UUID, revision: UInt64, semanticSHA256: String)
     case evidenceFile(id: UUID, revision: UInt64, semanticSHA256: String)
     case issue(id: UUID, revision: UInt64, semanticSHA256: String)
@@ -83,6 +88,11 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .assetCompositionEdge(id, _, _): return try .init(kind: .assetCompositionEdge, id: id)
             case let .assetCompositionEvent(id, _, _): return try .init(kind: .assetCompositionEvent, id: id)
             case let .savedSmartView(id, _, _): return try .init(kind: .savedSmartView, id: id)
+            case let .serviceParty(id, _, _): return try .init(kind: .serviceParty, id: id)
+            case let .sitePartyRoleEvent(id, _, _): return try .init(kind: .sitePartyRoleEvent, id: id)
+            case let .actorSnapshot(id, _, _): return try .init(kind: .actorSnapshot, id: id)
+            case let .qualificationSnapshot(id, _, _): return try .init(kind: .qualificationSnapshot, id: id)
+            case let .signoffSnapshot(id, _, _): return try .init(kind: .signoffSnapshot, id: id)
             case let .workflowRecord(id, _, _): return try .init(kind: .workflowRecord, id: id)
             case let .evidenceFile(id, _, _): return try .init(kind: .evidenceFile, id: id)
             case let .issue(id, _, _): return try .init(kind: .issue, id: id)
@@ -99,6 +109,9 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
         case let .site(_, _, value), let .asset(_, _, value), let .locationNode(_, _, value),
              let .assetPlacementEvent(_, _, value), let .assetCompositionEdge(_, _, value),
              let .assetCompositionEvent(_, _, value), let .savedSmartView(_, _, value),
+             let .serviceParty(_, _, value), let .sitePartyRoleEvent(_, _, value),
+             let .actorSnapshot(_, _, value), let .qualificationSnapshot(_, _, value),
+             let .signoffSnapshot(_, _, value),
              let .workflowRecord(_, _, value),
              let .evidenceFile(_, _, value), let .issue(_, _, value), let .packet(_, _, value),
              let .report(_, _, value), let .deletionLedgerEntry(_, _, value),
@@ -112,6 +125,9 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
              let .locationNode(_, value, _), let .assetPlacementEvent(_, value, _),
              let .assetCompositionEdge(_, value, _), let .assetCompositionEvent(_, value, _),
              let .savedSmartView(_, value, _),
+             let .serviceParty(_, value, _), let .sitePartyRoleEvent(_, value, _),
+             let .actorSnapshot(_, value, _), let .qualificationSnapshot(_, value, _),
+             let .signoffSnapshot(_, value, _),
              let .workflowRecord(_, value, _), let .evidenceFile(_, value, _),
              let .issue(_, value, _), let .packet(_, value, _),
              let .report(_, value, _), let .deletionLedgerEntry(_, value, _),

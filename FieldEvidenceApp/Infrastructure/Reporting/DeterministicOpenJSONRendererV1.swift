@@ -199,6 +199,20 @@ enum ReportSemanticProjectorV1 {
             activity: snapshot.payload.activity,
             snapshotSHA256: snapshot.snapshotSHA256,
             locationComposition: snapshot.payload.locationComposition,
+            accountability: nil,
+            manifest: manifest
+        )
+    }
+
+    static func project(
+        snapshot: CompletedActivitySnapshotV3,
+        manifest: ContractManifestV1
+    ) throws -> ReportSemanticProjectionV1 {
+        try project(
+            activity: snapshot.payload.activity.activity,
+            snapshotSHA256: snapshot.snapshotSHA256,
+            locationComposition: snapshot.payload.activity.locationComposition,
+            accountability: snapshot.payload.accountability,
             manifest: manifest
         )
     }
@@ -207,6 +221,7 @@ enum ReportSemanticProjectorV1 {
         activity: CompletedActivitySnapshotPayloadV1,
         snapshotSHA256: String,
         locationComposition: CompletedLocationCompositionSnapshotV1?,
+        accountability: CompletedAccountabilitySnapshotV1? = nil,
         manifest: ContractManifestV1
     ) throws -> ReportSemanticProjectionV1 {
         let encoder = JSONEncoder()
@@ -261,6 +276,14 @@ enum ReportSemanticProjectorV1 {
                     "\(visibleID("asset", edge.childAssetID.uuidString.lowercased())) component of \(visibleID("asset", edge.parentAssetID.uuidString.lowercased()))"
                 )
             }
+        }
+        if let accountability {
+            try appendAccountability(
+                accountability,
+                binding: binding,
+                append: append,
+                visibleID: visibleID
+            )
         }
         for fact in activity.serviceFacts where binding.audience == .internalUse || fact.privacyClass != .internalOnly {
             try append("service", "fact", fact.label, fact.value)
@@ -325,6 +348,81 @@ enum ReportSemanticProjectorV1 {
             ),
             nodes: nodes
         )
+    }
+
+    private static func appendAccountability(
+        _ accountability: CompletedAccountabilitySnapshotV1,
+        binding: FinalizedReportProfileBindingV1,
+        append: (
+            _ section: String,
+            _ role: String,
+            _ label: String,
+            _ value: String,
+            _ ref: String?
+        ) throws -> Void,
+        visibleID: (_ kind: String, _ value: String) -> String
+    ) throws {
+        let sectionID = ReportAccountabilityProjectionPolicyV1.sectionID
+        try append(
+            sectionID,
+            "heading",
+            BundledLocalizationCatalogV1.localized(.accountabilityHeading),
+            BundledLocalizationCatalogV1.localized(.accountabilityHeading)
+        )
+        for party in accountability.parties {
+            let partyID = visibleID("party", party.partyID.uuidString.lowercased())
+            try append(sectionID, "heading", BundledLocalizationCatalogV1.localized(.accountabilityParty),
+                       "\(partyID): \(party.displayName)", partyID)
+            try append(sectionID, "fact", "Party kind", party.kind.rawValue)
+            try append(sectionID, "fact", "Party provenance", party.provenance.rawValue)
+            try append(sectionID, "status", "Party state", party.state.rawValue)
+            if binding.audience == .internalUse, let descriptor = party.profileDescriptor {
+                try append(sectionID, "fact", "Party context", descriptor)
+            }
+        }
+        for event in accountability.roleEvents {
+            let partyID = visibleID("party", event.partyID.uuidString.lowercased())
+            let siteID = visibleID("site", event.siteID.uuidString.lowercased())
+            try append(
+                sectionID, "fact", BundledLocalizationCatalogV1.localized(.accountabilityRole),
+                "\(partyID) \(event.role.rawValue) at \(siteID)"
+            )
+            try append(sectionID, "fact", "Role source", event.source.rawValue)
+        }
+        for actor in accountability.actors {
+            let actorID = visibleID("actor", actor.snapshotID.uuidString.lowercased())
+            try append(sectionID, "fact", BundledLocalizationCatalogV1.localized(.accountabilityActor),
+                       actor.displayNameAtTime, actorID)
+            try append(sectionID, "fact", "Responsibility", actor.responsibility.rawValue)
+        }
+        for qualification in accountability.qualifications {
+            try append(sectionID, "fact", BundledLocalizationCatalogV1.localized(.accountabilityQualification),
+                       qualification.declaredScope)
+            try append(sectionID, "fact", "Qualification provenance", qualification.provenance.rawValue)
+            if let issuer = qualification.issuerDisplay {
+                try append(sectionID, "fact", "Qualification issuer", issuer)
+            }
+            if binding.audience == .internalUse, let locator = qualification.credentialLocator {
+                try append(sectionID, "fact", "Credential reference", locator)
+            }
+        }
+        for signoff in accountability.signoffs {
+            let signoffID = visibleID("signoff", signoff.snapshotID.uuidString.lowercased())
+            try append(sectionID, "heading", BundledLocalizationCatalogV1.localized(.accountabilitySignoff),
+                       signoff.purpose, signoffID)
+            try append(sectionID, "fact", "Response disposition", signoff.disposition.rawValue)
+            try append(sectionID, "fact", "Response method", signoff.method.rawValue)
+            if let role = signoff.roleAssertion {
+                try append(sectionID, "fact", "Claimed role", role.claimedRole)
+                if let relationship = role.claimedRelationship {
+                    try append(sectionID, "fact", "Claimed relationship", relationship.rawValue)
+                }
+                try append(
+                    sectionID, "annotation",
+                    "Disclosure", role.disclosureRelease.disclosureText
+                )
+            }
+        }
     }
 }
 

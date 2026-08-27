@@ -484,6 +484,35 @@ final class V9_16SnapshotProjectionTests: XCTestCase {
         return Fixture(snapshot: snapshot, manifest: manifest, layout: layout, export: export)
     }
 
+    func testV23P03C38ReportProjectionUsesFrozenAccountabilityDisplayFields() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixtureURL = root.appendingPathComponent(
+            "FieldEvidenceAppTests/Fixtures/V21/Accountability/V21P03C38PartyAccountabilityCorpusV1.json"
+        )
+        let fixture = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: fixtureURL)) as? [String: Any]
+        )
+        let projection = try XCTUnwrap(fixture["reportProjection"] as? [String: Any])
+        let fields = try XCTUnwrap(projection["frozenDisplayFields"] as? [String])
+        XCTAssertTrue(fields.contains("displayNameAtTime"))
+        XCTAssertTrue(fields.contains("claimedRole"))
+        XCTAssertTrue(fields.contains("purpose"))
+        XCTAssertEqual(projection["historyIsImmutable"] as? Bool, true)
+        XCTAssertEqual(projection["renamesDoNotRewriteSnapshots"] as? Bool, true)
+
+        let projectorSource = try String(
+            contentsOf: root.appendingPathComponent(
+                "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(projectorSource.contains("CompletedActivitySnapshotV1"))
+        XCTAssertTrue(projectorSource.contains("snapshotSHA256"))
+        XCTAssertFalse(projectorSource.contains("ServicePartyReferenceV1.displayName ="))
+    }
+
     private func legacyFixtureData(withExtension fileExtension: String) throws -> Data {
         let bundle = Bundle(for: Self.self)
         let url = try XCTUnwrap(

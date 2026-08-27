@@ -5,6 +5,9 @@ import Foundation
 /// Canonical receipts and reversal bases remain owned by `MutationJournalStoreV1`.
 @MainActor
 final class LocalChangeJournalV1 {
+    static func partyAccountabilityCoverage() throws -> PartyAccountabilityJournalCoverageV1 {
+        try PartyAccountabilityJournalCoverageV1()
+    }
     typealias ConflictPolicyResolver = (WorkspaceEntityIdentityV1, MutationPostImageV1) throws -> ConflictPolicyV1
     typealias ContentReferenceResolver = (String) throws -> ContentReferenceV1
     typealias ContentEntryResolver = (ContentReferenceV1) throws -> LocalContentStoreEntryV1

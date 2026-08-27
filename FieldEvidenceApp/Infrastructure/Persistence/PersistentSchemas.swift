@@ -327,6 +327,19 @@ enum PersistentSchemaV8: VersionedSchema {
     }
 }
 
+/// V9 adds only C38 party/accountability truth. A migrated V8 generation starts
+/// with empty collections: legacy Site labels are not fabricated as parties.
+enum PersistentSchemaV9: VersionedSchema {
+    static let versionIdentifier = Schema.Version(9, 0, 0)
+    static var models: [any PersistentModel.Type] {
+        PersistentSchemaV8.models + [
+            ServicePartyRow.self, SitePartyRoleEventRow.self,
+            ActorSnapshotRow.self, QualificationSnapshotRow.self,
+            SignoffSnapshotRow.self,
+        ]
+    }
+}
+
 enum PersistentSchemaMigrationStageV1: String, Equatable, Sendable {
     case bootstrap = "BOOTSTRAP"
     case lightweight = "LIGHTWEIGHT"
@@ -372,6 +385,7 @@ enum PersistentSchemaReleaseV1: String, Codable, Equatable, Sendable {
     case v6 = "V6"
     case v7 = "V7"
     case v8 = "V8"
+    case v9 = "V9"
 
     var compatibilityID: String {
         switch self {
@@ -383,6 +397,7 @@ enum PersistentSchemaReleaseV1: String, Codable, Equatable, Sendable {
         case .v6: return "FIELD_EVIDENCE_SCHEMA_V6_LOCATION_PLACEMENT_COMPOSITION"
         case .v7: return "FIELD_EVIDENCE_SCHEMA_V7_SAVED_SMART_VIEW_DESCRIPTOR"
         case .v8: return "FIELD_EVIDENCE_SCHEMA_V8_REQUIREMENT_ASSURANCE"
+        case .v9: return "FIELD_EVIDENCE_SCHEMA_V9_PARTY_ACCOUNTABILITY"
         }
     }
 
@@ -396,6 +411,7 @@ enum PersistentSchemaReleaseV1: String, Codable, Equatable, Sendable {
         case .v6: return PersistentSchemaV6.versionIdentifier
         case .v7: return PersistentSchemaV7.versionIdentifier
         case .v8: return PersistentSchemaV8.versionIdentifier
+        case .v9: return PersistentSchemaV9.versionIdentifier
         }
     }
 
@@ -409,6 +425,7 @@ enum PersistentSchemaReleaseV1: String, Codable, Equatable, Sendable {
         case .v6: return PersistentSchemaV5.versionIdentifier
         case .v7: return PersistentSchemaV6.versionIdentifier
         case .v8: return PersistentSchemaV7.versionIdentifier
+        case .v9: return PersistentSchemaV8.versionIdentifier
         }
     }
 
@@ -422,6 +439,7 @@ enum PersistentSchemaReleaseV1: String, Codable, Equatable, Sendable {
         case .v6: return PersistentSchemaV6.models
         case .v7: return PersistentSchemaV7.models
         case .v8: return PersistentSchemaV8.models
+        case .v9: return PersistentSchemaV9.models
         }
     }
 
@@ -429,7 +447,7 @@ enum PersistentSchemaReleaseV1: String, Codable, Equatable, Sendable {
         switch self {
         case .v1: return .bootstrap
         case .v2, .v3, .v4: return .lightweight
-        case .v5, .v6, .v7, .v8: return .custom
+        case .v5, .v6, .v7, .v8, .v9: return .custom
         }
     }
 }
@@ -572,6 +590,19 @@ enum PersistentSchemaMigrationPlanV7: SchemaMigrationPlan {
     static var stages: [MigrationStage] { [migrateV7ToV8] }
 }
 
+enum PersistentSchemaMigrationPlanV8: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] { [PersistentSchemaV8.self, PersistentSchemaV9.self] }
+    // The containing StoreGenerationFactory clones the source first. No party,
+    // actor, role, qualification, or signoff is inferable from legacy bytes.
+    static let migrateV8ToV9 = MigrationStage.custom(
+        fromVersion: PersistentSchemaV8.self,
+        toVersion: PersistentSchemaV9.self,
+        willMigrate: nil,
+        didMigrate: { _ in }
+    )
+    static var stages: [MigrationStage] { [migrateV8ToV9] }
+}
+
 enum PersistentSchemaReleaseRegistryV1 {
     static let v1CompatibilityID = PersistentSchemaReleaseV1.v1.compatibilityID
     static let v2CompatibilityID = PersistentSchemaReleaseV1.v2.compatibilityID
@@ -581,16 +612,17 @@ enum PersistentSchemaReleaseRegistryV1 {
     static let v6CompatibilityID = PersistentSchemaReleaseV1.v6.compatibilityID
     static let v7CompatibilityID = PersistentSchemaReleaseV1.v7.compatibilityID
     static let v8CompatibilityID = PersistentSchemaReleaseV1.v8.compatibilityID
+    static let v9CompatibilityID = PersistentSchemaReleaseV1.v9.compatibilityID
     static let v2MarkerIDString = "00000000-0000-0000-0000-000000000002"
     static let v2MarkerID = UUID(uuidString: v2MarkerIDString)!
 
-    static let releases: [PersistentSchemaReleaseV1] = [.v1, .v2, .v3, .v4, .v5, .v6, .v7, .v8]
+    static let releases: [PersistentSchemaReleaseV1] = [.v1, .v2, .v3, .v4, .v5, .v6, .v7, .v8, .v9]
 
-    static let activeVersionIdentifier = PersistentSchemaV8.versionIdentifier
-    static let activeCompatibilityID = v8CompatibilityID
+    static let activeVersionIdentifier = PersistentSchemaV9.versionIdentifier
+    static let activeCompatibilityID = v9CompatibilityID
 
     static var activeRelease: PersistentSchemaReleaseV1 {
-        .v8
+        .v9
     }
 
     static var activeReleaseDescriptor: PersistentSchemaReleaseV1 {
@@ -598,7 +630,7 @@ enum PersistentSchemaReleaseRegistryV1 {
     }
 
     static var activeMigrationPlan: any SchemaMigrationPlan.Type {
-        PersistentSchemaMigrationPlanV7.self
+        PersistentSchemaMigrationPlanV8.self
     }
 
     static func validate() throws {
@@ -609,7 +641,7 @@ enum PersistentSchemaReleaseRegistryV1 {
     static func validate(
         _ candidate: [PersistentSchemaReleaseV1]
     ) throws {
-        guard candidate.count == 8 else {
+        guard candidate.count == 9 else {
             throw PersistentSchemaReleaseRegistryErrorV1.invalidReleaseCount
         }
 
@@ -659,6 +691,11 @@ enum PersistentSchemaReleaseRegistryV1 {
         ]
         let expectedV8ModelIDs = expectedV7ModelIDs + [
             ObjectIdentifier(RequirementAssuranceRow.self),
+        ]
+        let expectedV9ModelIDs = expectedV8ModelIDs + [
+            ObjectIdentifier(ServicePartyRow.self), ObjectIdentifier(SitePartyRoleEventRow.self),
+            ObjectIdentifier(ActorSnapshotRow.self), ObjectIdentifier(QualificationSnapshotRow.self),
+            ObjectIdentifier(SignoffSnapshotRow.self),
         ]
 
         guard candidate[0] == .v1,
@@ -767,9 +804,20 @@ enum PersistentSchemaReleaseRegistryV1 {
             throw PersistentSchemaReleaseRegistryErrorV1.invalidSuccessorRelease
         }
 
-        guard activeRelease == .v8,
-              activeVersionIdentifier == candidate[7].versionIdentifier,
-              activeCompatibilityID == candidate[7].compatibilityID,
+        guard candidate[8] == .v9,
+              candidate[8].versionIdentifier == PersistentSchemaV9.versionIdentifier,
+              candidate[8].compatibilityID == v9CompatibilityID,
+              candidate[8].predecessorVersionIdentifier == PersistentSchemaV8.versionIdentifier,
+              candidate[8].models.count == 27,
+              candidate[8].models.map({ ObjectIdentifier($0) }) == expectedV9ModelIDs,
+              Array(expectedV9ModelIDs.dropLast(5)) == expectedV8ModelIDs,
+              candidate[8].migrationStage == .custom else {
+            throw PersistentSchemaReleaseRegistryErrorV1.invalidSuccessorRelease
+        }
+
+        guard activeRelease == .v9,
+              activeVersionIdentifier == candidate[8].versionIdentifier,
+              activeCompatibilityID == candidate[8].compatibilityID,
               PersistentSchemaMigrationPlanV1.schemas.count == 2,
               ObjectIdentifier(PersistentSchemaMigrationPlanV1.schemas[0])
                   == ObjectIdentifier(PersistentSchemaV1.self),
@@ -801,7 +849,11 @@ enum PersistentSchemaReleaseRegistryV1 {
               PersistentSchemaMigrationPlanV7.schemas.count == 2,
               ObjectIdentifier(PersistentSchemaMigrationPlanV7.schemas[0]) == ObjectIdentifier(PersistentSchemaV7.self),
               ObjectIdentifier(PersistentSchemaMigrationPlanV7.schemas[1]) == ObjectIdentifier(PersistentSchemaV8.self),
-              PersistentSchemaMigrationPlanV7.stages.count == 1 else {
+              PersistentSchemaMigrationPlanV7.stages.count == 1,
+              PersistentSchemaMigrationPlanV8.schemas.count == 2,
+              ObjectIdentifier(PersistentSchemaMigrationPlanV8.schemas[0]) == ObjectIdentifier(PersistentSchemaV8.self),
+              ObjectIdentifier(PersistentSchemaMigrationPlanV8.schemas[1]) == ObjectIdentifier(PersistentSchemaV9.self),
+              PersistentSchemaMigrationPlanV8.stages.count == 1 else {
             throw PersistentSchemaReleaseRegistryErrorV1.invalidActiveRelease
         }
     }
@@ -827,6 +879,6 @@ enum PersistentSchemaReleaseRegistryV1 {
 
     static func activeSchema() throws -> Schema {
         try validate()
-        return Schema(PersistentSchemaV8.models, version: PersistentSchemaV8.versionIdentifier)
+        return Schema(PersistentSchemaV9.models, version: PersistentSchemaV9.versionIdentifier)
     }
 }

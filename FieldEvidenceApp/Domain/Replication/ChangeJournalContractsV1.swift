@@ -21,6 +21,46 @@ enum ChangeJournalFailureV1: Error, Equatable, Sendable {
     case incompleteCheckpoint
 }
 
+/// Declares C38 transport coverage without creating a network or identity
+/// source. These kinds travel only as ordinary accepted writer envelopes.
+struct PartyAccountabilityJournalCoverageV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let entityKinds: [WorkspaceEntityKindV1]
+    let acceptedEnvelopeOnly: Bool
+    let historicSnapshotsImmutable: Bool
+
+    init(
+        schemaVersion: Int = Self.schemaVersion,
+        entityKinds: [WorkspaceEntityKindV1] = [
+            .serviceParty, .sitePartyRoleEvent, .actorSnapshot,
+            .qualificationSnapshot, .signoffSnapshot,
+        ],
+        acceptedEnvelopeOnly: Bool = true,
+        historicSnapshotsImmutable: Bool = true
+    ) throws {
+        self.schemaVersion = schemaVersion
+        self.entityKinds = entityKinds.sorted { $0.rawValue < $1.rawValue }
+        self.acceptedEnvelopeOnly = acceptedEnvelopeOnly
+        self.historicSnapshotsImmutable = historicSnapshotsImmutable
+        try validate()
+    }
+
+    func validate() throws {
+        let expected: Set<WorkspaceEntityKindV1> = [
+            .serviceParty, .sitePartyRoleEvent, .actorSnapshot,
+            .qualificationSnapshot, .signoffSnapshot,
+        ]
+        guard schemaVersion == Self.schemaVersion,
+              Set(entityKinds) == expected,
+              entityKinds.count == expected.count,
+              entityKinds == entityKinds.sorted(by: { $0.rawValue < $1.rawValue }),
+              acceptedEnvelopeOnly, historicSnapshotsImmutable else {
+            throw ChangeJournalFailureV1.invalidValue
+        }
+    }
+}
+
 struct ChangeJournalLimitsV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     static let productionMaximumChangesPerBatch = 128

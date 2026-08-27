@@ -12,6 +12,12 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     case packageRequiredViews = "package.illuminated_sign.guidance.required_views"
     case packageVisibleConditionsOnly = "package.illuminated_sign.guidance.visible_conditions_only"
     case packageAuthorizedPosition = "package.illuminated_sign.guidance.authorized_position"
+    case accountabilityHeading = "accountability.heading"
+    case accountabilityParty = "accountability.party"
+    case accountabilityRole = "accountability.role"
+    case accountabilityActor = "accountability.actor"
+    case accountabilityQualification = "accountability.qualification"
+    case accountabilitySignoff = "accountability.signoff"
 }
 
 enum LocalizationCatalogPublicationBoundaryV1: String, CaseIterable, Sendable {
@@ -81,6 +87,39 @@ enum BundledLocalizationCatalogV1 {
         ])
     }
 
+    /// C38's additive key surface.  The legacy `registry()` remains frozen so
+    /// S8.4 mail callers retain their exact V1 key/ID contract.
+    static func accountabilityRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try registry()
+        let additions = [
+            try definition(
+                .accountabilityHeading, "report.accountability.heading", "Accountability",
+                "Heading for the localized accountability projection in a report."
+            ),
+            try definition(
+                .accountabilityParty, "report.accountability.party", "Party",
+                "Localized label for a service party in the accountability projection."
+            ),
+            try definition(
+                .accountabilityRole, "report.accountability.role", "Site role",
+                "Localized label for a historical site role event."
+            ),
+            try definition(
+                .accountabilityActor, "report.accountability.actor", "Responsible actor",
+                "Localized label for a locally captured responsible actor."
+            ),
+            try definition(
+                .accountabilityQualification, "report.accountability.qualification", "Declared qualification",
+                "Localized label for a declared qualification snapshot."
+            ),
+            try definition(
+                .accountabilitySignoff, "report.accountability.signoff", "Local response",
+                "Localized label for a local signoff assertion or disposition."
+            ),
+        ]
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
     static func accessibilityRegistry(
         localization: LocalizationKeyRegistryV1
     ) throws -> SemanticAccessibilityIDRegistryV1 {
@@ -103,19 +142,83 @@ enum BundledLocalizationCatalogV1 {
         )
     }
 
+    static func accountabilityAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let base = try accessibilityRegistry(localization: localization)
+        let entries: [AccessibilityContractV1] = [
+            AccessibilityContractV1(
+                semanticID: "accountability.party", role: .group,
+                reachability: .always,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.accountabilityParty.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: "accountability.site-role", role: .group,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.accountabilityRole.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: "accountability.actor", role: .group,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.accountabilityActor.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: "accountability.qualification", role: .group,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.accountabilityQualification.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: "accountability.signoff", role: .group,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.accountabilitySignoff.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: "accountability.signoff.disclosure", role: .group,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.accountabilitySignoff.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: "accountability.signoff.history", role: .group,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.accountabilitySignoff.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+        ]
+        return try base.appending(entries, localization: localization)
+    }
+
     static func publish(
         sourceCatalogBytes: Data,
         packagePublications: [InspectionPackagePublishedReleaseV1] = [],
         legacy: LegacyLocalizationAccessibilityAllowlistV1,
         previousRegistry: LocalizationKeyRegistryV1? = nil,
         previousLegacy: LegacyLocalizationAccessibilityAllowlistV1? = nil,
+        includeAccountability: Bool = false,
         interruption: Interruption = { _ in }
     ) throws -> LocalizationCatalogPublicationV1 {
         try interruption(.beforeValidation)
         try legacy.validate()
         let locales = LocalizationLocaleManifestV1.shippingV1()
         try locales.validate()
-        let keys = try registry()
+        let keys: LocalizationKeyRegistryV1
+        if includeAccountability {
+            keys = try accountabilityRegistry()
+        } else {
+            keys = try registry()
+        }
         try validateSourceCatalog(sourceCatalogBytes, registry: keys)
         if let previousRegistry { try keys.validateSuccessor(of: previousRegistry) }
         let requiredMailLegacy = try mailLegacyAllowlist()
@@ -123,7 +226,12 @@ enum BundledLocalizationCatalogV1 {
             throw LocalizationContractFailureV1.legacyAllowlistGrowth
         }
         if let previousLegacy { try previousLegacy.validateObserved(legacy.entries) }
-        let accessibility = try accessibilityRegistry(localization: keys)
+        let accessibility: SemanticAccessibilityIDRegistryV1
+        if includeAccountability {
+            accessibility = try accountabilityAccessibilityRegistry(localization: keys)
+        } else {
+            accessibility = try accessibilityRegistry(localization: keys)
+        }
         let registryBytes = try LocalizationContractCanonicalCodecV1.encode(keys)
         let localeBytes = try LocalizationContractCanonicalCodecV1.encode(locales)
         let release = try LocalizationCatalogReleaseV1.make(
@@ -161,7 +269,8 @@ enum BundledLocalizationCatalogV1 {
         sourceCatalogBytes: Data?,
         receipt: LocalizationCatalogPublicationReceiptV1?,
         legacy: LegacyLocalizationAccessibilityAllowlistV1,
-        packagePublications: [InspectionPackagePublishedReleaseV1] = []
+        packagePublications: [InspectionPackagePublishedReleaseV1] = [],
+        includeAccountability: Bool = false
     ) throws -> LocalizationCatalogPublicationV1 {
         switch (sourceCatalogBytes, receipt) {
         case (nil, nil): return .zero
@@ -169,7 +278,8 @@ enum BundledLocalizationCatalogV1 {
             let publication = try publish(
                 sourceCatalogBytes: bytes,
                 packagePublications: packagePublications,
-                legacy: legacy
+                legacy: legacy,
+                includeAccountability: includeAccountability
             )
             guard case let .complete(_, _, _, _, actual) = publication,
                   actual == expected else { throw LocalizationContractFailureV1.digestMismatch }
@@ -203,6 +313,18 @@ enum BundledLocalizationCatalogV1 {
             return String(localized: "package.illuminated_sign.guidance.visible_conditions_only", defaultValue: "Record only conditions visible in the evidence.", bundle: bundle, locale: locale, comment: "Shipping illuminated-sign package limitation guidance.")
         case .packageAuthorizedPosition:
             return String(localized: "package.illuminated_sign.guidance.authorized_position", defaultValue: "Stand in an authorized position before taking a photo.", bundle: bundle, locale: locale, comment: "Shipping illuminated-sign package safety guidance.")
+        case .accountabilityHeading:
+            return String(localized: "accountability.heading", defaultValue: "Accountability", bundle: bundle, locale: locale, comment: "Heading for the localized accountability projection in a report.")
+        case .accountabilityParty:
+            return String(localized: "accountability.party", defaultValue: "Party", bundle: bundle, locale: locale, comment: "Localized label for a service party in the accountability projection.")
+        case .accountabilityRole:
+            return String(localized: "accountability.role", defaultValue: "Site role", bundle: bundle, locale: locale, comment: "Localized label for a historical site role event.")
+        case .accountabilityActor:
+            return String(localized: "accountability.actor", defaultValue: "Responsible actor", bundle: bundle, locale: locale, comment: "Localized label for a locally captured responsible actor.")
+        case .accountabilityQualification:
+            return String(localized: "accountability.qualification", defaultValue: "Declared qualification", bundle: bundle, locale: locale, comment: "Localized label for a declared qualification snapshot.")
+        case .accountabilitySignoff:
+            return String(localized: "accountability.signoff", defaultValue: "Local response", bundle: bundle, locale: locale, comment: "Localized label for a local signoff assertion or disposition.")
         }
     }
 
@@ -247,17 +369,24 @@ enum BundledLocalizationCatalogV1 {
               let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               root["sourceLanguage"] as? String == "en",
               root["version"] as? String == "1.0",
-              let strings = root["strings"] as? [String: Any],
-              Set(strings.keys) == Set(registry.definitions.map(\.key.rawValue)) else {
+              let strings = root["strings"] as? [String: Any] else {
             throw LocalizationContractFailureV1.invalidValue
         }
-        for (rawKey, rawEntry) in strings {
-            guard let entry = rawEntry as? [String: Any],
+        let registeredKeys = Set(registry.definitions.map(\.key.rawValue))
+        let supportedKeys = Set((try? accountabilityRegistry())?.definitions.map(\.key.rawValue) ?? [])
+        guard registeredKeys.isSubset(of: Set(strings.keys)),
+              Set(strings.keys).isSubset(of: supportedKeys) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+        for definition in registry.definitions {
+            let rawKey = definition.key.rawValue
+            guard let rawEntry = strings[rawKey],
+                  let entry = rawEntry as? [String: Any],
                   let comment = entry["comment"] as? String,
                   !comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   let localizations = entry["localizations"] as? [String: Any],
                   Set(localizations.keys) == Set(["en"]),
-                  let definition = try? registry.definition(for: LocalizationKeyV1(rawKey)) else {
+                  (try? registry.definition(for: LocalizationKeyV1(rawKey))) != nil else {
                 throw LocalizationContractFailureV1.missingComment
             }
             guard comment == definition.translatorComment,

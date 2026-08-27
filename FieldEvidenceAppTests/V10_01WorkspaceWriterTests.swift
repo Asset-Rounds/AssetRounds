@@ -406,6 +406,32 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
         ))
     }
 
+    func testV23P03C38WriterBoundaryBindsRowsToMutationAndExpectedRevision() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let writerSource = try String(
+            contentsOf: root.appendingPathComponent(
+                "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(writerSource.contains("MutationReceipt"))
+        XCTAssertTrue(writerSource.contains("mutationID"))
+        XCTAssertTrue(writerSource.contains("expectedRevision"))
+        XCTAssertTrue(writerSource.contains("currentRevision"))
+
+        let rowsSource = try String(
+            contentsOf: root.appendingPathComponent(
+                "FieldEvidenceApp/Domain/Models/PartyAccountabilityPersistenceModelsV1.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(rowsSource.contains("func replace(with successor"))
+        XCTAssertTrue(rowsSource.contains("expectedRevision: UInt64"))
+        XCTAssertTrue(rowsSource.contains("PartyAccountabilitySnapshotCodecV1.encode"))
+    }
+
     private static func makeTemporaryApplicationSupportURL() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "V10_01WorkspaceWriterTests-\(UUID().uuidString)",

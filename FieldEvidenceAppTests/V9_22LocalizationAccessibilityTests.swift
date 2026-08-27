@@ -396,6 +396,43 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
         XCTAssertEqual(recovered, first)
     }
 
+    func testV23P03C38AccessibilityLocalizationMetadataIsTestOnlyAndNonIdentifying() throws {
+        let root = repositoryRootURL()
+        let fixtureURL = root.appendingPathComponent(
+            "FieldEvidenceAppTests/Fixtures/V21/Accountability/V21P03C38PartyAccountabilityCorpusV1.json"
+        )
+        let fixture = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: fixtureURL)) as? [String: Any]
+        )
+        let localization = try XCTUnwrap(fixture["localizationAccessibility"] as? [String: Any])
+        XCTAssertEqual(localization["sourceLanguage"] as? String, "en")
+        XCTAssertEqual(localization["shippingLocales"] as? [String], ["en"])
+        XCTAssertEqual(
+            Set(localization["pseudoLocalesTestOnly"] as? [String] ?? []),
+            Set(["en-XA", "en-XB", "ar-XB", "en-XL", "en-XT"])
+        )
+        XCTAssertEqual(localization["rtlRequired"] as? Bool, true)
+        XCTAssertEqual(localization["dynamicTypeRequired"] as? Bool, true)
+        XCTAssertEqual(localization["voiceOverRequired"] as? Bool, true)
+        XCTAssertEqual(localization["voiceControlRequired"] as? Bool, true)
+        XCTAssertEqual(localization["switchControlRequired"] as? Bool, true)
+        XCTAssertEqual(localization["nonColorStateTextRequired"] as? Bool, true)
+        XCTAssertEqual((localization["semanticIDs"] as? [String])?.count, 7)
+
+        let claims = try XCTUnwrap(fixture["claims"] as? [String: Any])
+        XCTAssertTrue(claims.values.allSatisfy { ($0 as? Bool) == false })
+        let appRoot = root.appendingPathComponent("FieldEvidenceApp", isDirectory: true)
+        let appSwiftSources = try XCTUnwrap(
+            FileManager.default.enumerator(at: appRoot, includingPropertiesForKeys: nil)?
+                .compactMap { $0 as? URL }
+                .filter { $0.pathExtension == "swift" }
+        )
+        let appSource = try appSwiftSources
+            .map { try String(contentsOf: $0, encoding: .utf8) }
+            .joined(separator: "\n")
+        XCTAssertFalse(appSource.contains("accessibilityIdentifier(\"party.email\")"))
+    }
+
     private func corpus() throws -> Corpus {
         try JSONDecoder().decode(Corpus.self, from: Data(contentsOf: try fixtureURL()))
     }

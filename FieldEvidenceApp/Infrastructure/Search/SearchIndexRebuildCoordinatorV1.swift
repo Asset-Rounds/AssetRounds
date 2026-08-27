@@ -73,6 +73,9 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         let status: String
         let dueAt: Date?
         let timestamp: Date
+        /// Role history is intentionally a bounded, non-contact summary.  It
+        /// is only populated for the additive C38 party projection.
+        let roleSummary: String = ""
     }
 
     let registry: SearchableFieldRegistryV1
@@ -81,6 +84,7 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
     private let generationID: UUID
     private let revisionProvider: @MainActor () throws -> SearchSourceRevisionV1
     private let operationalStatusProvider: (any SearchOperationalStatusProvidingV1)?
+    private let includeAccountability: Bool
     private var snapshotRevision: SearchSourceRevisionV1?
     private var snapshotValues: [CanonicalValue]?
     private var snapshotBackupStaleIdentities: Set<SearchCanonicalRecordIdentityV1> = []
@@ -90,7 +94,8 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         workspaceID: UUID,
         generationID: UUID,
         revisionProvider: @escaping @MainActor () throws -> SearchSourceRevisionV1,
-        operationalStatusProvider: (any SearchOperationalStatusProvidingV1)? = nil
+        operationalStatusProvider: (any SearchOperationalStatusProvidingV1)? = nil,
+        includeAccountability: Bool = false
     ) throws {
         guard workspaceID != SearchContractValidationV1.zeroUUID,
               generationID != SearchContractValidationV1.zeroUUID else {
@@ -101,7 +106,12 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         self.generationID = generationID
         self.revisionProvider = revisionProvider
         self.operationalStatusProvider = operationalStatusProvider
-        registry = try Self.makeRegistry()
+        self.includeAccountability = includeAccountability
+        if includeAccountability {
+            registry = try Self.makeAccountabilityRegistry()
+        } else {
+            registry = try Self.makeRegistry()
+        }
     }
 
     func currentSearchSourceRevision() async throws -> SearchSourceRevisionV1 {
@@ -210,6 +220,32 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                 display: display, summary: display, breadcrumb: [], status: $0.pdfState,
                 dueAt: nil, timestamp: $0.createdAt)
         }
+        if includeAccountability {
+            var rolesByParty: [UUID: Set<String>] = [:]
+            let roleRows = try modelContext.fetch(FetchDescriptor<SitePartyRoleEventRow>())
+                .filter { $0.workspaceID == workspaceID }
+            for row in roleRows {
+                let event = try row.value()
+                rolesByParty[event.partyID, default: []].insert(event.role.rawValue)
+            }
+            values += try modelContext.fetch(FetchDescriptor<ServicePartyRow>())
+                .filter { $0.workspaceID == workspaceID }
+                .map { row in
+                    let party = try row.value()
+                    let roles = (rolesByParty[party.partyID] ?? []).sorted()
+                    return CanonicalValue(
+                        kind: .party,
+                        stableID: try stableKey(kind: .serviceParty, id: party.partyID),
+                        display: party.displayName,
+                        summary: party.profileDescriptor ?? party.displayName,
+                        breadcrumb: [],
+                        status: party.state.rawValue,
+                        dueAt: party.retiredAt,
+                        timestamp: party.effectiveAt,
+                        roleSummary: roles.isEmpty ? "NO_ROLE_RECORDED" : roles.joined(separator: " ")
+                    )
+                }
+        }
         guard values.count <= SearchContractLimitsV1.maximumCanonicalRecords else {
             throw SearchIndexRebuildFailureV1.recordLimitExceeded
         }
@@ -268,6 +304,9 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         case .report:
             fields = [("report_identifier", value.stableID), ("report_summary", value.summary),
                       ("status", value.status)]
+        case .party:
+            fields = [("party_identifier", value.stableID), ("party_label", value.display),
+                      ("party_role", value.roleSummary), ("status", value.status)]
         }
         return try fields.map { fieldID, text in
             let searchable = text.isEmpty ? value.stableID : text
@@ -317,7 +356,44 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         try append("location_breadcrumb", .location)
         try append("work_identifier", .work, identity: true); try append("work_summary", .work)
         try append("report_identifier", .report, identity: true); try append("report_summary", .report)
-        for kind in SearchSourceKindV1.allCases { try append("status", kind, operational: true) }
+        // Keep the legacy V1 registry byte-for-byte stable.  The additive
+        // party status registration belongs only to the opt-in C38 registry.
+        for kind in [.asset, .location, .work, .report] as [SearchSourceKindV1] {
+            try append("status", kind, operational: true)
+        }
+        return try SearchableFieldRegistryV1(fields: fields)
+    }
+
+    static func makeAccountabilityRegistry() throws -> SearchableFieldRegistryV1 {
+        var fields: [SearchableFieldDescriptorV1] = []
+        func append(_ id: String, _ kind: SearchSourceKindV1, identity: Bool = false,
+                    operational: Bool = false) throws {
+            fields.append(try SearchableFieldDescriptorV1(
+                fieldID: id, sourceKind: kind,
+                privacyClass: identity ? .userVisibleIdentifier
+                    : (operational ? .approvedOperationalState : .approvedCustomerText),
+                tokenization: identity ? .exactIdentity : (operational ? .keyword : .unicodeWords),
+                normalization: identity ? .stableIdentity : .unicodeCaseAndDiacriticFoldedNFC,
+                snippetPermission: (identity || operational)
+                    ? .exactDisplayValue : .boundedUserVisibleExcerpt,
+                retention: .untilSourceFieldIsAmended, purgeOwner: .indexRebuildCoordinator
+            ))
+        }
+        try append("asset_identifier", .asset, identity: true)
+        try append("asset_label", .asset)
+        try append("location_identifier", .location, identity: true)
+        try append("location_label", .location)
+        try append("location_breadcrumb", .location)
+        try append("work_identifier", .work, identity: true)
+        try append("work_summary", .work)
+        try append("report_identifier", .report, identity: true)
+        try append("report_summary", .report)
+        try append("party_identifier", .party, identity: true)
+        try append("party_label", .party)
+        try append("party_role", .party)
+        for kind in [.asset, .location, .work, .report, .party] as [SearchSourceKindV1] {
+            try append("status", kind, operational: true)
+        }
         return try SearchableFieldRegistryV1(fields: fields)
     }
 }
@@ -539,14 +615,16 @@ struct ProductionSearchServicesV1 {
         workspaceID: UUID,
         generationID: UUID,
         revisionProvider: @escaping @MainActor () throws -> SearchSourceRevisionV1,
-        operationalStatusProvider: (any SearchOperationalStatusProvidingV1)? = nil
+        operationalStatusProvider: (any SearchOperationalStatusProvidingV1)? = nil,
+        includeAccountability: Bool = false
     ) throws {
         let source = try SwiftDataSearchCanonicalProjectionSourceV1(
             modelContext: modelContext,
             workspaceID: workspaceID,
             generationID: generationID,
             revisionProvider: revisionProvider,
-            operationalStatusProvider: operationalStatusProvider
+            operationalStatusProvider: operationalStatusProvider,
+            includeAccountability: includeAccountability
         )
         self.source = source
         registry = source.registry

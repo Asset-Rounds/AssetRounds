@@ -18,7 +18,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         .applyAssetCompositionChange,
     ]
     static let activeSupportedCommandKinds = supportedCommandKinds.union(locationSupportedCommandKinds)
-        .union([.applySavedSmartView, .applyRequirementAssurance])
+        .union([.applySavedSmartView, .applyRequirementAssurance, .applyPartyAccountability])
 
     private let modelContext: ModelContext
 
@@ -94,6 +94,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                 occurredAt: occurredAt,
                 temporaryRelativePath: temporaryRelativePath
             )
+        case let .applyPartyAccountability(value):
+            return try applyPartyAccountability(value, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -183,6 +185,21 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                 ))
                 guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
                 exists = values.count == 1
+            case .serviceParty:
+                let values = try modelContext.fetch(FetchDescriptor<ServicePartyRow>(predicate: #Predicate { $0.partyID == id }))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }; exists = values.count == 1
+            case .sitePartyRoleEvent:
+                let values = try modelContext.fetch(FetchDescriptor<SitePartyRoleEventRow>(predicate: #Predicate { $0.eventID == id }))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }; exists = values.count == 1
+            case .actorSnapshot:
+                let values = try modelContext.fetch(FetchDescriptor<ActorSnapshotRow>(predicate: #Predicate { $0.snapshotID == id }))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }; exists = values.count == 1
+            case .qualificationSnapshot:
+                let values = try modelContext.fetch(FetchDescriptor<QualificationSnapshotRow>(predicate: #Predicate { $0.snapshotID == id }))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }; exists = values.count == 1
+            case .signoffSnapshot:
+                let values = try modelContext.fetch(FetchDescriptor<SignoffSnapshotRow>(predicate: #Predicate { $0.snapshotID == id }))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }; exists = values.count == 1
             case .workflowRecord:
                 let values = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(
                     predicate: #Predicate { $0.id == id }
@@ -1033,6 +1050,117 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             affectedEntities: [.init(kind: .workflowRecord, id: recordID)],
             temporaryRelativePath: temporaryRelativePath
         )
+    }
+
+    private func applyPartyAccountability(
+        _ mutation: PartyAccountabilityMutationV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        try mutation.validate()
+        let identity = try mutation.affectedIdentity
+        switch mutation {
+        case let .recordParty(value):
+            let partyID = value.partyID
+            var descriptor = FetchDescriptor<ServicePartyRow>(predicate: #Predicate { $0.partyID == partyID })
+            descriptor.fetchLimit = 2
+            let rows = try modelContext.fetch(descriptor)
+            guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+            if let row = rows.first {
+                let prior = try row.value()
+                guard prior.revision < UInt64.max else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                do {
+                    try value.validateSuccessor(of: prior)
+                    try row.replace(with: value, expectedRevision: prior.revision)
+                } catch PartyAccountabilityFailureV1.staleRevision {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(identity)
+                } catch {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } else if value.revision != 1 {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            } else {
+                modelContext.insert(try ServicePartyRow(value))
+            }
+        case let .appendSiteRole(value):
+            let eventID = value.eventID
+            let siteID = value.siteID
+            let partyID = value.partyID
+            var duplicate = FetchDescriptor<SitePartyRoleEventRow>(predicate: #Predicate { $0.eventID == eventID })
+            duplicate.fetchLimit = 1
+            guard try modelContext.fetch(duplicate).isEmpty else { throw WorkspaceMutationFailureV1.invalidCommand }
+            var site = FetchDescriptor<Site>(predicate: #Predicate { $0.id == siteID }); site.fetchLimit = 1
+            var party = FetchDescriptor<ServicePartyRow>(predicate: #Predicate { $0.partyID == partyID }); party.fetchLimit = 1
+            guard try modelContext.fetch(site).count == 1,
+                  let partyValue = try modelContext.fetch(party).first?.value(),
+                  partyValue.workspaceID == value.workspaceID else { throw WorkspaceMutationFailureV1.invalidCommand }
+            let predecessor: SitePartyRoleEventV1?
+            if let predecessorID = value.supersedesEventID {
+                var d = FetchDescriptor<SitePartyRoleEventRow>(predicate: #Predicate { $0.eventID == predecessorID }); d.fetchLimit = 1
+                guard let row = try modelContext.fetch(d).first else { throw WorkspaceMutationFailureV1.invalidCommand }
+                predecessor = try row.value()
+            } else { predecessor = nil }
+            modelContext.insert(try SitePartyRoleEventRow(value, predecessor: predecessor))
+        case let .appendActorSnapshot(value):
+            let snapshotID = value.snapshotID
+            var d = FetchDescriptor<ActorSnapshotRow>(predicate: #Predicate { $0.snapshotID == snapshotID }); d.fetchLimit = 1
+            guard try modelContext.fetch(d).isEmpty else { throw WorkspaceMutationFailureV1.invalidCommand }
+            if let partyID = value.actor.partyID {
+                var partyDescriptor = FetchDescriptor<ServicePartyRow>(
+                    predicate: #Predicate { $0.partyID == partyID }
+                )
+                partyDescriptor.fetchLimit = 2
+                let partyRows = try modelContext.fetch(partyDescriptor)
+                guard partyRows.count == 1 else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                let party = try partyRows[0].value()
+                do {
+                    try value.actor.validatePartyReference(party)
+                } catch {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            }
+            modelContext.insert(try ActorSnapshotRow(value))
+        case let .appendQualificationSnapshot(value):
+            let snapshotID = value.snapshotID
+            var d = FetchDescriptor<QualificationSnapshotRow>(predicate: #Predicate { $0.snapshotID == snapshotID }); d.fetchLimit = 1
+            guard try modelContext.fetch(d).isEmpty else { throw WorkspaceMutationFailureV1.invalidCommand }
+            modelContext.insert(try QualificationSnapshotRow(value))
+        case let .appendSignoff(value):
+            let snapshotID = value.snapshotID
+            var d = FetchDescriptor<SignoffSnapshotRow>(predicate: #Predicate { $0.snapshotID == snapshotID }); d.fetchLimit = 1
+            guard try modelContext.fetch(d).isEmpty else { throw WorkspaceMutationFailureV1.invalidCommand }
+            if let embeddedActor = value.roleAssertion?.actor {
+                let actorID = embeddedActor.snapshotID
+                var actorDescriptor = FetchDescriptor<ActorSnapshotRow>(predicate: #Predicate { $0.snapshotID == actorID })
+                actorDescriptor.fetchLimit = 2
+                let actorRows = try modelContext.fetch(actorDescriptor)
+                guard actorRows.count == 1,
+                      try actorRows[0].value() == embeddedActor else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            }
+            if let embeddedQualification = value.qualification {
+                let qualificationID = embeddedQualification.snapshotID
+                var qualificationDescriptor = FetchDescriptor<QualificationSnapshotRow>(predicate: #Predicate { $0.snapshotID == qualificationID })
+                qualificationDescriptor.fetchLimit = 2
+                let qualificationRows = try modelContext.fetch(qualificationDescriptor)
+                guard qualificationRows.count == 1,
+                      try qualificationRows[0].value() == embeddedQualification else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            }
+            let predecessor: SignoffSnapshotV1?
+            if let predecessorID = value.supersedesSnapshotID {
+                var p = FetchDescriptor<SignoffSnapshotRow>(predicate: #Predicate { $0.snapshotID == predecessorID }); p.fetchLimit = 1
+                guard let row = try modelContext.fetch(p).first else { throw WorkspaceMutationFailureV1.invalidCommand }
+                predecessor = try row.value()
+            } else { predecessor = nil }
+            modelContext.insert(try SignoffSnapshotRow(value, predecessor: predecessor))
+        }
+        return try WorkspaceMutationEffectV1(affectedEntities: [identity], temporaryRelativePath: temporaryRelativePath)
     }
 
     private static func isSHA256(_ value: String) -> Bool {

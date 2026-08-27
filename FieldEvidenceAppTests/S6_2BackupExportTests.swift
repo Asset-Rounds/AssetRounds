@@ -233,6 +233,49 @@ final class S6_2BackupExportTests: XCTestCase {
         let tags = try XCTUnwrap(declaration["UTTypeTagSpecification"] as? [String: Any])
         XCTAssertEqual(tags["public.filename-extension"] as? [String], ["fieldrecordbackup"])
     }
+
+    func testV23P03C38BackupRestoreAndDeleteKeepAccountabilityRowsCanonical() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixtureURL = root.appendingPathComponent(
+            "FieldEvidenceAppTests/Fixtures/V21/Accountability/V21P03C38PartyAccountabilityCorpusV1.json"
+        )
+        let fixture = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: fixtureURL)) as? [String: Any]
+        )
+        let persistence = try XCTUnwrap(fixture["persistence"] as? [String: Any])
+        XCTAssertEqual(persistence["schemaRelease"] as? String, "PERSISTENT_SCHEMA_V9_PARTY_ACCOUNTABILITY")
+        XCTAssertEqual(persistence["exportDisposition"] as? String, "CANONICAL_DOMAIN_BYTES_AND_FROZEN_SNAPSHOTS")
+        XCTAssertEqual(persistence["deleteDisposition"] as? String, "EXPLICIT_ERASE_OR_TOMBSTONE_WITH_HISTORY_PRESERVED")
+
+        let encoderSource = try String(
+            contentsOf: root.appendingPathComponent(
+                "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift"
+            ),
+            encoding: .utf8
+        )
+        let restoreSource = try String(
+            contentsOf: root.appendingPathComponent(
+                "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift"
+            ),
+            encoding: .utf8
+        )
+        let deletionSource = try String(
+            contentsOf: root.appendingPathComponent(
+                "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(encoderSource.contains("validPartyAccountability"))
+        XCTAssertTrue(encoderSource.contains("partyAccountability"))
+        XCTAssertTrue(restoreSource.contains("rebindingPartyAccountability"))
+        XCTAssertTrue(restoreSource.contains("ServicePartyRow"))
+        XCTAssertTrue(restoreSource.contains("SignoffSnapshotRow"))
+        XCTAssertTrue(deletionSource.contains("ServicePartyRow"))
+        XCTAssertTrue(deletionSource.contains("SignoffSnapshotRow"))
+        XCTAssertTrue(deletionSource.contains("modelContext.delete"))
+    }
 }
 
 private extension S6_2BackupExportTests {

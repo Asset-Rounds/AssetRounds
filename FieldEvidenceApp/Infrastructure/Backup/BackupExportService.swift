@@ -57,6 +57,11 @@ final class BackupExportService {
         let locationMigrationReceipts: [LocationMigrationReceiptRow]
         let locationNodes: [LocationNodeRow]
         let packets: [Packet]
+        let serviceParties: [ServicePartyRow]
+        let sitePartyRoleEvents: [SitePartyRoleEventRow]
+        let actorSnapshots: [ActorSnapshotRow]
+        let qualificationSnapshots: [QualificationSnapshotRow]
+        let signoffSnapshots: [SignoffSnapshotRow]
         let reports: [Report]
         let requirementAssurance: [RequirementAssuranceRow]
         let savedSmartViews: [SavedSmartViewRowV1]
@@ -661,6 +666,7 @@ private extension BackupExportService {
                 locationNodes: records.locationNodes,
                 mutationHistory: nil,
                 packets: records.packets,
+                partyAccountability: records.partyAccountability,
                 recordsSchemaVersion: records.recordsSchemaVersion,
                 reports: records.reports,
                 requirementAssurance: records.requirementAssurance,
@@ -872,9 +878,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 8,
+                persistentSchemaVersion: 9,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 7,
+                recordsSchemaVersion: 8,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1397,6 +1403,11 @@ private extension BackupExportService {
                 locationMigrationReceipts: try modelContext.fetch(FetchDescriptor<LocationMigrationReceiptRow>()),
                 locationNodes: try modelContext.fetch(FetchDescriptor<LocationNodeRow>()),
                 packets: try modelContext.fetch(FetchDescriptor<Packet>()),
+                serviceParties: try modelContext.fetch(FetchDescriptor<ServicePartyRow>()),
+                sitePartyRoleEvents: try modelContext.fetch(FetchDescriptor<SitePartyRoleEventRow>()),
+                actorSnapshots: try modelContext.fetch(FetchDescriptor<ActorSnapshotRow>()),
+                qualificationSnapshots: try modelContext.fetch(FetchDescriptor<QualificationSnapshotRow>()),
+                signoffSnapshots: try modelContext.fetch(FetchDescriptor<SignoffSnapshotRow>()),
                 reports: try modelContext.fetch(FetchDescriptor<Report>()),
                 requirementAssurance: try modelContext.fetch(
                     FetchDescriptor<RequirementAssuranceRow>()
@@ -1432,6 +1443,11 @@ private extension BackupExportService {
               Set(rows.requirementAssurance.map(\.workflowRecordID))
                 == Set(rows.records.map(\.id)),
               unique(rows.savedSmartViews.map(\.id)),
+              unique(rows.serviceParties.map(\.partyID)),
+              unique(rows.sitePartyRoleEvents.map(\.eventID)),
+              unique(rows.actorSnapshots.map(\.snapshotID)),
+              unique(rows.qualificationSnapshots.map(\.snapshotID)),
+              unique(rows.signoffSnapshots.map(\.snapshotID)),
               rows.sites.allSatisfy({ $0.schemaVersion == 1 }),
               rows.assets.allSatisfy({ $0.schemaVersion == 1 }),
               rows.records.allSatisfy({ $0.schemaVersion == 1 }),
@@ -1451,7 +1467,12 @@ private extension BackupExportService {
                           workspaceID: descriptor.workspaceID,
                           stableID: descriptor.stableID
                       )
-              }) else {
+              }),
+              rows.serviceParties.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }),
+              rows.sitePartyRoleEvents.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }),
+              rows.actorSnapshots.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }),
+              rows.qualificationSnapshots.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }),
+              rows.signoffSnapshots.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }) else {
             throw BackupExportServiceError.invalidAuthority
         }
         let siteIDs = Set(rows.sites.map(\.id))
@@ -1844,9 +1865,10 @@ private extension BackupExportService {
                     contentDeletedAt: $0.contentDeletedAt, createdAt: $0.createdAt
                 )
             }.sorted(by: dtoOrder),
+            partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 7,
+                : 8,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -1878,6 +1900,47 @@ private extension BackupExportService {
                 return workflowDTO(record, observationAndTime: companion)
             }.sorted(by: dtoOrder)
         )
+    }
+
+    private func partyAccountabilityRecords(
+        _ rows: Rows
+    ) throws -> [V9BackupPartyAccountabilityRecordV1] {
+        var result: [V9BackupPartyAccountabilityRecordV1] = []
+        result += try rows.serviceParties.map {
+            let value = try $0.value()
+            return .init(kind: .serviceParty, id: value.partyID,
+                         workspaceID: value.workspaceID.rawValue,
+                         revision: value.revision, canonicalData: $0.canonicalData)
+        }
+        result += try rows.sitePartyRoleEvents.map {
+            let value = try $0.value()
+            return .init(kind: .sitePartyRoleEvent, id: value.eventID,
+                         workspaceID: value.workspaceID.rawValue,
+                         revision: value.revision, canonicalData: $0.canonicalData)
+        }
+        result += try rows.actorSnapshots.map {
+            let value = try $0.value()
+            return .init(kind: .actorSnapshot, id: value.snapshotID,
+                         workspaceID: value.workspaceID.rawValue,
+                         revision: nil, canonicalData: $0.canonicalData)
+        }
+        result += try rows.qualificationSnapshots.map {
+            let value = try $0.value()
+            return .init(kind: .qualificationSnapshot, id: value.snapshotID,
+                         workspaceID: value.workspaceID.rawValue,
+                         revision: nil, canonicalData: $0.canonicalData)
+        }
+        result += try rows.signoffSnapshots.map {
+            let value = try $0.value()
+            return .init(kind: .signoffSnapshot, id: value.snapshotID,
+                         workspaceID: value.workspaceID.rawValue,
+                         revision: value.subjectRevision, canonicalData: $0.canonicalData)
+        }
+        return result.sorted {
+            let lhs = "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
+            let rhs = "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
+            return lhs < rhs
+        }
     }
 
     func validateDeletionLedger(_ ledger: DeletionLedgerV2, rows: Rows) throws {

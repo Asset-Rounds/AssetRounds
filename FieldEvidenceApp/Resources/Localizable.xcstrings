@@ -133,6 +133,72 @@
           }
         }
       }
+    },
+    "accountability.heading" : {
+      "comment" : "Heading for the localized accountability projection in a report.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accountability"
+          }
+        }
+      }
+    },
+    "accountability.party" : {
+      "comment" : "Localized label for a service party in the accountability projection.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Party"
+          }
+        }
+      }
+    },
+    "accountability.role" : {
+      "comment" : "Localized label for a historical site role event.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Site role"
+          }
+        }
+      }
+    },
+    "accountability.actor" : {
+      "comment" : "Localized label for a locally captured responsible actor.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Responsible actor"
+          }
+        }
+      }
+    },
+    "accountability.qualification" : {
+      "comment" : "Localized label for a declared qualification snapshot.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Declared qualification"
+          }
+        }
+      }
+    },
+    "accountability.signoff" : {
+      "comment" : "Localized label for a local signoff assertion or disposition.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local response"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

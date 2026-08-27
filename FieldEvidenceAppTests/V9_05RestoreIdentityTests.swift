@@ -495,6 +495,33 @@ final class V9_05RestoreIdentityTests: XCTestCase {
                 .recoverBeforeWriterActivation()
         )
     }
+
+    func testV23P03C38RestoreRebindPreservesWorkspaceAndNeverClaimsIdentity() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixtureURL = root.appendingPathComponent(
+            "FieldEvidenceAppTests/Fixtures/V21/Accountability/V21P03C38PartyAccountabilityCorpusV1.json"
+        )
+        let fixture = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: fixtureURL)) as? [String: Any]
+        )
+        let claims = try XCTUnwrap(fixture["claims"] as? [String: Any])
+        XCTAssertTrue(claims.values.allSatisfy { ($0 as? Bool) == false })
+
+        let restoreSource = try String(
+            contentsOf: root.appendingPathComponent(
+                "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(restoreSource.contains("rebindingPartyAccountability"))
+        XCTAssertTrue(restoreSource.contains("records.partyAccountability"))
+        XCTAssertTrue(restoreSource.contains("workspaceID"))
+        XCTAssertTrue(restoreSource.contains("PartyAccountabilitySnapshotCodecV1.decode"))
+        XCTAssertFalse(restoreSource.contains("identityVerified = true"))
+        XCTAssertFalse(restoreSource.contains("legalSignature = true"))
+    }
 }
 
 private extension V9_05RestoreIdentityTests {

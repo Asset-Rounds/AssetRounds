@@ -77,9 +77,13 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     ]
     static let v7PersistentModelNames = ["SavedSmartView"]
     static let v8PersistentModelNames = ["RequirementAssuranceRow"]
+    static let v9PersistentModelNames = [
+        "ActorSnapshotRow", "QualificationSnapshotRow", "ServicePartyRow",
+        "SignoffSnapshotRow", "SitePartyRoleEventRow",
+    ]
     static let activePersistentModelNames =
         (persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
-            + v8PersistentModelNames).sorted()
+            + v8PersistentModelNames + v9PersistentModelNames).sorted()
 
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
@@ -113,6 +117,11 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "RequirementEvaluationV1",
         "CompletionDecisionV1",
         "IntegrityFindingV1",
+        "ServicePartyReferenceV1",
+        "SitePartyRoleEventV1",
+        "ActorSnapshotV1",
+        "QualificationSnapshotV1",
+        "SignoffSnapshotV1",
     ]
 
     static let derivedIndexNames = [
@@ -133,6 +142,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "StoreSemanticEnvelopeV6",
         "StoreSemanticEnvelopeV7",
         "StoreSemanticEnvelopeV8",
+        "StoreSemanticEnvelopeV9",
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
@@ -593,6 +603,15 @@ private extension CurrentSyncClassificationCatalogV1 {
                 dependencies: [try subject(category: .persistentModel, name: "WorkflowRecord")]
             ))
         }
+        for name in v9PersistentModelNames {
+            let mutable = name == "ServicePartyRow"
+            specs.append(AdditionalSpec(
+                category: .persistentModel,
+                name: name,
+                profile: mutable ? .replicatedContent : .replicatedMutationHistory,
+                dependencies: try partyPersistentDependencies(for: name)
+            ))
+        }
 
         for name in portableContentProjectionNames {
             let profile: AdditionalProfile = name == "ReportSnapshotV1"
@@ -902,6 +921,16 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "RequirementAssuranceSnapshotV1", "RequirementEvaluationV1",
              "CompletionDecisionV1", "IntegrityFindingV1":
             return [try subject(category: .persistentModel, name: "RequirementAssuranceRow")]
+        case "ServicePartyReferenceV1":
+            return [try subject(category: .persistentModel, name: "ServicePartyRow")]
+        case "SitePartyRoleEventV1":
+            return [try subject(category: .persistentModel, name: "SitePartyRoleEventRow")]
+        case "ActorSnapshotV1":
+            return [try subject(category: .persistentModel, name: "ActorSnapshotRow")]
+        case "QualificationSnapshotV1":
+            return [try subject(category: .persistentModel, name: "QualificationSnapshotRow")]
+        case "SignoffSnapshotV1":
+            return [try subject(category: .persistentModel, name: "SignoffSnapshotRow")]
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
@@ -937,6 +966,9 @@ private extension CurrentSyncClassificationCatalogV1 {
                 names: persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
             )
         case "StoreSemanticEnvelopeV8":
+            return try subjects(category: .persistentModel, names:
+                persistentModelNames + v6PersistentModelNames + v7PersistentModelNames + v8PersistentModelNames)
+        case "StoreSemanticEnvelopeV9":
             return try subjects(category: .persistentModel, names: activePersistentModelNames)
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
@@ -969,6 +1001,20 @@ private extension CurrentSyncClassificationCatalogV1 {
         }
     }
 
+    static func partyPersistentDependencies(for name: String) throws -> [SyncSubjectIdentityV1] {
+        switch name {
+        case "ServicePartyRow": return []
+        case "SitePartyRoleEventRow":
+            return try subjects(category: .persistentModel, names: ["ServicePartyRow", "Site"])
+        case "ActorSnapshotRow":
+            return [try subject(category: .persistentModel, name: "ServicePartyRow")]
+        case "QualificationSnapshotRow": return []
+        case "SignoffSnapshotRow":
+            return try subjects(category: .persistentModel, names: ["ActorSnapshotRow", "QualificationSnapshotRow", "ServicePartyRow"])
+        default: throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+        }
+    }
+
     static func validatePersistentModels() throws {
         let frozenV5: [any PersistentModel.Type] = [
             Site.self,
@@ -995,8 +1041,13 @@ private extension CurrentSyncClassificationCatalogV1 {
             LocationMigrationReceiptRow.self,
             SavedSmartViewRowV1.self,
             RequirementAssuranceRow.self,
+            ServicePartyRow.self,
+            SitePartyRoleEventRow.self,
+            ActorSnapshotRow.self,
+            QualificationSnapshotRow.self,
+            SignoffSnapshotRow.self,
         ]
-        let runtimeNames = PersistentSchemaV8.models.map { modelType in
+        let runtimeNames = PersistentSchemaV9.models.map { modelType in
             String(describing: modelType)
                 .split(separator: ".")
                 .last
@@ -1009,8 +1060,8 @@ private extension CurrentSyncClassificationCatalogV1 {
               Set(PersistentSchemaV5.models.map { ObjectIdentifier($0) })
                 == Set(frozenV5.map { ObjectIdentifier($0) }),
               frozenNames == persistentModelNames,
-              PersistentSchemaV8.models.count == expected.count,
-              Set(PersistentSchemaV8.models.map { ObjectIdentifier($0) })
+              PersistentSchemaV9.models.count == expected.count,
+              Set(PersistentSchemaV9.models.map { ObjectIdentifier($0) })
                 == Set(expected.map { ObjectIdentifier($0) }),
               runtimeNames.count == Set(runtimeNames).count,
               runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),

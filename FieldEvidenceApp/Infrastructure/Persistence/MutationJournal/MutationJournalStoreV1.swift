@@ -1136,6 +1136,31 @@ final class MutationJournalStoreV1 {
                 return try tombstone(identity, revision)
             }
             return try semanticPostImage(identity, revision, try row.descriptor())
+        case .serviceParty:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<ServicePartyRow>(predicate: #Predicate { $0.partyID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try semanticPostImage(identity, revision, try row.value())
+        case .sitePartyRoleEvent:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<SitePartyRoleEventRow>(predicate: #Predicate { $0.eventID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try semanticPostImage(identity, revision, try row.value())
+        case .actorSnapshot:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<ActorSnapshotRow>(predicate: #Predicate { $0.snapshotID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try semanticPostImage(identity, revision, try row.value())
+        case .qualificationSnapshot:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<QualificationSnapshotRow>(predicate: #Predicate { $0.snapshotID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try semanticPostImage(identity, revision, try row.value())
+        case .signoffSnapshot:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<SignoffSnapshotRow>(predicate: #Predicate { $0.snapshotID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try semanticPostImage(identity, revision, try row.value())
         case .workflowRecord:
             let id = identity.id
             let rows = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(predicate: #Predicate { $0.id == id }))
@@ -1334,6 +1359,11 @@ final class MutationJournalStoreV1 {
         case .assetCompositionEdge: return .assetCompositionEdge(id: identity.id, revision: revision, semanticSHA256: digest)
         case .assetCompositionEvent: return .assetCompositionEvent(id: identity.id, revision: revision, semanticSHA256: digest)
         case .savedSmartView: return .savedSmartView(id: identity.id, revision: revision, semanticSHA256: digest)
+        case .serviceParty: return .serviceParty(id: identity.id, revision: revision, semanticSHA256: digest)
+        case .sitePartyRoleEvent: return .sitePartyRoleEvent(id: identity.id, revision: revision, semanticSHA256: digest)
+        case .actorSnapshot: return .actorSnapshot(id: identity.id, revision: revision, semanticSHA256: digest)
+        case .qualificationSnapshot: return .qualificationSnapshot(id: identity.id, revision: revision, semanticSHA256: digest)
+        case .signoffSnapshot: return .signoffSnapshot(id: identity.id, revision: revision, semanticSHA256: digest)
         case .workflowRecord: return .workflowRecord(id: identity.id, revision: revision, semanticSHA256: digest)
         case .evidenceFile: return .evidenceFile(id: identity.id, revision: revision, semanticSHA256: digest)
         case .issue: return .issue(id: identity.id, revision: revision, semanticSHA256: digest)

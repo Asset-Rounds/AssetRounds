@@ -142,7 +142,7 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         )
     }
 
-    func testV1ThroughV8RegistryKeepDistinctOrderedSchemas() throws {
+    func testV1ThroughV9RegistryKeepDistinctOrderedSchemas() throws {
         XCTAssertEqual(PersistentSchemaV1.versionIdentifier, Schema.Version(1, 0, 0))
         XCTAssertEqual(PersistentSchemaV2.versionIdentifier, Schema.Version(2, 0, 0))
         XCTAssertEqual(PersistentSchemaV3.versionIdentifier, Schema.Version(3, 0, 0))
@@ -151,6 +151,7 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         XCTAssertEqual(PersistentSchemaV6.versionIdentifier, Schema.Version(6, 0, 0))
         XCTAssertEqual(PersistentSchemaV7.versionIdentifier, Schema.Version(7, 0, 0))
         XCTAssertEqual(PersistentSchemaV8.versionIdentifier, Schema.Version(8, 0, 0))
+        XCTAssertEqual(PersistentSchemaV9.versionIdentifier, Schema.Version(9, 0, 0))
         XCTAssertEqual(
             modelTypeIDs(PersistentSchemaV1.models),
             modelTypeIDs(PersistentModelCatalog.models)
@@ -163,6 +164,7 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         XCTAssertEqual(PersistentSchemaV6.models.count, 20)
         XCTAssertEqual(PersistentSchemaV7.models.count, 21)
         XCTAssertEqual(PersistentSchemaV8.models.count, 22)
+        XCTAssertEqual(PersistentSchemaV9.models.count, 27)
         XCTAssertEqual(
             modelTypeIDs(Array(PersistentSchemaV2.models.dropLast())),
             modelTypeIDs(PersistentModelCatalog.models)
@@ -240,17 +242,31 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
             ObjectIdentifier(RequirementAssuranceRow.self)
         )
         XCTAssertEqual(
-            PersistentSchemaReleaseRegistryV1.releases,
-            [.v1, .v2, .v3, .v4, .v5, .v6, .v7, .v8]
+            modelTypeIDs(Array(PersistentSchemaV9.models.dropLast(5))),
+            modelTypeIDs(PersistentSchemaV8.models)
         )
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v8)
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV9.models.suffix(5))),
+            [
+                ObjectIdentifier(ServicePartyRow.self),
+                ObjectIdentifier(SitePartyRoleEventRow.self),
+                ObjectIdentifier(ActorSnapshotRow.self),
+                ObjectIdentifier(QualificationSnapshotRow.self),
+                ObjectIdentifier(SignoffSnapshotRow.self),
+            ]
+        )
+        XCTAssertEqual(
+            PersistentSchemaReleaseRegistryV1.releases,
+            [.v1, .v2, .v3, .v4, .v5, .v6, .v7, .v8, .v9]
+        )
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v9)
         XCTAssertEqual(
             PersistentSchemaReleaseRegistryV1.activeVersionIdentifier,
-            PersistentSchemaV8.versionIdentifier
+            PersistentSchemaV9.versionIdentifier
         )
         XCTAssertEqual(
             PersistentSchemaReleaseRegistryV1.activeCompatibilityID,
-            PersistentSchemaReleaseRegistryV1.v8CompatibilityID
+            PersistentSchemaReleaseRegistryV1.v9CompatibilityID
         )
         XCTAssertNoThrow(try PersistentSchemaReleaseRegistryV1.validate())
         XCTAssertEqual(
@@ -313,6 +329,15 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         XCTAssertEqual(PersistentSchemaReleaseV1.v6.migrationStage, .custom)
         XCTAssertEqual(PersistentSchemaReleaseV1.v7.migrationStage, .custom)
         XCTAssertEqual(PersistentSchemaReleaseV1.v8.migrationStage, .custom)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v9.migrationStage, .custom)
+        XCTAssertEqual(
+            PersistentSchemaMigrationPlanV8.schemas.map { ObjectIdentifier($0) },
+            [
+                ObjectIdentifier(PersistentSchemaV8.self),
+                ObjectIdentifier(PersistentSchemaV9.self),
+            ]
+        )
+        XCTAssertEqual(PersistentSchemaMigrationPlanV8.stages.count, 1)
 
         let factorySource = try sourceText(
             "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
@@ -326,6 +351,8 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         XCTAssertTrue(factorySource.contains("PersistentSchemaV6"))
         XCTAssertTrue(factorySource.contains("PersistentSchemaV7"))
         XCTAssertTrue(factorySource.contains("PersistentSchemaV8"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaV9"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaMigrationPlanV8.self"))
         XCTAssertTrue(factorySource.contains("PersistentSchemaReleaseMarker"))
         XCTAssertTrue(factorySource.contains("migrationPlan: PersistentSchemaMigrationPlanV1.self"))
         XCTAssertTrue(factorySource.contains("migrationPlan: PersistentSchemaMigrationPlanV4.self"))
@@ -334,7 +361,7 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         XCTAssertTrue(factorySource.contains("migrationPlan: PersistentSchemaMigrationPlanV7.self"))
         XCTAssertEqual(
             factorySource.components(separatedBy: "cloudKitDatabase: .none").count - 1,
-            8
+            9
         )
         XCTAssertFalse(factorySource.contains("cloudKitDatabase: .automatic"))
         XCTAssertFalse(factorySource.contains("NSPersistentCloudKitContainer"))

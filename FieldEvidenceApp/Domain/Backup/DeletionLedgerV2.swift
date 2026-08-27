@@ -40,6 +40,33 @@ enum DeletionRecordKindV2: String, CaseIterable, Codable, Equatable, Sendable {
     case report = "report"
 }
 
+enum PartyAccountabilityDeletionDispositionV1: String, Codable, Equatable, Sendable {
+    case preserveImmutableHistoryUntilWorkspaceErase = "PRESERVE_IMMUTABLE_HISTORY_UNTIL_WORKSPACE_ERASE"
+}
+
+enum PartyAccountabilityDeletionLedgerPolicyV1 {
+    static func disposition(
+        for kind: V9BackupPartyAccountabilityRecordV1.Kind
+    ) -> PartyAccountabilityDeletionDispositionV1 {
+        switch kind {
+        case .serviceParty, .sitePartyRoleEvent, .actorSnapshot,
+             .qualificationSnapshot, .signoffSnapshot:
+            return .preserveImmutableHistoryUntilWorkspaceErase
+        }
+    }
+
+    static func validate() throws {
+        let kinds = V9BackupPartyAccountabilityRecordV1.Kind.allCases
+        guard kinds.count == 5,
+              Set(kinds.map(\.rawValue)).count == kinds.count,
+              kinds.allSatisfy({
+                  disposition(for: $0) == .preserveImmutableHistoryUntilWorkspaceErase
+              }) else {
+            throw DeletionLedgerFailureV2.invalidIdentity
+        }
+    }
+}
+
 struct DeletionIdentityV2: Codable, Comparable, Equatable, Hashable, Sendable {
     static let separator = ":"
 
@@ -91,6 +118,7 @@ struct DeletionLedgerEntryV2: Codable, Equatable, Hashable, Sendable {
     }
 
     func validate() throws {
+        try PartyAccountabilityDeletionLedgerPolicyV1.validate()
         guard schemaVersion == 2 else {
             throw DeletionLedgerFailureV2.invalidSchemaVersion
         }

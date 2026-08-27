@@ -30,6 +30,9 @@ enum SearchContractLimitsV1 {
     static let maximumQueryTokens = 32
     static let exactSearchableFieldCount = 10
     static let maximumFieldRegistrations = 13
+    /// Additive C38 party projection fields.  The original 13-field registry
+    /// remains valid for callers that have not opted into accountability.
+    static let maximumAccountabilityFieldRegistrations = 17
     static let maximumFilters = 16
     static let maximumSuggestions = 5
     static let maximumSnippetBytes = 320
@@ -37,6 +40,9 @@ enum SearchContractLimitsV1 {
     static let maximumProjectionTokens = 128
     static let maximumCanonicalRecords = 10_000
     static let maximumProjectionRecords = maximumCanonicalRecords * exactSearchableFieldCount
+    static let maximumAccountabilityProjectionFieldsPerRecord = 4
+    static let maximumAccountabilityProjectionRecords = maximumCanonicalRecords
+        * maximumAccountabilityProjectionFieldsPerRecord
     static let maximumSavedViewNameBytes = 120
 }
 
@@ -99,6 +105,7 @@ enum SearchScopeV1: String, CaseIterable, Codable, Hashable, Sendable {
     case locations = "LOCATIONS"
     case work = "WORK"
     case reports = "REPORTS"
+    case parties = "PARTIES"
 
     func contains(_ kind: SearchSourceKindV1) -> Bool {
         switch self {
@@ -107,6 +114,7 @@ enum SearchScopeV1: String, CaseIterable, Codable, Hashable, Sendable {
         case .locations: return kind == .location
         case .work: return kind == .work
         case .reports: return kind == .report
+        case .parties: return kind == .party
         }
     }
 }
@@ -116,6 +124,7 @@ enum SearchSourceKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case location = "LOCATION"
     case work = "WORK"
     case report = "REPORT"
+    case party = "PARTY"
 }
 
 enum SearchFieldPrivacyClassV1: String, CaseIterable, Codable, Hashable, Sendable {
@@ -161,6 +170,9 @@ enum FrozenSearchableFieldV1: String, CaseIterable, Codable, Hashable, Sendable 
     case workSummary = "work_summary"
     case reportIdentifier = "report_identifier"
     case reportSummary = "report_summary"
+    case partyIdentifier = "party_identifier"
+    case partyLabel = "party_label"
+    case partyRole = "party_role"
     case status = "status"
 
     var allowedSourceKinds: Set<SearchSourceKindV1> {
@@ -169,13 +181,15 @@ enum FrozenSearchableFieldV1: String, CaseIterable, Codable, Hashable, Sendable 
         case .locationIdentifier, .locationLabel, .locationBreadcrumb: return [.location]
         case .workIdentifier, .workSummary: return [.work]
         case .reportIdentifier, .reportSummary: return [.report]
+        case .partyIdentifier, .partyLabel, .partyRole: return [.party]
         case .status: return Set(SearchSourceKindV1.allCases)
         }
     }
 
     var isIdentifier: Bool {
         switch self {
-        case .assetIdentifier, .locationIdentifier, .workIdentifier, .reportIdentifier: return true
+        case .assetIdentifier, .locationIdentifier, .workIdentifier, .reportIdentifier,
+             .partyIdentifier: return true
         default: return false
         }
     }
@@ -291,17 +305,19 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
 
     func validate() throws {
         guard schemaVersion == Self.schemaVersion,
-              fields.count <= SearchContractLimitsV1.maximumFieldRegistrations else {
+              fields.count <= SearchContractLimitsV1.maximumAccountabilityFieldRegistrations else {
             throw SearchContractFailureV1.limitExceeded
         }
-        guard fields.count == SearchContractLimitsV1.maximumFieldRegistrations else {
+        guard fields.count == SearchContractLimitsV1.maximumFieldRegistrations
+                || fields.count == SearchContractLimitsV1.maximumAccountabilityFieldRegistrations else {
             throw SearchContractFailureV1.invalidField
         }
         let identities = fields.map { $0.fieldID + ":" + $0.sourceKind.rawValue }
         guard Set(identities).count == fields.count else {
             throw SearchContractFailureV1.duplicateField
         }
-        guard Set(identities) == Self.frozenRegistrationIdentities else {
+        guard Set(identities) == Self.frozenRegistrationIdentities
+                || Set(identities) == Self.accountabilityRegistrationIdentities else {
             throw SearchContractFailureV1.invalidField
         }
         try fields.forEach { try $0.validate() }
@@ -322,6 +338,13 @@ struct SearchableFieldRegistryV1: Codable, Equatable, Sendable {
         "status:WORK",
         "status:REPORT",
     ]
+
+    static let accountabilityRegistrationIdentities: Set<String> = frozenRegistrationIdentities.union([
+        "party_identifier:PARTY",
+        "party_label:PARTY",
+        "party_role:PARTY",
+        "status:PARTY",
+    ])
 
     func descriptor(fieldID: String, sourceKind: SearchSourceKindV1) throws -> SearchableFieldDescriptorV1 {
         guard let value = fields.first(where: { $0.fieldID == fieldID && $0.sourceKind == sourceKind }) else {
@@ -1035,9 +1058,11 @@ struct SavedSmartViewDescriptorV1: Codable, Equatable, Sendable {
     ) throws -> Self {
         guard origin == .userSaved else { throw SearchContractFailureV1.builtInViewMutation }
         guard revision < UInt64.max else { throw SearchContractFailureV1.invalidRevision }
+        let (nextRevision, overflowed) = revision.addingReportingOverflow(1)
+        guard !overflowed else { throw SearchContractFailureV1.invalidRevision }
         return try Self(id: id, workspaceID: workspaceID, stableID: stableID, origin: origin,
                         name: name, query: query, scope: scope, filters: filters, sort: sort,
-                        revision: revision + 1, mutationID: mutationID, createdAt: createdAt, updatedAt: updatedAt)
+                        revision: nextRevision, mutationID: mutationID, createdAt: createdAt, updatedAt: updatedAt)
     }
 
     private enum CodingKeys: String, CodingKey, CaseIterable {

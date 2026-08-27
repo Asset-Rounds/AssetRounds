@@ -18,6 +18,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let v6TargetID: UUID
         let v7TargetID: UUID
         let v8TargetID: UUID
+        let v9TargetID: UUID
         let siteID: UUID
         let assetID: UUID
         let recordID: UUID
@@ -253,14 +254,32 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         XCTAssertEqual(v8FirstLaunch.phase, .firstLaunchValidated)
 
         var eighthLaunch: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
-        XCTAssertEqual(try XCTUnwrap(eighthLaunch).generationID, fixture.v8TargetID)
+        XCTAssertEqual(try XCTUnwrap(eighthLaunch).generationID, fixture.v9TargetID)
         let assurances = try XCTUnwrap(eighthLaunch).modelContext.fetch(
             FetchDescriptor<RequirementAssuranceRow>()
         )
         XCTAssertEqual(assurances.count, 1)
         XCTAssertEqual(try assurances[0].snapshot().workflowRecordID, fixture.recordID)
         XCTAssertEqual(try assurances[0].currentDecision().disposition, .blocked)
+        XCTAssertEqual(try XCTUnwrap(eighthLaunch).modelContext.fetchCount(FetchDescriptor<ServicePartyRow>()), 0)
+        XCTAssertEqual(try XCTUnwrap(eighthLaunch).modelContext.fetchCount(FetchDescriptor<SitePartyRoleEventRow>()), 0)
+        XCTAssertEqual(try XCTUnwrap(eighthLaunch).modelContext.fetchCount(FetchDescriptor<ActorSnapshotRow>()), 0)
+        XCTAssertEqual(try XCTUnwrap(eighthLaunch).modelContext.fetchCount(FetchDescriptor<QualificationSnapshotRow>()), 0)
+        XCTAssertEqual(try XCTUnwrap(eighthLaunch).modelContext.fetchCount(FetchDescriptor<SignoffSnapshotRow>()), 0)
         eighthLaunch = nil
+        let v9FirstLaunch = try XCTUnwrap(try store.loadJournal())
+        XCTAssertEqual(v9FirstLaunch.sourceRelease, .v8)
+        XCTAssertEqual(v9FirstLaunch.targetRelease, .v9)
+        XCTAssertEqual(v9FirstLaunch.phase, .firstLaunchValidated)
+
+        var ninthLaunch: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
+        XCTAssertEqual(try XCTUnwrap(ninthLaunch).generationID, fixture.v9TargetID)
+        XCTAssertEqual(try XCTUnwrap(ninthLaunch).modelContext.fetchCount(FetchDescriptor<ServicePartyRow>()), 0)
+        XCTAssertEqual(try XCTUnwrap(ninthLaunch).modelContext.fetchCount(FetchDescriptor<SitePartyRoleEventRow>()), 0)
+        XCTAssertEqual(try XCTUnwrap(ninthLaunch).modelContext.fetchCount(FetchDescriptor<ActorSnapshotRow>()), 0)
+        XCTAssertEqual(try XCTUnwrap(ninthLaunch).modelContext.fetchCount(FetchDescriptor<QualificationSnapshotRow>()), 0)
+        XCTAssertEqual(try XCTUnwrap(ninthLaunch).modelContext.fetchCount(FetchDescriptor<SignoffSnapshotRow>()), 0)
+        ninthLaunch = nil
         XCTAssertNil(try store.loadJournal())
         XCTAssertEqual(try pointerSchema(in: fixture.root), 3)
     }
@@ -855,6 +874,39 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         )
     }
 
+    func testV23P03C38V8ToV9MigrationIsCopyOnWriteAndDoesNotInventParties() throws {
+        XCTAssertEqual(
+            PersistentSchemaMigrationPlanV8.schemas.map { ObjectIdentifier($0) },
+            [
+                ObjectIdentifier(PersistentSchemaV8.self),
+                ObjectIdentifier(PersistentSchemaV9.self),
+            ]
+        )
+        XCTAssertEqual(PersistentSchemaMigrationPlanV8.stages.count, 1)
+
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let schemaSource = try String(
+            contentsOf: root.appendingPathComponent(
+                "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(schemaSource.contains("PersistentSchemaV8.self, PersistentSchemaV9.self"))
+        XCTAssertTrue(schemaSource.contains("empty collections"))
+        XCTAssertTrue(schemaSource.contains("didMigrate: { _ in }"))
+
+        let factorySource = try String(
+            contentsOf: root.appendingPathComponent(
+                "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(factorySource.contains("PersistentSchemaMigrationPlanV8.self"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaV9"))
+    }
+
     private func makeLegacyFixture(suffix: String) throws -> LegacyFixture {
         let root = fileManager.temporaryDirectory.appendingPathComponent(
             "V9_03MigrationRecoveryTests-\(suffix)",
@@ -873,6 +925,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let v6TargetID = fixedUUID("00000000-0000-0000-0000-00000000001a")
         let v7TargetID = fixedUUID("00000000-0000-0000-0000-00000000001b")
         let v8TargetID = fixedUUID("00000000-0000-0000-0000-00000000001c")
+        let v9TargetID = fixedUUID("00000000-0000-0000-0000-00000000001d")
         let siteID = fixedUUID("00000000-0000-0000-0000-000000000013")
         let assetID = fixedUUID("00000000-0000-0000-0000-000000000014")
         let recordID = fixedUUID("00000000-0000-0000-0000-000000000018")
@@ -1000,6 +1053,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
             v6TargetID: v6TargetID,
             v7TargetID: v7TargetID,
             v8TargetID: v8TargetID,
+            v9TargetID: v9TargetID,
             siteID: siteID,
             assetID: assetID,
             recordID: recordID,
@@ -1047,6 +1101,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
                     if pointer.storeSchemaVersion == 5 { return fixture.v6TargetID }
                     if pointer.storeSchemaVersion == 6 { return fixture.v7TargetID }
                     if pointer.storeSchemaVersion == 7 { return fixture.v8TargetID }
+                    if pointer.storeSchemaVersion == 8 { return fixture.v9TargetID }
                 }
                 return fixture.v3TargetID
             },
@@ -1134,6 +1189,11 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         case .v7:
             schema = Schema(PersistentSchemaV7.models, version: PersistentSchemaV7.versionIdentifier)
         case .v8:
+            schema = Schema(
+                PersistentSchemaV8.models,
+                version: PersistentSchemaV8.versionIdentifier
+            )
+        case .v9:
             schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
         }
         let configuration = ModelConfiguration(
@@ -1188,6 +1248,10 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
             expectedSchemaVersion = 8
             expectedReleaseID = PersistentSchemaReleaseRegistryV1.v8CompatibilityID
             expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v7CompatibilityID
+        case .v9:
+            expectedSchemaVersion = 9
+            expectedReleaseID = PersistentSchemaReleaseRegistryV1.v9CompatibilityID
+            expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v8CompatibilityID
         }
         XCTAssertEqual(marker.schemaVersion, expectedSchemaVersion)
         XCTAssertEqual(
@@ -1238,6 +1302,11 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         case .v7:
             schema = Schema(PersistentSchemaV7.models, version: PersistentSchemaV7.versionIdentifier)
         case .v8:
+            schema = Schema(
+                PersistentSchemaV8.models,
+                version: PersistentSchemaV8.versionIdentifier
+            )
+        case .v9:
             schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
         }
         let configuration = ModelConfiguration(

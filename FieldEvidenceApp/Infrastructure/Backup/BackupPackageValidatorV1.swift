@@ -569,7 +569,7 @@ private extension BackupPackageValidatorV1 {
             manifest.source.recordsSchemaVersion
         ) {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
-             (4, 5, 4), (4, 6, 5), (4, 7, 6), (4, 8, 7):
+             (4, 5, 4), (4, 6, 5), (4, 7, 6), (4, 8, 7), (4, 9, 8):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false
@@ -716,6 +716,7 @@ private extension BackupPackageValidatorV1 {
         try validateDeletionLedger(records, manifest: manifest)
         try validateObservationAndTime(records)
         try validateLocationRecords(records, manifest: manifest)
+        try validatePartyAccountability(records, manifest: manifest)
         let savedSmartViews: [SavedSmartViewDescriptorV1]
         do {
             savedSmartViews = try records.savedSmartViews.map { try $0.descriptor() }
@@ -725,7 +726,8 @@ private extension BackupPackageValidatorV1 {
         guard records.recordsSchemaVersion < 6
                 ? savedSmartViews.isEmpty
                 : ((records.recordsSchemaVersion == 6
-                        || records.recordsSchemaVersion == 7)
+                        || records.recordsSchemaVersion == 7
+                        || records.recordsSchemaVersion == 8)
                     && savedSmartViews.allSatisfy({
                         $0.workspaceID == manifest.source.workspaceID
                     }))) else {
@@ -775,7 +777,7 @@ private extension BackupPackageValidatorV1 {
               records.reports.allSatisfy({ $0.schemaVersion == 1 }),
               records.recordsSchemaVersion < 7
                 ? assuranceSnapshots.isEmpty
-                : (records.recordsSchemaVersion == 7
+                : ((records.recordsSchemaVersion == 7 || records.recordsSchemaVersion == 8)
                     && assuranceSnapshots.allSatisfy({ snapshot in
                         snapshot.workspaceID == manifest.source.workspaceID
                             && workflow[snapshot.workflowRecordID] != nil
@@ -1066,7 +1068,7 @@ private extension BackupPackageValidatorV1 {
             }) else { throw invalid() }
             return
         }
-        guard (4...7).contains(records.recordsSchemaVersion) else { throw invalid() }
+        guard (4...8).contains(records.recordsSchemaVersion) else { throw invalid() }
         for record in records.workflowRecords {
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else {
@@ -1106,6 +1108,87 @@ private extension BackupPackageValidatorV1 {
         }
     }
 
+    func validatePartyAccountability(
+        _ records: V4BackupRecordsV1,
+        manifest: V4BackupManifestV1
+    ) throws {
+        guard records.recordsSchemaVersion >= 8 else {
+            guard records.partyAccountability.isEmpty else { throw invalid() }
+            return
+        }
+        guard records.recordsSchemaVersion == 8,
+              manifest.source.persistentSchemaVersion == 9,
+              let workspaceID = manifest.source.workspaceID else { throw invalid() }
+        let keys = records.partyAccountability.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
+        let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+        guard keys == keys.sorted(), Set(keys).count == keys.count,
+              records.partyAccountability.allSatisfy({
+                  $0.id != zero && $0.workspaceID == workspaceID
+                      && ($0.revision.map { $0 > 0 } ?? true) && !$0.canonicalData.isEmpty
+              }) else { throw invalid() }
+        do {
+            var parties = Set<UUID>()
+            var roles: [SitePartyRoleEventV1] = []
+            var actors: [UUID: ActorSnapshotV1] = [:]
+            var qualifications: [UUID: QualificationSnapshotV1] = [:]
+            var signoffs: [SignoffSnapshotV1] = []
+            for row in records.partyAccountability {
+                switch row.kind {
+                case .serviceParty:
+                    let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                        ServicePartyReferenceV1.self, from: row.canonicalData
+                    )
+                    guard value.partyID == row.id, value.workspaceID.rawValue == row.workspaceID,
+                          value.revision == row.revision else { throw invalid() }
+                    parties.insert(value.partyID)
+                case .sitePartyRoleEvent:
+                    let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                        SitePartyRoleEventV1.self, from: row.canonicalData
+                    )
+                    guard value.eventID == row.id, value.workspaceID.rawValue == row.workspaceID,
+                          value.revision == row.revision else { throw invalid() }
+                    roles.append(value)
+                case .actorSnapshot:
+                    let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                        ActorSnapshotV1.self, from: row.canonicalData
+                    )
+                    guard value.snapshotID == row.id, value.workspaceID.rawValue == row.workspaceID,
+                          row.revision == nil else { throw invalid() }
+                    actors[value.snapshotID] = value
+                case .qualificationSnapshot:
+                    let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                        QualificationSnapshotV1.self, from: row.canonicalData
+                    )
+                    guard value.snapshotID == row.id, value.workspaceID.rawValue == row.workspaceID,
+                          row.revision == nil else { throw invalid() }
+                    qualifications[value.snapshotID] = value
+                case .signoffSnapshot:
+                    let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                        SignoffSnapshotV1.self, from: row.canonicalData
+                    )
+                    guard value.snapshotID == row.id, value.workspaceID.rawValue == row.workspaceID,
+                          value.subjectRevision == row.revision else { throw invalid() }
+                    signoffs.append(value)
+                }
+            }
+            let siteIDs = Set(records.sites.map(\.id))
+            guard roles.allSatisfy({ parties.contains($0.partyID) && siteIDs.contains($0.siteID) }),
+                  actors.values.allSatisfy({ snapshot in
+                      snapshot.workspaceID.rawValue == workspaceID
+                          && snapshot.actor.workspaceID.rawValue == workspaceID
+                          && (snapshot.actor.partyID.map(parties.contains) ?? true)
+                  }),
+                  signoffs.allSatisfy({ snapshot in
+                      (snapshot.roleAssertion.map {
+                          actors[$0.actor.snapshotID] == $0.actor
+                      } ?? true)
+                          && (snapshot.qualification.map {
+                              qualifications[$0.snapshotID] == $0
+                          } ?? true)
+                  }) else { throw invalid() }
+        } catch { throw invalid() }
+    }
+
     func validateLocationRecords(
         _ records: V4BackupRecordsV1,
         manifest: V4BackupManifestV1
@@ -1125,7 +1208,9 @@ private extension BackupPackageValidatorV1 {
                 || (records.recordsSchemaVersion == 6
                     && manifest.source.persistentSchemaVersion == 7)
                 || (records.recordsSchemaVersion == 7
-                    && manifest.source.persistentSchemaVersion == 8)),
+                    && manifest.source.persistentSchemaVersion == 8)
+                || (records.recordsSchemaVersion == 8
+                    && manifest.source.persistentSchemaVersion == 9)),
               let sourceWorkspaceID = manifest.source.workspaceID else {
             throw invalid()
         }

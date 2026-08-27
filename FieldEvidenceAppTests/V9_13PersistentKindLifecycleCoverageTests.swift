@@ -64,6 +64,17 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
                 "PROJECTION:CompletionDecisionV1",
                 "PROJECTION:IntegrityFindingV1",
                 "PROJECTION:StoreSemanticEnvelopeV8",
+                "PERSISTENT_MODEL:ActorSnapshotRow",
+                "PERSISTENT_MODEL:QualificationSnapshotRow",
+                "PERSISTENT_MODEL:ServicePartyRow",
+                "PERSISTENT_MODEL:SignoffSnapshotRow",
+                "PERSISTENT_MODEL:SitePartyRoleEventRow",
+                "PROJECTION:ActorSnapshotV1",
+                "PROJECTION:QualificationSnapshotV1",
+                "PROJECTION:ServicePartyReferenceV1",
+                "PROJECTION:SignoffSnapshotV1",
+                "PROJECTION:SitePartyRoleEventV1",
+                "PROJECTION:StoreSemanticEnvelopeV9",
                 "PROJECTION:V5BackupLocationRecordV1",
             ])
         )
@@ -173,13 +184,14 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
         XCTAssertEqual(provenancePartition, [
             0: 56, 16: 6, 17: 1, 18: 1, 19: 3,
             22: 18, 24: 4, 27: 6, 28: 7, 41: 6, 42: 5, 44: 6,
+            46: 11,
         ])
         let durableFirstWrites = catalog.descriptors.filter {
             $0.temporalEvidence.firstWriteVersion != PersistentKindTemporalEvidenceV1.notApplicable
         }.map(\.stableKindID).sorted()
         XCTAssertTrue(Set(corpus.durableFirstWriteKindIDs).isSubset(of: Set(durableFirstWrites)))
-        XCTAssertEqual(durableFirstWrites.count, 74)
-        XCTAssertEqual(catalog.descriptors.count - durableFirstWrites.count, 45)
+        XCTAssertEqual(durableFirstWrites.count, 84)
+        XCTAssertEqual(catalog.descriptors.count - durableFirstWrites.count, 46)
         XCTAssertTrue(Set([
             "PROJECTION:ReportSnapshotV1",
             "PROJECTION:entityMutationRevision",
@@ -940,6 +952,57 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
                 "FUTURE_POLICY_VERSION": "QUARANTINE_AND_REQUIRE_FORWARD_FIX",
             ]
         )
+    }
+
+    func testV23P03C38CatalogAddsOnlyItsFiveRowsFiveProjectionsAndEnvelope() throws {
+        let source = try CurrentSyncClassificationCatalogV1.current
+        let c38IDs: Set<String> = [
+            "PERSISTENT_MODEL:ServicePartyRow",
+            "PERSISTENT_MODEL:SitePartyRoleEventRow",
+            "PERSISTENT_MODEL:ActorSnapshotRow",
+            "PERSISTENT_MODEL:QualificationSnapshotRow",
+            "PERSISTENT_MODEL:SignoffSnapshotRow",
+            "PROJECTION:ServicePartyReferenceV1",
+            "PROJECTION:SitePartyRoleEventV1",
+            "PROJECTION:ActorSnapshotV1",
+            "PROJECTION:QualificationSnapshotV1",
+            "PROJECTION:SignoffSnapshotV1",
+            "PROJECTION:StoreSemanticEnvelopeV9",
+        ]
+        let currentIDs = Set(source.registrations.map { $0.subject.canonicalKey })
+        XCTAssertTrue(c38IDs.isSubset(of: currentIDs))
+        XCTAssertEqual(
+            source.registrations.filter { c38IDs.contains($0.subject.canonicalKey) }
+                .map { $0.subject.canonicalKey }
+                .sorted(),
+            c38IDs.sorted()
+        )
+        XCTAssertEqual(
+            Set(source.persistentModelSubjects.map { $0.canonicalKey }).intersection(c38IDs),
+            [
+                "PERSISTENT_MODEL:ServicePartyRow",
+                "PERSISTENT_MODEL:SitePartyRoleEventRow",
+                "PERSISTENT_MODEL:ActorSnapshotRow",
+                "PERSISTENT_MODEL:QualificationSnapshotRow",
+                "PERSISTENT_MODEL:SignoffSnapshotRow",
+            ]
+        )
+        XCTAssertEqual(
+            Set(source.portableContentProjectionSubjects.map { $0.canonicalKey }).intersection(c38IDs),
+            [
+                "PROJECTION:ServicePartyReferenceV1",
+                "PROJECTION:SitePartyRoleEventV1",
+                "PROJECTION:ActorSnapshotV1",
+                "PROJECTION:QualificationSnapshotV1",
+                "PROJECTION:SignoffSnapshotV1",
+            ]
+        )
+        XCTAssertTrue(
+            source.derivedIndexProjectionSubjects.map { $0.canonicalKey }
+                .contains("PROJECTION:StoreSemanticEnvelopeV9")
+        )
+        XCTAssertTrue(source.secretSubjects.isEmpty)
+        XCTAssertFalse(source.keychainUsageDeclared)
     }
 }
 

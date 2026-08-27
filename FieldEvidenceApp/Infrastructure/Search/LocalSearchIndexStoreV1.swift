@@ -70,7 +70,9 @@ private final class SearchIndexPublicationFenceV1: @unchecked Sendable {
         }
         // Advance before touching bytes. Even a failed purge permanently
         // rejects a rebuild that started before the invalidation attempt.
-        invalidationGenerationByPath[path] = current + 1
+        let (nextGeneration, overflowed) = current.addingReportingOverflow(1)
+        guard !overflowed else { throw LocalSearchIndexStoreFailureV1.staleMutation }
+        invalidationGenerationByPath[path] = nextGeneration
         return try operation()
     }
 
@@ -123,6 +125,9 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
                   records.count <= SearchContractLimitsV1.maximumProjectionRecords,
                   records == records.sorted(),
                   Set(records.map(\.projectionIdentity)).count == records.count,
+                  records.filter { $0.sourceKind == .party }.allSatisfy {
+                      SearchAccountabilityPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+                  },
                   records.allSatisfy({
                       $0.workspaceID == source.workspaceID
                           && $0.sourceRevision <= source.commitRevision
@@ -302,6 +307,26 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
              .incompatibleFormatDropAndRebuild:
             throw SearchContractFailureV1.staleIndex
         }
+    }
+
+    /// Reads the current projection through the opt-in C38 binding.  The
+    /// derived store remains disposable, but party rows are still checked for
+    /// the explicit non-contact, non-identity/legal field policy before being
+    /// handed to report/search consumers.
+    func accountabilityProjection(
+        for source: SearchSourceRevisionV1,
+        registry: SearchableFieldRegistryV1
+    ) throws -> SearchIndexProjectionV1 {
+        guard registry.fields.contains(where: { $0.sourceKind == .party }) else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        let value = try projection(for: source, registry: registry)
+        guard value.records.filter({ $0.sourceKind == .party }).allSatisfy({
+            SearchAccountabilityPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+        }) else {
+            throw LocalSearchIndexStoreFailureV1.corruptStore
+        }
+        return value
     }
 
     func revision() throws -> SearchIndexRevisionV1? {

@@ -30,6 +30,11 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case assetCompositionEdge
     case assetCompositionEvent
     case savedSmartView
+    case serviceParty
+    case sitePartyRoleEvent
+    case actorSnapshot
+    case qualificationSnapshot
+    case signoffSnapshot
     case workflowRecord
     case evidenceFile
     case issue
@@ -489,6 +494,52 @@ struct RequirementAssuranceMutationV1: Codable, Equatable, Sendable {
     }
 }
 
+enum PartyAccountabilityMutationV1: Codable, Equatable, Sendable {
+    case recordParty(ServicePartyReferenceV1)
+    case appendSiteRole(SitePartyRoleEventV1)
+    case appendActorSnapshot(ActorSnapshotV1)
+    case appendQualificationSnapshot(QualificationSnapshotV1)
+    case appendSignoff(SignoffSnapshotV1)
+
+    var workspaceID: WorkspaceID {
+        switch self {
+        case let .recordParty(v): v.workspaceID
+        case let .appendSiteRole(v): v.workspaceID
+        case let .appendActorSnapshot(v): v.workspaceID
+        case let .appendQualificationSnapshot(v): v.workspaceID
+        case let .appendSignoff(v): v.workspaceID
+        }
+    }
+    var mutationID: MutationIDV1? {
+        switch self {
+        case let .recordParty(v): v.mutationID
+        case let .appendSiteRole(v): v.mutationID
+        case .appendActorSnapshot, .appendQualificationSnapshot: nil
+        case let .appendSignoff(v): v.mutationID
+        }
+    }
+    func validate() throws {
+        switch self {
+        case let .recordParty(v): try v.validate()
+        case let .appendSiteRole(v): try v.validate()
+        case let .appendActorSnapshot(v): try v.validate()
+        case let .appendQualificationSnapshot(v): try v.validate()
+        case let .appendSignoff(v): try v.validate()
+        }
+    }
+    var affectedIdentity: WorkspaceEntityIdentityV1 {
+        get throws {
+            switch self {
+            case let .recordParty(v): try .init(kind: .serviceParty, id: v.partyID)
+            case let .appendSiteRole(v): try .init(kind: .sitePartyRoleEvent, id: v.eventID)
+            case let .appendActorSnapshot(v): try .init(kind: .actorSnapshot, id: v.snapshotID)
+            case let .appendQualificationSnapshot(v): try .init(kind: .qualificationSnapshot, id: v.snapshotID)
+            case let .appendSignoff(v): try .init(kind: .signoffSnapshot, id: v.snapshotID)
+            }
+        }
+    }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -507,6 +558,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyAssetCompositionChange(AssetCompositionChangePlanV1)
     case applySavedSmartView(SavedSmartViewMutationV1)
     case applyRequirementAssurance(RequirementAssuranceMutationV1)
+    case applyPartyAccountability(PartyAccountabilityMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -527,6 +579,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyAssetCompositionChange: .applyAssetCompositionChange
         case .applySavedSmartView: .applySavedSmartView
         case .applyRequirementAssurance: .applyRequirementAssurance
+        case .applyPartyAccountability: .applyPartyAccountability
         }
     }
 }
@@ -549,6 +602,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyAssetCompositionChange = "apply_asset_composition_change"
     case applySavedSmartView = "apply_saved_smart_view"
     case applyRequirementAssurance = "apply_requirement_assurance"
+    case applyPartyAccountability = "apply_party_accountability"
 }
 
 extension WorkspaceCommandV1 {
@@ -1283,6 +1337,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind: .applyAssetCompositionChange, disposition: .compensatable, stableReason: "append_composition_successor_only"),
         .init(commandKind: .applySavedSmartView, disposition: .compensatable, stableReason: "replace_or_delete_saved_smart_view"),
         .init(commandKind: .applyRequirementAssurance, disposition: .compensatable, stableReason: "replace_typed_requirement_assurance"),
+        .init(commandKind: .applyPartyAccountability, disposition: .compensatable, stableReason: "append_accountability_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

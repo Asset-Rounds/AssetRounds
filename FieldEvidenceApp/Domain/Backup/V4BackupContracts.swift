@@ -97,6 +97,25 @@ struct V8BackupRequirementAssuranceRecordV1: Codable, Equatable, Sendable {
     }
 }
 
+/// Canonical V9 party/accountability rows. Keeping the canonical domain bytes
+/// in the package preserves historical display/provenance without allowing a
+/// restore to reinterpret a local assertion as verified identity or signoff.
+struct V9BackupPartyAccountabilityRecordV1: Codable, Equatable, Sendable {
+    enum Kind: String, Codable, CaseIterable, Sendable {
+        case serviceParty = "SERVICE_PARTY"
+        case sitePartyRoleEvent = "SITE_PARTY_ROLE_EVENT"
+        case actorSnapshot = "ACTOR_SNAPSHOT"
+        case qualificationSnapshot = "QUALIFICATION_SNAPSHOT"
+        case signoffSnapshot = "SIGNOFF_SNAPSHOT"
+    }
+
+    let kind: Kind
+    let id: UUID
+    let workspaceID: UUID
+    let revision: UInt64?
+    let canonicalData: Data
+}
+
 struct V4BackupSiteDTO: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     let schemaVersion: Int
@@ -271,6 +290,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let locationNodes: [V5BackupLocationRecordV1]
     let mutationHistory: MutationHistorySnapshotV1?
     let packets: [V4BackupPacketDTO]
+    let partyAccountability: [V9BackupPartyAccountabilityRecordV1]
     let recordsSchemaVersion: Int
     let reports: [V4BackupReportDTO]
     let requirementAssurance: [V8BackupRequirementAssuranceRecordV1]
@@ -291,6 +311,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         locationNodes: [V5BackupLocationRecordV1] = [],
         mutationHistory: MutationHistorySnapshotV1? = nil,
         packets: [V4BackupPacketDTO],
+        partyAccountability: [V9BackupPartyAccountabilityRecordV1] = [],
         recordsSchemaVersion: Int,
         reports: [V4BackupReportDTO],
         requirementAssurance: [V8BackupRequirementAssuranceRecordV1] = [],
@@ -310,6 +331,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         self.locationNodes = locationNodes
         self.mutationHistory = mutationHistory
         self.packets = packets
+        self.partyAccountability = partyAccountability
         self.recordsSchemaVersion = recordsSchemaVersion
         self.reports = reports
         self.requirementAssurance = requirementAssurance
@@ -321,7 +343,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
         case deletionLedger, evidenceFiles, issues, locationHierarchyEvents
-        case locationMigrationReceipts, locationNodes, mutationHistory, packets
+        case locationMigrationReceipts, locationNodes, mutationHistory, packets, partyAccountability
         case recordsSchemaVersion, reports, requirementAssurance, savedSmartViews, sites
         case workflowRecords
     }
@@ -342,6 +364,10 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
             locationNodes: try values.decodeIfPresent([V5BackupLocationRecordV1].self, forKey: .locationNodes) ?? [],
             mutationHistory: try values.decodeIfPresent(MutationHistorySnapshotV1.self, forKey: .mutationHistory),
             packets: try values.decode([V4BackupPacketDTO].self, forKey: .packets),
+            partyAccountability: try values.decodeIfPresent(
+                [V9BackupPartyAccountabilityRecordV1].self,
+                forKey: .partyAccountability
+            ) ?? [],
             recordsSchemaVersion: version,
             reports: try values.decode([V4BackupReportDTO].self, forKey: .reports),
             requirementAssurance: try values.decodeIfPresent(

@@ -92,6 +92,24 @@ struct SemanticAccessibilityIDRegistryV1: Codable, Equatable, Sendable {
     }
 }
 
+extension SemanticAccessibilityIDRegistryV1 {
+    /// Builds an additive registry while preserving the already-published
+    /// semantic IDs and aliases.  C38 uses this for report accountability
+    /// surfaces; callers that need the inherited V1 contract can continue to
+    /// use the original registry unchanged.
+    func appending(
+        _ additionalEntries: [AccessibilityContractV1],
+        localization: LocalizationKeyRegistryV1
+    ) throws -> Self {
+        guard !additionalEntries.isEmpty else { return self }
+        return try Self(entries: entries + additionalEntries, localization: localization)
+    }
+
+    func containsSemanticID(_ semanticID: String) -> Bool {
+        entries.contains { $0.semanticID == semanticID }
+    }
+}
+
 enum LegacyLocalizationAccessibilityKindV1: String, Codable, Sendable {
     case userFacingLiteral = "USER_FACING_LITERAL"
     case phaseAccessibilityID = "PHASE_ACCESSIBILITY_ID"

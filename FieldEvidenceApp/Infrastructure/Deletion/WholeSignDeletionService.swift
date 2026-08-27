@@ -1219,6 +1219,11 @@ private extension WholeSignDeletionService {
         let compositionEdges: [AssetCompositionEdgeRow]
         let records: [WorkflowRecord]
         let requirementAssurance: [RequirementAssuranceRow]
+        let serviceParties: [ServicePartyRow]
+        let sitePartyRoles: [SitePartyRoleEventRow]
+        let actorSnapshots: [ActorSnapshotRow]
+        let qualificationSnapshots: [QualificationSnapshotRow]
+        let signoffSnapshots: [SignoffSnapshotRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1247,6 +1252,11 @@ private extension WholeSignDeletionService {
                 compositionEdges: try boundedFetch(AssetCompositionEdgeRow.self),
                 records: records,
                 requirementAssurance: try boundedFetch(RequirementAssuranceRow.self),
+                serviceParties: try boundedFetch(ServicePartyRow.self),
+                sitePartyRoles: try boundedFetch(SitePartyRoleEventRow.self),
+                actorSnapshots: try boundedFetch(ActorSnapshotRow.self),
+                qualificationSnapshots: try boundedFetch(QualificationSnapshotRow.self),
+                signoffSnapshots: try boundedFetch(SignoffSnapshotRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1682,6 +1692,16 @@ private extension WholeSignDeletionService {
               unique(rows.packets.map(\.id)),
               unique(rows.packets.map(\.stableRootID)),
               unique(rows.reports.map(\.id)),
+              unique(rows.serviceParties.map(\.partyID)),
+              unique(rows.sitePartyRoles.map(\.eventID)),
+              unique(rows.actorSnapshots.map(\.snapshotID)),
+              unique(rows.qualificationSnapshots.map(\.snapshotID)),
+              unique(rows.signoffSnapshots.map(\.snapshotID)),
+              rows.serviceParties.allSatisfy({ (try? $0.value()) != nil }),
+              rows.sitePartyRoles.allSatisfy({ (try? $0.value()) != nil }),
+              rows.actorSnapshots.allSatisfy({ (try? $0.value()) != nil }),
+              rows.qualificationSnapshots.allSatisfy({ (try? $0.value()) != nil }),
+              rows.signoffSnapshots.allSatisfy({ (try? $0.value()) != nil }),
               rows.sites.allSatisfy({ $0.schemaVersion == 1 }),
               rows.assets.allSatisfy({ asset in
                   asset.schemaVersion == 1

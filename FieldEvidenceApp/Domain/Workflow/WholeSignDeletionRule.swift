@@ -85,7 +85,43 @@ enum WholeSignDeletionRuleError: Error, Equatable {
     case invalidGraph
 }
 
+enum PartyAccountabilityDeletionAuthorityV1: Equatable, Sendable {
+    case ordinaryAssetOrSiteDelete
+    case workspaceErase
+}
+
+struct PartyAccountabilityDeletionInventoryV1: Equatable, Sendable {
+    let servicePartyIDs: Set<UUID>
+    let sitePartyRoleEventIDs: Set<UUID>
+    let actorSnapshotIDs: Set<UUID>
+    let qualificationSnapshotIDs: Set<UUID>
+    let signoffSnapshotIDs: Set<UUID>
+
+    var isEmpty: Bool {
+        servicePartyIDs.isEmpty && sitePartyRoleEventIDs.isEmpty
+            && actorSnapshotIDs.isEmpty && qualificationSnapshotIDs.isEmpty
+            && signoffSnapshotIDs.isEmpty
+    }
+}
+
 enum WholeSignDeletionRule {
+    static func validatePartyAccountabilityLifecycle(
+        authority: PartyAccountabilityDeletionAuthorityV1,
+        before: PartyAccountabilityDeletionInventoryV1,
+        after: PartyAccountabilityDeletionInventoryV1
+    ) throws {
+        switch authority {
+        case .ordinaryAssetOrSiteDelete:
+            guard after == before else {
+                throw WholeSignDeletionRuleError.invalidGraph
+            }
+        case .workspaceErase:
+            guard after.isEmpty else {
+                throw WholeSignDeletionRuleError.invalidGraph
+            }
+        }
+    }
+
     /// Ordinary asset/site deletion is deliberately not an Erase operation.
     /// Placement and composition event rows are append-only evidence and are
     /// therefore never returned as cascade targets. Active composition must be

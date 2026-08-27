@@ -458,6 +458,12 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
                   value.mutationID == request.mutationID.rawValue else {
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
+        case .applyPartyAccountability(let value):
+            try value.validate()
+            guard value.workspaceID == identity.workspaceID,
+                  value.mutationID.map({ $0 == request.mutationID }) ?? true else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
         default:
             break
         }
@@ -1067,6 +1073,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
                 kind: .workflowRecord,
                 id: value.snapshot.workflowRecordID
             )]
+        case let .applyPartyAccountability(value):
+            try value.validate()
+            values = [try value.affectedIdentity]
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand

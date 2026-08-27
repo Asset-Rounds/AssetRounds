@@ -285,6 +285,7 @@ private extension ReplacementRestoreRule {
             locationNodes: records.locationNodes,
             mutationHistory: records.mutationHistory,
             packets: packets,
+            partyAccountability: records.partyAccountability,
             recordsSchemaVersion: records.mutationHistory == nil
                 ? 2
                 : records.recordsSchemaVersion,
@@ -318,6 +319,7 @@ private extension ReplacementRestoreRule {
             locationNodes: records.locationNodes,
             mutationHistory: records.mutationHistory,
             packets: packets,
+            partyAccountability: records.partyAccountability,
             recordsSchemaVersion: records.recordsSchemaVersion,
             reports: records.reports,
             requirementAssurance: records.requirementAssurance,
@@ -344,6 +346,7 @@ private extension ReplacementRestoreRule {
             locationNodes: records.locationNodes,
             mutationHistory: mutationHistory,
             packets: records.packets,
+            partyAccountability: records.partyAccountability,
             recordsSchemaVersion: mutationHistory == nil
                 ? min(records.recordsSchemaVersion, 2)
                 : records.recordsSchemaVersion,
@@ -368,7 +371,8 @@ private extension ReplacementRestoreRule {
             locationHierarchyEvents: records.locationHierarchyEvents,
             locationMigrationReceipts: records.locationMigrationReceipts,
             locationNodes: records.locationNodes, mutationHistory: records.mutationHistory,
-            packets: records.packets, recordsSchemaVersion: records.recordsSchemaVersion,
+            packets: records.packets, partyAccountability: records.partyAccountability,
+            recordsSchemaVersion: records.recordsSchemaVersion,
             reports: records.reports, requirementAssurance: requirementAssurance,
             savedSmartViews: records.savedSmartViews, sites: records.sites,
             workflowRecords: records.workflowRecords
@@ -538,7 +542,8 @@ private extension ReplacementRestoreRule {
     ) -> Bool {
         guard records.recordsSchemaVersion == 5
                 || records.recordsSchemaVersion == 6
-                || records.recordsSchemaVersion == 7 else {
+                || records.recordsSchemaVersion == 7
+                || records.recordsSchemaVersion == 8 else {
             return records.locationNodes.isEmpty
                 && records.assetPlacementEvents.isEmpty
                 && records.assetCompositionEdges.isEmpty

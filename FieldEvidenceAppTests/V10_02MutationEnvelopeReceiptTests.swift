@@ -978,16 +978,17 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
     @MainActor
     func testV10_02R01MigrationLifecycleAndReplicaIdentityMatrix() throws {
         let corpus = try Self.loadCorpus()
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v8)
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v9)
         XCTAssertEqual(
             PersistentSchemaReleaseRegistryV1.releases,
-            [.v1, .v2, .v3, .v4, .v5, .v6, .v7, .v8]
+            [.v1, .v2, .v3, .v4, .v5, .v6, .v7, .v8, .v9]
         )
         XCTAssertEqual(PersistentSchemaV4.models.count, PersistentSchemaV3.models.count + 4)
         XCTAssertEqual(PersistentSchemaV5.models.count, PersistentSchemaV4.models.count + 1)
         XCTAssertEqual(PersistentSchemaV6.models.count, PersistentSchemaV5.models.count + 6)
         XCTAssertEqual(PersistentSchemaV7.models.count, PersistentSchemaV6.models.count + 1)
         XCTAssertEqual(PersistentSchemaV8.models.count, PersistentSchemaV7.models.count + 1)
+        XCTAssertEqual(PersistentSchemaV9.models.count, PersistentSchemaV8.models.count + 5)
         XCTAssertEqual(PersistentSchemaMigrationPlanV3.schemas.count, 2)
         XCTAssertEqual(PersistentSchemaMigrationPlanV4.schemas.count, 2)
         XCTAssertEqual(PersistentSchemaMigrationPlanV5.schemas.count, 2)
@@ -996,6 +997,9 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
         XCTAssertEqual(PersistentSchemaReleaseV1.v6.migrationStage, .custom)
         XCTAssertEqual(PersistentSchemaReleaseV1.v7.migrationStage, .custom)
         XCTAssertEqual(PersistentSchemaReleaseV1.v8.migrationStage, .custom)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v9.migrationStage, .custom)
+        XCTAssertEqual(PersistentSchemaMigrationPlanV8.schemas.count, 2)
+        XCTAssertEqual(PersistentSchemaMigrationPlanV8.stages.count, 1)
 
         XCTAssertEqual(corpus.restoreMatrix.map(\.mode), ["empty", "replace", "clone", "fork"])
         XCTAssertTrue(corpus.restoreMatrix.allSatisfy(\.preservesReceiptHistory))

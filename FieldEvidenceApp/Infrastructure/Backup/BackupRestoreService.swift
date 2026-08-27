@@ -1488,6 +1488,7 @@ private extension BackupRestoreService {
             locationNodes: records.locationNodes,
             mutationHistory: records.mutationHistory,
             packets: packets,
+            partyAccountability: records.partyAccountability,
             recordsSchemaVersion: records.recordsSchemaVersion,
             reports: records.reports,
             requirementAssurance: records.requirementAssurance,
@@ -1532,6 +1533,7 @@ private extension BackupRestoreService {
             locationNodes: records.locationNodes,
             mutationHistory: history,
             packets: records.packets,
+            partyAccountability: records.partyAccountability,
             recordsSchemaVersion: max(3, records.recordsSchemaVersion),
             reports: records.reports,
             requirementAssurance: records.requirementAssurance,
@@ -1593,7 +1595,7 @@ private extension BackupRestoreService {
         _ records: V4BackupRecordsV1,
         workspaceID: UUID
     ) throws -> V4BackupRecordsV1 {
-        if records.recordsSchemaVersion == 7 { return records }
+        if records.recordsSchemaVersion >= 7 { return records }
         guard records.recordsSchemaVersion <= 6,
               Set(records.requirementAssurance.map(\.workflowRecordID)).count
                 == records.requirementAssurance.count,
@@ -1630,7 +1632,8 @@ private extension BackupRestoreService {
             locationHierarchyEvents: records.locationHierarchyEvents,
             locationMigrationReceipts: records.locationMigrationReceipts,
             locationNodes: records.locationNodes, mutationHistory: records.mutationHistory,
-            packets: records.packets, recordsSchemaVersion: 7,
+            packets: records.packets, partyAccountability: records.partyAccountability,
+            recordsSchemaVersion: records.recordsSchemaVersion,
             reports: records.reports, requirementAssurance: assurance,
             savedSmartViews: records.savedSmartViews, sites: records.sites,
             workflowRecords: records.workflowRecords
@@ -1813,6 +1816,10 @@ private extension BackupRestoreService {
                 updatedAt: record.updatedAt
             )
         }
+        let partyAccountability = try rebindingPartyAccountability(
+            records.partyAccountability,
+            workspaceID: workspaceID
+        )
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
                 assetCompositionEdges: reboundEdges.map(\.0),
@@ -1823,6 +1830,7 @@ private extension BackupRestoreService {
                 locationHierarchyEvents: hierarchyEvents,
                 locationMigrationReceipts: [], locationNodes: nodes,
                 mutationHistory: records.mutationHistory, packets: records.packets,
+                partyAccountability: partyAccountability,
                 recordsSchemaVersion: records.recordsSchemaVersion,
                 reports: records.reports, sites: records.sites,
                 requirementAssurance: requirementAssurance,
@@ -1839,7 +1847,8 @@ private extension BackupRestoreService {
            placements == records.assetPlacementEvents,
            reboundEdges.map(\.0) == records.assetCompositionEdges,
            compositionEvents == records.assetCompositionEvents,
-           savedSmartViews == records.savedSmartViews {
+           savedSmartViews == records.savedSmartViews,
+           partyAccountability == records.partyAccountability {
             return records
         }
         let rebound = try LocationMigrationReceiptV1(
@@ -1866,6 +1875,7 @@ private extension BackupRestoreService {
             locationNodes: nodes,
             mutationHistory: records.mutationHistory,
             packets: records.packets,
+            partyAccountability: partyAccountability,
             recordsSchemaVersion: records.recordsSchemaVersion,
             reports: records.reports,
             requirementAssurance: requirementAssurance,
@@ -1873,6 +1883,204 @@ private extension BackupRestoreService {
             sites: records.sites,
             workflowRecords: records.workflowRecords
         )
+    }
+
+    func rebindingPartyAccountability(
+        _ records: [V9BackupPartyAccountabilityRecordV1],
+        workspaceID: WorkspaceID
+    ) throws -> [V9BackupPartyAccountabilityRecordV1] {
+        do {
+            var parties: [UUID: ServicePartyReferenceV1] = [:]
+            var roles: [UUID: SitePartyRoleEventV1] = [:]
+            var actors: [UUID: ActorSnapshotV1] = [:]
+            var qualifications: [UUID: QualificationSnapshotV1] = [:]
+            var signoffs: [UUID: SignoffSnapshotV1] = [:]
+
+            for record in records {
+                switch record.kind {
+                case .serviceParty:
+                    let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                        ServicePartyReferenceV1.self, from: record.canonicalData
+                    )
+                    guard value.partyID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision,
+                          parties.updateValue(value, forKey: value.partyID) == nil else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                case .sitePartyRoleEvent:
+                    let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                        SitePartyRoleEventV1.self, from: record.canonicalData
+                    )
+                    guard value.eventID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision,
+                          roles.updateValue(value, forKey: value.eventID) == nil else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                case .actorSnapshot:
+                    let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                        ActorSnapshotV1.self, from: record.canonicalData
+                    )
+                    guard value.snapshotID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          record.revision == nil,
+                          actors.updateValue(value, forKey: value.snapshotID) == nil else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                case .qualificationSnapshot:
+                    let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                        QualificationSnapshotV1.self, from: record.canonicalData
+                    )
+                    guard value.snapshotID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          record.revision == nil,
+                          qualifications.updateValue(value, forKey: value.snapshotID) == nil else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                case .signoffSnapshot:
+                    let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                        SignoffSnapshotV1.self, from: record.canonicalData
+                    )
+                    guard value.snapshotID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.subjectRevision == record.revision,
+                          signoffs.updateValue(value, forKey: value.snapshotID) == nil else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                }
+            }
+
+            let reboundParties = try parties.mapValues { value in
+                try ServicePartyReferenceV1(
+                    partyID: value.partyID, workspaceID: workspaceID,
+                    kind: value.kind, displayName: value.displayName,
+                    profileDescriptor: value.profileDescriptor,
+                    provenance: value.provenance, privacyClass: value.privacyClass,
+                    state: value.state, effectiveAt: value.effectiveAt,
+                    retiredAt: value.retiredAt, revision: value.revision,
+                    mutationID: value.mutationID
+                )
+            }
+            let reboundRoles = try roles.mapValues { value in
+                guard reboundParties[value.partyID] != nil else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                return try SitePartyRoleEventV1(
+                    eventID: value.eventID, workspaceID: workspaceID,
+                    siteID: value.siteID, partyID: value.partyID, role: value.role,
+                    effectiveFrom: value.effectiveFrom, effectiveUntil: value.effectiveUntil,
+                    source: value.source, supersedesEventID: value.supersedesEventID,
+                    revision: value.revision, mutationID: value.mutationID,
+                    recordedAt: value.recordedAt
+                )
+            }
+            let reboundActors = try actors.mapValues { value in
+                if let partyID = value.actor.partyID,
+                   reboundParties[partyID] == nil {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                let actor = try LocalActorReferenceV1(
+                    actorReferenceID: value.actor.actorReferenceID,
+                    workspaceID: workspaceID, partyID: value.actor.partyID,
+                    displayName: value.actor.displayName
+                )
+                return try ActorSnapshotV1(
+                    snapshotID: value.snapshotID, workspaceID: workspaceID,
+                    actor: actor, responsibility: value.responsibility,
+                    displayNameAtTime: value.displayNameAtTime,
+                    capturedAt: value.capturedAt
+                )
+            }
+            let reboundQualifications = try qualifications.mapValues { value in
+                try QualificationSnapshotV1(
+                    snapshotID: value.snapshotID, workspaceID: workspaceID,
+                    declaredScope: value.declaredScope,
+                    issuerDisplay: value.issuerDisplay,
+                    credentialLocator: value.credentialLocator,
+                    effectiveAt: value.effectiveAt, expiresAt: value.expiresAt,
+                    provenance: value.provenance, capturedAt: value.capturedAt
+                )
+            }
+            let reboundSignoffs = try signoffs.mapValues { value in
+                let roleAssertion: SignoffRoleAssertionV1?
+                if let sourceAssertion = value.roleAssertion {
+                    guard actors[sourceAssertion.actor.snapshotID] == sourceAssertion.actor,
+                          let actor = reboundActors[sourceAssertion.actor.snapshotID] else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    roleAssertion = try SignoffRoleAssertionV1(
+                        claimedRole: sourceAssertion.claimedRole,
+                        claimedRelationship: sourceAssertion.claimedRelationship,
+                        actor: actor,
+                        disclosureRelease: sourceAssertion.disclosureRelease
+                    )
+                } else {
+                    roleAssertion = nil
+                }
+                let qualification: QualificationSnapshotV1?
+                if let sourceQualification = value.qualification {
+                    guard qualifications[sourceQualification.snapshotID] == sourceQualification,
+                          let rebound = reboundQualifications[sourceQualification.snapshotID] else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    qualification = rebound
+                } else {
+                    qualification = nil
+                }
+                return try SignoffSnapshotV1(
+                    snapshotID: value.snapshotID, workspaceID: workspaceID,
+                    purpose: value.purpose, subjectID: value.subjectID,
+                    subjectRevision: value.subjectRevision,
+                    disposition: value.disposition, method: value.method,
+                    roleAssertion: roleAssertion, qualification: qualification,
+                    externalEvidenceID: value.externalEvidenceID,
+                    occurredAt: value.occurredAt, recordedAt: value.recordedAt,
+                    supersedesSnapshotID: value.supersedesSnapshotID,
+                    mutationID: value.mutationID
+                )
+            }
+
+            return try records.map { record in
+                let data: Data
+                switch record.kind {
+                case .serviceParty:
+                    guard let value = reboundParties[record.id] else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    data = try PartyAccountabilitySnapshotCodecV1.encode(value)
+                case .sitePartyRoleEvent:
+                    guard let value = reboundRoles[record.id] else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    data = try PartyAccountabilitySnapshotCodecV1.encode(value)
+                case .actorSnapshot:
+                    guard let value = reboundActors[record.id] else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    data = try PartyAccountabilitySnapshotCodecV1.encode(value)
+                case .qualificationSnapshot:
+                    guard let value = reboundQualifications[record.id] else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    data = try PartyAccountabilitySnapshotCodecV1.encode(value)
+                case .signoffSnapshot:
+                    guard let value = reboundSignoffs[record.id] else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    data = try PartyAccountabilitySnapshotCodecV1.encode(value)
+                }
+                return .init(
+                    kind: record.kind, id: record.id,
+                    workspaceID: workspaceID.rawValue,
+                    revision: record.revision, canonicalData: data
+                )
+            }
+        } catch let error as BackupRestoreServiceError {
+            throw error
+        } catch {
+            throw BackupRestoreServiceError.invalidPackage
+        }
     }
 
     func recordsWithObservationAndTime(
@@ -1902,6 +2110,7 @@ private extension BackupRestoreService {
             locationNodes: records.locationNodes,
             mutationHistory: records.mutationHistory,
             packets: records.packets,
+            partyAccountability: [],
             recordsSchemaVersion: 4,
             reports: records.reports,
             requirementAssurance: records.requirementAssurance,
@@ -1978,7 +2187,8 @@ private extension BackupRestoreService {
     ) throws -> (basis: Data?, temporal: Data?) {
         do {
             if recordsSchemaVersion == 4 || recordsSchemaVersion == 5
-                || recordsSchemaVersion == 6 || recordsSchemaVersion == 7 {
+                || recordsSchemaVersion == 6 || recordsSchemaVersion == 7
+                || recordsSchemaVersion == 8 {
                 guard let basisData = value.observationBasisV1Data,
                       let temporalData = value.temporalContextV1Data else {
                     throw BackupRestoreServiceError.invalidPackage
@@ -2054,7 +2264,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 4
                 || records.recordsSchemaVersion == 5
                 || records.recordsSchemaVersion == 6
-                || records.recordsSchemaVersion == 7)
+                || records.recordsSchemaVersion == 7
+                || records.recordsSchemaVersion == 8)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -2066,7 +2277,8 @@ private extension BackupRestoreService {
         case (1, nil, nil):
             break
         case (2, let ledger?, nil), (3, let ledger?, _), (4, let ledger?, _),
-             (5, let ledger?, _), (6, let ledger?, _):
+             (5, let ledger?, _), (6, let ledger?, _),
+             (7, let ledger?, _), (8, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -2301,7 +2513,8 @@ private extension BackupRestoreService {
                 replacesReportID: value.replacesReportID
             ))
         }
-        if records.recordsSchemaVersion == 6 || records.recordsSchemaVersion == 7 {
+        if records.recordsSchemaVersion == 6 || records.recordsSchemaVersion == 7
+            || records.recordsSchemaVersion == 8 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -2314,7 +2527,7 @@ private extension BackupRestoreService {
                 throw BackupRestoreServiceError.invalidPackage
             }
         }
-        if records.recordsSchemaVersion == 7 {
+        if records.recordsSchemaVersion >= 7 {
             do {
                 for record in records.requirementAssurance {
                     let snapshot = try record.snapshot()
@@ -2327,12 +2540,58 @@ private extension BackupRestoreService {
                 }
             } catch { throw BackupRestoreServiceError.invalidPackage }
         }
+        if records.recordsSchemaVersion == 8 {
+            do {
+                var roleValues: [UUID: SitePartyRoleEventV1] = [:]
+                var signoffValues: [UUID: SignoffSnapshotV1] = [:]
+                for record in records.partyAccountability {
+                    switch record.kind {
+                    case .serviceParty:
+                        let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                            ServicePartyReferenceV1.self, from: record.canonicalData
+                        )
+                        context.insert(try ServicePartyRow(value))
+                    case .sitePartyRoleEvent:
+                        let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                            SitePartyRoleEventV1.self, from: record.canonicalData
+                        )
+                        roleValues[value.eventID] = value
+                    case .actorSnapshot:
+                        let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                            ActorSnapshotV1.self, from: record.canonicalData
+                        )
+                        context.insert(try ActorSnapshotRow(value))
+                    case .qualificationSnapshot:
+                        let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                            QualificationSnapshotV1.self, from: record.canonicalData
+                        )
+                        context.insert(try QualificationSnapshotRow(value))
+                    case .signoffSnapshot:
+                        let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                            SignoffSnapshotV1.self, from: record.canonicalData
+                        )
+                        signoffValues[value.snapshotID] = value
+                    }
+                }
+                for value in roleValues.values.sorted(by: { $0.recordedAt < $1.recordedAt }) {
+                    context.insert(try SitePartyRoleEventRow(
+                        value, predecessor: value.supersedesEventID.flatMap { roleValues[$0] }
+                    ))
+                }
+                for value in signoffValues.values.sorted(by: { $0.recordedAt < $1.recordedAt }) {
+                    context.insert(try SignoffSnapshotRow(
+                        value, predecessor: value.supersedesSnapshotID.flatMap { signoffValues[$0] }
+                    ))
+                }
+            } catch { throw BackupRestoreServiceError.invalidPackage }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
                     || records.recordsSchemaVersion == 5
                     || records.recordsSchemaVersion == 6
-                    || records.recordsSchemaVersion == 7 else {
+                    || records.recordsSchemaVersion == 7
+                    || records.recordsSchemaVersion == 8 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -3400,8 +3659,8 @@ private extension BackupRestoreService {
     ) throws {
         let actual = try records(in: context)
         if actual == expected { return }
-        guard expected.recordsSchemaVersion < 7,
-              actual.recordsSchemaVersion == 7 else {
+        guard expected.recordsSchemaVersion < 8,
+              actual.recordsSchemaVersion == 8 else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
@@ -3432,6 +3691,7 @@ private extension BackupRestoreService {
             locationNodes: records.locationNodes,
             mutationHistory: records.mutationHistory,
             packets: records.packets,
+            partyAccountability: schemaVersion >= 8 ? records.partyAccountability : [],
             recordsSchemaVersion: schemaVersion,
             reports: records.reports,
             requirementAssurance: [],
@@ -3593,6 +3853,11 @@ private extension BackupRestoreService {
         let locationMigrationReceipts = try context.fetch(FetchDescriptor<LocationMigrationReceiptRow>())
         let locationNodes = try context.fetch(FetchDescriptor<LocationNodeRow>())
         let savedSmartViews = try context.fetch(FetchDescriptor<SavedSmartViewRowV1>())
+        let serviceParties = try context.fetch(FetchDescriptor<ServicePartyRow>())
+        let sitePartyRoles = try context.fetch(FetchDescriptor<SitePartyRoleEventRow>())
+        let actorSnapshots = try context.fetch(FetchDescriptor<ActorSnapshotRow>())
+        let qualificationSnapshots = try context.fetch(FetchDescriptor<QualificationSnapshotRow>())
+        let signoffSnapshots = try context.fetch(FetchDescriptor<SignoffSnapshotRow>())
         let observationAndTime: [UUID: ObservationAndTimeRow]
         if includesObservationAndTime {
             observationAndTime = try ObservationAndTimeRowStoreV1.validatedIndex(
@@ -3676,9 +3941,40 @@ private extension BackupRestoreService {
                     createdAt: $0.createdAt
                 )
             }.sorted { canonical($0.id) < canonical($1.id) },
+            partyAccountability: try (
+                serviceParties.map {
+                    let value = try $0.value()
+                    return .init(kind: .serviceParty, id: value.partyID,
+                                 workspaceID: value.workspaceID.rawValue,
+                                 revision: value.revision, canonicalData: $0.canonicalData)
+                } + sitePartyRoles.map {
+                    let value = try $0.value()
+                    return .init(kind: .sitePartyRoleEvent, id: value.eventID,
+                                 workspaceID: value.workspaceID.rawValue,
+                                 revision: value.revision, canonicalData: $0.canonicalData)
+                } + actorSnapshots.map {
+                    let value = try $0.value()
+                    return .init(kind: .actorSnapshot, id: value.snapshotID,
+                                 workspaceID: value.workspaceID.rawValue,
+                                 revision: nil, canonicalData: $0.canonicalData)
+                } + qualificationSnapshots.map {
+                    let value = try $0.value()
+                    return .init(kind: .qualificationSnapshot, id: value.snapshotID,
+                                 workspaceID: value.workspaceID.rawValue,
+                                 revision: nil, canonicalData: $0.canonicalData)
+                } + signoffSnapshots.map {
+                    let value = try $0.value()
+                    return .init(kind: .signoffSnapshot, id: value.snapshotID,
+                                 workspaceID: value.workspaceID.rawValue,
+                                 revision: value.subjectRevision, canonicalData: $0.canonicalData)
+                }
+            ).sorted {
+                "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
+                    < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
+            },
             recordsSchemaVersion: mutationHistory == nil
                 ? (includingDeletionLedger ? 2 : 1)
-                : 7,
+                : 8,
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,

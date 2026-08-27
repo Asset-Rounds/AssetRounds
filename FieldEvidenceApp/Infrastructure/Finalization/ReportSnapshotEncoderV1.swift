@@ -89,6 +89,23 @@ struct ReportSnapshotEncoderV1: Sendable {
         catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
     }
 
+    func encode(_ snapshot: CompletedActivitySnapshotV3) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try CompletedActivitySnapshotCanonicalCodecV3.encode(snapshot)
+            return EncodedReportSnapshotV1(
+                data: data,
+                sha256: KernelCanonicalHashV1.sha256(data)
+            )
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+
+    func decodeCompletedActivityV3(_ data: Data) throws -> CompletedActivitySnapshotV3 {
+        do { return try CompletedActivitySnapshotCanonicalCodecV3.decode(data) }
+        catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
     func encode(
         _ snapshot: RequirementAssuranceSnapshotV1
     ) throws -> EncodedReportSnapshotV1 {
@@ -174,6 +191,15 @@ struct ReportSnapshotEncoderV1: Sendable {
 
         if let assurance = snapshot.requirementAssurance {
             guard RequirementAssuranceSnapshotCanonicalCodecV1.isValid(assurance) else {
+                return false
+            }
+        }
+
+        if let accountability = snapshot.accountability {
+            guard (try? accountability.validate()) != nil,
+                  accountability.parties.allSatisfy({ $0.revision <= UInt64(Int.max) }),
+                  accountability.roleEvents.allSatisfy({ $0.revision <= UInt64(Int.max) }),
+                  accountability.signoffs.allSatisfy({ $0.subjectRevision <= UInt64(Int.max) }) else {
                 return false
             }
         }
@@ -289,7 +315,147 @@ extension CanonicalJSONV1 {
         if let assurance = value.requirementAssurance {
             object["requirementAssurance"] = requirementAssurance(assurance)
         }
+        if let accountability = value.accountability {
+            object["accountability"] = Self.accountability(accountability)
+        }
         return .object(object)
+    }
+
+    private static func accountability(
+        _ value: CompletedAccountabilitySnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "actors": .array(value.actors.map(actor)),
+            "parties": .array(value.parties.map(party)),
+            "qualifications": .array(value.qualifications.map(qualification)),
+            "roleEvents": .array(value.roleEvents.map(roleEvent)),
+            "schemaVersion": .integer(value.schemaVersion),
+            "signoffs": .array(value.signoffs.map(signoff)),
+            "snapshotSHA256": .string(value.snapshotSHA256),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+        ])
+    }
+
+    private static func party(
+        _ value: ServicePartyReferenceV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "displayName": .string(value.displayName),
+            "effectiveAt": date(value.effectiveAt),
+            "kind": .string(value.kind.rawValue),
+            "partyID": uuid(value.partyID),
+            "privacyClass": .string(value.privacyClass.rawValue),
+            "profileDescriptor": optionalString(value.profileDescriptor),
+            "provenance": .string(value.provenance.rawValue),
+            "receiptSHA256": .string(value.receiptSHA256),
+            "retiredAt": optionalDate(value.retiredAt),
+            "revision": .integer(Int(value.revision)),
+            "schemaVersion": .integer(value.schemaVersion),
+            "state": .string(value.state.rawValue),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+        ])
+    }
+
+    private static func roleEvent(
+        _ value: SitePartyRoleEventV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "effectiveFrom": date(value.effectiveFrom),
+            "effectiveUntil": optionalDate(value.effectiveUntil),
+            "eventID": uuid(value.eventID),
+            "mutationID": uuid(value.mutationID.rawValue),
+            "partyID": uuid(value.partyID),
+            "receiptSHA256": .string(value.receiptSHA256),
+            "recordedAt": date(value.recordedAt),
+            "revision": .integer(Int(value.revision)),
+            "role": .string(value.role.rawValue),
+            "schemaVersion": .integer(value.schemaVersion),
+            "siteID": uuid(value.siteID),
+            "source": .string(value.source.rawValue),
+            "supersedesEventID": optionalUUID(value.supersedesEventID),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+        ])
+    }
+
+    private static func actor(
+        _ value: ActorSnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "actor": .object([
+                "actorReferenceID": uuid(value.actor.actorReferenceID),
+                "displayName": .string(value.actor.displayName),
+                "partyID": optionalUUID(value.actor.partyID),
+                "schemaVersion": .integer(value.actor.schemaVersion),
+                "workspaceID": uuid(value.actor.workspaceID.rawValue),
+            ]),
+            "capturedAt": date(value.capturedAt),
+            "displayNameAtTime": .string(value.displayNameAtTime),
+            "responsibility": .string(value.responsibility.rawValue),
+            "schemaVersion": .integer(value.schemaVersion),
+            "snapshotID": uuid(value.snapshotID),
+            "snapshotSHA256": .string(value.snapshotSHA256),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+        ])
+    }
+
+    private static func qualification(
+        _ value: QualificationSnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "capturedAt": date(value.capturedAt),
+            "credentialLocator": optionalString(value.credentialLocator),
+            "declaredScope": .string(value.declaredScope),
+            "effectiveAt": optionalDate(value.effectiveAt),
+            "expiresAt": optionalDate(value.expiresAt),
+            "issuerDisplay": optionalString(value.issuerDisplay),
+            "provenance": .string(value.provenance.rawValue),
+            "schemaVersion": .integer(value.schemaVersion),
+            "snapshotID": uuid(value.snapshotID),
+            "snapshotSHA256": .string(value.snapshotSHA256),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+        ])
+    }
+
+    private static func signoff(
+        _ value: SignoffSnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "disposition": .string(value.disposition.rawValue),
+            "externalEvidenceID": optionalUUID(value.externalEvidenceID),
+            "method": .string(value.method.rawValue),
+            "mutationID": uuid(value.mutationID.rawValue),
+            "occurredAt": optionalDate(value.occurredAt),
+            "purpose": .string(value.purpose),
+            "qualification": value.qualification.map(qualification) ?? .null,
+            "recordedAt": date(value.recordedAt),
+            "roleAssertion": value.roleAssertion.map(roleAssertion) ?? .null,
+            "schemaVersion": .integer(value.schemaVersion),
+            "snapshotID": uuid(value.snapshotID),
+            "snapshotSHA256": .string(value.snapshotSHA256),
+            "subjectID": uuid(value.subjectID),
+            "subjectRevision": .integer(Int(value.subjectRevision)),
+            "supersedesSnapshotID": optionalUUID(value.supersedesSnapshotID),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+        ])
+    }
+
+    private static func roleAssertion(
+        _ value: SignoffRoleAssertionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "actor": actor(value.actor),
+            "claimedRelationship": value.claimedRelationship.map { .string($0.rawValue) } ?? .null,
+            "claimedRole": .string(value.claimedRole),
+            "disclosureRelease": .object([
+                "disclosureText": .string(value.disclosureRelease.disclosureText),
+                "disclaimsIdentityVerification": .bool(value.disclosureRelease.disclaimsIdentityVerification),
+                "disclaimsLegalSignature": .bool(value.disclosureRelease.disclaimsLegalSignature),
+                "releaseID": .string(value.disclosureRelease.releaseID),
+                "schemaVersion": .integer(value.disclosureRelease.schemaVersion),
+                "statesLocalAssertionOnly": .bool(value.disclosureRelease.statesLocalAssertionOnly),
+            ]),
+            "schemaVersion": .integer(value.schemaVersion),
+        ])
     }
 
     static func requirementAssurance(

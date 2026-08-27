@@ -660,6 +660,46 @@ final class V9_ChangeJournalCheckpointReplayTests: XCTestCase {
         )
     }
 
+    func testV23P03C38JournalBoundaryCarriesMutationIDsAndFrozenSnapshotBytes() throws {
+        let root = sourceRoot()
+        let fixtureURL = root.appendingPathComponent(
+            "FieldEvidenceAppTests/Fixtures/V21/Accountability/V21P03C38PartyAccountabilityCorpusV1.json"
+        )
+        let fixture = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: fixtureURL)) as? [String: Any]
+        )
+        let persistence = try XCTUnwrap(fixture["persistence"] as? [String: Any])
+        XCTAssertEqual(persistence["schemaRelease"] as? String, "PERSISTENT_SCHEMA_V9_PARTY_ACCOUNTABILITY")
+        XCTAssertEqual(persistence["searchRebuild"] as? String, "ALLOWLISTED_PARTY_ROLE_SIGNOFF_DISPLAY_FIELDS_ONLY")
+        XCTAssertEqual(persistence["deleteDisposition"] as? String, "EXPLICIT_ERASE_OR_TOMBSTONE_WITH_HISTORY_PRESERVED")
+        XCTAssertEqual(persistence["exportDisposition"] as? String, "CANONICAL_DOMAIN_BYTES_AND_FROZEN_SNAPSHOTS")
+
+        let adapterSource = try String(
+            contentsOf: root.appendingPathComponent(
+                "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift"
+            ),
+            encoding: .utf8
+        )
+        let journalSource = try String(
+            contentsOf: root.appendingPathComponent(
+                "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift"
+            ),
+            encoding: .utf8
+        )
+        let rowsSource = try String(
+            contentsOf: root.appendingPathComponent(
+                "FieldEvidenceApp/Domain/Models/PartyAccountabilityPersistenceModelsV1.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(adapterSource.contains("applyPartyAccountability"))
+        XCTAssertTrue(adapterSource.contains("MutationIDV1"))
+        XCTAssertTrue(journalSource.contains("ServicePartyRow"))
+        XCTAssertTrue(journalSource.contains("SignoffSnapshotRow"))
+        XCTAssertTrue(rowsSource.contains("canonicalData"))
+        XCTAssertTrue(rowsSource.contains("snapshotSHA256"))
+    }
+
     private func sha256(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }

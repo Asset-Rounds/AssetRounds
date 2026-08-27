@@ -365,3 +365,27 @@ enum LocalizationLifecycleV1 {
     static let interruption = "ZERO_OR_COMPLETE"
     static let idempotentReceipt = "EXACT_CANONICAL_BYTES_ADOPTION"
 }
+
+/// The C38 report/search slice consumes only these additive localization
+/// concepts.  Keeping the identifiers in the domain contract makes the
+/// locale truth explicit without changing the published V1 key registry's
+/// legacy default surface.
+enum LocalizationAccountabilityPolicyV1 {
+    static let semanticNamespace = "accountability"
+    static let keyNamespace = "accountability"
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let testOnlyLocales = TestOnlyPseudoLocaleV1.allCases.map(\.rawValue).sorted()
+    static let excludesContactPoints = true
+    static let excludesIdentityAndLegalClaims = true
+
+    static let reportKeys = [
+        "accountability.heading",
+        "accountability.party",
+        "accountability.role",
+        "accountability.actor",
+        "accountability.qualification",
+        "accountability.signoff",
+    ]
+}

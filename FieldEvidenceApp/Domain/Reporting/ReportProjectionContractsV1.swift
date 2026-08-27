@@ -42,6 +42,26 @@ enum ReportPrivacyClassV1: String, Codable, CaseIterable, Hashable, Sendable {
     case internalOnly = "INTERNAL_ONLY"
 }
 
+/// Additive report policy for the C38 accountability projection.  The
+/// section is audience-safe because it carries local assertions and recorded
+/// provenance only; contact points, identity verification, and legal-signature
+/// claims remain outside this projection.
+enum ReportAccountabilityProjectionPolicyV1 {
+    static let sectionID = "accountability"
+    static let sectionVersion = 1
+    static let projectionVersion = "report-accountability-v1"
+    static let privacyClass = ReportPrivacyClassV1.audienceSafe
+    static let excludesContactPoints = true
+    static let excludesIdentityAndLegalClaims = true
+    static let supportedFormats: [ReportProjectionFormatV1] = [
+        .openJSON, .structuredText,
+    ]
+
+    static func supports(_ format: ReportProjectionFormatV1) -> Bool {
+        supportedFormats.contains(format)
+    }
+}
+
 struct ReportSectionDefinitionV1: Codable, Equatable, Hashable, Sendable {
     let sectionID: String
     let version: Int

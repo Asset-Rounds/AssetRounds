@@ -8,6 +8,27 @@ enum SearchPersistenceReleaseV1: Int, Codable, CaseIterable, Sendable {
     static let derivedProjectionFormatVersion = 1
 }
 
+/// C38 keeps accountability rows in the same disposable derived index as the
+/// legacy search projection.  This policy is descriptive only: it does not
+/// promote search rows into canonical persistence or bump the V7 smart-view
+/// schema.
+enum SearchAccountabilityPersistencePolicyV1 {
+    static let semanticLabel = "ACCOUNTABILITY_SEARCH_PROJECTION_V1"
+    static let sourceKind = "PARTY"
+    static let fieldIDs = [
+        "party_identifier",
+        "party_label",
+        "party_role",
+        "status",
+    ]
+    static let excludesContactPoints = true
+    static let excludesIdentityAndLegalClaims = true
+
+    static func accepts(fieldID: String) -> Bool {
+        fieldIDs.contains(fieldID)
+    }
+}
+
 enum SearchPersistenceCodecV1 {
     static func encode<T: Encodable>(_ value: T) throws -> Data {
         let encoder = JSONEncoder()

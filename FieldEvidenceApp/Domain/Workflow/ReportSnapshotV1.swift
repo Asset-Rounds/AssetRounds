@@ -30,6 +30,10 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// the legacy snapshot shape; activation and production population remain
     /// owned by a later release surface.
     var requirementAssurance: RequirementAssuranceSnapshotV1? = nil
+    /// Optional C38 accountability projection.  It freezes only recorded
+    /// party/role/actor/qualification/signoff values and never asserts
+    /// identity, authorization, legal effect, or external verification.
+    var accountability: CompletedAccountabilitySnapshotV1? = nil
 }
 
 struct AcknowledgementSnapshotV1: Codable, Equatable, Sendable {
