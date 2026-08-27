@@ -1873,6 +1873,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for throwingDiagnosticsCallChainLock in [
             "        try assertMonthlyPaywallAtXXXL(in: app)",
             "    private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) throws {",
+            "        try captureSettingsDataSurfaces(in: app)",
+            "    private func captureSettingsDataSurfaces(in app: XCUIApplication) throws {",
         ] {
             XCTAssertEqual(
                 uiSource.components(
@@ -1882,23 +1884,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 throwingDiagnosticsCallChainLock
             )
         }
-        for restoredNonthrowingSettingsDataSurfacesLock in [
-            "        captureSettingsDataSurfaces(in: app)",
-            "    private func captureSettingsDataSurfaces(in app: XCUIApplication) {",
-        ] {
-            XCTAssertEqual(
-                uiSource.components(
-                    separatedBy: restoredNonthrowingSettingsDataSurfacesLock
-                ).count - 1,
-                1,
-                restoredNonthrowingSettingsDataSurfacesLock
-            )
-        }
         for removedDiagnosticsCallChainLock in [
             "        assertMonthlyPaywallAtXXXL(in: app)",
             "    private func assertMonthlyPaywallAtXXXL(in app: XCUIApplication) {",
-            "        try captureSettingsDataSurfaces(in: app)",
-            "    private func captureSettingsDataSurfaces(in app: XCUIApplication) throws {",
+            "        captureSettingsDataSurfaces(in: app)",
+            "    private func captureSettingsDataSurfaces(in app: XCUIApplication) {",
         ] {
             XCTAssertFalse(
                 uiSource.contains(removedDiagnosticsCallChainLock),
@@ -11410,8 +11400,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let diagnosticsTwoAttemptLoop =
-            "        for _ in 0..<2 {\n" +
+        let diagnosticsTwoAttemptLoopPrefix =
+            "        for diagnosticsPositioningAttemptIndex in 0..<2 {\n" +
                 "            let minimumShift = navigationBar.frame.maxY\n" +
                 "                + topClearance\n" +
                 "                - diagnosticsAuthority.frame.minY\n" +
@@ -11421,80 +11411,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    - bottomClearance\n" +
                 "                    - diagnosticsExport.frame.maxY\n" +
                 "            )\n" +
-                "            guard minimumShift <= maximumShift else {\n" +
+                "            guard minimumShift <= maximumShift else {"
+        XCTAssertEqual(
+            diagnosticsPositioningSource.components(
+                separatedBy: diagnosticsTwoAttemptLoopPrefix
+            ).count - 1,
+            1
+        )
+        let diagnosticsIntervalFailureTail =
+            "                }\n" +
                 "                XCTFail(\"Diagnostics positioning interval is impossible.\")\n" +
                 "                return\n" +
                 "            }\n" +
-                "            if minimumShift <= 0, maximumShift >= 0 {\n" +
-                "                break\n" +
-                "            }\n" +
-                "            let targetDistance: CGFloat\n" +
-                "            if maximumShift < 0 {\n" +
-                "                targetDistance = maximumShift\n" +
-                "            } else if minimumShift > 0 {\n" +
-                "                targetDistance = minimumShift\n" +
-                "            } else {\n" +
-                "                XCTFail(\"Diagnostics positioning interval has no signed correction.\")\n" +
-                "                return\n" +
-                "            }\n" +
-                "            let direction: CGFloat = targetDistance > 0 ? 1 : -1\n" +
-                "            if let correctionDirection {\n" +
-                "                guard correctionDirection == direction else {\n" +
-                "                    XCTFail(\"Diagnostics positioning changed correction direction.\")\n" +
-                "                    return\n" +
-                "                }\n" +
-                "            } else {\n" +
-                "                correctionDirection = direction\n" +
-                "            }\n" +
-                "            let residualMagnitude = abs(targetDistance)\n" +
-                "            if let previousResidualMagnitude {\n" +
-                "                guard residualMagnitude < previousResidualMagnitude else {\n" +
-                "                    XCTFail(\"Diagnostics positioning residual did not decrease.\")\n" +
-                "                    return\n" +
-                "                }\n" +
-                "            }\n" +
-                "            previousResidualMagnitude = residualMagnitude\n" +
-                "            let requestedDistance = targetDistance\n" +
-                "                + direction * measuredUndertravel\n" +
-                "            guard abs(requestedDistance) >= minimumGestureDistance else {\n" +
-                "                XCTFail(\"Diagnostics positioning gesture is not recognizable.\")\n" +
-                "                return\n" +
-                "            }\n" +
-                "            let dragStart = diagnosticsScrollView.coordinate(\n" +
-                "                withNormalizedOffset: CGVector(dx: 0.01, dy: 0.45)\n" +
-                "            )\n" +
-                "            let startPoint = dragStart.screenPoint\n" +
-                "            let availableDistance = direction < 0\n" +
-                "                ? startPoint.y - (diagnosticsScrollView.frame.minY + dragInset)\n" +
-                "                : diagnosticsScrollView.frame.maxY - dragInset - startPoint.y\n" +
-                "            guard availableDistance >= abs(requestedDistance) else {\n" +
-                "                XCTFail(\"Diagnostics positioning request exceeds receiver capacity.\")\n" +
-                "                return\n" +
-                "            }\n" +
-                "            let dragEnd = dragStart.withOffset(\n" +
-                "                CGVector(dx: 0, dy: requestedDistance)\n" +
-                "            )\n" +
-                "            let authorityBeforeDrag = diagnosticsAuthority.frame.minY\n" +
-                "            dragStart.press(\n" +
-                "                forDuration: 0.2,\n" +
-                "                thenDragTo: dragEnd,\n" +
-                "                withVelocity: .slow,\n" +
-                "                thenHoldForDuration: 0.2\n" +
-                "            )\n" +
-                "            let actualDistance = diagnosticsAuthority.frame.minY\n" +
-                "                - authorityBeforeDrag\n" +
-                "            guard actualDistance * direction > 0 else {\n" +
-                "                XCTFail(\"Diagnostics positioning gesture was not recognized.\")\n" +
-                "                return\n" +
-                "            }\n" +
-                "            measuredUndertravel = max(\n" +
-                "                0,\n" +
-                "                abs(requestedDistance) - abs(actualDistance)\n" +
-                "            )\n" +
-                "        }"
+                "            if minimumShift <= 0, maximumShift >= 0 {"
         XCTAssertEqual(
             diagnosticsPositioningSource.components(
-                separatedBy: diagnosticsTwoAttemptLoop
+                separatedBy: diagnosticsIntervalFailureTail
             ).count - 1,
             1
         )
@@ -11515,7 +11447,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         for (fragment, expectedCount) in [
-            ("for _ in 0..<2 {", 1),
+            ("for diagnosticsPositioningAttemptIndex in 0..<2 {", 1),
             ("diagnosticsScrollView.coordinate(", 1),
             ("dragStart.press(", 1),
             ("forDuration: 0.2", 1),
@@ -11523,7 +11455,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("thenHoldForDuration: 0.2", 1),
             ("measuredUndertravel = max(", 1),
             ("XCTFail(", 10),
-            ("return", 10),
+            ("return", 11),
         ] {
             XCTAssertEqual(
                 diagnosticsPositioningSource.components(
@@ -11538,12 +11470,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "diagnoseDefaultLightPositioning",
             "frameObject",
             "pointObject",
-            "printJSONLine(",
-            "XCTAttachment(",
             "XCUIScreen.main.screenshot()",
-            "XCTAttachment(string: app.debugDescription)",
-            ".lifetime = .keepAlways",
-            "throw AutomationConfigurationError.invalid(",
             "S10.4 default-light Diagnostics positioning telemetry completed nonaccepting",
             "S10.4 default-light Diagnostics telemetry pre app",
             "S10.4 default-light Diagnostics telemetry pre accessibility tree",
@@ -11571,8 +11498,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10_4_TASK",
             "S10_4_SHARD_RECEIPT",
             "automatedEvidenceIDs.append",
-            "automationAXTreeDigests",
-            "automationContrastExceptions",
+            "automationAXTreeDigests[stateID] =",
+            "automationContrastExceptions[stateID] =",
             "add(candidate)",
             "receipt",
             "retention",
@@ -11580,6 +11507,121 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(
                 diagnosticsPositioningSource.contains(acceptingEmitter),
                 acceptingEmitter
+            )
+        }
+        let diagnosticsReadyIntervalDiagnosticStart =
+            "                if let shard = automationShard,"
+        let diagnosticsReadyIntervalDiagnosticEnd =
+            "                XCTFail(\"Diagnostics positioning interval is impossible.\")"
+        let diagnosticsReadyIntervalDiagnosticStartRange = try XCTUnwrap(
+            diagnosticsPositioningSource.range(
+                of: diagnosticsReadyIntervalDiagnosticStart
+            )
+        )
+        let diagnosticsReadyIntervalDiagnosticEndRange = try XCTUnwrap(
+            diagnosticsPositioningSource.range(
+                of: diagnosticsReadyIntervalDiagnosticEnd,
+                range: diagnosticsReadyIntervalDiagnosticStartRange.upperBound
+                    ..<diagnosticsPositioningSource.endIndex
+            )
+        )
+        let diagnosticsReadyIntervalDiagnosticSource = String(
+            diagnosticsPositioningSource[
+                diagnosticsReadyIntervalDiagnosticStartRange.lowerBound
+                    ..<diagnosticsReadyIntervalDiagnosticEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(
+            diagnosticsReadyIntervalDiagnosticSource.utf8.count,
+            11_536
+        )
+        XCTAssertEqual(
+            Data(diagnosticsReadyIntervalDiagnosticSource.utf8).sha256,
+            "FE1E2CE0BE874FFF4EB384965EE0AF6D904C9C3D8F9590E537DEF9FEAEF6A045"
+        )
+        for exact in [
+            #"shard.shardID == "s10.4.current.ax-text""#,
+            #"automationSegment == .segment3"#,
+            #"let stateID = "state.diagnostics.ready""#,
+            #"Self.segmentedRouteStateIDs[50..<60]"#,
+            #"Self.segmentedRouteStateIDs[60] == stateID"#,
+            #"segmentedRouteStateCursor == 60"#,
+            #""acceptanceEligible": false"#,
+            #""stateOrdinal": 61"#,
+            #""predecessorStateID": "state.backup.ready""#,
+            #""successorStateID": "state.feedback.blocked""#,
+            #""attemptOrdinal": diagnosticsPositioningAttemptIndex + 1"#,
+            #""minimumShift": Double(minimumShift)"#,
+            #""maximumShift": Double(maximumShift)"#,
+            #""intervalWidth": Double(maximumShift - minimumShift)"#,
+            #""minimumShiftAtMostMaximumShift""#,
+            #""failedIntervalRelations": failedIntervalRelations"#,
+            #""queries": ["#,
+            #"self.auditFrameObject(element.frame)"#,
+            #"options: [.sortedKeys]"#,
+            #"S10_4_AX_TEXT_DIAGNOSTICS_READY_INTERVAL_DIAGNOSTIC"#,
+            #"S10.4 AX-text diagnostics-ready interval diagnostic app"#,
+            #"S10.4 AX-text diagnostics-ready interval diagnostic tree"#,
+            #"S10.4 AX-text diagnostics-ready interval diagnostic context"#,
+            #"S10.4 AX-text diagnostics-ready interval diagnostic completed nonaccepting"#,
+        ] {
+            XCTAssertTrue(
+                diagnosticsReadyIntervalDiagnosticSource.contains(exact),
+                exact
+            )
+        }
+        var diagnosticsReadyIntervalDiagnosticTail =
+            diagnosticsReadyIntervalDiagnosticSource[
+                diagnosticsReadyIntervalDiagnosticSource.startIndex...
+            ]
+        for orderedToken in [
+            "let diagnosticContext: [String: Any] = [",
+            "options: [.sortedKeys]",
+            "S10_4_AX_TEXT_DIAGNOSTICS_READY_INTERVAL_DIAGNOSTIC",
+            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
+            "let contextAttachment = XCTAttachment(string: contextText)",
+            "throw AutomationConfigurationError.invalid(\n" +
+                "                        \"S10.4 AX-text diagnostics-ready interval diagnostic completed nonaccepting\"",
+        ] {
+            let range = try XCTUnwrap(
+                diagnosticsReadyIntervalDiagnosticTail.range(of: orderedToken),
+                orderedToken
+            )
+            diagnosticsReadyIntervalDiagnosticTail =
+                diagnosticsReadyIntervalDiagnosticTail[range.upperBound...]
+        }
+        for (fragment, expectedCount) in [
+            ("S10_4_AX_TEXT_DIAGNOSTICS_READY_INTERVAL_DIAGNOSTIC", 1),
+            ("XCTAttachment(", 3),
+            (".lifetime = .keepAlways", 3),
+            ("add(", 3),
+            ("printJSONLine(", 1),
+            ("throw AutomationConfigurationError.invalid(", 3),
+        ] {
+            XCTAssertEqual(
+                diagnosticsReadyIntervalDiagnosticSource.components(
+                    separatedBy: fragment
+                ).count - 1,
+                expectedCount,
+                fragment
+            )
+        }
+        for prohibited in [
+            "captureBaseline(", "performAccessibilityAudit", "eligibleExceptions",
+            "S10_MIGRATION_STATE", "S10_4_AX_STATE", "S10_4_CONTRAST\"",
+            "S10_4_CANDIDATE", "automatedEvidenceIDs.append",
+            "automationAXTreeDigests[stateID] =",
+            "automationContrastExceptions[stateID] =", "add(candidate)",
+            ".tap()", ".typeText(", "setToggle(", "navigateBack(",
+            "waitForExistence(", ".swipe", "sleep(", "NotificationCenter",
+            "segmentedRouteStateCursor +=", "automatedSegmentFinished = true",
+            "ContrastAuditExceptionSignature(", "exceptionIssueID", "XCTFail(",
+            "return false", "return true",
+        ] {
+            XCTAssertFalse(
+                diagnosticsReadyIntervalDiagnosticSource.contains(prohibited),
+                prohibited
             )
         }
         for removedPositioningForm in [
@@ -20897,10 +20939,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n\n    @MainActor\n" +
                     "    private func captureSettingsDataSurfaces("
         )
-        XCTAssertEqual(monthlyPaywallSource.utf8.count, 6_283)
+        XCTAssertEqual(monthlyPaywallSource.utf8.count, 6_287)
         XCTAssertEqual(
             Data(monthlyPaywallSource.utf8).sha256,
-            "2D725263734A0E1F09469DA7BAE5DD7D66E49A5896D48E50AE0445368892D07C"
+            "96A0596779C4745A3A96336BDF1F3442E41D6EED8ED7FA7C3D5EE874B9CA5C69"
         )
         var settingsHubCallerTail =
             monthlyPaywallSource[monthlyPaywallSource.startIndex...]
@@ -20910,7 +20952,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"for: "state.settings.hub""#,
             #"try positionSettingsHubDiagnosticsEntryForAXText(in: app)"#,
             #"captureBaseline("state.settings.hub", in: app)"#,
-            #"captureSettingsDataSurfaces(in: app)"#,
+            #"try captureSettingsDataSurfaces(in: app)"#,
         ] {
             let range = try XCTUnwrap(settingsHubCallerTail.range(of: token), token)
             settingsHubCallerTail = settingsHubCallerTail[range.upperBound...]
