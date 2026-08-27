@@ -11380,7 +11380,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               Self.segmentedRouteStateIDs.count == 67,
               Set(Self.segmentedRouteStateIDs).count == 67,
               Self.segmentedRouteStateIDs[35] == stateID,
-              segmentedRouteStateCursor == 35,
+              segmentedRouteStateCursor == 36,
               migratedStateIDs == expectedMigratedStateIDs,
               automationAXTreeDigests.keys.sorted()
                 == expectedMigratedStateIDs.sorted(),

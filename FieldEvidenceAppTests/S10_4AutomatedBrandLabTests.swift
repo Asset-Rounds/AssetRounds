@@ -21108,7 +21108,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(issueResolvedDiagnosticSource.utf8.count, 12_424)
         XCTAssertEqual(
             Data(issueResolvedDiagnosticSource.utf8).sha256,
-            "06DEE46CE8DEA2CDE6C61A4B3FBF29D4BD753AC74601E10BB633D6F53FA58A10"
+            "D9D1A7820B41E4153B354763BC05DAD10A204B2D9EF234EBAB529E458F0DB87C"
         )
         for exact in [
             #"let stateID = "state.issue.resolved""#,
@@ -21124,7 +21124,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"automationSegment.ownedCount == 28"#,
             #"automationSegment.finalOrdinal == 50"#,
             #"Self.segmentedRouteStateIDs[35] == stateID"#,
-            #"segmentedRouteStateCursor == 35"#,
+            #"segmentedRouteStateCursor == 36"#,
             #"migratedStateIDs == expectedMigratedStateIDs"#,
             #"automationAXTreeDigests.keys.sorted()"#,
             #"automationContrastExceptions.keys.sorted()"#,
