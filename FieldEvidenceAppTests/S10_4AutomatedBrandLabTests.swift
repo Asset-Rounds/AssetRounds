@@ -20435,12 +20435,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n\n    @MainActor\n" +
                     "    private func diagnoseSegment3AXTextSettingsHubNativeContrast("
         )
-        XCTAssertEqual(settingsHubPositioningSource.utf8.count, 30_279)
+        XCTAssertEqual(settingsHubPositioningSource.utf8.count, 43_138)
         XCTAssertEqual(
             Data(settingsHubPositioningSource.utf8).sha256,
-            "C0A4BC7FA0ED72852037CED2F52DC442D691490C5FAA991B00B1031DB4A0EBF1"
+            "F157B020EEDE3000F7C7614A489636AAF338415EACBDBC3A4F973511B4833100"
         )
         for exact in [
+            #") throws -> Bool {"#,
             #"identifier: "s1.settings.screen""#,
             #"identifier: "s8.3.diagnostics.settings-entry""#,
             #"diagnosticsEntry.label == "View diagnostics""#,
@@ -20461,6 +20462,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"let shiftAllowance: CGFloat = 1"#,
             #"let isValidFrame: (CGRect) -> Bool = { frame in"#,
             #"var measuredInitialOvertravel: CGFloat?"#,
+            #"for initialAttemptIndex in 0..<4"#,
             #"for _ in 0..<4"#,
             #"let minimumShift = max("#,
             #"safeTop - diagnosticsFrame.minY"#,
@@ -20514,6 +20516,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"diagnosticsEntry.isHittable"#,
             #"feedbackEntry.isHittable"#,
             #"inspectionStaticText.isHittable"#,
+            #"S10_4_AX_TEXT_SETTINGS_HUB_INITIAL_POSITIONING_PROGRESS_DIAGNOSTIC"#,
+            #"S10.4 AX-text settings-hub initial-positioning progress diagnostic completed nonaccepting"#,
             #"return true"#,
         ] {
             XCTAssertTrue(settingsHubPositioningSource.contains(exact), exact)
@@ -20528,7 +20532,29 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             settingsHubPositioningSource.components(
                 separatedBy: "for _ in 0..<4"
             ).count - 1,
-            2
+            1
+        )
+        XCTAssertEqual(
+            settingsHubPositioningSource.components(
+                separatedBy: "for initialAttemptIndex in 0..<4"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            settingsHubPositioningSource.components(
+                separatedBy: "XCTAttachment("
+            ).count - 1,
+            3
+        )
+        XCTAssertEqual(
+            settingsHubPositioningSource.components(
+                separatedBy: ".lifetime = .keepAlways"
+            ).count - 1,
+            3
+        )
+        XCTAssertEqual(
+            settingsHubPositioningSource.components(separatedBy: "add(").count - 1,
+            3
         )
         XCTAssertEqual(
             settingsHubPositioningSource.components(
@@ -20575,12 +20601,146 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for prohibited in [
             "performAccessibilityAudit", "ContrastAuditExceptionSignature(",
             "S10_MIGRATION_STATE", "S10_4_AX_STATE", "S10_4_CONTRAST",
-            "S10_4_CANDIDATE", "XCTAttachment(", "migratedStateIDs.append",
+            "S10_4_CANDIDATE", "migratedStateIDs.append",
             "segmentedRouteStateCursor +=", "automatedSegmentFinished = true",
             ".tap()", ".typeText(", "setToggle(", "navigateBack(",
             "waitForExistence(", ".swipe", "sleep(", "tolerance",
         ] {
             XCTAssertFalse(settingsHubPositioningSource.contains(prohibited), prohibited)
+        }
+
+        let settingsHubInitialProgressDiagnosticSource = try boundedSource(
+            settingsHubPositioningSource,
+            from: #"                let stateID = "state.settings.hub""#,
+            before: "            measuredInitialOvertravel = (\n"
+        )
+        XCTAssertEqual(
+            settingsHubInitialProgressDiagnosticSource.utf8.count,
+            12_978
+        )
+        XCTAssertEqual(
+            Data(settingsHubInitialProgressDiagnosticSource.utf8).sha256,
+            "F33E4356136319A2614EBBC5DBDED45B7F69DE34804E6856FE317C2D3EC99E92"
+        )
+        for exact in [
+            #"let stateID = "state.settings.hub""#,
+            #"Self.segmentedRouteStateIDs[50..<58]"#,
+            #"shard.shardID == "s10.4.current.ax-text""#,
+            #"automationSegment == .segment3"#,
+            #"automationSegment.replayCount == 22"#,
+            #"automationSegment.ownedStartOrdinal == 51"#,
+            #"automationSegment.ownedCount == 17"#,
+            #"automationSegment.finalOrdinal == 67"#,
+            #"Self.segmentedRouteStateIDs[58] == stateID"#,
+            #"segmentedRouteStateCursor == 58"#,
+            #"migratedStateIDs == expectedMigratedStateIDs"#,
+            #"automationAXTreeDigests.keys.sorted()"#,
+            #"automationContrastExceptions.keys.sorted()"#,
+            #"!automatedSegmentFinished"#,
+            #"app.state == .runningForeground"#,
+            #""acceptanceEligible": false"#,
+            #""stateOrdinal": 59"#,
+            #""predecessorStateID": "state.feedback.review-ready""#,
+            #""predecessorOrdinal": 58"#,
+            #""successorStateID": "state.backup.ready""#,
+            #""successorOrdinal": 60"#,
+            #""attemptOrdinal": initialAttemptIndex + 1"#,
+            #""receiverInset": Double(receiverInset)"#,
+            #""minimumGestureDistance": Double(minimumGestureDistance)"#,
+            #""shiftAllowance": Double(shiftAllowance)"#,
+            #""minimumShift": Double(minimumShift)"#,
+            #""maximumShift": Double(maximumShift)"#,
+            #""recognizedMinimum": Double(recognizedMinimum)"#,
+            #""recognizedMaximum": Double(recognizedMaximum)"#,
+            #""dragDistance": Double(dragDistance)"#,
+            #""observedDiagnosticsShift": Double(observedDiagnosticsShift)"#,
+            #""observedFeedbackShift": Double(observedFeedbackShift)"#,
+            #""diagnosticsOvertravel": Double(diagnosticsOvertravel)"#,
+            #""feedbackOvertravel": Double(feedbackOvertravel)"#,
+            #""orderedProgressRelations": orderedProgressRelations"#,
+            #""failedProgressRelations": failedProgressRelations"#,
+            #""frozenFrames": ["#,
+            #""beforeFrames": ["#,
+            #""afterFrames": ["#,
+            #""queries": ["#,
+            #""observedDiagnosticsShiftNegative""#,
+            #""observedFeedbackShiftNegative""#,
+            #""diagnosticsSignedProgress""#,
+            #""feedbackSignedProgress""#,
+            #""rigidShiftWithinAllowance""#,
+            #""diagnosticsOvertravelFinite""#,
+            #""feedbackOvertravelFinite""#,
+            #""diagnosticsOvertravelNonnegative""#,
+            #""feedbackOvertravelNonnegative""#,
+            #""diagnosticsOvertravelWithinReceiverInset""#,
+            #""feedbackOvertravelWithinReceiverInset""#,
+            #""rigidOvertravelWithinAllowance""#,
+            #"options: [.sortedKeys]"#,
+            #"S10_4_AX_TEXT_SETTINGS_HUB_INITIAL_POSITIONING_PROGRESS_DIAGNOSTIC"#,
+            #"S10.4 AX-text settings-hub initial-positioning progress diagnostic app"#,
+            #"S10.4 AX-text settings-hub initial-positioning progress diagnostic tree"#,
+            #"S10.4 AX-text settings-hub initial-positioning progress diagnostic context"#,
+            #"S10.4 AX-text settings-hub initial-positioning progress diagnostic completed nonaccepting"#,
+        ] {
+            XCTAssertTrue(
+                settingsHubInitialProgressDiagnosticSource.contains(exact),
+                exact
+            )
+        }
+        var settingsHubInitialProgressDiagnosticTail =
+            settingsHubInitialProgressDiagnosticSource[
+                settingsHubInitialProgressDiagnosticSource.startIndex...
+            ]
+        for orderedToken in [
+            "let diagnosticContext: [String: Any] = [",
+            "options: [.sortedKeys]",
+            "S10_4_AX_TEXT_SETTINGS_HUB_INITIAL_POSITIONING_PROGRESS_DIAGNOSTIC",
+            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
+            "let contextAttachment = XCTAttachment(string: contextText)",
+            "throw AutomationConfigurationError.invalid(\n" +
+                "                    \"S10.4 AX-text settings-hub initial-positioning progress diagnostic completed nonaccepting\"",
+        ] {
+            let range = try XCTUnwrap(
+                settingsHubInitialProgressDiagnosticTail.range(of: orderedToken),
+                orderedToken
+            )
+            settingsHubInitialProgressDiagnosticTail =
+                settingsHubInitialProgressDiagnosticTail[range.upperBound...]
+        }
+        XCTAssertEqual(
+            settingsHubInitialProgressDiagnosticSource.components(
+                separatedBy:
+                    "S10_4_AX_TEXT_SETTINGS_HUB_INITIAL_POSITIONING_PROGRESS_DIAGNOSTIC"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            settingsHubInitialProgressDiagnosticSource.components(
+                separatedBy: ".lifetime = .keepAlways"
+            ).count - 1,
+            3
+        )
+        XCTAssertEqual(
+            settingsHubInitialProgressDiagnosticSource.components(
+                separatedBy: "add("
+            ).count - 1,
+            3
+        )
+        for prohibited in [
+            "performAccessibilityAudit", "_ISSUE_DIAGNOSTIC",
+            "_COUNT_DIAGNOSTIC", "captureBaseline(", "S10_MIGRATION_STATE",
+            "S10_4_AX_STATE", "S10_4_CONTRAST", "S10_4_CANDIDATE",
+            "ContrastAuditExceptionSignature(", "exceptionIssueID", ".tap()",
+            ".typeText(", "setToggle(", "navigateBack(", "waitForExistence(",
+            ".swipe", ".press(", "sleep(", "NotificationCenter",
+            "migratedStateIDs.append", "segmentedRouteStateCursor +=",
+            "automatedSegmentFinished = true",
+        ] {
+            XCTAssertFalse(
+                settingsHubInitialProgressDiagnosticSource.contains(prohibited),
+                prohibited
+            )
         }
 
         let settingsHubDiagnosticSource = try boundedSource(
@@ -20737,10 +20897,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n\n    @MainActor\n" +
                     "    private func captureSettingsDataSurfaces("
         )
-        XCTAssertEqual(monthlyPaywallSource.utf8.count, 6_279)
+        XCTAssertEqual(monthlyPaywallSource.utf8.count, 6_283)
         XCTAssertEqual(
             Data(monthlyPaywallSource.utf8).sha256,
-            "361DA60CCC3F9BFD6FDB4D164292525002C75522D7DFF5B15480A3B4065282C0"
+            "2D725263734A0E1F09469DA7BAE5DD7D66E49A5896D48E50AE0445368892D07C"
         )
         var settingsHubCallerTail =
             monthlyPaywallSource[monthlyPaywallSource.startIndex...]
@@ -20748,7 +20908,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"waitForExistence(timeout: 20)"#,
             #"shouldPrepareNormalEvidence("#,
             #"for: "state.settings.hub""#,
-            #"positionSettingsHubDiagnosticsEntryForAXText(in: app)"#,
+            #"try positionSettingsHubDiagnosticsEntryForAXText(in: app)"#,
             #"captureBaseline("state.settings.hub", in: app)"#,
             #"captureSettingsDataSurfaces(in: app)"#,
         ] {

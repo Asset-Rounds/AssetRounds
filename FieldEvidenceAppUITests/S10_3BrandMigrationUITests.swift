@@ -8310,7 +8310,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                for: "state.settings.hub",
                in: app
            ) {
-            guard positionSettingsHubDiagnosticsEntryForAXText(in: app) else {
+            guard try positionSettingsHubDiagnosticsEntryForAXText(in: app) else {
                 throw AutomationConfigurationError.invalid(
                     "S10.4 AX-text settings-hub positioning failed"
                 )
@@ -11163,7 +11163,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     @MainActor
     private func positionSettingsHubDiagnosticsEntryForAXText(
         in app: XCUIApplication
-    ) -> Bool {
+    ) throws -> Bool {
         let settingsScreens = app.descendants(matching: .any).matching(
             identifier: "s1.settings.screen"
         )
@@ -11262,7 +11262,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         var measuredInitialOvertravel: CGFloat?
 
-        for _ in 0..<4 {
+        for initialAttemptIndex in 0..<4 {
             guard app.state == .runningForeground,
                   settingsScreens.count == 1,
                   settingsScrollViews.count == 1,
@@ -11444,8 +11444,261 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   diagnosticsOvertravel <= receiverInset + shiftAllowance,
                   feedbackOvertravel <= receiverInset + shiftAllowance,
                   abs(diagnosticsOvertravel - feedbackOvertravel) <= shiftAllowance else {
-                XCTFail("AX-text settings-hub initial positioning gesture made no signed progress.")
-                return false
+                let stateID = "state.settings.hub"
+                let expectedMigratedStateIDs = Array(
+                    Self.segmentedRouteStateIDs[50..<58]
+                )
+                let expectedContrastExceptionStateIDs = [
+                    "state.report-correction.validation-error",
+                ]
+                guard let shard = automationShard,
+                      shard.shardID == "s10.4.current.ax-text",
+                      automationSegment == .segment3,
+                      automationSegment.replayCount == 22,
+                      automationSegment.ownedStartOrdinal == 51,
+                      automationSegment.ownedCount == 17,
+                      automationSegment.finalOrdinal == 67,
+                      Self.segmentedRouteStateIDs.count == 67,
+                      Set(Self.segmentedRouteStateIDs).count == 67,
+                      Self.segmentedRouteStateIDs[58] == stateID,
+                      segmentedRouteStateCursor == 58,
+                      migratedStateIDs == expectedMigratedStateIDs,
+                      automationAXTreeDigests.keys.sorted()
+                        == expectedMigratedStateIDs.sorted(),
+                      automationContrastExceptions.keys.sorted()
+                        == expectedContrastExceptionStateIDs,
+                      !automatedSegmentFinished,
+                      app.state == .runningForeground else {
+                    throw AutomationConfigurationError.invalid(
+                        "S10.4 AX-text settings-hub initial-positioning progress diagnostic gate is invalid"
+                    )
+                }
+                let publicNodeObject: (XCUIElement) -> [String: Any] = {
+                    element in
+                    [
+                        "exists": element.exists,
+                        "isEnabled": element.isEnabled,
+                        "isHittable": element.isHittable,
+                        "identifier": element.identifier,
+                        "label": element.label,
+                        "value": (element.value as? String).map { $0 as Any }
+                            ?? NSNull(),
+                        "elementTypeRawValue": element.elementType.rawValue,
+                        "elementTypeDescription": String(
+                            describing: element.elementType
+                        ),
+                        "frame": self.auditFrameObject(element.frame),
+                    ]
+                }
+                let publicQueryObject: (XCUIElementQuery) -> [String: Any] = {
+                    query in
+                    let actualCount = query.count
+                    return [
+                        "count": actualCount,
+                        "elements": (0..<actualCount).map { index in
+                            publicNodeObject(query.element(boundBy: index))
+                        },
+                    ]
+                }
+                let progressRelations: [(String, Bool)] = [
+                    (
+                        "observedDiagnosticsShiftNegative",
+                        observedDiagnosticsShift < 0
+                    ),
+                    (
+                        "observedFeedbackShiftNegative",
+                        observedFeedbackShift < 0
+                    ),
+                    (
+                        "diagnosticsSignedProgress",
+                        observedDiagnosticsShift * dragDistance > 0
+                    ),
+                    (
+                        "feedbackSignedProgress",
+                        observedFeedbackShift * dragDistance > 0
+                    ),
+                    (
+                        "rigidShiftWithinAllowance",
+                        abs(observedDiagnosticsShift - observedFeedbackShift)
+                            <= shiftAllowance
+                    ),
+                    (
+                        "diagnosticsOvertravelFinite",
+                        diagnosticsOvertravel.isFinite
+                    ),
+                    (
+                        "feedbackOvertravelFinite",
+                        feedbackOvertravel.isFinite
+                    ),
+                    (
+                        "diagnosticsOvertravelNonnegative",
+                        diagnosticsOvertravel >= 0
+                    ),
+                    (
+                        "feedbackOvertravelNonnegative",
+                        feedbackOvertravel >= 0
+                    ),
+                    (
+                        "diagnosticsOvertravelWithinReceiverInset",
+                        diagnosticsOvertravel <= receiverInset + shiftAllowance
+                    ),
+                    (
+                        "feedbackOvertravelWithinReceiverInset",
+                        feedbackOvertravel <= receiverInset + shiftAllowance
+                    ),
+                    (
+                        "rigidOvertravelWithinAllowance",
+                        abs(diagnosticsOvertravel - feedbackOvertravel)
+                            <= shiftAllowance
+                    ),
+                ]
+                let orderedProgressRelations: [[String: Any]] =
+                    progressRelations.map { relation in
+                        [
+                            "name": relation.0,
+                            "passed": relation.1,
+                        ]
+                    }
+                let failedProgressRelations = progressRelations.compactMap {
+                    relation in
+                    relation.1 ? nil : relation.0
+                }
+                let diagnosticContext: [String: Any] = [
+                    "schemaVersion": 1,
+                    "acceptanceEligible": false,
+                    "shardID": shard.shardID,
+                    "requirementID": shard.requirementID,
+                    "deviceProfileID": shard.deviceProfileID,
+                    "segmentID": automationSegment.rawValue,
+                    "segmentReplayCount": automationSegment.replayCount,
+                    "segmentOwnedCount": automationSegment.ownedCount,
+                    "segmentFinalOrdinal": automationSegment.finalOrdinal,
+                    "segmentStateCursor": segmentedRouteStateCursor,
+                    "migratedStateIDs": migratedStateIDs,
+                    "stateID": stateID,
+                    "stateOrdinal": 59,
+                    "predecessorStateID": "state.feedback.review-ready",
+                    "predecessorOrdinal": 58,
+                    "successorStateID": "state.backup.ready",
+                    "successorOrdinal": 60,
+                    "applicationState": String(describing: app.state),
+                    "applicationStateRawValue": app.state.rawValue,
+                    "applicationForeground": app.state == .runningForeground,
+                    "applicationFrame": self.auditFrameObject(app.frame),
+                    "attemptOrdinal": initialAttemptIndex + 1,
+                    "contentInset": Double(contentInset),
+                    "receiverInset": Double(receiverInset),
+                    "minimumGestureDistance": Double(minimumGestureDistance),
+                    "shiftAllowance": Double(shiftAllowance),
+                    "liveTop": Double(liveTop),
+                    "liveBottom": Double(liveBottom),
+                    "safeTop": Double(safeTop),
+                    "safeBottom": Double(safeBottom),
+                    "receiverTop": Double(receiverTop),
+                    "receiverBottom": Double(receiverBottom),
+                    "receiverCapacity": Double(receiverCapacity),
+                    "minimumShift": Double(minimumShift),
+                    "maximumShift": Double(maximumShift),
+                    "recognizedMinimum": Double(recognizedMinimum),
+                    "recognizedMaximum": Double(recognizedMaximum),
+                    "dragDistance": Double(dragDistance),
+                    "dragStart": [
+                        "x": Double(scrollFrame.midX),
+                        "y": Double(receiverBottom),
+                    ],
+                    "dragEnd": [
+                        "x": Double(scrollFrame.midX),
+                        "y": Double(receiverBottom + dragDistance),
+                    ],
+                    "observedDiagnosticsShift": Double(observedDiagnosticsShift),
+                    "observedFeedbackShift": Double(observedFeedbackShift),
+                    "diagnosticsOvertravel": Double(diagnosticsOvertravel),
+                    "feedbackOvertravel": Double(feedbackOvertravel),
+                    "orderedProgressRelations": orderedProgressRelations,
+                    "failedProgressRelations": failedProgressRelations,
+                    "frozenFrames": [
+                        "application": self.auditFrameObject(
+                            frozenApplicationFrame
+                        ),
+                        "screen": self.auditFrameObject(frozenScreenFrame),
+                        "scrollView": self.auditFrameObject(frozenScrollFrame),
+                        "navigationBar": self.auditFrameObject(
+                            frozenNavigationFrame
+                        ),
+                        "tabBar": self.auditFrameObject(frozenTabBarFrame),
+                    ],
+                    "beforeFrames": [
+                        "diagnosticsEntry": self.auditFrameObject(
+                            diagnosticsFrame
+                        ),
+                        "feedbackEntry": self.auditFrameObject(feedbackFrame),
+                    ],
+                    "afterFrames": [
+                        "diagnosticsEntry": self.auditFrameObject(
+                            diagnosticsEntry.frame
+                        ),
+                        "feedbackEntry": self.auditFrameObject(
+                            feedbackEntry.frame
+                        ),
+                        "inspectionText": self.auditFrameObject(
+                            inspectionStaticText.frame
+                        ),
+                    ],
+                    "queries": [
+                        "settingsScreens": publicQueryObject(settingsScreens),
+                        "settingsScrollViews": publicQueryObject(
+                            settingsScrollViews
+                        ),
+                        "diagnosticsEntries": publicQueryObject(
+                            diagnosticsEntries
+                        ),
+                        "feedbackEntries": publicQueryObject(feedbackEntries),
+                        "inspectionStaticTexts": publicQueryObject(
+                            inspectionStaticTexts
+                        ),
+                        "navigationBars": publicQueryObject(navigationBars),
+                        "tabBars": publicQueryObject(tabBars),
+                        "keyboards": publicQueryObject(keyboards),
+                        "inputViews": publicQueryObject(inputViews),
+                    ],
+                ]
+                guard JSONSerialization.isValidJSONObject(diagnosticContext),
+                      let contextData = try? JSONSerialization.data(
+                        withJSONObject: diagnosticContext,
+                        options: [.sortedKeys]
+                      ),
+                      let contextText = String(
+                        data: contextData,
+                        encoding: .utf8
+                      ),
+                      !contextText.contains("\n") else {
+                    throw AutomationConfigurationError.invalid(
+                        "S10.4 AX-text settings-hub initial-positioning progress diagnostic JSON is invalid"
+                    )
+                }
+                self.printJSONLine(
+                    prefix:
+                        "S10_4_AX_TEXT_SETTINGS_HUB_INITIAL_POSITIONING_PROGRESS_DIAGNOSTIC",
+                    object: diagnosticContext
+                )
+                let appAttachment = XCTAttachment(screenshot: app.screenshot())
+                appAttachment.name =
+                    "S10.4 AX-text settings-hub initial-positioning progress diagnostic app"
+                appAttachment.lifetime = .keepAlways
+                add(appAttachment)
+                let treeAttachment = XCTAttachment(string: app.debugDescription)
+                treeAttachment.name =
+                    "S10.4 AX-text settings-hub initial-positioning progress diagnostic tree"
+                treeAttachment.lifetime = .keepAlways
+                add(treeAttachment)
+                let contextAttachment = XCTAttachment(string: contextText)
+                contextAttachment.name =
+                    "S10.4 AX-text settings-hub initial-positioning progress diagnostic context"
+                contextAttachment.lifetime = .keepAlways
+                add(contextAttachment)
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 AX-text settings-hub initial-positioning progress diagnostic completed nonaccepting"
+                )
             }
             measuredInitialOvertravel = (
                 diagnosticsOvertravel + feedbackOvertravel
