@@ -3,7 +3,7 @@
   "acceptanceEnabled": false,
   "activeS10ReservationPathCount": 86,
   "adoptionEnabled": false,
-  "artifactDigest": "e433d23fab0a390c29479bfe020fcacc6a681e98c1a39c704a9e7ab1e03634d9",
+  "artifactDigest": "af9afd066a6d3d832de905495deaab5210181cf706dd839569ec45e2206368ff",
   "artifacts": [
     {
       "path": "FieldEvidenceApp/App/Composition/ProductionCompositionRoot.swift",
@@ -103,7 +103,7 @@
     },
     {
       "path": "Scripts/v23/generate_p03_c08_contracts.py",
-      "sha256": "fd11b09e0b44e648e4a15e0ddf1e770e3513cbec4c9600609033be8b08f0b0bf"
+      "sha256": "1a8cbd4d413283f3dbe580d25f91fa6bdf30db1ded5f3c2d0b89ca37fbd9f8cd"
     },
     {
       "path": "Scripts/v23/verify_p03_c08_contracts.py",
