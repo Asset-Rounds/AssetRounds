@@ -328,6 +328,28 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
         ),
         ContrastAuditExceptionSignature(
+            issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-RESOLVED-WORK-DESCRIPTION",
+            shardID: "s10.4.current.ax-text",
+            stateID: "state.issue.resolved",
+            taskID: "work_and_recheck",
+            owner: "palatis3",
+            expiresAt: "2026-11-20",
+            rationale: "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Replaced failed power supply value whose frozen public frame is wholly inside the application but overlaps 14.7375488281249 points of native bottom tab chrome in the AX-text issue-resolved state; the audit-owned crop and serialized tree bind the issue to that exact native-chrome composition, and the exception is limited to the frozen public issue signature.",
+            auditTypeRawValue: "1",
+            compactDescription: "Contrast failed",
+            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode",
+            elementIdentifier: "",
+            elementLabel: "Replaced failed power supply",
+            elementTypeDescription: "XCUIElementType(rawValue: 48)",
+            elementFrame: CGRect(
+                x: 32,
+                y: 618.40421549479152,
+                width: 284,
+                height: 187.33333333333337
+            ),
+            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)
+        ),
+        ContrastAuditExceptionSignature(
             issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-RECHECK-DUE-SECTION-APPEARS-DARK",
             shardID: "s10.4.current.ax-text",
             stateID: "state.issue.recheck-due",
@@ -10459,16 +10481,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         ) {
             return
         }
-        if automationShard?.shardID == "s10.4.current.ax-text",
-           automationSegment == .segment2,
-           stateID == "state.issue.resolved" {
-            do {
-                try diagnoseSegment2AXTextIssueResolvedNativeContrast(in: app)
-            } catch {
-                XCTFail(String(describing: error), file: file, line: line)
-            }
-            return
-        }
         XCTAssertFalse(
             migratedStateIDs.contains(stateID),
             "Migration state was visited more than once: \(stateID)",
@@ -13284,10 +13296,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     "state.reports-index.ready",
                 ]
             case ("s10.4.current.ax-text", "work_and_recheck"):
-                taskIssueLimit = 5
-                taskStateLimit = 4
+                taskIssueLimit = 6
+                taskStateLimit = 5
                 permittedExceptionStateIDs = [
                     "state.issue.recheck-due",
+                    "state.issue.resolved",
                     "state.recheck-capture.wide-ready",
                     "state.recheck-preflight.ready",
                     "state.work.validation-error",
