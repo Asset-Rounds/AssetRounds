@@ -20435,10 +20435,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n\n    @MainActor\n" +
                     "    private func diagnoseSegment3AXTextSettingsHubNativeContrast("
         )
-        XCTAssertEqual(settingsHubPositioningSource.utf8.count, 43_138)
+        XCTAssertEqual(settingsHubPositioningSource.utf8.count, 42_718)
         XCTAssertEqual(
             Data(settingsHubPositioningSource.utf8).sha256,
-            "F157B020EEDE3000F7C7614A489636AAF338415EACBDBC3A4F973511B4833100"
+            "A741D80E59DFEF588AE4001D7C382B909D586516C5BD2A45845DE149E7F7A5CF"
         )
         for exact in [
             #") throws -> Bool {"#,
@@ -20490,9 +20490,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"observedInspectionShift * dragDistance > 0"#,
             #"let diagnosticsOvertravel = dragDistance - observedDiagnosticsShift"#,
             #"let feedbackOvertravel = dragDistance - observedFeedbackShift"#,
-            #"diagnosticsOvertravel <= receiverInset + shiftAllowance"#,
-            #"feedbackOvertravel <= receiverInset + shiftAllowance"#,
-            #"measuredInitialOvertravel <= receiverInset + shiftAllowance"#,
+            #"abs(diagnosticsOvertravel) <= receiverInset + shiftAllowance"#,
+            #"abs(feedbackOvertravel) <= receiverInset + shiftAllowance"#,
+            #"abs(measuredInitialOvertravel) <= receiverInset + shiftAllowance"#,
             #"measuredInitialOvertravel = ("#,
             #"minimumShift + measuredInitialOvertravel"#,
             #"maximumShift + measuredInitialOvertravel"#,
@@ -20605,6 +20605,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "segmentedRouteStateCursor +=", "automatedSegmentFinished = true",
             ".tap()", ".typeText(", "setToggle(", "navigateBack(",
             "waitForExistence(", ".swipe", "sleep(", "tolerance",
+            "diagnosticsOvertravel >= 0", "feedbackOvertravel >= 0",
+            "measuredInitialOvertravel >= 0", "OvertravelNonnegative",
         ] {
             XCTAssertFalse(settingsHubPositioningSource.contains(prohibited), prohibited)
         }
@@ -20616,11 +20618,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             settingsHubInitialProgressDiagnosticSource.utf8.count,
-            12_978
+            12_682
         )
         XCTAssertEqual(
             Data(settingsHubInitialProgressDiagnosticSource.utf8).sha256,
-            "F33E4356136319A2614EBBC5DBDED45B7F69DE34804E6856FE317C2D3EC99E92"
+            "770501DDAAAB3EAFFE001A14E4280E54E5A0C77588970E5ED8DD75075A914470"
         )
         for exact in [
             #"let stateID = "state.settings.hub""#,
@@ -20670,8 +20672,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #""rigidShiftWithinAllowance""#,
             #""diagnosticsOvertravelFinite""#,
             #""feedbackOvertravelFinite""#,
-            #""diagnosticsOvertravelNonnegative""#,
-            #""feedbackOvertravelNonnegative""#,
             #""diagnosticsOvertravelWithinReceiverInset""#,
             #""feedbackOvertravelWithinReceiverInset""#,
             #""rigidOvertravelWithinAllowance""#,

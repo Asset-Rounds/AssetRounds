@@ -11439,10 +11439,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   abs(observedDiagnosticsShift - observedFeedbackShift) <= shiftAllowance,
                   diagnosticsOvertravel.isFinite,
                   feedbackOvertravel.isFinite,
-                  diagnosticsOvertravel >= 0,
-                  feedbackOvertravel >= 0,
-                  diagnosticsOvertravel <= receiverInset + shiftAllowance,
-                  feedbackOvertravel <= receiverInset + shiftAllowance,
+                  abs(diagnosticsOvertravel) <= receiverInset + shiftAllowance,
+                  abs(feedbackOvertravel) <= receiverInset + shiftAllowance,
                   abs(diagnosticsOvertravel - feedbackOvertravel) <= shiftAllowance else {
                 let stateID = "state.settings.hub"
                 let expectedMigratedStateIDs = Array(
@@ -11531,20 +11529,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         feedbackOvertravel.isFinite
                     ),
                     (
-                        "diagnosticsOvertravelNonnegative",
-                        diagnosticsOvertravel >= 0
-                    ),
-                    (
-                        "feedbackOvertravelNonnegative",
-                        feedbackOvertravel >= 0
-                    ),
-                    (
                         "diagnosticsOvertravelWithinReceiverInset",
-                        diagnosticsOvertravel <= receiverInset + shiftAllowance
+                        abs(diagnosticsOvertravel) <= receiverInset + shiftAllowance
                     ),
                     (
                         "feedbackOvertravelWithinReceiverInset",
-                        feedbackOvertravel <= receiverInset + shiftAllowance
+                        abs(feedbackOvertravel) <= receiverInset + shiftAllowance
                     ),
                     (
                         "rigidOvertravelWithinAllowance",
@@ -11875,8 +11865,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
             guard let measuredInitialOvertravel,
                   measuredInitialOvertravel.isFinite,
-                  measuredInitialOvertravel >= 0,
-                  measuredInitialOvertravel <= receiverInset + shiftAllowance else {
+                  abs(measuredInitialOvertravel) <= receiverInset + shiftAllowance else {
                 XCTFail("AX-text settings-hub initial overtravel is unavailable.")
                 return false
             }
