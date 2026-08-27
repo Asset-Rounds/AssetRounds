@@ -120,8 +120,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 218_593,
-            sha256: "134C4225D6F3D5925FF0AAFC5B6DCF4DCA2B023FCA19599E984F94E72D3BFB78"
+            byteCount: 218_696,
+            sha256: "7140B8FB33F486AD8D7F56C32485C8BD0B0700D2733C920F5B06D51D5D1A83AC"
         )
         let workflowSource = try text(workflowPath)
         let workerCallHeader =
@@ -752,10 +752,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 99_693)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 99_796)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "B7631D6B70923A6D6CED09C5B58BEAA52C35878E59CA8937A9CC7F10E19AB566"
+            "43AF654F7D301FE9205C5D10293983080BAC8D2F3CE145FAD24E397FBCEF4E80"
         )
         let warpScopeSource = String(
             warpJobSource[warpScopeStart.lowerBound..<warpExecutionStart.lowerBound]
@@ -873,6 +873,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 separatedBy: #"test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = "true"; then"#
             ).count - 1,
             3
+        )
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy:
+                    "env -u BITRISE_BUILD_CACHE_AUTH_TOKEN " +
+                    "-u BITRISE_BUILD_CACHE_WORKSPACE_ID \\\n" +
+                    "                  /usr/bin/xcodebuild -downloadPlatform iOS"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workflowSource.components(
+                separatedBy: "/usr/bin/xcodebuild -downloadPlatform iOS"
+            ).count - 1,
+            1
         )
         XCTAssertFalse(
             workflowSource.contains(#"xcodebuild -downloadPlatform iOS -buildVersion 26.2"#)

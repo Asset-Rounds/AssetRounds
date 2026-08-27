@@ -951,7 +951,8 @@ jobs:
               test "$runtime_provision_budget_seconds" -gt 0
               set +e
               bash Scripts/run-with-timeout.sh "$runtime_provision_budget_seconds" \
-                xcodebuild -downloadPlatform iOS \
+                env -u BITRISE_BUILD_CACHE_AUTH_TOKEN -u BITRISE_BUILD_CACHE_WORKSPACE_ID \
+                  /usr/bin/xcodebuild -downloadPlatform iOS \
                   -buildVersion "$SIMULATOR_RUNTIME_BUILD" \
                   -architectureVariant universal \
                 2>&1 | tee "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
