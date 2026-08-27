@@ -54,6 +54,9 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
     let diagnosticSchemaVersion: Int
     let generatedAt: Date
     let metricKit: MetricKitSummaryV1?
+    /// Optional frozen assurance evidence.  The default remains nil until the
+    /// owning production finalization surface is activated.
+    var requirementAssurance: RequirementAssuranceSnapshotV1? = nil
 
     var isValid: Bool {
         diagnosticSchemaVersion == 1
@@ -64,6 +67,15 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
             && device.osVersion.isDiagnosticSystemValue
             && generatedAt.timeIntervalSinceReferenceDate.isFinite
             && (metricKit?.isValid ?? true)
+            && (requirementAssurance.map {
+                RequirementAssuranceSnapshotCanonicalCodecV1.isValid($0)
+            } ?? true)
+    }
+
+    var requirementExplanations: [RequirementExplanationItemV1] {
+        requirementAssurance.map {
+            RequirementExplanationProjectionV1.project($0.evaluations)
+        } ?? []
     }
 }
 
@@ -79,11 +91,13 @@ enum DiagnosticExportError: Error, Equatable {
 struct DiagnosticExportService {
     typealias CountersProvider = () async -> DiagnosticsV1
     typealias MetricKitProvider = () -> MetricKitSummaryV1?
+    typealias RequirementAssuranceProvider = () -> RequirementAssuranceSnapshotV1?
     typealias ContextProvider<Value> = () -> Value
     typealias Clock = () -> Date
 
     private let countersProvider: CountersProvider
     private let metricKitProvider: MetricKitProvider
+    private let requirementAssuranceProvider: RequirementAssuranceProvider
     private let appProvider: ContextProvider<DiagnosticAppContextV1>
     private let deviceProvider: ContextProvider<DiagnosticDeviceContextV1>
     private let clock: Clock
@@ -93,10 +107,12 @@ struct DiagnosticExportService {
         metricKit: @escaping MetricKitProvider,
         app: @escaping ContextProvider<DiagnosticAppContextV1>,
         device: @escaping ContextProvider<DiagnosticDeviceContextV1>,
-        clock: @escaping Clock
+        clock: @escaping Clock,
+        requirementAssurance: @escaping RequirementAssuranceProvider = { nil }
     ) {
         countersProvider = counters
         metricKitProvider = metricKit
+        requirementAssuranceProvider = requirementAssurance
         appProvider = app
         deviceProvider = device
         self.clock = clock
@@ -106,6 +122,7 @@ struct DiagnosticExportService {
     init(
         diagnosticsStore: DiagnosticsStore,
         metricKitAdapter: MetricKitDiagnosticsAdapter,
+        requirementAssurance: @escaping RequirementAssuranceProvider = { nil },
         bundle: Bundle = .main,
         device: UIDevice = .current,
         clock: @escaping Clock = Date.init
@@ -127,7 +144,8 @@ struct DiagnosticExportService {
             metricKit: { metricKitAdapter.snapshot() },
             app: { app },
             device: { device },
-            clock: clock
+            clock: clock,
+            requirementAssurance: requirementAssurance
         )
     }
 
@@ -138,7 +156,8 @@ struct DiagnosticExportService {
             device: deviceProvider(),
             diagnosticSchemaVersion: 1,
             generatedAt: clock(),
-            metricKit: metricKitProvider()
+            metricKit: metricKitProvider(),
+            requirementAssurance: requirementAssuranceProvider()
         )
         guard value.isValid else {
             throw DiagnosticExportError.invalidValue
@@ -155,7 +174,7 @@ enum DiagnosticExportCanonicalEncoderV1 {
         guard value.isValid else {
             throw DiagnosticExportError.invalidValue
         }
-        return try CanonicalJSONV1.encode(.object([
+        var object: [String: CanonicalJSONValueV1] = [
             "app": .object([
                 "build": .string(value.app.build),
                 "version": .string(value.app.version),
@@ -168,7 +187,11 @@ enum DiagnosticExportCanonicalEncoderV1 {
             "diagnosticSchemaVersion": .integer(value.diagnosticSchemaVersion),
             "generatedAt": CanonicalJSONV1.date(value.generatedAt),
             "metricKit": try value.metricKit.map(metricKit) ?? .null,
-        ]))
+        ]
+        if let assurance = value.requirementAssurance {
+            object["requirementAssurance"] = CanonicalJSONV1.requirementAssurance(assurance)
+        }
+        return try CanonicalJSONV1.encode(.object(object))
     }
 
     private static func counters(

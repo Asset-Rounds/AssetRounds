@@ -11,6 +11,23 @@ final class S6_2BackupExportTests: XCTestCase {
     private let fileManager = FileManager.default
 
     @MainActor
+    func testV8ExportRejectsMissingRequirementAssuranceCompanion() async throws {
+        let harness = try await makeMixedHarness("missing-assurance")
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let rows = try harness.session.modelContext.fetch(
+            FetchDescriptor<RequirementAssuranceRow>()
+        )
+        let removed = try XCTUnwrap(rows.first)
+        harness.session.modelContext.delete(removed)
+        try harness.session.modelContext.save()
+
+        let service = makeService(harness, capacity: .max)
+        XCTAssertThrowsError(try service.prepare()) { error in
+            XCTAssertEqual(error as? BackupExportServiceError, .invalidAuthority)
+        }
+    }
+
+    @MainActor
     func testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently() async throws {
         let harness = try await makeMixedHarness("golden")
         defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
@@ -43,8 +60,12 @@ final class S6_2BackupExportTests: XCTestCase {
         let validated = try importer.stageAndValidate(selectedPackageURL: package)
         defer { try? importer.discard(validated) }
         XCTAssertEqual(validated.manifest.backupSchemaVersion, 4)
-        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 7)
-        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 6)
+        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 8)
+        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 7)
+        XCTAssertEqual(validated.records.requirementAssurance.count, validated.records.workflowRecords.count)
+        XCTAssertTrue(validated.records.requirementAssurance.allSatisfy {
+            (try? $0.validate()) != nil
+        })
         XCTAssertTrue(validated.records.savedSmartViews.isEmpty)
         XCTAssertNotNil(validated.records.mutationHistory)
         let placementHistory = try validated.records.assetPlacementEvents.map {
@@ -57,6 +78,16 @@ final class S6_2BackupExportTests: XCTestCase {
         XCTAssertNoThrow(try AssetPlacementHistoryV1.validate(placementHistory))
 
         let recordsData = try XCTUnwrap(validated.members["records.json"])
+        let decodedRecords = try BackupCanonicalDecoderV1().decodeRecords(recordsData)
+        XCTAssertEqual(decodedRecords, validated.records)
+        XCTAssertEqual(
+            try BackupCanonicalEncoderV1().encodeRecords(decodedRecords).data,
+            recordsData
+        )
+        XCTAssertEqual(
+            decodedRecords.requirementAssurance.map(\.canonicalData),
+            validated.records.requirementAssurance.map(\.canonicalData)
+        )
         let records = try XCTUnwrap(try JSONSerialization.jsonObject(with: recordsData) as? [String: Any])
         XCTAssertEqual((records["assets"] as? [Any])?.count, 1)
         XCTAssertEqual((records["reports"] as? [Any])?.count, 3)

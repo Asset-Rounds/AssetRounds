@@ -36,6 +36,67 @@ struct V7BackupSavedSmartViewRecordV1: Codable, Equatable, Sendable {
     }
 }
 
+struct V8BackupRequirementAssuranceRecordV1: Codable, Equatable, Sendable {
+    let workflowRecordID: UUID
+    let canonicalData: Data
+    let snapshotSHA256: String
+    let mutationID: UUID
+    let createdAt: Date
+    let updatedAt: Date
+
+    init(_ row: RequirementAssuranceRow) throws {
+        let snapshot = try row.snapshot()
+        workflowRecordID = snapshot.workflowRecordID
+        canonicalData = try RequirementAssuranceCanonicalV1.data(snapshot)
+        snapshotSHA256 = snapshot.snapshotSHA256
+        mutationID = row.mutationID
+        createdAt = row.createdAt
+        updatedAt = row.updatedAt
+        try validate()
+    }
+
+    init(
+        workflowRecordID: UUID,
+        canonicalData: Data,
+        snapshotSHA256: String,
+        mutationID: UUID,
+        createdAt: Date,
+        updatedAt: Date
+    ) throws {
+        self.workflowRecordID = workflowRecordID
+        self.canonicalData = canonicalData
+        self.snapshotSHA256 = snapshotSHA256
+        self.mutationID = mutationID
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        try validate()
+    }
+
+    func snapshot() throws -> RequirementAssuranceSnapshotV1 {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let value = try decoder.decode(RequirementAssuranceSnapshotV1.self, from: canonicalData)
+        try value.validate()
+        guard try RequirementAssuranceCanonicalV1.data(value) == canonicalData,
+              value.workflowRecordID == workflowRecordID,
+              value.snapshotSHA256 == snapshotSHA256 else {
+            throw RequirementAssuranceFailureV1.digestMismatch
+        }
+        return value
+    }
+
+    func validate() throws {
+        let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+        guard workflowRecordID != zero, mutationID != zero, createdAt <= updatedAt,
+              !canonicalData.isEmpty,
+              canonicalData.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes,
+              KernelCanonicalHashV1.validSHA256(snapshotSHA256) else {
+            throw RequirementAssuranceFailureV1.invalidValue
+        }
+        _ = try snapshot()
+    }
+}
+
 struct V4BackupSiteDTO: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     let schemaVersion: Int
@@ -212,6 +273,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let packets: [V4BackupPacketDTO]
     let recordsSchemaVersion: Int
     let reports: [V4BackupReportDTO]
+    let requirementAssurance: [V8BackupRequirementAssuranceRecordV1]
     let savedSmartViews: [V7BackupSavedSmartViewRecordV1]
     let sites: [V4BackupSiteDTO]
     let workflowRecords: [V4BackupWorkflowRecordDTO]
@@ -231,6 +293,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         packets: [V4BackupPacketDTO],
         recordsSchemaVersion: Int,
         reports: [V4BackupReportDTO],
+        requirementAssurance: [V8BackupRequirementAssuranceRecordV1] = [],
         savedSmartViews: [V7BackupSavedSmartViewRecordV1] = [],
         sites: [V4BackupSiteDTO],
         workflowRecords: [V4BackupWorkflowRecordDTO]
@@ -249,6 +312,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         self.packets = packets
         self.recordsSchemaVersion = recordsSchemaVersion
         self.reports = reports
+        self.requirementAssurance = requirementAssurance
         self.savedSmartViews = savedSmartViews
         self.sites = sites
         self.workflowRecords = workflowRecords
@@ -258,7 +322,8 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         case assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
         case deletionLedger, evidenceFiles, issues, locationHierarchyEvents
         case locationMigrationReceipts, locationNodes, mutationHistory, packets
-        case recordsSchemaVersion, reports, savedSmartViews, sites, workflowRecords
+        case recordsSchemaVersion, reports, requirementAssurance, savedSmartViews, sites
+        case workflowRecords
     }
 
     init(from decoder: Decoder) throws {
@@ -279,6 +344,10 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
             packets: try values.decode([V4BackupPacketDTO].self, forKey: .packets),
             recordsSchemaVersion: version,
             reports: try values.decode([V4BackupReportDTO].self, forKey: .reports),
+            requirementAssurance: try values.decodeIfPresent(
+                [V8BackupRequirementAssuranceRecordV1].self,
+                forKey: .requirementAssurance
+            ) ?? [],
             savedSmartViews: try values.decodeIfPresent(
                 [V7BackupSavedSmartViewRecordV1].self,
                 forKey: .savedSmartViews

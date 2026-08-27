@@ -32,6 +32,14 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
             "PROJECTION:SavedSmartViewDescriptorV1",
             "PROJECTION:StoreSemanticEnvelopeV7",
         ])
+        let c12KindIDs = Set([
+            "PERSISTENT_MODEL:RequirementAssuranceRow",
+            "PROJECTION:RequirementAssuranceSnapshotV1",
+            "PROJECTION:RequirementEvaluationV1",
+            "PROJECTION:CompletionDecisionV1",
+            "PROJECTION:IntegrityFindingV1",
+            "PROJECTION:StoreSemanticEnvelopeV8",
+        ])
         XCTAssertEqual(corpus.declaredKindIDs, corpus.declaredKindIDs.sorted())
         XCTAssertEqual(Set(corpus.declaredKindIDs).count, corpus.declaredKindIDs.count)
         XCTAssertTrue(Set(corpus.declaredKindIDs).isSubset(of: Set(derivedUniverse)))
@@ -50,6 +58,12 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
                 "PROJECTION:SavedSmartViewDescriptorV1",
                 "PROJECTION:StoreSemanticEnvelopeV6",
                 "PROJECTION:StoreSemanticEnvelopeV7",
+                "PERSISTENT_MODEL:RequirementAssuranceRow",
+                "PROJECTION:RequirementAssuranceSnapshotV1",
+                "PROJECTION:RequirementEvaluationV1",
+                "PROJECTION:CompletionDecisionV1",
+                "PROJECTION:IntegrityFindingV1",
+                "PROJECTION:StoreSemanticEnvelopeV8",
                 "PROJECTION:V5BackupLocationRecordV1",
             ])
         )
@@ -81,6 +95,12 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
         XCTAssertEqual(manifest.replayGapKindIDs, [])
         XCTAssertEqual(manifest.unresolvedAuthorityKindIDs, [])
         XCTAssertEqual(manifest.sourceDriftIDs, [])
+        let assuranceSubject = try SyncSubjectIdentityV1(
+            category: .persistentModel,
+            stableName: "RequirementAssuranceRow"
+        )
+        let assuranceLifecycle = try catalog.lifecyclePolicy(for: assuranceSubject)
+        XCTAssertEqual(try assuranceLifecycle.search, .denied)
         XCTAssertEqual(
             manifest.sourceEvidence.map(\.sourceID),
             corpus.universeSources.sorted()
@@ -118,13 +138,14 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
             } else {
                 let isC35Persistent = c35PersistentKindIDs.contains(descriptor.stableKindID)
                 let isC09 = c09KindIDs.contains(descriptor.stableKindID)
+                let isC12 = c12KindIDs.contains(descriptor.stableKindID)
                 XCTAssertEqual(
                     descriptor.temporalEvidence.representationSourceCard,
-                    isC09 ? "V23_P03_C09" : (isC35Persistent ? "V23_P03_C35" : "PRE_V23_BASELINE")
+                    isC12 ? "V23_P03_C12" : (isC09 ? "V23_P03_C09" : (isC35Persistent ? "V23_P03_C35" : "PRE_V23_BASELINE"))
                 )
                 XCTAssertEqual(
                     descriptor.temporalEvidence.representationSourceOrdinal,
-                    isC09 ? 42 : (isC35Persistent ? 41 : 0)
+                    isC12 ? 44 : (isC09 ? 42 : (isC35Persistent ? 41 : 0))
                 )
             }
             if descriptor.temporalEvidence.firstWriteVersion
@@ -151,14 +172,14 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
         }.mapValues(\.count)
         XCTAssertEqual(provenancePartition, [
             0: 56, 16: 6, 17: 1, 18: 1, 19: 3,
-            22: 18, 24: 4, 27: 6, 28: 7, 41: 6,
+            22: 18, 24: 4, 27: 6, 28: 7, 41: 6, 42: 5, 44: 6,
         ])
         let durableFirstWrites = catalog.descriptors.filter {
             $0.temporalEvidence.firstWriteVersion != PersistentKindTemporalEvidenceV1.notApplicable
         }.map(\.stableKindID).sorted()
         XCTAssertTrue(Set(corpus.durableFirstWriteKindIDs).isSubset(of: Set(durableFirstWrites)))
-        XCTAssertEqual(durableFirstWrites.count, 71)
-        XCTAssertEqual(catalog.descriptors.count - durableFirstWrites.count, 37)
+        XCTAssertEqual(durableFirstWrites.count, 74)
+        XCTAssertEqual(catalog.descriptors.count - durableFirstWrites.count, 45)
         XCTAssertTrue(Set([
             "PROJECTION:ReportSnapshotV1",
             "PROJECTION:entityMutationRevision",
@@ -178,6 +199,7 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
             ("PERSISTENT_MODEL:ObservationAndTimeRow", "V23_P02_C07", 27),
             ("DIAGNOSTIC:DeviceOperationalSupportStoreV2", "V23_P02_C08", 28),
             ("PERSISTENT_MODEL:LocationNodeRow", "V23_P03_C35", 41),
+            ("PERSISTENT_MODEL:RequirementAssuranceRow", "V23_P03_C12", 44),
             ("PROJECTION:StoreSemanticEnvelopeV6", "PRE_V23_BASELINE", 0),
         ]
         for (kindID, card, ordinal) in provenanceAnchors {

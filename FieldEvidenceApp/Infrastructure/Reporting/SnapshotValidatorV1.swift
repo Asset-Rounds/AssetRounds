@@ -6,6 +6,26 @@ enum SnapshotValidationErrorV1: Error, Equatable {
     case invalidAuthority
 }
 
+/// Computes the one stable integrity finding used when the immutable snapshot
+/// bytes and their report authority disagree.  The validator still fails
+/// closed; this helper makes the diagnostic classification deterministic for
+/// non-production callers without changing the legacy error surface.
+enum SnapshotIntegrityDiagnosticsV1 {
+    static func snapshotReportDivergenceFindings(
+        snapshotSHA256: String,
+        reportSHA256: String
+    ) -> [IntegrityFindingV1] {
+        guard snapshotSHA256 != reportSHA256,
+              let finding = try? IntegrityFindingV1(
+                  kind: .snapshotReportDivergence,
+                  reasonCode: "snapshot_report_divergence"
+              ) else {
+            return []
+        }
+        return [finding]
+    }
+}
+
 @MainActor
 enum ReportingPackageLifecycleRouteV1 {
     case live(
@@ -79,6 +99,12 @@ struct ValidatedReportSnapshotV1: Sendable {
     func thumbnailJPEG(for evidenceID: UUID) -> Data? {
         guard historyThumbnailIDs.contains(evidenceID) else { return nil }
         return evidenceBytes[evidenceID]?.thumbnailJPEG
+    }
+
+    var requirementExplanations: [RequirementExplanationItemV1] {
+        snapshot.requirementAssurance.map {
+            RequirementExplanationProjectionV1.project($0.evaluations)
+        } ?? []
     }
 }
 
@@ -192,10 +218,14 @@ struct SnapshotValidatorV1 {
             expectedRelativePath: expectedSnapshotPath
         )
         let encodedDigest = Self.sha256(snapshotData)
-        guard encodedDigest == report.snapshotSHA256 else {
+        guard SnapshotIntegrityDiagnosticsV1.snapshotReportDivergenceFindings(
+            snapshotSHA256: encodedDigest,
+            reportSHA256: report.snapshotSHA256
+        ).isEmpty else {
             throw SnapshotValidationErrorV1.invalidAuthority
         }
         let snapshot = try ReportSnapshotEncoderV1().decode(snapshotData)
+        try validateRequirementAssurance(snapshot)
         guard try ReportSnapshotEncoderV1().encode(snapshot).data == snapshotData,
               snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion,
               snapshot.reportID == report.id,
@@ -424,6 +454,17 @@ struct SnapshotValidatorV1 {
             currentOriginalIDs: Set(currentRows.map(\.id)),
             historyThumbnailIDs: historyEvidenceIDs
         )
+    }
+
+    private func validateRequirementAssurance(
+        _ snapshot: ReportSnapshotV1
+    ) throws {
+        guard let assurance = snapshot.requirementAssurance else { return }
+        do {
+            try assurance.validate()
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
     }
 
     private func validateWorkspaceScope(report: Report, source: WorkflowRecord) throws {

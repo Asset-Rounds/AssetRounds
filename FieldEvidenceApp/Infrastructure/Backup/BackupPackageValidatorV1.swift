@@ -569,7 +569,7 @@ private extension BackupPackageValidatorV1 {
             manifest.source.recordsSchemaVersion
         ) {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
-             (4, 5, 4), (4, 6, 5), (4, 7, 6):
+             (4, 5, 4), (4, 6, 5), (4, 7, 6), (4, 8, 7):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false
@@ -724,12 +724,17 @@ private extension BackupPackageValidatorV1 {
         }
         guard records.recordsSchemaVersion < 6
                 ? savedSmartViews.isEmpty
-                : (records.recordsSchemaVersion == 6
+                : ((records.recordsSchemaVersion == 6
+                        || records.recordsSchemaVersion == 7)
                     && savedSmartViews.allSatisfy({
                         $0.workspaceID == manifest.source.workspaceID
-                    })) else {
+                    }))) else {
             throw invalid()
         }
+        let assuranceSnapshots: [RequirementAssuranceSnapshotV1]
+        do {
+            assuranceSnapshots = try records.requirementAssurance.map { try $0.snapshot() }
+        } catch { throw invalid() }
         let allIDs = records.sites.map(\.id) + records.assets.map(\.id)
             + records.workflowRecords.map(\.id) + records.evidenceFiles.map(\.id)
             + records.issues.map(\.id) + records.packets.map(\.id)
@@ -768,6 +773,17 @@ private extension BackupPackageValidatorV1 {
               records.issues.allSatisfy({ $0.schemaVersion == 1 }),
               records.packets.allSatisfy({ $0.schemaVersion == 1 }),
               records.reports.allSatisfy({ $0.schemaVersion == 1 }),
+              records.recordsSchemaVersion < 7
+                ? assuranceSnapshots.isEmpty
+                : (records.recordsSchemaVersion == 7
+                    && assuranceSnapshots.allSatisfy({ snapshot in
+                        snapshot.workspaceID == manifest.source.workspaceID
+                            && workflow[snapshot.workflowRecordID] != nil
+                    })
+                    && Set(assuranceSnapshots.map(\.workflowRecordID))
+                        == Set(records.workflowRecords.map(\.id))
+                    && Set(assuranceSnapshots.map(\.workflowRecordID)).count
+                        == assuranceSnapshots.count),
               records.workflowRecords.allSatisfy({ $0.schemaVersion == 1 }) else {
             throw invalid()
         }
@@ -1050,7 +1066,7 @@ private extension BackupPackageValidatorV1 {
             }) else { throw invalid() }
             return
         }
-        guard (4...6).contains(records.recordsSchemaVersion) else { throw invalid() }
+        guard (4...7).contains(records.recordsSchemaVersion) else { throw invalid() }
         for record in records.workflowRecords {
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else {
@@ -1107,7 +1123,9 @@ private extension BackupPackageValidatorV1 {
               ((records.recordsSchemaVersion == 5
                     && manifest.source.persistentSchemaVersion == 6)
                 || (records.recordsSchemaVersion == 6
-                    && manifest.source.persistentSchemaVersion == 7)),
+                    && manifest.source.persistentSchemaVersion == 7)
+                || (records.recordsSchemaVersion == 7
+                    && manifest.source.persistentSchemaVersion == 8)),
               let sourceWorkspaceID = manifest.source.workspaceID else {
             throw invalid()
         }

@@ -259,6 +259,7 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
                 "finalize_check", "finalize_correction", "record_work", "restore_workspace",
                 "apply_location_hierarchy_change", "apply_asset_placement_change",
                 "apply_asset_composition_change", "apply_saved_smart_view",
+                "apply_requirement_assurance",
             ]
         )
         XCTAssertEqual(WorkspaceWriterAdapterV1.supportedCommandKinds, [
@@ -273,7 +274,7 @@ final class V10_01WorkspaceWriterTests: XCTestCase {
             WorkspaceWriterAdapterV1.activeSupportedCommandKinds,
             WorkspaceWriterAdapterV1.supportedCommandKinds.union(
                 WorkspaceWriterAdapterV1.locationSupportedCommandKinds
-            ).union([.applySavedSmartView])
+            ).union([.applySavedSmartView, .applyRequirementAssurance])
         )
         XCTAssertFalse(WorkspaceWriterAdapterV1.supportedCommandKinds.contains(.finalizeCheck))
         XCTAssertFalse(WorkspaceWriterAdapterV1.supportedCommandKinds.contains(.eraseWorkspace))

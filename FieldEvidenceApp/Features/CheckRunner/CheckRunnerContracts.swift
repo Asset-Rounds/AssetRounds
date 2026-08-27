@@ -191,3 +191,62 @@ enum CheckRunnerCoordinatorFailurePoint: Equatable, Sendable {
 enum CheckRunnerCompatibilityPostureV1: String, Sendable {
     case frozenS10CallersOnly = "FROZEN_S10_CALLERS_ONLY_EXPIRES_AFTER_ACCEPTED_S10_6_RECONCILIATION"
 }
+
+enum RequirementAssuranceGateFailureV1: String, Equatable, Sendable {
+    case notConfigured = "NOT_CONFIGURED"
+    case noAcceptedRevision = "NO_ACCEPTED_REVISION"
+    case staleRevision = "STALE_REVISION"
+    case unknownRequirementType = "UNKNOWN_REQUIREMENT_TYPE"
+    case missingEvaluator = "MISSING_EVALUATOR"
+    case cancelled = "CANCELLED"
+    case protectedDataUnavailable = "PROTECTED_DATA_UNAVAILABLE"
+    case persistenceUnavailable = "PERSISTENCE_UNAVAILABLE"
+    case invalidCanonicalState = "INVALID_CANONICAL_STATE"
+}
+
+/// A non-UI, fail-closed result for future site-exit callers. A prior accepted
+/// snapshot is evidence only; it never turns a failed candidate evaluation into
+/// permission to complete.
+struct RequirementAssuranceGatePreflightV1: Equatable, Sendable {
+    let candidateSnapshot: RequirementAssuranceSnapshotV1?
+    let priorAcceptedSnapshot: RequirementAssuranceSnapshotV1?
+    let failure: RequirementAssuranceGateFailureV1?
+
+    var decision: CompletionDecisionV1? { candidateSnapshot?.decision }
+    var explanations: [RequirementExplanationItemV1] {
+        candidateSnapshot.map { RequirementExplanationProjectionV1.project($0.evaluations) } ?? []
+    }
+    var permitsCompletion: Bool {
+        failure == nil
+            && candidateSnapshot?.decision.disposition == .permitted
+            && candidateSnapshot?.findings.isEmpty == true
+    }
+
+    static func evaluated(
+        _ snapshot: RequirementAssuranceSnapshotV1,
+        priorAcceptedSnapshot: RequirementAssuranceSnapshotV1?
+    ) -> Self {
+        Self(
+            candidateSnapshot: snapshot,
+            priorAcceptedSnapshot: priorAcceptedSnapshot,
+            failure: nil
+        )
+    }
+
+    static func failed(
+        _ failure: RequirementAssuranceGateFailureV1,
+        priorAcceptedSnapshot: RequirementAssuranceSnapshotV1?
+    ) -> Self {
+        Self(
+            candidateSnapshot: nil,
+            priorAcceptedSnapshot: priorAcceptedSnapshot,
+            failure: failure
+        )
+    }
+}
+
+enum RequirementAssuranceProvisionalReachabilityV1: String, Equatable, Sendable {
+    case universalFinalizationGate = "NOT_PROVEN_S10_RESERVED"
+    case completedSnapshotCreation = "NOT_PROVEN_S10_RESERVED"
+    case siteExitAccessibility = "NOT_RUN_NO_CREDIT_S10_RESERVED"
+}

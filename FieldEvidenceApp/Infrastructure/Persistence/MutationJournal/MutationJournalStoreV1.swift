@@ -1144,7 +1144,15 @@ final class MutationJournalStoreV1 {
                 recordID: id,
                 in: modelContext
             )
-            return try semanticPostImage(identity, revision, V4BackupWorkflowRecordDTO(
+            var assuranceDescriptor = FetchDescriptor<RequirementAssuranceRow>(
+                predicate: #Predicate { $0.workflowRecordID == id }
+            )
+            assuranceDescriptor.fetchLimit = 2
+            let assuranceRows = try modelContext.fetch(assuranceDescriptor)
+            guard assuranceRows.count <= 1 else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let recordDTO = V4BackupWorkflowRecordDTO(
                 id: row.id, schemaVersion: row.schemaVersion, assetID: row.assetID,
                 packetID: row.packetID, issueID: row.issueID, parentRecordID: row.parentRecordID,
                 recordRevisionRootID: row.recordRevisionRootID, revisesRecordID: row.revisesRecordID,
@@ -1173,6 +1181,10 @@ final class MutationJournalStoreV1 {
                 finalizationMutationID: row.finalizationMutationID,
                 observationBasisV1Data: observationAndTime.observationBasisV1Data,
                 temporalContextV1Data: observationAndTime.temporalContextV1Data
+            )
+            return try semanticPostImage(identity, revision, WorkflowRecordPostImageV8(
+                record: recordDTO,
+                requirementAssurance: try assuranceRows.first?.snapshot()
             ))
         case .evidenceFile:
             let id = identity.id
@@ -1373,4 +1385,9 @@ final class MutationJournalStoreV1 {
         let content: [MutableSemanticItem]
         let deletionLedger: DeletionLedgerV2
     }
+}
+
+private struct WorkflowRecordPostImageV8: Codable {
+    let record: V4BackupWorkflowRecordDTO
+    let requirementAssurance: RequirementAssuranceSnapshotV1?
 }

@@ -237,7 +237,7 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
         let registeredModelNames = currentCatalog.registrations
             .filter { $0.subject.category == .persistentModel }
             .map(\.subject.stableName)
-        XCTAssertEqual(registeredModelNames.count, 21)
+        XCTAssertEqual(registeredModelNames.count, 22)
         XCTAssertEqual(Set(registeredModelNames).count, registeredModelNames.count)
         XCTAssertEqual(
             registeredModelNames.sorted(),
@@ -272,6 +272,13 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
             ))
             XCTAssertEqual(registration.replicationPolicy.persistence, .swiftDataRecord)
             XCTAssertEqual(registration.replicationPolicy.authority, .workspaceWriter)
+        }
+        XCTAssertEqual(
+            CurrentSyncClassificationCatalogV1.v8PersistentModelNames,
+            ["RequirementAssuranceRow"]
+        )
+        for name in CurrentSyncClassificationCatalogV1.v8PersistentModelNames {
+            XCTAssertTrue(registeredModelNames.contains(name))
         }
         let registeredFileNames = currentCatalog.registrations
             .filter { $0.subject.category == .ownedFileClass }

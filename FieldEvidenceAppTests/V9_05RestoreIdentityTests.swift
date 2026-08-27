@@ -390,8 +390,15 @@ final class V9_05RestoreIdentityTests: XCTestCase {
         let validated = try importArchive(archive, into: verification.session)
         let pointer = try scenario.target.factory.currentGenerationPointerV3(expectedGenerationID: secondLaunch.generationID)
         XCTAssertEqual(validated.manifest.backupSchemaVersion, 4)
-        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 7)
-        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 6)
+        XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 8)
+        XCTAssertEqual(validated.manifest.source.recordsSchemaVersion, 7)
+        XCTAssertEqual(
+            validated.records.requirementAssurance.count,
+            validated.records.workflowRecords.count
+        )
+        XCTAssertTrue(validated.records.requirementAssurance.allSatisfy {
+            (try? $0.snapshot().workspaceID) == secondLaunch.workspaceIdentity.workspaceID.rawValue
+        })
         XCTAssertTrue(validated.records.savedSmartViews.isEmpty)
         XCTAssertNotNil(validated.records.mutationHistory)
         XCTAssertEqual(validated.manifest.source.workspaceID?.uuidString.lowercased(), pointer.workspaceID)

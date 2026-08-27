@@ -17,22 +17,26 @@ final class ProductionCompositionRoot {
     private let modelContext: ModelContext
     private let diagnosticsStore: DiagnosticsStore
     private let lifecycle: WorkspacePackageLifecycleDependenciesV1
+    private let requirementEvaluatorRegistry: RequirementEvaluatorRegistryV1?
 
     init(
         storeSession: StoreSessionCoordinator,
         diagnosticsStore: DiagnosticsStore,
-        profileRegistry: WorkspacePackageLifecycleProfileRegistryV1
+        profileRegistry: WorkspacePackageLifecycleProfileRegistryV1,
+        requirementEvaluatorRegistry: RequirementEvaluatorRegistryV1? = nil
     ) throws {
         let dependencies = try storeSession.packageLifecycleDependencies(
             profileRegistry: profileRegistry
         )
         self.modelContext = storeSession.modelContext
         self.diagnosticsStore = diagnosticsStore
+        self.requirementEvaluatorRegistry = requirementEvaluatorRegistry
         lifecycle = dependencies
     }
 
     func makeSignWorkflow(
         signPack: SignPack,
+        requirementEvaluatorRegistry registryOverride: RequirementEvaluatorRegistryV1? = nil,
         accessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil
     ) throws -> ProductionSignWorkflow {
         let release = try PackageReleaseIdentityV1(package: signPack)
@@ -47,6 +51,7 @@ final class ProductionCompositionRoot {
             packageLifecycleProfile: profile,
             diagnosticsStore: diagnosticsStore,
             storagePreflight: storagePreflight,
+            requirementEvaluatorRegistry: registryOverride ?? requirementEvaluatorRegistry,
             draftAccessState: accessState
         )
         checkRunner.configureCapture(generationRootURL: lifecycle.generationRootURL)

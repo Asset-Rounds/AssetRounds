@@ -320,6 +320,58 @@ private extension WorklightPDFRendererV1 {
             }
         }
 
+        if let assurance = snapshot.requirementAssurance {
+            do {
+                try assurance.validate()
+            } catch {
+                throw WorklightPDFRendererErrorV1.invalidValidatedSnapshot
+            }
+            section("Completion assurance", role: "assurance.heading")
+            let decision = "Decision: \(assurance.decision.disposition.rawValue)"
+                + "\nEvaluation revision: \(assurance.evaluatedRevision)"
+                + "\nPolicy set: \(assurance.policySetSHA256)"
+            text(decision, style: .body, role: "assurance.decision")
+
+            for explanation in validated.requirementExplanations {
+                var value = "Requirement \(explanation.requirementID): "
+                    + assuranceResultDisplay(explanation.result)
+                if !explanation.localizationKeys.isEmpty {
+                    let reasons = explanation.localizationKeys
+                        .map(assuranceReasonDisplay)
+                        .joined(separator: "; ")
+                    value += "\nExplanation: \(reasons)"
+                }
+                if !explanation.referenceIDs.isEmpty {
+                    value += "\nEvidence references: "
+                        + explanation.referenceIDs.joined(separator: ", ")
+                }
+                text(
+                    value,
+                    style: .body,
+                    role: "assurance.requirement.\(explanation.requirementID)"
+                )
+            }
+
+            if !assurance.findings.isEmpty {
+                let findings = assurance.findings.map {
+                    var value = assuranceFindingDisplay($0.kind)
+                        + " — " + $0.reasonCode
+                    if let requirementID = $0.requirementID {
+                        value += " (\(requirementID))"
+                    }
+                    if !$0.referenceIDs.isEmpty {
+                        value += " [" + $0.referenceIDs.joined(separator: ", ") + "]"
+                    }
+                    return value
+                }.joined(separator: "\n")
+                text(
+                    "Integrity findings:\n" + findings,
+                    style: .body,
+                    role: "assurance.findings"
+                )
+            }
+        }
+
         section("About this report", role: "disclaimer.heading")
         text(snapshot.disclaimer, style: .body, role: "disclaimer.body", after: 0)
         return blocks
@@ -631,6 +683,51 @@ private extension WorklightPDFRendererV1 {
         case "recheck_due": "Recheck due"
         case "resolved": "Resolved"
         default: "Open"
+        }
+    }
+
+    func assuranceResultDisplay(
+        _ value: RequirementEvaluationResultV1
+    ) -> String {
+        switch value {
+        case .satisfied: "Satisfied"
+        case .notSatisfied: "Not satisfied"
+        case .notApplicable: "Not applicable"
+        case .unknown: "Unknown"
+        case .waived: "Waived"
+        }
+    }
+
+    func assuranceReasonDisplay(_ key: String) -> String {
+        switch key {
+        case "requirement.reason.requirement_satisfied": "Requirement is satisfied"
+        case "requirement.reason.response_not_satisfied": "Response is not satisfied"
+        case "requirement.reason.not_applicable_accepted": "Not applicable is accepted"
+        case "requirement.reason.not_applicable_not_allowed": "Not applicable is not allowed"
+        case "requirement.reason.unknown_response": "Response is unknown"
+        case "requirement.reason.unanswered_requirement": "Requirement is unanswered"
+        case "requirement.reason.required_evidence_missing": "Required evidence is missing"
+        case "requirement.reason.evidence_invalid": "Evidence is invalid"
+        case "requirement.reason.evidence_duplicated": "Evidence is duplicated"
+        case "requirement.reason.evidence_contradictory": "Evidence is contradictory"
+        case "requirement.reason.waiver_accepted": "Waiver is accepted"
+        case "requirement.reason.waiver_not_allowed": "Waiver is not allowed"
+        case "requirement.reason.waiver_reason_not_allowed": "Waiver reason is not allowed"
+        case "requirement.reason.waiver_revision_mismatch": "Waiver revision does not match"
+        case "requirement.reason.waiver_scope_mismatch": "Waiver scope does not match"
+        default: key
+        }
+    }
+
+    func assuranceFindingDisplay(_ value: IntegrityFindingKindV1) -> String {
+        switch value {
+        case .unansweredRequirement: "Unanswered requirement"
+        case .missingRequiredEvidence: "Missing required evidence"
+        case .orphanEvidenceReference: "Orphan evidence reference"
+        case .duplicateEvidenceReference: "Duplicate evidence reference"
+        case .contradictoryEvidence: "Contradictory evidence"
+        case .invalidState: "Invalid assurance state"
+        case .snapshotReportDivergence: "Snapshot/report divergence"
         }
     }
 

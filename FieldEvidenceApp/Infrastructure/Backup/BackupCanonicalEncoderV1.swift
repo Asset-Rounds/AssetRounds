@@ -88,6 +88,11 @@ struct BackupCanonicalEncoderV1: Sendable {
                 records.savedSmartViews.map(Self.savedSmartViewRecord)
             )
         }
+        if records.recordsSchemaVersion >= 7 {
+            fields["requirementAssurance"] = .array(
+                records.requirementAssurance.map(Self.requirementAssuranceRecord)
+            )
+        }
         if let deletionLedger = records.deletionLedger {
             fields["deletionLedger"] = Self.deletionLedger(deletionLedger)
         }
@@ -122,7 +127,7 @@ struct BackupCanonicalEncoderV1: Sendable {
 
 private extension BackupCanonicalEncoderV1 {
     static func validSemantic(_ records: V4BackupRecordsV1) -> Bool {
-        guard (4...6).contains(records.recordsSchemaVersion),
+        guard (4...7).contains(records.recordsSchemaVersion),
               records.mutationHistory == nil,
               let ledger = records.deletionLedger,
               (try? ledger.validate()) != nil else {
@@ -131,6 +136,7 @@ private extension BackupCanonicalEncoderV1 {
         return validObservationAndTime(records)
             && validLocationRecords(records)
             && validSavedSmartViews(records)
+            && validRequirementAssurance(records)
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -159,7 +165,8 @@ private extension BackupCanonicalEncoderV1 {
         case (2, let ledger?, nil):
             ledgerIsValid = (try? ledger.validate()) != nil
         case (3, let ledger?, let history?), (4, let ledger?, let history?),
-             (5, let ledger?, let history?), (6, let ledger?, let history?):
+             (5, let ledger?, let history?), (6, let ledger?, let history?),
+             (7, let ledger?, let history?):
             ledgerIsValid = (try? ledger.validate()) != nil
                 && (try? MutationJournalStoreV1.validateImportedSnapshot(history)) != nil
                 && validMutationHistoryOrder(history)
@@ -170,6 +177,7 @@ private extension BackupCanonicalEncoderV1 {
             && validObservationAndTime(records)
             && validLocationRecords(records)
             && validSavedSmartViews(records)
+            && validRequirementAssurance(records)
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -192,7 +200,7 @@ private extension BackupCanonicalEncoderV1 {
                 $0.observationBasisV1Data == nil && $0.temporalContextV1Data == nil
             }
         }
-        guard (4...6).contains(records.recordsSchemaVersion) else { return false }
+        guard (4...7).contains(records.recordsSchemaVersion) else { return false }
         return records.workflowRecords.allSatisfy { record in
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else { return false }
@@ -328,7 +336,7 @@ private extension BackupCanonicalEncoderV1 {
 
     static func validSavedSmartViews(_ records: V4BackupRecordsV1) -> Bool {
         if records.recordsSchemaVersion < 6 { return records.savedSmartViews.isEmpty }
-        guard records.recordsSchemaVersion == 6,
+        guard (6...7).contains(records.recordsSchemaVersion),
               records.savedSmartViews.map(\.id.uuidString)
                 == records.savedSmartViews.map(\.id.uuidString).sorted(),
               Set(records.savedSmartViews.map(\.id)).count == records.savedSmartViews.count else {
@@ -342,6 +350,33 @@ private extension BackupCanonicalEncoderV1 {
         } catch {
             return false
         }
+    }
+
+    static func validRequirementAssurance(_ records: V4BackupRecordsV1) -> Bool {
+        if records.recordsSchemaVersion < 7 { return records.requirementAssurance.isEmpty }
+        guard records.recordsSchemaVersion == 7,
+              records.requirementAssurance.map(\.workflowRecordID.uuidString)
+                == records.requirementAssurance.map(\.workflowRecordID.uuidString).sorted(),
+              Set(records.requirementAssurance.map(\.workflowRecordID)).count
+                == records.requirementAssurance.count,
+              Set(records.requirementAssurance.map(\.workflowRecordID))
+                == Set(records.workflowRecords.map(\.id)) else { return false }
+        return records.requirementAssurance.allSatisfy {
+            (try? $0.validate()) != nil
+        }
+    }
+
+    static func requirementAssuranceRecord(
+        _ value: V8BackupRequirementAssuranceRecordV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "canonicalData": .string(value.canonicalData.base64EncodedString()),
+            "createdAt": CanonicalJSONV1.date(value.createdAt),
+            "mutationID": CanonicalJSONV1.uuid(value.mutationID),
+            "snapshotSHA256": .string(value.snapshotSHA256),
+            "updatedAt": CanonicalJSONV1.date(value.updatedAt),
+            "workflowRecordID": CanonicalJSONV1.uuid(value.workflowRecordID),
+        ])
     }
 
     static func locationRecord(_ value: V5BackupLocationRecordV1) -> CanonicalJSONValueV1 {
@@ -402,7 +437,7 @@ private extension BackupCanonicalEncoderV1 {
             manifest.source.recordsSchemaVersion
         ) {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
-             (4, 5, 4), (4, 6, 5), (4, 7, 6):
+             (4, 5, 4), (4, 6, 5), (4, 7, 6), (4, 8, 7):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false

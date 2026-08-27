@@ -1,0 +1,36 @@
+{
+  "goldenCases": [
+    {"classification":"GOLDEN","expectedResult":"SATISFIED","id":"V23-P03-C12-G01","reasonCodes":["REQUIREMENT_SATISFIED"]},
+    {"classification":"ALTERNATE","expectedResult":"WAIVED","id":"V23-P03-C12-A01","reasonCodes":["WAIVER_ACCEPTED"]},
+    {"classification":"GOLDEN","expectedResult":"SATISFIED","id":"golden-required-evidence","reasonCodes":["REQUIREMENT_SATISFIED"]},
+    {"classification":"GOLDEN","expectedResult":"NOT_APPLICABLE","id":"golden-not-applicable","reasonCodes":["NOT_APPLICABLE_ACCEPTED"]},
+    {"classification":"GOLDEN","expectedResult":"NOT_SATISFIED","id":"golden-warning-only","reasonCodes":["RESPONSE_NOT_SATISFIED"]}
+  ],
+  "hostileCases": [
+    {"classification":"HOSTILE","expectedResult":"REJECTED","id":"V23-P03-C12-H01","reasonCodes":["EVIDENCE_CONTRADICTORY","EVIDENCE_DUPLICATED"]},
+    {"classification":"HOSTILE","expectedResult":"REJECTED","id":"hostile-stale-evaluation","reasonCodes":["UNANSWERED_REQUIREMENT"]},
+    {"classification":"HOSTILE","expectedResult":"REJECTED","id":"hostile-orphan-evidence","reasonCodes":["ORPHAN_EVIDENCE_REFERENCE"]},
+    {"classification":"HOSTILE","expectedResult":"REJECTED","id":"hostile-missing-evidence","reasonCodes":["REQUIRED_EVIDENCE_MISSING"]},
+    {"classification":"HOSTILE","expectedResult":"REJECTED","id":"hostile-invalid-evidence","reasonCodes":["EVIDENCE_INVALID"]},
+    {"classification":"HOSTILE","expectedResult":"REJECTED","id":"hostile-waiver-revision","reasonCodes":["WAIVER_REVISION_MISMATCH"]},
+    {"classification":"HOSTILE","expectedResult":"REJECTED","id":"hostile-snapshot-report-divergence","reasonCodes":["SNAPSHOT_REPORT_DIVERGENCE"]}
+  ],
+  "interruptionCases": [
+    {"classification":"INTERRUPTION","expectedResult":"UNKNOWN","id":"V23-P03-C12-I01","reasonCodes":["UNANSWERED_REQUIREMENT"]},
+    {"classification":"INTERRUPTION","expectedResult":"UNKNOWN","id":"interruption-before-first-publication","reasonCodes":["UNANSWERED_REQUIREMENT"]}
+  ],
+  "lifecycleCases": [
+    {"classification":"RECOVERY","expectedResult":"SATISFIED","id":"V23-P03-C12-R01","reasonCodes":["REQUIREMENT_SATISFIED"]},
+    {"classification":"RECOVERY","expectedResult":"SATISFIED","id":"lifecycle-backup","reasonCodes":["REQUIREMENT_SATISFIED"]},
+    {"classification":"RECOVERY","expectedResult":"SATISFIED","id":"lifecycle-restore","reasonCodes":["REQUIREMENT_SATISFIED"]},
+    {"classification":"RECOVERY","expectedResult":"SATISFIED","id":"lifecycle-clone","reasonCodes":["REQUIREMENT_SATISFIED"]},
+    {"classification":"RECOVERY","expectedResult":"SATISFIED","id":"lifecycle-fork","reasonCodes":["REQUIREMENT_SATISFIED"]},
+    {"classification":"RECOVERY","expectedResult":"SATISFIED","id":"lifecycle-export","reasonCodes":["REQUIREMENT_SATISFIED"]},
+    {"classification":"RECOVERY","expectedResult":"SATISFIED","id":"lifecycle-journal-replay","reasonCodes":["REQUIREMENT_SATISFIED"]},
+    {"classification":"RECOVERY","expectedResult":"SATISFIED","id":"lifecycle-search","reasonCodes":["REQUIREMENT_SATISFIED"]},
+    {"classification":"RECOVERY","expectedResult":"SATISFIED","id":"lifecycle-delete","reasonCodes":["REQUIREMENT_SATISFIED"]},
+    {"classification":"RECOVERY","expectedResult":"SATISFIED","id":"lifecycle-erase","reasonCodes":["REQUIREMENT_SATISFIED"]}
+  ],
+  "schema": "V21P03C12RequirementAssuranceCorpusV1",
+  "schemaVersion": 1
+}

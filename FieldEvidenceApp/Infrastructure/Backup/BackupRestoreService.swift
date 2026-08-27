@@ -200,6 +200,7 @@ final class BackupRestoreService {
                 && modelContext.fetchCount(FetchDescriptor<Issue>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<Packet>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<Report>()) == 0
+                && modelContext.fetchCount(FetchDescriptor<RequirementAssuranceRow>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<DeletionLedgerRow>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<SavedSmartViewRowV1>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()) == 0
@@ -448,7 +449,8 @@ final class BackupRestoreService {
             )
             expectedRecords = try recordsForMaterialization(
                 expectedRecords,
-                identityDecision: preliminaryIdentityDecision
+                identityDecision: preliminaryIdentityDecision,
+                legacyWorkspaceID: frozenCurrentIdentity.workspaceID.rawValue
             )
             guard uniqueModelIDs(in: expectedRecords) else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
@@ -1185,7 +1187,8 @@ private extension BackupRestoreService {
         ) else { return false }
         guard let normalized = try? recordsForMaterialization(
             plan.recordsAfter,
-            identityDecision: identity
+            identityDecision: identity,
+            legacyWorkspaceID: identity.oldPointer.workspaceID
         ) else { return false }
         return normalized == target
     }
@@ -1487,6 +1490,7 @@ private extension BackupRestoreService {
             packets: packets,
             recordsSchemaVersion: records.recordsSchemaVersion,
             reports: records.reports,
+            requirementAssurance: records.requirementAssurance,
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords
@@ -1530,6 +1534,7 @@ private extension BackupRestoreService {
             packets: records.packets,
             recordsSchemaVersion: max(3, records.recordsSchemaVersion),
             reports: records.reports,
+            requirementAssurance: records.requirementAssurance,
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords
@@ -1538,9 +1543,15 @@ private extension BackupRestoreService {
 
     func recordsForMaterialization(
         _ records: V4BackupRecordsV1,
-        identityDecision: RestoreIdentityV1?
+        identityDecision: RestoreIdentityV1?,
+        legacyWorkspaceID: UUID
     ) throws -> V4BackupRecordsV1 {
         var normalized = try recordsWithObservationAndTime(records)
+        normalized = try recordsWithRequirementAssurance(
+            normalized,
+            workspaceID: identityDecision.map { $0.targetPointer.workspaceID }
+                ?? legacyWorkspaceID
+        )
         if normalized.recordsSchemaVersion >= 5,
            let identityDecision {
             normalized = try rebindingLocationMigrationReceipt(
@@ -1575,6 +1586,54 @@ private extension BackupRestoreService {
                 quarantines: history.quarantines,
                 entityRevisions: history.entityRevisions
             )
+        )
+    }
+
+    func recordsWithRequirementAssurance(
+        _ records: V4BackupRecordsV1,
+        workspaceID: UUID
+    ) throws -> V4BackupRecordsV1 {
+        if records.recordsSchemaVersion == 7 { return records }
+        guard records.recordsSchemaVersion <= 6,
+              Set(records.requirementAssurance.map(\.workflowRecordID)).count
+                == records.requirementAssurance.count,
+              Set(records.requirementAssurance.map(\.workflowRecordID))
+                .isSubset(of: Set(records.workflowRecords.map(\.id))) else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let existing = Dictionary(uniqueKeysWithValues:
+            records.requirementAssurance.map { ($0.workflowRecordID, $0) }
+        )
+        let assurance = try records.workflowRecords.map { record in
+            if let value = existing[record.id] { return value }
+            let row = try RequirementAssuranceRow.blockingUnknownBackfill(
+                workflowRecordID: record.id,
+                workspaceID: workspaceID,
+                evaluatedRevision: 1,
+                requirementID: "legacy.requirement.assurance",
+                requirementVersion: 1,
+                requirementTypeID: "legacy.requirement.assurance",
+                policySHA256: KernelCanonicalHashV1.sha256(
+                    Data("V8|LEGACY_REQUIREMENT_ASSURANCE_UNKNOWN|1".utf8)
+                ),
+                mutationID: record.finalizationMutationID ?? record.id,
+                timestamp: record.startedAt
+            )
+            return try V8BackupRequirementAssuranceRecordV1(row)
+        }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
+        return V4BackupRecordsV1(
+            assetCompositionEdges: records.assetCompositionEdges,
+            assetCompositionEvents: records.assetCompositionEvents,
+            assetPlacementEvents: records.assetPlacementEvents,
+            assets: records.assets, deletionLedger: records.deletionLedger,
+            evidenceFiles: records.evidenceFiles, issues: records.issues,
+            locationHierarchyEvents: records.locationHierarchyEvents,
+            locationMigrationReceipts: records.locationMigrationReceipts,
+            locationNodes: records.locationNodes, mutationHistory: records.mutationHistory,
+            packets: records.packets, recordsSchemaVersion: 7,
+            reports: records.reports, requirementAssurance: assurance,
+            savedSmartViews: records.savedSmartViews, sites: records.sites,
+            workflowRecords: records.workflowRecords
         )
     }
 
@@ -1733,6 +1792,27 @@ private extension BackupRestoreService {
                 updatedAt: value.updatedAt
             ))
         }
+        let requirementAssurance = try records.requirementAssurance.map { record in
+            let source = try record.snapshot()
+            guard source.workspaceID != workspaceID.rawValue else { return record }
+            let rebound = try RequirementAssuranceSnapshotV1(
+                workflowRecordID: source.workflowRecordID,
+                workspaceID: workspaceID.rawValue,
+                evaluatedRevision: source.evaluatedRevision,
+                policySetSHA256: source.policySetSHA256,
+                evaluations: source.evaluations,
+                findings: source.findings,
+                decision: source.decision
+            )
+            return try V8BackupRequirementAssuranceRecordV1(
+                workflowRecordID: rebound.workflowRecordID,
+                canonicalData: RequirementAssuranceCanonicalV1.data(rebound),
+                snapshotSHA256: rebound.snapshotSHA256,
+                mutationID: record.mutationID,
+                createdAt: record.createdAt,
+                updatedAt: record.updatedAt
+            )
+        }
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
                 assetCompositionEdges: reboundEdges.map(\.0),
@@ -1745,6 +1825,7 @@ private extension BackupRestoreService {
                 mutationHistory: records.mutationHistory, packets: records.packets,
                 recordsSchemaVersion: records.recordsSchemaVersion,
                 reports: records.reports, sites: records.sites,
+                requirementAssurance: requirementAssurance,
                 savedSmartViews: savedSmartViews,
                 workflowRecords: records.workflowRecords
             )
@@ -1787,6 +1868,7 @@ private extension BackupRestoreService {
             packets: records.packets,
             recordsSchemaVersion: records.recordsSchemaVersion,
             reports: records.reports,
+            requirementAssurance: requirementAssurance,
             savedSmartViews: savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords
@@ -1822,6 +1904,7 @@ private extension BackupRestoreService {
             packets: records.packets,
             recordsSchemaVersion: 4,
             reports: records.reports,
+            requirementAssurance: records.requirementAssurance,
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: workflowRecords
@@ -1895,7 +1978,7 @@ private extension BackupRestoreService {
     ) throws -> (basis: Data?, temporal: Data?) {
         do {
             if recordsSchemaVersion == 4 || recordsSchemaVersion == 5
-                || recordsSchemaVersion == 6 {
+                || recordsSchemaVersion == 6 || recordsSchemaVersion == 7 {
                 guard let basisData = value.observationBasisV1Data,
                       let temporalData = value.temporalContextV1Data else {
                     throw BackupRestoreServiceError.invalidPackage
@@ -1970,7 +2053,8 @@ private extension BackupRestoreService {
         guard (records.recordsSchemaVersion == 3
                 || records.recordsSchemaVersion == 4
                 || records.recordsSchemaVersion == 5
-                || records.recordsSchemaVersion == 6)
+                || records.recordsSchemaVersion == 6
+                || records.recordsSchemaVersion == 7)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -2217,7 +2301,7 @@ private extension BackupRestoreService {
                 replacesReportID: value.replacesReportID
             ))
         }
-        if records.recordsSchemaVersion == 6 {
+        if records.recordsSchemaVersion == 6 || records.recordsSchemaVersion == 7 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -2230,11 +2314,25 @@ private extension BackupRestoreService {
                 throw BackupRestoreServiceError.invalidPackage
             }
         }
+        if records.recordsSchemaVersion == 7 {
+            do {
+                for record in records.requirementAssurance {
+                    let snapshot = try record.snapshot()
+                    context.insert(try RequirementAssuranceRow(
+                        snapshot: snapshot,
+                        mutationID: record.mutationID,
+                        createdAt: record.createdAt,
+                        updatedAt: record.updatedAt
+                    ))
+                }
+            } catch { throw BackupRestoreServiceError.invalidPackage }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
                     || records.recordsSchemaVersion == 5
-                    || records.recordsSchemaVersion == 6 else {
+                    || records.recordsSchemaVersion == 6
+                    || records.recordsSchemaVersion == 7 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -3302,12 +3400,14 @@ private extension BackupRestoreService {
     ) throws {
         let actual = try records(in: context)
         if actual == expected { return }
-        guard expected.recordsSchemaVersion < 6,
-              actual.recordsSchemaVersion == 6 else {
+        guard expected.recordsSchemaVersion < 7,
+              actual.recordsSchemaVersion == 7 else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
-        if expected.recordsSchemaVersion == 5 {
-            guard recordsByReplacingV7Fields(actual, schemaVersion: 5) == expected else {
+        if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
+            guard recordsByReplacingV7Fields(
+                actual, schemaVersion: expected.recordsSchemaVersion
+            ) == expected else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
         } else if try !validLegacyLocationMigration(actual, expected: expected) {
@@ -3334,7 +3434,8 @@ private extension BackupRestoreService {
             packets: records.packets,
             recordsSchemaVersion: schemaVersion,
             reports: records.reports,
-            savedSmartViews: [],
+            requirementAssurance: [],
+            savedSmartViews: schemaVersion >= 6 ? records.savedSmartViews : [],
             sites: records.sites,
             workflowRecords: records.workflowRecords
         )
@@ -3482,6 +3583,9 @@ private extension BackupRestoreService {
         let issues = try context.fetch(FetchDescriptor<Issue>())
         let packets = try context.fetch(FetchDescriptor<Packet>())
         let reports = try context.fetch(FetchDescriptor<Report>())
+        let requirementAssurance = try context.fetch(
+            FetchDescriptor<RequirementAssuranceRow>()
+        )
         let assetCompositionEdges = try context.fetch(FetchDescriptor<AssetCompositionEdgeRow>())
         let assetCompositionEvents = try context.fetch(FetchDescriptor<AssetCompositionEventRow>())
         let assetPlacementEvents = try context.fetch(FetchDescriptor<AssetPlacementEventRow>())
@@ -3574,7 +3678,7 @@ private extension BackupRestoreService {
             }.sorted { canonical($0.id) < canonical($1.id) },
             recordsSchemaVersion: mutationHistory == nil
                 ? (includingDeletionLedger ? 2 : 1)
-                : 6,
+                : 7,
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -3587,6 +3691,9 @@ private extension BackupRestoreService {
                     replacesReportID: $0.replacesReportID
                 )
             }.sorted { canonical($0.id) < canonical($1.id) },
+            requirementAssurance: try (mutationHistory == nil ? []
+                : requirementAssurance.map(V8BackupRequirementAssuranceRecordV1.init))
+                .sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) },
             savedSmartViews: try savedSmartViews.map {
                 try V7BackupSavedSmartViewRecordV1($0.descriptor())
             }.sorted { canonical($0.id) < canonical($1.id) },

@@ -1218,6 +1218,7 @@ private extension WholeSignDeletionService {
         let placementEvents: [AssetPlacementEventRow]
         let compositionEdges: [AssetCompositionEdgeRow]
         let records: [WorkflowRecord]
+        let requirementAssurance: [RequirementAssuranceRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1245,6 +1246,7 @@ private extension WholeSignDeletionService {
                 placementEvents: try boundedFetch(AssetPlacementEventRow.self),
                 compositionEdges: try boundedFetch(AssetCompositionEdgeRow.self),
                 records: records,
+                requirementAssurance: try boundedFetch(RequirementAssuranceRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1777,6 +1779,8 @@ private extension WholeSignDeletionService {
         rows.issues.filter { issueIDs.contains($0.id) }.forEach { modelContext.delete($0) }
         rows.reports.filter { reportIDs.contains($0.id) }.forEach { modelContext.delete($0) }
         recordIDs.compactMap { rows.observationAndTime[$0] }
+            .forEach { modelContext.delete($0) }
+        rows.requirementAssurance.filter { recordIDs.contains($0.workflowRecordID) }
             .forEach { modelContext.delete($0) }
         rows.records.filter { recordIDs.contains($0.id) }.forEach { modelContext.delete($0) }
         rows.packets.filter { packetDeleteIDs.contains($0.id) }.forEach { modelContext.delete($0) }

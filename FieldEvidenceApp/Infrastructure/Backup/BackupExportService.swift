@@ -58,6 +58,7 @@ final class BackupExportService {
         let locationNodes: [LocationNodeRow]
         let packets: [Packet]
         let reports: [Report]
+        let requirementAssurance: [RequirementAssuranceRow]
         let savedSmartViews: [SavedSmartViewRowV1]
     }
 
@@ -662,6 +663,7 @@ private extension BackupExportService {
                 packets: records.packets,
                 recordsSchemaVersion: records.recordsSchemaVersion,
                 reports: records.reports,
+                requirementAssurance: records.requirementAssurance,
                 savedSmartViews: records.savedSmartViews,
                 sites: records.sites,
                 workflowRecords: records.workflowRecords
@@ -870,9 +872,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 7,
+                persistentSchemaVersion: 8,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 6,
+                recordsSchemaVersion: 7,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -1396,6 +1398,9 @@ private extension BackupExportService {
                 locationNodes: try modelContext.fetch(FetchDescriptor<LocationNodeRow>()),
                 packets: try modelContext.fetch(FetchDescriptor<Packet>()),
                 reports: try modelContext.fetch(FetchDescriptor<Report>()),
+                requirementAssurance: try modelContext.fetch(
+                    FetchDescriptor<RequirementAssuranceRow>()
+                ),
                 savedSmartViews: try modelContext.fetch(FetchDescriptor<SavedSmartViewRowV1>())
             )
         } catch {
@@ -1404,6 +1409,7 @@ private extension BackupExportService {
     }
 
     private func validateGraph(_ rows: Rows) throws {
+        let sourceIdentity = try currentStreamingWorkspaceIdentity()
         do {
             try KernelBackupRestoreRegistryV4.validate()
             let schema = try KernelPersistenceV4Schema.descriptor()
@@ -1422,6 +1428,9 @@ private extension BackupExportService {
               unique(rows.packets.map(\.id)),
               unique(rows.packets.map(\.stableRootID)),
               unique(rows.reports.map(\.id)),
+              unique(rows.requirementAssurance.map(\.workflowRecordID)),
+              Set(rows.requirementAssurance.map(\.workflowRecordID))
+                == Set(rows.records.map(\.id)),
               unique(rows.savedSmartViews.map(\.id)),
               rows.sites.allSatisfy({ $0.schemaVersion == 1 }),
               rows.assets.allSatisfy({ $0.schemaVersion == 1 }),
@@ -1430,6 +1439,10 @@ private extension BackupExportService {
               rows.issues.allSatisfy({ $0.schemaVersion == 1 }),
               rows.packets.allSatisfy({ $0.schemaVersion == 1 }),
               rows.reports.allSatisfy({ $0.schemaVersion == 1 }),
+              rows.requirementAssurance.allSatisfy({
+                  (try? $0.snapshot()) != nil
+                      && $0.workspaceID == sourceIdentity.workspaceID.rawValue
+              }),
               rows.savedSmartViews.allSatisfy({
                   guard let descriptor = try? $0.descriptor() else { return false }
                   return descriptor.workspaceID == sourceIdentity.workspaceID.rawValue
@@ -1833,7 +1846,7 @@ private extension BackupExportService {
             }.sorted(by: dtoOrder),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 6,
+                : 7,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -1845,6 +1858,9 @@ private extension BackupExportService {
                     createdAt: $0.createdAt, replacesReportID: $0.replacesReportID
                 )
             }.sorted(by: dtoOrder),
+            requirementAssurance: try (mutationHistory == nil ? []
+                : rows.requirementAssurance.map(V8BackupRequirementAssuranceRecordV1.init))
+                .sorted { $0.workflowRecordID.uuidString < $1.workflowRecordID.uuidString },
             savedSmartViews: try (mutationHistory == nil ? [] : rows.savedSmartViews.map {
                 try V7BackupSavedSmartViewRecordV1($0.descriptor())
             }).sorted { $0.id.uuidString < $1.id.uuidString },

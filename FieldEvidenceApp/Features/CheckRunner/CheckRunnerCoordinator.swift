@@ -46,6 +46,7 @@ final class CheckRunnerCoordinator {
     private let finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection?
     private let finalizationServiceFailureInjection: FinalizationServiceFailureInjection?
     private let draftAccessState: (@MainActor () -> DraftAccessNormalizedStateV1)?
+    private let requirementEvaluatorRegistry: RequirementEvaluatorRegistryV1?
     private let offMainWorker = DeterministicOffMainWorkerV1()
     private var captureGenerationRootURL: URL?
     private var evidenceBundleStore: EvidenceBundleStore?
@@ -91,6 +92,7 @@ final class CheckRunnerCoordinator {
         finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
         finalizationServiceFailureInjection: FinalizationServiceFailureInjection? = nil,
         injectsLowStorageFailureOnceForUITest: Bool = false,
+        requirementEvaluatorRegistry: RequirementEvaluatorRegistryV1? = nil,
         draftAccessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil,
         compatibilityPosture: CheckRunnerCompatibilityPostureV1 = .frozenS10CallersOnly
     ) {
@@ -109,6 +111,7 @@ final class CheckRunnerCoordinator {
         self.finalizationStoreFailureInjection = finalizationStoreFailureInjection
         self.finalizationServiceFailureInjection = finalizationServiceFailureInjection
         self.draftAccessState = draftAccessState
+        self.requirementEvaluatorRegistry = requirementEvaluatorRegistry
         if injectsLowStorageFailureOnceForUITest {
             var shouldFail = true
             self.storagePreflight = StoragePreflightService { _ in
@@ -134,6 +137,7 @@ final class CheckRunnerCoordinator {
         finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
         finalizationServiceFailureInjection: FinalizationServiceFailureInjection? = nil,
         injectsLowStorageFailureOnceForUITest: Bool = false,
+        requirementEvaluatorRegistry: RequirementEvaluatorRegistryV1? = nil,
         draftAccessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil
     ) throws {
         guard try packageLifecycleDependencies.profileRegistry.resolve(
@@ -155,6 +159,7 @@ final class CheckRunnerCoordinator {
         self.finalizationStoreFailureInjection = finalizationStoreFailureInjection
         self.finalizationServiceFailureInjection = finalizationServiceFailureInjection
         self.draftAccessState = draftAccessState
+        self.requirementEvaluatorRegistry = requirementEvaluatorRegistry
         if injectsLowStorageFailureOnceForUITest {
             var shouldFail = true
             self.storagePreflight = StoragePreflightService { _ in
@@ -175,6 +180,108 @@ final class CheckRunnerCoordinator {
 
     var couldNotVerifyReasons: [SignPack.RegistryEntry] {
         validCouldNotVerifyRegistry() ? signPack.couldNotVerifyReasons.entries : []
+    }
+
+    func currentRequirementAssuranceDecision(
+        workflowRecordID: UUID
+    ) -> RequirementAssuranceGatePreflightV1 {
+        do {
+            guard let snapshot = try currentRequirementAssuranceSnapshot(
+                workflowRecordID: workflowRecordID
+            ) else {
+                return .failed(.noAcceptedRevision, priorAcceptedSnapshot: nil)
+            }
+            return .evaluated(snapshot, priorAcceptedSnapshot: nil)
+        } catch {
+            return .failed(requirementAssuranceFailure(for: error), priorAcceptedSnapshot: nil)
+        }
+    }
+
+    /// Deterministically evaluates a candidate without changing canonical data.
+    /// Reserved S10 UI/finalization callers may consume this receipt only after
+    /// their separate reconciliation; this method does not claim reachability.
+    func evaluateRequirementAssurance(
+        workflowRecordID: UUID,
+        inputs: [RequirementEvaluationInputV1],
+        integrity: RequirementIntegrityInputV1
+    ) -> RequirementAssuranceGatePreflightV1 {
+        let prior: RequirementAssuranceSnapshotV1?
+        do {
+            prior = try currentRequirementAssuranceSnapshot(workflowRecordID: workflowRecordID)
+        } catch {
+            return .failed(requirementAssuranceFailure(for: error), priorAcceptedSnapshot: nil)
+        }
+        guard !Task.isCancelled else {
+            return .failed(.cancelled, priorAcceptedSnapshot: prior)
+        }
+        guard let registry = requirementEvaluatorRegistry,
+              let lifecycle = liveLifecycle else {
+            return .failed(.notConfigured, priorAcceptedSnapshot: prior)
+        }
+        do {
+            let snapshot = try RequirementEvaluationEngineV1.makeSnapshot(
+                workflowRecordID: workflowRecordID,
+                workspaceID: lifecycle.dependencies.workspaceID.rawValue,
+                inputs: inputs,
+                registry: registry,
+                integrity: integrity
+            )
+            let expectedRevision = prior?.evaluatedRevision ?? 0
+            guard snapshot.evaluatedRevision == expectedRevision + 1 else {
+                return .failed(.staleRevision, priorAcceptedSnapshot: prior)
+            }
+            return .evaluated(snapshot, priorAcceptedSnapshot: prior)
+        } catch {
+            return .failed(requirementAssuranceFailure(for: error), priorAcceptedSnapshot: prior)
+        }
+    }
+
+    /// Evaluates and publishes through the sole workspace writer command. The
+    /// accepted row is reread and compared before a permitting receipt returns.
+    func rebuildRequirementAssurance(
+        workflowRecordID: UUID,
+        inputs: [RequirementEvaluationInputV1],
+        integrity: RequirementIntegrityInputV1
+    ) -> RequirementAssuranceGatePreflightV1 {
+        let evaluated = evaluateRequirementAssurance(
+            workflowRecordID: workflowRecordID,
+            inputs: inputs,
+            integrity: integrity
+        )
+        guard evaluated.failure == nil,
+              let snapshot = evaluated.candidateSnapshot,
+              let lifecycle = liveLifecycle else {
+            return evaluated
+        }
+        guard !Task.isCancelled else {
+            return .failed(.cancelled, priorAcceptedSnapshot: evaluated.priorAcceptedSnapshot)
+        }
+        do {
+            let mutationID = try lifecycle.dependencies.writer.makeMutationID()
+            let mutation = try RequirementAssuranceMutationV1(
+                snapshot: snapshot,
+                expectedEvaluatedRevision: evaluated.priorAcceptedSnapshot?.evaluatedRevision ?? 0,
+                mutationID: mutationID.rawValue
+            )
+            _ = try lifecycle.dependencies.writer.execute(
+                .applyRequirementAssurance(mutation),
+                mutationID: mutationID
+            )
+            guard let accepted = try currentRequirementAssuranceSnapshot(
+                workflowRecordID: workflowRecordID
+            ), accepted == snapshot else {
+                return .failed(
+                    .persistenceUnavailable,
+                    priorAcceptedSnapshot: evaluated.priorAcceptedSnapshot
+                )
+            }
+            return .evaluated(accepted, priorAcceptedSnapshot: evaluated.priorAcceptedSnapshot)
+        } catch {
+            return .failed(
+                requirementAssuranceFailure(for: error),
+                priorAcceptedSnapshot: evaluated.priorAcceptedSnapshot
+            )
+        }
     }
 
     func signPackOutcomeDisplay(key: String) -> String? {
@@ -1896,6 +2003,56 @@ final class CheckRunnerCoordinator {
             throw CheckRunnerCoordinatorError.saveFailed
         }
         return accepted
+    }
+
+    private func currentRequirementAssuranceSnapshot(
+        workflowRecordID: UUID
+    ) throws -> RequirementAssuranceSnapshotV1? {
+        var descriptor = FetchDescriptor<RequirementAssuranceRow>(
+            predicate: #Predicate { $0.workflowRecordID == workflowRecordID }
+        )
+        descriptor.fetchLimit = 2
+        let rows = try modelContext.fetch(descriptor)
+        guard rows.count <= 1 else {
+            throw RequirementAssuranceFailureV1.duplicateIdentity
+        }
+        return try rows.first?.snapshot()
+    }
+
+    private func requirementAssuranceFailure(
+        for error: Error
+    ) -> RequirementAssuranceGateFailureV1 {
+        if error is CancellationError { return .cancelled }
+        if ProtectedFilePolicyV1.isProtectedDataUnavailable(error) {
+            return .protectedDataUnavailable
+        }
+        if let failure = error as? RequirementAssuranceFailureV1 {
+            switch failure {
+            case .staleRevision:
+                return .staleRevision
+            case .unknownRequirementType:
+                return .unknownRequirementType
+            case .missingEvaluator:
+                return .missingEvaluator
+            case .invalidValue, .incompatibleVersion, .duplicateIdentity,
+                 .invalidEvidence, .invalidWaiver, .nonCanonicalOrder,
+                 .digestMismatch, .revisionOverflow:
+                return .invalidCanonicalState
+            }
+        }
+        if let failure = error as? WorkspaceMutationFailureV1 {
+            switch failure {
+            case .writerInvalidated, .wrongWriterInstance, .wrongWorkspace,
+                 .wrongGeneration, .staleWorkspaceRevision, .staleEntityRevision:
+                return .staleRevision
+            case .storageAdmissionFailed, .mutationIDQuarantined, .idempotencyCapacityReached,
+                 .revisionOverflow, .unsupportedCommand, .invalidCommand,
+                 .invalidEnvelope, .invalidReceipt, .invalidReversal,
+                 .receiptHistoryCorrupt, .sequenceCollision, .persistenceFailed:
+                return .persistenceUnavailable
+            }
+        }
+        return .persistenceUnavailable
     }
 }
 

@@ -460,6 +460,35 @@ struct SavedSmartViewMutationV1: Codable, Equatable, Sendable {
     }
 }
 
+/// Replaces the single typed assurance companion for an existing workflow
+/// record. The command deliberately reuses the workflow-record mutation
+/// identity so receipts, replay and tombstones do not acquire a new root.
+struct RequirementAssuranceMutationV1: Codable, Equatable, Sendable {
+    let snapshot: RequirementAssuranceSnapshotV1
+    let expectedEvaluatedRevision: UInt64
+    let mutationID: UUID
+
+    init(
+        snapshot: RequirementAssuranceSnapshotV1,
+        expectedEvaluatedRevision: UInt64,
+        mutationID: UUID
+    ) throws {
+        self.snapshot = snapshot
+        self.expectedEvaluatedRevision = expectedEvaluatedRevision
+        self.mutationID = mutationID
+        try validate()
+    }
+
+    func validate() throws {
+        try snapshot.validate()
+        guard mutationID != SearchContractValidationV1.zeroUUID,
+              expectedEvaluatedRevision < UInt64.max,
+              snapshot.evaluatedRevision == expectedEvaluatedRevision + 1 else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+    }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -477,6 +506,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyAssetPlacementChange(AssetPlacementChangePlanV1)
     case applyAssetCompositionChange(AssetCompositionChangePlanV1)
     case applySavedSmartView(SavedSmartViewMutationV1)
+    case applyRequirementAssurance(RequirementAssuranceMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -496,6 +526,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyAssetPlacementChange: .applyAssetPlacementChange
         case .applyAssetCompositionChange: .applyAssetCompositionChange
         case .applySavedSmartView: .applySavedSmartView
+        case .applyRequirementAssurance: .applyRequirementAssurance
         }
     }
 }
@@ -517,6 +548,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyAssetPlacementChange = "apply_asset_placement_change"
     case applyAssetCompositionChange = "apply_asset_composition_change"
     case applySavedSmartView = "apply_saved_smart_view"
+    case applyRequirementAssurance = "apply_requirement_assurance"
 }
 
 extension WorkspaceCommandV1 {
@@ -1250,6 +1282,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind: .applyAssetPlacementChange, disposition: .compensatable, stableReason: "append_placement_successor_only"),
         .init(commandKind: .applyAssetCompositionChange, disposition: .compensatable, stableReason: "append_composition_successor_only"),
         .init(commandKind: .applySavedSmartView, disposition: .compensatable, stableReason: "replace_or_delete_saved_smart_view"),
+        .init(commandKind: .applyRequirementAssurance, disposition: .compensatable, stableReason: "replace_typed_requirement_assurance"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

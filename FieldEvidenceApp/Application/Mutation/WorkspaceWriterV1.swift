@@ -452,6 +452,12 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
                   value.mutationID == request.mutationID.rawValue else {
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
+        case .applyRequirementAssurance(let value):
+            try value.validate()
+            guard value.snapshot.workspaceID == identity.workspaceID.rawValue,
+                  value.mutationID == request.mutationID.rawValue else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
         default:
             break
         }
@@ -1055,6 +1061,12 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
         case let .applySavedSmartView(value):
             try value.validate()
             values = [try WorkspaceEntityIdentityV1(kind: .savedSmartView, id: value.id)]
+        case let .applyRequirementAssurance(value):
+            try value.validate()
+            values = [try WorkspaceEntityIdentityV1(
+                kind: .workflowRecord,
+                id: value.snapshot.workflowRecordID
+            )]
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand

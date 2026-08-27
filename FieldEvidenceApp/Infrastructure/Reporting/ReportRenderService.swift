@@ -685,6 +685,8 @@ struct ReportRenderResult: Equatable, Sendable {
     let pdfRelativePath: String
     let pdfSHA256: String
     let pageCount: Int
+    let requirementAssuranceSnapshotSHA256: String?
+    let requirementExplanations: [RequirementExplanationItemV1]
 }
 
 enum ReportRenderAttemptResult: Equatable, Sendable {
@@ -863,6 +865,12 @@ final class ReportRenderService {
         }
         try requireAttemptPathsAbsent(for: reportID)
         let validated = try validator.validate(report: report)
+        guard SnapshotIntegrityDiagnosticsV1.snapshotReportDivergenceFindings(
+            snapshotSHA256: validated.snapshotSHA256,
+            reportSHA256: report.snapshotSHA256
+        ).isEmpty else {
+            throw ReportRenderServiceError.bytesMismatch
+        }
         try storagePreflight.checkPDFGeneration(
             referencedImageByteCount: validated.referencedImageByteCount,
             onVolumeContaining: generationRootURL
@@ -1036,7 +1044,10 @@ final class ReportRenderService {
                 reportID: report.id,
                 pdfRelativePath: paths.finalRelativePath,
                 pdfSHA256: rendered.sha256,
-                pageCount: rendered.pageCount
+                pageCount: rendered.pageCount,
+                requirementAssuranceSnapshotSHA256:
+                    validated.snapshot.requirementAssurance?.snapshotSHA256,
+                requirementExplanations: validated.requirementExplanations
             )
         } catch {
             do {

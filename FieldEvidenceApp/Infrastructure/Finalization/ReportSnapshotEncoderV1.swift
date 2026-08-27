@@ -10,7 +10,68 @@ enum ReportSnapshotEncodingErrorV1: Error, Equatable {
     case noncanonicalData
 }
 
+/// Provisional-only companion codec. Production finalization deliberately does
+/// not populate this projection until its owning release surface is activated.
+enum RequirementAssuranceSnapshotCanonicalCodecV1 {
+    static let status = "PROVISIONAL_NONRELEASE_ONLY"
+
+    static func isValid(_ snapshot: RequirementAssuranceSnapshotV1) -> Bool {
+        (try? snapshot.validate()) != nil
+            && snapshot.evaluatedRevision <= UInt64(Int.max)
+            && snapshot.evaluations.allSatisfy {
+                $0.evaluatedRevision <= UInt64(Int.max)
+            }
+            && snapshot.decision.evaluatedRevision <= UInt64(Int.max)
+    }
+
+    static func encode(_ snapshot: RequirementAssuranceSnapshotV1) throws -> Data {
+        do {
+            guard isValid(snapshot) else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            let data = try RequirementAssuranceCanonicalV1.data(snapshot)
+            guard !data.isEmpty,
+                  data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            return data
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+
+    static func decode(_ data: Data) throws -> RequirementAssuranceSnapshotV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        do {
+            let value = try JSONDecoder().decode(
+                RequirementAssuranceSnapshotV1.self,
+                from: data
+            )
+            try value.validate()
+            guard try encode(value) == data else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            return value
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            if error == .invalidSnapshot {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+}
+
 struct ReportSnapshotEncoderV1: Sendable {
+    static let requirementAssuranceCodecStatus =
+        RequirementAssuranceSnapshotCanonicalCodecV1.status
+
     func encode(_ snapshot: CompletedActivitySnapshotV2) throws -> EncodedReportSnapshotV1 {
         do {
             let data = try CompletedActivitySnapshotCanonicalCodecV2.encode(snapshot)
@@ -26,6 +87,22 @@ struct ReportSnapshotEncoderV1: Sendable {
     func decodeCompletedActivityV2(_ data: Data) throws -> CompletedActivitySnapshotV2 {
         do { return try CompletedActivitySnapshotCanonicalCodecV2.decode(data) }
         catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
+    func encode(
+        _ snapshot: RequirementAssuranceSnapshotV1
+    ) throws -> EncodedReportSnapshotV1 {
+        let data = try RequirementAssuranceSnapshotCanonicalCodecV1.encode(snapshot)
+        return EncodedReportSnapshotV1(
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data)
+        )
+    }
+
+    func decodeRequirementAssurance(
+        _ data: Data
+    ) throws -> RequirementAssuranceSnapshotV1 {
+        try RequirementAssuranceSnapshotCanonicalCodecV1.decode(data)
     }
 
     func encode(_ snapshot: ReportSnapshotV1) throws -> EncodedReportSnapshotV1 {
@@ -93,6 +170,12 @@ struct ReportSnapshotEncoderV1: Sendable {
               Set(snapshot.issues.map(\.issueID)).count == snapshot.issues.count
         else {
             return false
+        }
+
+        if let assurance = snapshot.requirementAssurance {
+            guard RequirementAssuranceSnapshotCanonicalCodecV1.isValid(assurance) else {
+                return false
+            }
         }
 
         guard validObservationAndTime(
@@ -203,7 +286,75 @@ extension CanonicalJSONV1 {
             object["observationBasis"] = observationBasis(basis)
             object["temporalContext"] = temporalContext(temporal)
         }
+        if let assurance = value.requirementAssurance {
+            object["requirementAssurance"] = requirementAssurance(assurance)
+        }
         return .object(object)
+    }
+
+    static func requirementAssurance(
+        _ value: RequirementAssuranceSnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "decision": completionDecision(value.decision),
+            "evaluatedRevision": .integer(Int(value.evaluatedRevision)),
+            "evaluations": .array(value.evaluations.map(evaluation)),
+            "findings": .array(value.findings.map(integrityFinding)),
+            "policySetSHA256": .string(value.policySetSHA256),
+            "schemaVersion": .integer(value.schemaVersion),
+            "snapshotSHA256": .string(value.snapshotSHA256),
+            "workflowRecordID": uuid(value.workflowRecordID),
+            "workspaceID": uuid(value.workspaceID),
+        ])
+    }
+
+    private static func evaluation(
+        _ value: RequirementEvaluationV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "evidenceReferenceIDs": .array(value.evidenceReferenceIDs.map { .string($0) }),
+            "evaluatedRevision": .integer(Int(value.evaluatedRevision)),
+            "gateEffect": .string(value.gateEffect.rawValue),
+            "invalidEvidenceReferences": .array(value.invalidEvidenceReferences.map { .string($0) }),
+            "missingEvidenceReferences": .array(value.missingEvidenceReferences.map { .string($0) }),
+            "policySHA256": .string(value.policySHA256),
+            "reasonCodes": .array(value.reasonCodes.map { .string($0.rawValue) }),
+            "requirementID": .string(value.requirementID),
+            "requirementTypeID": .string(value.requirementTypeID),
+            "requirementVersion": .integer(value.requirementVersion),
+            "result": .string(value.result.rawValue),
+            "schemaVersion": .integer(value.schemaVersion),
+            "waiverID": optionalString(value.waiverID),
+        ])
+    }
+
+    private static func completionDecision(
+        _ value: CompletionDecisionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "disposition": .string(value.disposition.rawValue),
+            "evaluationSetSHA256": .string(value.evaluationSetSHA256),
+            "evaluatedRevision": .integer(Int(value.evaluatedRevision)),
+            "hardBlockerRequirementIDs": .array(value.hardBlockerRequirementIDs.map { .string($0) }),
+            "notApplicableRequirementIDs": .array(value.notApplicableRequirementIDs.map { .string($0) }),
+            "policySetSHA256": .string(value.policySetSHA256),
+            "schemaVersion": .integer(value.schemaVersion),
+            "unknownRequirementIDs": .array(value.unknownRequirementIDs.map { .string($0) }),
+            "waivedRequirementIDs": .array(value.waivedRequirementIDs.map { .string($0) }),
+            "warningRequirementIDs": .array(value.warningRequirementIDs.map { .string($0) }),
+        ])
+    }
+
+    private static func integrityFinding(
+        _ value: IntegrityFindingV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "kind": .string(value.kind.rawValue),
+            "reasonCode": .string(value.reasonCode),
+            "referenceIDs": .array(value.referenceIDs.map { .string($0) }),
+            "requirementID": optionalString(value.requirementID),
+            "schemaVersion": .integer(value.schemaVersion),
+        ])
     }
 
     private static func acknowledgement(_ value: AcknowledgementSnapshotV1) -> CanonicalJSONValueV1 {

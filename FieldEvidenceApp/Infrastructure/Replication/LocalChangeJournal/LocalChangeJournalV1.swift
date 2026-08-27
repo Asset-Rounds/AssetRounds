@@ -254,10 +254,12 @@ final class LocalChangeJournalV1 {
         ))
         let recordSchemaSHA256 = try Self.sha256(RecordSchemaDigestBasis(
             recordsSchemaVersion: destination.recordsSchemaVersion,
-            orderedFields: destination.recordsSchemaVersion == 6
-                ? Self.v6BackupRecordFields
+            orderedFields: destination.recordsSchemaVersion == 7
+                ? Self.v7BackupRecordFields
+                : (destination.recordsSchemaVersion == 6
+                    ? Self.v6BackupRecordFields
                 : (destination.recordsSchemaVersion == 5
-                    ? Self.v5BackupRecordFields : Self.v4BackupRecordFields)
+                    ? Self.v5BackupRecordFields : Self.v4BackupRecordFields))
         ))
         guard destination.workspaceIdentity == identity,
               destination.generationID == generationID,
@@ -643,8 +645,8 @@ final class LocalChangeJournalV1 {
         guard basis.workspaceIdentity == identity, basis.generationID == generationID else {
             throw ChangeJournalFailureV1.wrongGeneration
         }
-        guard basis.persistentSchemaVersion == 7,
-              basis.recordsSchemaVersion == 6 else {
+        guard basis.persistentSchemaVersion == 8,
+              basis.recordsSchemaVersion == 7 else {
             throw ChangeJournalFailureV1.incompatibleVersion
         }
         guard basis.memberInventory.map(\.path) == basis.memberInventory.map(\.path).sorted(),
@@ -696,7 +698,7 @@ final class LocalChangeJournalV1 {
             recordSchemaVersion: basis.recordsSchemaVersion,
             recordSchemaSHA256: try Self.sha256(RecordSchemaDigestBasis(
                 recordsSchemaVersion: basis.recordsSchemaVersion,
-                orderedFields: Self.v6BackupRecordFields
+                orderedFields: Self.v7BackupRecordFields
             )),
             packages: packages,
             frontier: currentFrontier,
@@ -1121,6 +1123,7 @@ final class LocalChangeJournalV1 {
         case 5: return PersistentSchemaReleaseV1.v5.compatibilityID
         case 6: return PersistentSchemaReleaseV1.v6.compatibilityID
         case 7: return PersistentSchemaReleaseV1.v7.compatibilityID
+        case 8: return PersistentSchemaReleaseV1.v8.compatibilityID
         default: throw ChangeJournalFailureV1.incompatibleVersion
         }
     }
@@ -1367,6 +1370,14 @@ final class LocalChangeJournalV1 {
         "assets", "deletionLedger", "evidenceFiles", "issues", "locationHierarchyEvents",
         "locationMigrationReceipts", "locationNodes", "mutationHistory", "packets",
         "recordsSchemaVersion", "reports", "savedSmartViews", "sites", "workflowRecords",
+    ]
+
+    private static let v7BackupRecordFields = [
+        "assetCompositionEdges", "assetCompositionEvents", "assetPlacementEvents",
+        "assets", "deletionLedger", "evidenceFiles", "issues", "locationHierarchyEvents",
+        "locationMigrationReceipts", "locationNodes", "mutationHistory", "packets",
+        "recordsSchemaVersion", "reports", "requirementAssurance", "savedSmartViews",
+        "sites", "workflowRecords",
     ]
 
     private static let decoder: JSONDecoder = {

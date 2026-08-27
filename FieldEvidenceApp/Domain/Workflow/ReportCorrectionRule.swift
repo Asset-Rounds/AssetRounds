@@ -236,7 +236,8 @@ struct ReportCorrectionRule {
             stableRootID: snapshot.stableRootID,
             stage: snapshot.stage,
             temporalContext: snapshot.temporalContext,
-            timeContext: snapshot.timeContext
+            timeContext: snapshot.timeContext,
+            requirementAssurance: snapshot.requirementAssurance
         )
         let encodedSnapshot: EncodedReportSnapshotV1
         do {

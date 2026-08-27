@@ -18,7 +18,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         .applyAssetCompositionChange,
     ]
     static let activeSupportedCommandKinds = supportedCommandKinds.union(locationSupportedCommandKinds)
-        .union([.applySavedSmartView])
+        .union([.applySavedSmartView, .applyRequirementAssurance])
 
     private let modelContext: ModelContext
 
@@ -88,6 +88,12 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             return try applyAssetCompositionChange(plan, temporaryRelativePath: temporaryRelativePath)
         case let .applySavedSmartView(value):
             return try applySavedSmartView(value, temporaryRelativePath: temporaryRelativePath)
+        case let .applyRequirementAssurance(value):
+            return try applyRequirementAssurance(
+                value,
+                occurredAt: occurredAt,
+                temporaryRelativePath: temporaryRelativePath
+            )
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -471,6 +477,20 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             recordID: value.recordID,
             observationBasisV1Data: observationBasisData,
             temporalContextV1Data: temporalContextData
+        ))
+        let workspaceID = try currentWorkspaceID().rawValue
+        modelContext.insert(try RequirementAssuranceRow.blockingUnknownBackfill(
+            workflowRecordID: value.recordID,
+            workspaceID: workspaceID,
+            evaluatedRevision: 1,
+            requirementID: "legacy_assurance_unknown",
+            requirementVersion: 1,
+            requirementTypeID: "legacy_assurance_unknown",
+            policySHA256: StoreMigrationCanonicalJSONV1.sha256(
+                Data("legacy-assurance-unknown-v1".utf8)
+            ),
+            mutationID: value.recordID,
+            timestamp: value.startedAt
         ))
         return effect
     }
@@ -955,6 +975,62 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         }
         return try WorkspaceMutationEffectV1(
             affectedEntities: [.init(kind: .savedSmartView, id: id)],
+            temporaryRelativePath: temporaryRelativePath
+        )
+    }
+
+    private func applyRequirementAssurance(
+        _ mutation: RequirementAssuranceMutationV1,
+        occurredAt: Date,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        try mutation.validate()
+        let recordID = mutation.snapshot.workflowRecordID
+        var recordDescriptor = FetchDescriptor<WorkflowRecord>(
+            predicate: #Predicate { $0.id == recordID }
+        )
+        recordDescriptor.fetchLimit = 2
+        let records = try modelContext.fetch(recordDescriptor)
+        guard records.count == 1 else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+
+        var assuranceDescriptor = FetchDescriptor<RequirementAssuranceRow>(
+            predicate: #Predicate { $0.workflowRecordID == recordID }
+        )
+        assuranceDescriptor.fetchLimit = 2
+        let rows = try modelContext.fetch(assuranceDescriptor)
+        guard rows.count <= 1 else {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+        if let row = rows.first {
+            do {
+                try row.replace(
+                    with: mutation.snapshot,
+                    expectedRevision: mutation.expectedEvaluatedRevision,
+                    mutationID: mutation.mutationID,
+                    updatedAt: occurredAt
+                )
+            } catch RequirementAssuranceFailureV1.staleRevision {
+                throw WorkspaceMutationFailureV1.staleEntityRevision(
+                    try .init(kind: .workflowRecord, id: recordID)
+                )
+            }
+        } else {
+            guard mutation.expectedEvaluatedRevision == 0 else {
+                throw WorkspaceMutationFailureV1.staleEntityRevision(
+                    try .init(kind: .workflowRecord, id: recordID)
+                )
+            }
+            modelContext.insert(try RequirementAssuranceRow(
+                snapshot: mutation.snapshot,
+                mutationID: mutation.mutationID,
+                createdAt: occurredAt,
+                updatedAt: occurredAt
+            ))
+        }
+        return try WorkspaceMutationEffectV1(
+            affectedEntities: [.init(kind: .workflowRecord, id: recordID)],
             temporaryRelativePath: temporaryRelativePath
         )
     }

@@ -17,6 +17,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let v5TargetID: UUID
         let v6TargetID: UUID
         let v7TargetID: UUID
+        let v8TargetID: UUID
         let siteID: UUID
         let assetID: UUID
         let recordID: UUID
@@ -243,8 +244,23 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         XCTAssertEqual(v7FirstLaunch.phase, .firstLaunchValidated)
 
         var seventhLaunch: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
-        XCTAssertEqual(try XCTUnwrap(seventhLaunch).generationID, fixture.v7TargetID)
+        XCTAssertEqual(try XCTUnwrap(seventhLaunch).generationID, fixture.v8TargetID)
         seventhLaunch = nil
+
+        let v8FirstLaunch = try XCTUnwrap(try store.loadJournal())
+        XCTAssertEqual(v8FirstLaunch.sourceRelease, .v7)
+        XCTAssertEqual(v8FirstLaunch.targetRelease, .v8)
+        XCTAssertEqual(v8FirstLaunch.phase, .firstLaunchValidated)
+
+        var eighthLaunch: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
+        XCTAssertEqual(try XCTUnwrap(eighthLaunch).generationID, fixture.v8TargetID)
+        let assurances = try XCTUnwrap(eighthLaunch).modelContext.fetch(
+            FetchDescriptor<RequirementAssuranceRow>()
+        )
+        XCTAssertEqual(assurances.count, 1)
+        XCTAssertEqual(try assurances[0].snapshot().workflowRecordID, fixture.recordID)
+        XCTAssertEqual(try assurances[0].currentDecision().disposition, .blocked)
+        eighthLaunch = nil
         XCTAssertNil(try store.loadJournal())
         XCTAssertEqual(try pointerSchema(in: fixture.root), 3)
     }
@@ -856,6 +872,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let v5TargetID = fixedUUID("00000000-0000-0000-0000-000000000017")
         let v6TargetID = fixedUUID("00000000-0000-0000-0000-00000000001a")
         let v7TargetID = fixedUUID("00000000-0000-0000-0000-00000000001b")
+        let v8TargetID = fixedUUID("00000000-0000-0000-0000-00000000001c")
         let siteID = fixedUUID("00000000-0000-0000-0000-000000000013")
         let assetID = fixedUUID("00000000-0000-0000-0000-000000000014")
         let recordID = fixedUUID("00000000-0000-0000-0000-000000000018")
@@ -982,6 +999,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
             v5TargetID: v5TargetID,
             v6TargetID: v6TargetID,
             v7TargetID: v7TargetID,
+            v8TargetID: v8TargetID,
             siteID: siteID,
             assetID: assetID,
             recordID: recordID,
@@ -1028,6 +1046,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
                     if pointer.storeSchemaVersion == 4 { return fixture.v5TargetID }
                     if pointer.storeSchemaVersion == 5 { return fixture.v6TargetID }
                     if pointer.storeSchemaVersion == 6 { return fixture.v7TargetID }
+                    if pointer.storeSchemaVersion == 7 { return fixture.v8TargetID }
                 }
                 return fixture.v3TargetID
             },
@@ -1113,6 +1132,8 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
                 version: PersistentSchemaV6.versionIdentifier
             )
         case .v7:
+            schema = Schema(PersistentSchemaV7.models, version: PersistentSchemaV7.versionIdentifier)
+        case .v8:
             schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
         }
         let configuration = ModelConfiguration(
@@ -1163,6 +1184,10 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
             expectedSchemaVersion = 7
             expectedReleaseID = PersistentSchemaReleaseRegistryV1.v7CompatibilityID
             expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v6CompatibilityID
+        case .v8:
+            expectedSchemaVersion = 8
+            expectedReleaseID = PersistentSchemaReleaseRegistryV1.v8CompatibilityID
+            expectedPredecessorID = PersistentSchemaReleaseRegistryV1.v7CompatibilityID
         }
         XCTAssertEqual(marker.schemaVersion, expectedSchemaVersion)
         XCTAssertEqual(
@@ -1211,6 +1236,8 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
                 version: PersistentSchemaV6.versionIdentifier
             )
         case .v7:
+            schema = Schema(PersistentSchemaV7.models, version: PersistentSchemaV7.versionIdentifier)
+        case .v8:
             schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
         }
         let configuration = ModelConfiguration(

@@ -76,8 +76,10 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "LocationMigrationReceiptRow", "LocationNodeRow",
     ]
     static let v7PersistentModelNames = ["SavedSmartView"]
+    static let v8PersistentModelNames = ["RequirementAssuranceRow"]
     static let activePersistentModelNames =
-        (persistentModelNames + v6PersistentModelNames + v7PersistentModelNames).sorted()
+        (persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
+            + v8PersistentModelNames).sorted()
 
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
@@ -107,6 +109,10 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "V4BackupWorkflowRecordDTO",
         "V5BackupLocationRecordV1",
         "SavedSmartViewDescriptorV1",
+        "RequirementAssuranceSnapshotV1",
+        "RequirementEvaluationV1",
+        "CompletionDecisionV1",
+        "IntegrityFindingV1",
     ]
 
     static let derivedIndexNames = [
@@ -126,6 +132,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "StoreSemanticEnvelopeV5",
         "StoreSemanticEnvelopeV6",
         "StoreSemanticEnvelopeV7",
+        "StoreSemanticEnvelopeV8",
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
@@ -578,6 +585,14 @@ private extension CurrentSyncClassificationCatalogV1 {
                 dependencies: []
             ))
         }
+        for name in v8PersistentModelNames {
+            specs.append(AdditionalSpec(
+                category: .persistentModel,
+                name: name,
+                profile: .replicatedContent,
+                dependencies: [try subject(category: .persistentModel, name: "WorkflowRecord")]
+            ))
+        }
 
         for name in portableContentProjectionNames {
             let profile: AdditionalProfile = name == "ReportSnapshotV1"
@@ -884,6 +899,9 @@ private extension CurrentSyncClassificationCatalogV1 {
             return try subjects(category: .persistentModel, names: v6PersistentModelNames)
         case "SavedSmartViewDescriptorV1":
             return [try subject(category: .persistentModel, name: "SavedSmartView")]
+        case "RequirementAssuranceSnapshotV1", "RequirementEvaluationV1",
+             "CompletionDecisionV1", "IntegrityFindingV1":
+            return [try subject(category: .persistentModel, name: "RequirementAssuranceRow")]
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
@@ -914,6 +932,11 @@ private extension CurrentSyncClassificationCatalogV1 {
                 names: persistentModelNames + v6PersistentModelNames
             )
         case "StoreSemanticEnvelopeV7":
+            return try subjects(
+                category: .persistentModel,
+                names: persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
+            )
+        case "StoreSemanticEnvelopeV8":
             return try subjects(category: .persistentModel, names: activePersistentModelNames)
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
@@ -971,8 +994,9 @@ private extension CurrentSyncClassificationCatalogV1 {
             AssetCompositionEventRow.self,
             LocationMigrationReceiptRow.self,
             SavedSmartViewRowV1.self,
+            RequirementAssuranceRow.self,
         ]
-        let runtimeNames = PersistentSchemaV7.models.map { modelType in
+        let runtimeNames = PersistentSchemaV8.models.map { modelType in
             String(describing: modelType)
                 .split(separator: ".")
                 .last
@@ -985,8 +1009,8 @@ private extension CurrentSyncClassificationCatalogV1 {
               Set(PersistentSchemaV5.models.map { ObjectIdentifier($0) })
                 == Set(frozenV5.map { ObjectIdentifier($0) }),
               frozenNames == persistentModelNames,
-              PersistentSchemaV7.models.count == expected.count,
-              Set(PersistentSchemaV7.models.map { ObjectIdentifier($0) })
+              PersistentSchemaV8.models.count == expected.count,
+              Set(PersistentSchemaV8.models.map { ObjectIdentifier($0) })
                 == Set(expected.map { ObjectIdentifier($0) }),
               runtimeNames.count == Set(runtimeNames).count,
               runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),

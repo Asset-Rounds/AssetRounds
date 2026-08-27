@@ -26,6 +26,10 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     let stage: String
     var temporalContext: TemporalContextV1? = nil
     let timeContext: TimeContextSnapshotV1
+    /// Optional, frozen requirement-assurance projection.  A missing value is
+    /// the legacy snapshot shape; activation and production population remain
+    /// owned by a later release surface.
+    var requirementAssurance: RequirementAssuranceSnapshotV1? = nil
 }
 
 struct AcknowledgementSnapshotV1: Codable, Equatable, Sendable {

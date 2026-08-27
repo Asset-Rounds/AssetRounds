@@ -175,6 +175,16 @@ enum ReplacementRestoreRule {
             )
         }
         incoming = replacingMutationHistory(in: incoming, with: mutationHistory)
+        if input.mode == .replaceExisting {
+            incoming = try replacingRequirementAssurance(
+                in: incoming,
+                with: mergedRequirementAssurance(
+                    current: input.currentRecords.requirementAssurance,
+                    incoming: incoming.requirementAssurance,
+                    retainedWorkflowIDs: Set(incoming.workflowRecords.map(\.id))
+                )
+            )
+        }
         let recordsAfter = try filtering(incoming, through: ledger)
         return DeletionWinningRestorePlanV2(
             recordsAfter: recordsAfter,
@@ -198,7 +208,8 @@ private extension ReplacementRestoreRule {
             try ledger.validate()
             explicit = ledger
         case (3, let ledger?, let history?), (4, let ledger?, let history?),
-             (5, let ledger?, let history?), (6, let ledger?, let history?):
+             (5, let ledger?, let history?), (6, let ledger?, let history?),
+             (7, let ledger?, let history?):
             try ledger.validate()
             try MutationJournalStoreV1.validateImportedSnapshot(history)
             explicit = ledger
@@ -233,6 +244,10 @@ private extension ReplacementRestoreRule {
         let assets = try records.assets.filter { try !isDeleted(.asset, $0.id) }
         let workflow = try records.workflowRecords.filter {
             try !isDeleted(.workflowRecord, $0.id)
+        }
+        let retainedWorkflowIDs = Set(workflow.map(\.id))
+        let requirementAssurance = records.requirementAssurance.filter {
+            retainedWorkflowIDs.contains($0.workflowRecordID)
         }
         let evidence = try records.evidenceFiles.filter {
             try !isDeleted(.evidenceFile, $0.id)
@@ -274,6 +289,7 @@ private extension ReplacementRestoreRule {
                 ? 2
                 : records.recordsSchemaVersion,
             reports: reports,
+            requirementAssurance: requirementAssurance,
             savedSmartViews: records.savedSmartViews,
             sites: sites,
             workflowRecords: workflow
@@ -304,6 +320,7 @@ private extension ReplacementRestoreRule {
             packets: packets,
             recordsSchemaVersion: records.recordsSchemaVersion,
             reports: records.reports,
+            requirementAssurance: records.requirementAssurance,
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords
@@ -331,10 +348,56 @@ private extension ReplacementRestoreRule {
                 ? min(records.recordsSchemaVersion, 2)
                 : records.recordsSchemaVersion,
             reports: records.reports,
+            requirementAssurance: records.requirementAssurance,
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords
         )
+    }
+
+    static func replacingRequirementAssurance(
+        in records: V4BackupRecordsV1,
+        with requirementAssurance: [V8BackupRequirementAssuranceRecordV1]
+    ) throws -> V4BackupRecordsV1 {
+        V4BackupRecordsV1(
+            assetCompositionEdges: records.assetCompositionEdges,
+            assetCompositionEvents: records.assetCompositionEvents,
+            assetPlacementEvents: records.assetPlacementEvents,
+            assets: records.assets, deletionLedger: records.deletionLedger,
+            evidenceFiles: records.evidenceFiles, issues: records.issues,
+            locationHierarchyEvents: records.locationHierarchyEvents,
+            locationMigrationReceipts: records.locationMigrationReceipts,
+            locationNodes: records.locationNodes, mutationHistory: records.mutationHistory,
+            packets: records.packets, recordsSchemaVersion: records.recordsSchemaVersion,
+            reports: records.reports, requirementAssurance: requirementAssurance,
+            savedSmartViews: records.savedSmartViews, sites: records.sites,
+            workflowRecords: records.workflowRecords
+        )
+    }
+
+    static func mergedRequirementAssurance(
+        current: [V8BackupRequirementAssuranceRecordV1],
+        incoming: [V8BackupRequirementAssuranceRecordV1],
+        retainedWorkflowIDs: Set<UUID>
+    ) throws -> [V8BackupRequirementAssuranceRecordV1] {
+        var result = Dictionary(uniqueKeysWithValues: incoming.map { ($0.workflowRecordID, $0) })
+        for candidate in current where retainedWorkflowIDs.contains(candidate.workflowRecordID) {
+            guard let existing = result[candidate.workflowRecordID] else {
+                result[candidate.workflowRecordID] = candidate
+                continue
+            }
+            let currentSnapshot = try candidate.snapshot()
+            let incomingSnapshot = try existing.snapshot()
+            if currentSnapshot.evaluatedRevision > incomingSnapshot.evaluatedRevision {
+                result[candidate.workflowRecordID] = candidate
+            } else if currentSnapshot.evaluatedRevision == incomingSnapshot.evaluatedRevision,
+                      currentSnapshot != incomingSnapshot {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+        }
+        return result.values.sorted {
+            $0.workflowRecordID.uuidString < $1.workflowRecordID.uuidString
+        }
     }
 
     static func mergedMutationHistory(
@@ -474,7 +537,8 @@ private extension ReplacementRestoreRule {
         ledger: DeletionLedgerV2
     ) -> Bool {
         guard records.recordsSchemaVersion == 5
-                || records.recordsSchemaVersion == 6 else {
+                || records.recordsSchemaVersion == 6
+                || records.recordsSchemaVersion == 7 else {
             return records.locationNodes.isEmpty
                 && records.assetPlacementEvents.isEmpty
                 && records.assetCompositionEdges.isEmpty
