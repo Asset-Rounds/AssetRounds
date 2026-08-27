@@ -3498,10 +3498,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     reportComparisonRouteStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 59_954)
+        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 59_959)
         XCTAssertEqual(
             Data(workValidationPositioningHelperSource.utf8).sha256,
-            "16CC958851921EE5545B2A384FB3BC6EC7795121B2D3378ABD76E19D742BA707"
+            "CC9F340712E4C67B2A50CD9254D4AF230C7EA31A46AAE6E72509259FB602DEFC"
         )
 
         let signDetailPositioningGate =
@@ -4755,7 +4755,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "noteFrame.minY - frozenNoteFrame.minY == rigidShift",
             "fieldLabelFrame.minY == targetFieldLabelMinY",
             "let noteMatchesExceptionAuthorizedBoundaryComposition =",
-            "automationSegment == .segment2",
+            "self.automationSegment == .segment2",
             "activeWorkValidationExceptions.count == 2",
             #"Set(activeWorkValidationExceptions.map(\.issueID))"#,
             "activeNoteException.applicationFrame == applicationFrame",

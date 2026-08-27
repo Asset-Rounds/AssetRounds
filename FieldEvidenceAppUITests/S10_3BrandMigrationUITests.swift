@@ -7100,7 +7100,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let safeTop = liveTop + verticalInset
             let safeBottom = liveBottom - verticalInset
             let noteMatchesExceptionAuthorizedBoundaryComposition =
-                automationSegment == .segment2
+                self.automationSegment == .segment2
                 && activeWorkValidationExceptions.count == 2
                 && Set(activeWorkValidationExceptions.map(\.issueID))
                     == workValidationExceptionIssueIDs
