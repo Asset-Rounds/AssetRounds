@@ -19,6 +19,26 @@ enum AccessibilityDynamicSuffixPolicyV1: String, Codable, CaseIterable, Sendable
     case opaqueLowercaseHex = "OPAQUE_LOWERCASE_HEX"
 }
 
+/// Closed C39 identifiers for the semantic asset projection.  These are
+/// stable semantic identifiers, not phase-numbered IDs and not localized
+/// display strings.  The state entries deliberately expose recorded/unknown
+/// facts as text-capable status elements without implying operational safety
+/// or verified product identity.
+enum AssetSemanticAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
+    case screen = "asset.semantic.screen"
+    case heading = "asset.semantic.heading"
+    case kind = "asset.semantic.kind"
+    case productIdentity = "asset.semantic.product-identity"
+    case lifecycle = "asset.semantic.lifecycle"
+    case workSubjectScope = "asset.semantic.work-subject-scope"
+    case state = "asset.semantic.state"
+    case unknownState = "asset.semantic.state.unknown"
+    case duplicateState = "asset.semantic.state.duplicate"
+    case retiredState = "asset.semantic.state.retired"
+    case replacedState = "asset.semantic.state.replaced"
+    case recordedState = "asset.semantic.state.recorded"
+}
+
 struct AccessibilityContractV1: Codable, Equatable, Sendable {
     let semanticID: String
     let role: SemanticAccessibilityRoleV1

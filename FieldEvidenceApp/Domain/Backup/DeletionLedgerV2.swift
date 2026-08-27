@@ -67,6 +67,30 @@ enum PartyAccountabilityDeletionLedgerPolicyV1 {
     }
 }
 
+enum AssetSemanticDeletionDispositionV1: String, Codable, Equatable, Sendable {
+    case preserveImmutableHistoryUntilWorkspaceErase = "PRESERVE_IMMUTABLE_HISTORY_UNTIL_WORKSPACE_ERASE"
+}
+
+enum AssetSemanticDeletionLedgerPolicyV1 {
+    static func disposition(
+        for kind: V10BackupAssetSemanticRecordV1.Kind
+    ) -> AssetSemanticDeletionDispositionV1 {
+        switch kind {
+        case .kindBindingEvent, .workflowCapabilityBindingEvent, .productIdentity,
+             .lifecycleEvent, .successorLink, .workSubjectScopeSnapshot:
+            return .preserveImmutableHistoryUntilWorkspaceErase
+        }
+    }
+
+    static func validate() throws {
+        let kinds = V10BackupAssetSemanticRecordV1.Kind.allCases
+        guard kinds.count == 6, Set(kinds.map(\.rawValue)).count == kinds.count,
+              kinds.allSatisfy({
+                  disposition(for: $0) == .preserveImmutableHistoryUntilWorkspaceErase
+              }) else { throw DeletionLedgerFailureV2.invalidIdentity }
+    }
+}
+
 struct DeletionIdentityV2: Codable, Comparable, Equatable, Hashable, Sendable {
     static let separator = ":"
 
@@ -119,6 +143,7 @@ struct DeletionLedgerEntryV2: Codable, Equatable, Hashable, Sendable {
 
     func validate() throws {
         try PartyAccountabilityDeletionLedgerPolicyV1.validate()
+        try AssetSemanticDeletionLedgerPolicyV1.validate()
         guard schemaVersion == 2 else {
             throw DeletionLedgerFailureV2.invalidSchemaVersion
         }

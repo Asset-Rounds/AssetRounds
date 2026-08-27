@@ -540,6 +540,293 @@ enum PartyAccountabilityMutationV1: Codable, Equatable, Sendable {
     }
 }
 
+/// The one writer payload for C39 asset-semantic history.  The physical
+/// Asset row remains the mutation identity; all semantic records are carried
+/// as one command and therefore share one expected aggregate revision and
+/// MutationID.  Classification and replacement deliberately have no
+/// standalone lifecycle form here: their companion facts are admitted only
+/// through the atomic pair operations.
+enum AssetSemanticsMutationOperationV1: String, Codable, CaseIterable, Sendable {
+    case appendKindBinding = "APPEND_KIND_BINDING"
+    case appendWorkflowCapabilityBinding = "APPEND_WORKFLOW_CAPABILITY_BINDING"
+    case appendProductIdentity = "APPEND_PRODUCT_IDENTITY"
+    case appendLifecycle = "APPEND_LIFECYCLE"
+    case classifyKindAndLifecycle = "CLASSIFY_KIND_AND_LIFECYCLE"
+    case replaceWithSuccessor = "REPLACE_WITH_SUCCESSOR"
+    case captureWorkSubjectScope = "CAPTURE_WORK_SUBJECT_SCOPE"
+}
+
+struct AssetSemanticsMutationV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let assetID: UUID
+    let expectedAssetRevision: UInt64
+    let mutationID: MutationIDV1
+    let operation: AssetSemanticsMutationOperationV1
+    let kindBinding: AssetKindBindingEventV1?
+    let workflowCapabilityBinding: AssetWorkflowCapabilityBindingEventV1?
+    let productIdentity: AssetProductIdentityV1?
+    let lifecycleEvent: AssetLifecycleEventV1?
+    let successorLink: AssetSuccessorLinkV1?
+    let workSubjectScope: WorkSubjectScopeSnapshotV1?
+
+    init(
+        workspaceID: WorkspaceID,
+        assetID: UUID,
+        expectedAssetRevision: UInt64,
+        mutationID: MutationIDV1,
+        operation: AssetSemanticsMutationOperationV1,
+        kindBinding: AssetKindBindingEventV1? = nil,
+        workflowCapabilityBinding: AssetWorkflowCapabilityBindingEventV1? = nil,
+        productIdentity: AssetProductIdentityV1? = nil,
+        lifecycleEvent: AssetLifecycleEventV1? = nil,
+        successorLink: AssetSuccessorLinkV1? = nil,
+        workSubjectScope: WorkSubjectScopeSnapshotV1? = nil
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.workspaceID = workspaceID
+        self.assetID = assetID
+        self.expectedAssetRevision = expectedAssetRevision
+        self.mutationID = mutationID
+        self.operation = operation
+        self.kindBinding = kindBinding
+        self.workflowCapabilityBinding = workflowCapabilityBinding
+        self.productIdentity = productIdentity
+        self.lifecycleEvent = lifecycleEvent
+        self.successorLink = successorLink
+        self.workSubjectScope = workSubjectScope
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID.rawValue != Self.zeroUUID,
+              assetID != Self.zeroUUID,
+              expectedAssetRevision < UInt64.max else {
+            throw AssetSemanticContractFailureV1.invalidValue
+        }
+
+        let records = [
+            kindBinding.map { $0.eventID },
+            workflowCapabilityBinding.map { $0.eventID },
+            productIdentity.map { $0.identityID },
+            lifecycleEvent.map { $0.record.eventID },
+            successorLink.map { $0.linkID },
+            workSubjectScope.map { $0.snapshotID },
+        ].compactMap { $0 }
+        guard Set(records).count == records.count else {
+            throw AssetSemanticContractFailureV1.duplicateValue
+        }
+
+        if let value = kindBinding {
+            try value.validate()
+            try validateCommon(
+                workspace: value.workspaceID,
+                asset: value.assetID,
+                mutation: value.mutationID,
+                revision: value.revision
+            )
+        }
+        if let value = workflowCapabilityBinding {
+            try value.validate()
+            try validateCommon(
+                workspace: value.workspaceID,
+                asset: value.assetID,
+                mutation: value.mutationID,
+                revision: value.revision
+            )
+        }
+        if let value = productIdentity {
+            try value.validate()
+            try validateCommon(
+                workspace: value.workspaceID,
+                asset: value.assetID,
+                mutation: value.mutationID,
+                revision: value.revision
+            )
+        }
+        if let value = lifecycleEvent {
+            try value.validate()
+            try validateCommon(
+                workspace: value.record.workspaceID,
+                asset: value.record.assetID,
+                mutation: value.record.mutationID,
+                revision: value.record.revision
+            )
+        }
+        if let value = successorLink {
+            try value.validate()
+            try validateCommon(
+                workspace: value.workspaceID,
+                asset: value.predecessorAssetID,
+                mutation: value.mutationID,
+                revision: value.revision
+            )
+        }
+        if let value = workSubjectScope {
+            try value.validate()
+            guard value.workspaceID == workspaceID else {
+                throw AssetSemanticContractFailureV1.crossWorkspaceReference
+            }
+            let scopedAssetIDs = Set(value.subjects.flatMap { subject -> [UUID] in
+                switch subject.kind {
+                case .asset:
+                    return [subject.subjectID]
+                case .compositionComponent, .functionalRelationship:
+                    return subject.ownerAssetID.map { [$0] } ?? []
+                case .site, .locationNode:
+                    return []
+                }
+            })
+            guard scopedAssetIDs.contains(assetID)
+                    || value.semanticBindings.contains(where: { $0.assetID == assetID }) else {
+                throw AssetSemanticContractFailureV1.invalidValue
+            }
+        }
+
+        switch operation {
+        case .appendKindBinding:
+            guard kindBinding != nil,
+                  workflowCapabilityBinding == nil,
+                  productIdentity == nil,
+                  lifecycleEvent == nil,
+                  successorLink == nil,
+                  workSubjectScope == nil else {
+                throw AssetSemanticContractFailureV1.invalidValue
+            }
+            try requireNextRevision(kindBinding?.revision)
+        case .appendWorkflowCapabilityBinding:
+            guard kindBinding == nil,
+                  workflowCapabilityBinding != nil,
+                  productIdentity == nil,
+                  lifecycleEvent == nil,
+                  successorLink == nil,
+                  workSubjectScope == nil else {
+                throw AssetSemanticContractFailureV1.invalidValue
+            }
+            try requireNextRevision(workflowCapabilityBinding?.revision)
+        case .appendProductIdentity:
+            guard kindBinding == nil,
+                  workflowCapabilityBinding == nil,
+                  productIdentity != nil,
+                  lifecycleEvent == nil,
+                  successorLink == nil,
+                  workSubjectScope == nil else {
+                throw AssetSemanticContractFailureV1.invalidValue
+            }
+            try requireNextRevision(productIdentity?.revision)
+        case .appendLifecycle:
+            guard kindBinding == nil,
+                  workflowCapabilityBinding == nil,
+                  productIdentity == nil,
+                  let lifecycleEvent,
+                  successorLink == nil,
+                  workSubjectScope == nil,
+                  lifecycleEvent.kind != .classificationChangedRecorded,
+                  lifecycleEvent.kind != .replacedRecorded else {
+                throw AssetSemanticContractFailureV1.invalidValue
+            }
+            try requireNextRevision(lifecycleEvent.record.revision)
+        case .classifyKindAndLifecycle:
+            guard let kindBinding,
+                  let lifecycleEvent,
+                  workflowCapabilityBinding == nil,
+                  productIdentity == nil,
+                  successorLink == nil,
+                  workSubjectScope == nil,
+                  lifecycleEvent.kind == .classificationChangedRecorded,
+                  kindBinding.revision == lifecycleEvent.record.revision,
+                  kindBinding.recordedAt == lifecycleEvent.record.recordedAt else {
+                throw AssetSemanticContractFailureV1.invalidAtomicReference
+            }
+            try lifecycleEvent.validateAtomicReference(kindBinding: kindBinding)
+            try requireNextRevision(kindBinding.revision)
+        case .replaceWithSuccessor:
+            guard kindBinding == nil,
+                  workflowCapabilityBinding == nil,
+                  productIdentity == nil,
+                  let lifecycleEvent,
+                  let successorLink,
+                  workSubjectScope == nil,
+                  lifecycleEvent.kind == .replacedRecorded,
+                  successorLink.revision == lifecycleEvent.record.revision,
+                  successorLink.recordedAt == lifecycleEvent.record.recordedAt else {
+                throw AssetSemanticContractFailureV1.invalidAtomicReference
+            }
+            try lifecycleEvent.validateAtomicReference(successorLink: successorLink)
+            try requireNextRevision(successorLink.revision)
+        case .captureWorkSubjectScope:
+            guard kindBinding == nil,
+                  workflowCapabilityBinding == nil,
+                  productIdentity == nil,
+                  lifecycleEvent == nil,
+                  successorLink == nil,
+                  workSubjectScope != nil else {
+                throw AssetSemanticContractFailureV1.invalidValue
+            }
+        }
+    }
+
+    var affectedIdentity: WorkspaceEntityIdentityV1 {
+        get throws { try WorkspaceEntityIdentityV1(kind: .asset, id: assetID) }
+    }
+
+    func canonicalSHA256() throws -> String {
+        try validate()
+        return try WorkspaceMutationCanonicalV1.sha256(self)
+    }
+
+    private func validateCommon(
+        workspace: WorkspaceID,
+        asset: UUID,
+        mutation: MutationIDV1,
+        revision: UInt64
+    ) throws {
+        guard workspace == workspaceID,
+              asset == assetID,
+              mutation == mutationID,
+              revision > 0,
+              Self.isFiniteDate(recordedDate(for: operation)) else {
+            throw AssetSemanticContractFailureV1.crossWorkspaceReference
+        }
+    }
+
+    private func requireNextRevision(_ revision: UInt64?) throws {
+        guard let revision,
+              expectedAssetRevision < UInt64.max,
+              revision == expectedAssetRevision + 1 else {
+            throw AssetSemanticContractFailureV1.invalidValue
+        }
+    }
+
+    private func recordedDate(for operation: AssetSemanticsMutationOperationV1) -> Date {
+        switch operation {
+        case .appendKindBinding:
+            return kindBinding?.recordedAt ?? .distantPast
+        case .appendWorkflowCapabilityBinding:
+            return workflowCapabilityBinding?.recordedAt ?? .distantPast
+        case .appendProductIdentity:
+            return productIdentity?.recordedAt ?? .distantPast
+        case .appendLifecycle, .classifyKindAndLifecycle:
+            return lifecycleEvent?.record.recordedAt ?? .distantPast
+        case .replaceWithSuccessor:
+            return successorLink?.recordedAt ?? .distantPast
+        case .captureWorkSubjectScope:
+            return workSubjectScope?.recordedAt ?? .distantPast
+        }
+    }
+
+    private static func isFiniteDate(_ value: Date) -> Bool {
+        value.timeIntervalSinceReferenceDate.isFinite
+    }
+
+    private static let zeroUUID = UUID(
+        uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    )
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -559,6 +846,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applySavedSmartView(SavedSmartViewMutationV1)
     case applyRequirementAssurance(RequirementAssuranceMutationV1)
     case applyPartyAccountability(PartyAccountabilityMutationV1)
+    case applyAssetSemantics(AssetSemanticsMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -580,6 +868,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applySavedSmartView: .applySavedSmartView
         case .applyRequirementAssurance: .applyRequirementAssurance
         case .applyPartyAccountability: .applyPartyAccountability
+        case .applyAssetSemantics: .applyAssetSemantics
         }
     }
 }
@@ -603,6 +892,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applySavedSmartView = "apply_saved_smart_view"
     case applyRequirementAssurance = "apply_requirement_assurance"
     case applyPartyAccountability = "apply_party_accountability"
+    case applyAssetSemantics = "apply_asset_semantics"
 }
 
 extension WorkspaceCommandV1 {
@@ -1338,6 +1628,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind: .applySavedSmartView, disposition: .compensatable, stableReason: "replace_or_delete_saved_smart_view"),
         .init(commandKind: .applyRequirementAssurance, disposition: .compensatable, stableReason: "replace_typed_requirement_assurance"),
         .init(commandKind: .applyPartyAccountability, disposition: .compensatable, stableReason: "append_accountability_successor_only"),
+        .init(commandKind: .applyAssetSemantics, disposition: .compensatable, stableReason: "append_asset_semantic_pair_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

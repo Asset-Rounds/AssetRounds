@@ -18,12 +18,32 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         .applyAssetCompositionChange,
     ]
     static let activeSupportedCommandKinds = supportedCommandKinds.union(locationSupportedCommandKinds)
-        .union([.applySavedSmartView, .applyRequirementAssurance, .applyPartyAccountability])
+        .union([
+            .applySavedSmartView,
+            .applyRequirementAssurance,
+            .applyPartyAccountability,
+            .applyAssetSemantics,
+        ])
 
     private let modelContext: ModelContext
+    private let assetSemanticLifecycleAdapter: AssetSemanticLifecycleAdapterV1
 
-    init(modelContext: ModelContext) {
+    init(
+        modelContext: ModelContext,
+        assetSemanticLifecycleAdapter: AssetSemanticLifecycleAdapterV1? = nil
+    ) {
         self.modelContext = modelContext
+        if let assetSemanticLifecycleAdapter {
+            self.assetSemanticLifecycleAdapter = assetSemanticLifecycleAdapter
+        } else {
+            let catalogRegistry = try? AssetSemanticCatalogRegistryV1(
+                release: BundledInspectionPackageRegistryV2.shippingAssetSemanticCatalog()
+            )
+            self.assetSemanticLifecycleAdapter = AssetSemanticLifecycleAdapterV1(
+                modelContext: modelContext,
+                catalogRegistry: catalogRegistry
+            )
+        }
     }
 
     func apply(
@@ -96,6 +116,11 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             )
         case let .applyPartyAccountability(value):
             return try applyPartyAccountability(value, temporaryRelativePath: temporaryRelativePath)
+        case let .applyAssetSemantics(value):
+            return try assetSemanticLifecycleAdapter.apply(
+                value,
+                temporaryRelativePath: temporaryRelativePath
+            )
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -623,6 +648,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     }
 
     func rollback() {
+        assetSemanticLifecycleAdapter.rollback()
         modelContext.rollback()
     }
 

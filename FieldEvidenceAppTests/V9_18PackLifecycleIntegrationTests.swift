@@ -4,6 +4,30 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_18PackLifecycleIntegrationTests: XCTestCase {
+    func testV23P03C39WorkflowBindingKeepsEndedDispositionTyped() throws {
+        let event = try AssetWorkflowCapabilityBindingEventV1(
+            eventID: UUID(uuidString: "00000000-0000-0000-0000-000000002401")!,
+            workspaceID: WorkspaceID(),
+            assetID: UUID(uuidString: "00000000-0000-0000-0000-000000002402")!,
+            kindBindingEventID: UUID(uuidString: "00000000-0000-0000-0000-000000002403")!,
+            kindBindingRevision: 1,
+            workflowPackageRelease: try PackageReleaseIdentityV1(
+                packageID: "com.field-evidence.c39",
+                schemaVersion: 1,
+                contentVersion: 1
+            ),
+            capabilityIDs: [try AssetSemanticCapabilityIDV1("capability.inspect")],
+            disposition: .ended,
+            predecessorEventID: nil,
+            revision: 1,
+            mutationID: try MutationIDV1(rawValue: UUID()),
+            recordedAt: Date(timeIntervalSince1970: 1_735_689_600),
+            eventSHA256: String(repeating: "a", count: 64)
+        )
+        try event.validate()
+        XCTAssertEqual(event.disposition, .ended)
+    }
+
     private let fileManager = FileManager.default
 
     @MainActor

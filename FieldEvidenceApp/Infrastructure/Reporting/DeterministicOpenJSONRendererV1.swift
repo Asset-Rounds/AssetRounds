@@ -217,11 +217,26 @@ enum ReportSemanticProjectorV1 {
         )
     }
 
+    static func project(
+        snapshot: CompletedActivitySnapshotV4,
+        manifest: ContractManifestV1
+    ) throws -> ReportSemanticProjectionV1 {
+        try project(
+            activity: snapshot.payload.activity.activity.activity,
+            snapshotSHA256: snapshot.snapshotSHA256,
+            locationComposition: snapshot.payload.activity.locationComposition,
+            accountability: snapshot.payload.activity.accountability,
+            assetSemantics: snapshot.payload.assetSemantics,
+            manifest: manifest
+        )
+    }
+
     private static func project(
         activity: CompletedActivitySnapshotPayloadV1,
         snapshotSHA256: String,
         locationComposition: CompletedLocationCompositionSnapshotV1?,
         accountability: CompletedAccountabilitySnapshotV1? = nil,
+        assetSemantics: CompletedAssetSemanticsSnapshotV1? = nil,
         manifest: ContractManifestV1
     ) throws -> ReportSemanticProjectionV1 {
         let encoder = JSONEncoder()
@@ -280,6 +295,14 @@ enum ReportSemanticProjectorV1 {
         if let accountability {
             try appendAccountability(
                 accountability,
+                binding: binding,
+                append: append,
+                visibleID: visibleID
+            )
+        }
+        if let assetSemantics {
+            try appendAssetSemantics(
+                assetSemantics,
                 binding: binding,
                 append: append,
                 visibleID: visibleID
@@ -348,6 +371,124 @@ enum ReportSemanticProjectorV1 {
             ),
             nodes: nodes
         )
+    }
+
+    private static func appendAssetSemantics(
+        _ semantics: CompletedAssetSemanticsSnapshotV1,
+        binding: FinalizedReportProfileBindingV1,
+        append: (
+            _ section: String,
+            _ role: String,
+            _ label: String,
+            _ value: String,
+            _ ref: String?
+        ) throws -> Void,
+        visibleID: (_ kind: String, _ value: String) -> String
+    ) throws {
+        let sectionID = ReportAssetSemanticsProjectionPolicyV1.sectionID
+        try append(
+            sectionID,
+            "heading",
+            BundledLocalizationCatalogV1.localized(.assetSemanticHeading),
+            BundledLocalizationCatalogV1.localized(.assetSemanticHeading)
+        )
+        for bindingValue in semantics.kindBindings {
+            try append(
+                sectionID,
+                "fact",
+                BundledLocalizationCatalogV1.localized(.assetSemanticKind),
+                bindingValue.semanticID,
+                visibleID("asset-kind", bindingValue.eventID.uuidString.lowercased())
+            )
+        }
+        for capabilityBinding in semantics.workflowCapabilityBindings {
+            let capabilities = capabilityBinding.capabilityIDs.map(\.rawValue).joined(separator: " ")
+            if !capabilities.isEmpty {
+                try append(
+                    sectionID,
+                    "fact",
+                    BundledLocalizationCatalogV1.localized(.assetSemanticKind),
+                    capabilities,
+                    visibleID("asset-capability", capabilityBinding.eventID.uuidString.lowercased())
+                )
+            }
+        }
+        for identity in semantics.productIdentities {
+            for identifier in identity.identifiers {
+                let state: String
+                switch identifier.reviewState {
+                case .unknownRecorded:
+                    state = BundledLocalizationCatalogV1.localized(.assetSemanticUnknownState)
+                case .duplicateRecorded:
+                    state = BundledLocalizationCatalogV1.localized(.assetSemanticDuplicateState)
+                case .reviewedAsRecorded, .unreviewed:
+                    state = BundledLocalizationCatalogV1.localized(.assetSemanticRecordedState)
+                }
+                // Product identifier values and issuers are deliberately
+                // omitted from this audience-safe projection.
+                try append(
+                    sectionID,
+                    "status",
+                    BundledLocalizationCatalogV1.localized(.assetSemanticProductIdentity),
+                    "\(identifier.kind.rawValue): \(state)",
+                    visibleID("product-identity", identity.identityID.uuidString.lowercased())
+                )
+            }
+        }
+        for event in semantics.lifecycleEvents {
+            let state: String
+            switch event.kind {
+            case .retiredRecorded:
+                state = BundledLocalizationCatalogV1.localized(.assetSemanticRetiredState)
+            case .replacedRecorded:
+                state = BundledLocalizationCatalogV1.localized(.assetSemanticReplacedState)
+            default:
+                state = BundledLocalizationCatalogV1.localized(.assetSemanticRecordedState)
+            }
+            try append(
+                sectionID,
+                "fact",
+                BundledLocalizationCatalogV1.localized(.assetSemanticLifecycle),
+                "\(event.kind.rawValue): \(state)",
+                visibleID("lifecycle", event.record.eventID.uuidString.lowercased())
+            )
+        }
+        for link in semantics.successorLinks {
+            try append(
+                sectionID,
+                "fact",
+                BundledLocalizationCatalogV1.localized(.assetSemanticLifecycle),
+                "\(visibleID("asset", link.predecessorAssetID.uuidString.lowercased())) -> \(visibleID("asset", link.successorAssetID.uuidString.lowercased()))",
+                visibleID("successor-link", link.linkID.uuidString.lowercased())
+            )
+        }
+        for scope in semantics.workSubjectScopes {
+            let scopeID = visibleID("work-subject-scope", scope.snapshotID.uuidString.lowercased())
+            try append(
+                sectionID,
+                "heading",
+                BundledLocalizationCatalogV1.localized(.assetSemanticWorkSubjectScope),
+                scopeID,
+                scopeID
+            )
+            for subject in scope.subjects {
+                try append(
+                    sectionID,
+                    "fact",
+                    BundledLocalizationCatalogV1.localized(.assetSemanticWorkSubjectScope),
+                    "\(subject.kind.rawValue): \(visibleID("subject", subject.subjectID.uuidString.lowercased()))"
+                )
+            }
+            for semanticBinding in scope.semanticBindings {
+                try append(
+                    sectionID,
+                    "fact",
+                    BundledLocalizationCatalogV1.localized(.assetSemanticKind),
+                    semanticBinding.semanticID,
+                    visibleID("asset", semanticBinding.assetID.uuidString.lowercased())
+                )
+            }
+        }
     }
 
     private static func appendAccountability(

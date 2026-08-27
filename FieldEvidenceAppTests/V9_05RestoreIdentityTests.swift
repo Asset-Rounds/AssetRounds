@@ -5,6 +5,17 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_05RestoreIdentityTests: XCTestCase {
+    func testV23P03C39RestoreRebindUsesTypedSemanticReleaseIdentity() throws {
+        let source = AssetSemanticCompatibilityPolicyV1.exactReleaseOnly
+        let bytes = try AssetSemanticCanonicalCodecV1.encode(source)
+        let restored = try AssetSemanticCanonicalCodecV1.decode(
+            AssetSemanticCompatibilityPolicyV1.self,
+            from: bytes
+        )
+        XCTAssertEqual(restored, source)
+        XCTAssertEqual(AssetProductIdentifierKindV1.serial.rawValue, "SERIAL")
+    }
+
     private let fileManager = FileManager.default
 
     @MainActor

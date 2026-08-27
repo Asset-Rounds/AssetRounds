@@ -5,6 +5,20 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V10_01WorkspaceWriterTests: XCTestCase {
+    func testV23P03C39SemanticCodecRetryBytesAreIdempotent() throws {
+        let value = [
+            try AssetSemanticCapabilityIDV1("capability.inspect"),
+            try AssetSemanticCapabilityIDV1("capability.repair")
+        ]
+        let first = try AssetSemanticCanonicalCodecV1.encode(value)
+        let retry = try AssetSemanticCanonicalCodecV1.encode(value)
+        XCTAssertEqual(first, retry)
+        XCTAssertEqual(
+            try AssetSemanticCanonicalCodecV1.decode([AssetSemanticCapabilityIDV1].self, from: retry),
+            value
+        )
+    }
+
     @MainActor
     func testCanonicalCommitInvalidatesSearchAtExactWriterRevision() throws {
         let recorder = SearchRevisionRecorder()

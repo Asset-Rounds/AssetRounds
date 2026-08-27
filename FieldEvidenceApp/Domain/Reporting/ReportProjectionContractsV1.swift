@@ -62,6 +62,26 @@ enum ReportAccountabilityProjectionPolicyV1 {
     }
 }
 
+/// Additive C39 report policy.  Semantic and lifecycle records are frozen
+/// projections; operational disposition, safety/recall claims, and raw
+/// product-identifier values are never inferred or emitted by this section.
+enum ReportAssetSemanticsProjectionPolicyV1 {
+    static let sectionID = "asset-semantics"
+    static let sectionVersion = 1
+    static let projectionVersion = "report-asset-semantics-v1"
+    static let privacyClass = ReportPrivacyClassV1.audienceSafe
+    static let excludesOperationalDisposition = true
+    static let excludesProductIdentifierValues = true
+    static let excludesSafetyAndRecallClaims = true
+    static let supportedFormats: [ReportProjectionFormatV1] = [
+        .openJSON, .structuredText,
+    ]
+
+    static func supports(_ format: ReportProjectionFormatV1) -> Bool {
+        supportedFormats.contains(format)
+    }
+}
+
 struct ReportSectionDefinitionV1: Codable, Equatable, Hashable, Sendable {
     let sectionID: String
     let version: Int

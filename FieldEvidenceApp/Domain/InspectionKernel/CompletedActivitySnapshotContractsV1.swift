@@ -1033,3 +1033,383 @@ enum CompletedActivitySnapshotCanonicalCodecV3 {
         return value
     }
 }
+
+/// Additive C39 semantic projection.  The wrapper is intentionally a frozen
+/// projection over the canonical asset-semantic records; it carries no
+/// operational disposition or inferred product truth.
+struct CompletedAssetSemanticsSnapshotV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let catalogReleases: [AssetSemanticCatalogReleaseReferenceV1]
+    let kindBindings: [AssetKindBindingEventV1]
+    let workflowCapabilityBindings: [AssetWorkflowCapabilityBindingEventV1]
+    let productIdentities: [AssetProductIdentityV1]
+    let lifecycleEvents: [AssetLifecycleEventV1]
+    let successorLinks: [AssetSuccessorLinkV1]
+    let workSubjectScopes: [WorkSubjectScopeSnapshotV1]
+    let snapshotSHA256: String
+
+    init(
+        workspaceID: WorkspaceID,
+        catalogReleases: [AssetSemanticCatalogReleaseReferenceV1],
+        kindBindings: [AssetKindBindingEventV1],
+        workflowCapabilityBindings: [AssetWorkflowCapabilityBindingEventV1],
+        productIdentities: [AssetProductIdentityV1],
+        lifecycleEvents: [AssetLifecycleEventV1],
+        successorLinks: [AssetSuccessorLinkV1],
+        workSubjectScopes: [WorkSubjectScopeSnapshotV1]
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.workspaceID = workspaceID
+        self.catalogReleases = catalogReleases.sorted { $0.releaseID.uuidString < $1.releaseID.uuidString }
+        self.kindBindings = kindBindings.sorted { $0.eventID.uuidString < $1.eventID.uuidString }
+        self.workflowCapabilityBindings = workflowCapabilityBindings.sorted { $0.eventID.uuidString < $1.eventID.uuidString }
+        self.productIdentities = productIdentities.sorted { $0.identityID.uuidString < $1.identityID.uuidString }
+        self.lifecycleEvents = lifecycleEvents.sorted { $0.record.eventID.uuidString < $1.record.eventID.uuidString }
+        self.successorLinks = successorLinks.sorted { $0.linkID.uuidString < $1.linkID.uuidString }
+        self.workSubjectScopes = workSubjectScopes.sorted { $0.snapshotID.uuidString < $1.snapshotID.uuidString }
+        snapshotSHA256 = try WorkspaceMutationCanonicalV1.sha256(Basis(
+            schemaVersion: Self.schemaVersion,
+            workspaceID: workspaceID,
+            catalogReleases: self.catalogReleases,
+            kindBindings: self.kindBindings,
+            workflowCapabilityBindings: self.workflowCapabilityBindings,
+            productIdentities: self.productIdentities,
+            lifecycleEvents: self.lifecycleEvents,
+            successorLinks: self.successorLinks,
+            workSubjectScopes: self.workSubjectScopes
+        ))
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID.rawValue != UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+              KernelCanonicalHashV1.validSHA256(snapshotSHA256),
+              catalogReleases.count <= 512,
+              kindBindings.count <= SnapshotProjectionLimitsV1.maximumHistoryFacts,
+              workflowCapabilityBindings.count <= SnapshotProjectionLimitsV1.maximumHistoryFacts,
+              productIdentities.count <= SnapshotProjectionLimitsV1.maximumHistoryFacts,
+              lifecycleEvents.count <= SnapshotProjectionLimitsV1.maximumHistoryFacts,
+              successorLinks.count <= SnapshotProjectionLimitsV1.maximumHistoryFacts,
+              workSubjectScopes.count <= SnapshotProjectionLimitsV1.maximumHistoryFacts,
+              !catalogReleases.isEmpty || !kindBindings.isEmpty || !workflowCapabilityBindings.isEmpty
+                || !productIdentities.isEmpty || !lifecycleEvents.isEmpty || !successorLinks.isEmpty
+                || !workSubjectScopes.isEmpty,
+              catalogReleases.map({ $0.releaseID.uuidString }) == catalogReleases.map({ $0.releaseID.uuidString }).sorted(),
+              kindBindings.map({ $0.eventID.uuidString }) == kindBindings.map({ $0.eventID.uuidString }).sorted(),
+              workflowCapabilityBindings.map({ $0.eventID.uuidString }) == workflowCapabilityBindings.map({ $0.eventID.uuidString }).sorted(),
+              productIdentities.map({ $0.identityID.uuidString }) == productIdentities.map({ $0.identityID.uuidString }).sorted(),
+              lifecycleEvents.map({ $0.record.eventID.uuidString }) == lifecycleEvents.map({ $0.record.eventID.uuidString }).sorted(),
+              successorLinks.map({ $0.linkID.uuidString }) == successorLinks.map({ $0.linkID.uuidString }).sorted(),
+              workSubjectScopes.map({ $0.snapshotID.uuidString }) == workSubjectScopes.map({ $0.snapshotID.uuidString }).sorted(),
+              Set(catalogReleases.map(\.releaseID)).count == catalogReleases.count,
+              Set(kindBindings.map(\.eventID)).count == kindBindings.count,
+              Set(workflowCapabilityBindings.map(\.eventID)).count == workflowCapabilityBindings.count,
+              Set(productIdentities.map(\.identityID)).count == productIdentities.count,
+              Set(lifecycleEvents.map({ $0.record.eventID })).count == lifecycleEvents.count,
+              Set(successorLinks.map(\.linkID)).count == successorLinks.count,
+              Set(workSubjectScopes.map(\.snapshotID)).count == workSubjectScopes.count else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+
+        try catalogReleases.forEach { try $0.validate() }
+        let releaseIDs = Set(catalogReleases.map(\.releaseID))
+        try kindBindings.forEach {
+            try $0.validate()
+            guard $0.workspaceID == workspaceID, releaseIDs.contains($0.catalogRelease.releaseID) else {
+                throw SnapshotProjectionFailureV1.wrongWorkspace
+            }
+        }
+        let kindByID = Dictionary(uniqueKeysWithValues: kindBindings.map { ($0.eventID, $0) })
+        try workflowCapabilityBindings.forEach {
+            try $0.validate()
+            guard $0.workspaceID == workspaceID,
+                  let kind = kindByID[$0.kindBindingEventID],
+                  kind.assetID == $0.assetID,
+                  kind.revision == $0.kindBindingRevision,
+                  kind.workspaceID == $0.workspaceID else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        }
+        try productIdentities.forEach {
+            try $0.validate()
+            guard $0.workspaceID == workspaceID else { throw SnapshotProjectionFailureV1.wrongWorkspace }
+        }
+        let successorByID = Dictionary(uniqueKeysWithValues: successorLinks.map { ($0.linkID, $0) })
+        try AssetSuccessorLinkV1.validateAcyclic(successorLinks)
+        try lifecycleEvents.forEach { event in
+            try event.validate()
+            guard event.record.workspaceID == workspaceID else { throw SnapshotProjectionFailureV1.wrongWorkspace }
+            if event.kind == .classificationChangedRecorded {
+                guard let id = event.record.kindBindingEventID, let kind = kindByID[id] else {
+                    throw SnapshotProjectionFailureV1.missingBinding
+                }
+                try event.validateAtomicReference(kindBinding: kind)
+            }
+            if event.kind == .replacedRecorded {
+                guard let id = event.record.successorLinkID, let link = successorByID[id] else {
+                    throw SnapshotProjectionFailureV1.missingBinding
+                }
+                try event.validateAtomicReference(successorLink: link)
+            }
+        }
+        try workSubjectScopes.forEach { scope in
+            try scope.validate()
+            guard scope.workspaceID == workspaceID else { throw SnapshotProjectionFailureV1.wrongWorkspace }
+            for binding in scope.semanticBindings {
+                guard let kind = kindByID[binding.kindBindingEventID],
+                      kind.assetID == binding.assetID,
+                      kind.revision == binding.kindBindingRevision,
+                      kind.catalogRelease == binding.catalogRelease else {
+                    throw SnapshotProjectionFailureV1.missingBinding
+                }
+            }
+        }
+        let expected = try WorkspaceMutationCanonicalV1.sha256(Basis(
+            schemaVersion: schemaVersion,
+            workspaceID: workspaceID,
+            catalogReleases: catalogReleases,
+            kindBindings: kindBindings,
+            workflowCapabilityBindings: workflowCapabilityBindings,
+            productIdentities: productIdentities,
+            lifecycleEvents: lifecycleEvents,
+            successorLinks: successorLinks,
+            workSubjectScopes: workSubjectScopes
+        ))
+        guard snapshotSHA256 == expected else { throw SnapshotProjectionFailureV1.digestMismatch }
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let workspaceID: WorkspaceID
+        let catalogReleases: [AssetSemanticCatalogReleaseReferenceV1]
+        let kindBindings: [AssetKindBindingEventV1]
+        let workflowCapabilityBindings: [AssetWorkflowCapabilityBindingEventV1]
+        let productIdentities: [AssetProductIdentityV1]
+        let lifecycleEvents: [AssetLifecycleEventV1]
+        let successorLinks: [AssetSuccessorLinkV1]
+        let workSubjectScopes: [WorkSubjectScopeSnapshotV1]
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, workspaceID, catalogReleases, kindBindings
+        case workflowCapabilityBindings, productIdentities, lifecycleEvents
+        case successorLinks, workSubjectScopes, snapshotSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        let rebuilt = try Self(
+            workspaceID: values.decode(WorkspaceID.self, forKey: .workspaceID),
+            catalogReleases: values.decode([AssetSemanticCatalogReleaseReferenceV1].self, forKey: .catalogReleases),
+            kindBindings: values.decode([AssetKindBindingEventV1].self, forKey: .kindBindings),
+            workflowCapabilityBindings: values.decode([AssetWorkflowCapabilityBindingEventV1].self, forKey: .workflowCapabilityBindings),
+            productIdentities: values.decode([AssetProductIdentityV1].self, forKey: .productIdentities),
+            lifecycleEvents: values.decode([AssetLifecycleEventV1].self, forKey: .lifecycleEvents),
+            successorLinks: values.decode([AssetSuccessorLinkV1].self, forKey: .successorLinks),
+            workSubjectScopes: values.decode([WorkSubjectScopeSnapshotV1].self, forKey: .workSubjectScopes)
+        )
+        guard try values.decode(String.self, forKey: .snapshotSHA256) == rebuilt.snapshotSHA256 else {
+            throw SnapshotProjectionFailureV1.digestMismatch
+        }
+        self = rebuilt
+    }
+}
+
+typealias CompletedAssetSemanticSnapshotV1 = CompletedAssetSemanticsSnapshotV1
+
+struct CompletedActivitySnapshotPayloadV4: Codable, Equatable, Sendable {
+    static let schemaVersion = 4
+    let schemaVersion: Int
+    let activity: CompletedActivitySnapshotPayloadV3
+    let assetSemantics: CompletedAssetSemanticsSnapshotV1?
+
+    init(
+        activity: CompletedActivitySnapshotPayloadV3,
+        assetSemantics: CompletedAssetSemanticsSnapshotV1? = nil
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.activity = activity
+        self.assetSemantics = assetSemantics
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try activity.validate()
+        if let assetSemantics {
+            try assetSemantics.validate()
+            guard assetSemantics.workspaceID.rawValue.uuidString.lowercased()
+                    == activity.activity.activity.workspaceID.lowercased() else {
+                throw SnapshotProjectionFailureV1.wrongWorkspace
+            }
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, activity, assetSemantics
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try self.init(
+            activity: values.decode(CompletedActivitySnapshotPayloadV3.self, forKey: .activity),
+            assetSemantics: values.decodeIfPresent(
+                CompletedAssetSemanticsSnapshotV1.self, forKey: .assetSemantics
+            )
+        )
+    }
+}
+
+struct CompletedActivitySnapshotV4: Codable, Equatable, Identifiable, Sendable {
+    static let schemaVersion = 4
+    let schemaVersion: Int
+    let payload: CompletedActivitySnapshotPayloadV4
+    let snapshotSHA256: String
+
+    var id: String { "\(payload.activity.activity.activity.workspaceID)|\(payload.activity.activity.activity.snapshotID)" }
+
+    private init(payload: CompletedActivitySnapshotPayloadV4, snapshotSHA256: String) throws {
+        guard KernelCanonicalHashV1.validSHA256(snapshotSHA256) else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        schemaVersion = Self.schemaVersion
+        self.payload = payload
+        self.snapshotSHA256 = snapshotSHA256
+        try validate()
+    }
+
+    static func freezeOriginal(_ payload: CompletedActivitySnapshotPayloadV4) throws -> Self {
+        guard payload.activity.activity.activity.snapshotRevision == 1,
+              payload.activity.activity.activity.supersedesSnapshotID == nil,
+              payload.activity.activity.activity.supersededSnapshotSHA256 == nil else {
+            throw SnapshotProjectionFailureV1.historyRewrite
+        }
+        return try Self(
+            payload: payload,
+            snapshotSHA256: KernelCanonicalHashV1.sha256(
+                try CompletedActivitySnapshotCanonicalCodecV4.encodePayload(payload)
+            )
+        )
+    }
+
+    static func freezeAmendment(
+        _ payload: CompletedActivitySnapshotPayloadV4,
+        superseding prior: Self
+    ) throws -> Self {
+        let value = try Self(
+            payload: payload,
+            snapshotSHA256: KernelCanonicalHashV1.sha256(
+                try CompletedActivitySnapshotCanonicalCodecV4.encodePayload(payload)
+            )
+        )
+        try value.validateSupersession(of: prior)
+        return value
+    }
+
+    func validateSupersession(of prior: Self) throws {
+        try validate()
+        try prior.validate()
+        let current = payload.activity.activity.activity
+        let previous = prior.payload.activity.activity.activity
+        let (expectedRevision, overflowed) = previous.snapshotRevision.addingReportingOverflow(1)
+        guard current.workspaceID == previous.workspaceID,
+              !overflowed,
+              current.snapshotRevision == expectedRevision,
+              current.supersedesSnapshotID == previous.snapshotID,
+              current.supersededSnapshotSHA256 == prior.snapshotSHA256,
+              current.sourceActivityID == previous.sourceActivityID,
+              current.reportID == previous.reportID,
+              current.completedAt == previous.completedAt,
+              current.sourceRevision > previous.sourceRevision,
+              payload.activity.activity.locationComposition.frozenAtRevision
+                    >= prior.payload.activity.activity.locationComposition.frozenAtRevision,
+              let currentDate = SnapshotProjectionValidationV1.instantDate(current.generatedAt),
+              let previousDate = SnapshotProjectionValidationV1.instantDate(previous.generatedAt),
+              currentDate >= previousDate else {
+            throw SnapshotProjectionFailureV1.historyRewrite
+        }
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              KernelCanonicalHashV1.validSHA256(snapshotSHA256) else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try payload.validate()
+        let expected = KernelCanonicalHashV1.sha256(
+            try CompletedActivitySnapshotCanonicalCodecV4.encodePayload(payload)
+        )
+        guard snapshotSHA256 == expected else { throw SnapshotProjectionFailureV1.digestMismatch }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, payload, snapshotSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(
+            decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue))
+        )
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try self.init(
+            payload: values.decode(CompletedActivitySnapshotPayloadV4.self, forKey: .payload),
+            snapshotSHA256: values.decode(String.self, forKey: .snapshotSHA256)
+        )
+    }
+}
+
+enum CompletedActivitySnapshotCanonicalCodecV4 {
+    private static func encoder() -> JSONEncoder {
+        let value = JSONEncoder()
+        value.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return value
+    }
+
+    static func encodePayload(_ payload: CompletedActivitySnapshotPayloadV4) throws -> Data {
+        try payload.validate()
+        let data = try encoder().encode(payload)
+        guard !data.isEmpty, data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return data
+    }
+
+    static func encode(_ snapshot: CompletedActivitySnapshotV4) throws -> Data {
+        try snapshot.validate()
+        let data = try encoder().encode(snapshot)
+        guard !data.isEmpty, data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return data
+    }
+
+    static func decode(_ data: Data) throws -> CompletedActivitySnapshotV4 {
+        guard !data.isEmpty, data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let value = try JSONDecoder().decode(CompletedActivitySnapshotV4.self, from: data)
+        try value.validate()
+        guard try encode(value) == data else { throw SnapshotProjectionFailureV1.digestMismatch }
+        return value
+    }
+}

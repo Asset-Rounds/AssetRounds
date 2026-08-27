@@ -249,6 +249,121 @@ struct MutationReceiptV1: Codable, Equatable, Sendable {
     }
 }
 
+/// A typed C39 receipt envelope around the journal-owned receipt.  The
+/// journal remains the only durable receipt writer; this value merely binds
+/// the receipt back to the exact preview plan and the single Asset identity.
+struct AssetSemanticsChangeReceiptV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let planSHA256: String
+    let mutationReceipt: MutationReceiptV1
+    let mutationReceiptIdentity: MutationReceiptIdentityV1
+    let mutationReceiptSHA256: String
+    let affectedIdentity: WorkspaceEntityIdentityV1
+    let committedAt: Date
+    let receiptSHA256: String
+
+    init(
+        plan: AssetSemanticsChangePlanV1,
+        mutationReceipt: MutationReceiptV1
+    ) throws {
+        try plan.validate()
+        try mutationReceipt.validate()
+        let identity = try plan.basis.mutation.affectedIdentity
+        let expected = try MutationPortableExpectedRevisionV1(
+            plan.basis.expectedRevision
+        )
+        let expectedByIdentity = Dictionary(
+            uniqueKeysWithValues: expected.entityRevisions.map {
+                ($0.identity, $0.revision)
+            }
+        )
+        let commandBodySHA256 = try WorkspaceMutationCanonicalV1.sha256(
+            WorkspaceCommandV1.applyAssetSemantics(plan.basis.mutation)
+        )
+        guard mutationReceipt.mutationID == plan.mutationID,
+              mutationReceipt.identity.workspaceID == plan.basis.workspaceID,
+              mutationReceipt.expectedRevision == expected,
+              mutationReceipt.commandBodySHA256 == commandBodySHA256,
+              mutationReceipt.sourceKind == .localUser,
+              let expectedEntityRevision = expectedByIdentity[identity],
+              expected.workspaceRevision < UInt64.max,
+              expectedEntityRevision < UInt64.max,
+              mutationReceipt.resultingRevision.workspaceRevision
+                  == expected.workspaceRevision + 1,
+              mutationReceipt.resultingRevision.entityRevisions.contains(
+                  where: {
+                      $0.identity == identity
+                          && $0.revision == expectedEntityRevision + 1
+                  }
+              ),
+              mutationReceipt.postImages.count == 1,
+              let postImage = mutationReceipt.postImages.first,
+              (try? postImage.identity) == identity,
+              postImage.revision == expectedEntityRevision + 1 else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+
+        schemaVersion = Self.schemaVersion
+        planSHA256 = plan.planSHA256
+        self.mutationReceipt = mutationReceipt
+        mutationReceiptIdentity = mutationReceipt.identity
+        mutationReceiptSHA256 = try mutationReceipt.canonicalSHA256()
+        affectedIdentity = identity
+        committedAt = mutationReceipt.committedAt
+        receiptSHA256 = try WorkspaceMutationCanonicalV1.sha256(
+            DigestBasis(
+                schemaVersion: Self.schemaVersion,
+                planSHA256: plan.planSHA256,
+                mutationReceiptIdentity: mutationReceipt.identity,
+                mutationReceiptSHA256: mutationReceiptSHA256,
+                affectedIdentity: identity,
+                committedAt: committedAt
+            )
+        )
+    }
+
+    func validate() throws {
+        try mutationReceipt.validate()
+        let resultingRevision = mutationReceipt.resultingRevision.entityRevisions
+            .first(where: { $0.identity == affectedIdentity })?.revision
+        let postImage = mutationReceipt.postImages.first
+        guard schemaVersion == Self.schemaVersion,
+              MutationEnvelopeV1.isSHA256(planSHA256),
+              mutationReceipt.identity == mutationReceiptIdentity,
+              mutationReceiptSHA256 == (try mutationReceipt.canonicalSHA256()),
+              mutationReceipt.sourceKind == .localUser,
+              mutationReceipt.postImages.count == 1,
+              let postImage,
+              (try? postImage.identity) == affectedIdentity,
+              resultingRevision == postImage.revision,
+              committedAt == mutationReceipt.committedAt,
+              receiptSHA256 == (try WorkspaceMutationCanonicalV1.sha256(
+                  DigestBasis(
+                      schemaVersion: schemaVersion,
+                      planSHA256: planSHA256,
+                      mutationReceiptIdentity: mutationReceiptIdentity,
+                      mutationReceiptSHA256: mutationReceiptSHA256,
+                      affectedIdentity: affectedIdentity,
+                      committedAt: committedAt
+                  )
+              )),
+              committedAt.timeIntervalSinceReferenceDate.isFinite else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+    }
+
+    private struct DigestBasis: Codable {
+        let schemaVersion: Int
+        let planSHA256: String
+        let mutationReceiptIdentity: MutationReceiptIdentityV1
+        let mutationReceiptSHA256: String
+        let affectedIdentity: WorkspaceEntityIdentityV1
+        let committedAt: Date
+    }
+}
+
 struct MutationHistoryReceiptRecordV1: Codable, Equatable, Sendable {
     let envelopeData: Data
     let receiptData: Data

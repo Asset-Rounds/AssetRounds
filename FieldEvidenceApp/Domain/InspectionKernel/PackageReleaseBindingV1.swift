@@ -112,6 +112,36 @@ struct PackageReleaseBindingV1: Codable, Equatable, Sendable {
     }
 }
 
+struct FrozenAssetSemanticPackageBindingV1: Codable, Equatable, Sendable {
+    let packageBinding: PackageReleaseBindingV1
+    let kindBindingEventID: UUID
+    let kindBindingRevision: UInt64
+    let catalogRelease: AssetSemanticCatalogReleaseReferenceV1
+    let semanticID: String
+
+    init(
+        packageBinding: PackageReleaseBindingV1,
+        kindBinding: AssetKindBindingEventV1
+    ) throws {
+        try packageBinding.validate()
+        try kindBinding.validate()
+        self.packageBinding = packageBinding
+        self.kindBindingEventID = kindBinding.eventID
+        self.kindBindingRevision = kindBinding.revision
+        self.catalogRelease = kindBinding.catalogRelease
+        self.semanticID = kindBinding.semanticID
+    }
+
+    func validate() throws {
+        try packageBinding.validate()
+        try catalogRelease.validate()
+        guard kindBindingRevision > 0,
+              AssetSemanticValidationV1.validIdentifier(semanticID, maximumBytes: 160) else {
+            throw AssetSemanticContractFailureV1.incompatibleRelease
+        }
+    }
+}
+
 enum PackageReleaseBindingCanonicalCodecV1 {
     static func encode(_ value: PackageReleaseBindingV1) throws -> Data {
         try value.validate()

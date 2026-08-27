@@ -273,6 +273,7 @@ private extension ReplacementRestoreRule {
         }
 
         let result = V4BackupRecordsV1(
+            assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
             assetPlacementEvents: records.assetPlacementEvents,
@@ -307,6 +308,7 @@ private extension ReplacementRestoreRule {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
             assetPlacementEvents: records.assetPlacementEvents,
@@ -334,6 +336,7 @@ private extension ReplacementRestoreRule {
         with mutationHistory: MutationHistorySnapshotV1?
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
             assetPlacementEvents: records.assetPlacementEvents,
@@ -363,6 +366,7 @@ private extension ReplacementRestoreRule {
         with requirementAssurance: [V8BackupRequirementAssuranceRecordV1]
     ) throws -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
             assetPlacementEvents: records.assetPlacementEvents,
@@ -543,7 +547,8 @@ private extension ReplacementRestoreRule {
         guard records.recordsSchemaVersion == 5
                 || records.recordsSchemaVersion == 6
                 || records.recordsSchemaVersion == 7
-                || records.recordsSchemaVersion == 8 else {
+                || records.recordsSchemaVersion == 8
+                || records.recordsSchemaVersion == 9 else {
             return records.locationNodes.isEmpty
                 && records.assetPlacementEvents.isEmpty
                 && records.assetCompositionEdges.isEmpty

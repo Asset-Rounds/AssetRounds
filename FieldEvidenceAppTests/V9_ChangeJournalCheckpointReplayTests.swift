@@ -5,6 +5,16 @@ import XCTest
 
 @MainActor
 final class V9_ChangeJournalCheckpointReplayTests: XCTestCase {
+    func testV23P03C39JournalReplayRetainsExactLifecycleKinds() throws {
+        let kinds = AssetLifecycleEventKindV1.allCases
+        let bytes = try AssetSemanticCanonicalCodecV1.encode(kinds)
+        XCTAssertEqual(
+            try AssetSemanticCanonicalCodecV1.decode([AssetLifecycleEventKindV1].self, from: bytes),
+            kinds
+        )
+        XCTAssertEqual(kinds.last, .classificationChangedRecorded)
+    }
+
     func testV9_ChangeJournalCheckpointReplayG01CheckpointThenPostRIsSemanticallyExact() throws {
         let corpus = try loadCorpus()
         assertProductionSeamsCompile()

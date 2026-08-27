@@ -58,6 +58,31 @@ struct AssetPlacementEventV1: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+extension AssetPlacementEventV1 {
+    func frozenAssetWorkSubjectReference() throws -> WorkSubjectReferenceV1 {
+        try validate()
+        let value = WorkSubjectReferenceV1(
+            kind: .asset, subjectID: assetID, revision: revision, ownerAssetID: nil
+        )
+        try value.validate()
+        return value
+    }
+
+    func frozenLocationWorkSubjectReference(locationRevision: UInt64) throws
+        -> WorkSubjectReferenceV1? {
+        try validate()
+        guard let locationNodeID else { return nil }
+        let value = WorkSubjectReferenceV1(
+            kind: .locationNode,
+            subjectID: locationNodeID,
+            revision: locationRevision,
+            ownerAssetID: nil
+        )
+        try value.validate()
+        return value
+    }
+}
+
 struct AssetPlacementPreviewBasisV1: Codable, Equatable, Sendable {
     let workspaceID: WorkspaceID; let expectedRevision: WorkspaceExpectedRevisionV1; let assetID: UUID
     let currentPlacement: AssetPlacementEventV1?; let proposedSiteID: UUID; let proposedLocationNodeID: UUID?

@@ -303,6 +303,18 @@ final class MutationJournalStoreV1 {
         guard reversalBasis.map(\.planDigest) == envelope.reversalPlanDigest else {
             throw WorkspaceMutationFailureV1.invalidReversal
         }
+        if case let .applyAssetSemantics(value) = envelope.command {
+            do {
+                try value.validate()
+                guard affectedEntities == [try value.affectedIdentity] else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } catch let failure as WorkspaceMutationFailureV1 {
+                throw failure
+            } catch {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
         let state = try requireState()
         let current = try currentRevision(writerInstanceID: writerInstanceID)
         let expected = envelope.expectedRevision
@@ -1097,12 +1109,22 @@ final class MutationJournalStoreV1 {
             let id = identity.id
             let rows = try modelContext.fetch(FetchDescriptor<Asset>(predicate: #Predicate { $0.id == id }))
             guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
-            return try semanticPostImage(identity, revision, V4BackupAssetDTO(
+            let asset = V4BackupAssetDTO(
                 id: row.id, schemaVersion: row.schemaVersion, siteID: row.siteID,
                 packID: row.packID, packSchemaVersion: row.packSchemaVersion,
                 packContentVersion: row.packContentVersion, label: row.label,
                 createdAt: row.createdAt, updatedAt: row.updatedAt
-            ))
+            )
+            let semantic = try AssetSemanticLifecycleAdapterV1.snapshot(
+                workspaceID: identity.workspaceID,
+                assetID: id,
+                in: modelContext
+            )
+            return try semanticPostImage(
+                identity,
+                revision,
+                AssetSemanticAssetPostImageV1(asset: asset, semantic: semantic)
+            )
         case .locationNode:
             let id = identity.id
             let rows = try modelContext.fetch(FetchDescriptor<LocationNodeRow>(predicate: #Predicate { $0.id == id }))
@@ -1420,4 +1442,9 @@ final class MutationJournalStoreV1 {
 private struct WorkflowRecordPostImageV8: Codable {
     let record: V4BackupWorkflowRecordDTO
     let requirementAssurance: RequirementAssuranceSnapshotV1?
+}
+
+private struct AssetSemanticAssetPostImageV1: Codable {
+    let asset: V4BackupAssetDTO
+    let semantic: AssetSemanticPersistentSnapshotV1
 }

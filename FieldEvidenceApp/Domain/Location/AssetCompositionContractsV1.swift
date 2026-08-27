@@ -161,6 +161,23 @@ enum AssetCompositionPolicyV1 {
     }
 }
 
+extension AssetCompositionEdgeV1 {
+    /// Freezes the component identity only; it deliberately declares no new
+    /// composition endpoint, cardinality, depth, or cycle policy.
+    func frozenWorkSubjectReference() throws -> WorkSubjectReferenceV1 {
+        try validate()
+        guard isActive else { throw LocationContractFailureV1.invalidValue }
+        let value = WorkSubjectReferenceV1(
+            kind: .compositionComponent,
+            subjectID: id,
+            revision: revision,
+            ownerAssetID: childAssetID
+        )
+        try value.validate()
+        return value
+    }
+}
+
 struct AssetPlacementTipBindingV1: Codable, Equatable, Comparable, Sendable {
     let assetID: UUID; let placement: AssetPlacementEventV1
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.assetID.uuidString.lowercased() < rhs.assetID.uuidString.lowercased() }

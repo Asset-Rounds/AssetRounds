@@ -18,6 +18,19 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     case accountabilityActor = "accountability.actor"
     case accountabilityQualification = "accountability.qualification"
     case accountabilitySignoff = "accountability.signoff"
+    case assetSemanticIlluminatedSignName = "asset.semantic.sign.illuminated.name"
+    case assetSemanticIlluminatedSignDescription = "asset.semantic.sign.illuminated.description"
+    case assetSemanticHeading = "asset.semantic.heading"
+    case assetSemanticKind = "asset.semantic.kind"
+    case assetSemanticProductIdentity = "asset.semantic.product_identity"
+    case assetSemanticWorkSubjectScope = "asset.semantic.work_subject_scope"
+    case assetSemanticLifecycle = "asset.semantic.lifecycle"
+    case assetSemanticState = "asset.semantic.state"
+    case assetSemanticUnknownState = "asset.semantic.state.unknown"
+    case assetSemanticDuplicateState = "asset.semantic.state.duplicate"
+    case assetSemanticRetiredState = "asset.semantic.state.retired"
+    case assetSemanticReplacedState = "asset.semantic.state.replaced"
+    case assetSemanticRecordedState = "asset.semantic.state.recorded"
 }
 
 enum LocalizationCatalogPublicationBoundaryV1: String, CaseIterable, Sendable {
@@ -120,6 +133,70 @@ enum BundledLocalizationCatalogV1 {
         return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
     }
 
+    /// C39's additive key surface.  The C16 and C38 registries remain
+    /// available as frozen compatibility projections; this registry is the
+    /// first one that exposes semantic kind, product, lifecycle, and subject
+    /// scope labels.
+    static func assetSemanticRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try accountabilityRegistry()
+        let additions = [
+            try definition(
+                .assetSemanticIlluminatedSignName, "asset.semantic.sign.illuminated.name", "Illuminated sign",
+                "Localized name for the bundled illuminated-sign semantic kind."
+            ),
+            try definition(
+                .assetSemanticIlluminatedSignDescription, "asset.semantic.sign.illuminated.description",
+                "Illuminated sign semantic kind",
+                "Localized description for the bundled illuminated-sign semantic kind."
+            ),
+            try definition(
+                .assetSemanticHeading, "asset.semantic.heading", "Asset semantics",
+                "Heading for the local asset semantic and lifecycle projection."
+            ),
+            try definition(
+                .assetSemanticKind, "asset.semantic.kind", "Semantic kind",
+                "Localized label for an accepted asset semantic kind."
+            ),
+            try definition(
+                .assetSemanticProductIdentity, "asset.semantic.product_identity", "Product identity",
+                "Localized label for progressively disclosed product identifier attributes."
+            ),
+            try definition(
+                .assetSemanticWorkSubjectScope, "asset.semantic.work_subject_scope", "Work subject scope",
+                "Localized label for the immutable subject scope captured by completed work."
+            ),
+            try definition(
+                .assetSemanticLifecycle, "asset.semantic.lifecycle", "Lifecycle",
+                "Localized label for a human-recorded asset lifecycle history."
+            ),
+            try definition(
+                .assetSemanticState, "asset.semantic.state", "Recorded state",
+                "Accessible label for an asset semantic state without operational claims."
+            ),
+            try definition(
+                .assetSemanticUnknownState, "asset.semantic.state.unknown", "Unknown",
+                "Accessible text for an unknown or not-recorded semantic value."
+            ),
+            try definition(
+                .assetSemanticDuplicateState, "asset.semantic.state.duplicate", "Duplicate value",
+                "Accessible text for a duplicate product identifier value."
+            ),
+            try definition(
+                .assetSemanticRetiredState, "asset.semantic.state.retired", "Retired",
+                "Accessible text for a human-recorded retired lifecycle event."
+            ),
+            try definition(
+                .assetSemanticReplacedState, "asset.semantic.state.replaced", "Replaced",
+                "Accessible text for a human-recorded replaced lifecycle event."
+            ),
+            try definition(
+                .assetSemanticRecordedState, "asset.semantic.state.recorded", "Recorded",
+                "Accessible text for a fact explicitly recorded by a local actor."
+            ),
+        ]
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
     static func accessibilityRegistry(
         localization: LocalizationKeyRegistryV1
     ) throws -> SemanticAccessibilityIDRegistryV1 {
@@ -200,6 +277,99 @@ enum BundledLocalizationCatalogV1 {
         return try base.appending(entries, localization: localization)
     }
 
+    static func assetSemanticAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        let base = try accountabilityAccessibilityRegistry(localization: localization)
+        let entries: [AccessibilityContractV1] = [
+            AccessibilityContractV1(
+                semanticID: AssetSemanticAccessibilityIDV1.screen.rawValue, role: .screen,
+                reachability: .always,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.assetSemanticHeading.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AssetSemanticAccessibilityIDV1.heading.rawValue, role: .heading,
+                reachability: .always,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.assetSemanticHeading.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AssetSemanticAccessibilityIDV1.kind.rawValue, role: .group,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.assetSemanticKind.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AssetSemanticAccessibilityIDV1.productIdentity.rawValue, role: .group,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.assetSemanticProductIdentity.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AssetSemanticAccessibilityIDV1.lifecycle.rawValue, role: .group,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.assetSemanticLifecycle.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AssetSemanticAccessibilityIDV1.workSubjectScope.rawValue, role: .group,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.assetSemanticWorkSubjectScope.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AssetSemanticAccessibilityIDV1.state.rawValue, role: .status,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.assetSemanticState.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AssetSemanticAccessibilityIDV1.unknownState.rawValue, role: .status,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.assetSemanticUnknownState.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AssetSemanticAccessibilityIDV1.duplicateState.rawValue, role: .status,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.assetSemanticDuplicateState.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AssetSemanticAccessibilityIDV1.retiredState.rawValue, role: .status,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.assetSemanticRetiredState.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AssetSemanticAccessibilityIDV1.replacedState.rawValue, role: .status,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.assetSemanticReplacedState.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+            AccessibilityContractV1(
+                semanticID: AssetSemanticAccessibilityIDV1.recordedState.rawValue, role: .status,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(BundledLocalizationKeyV1.assetSemanticRecordedState.rawValue),
+                hintKey: nil, valueKey: nil, dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            ),
+        ]
+        return try base.appending(entries, localization: localization)
+    }
+
     static func publish(
         sourceCatalogBytes: Data,
         packagePublications: [InspectionPackagePublishedReleaseV1] = [],
@@ -207,6 +377,7 @@ enum BundledLocalizationCatalogV1 {
         previousRegistry: LocalizationKeyRegistryV1? = nil,
         previousLegacy: LegacyLocalizationAccessibilityAllowlistV1? = nil,
         includeAccountability: Bool = false,
+        includeAssetSemantics: Bool = false,
         interruption: Interruption = { _ in }
     ) throws -> LocalizationCatalogPublicationV1 {
         try interruption(.beforeValidation)
@@ -214,7 +385,9 @@ enum BundledLocalizationCatalogV1 {
         let locales = LocalizationLocaleManifestV1.shippingV1()
         try locales.validate()
         let keys: LocalizationKeyRegistryV1
-        if includeAccountability {
+        if includeAssetSemantics {
+            keys = try assetSemanticRegistry()
+        } else if includeAccountability {
             keys = try accountabilityRegistry()
         } else {
             keys = try registry()
@@ -227,7 +400,9 @@ enum BundledLocalizationCatalogV1 {
         }
         if let previousLegacy { try previousLegacy.validateObserved(legacy.entries) }
         let accessibility: SemanticAccessibilityIDRegistryV1
-        if includeAccountability {
+        if includeAssetSemantics {
+            accessibility = try assetSemanticAccessibilityRegistry(localization: keys)
+        } else if includeAccountability {
             accessibility = try accountabilityAccessibilityRegistry(localization: keys)
         } else {
             accessibility = try accessibilityRegistry(localization: keys)
@@ -270,7 +445,8 @@ enum BundledLocalizationCatalogV1 {
         receipt: LocalizationCatalogPublicationReceiptV1?,
         legacy: LegacyLocalizationAccessibilityAllowlistV1,
         packagePublications: [InspectionPackagePublishedReleaseV1] = [],
-        includeAccountability: Bool = false
+        includeAccountability: Bool = false,
+        includeAssetSemantics: Bool = false
     ) throws -> LocalizationCatalogPublicationV1 {
         switch (sourceCatalogBytes, receipt) {
         case (nil, nil): return .zero
@@ -279,7 +455,8 @@ enum BundledLocalizationCatalogV1 {
                 sourceCatalogBytes: bytes,
                 packagePublications: packagePublications,
                 legacy: legacy,
-                includeAccountability: includeAccountability
+                includeAccountability: includeAccountability,
+                includeAssetSemantics: includeAssetSemantics
             )
             guard case let .complete(_, _, _, _, actual) = publication,
                   actual == expected else { throw LocalizationContractFailureV1.digestMismatch }
@@ -325,6 +502,32 @@ enum BundledLocalizationCatalogV1 {
             return String(localized: "accountability.qualification", defaultValue: "Declared qualification", bundle: bundle, locale: locale, comment: "Localized label for a declared qualification snapshot.")
         case .accountabilitySignoff:
             return String(localized: "accountability.signoff", defaultValue: "Local response", bundle: bundle, locale: locale, comment: "Localized label for a local signoff assertion or disposition.")
+        case .assetSemanticIlluminatedSignName:
+            return String(localized: "asset.semantic.sign.illuminated.name", defaultValue: "Illuminated sign", bundle: bundle, locale: locale, comment: "Localized name for the bundled illuminated-sign semantic kind.")
+        case .assetSemanticIlluminatedSignDescription:
+            return String(localized: "asset.semantic.sign.illuminated.description", defaultValue: "Illuminated sign semantic kind", bundle: bundle, locale: locale, comment: "Localized description for the bundled illuminated-sign semantic kind.")
+        case .assetSemanticHeading:
+            return String(localized: "asset.semantic.heading", defaultValue: "Asset semantics", bundle: bundle, locale: locale, comment: "Heading for the local asset semantic and lifecycle projection.")
+        case .assetSemanticKind:
+            return String(localized: "asset.semantic.kind", defaultValue: "Semantic kind", bundle: bundle, locale: locale, comment: "Localized label for an accepted asset semantic kind.")
+        case .assetSemanticProductIdentity:
+            return String(localized: "asset.semantic.product_identity", defaultValue: "Product identity", bundle: bundle, locale: locale, comment: "Localized label for progressively disclosed product identifier attributes.")
+        case .assetSemanticWorkSubjectScope:
+            return String(localized: "asset.semantic.work_subject_scope", defaultValue: "Work subject scope", bundle: bundle, locale: locale, comment: "Localized label for the immutable subject scope captured by completed work.")
+        case .assetSemanticLifecycle:
+            return String(localized: "asset.semantic.lifecycle", defaultValue: "Lifecycle", bundle: bundle, locale: locale, comment: "Localized label for a human-recorded asset lifecycle history.")
+        case .assetSemanticState:
+            return String(localized: "asset.semantic.state", defaultValue: "Recorded state", bundle: bundle, locale: locale, comment: "Accessible label for an asset semantic state without operational claims.")
+        case .assetSemanticUnknownState:
+            return String(localized: "asset.semantic.state.unknown", defaultValue: "Unknown", bundle: bundle, locale: locale, comment: "Accessible text for an unknown or not-recorded semantic value.")
+        case .assetSemanticDuplicateState:
+            return String(localized: "asset.semantic.state.duplicate", defaultValue: "Duplicate value", bundle: bundle, locale: locale, comment: "Accessible text for a duplicate product identifier value.")
+        case .assetSemanticRetiredState:
+            return String(localized: "asset.semantic.state.retired", defaultValue: "Retired", bundle: bundle, locale: locale, comment: "Accessible text for a human-recorded retired lifecycle event.")
+        case .assetSemanticReplacedState:
+            return String(localized: "asset.semantic.state.replaced", defaultValue: "Replaced", bundle: bundle, locale: locale, comment: "Accessible text for a human-recorded replaced lifecycle event.")
+        case .assetSemanticRecordedState:
+            return String(localized: "asset.semantic.state.recorded", defaultValue: "Recorded", bundle: bundle, locale: locale, comment: "Accessible text for a fact explicitly recorded by a local actor.")
         }
     }
 
@@ -373,7 +576,11 @@ enum BundledLocalizationCatalogV1 {
             throw LocalizationContractFailureV1.invalidValue
         }
         let registeredKeys = Set(registry.definitions.map(\.key.rawValue))
-        let supportedKeys = Set((try? accountabilityRegistry())?.definitions.map(\.key.rawValue) ?? [])
+        // The source catalog may be validated against any currently declared
+        // additive projection, while the selected registry still controls the
+        // required subset.  This keeps C16/C38 compatibility callers frozen
+        // and lets the C39 typed surface publish atomically.
+        let supportedKeys = Set((try? assetSemanticRegistry())?.definitions.map(\.key.rawValue) ?? [])
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue

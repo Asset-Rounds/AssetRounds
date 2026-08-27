@@ -106,6 +106,23 @@ struct ReportSnapshotEncoderV1: Sendable {
         catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
     }
 
+    func encode(_ snapshot: CompletedActivitySnapshotV4) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try CompletedActivitySnapshotCanonicalCodecV4.encode(snapshot)
+            return EncodedReportSnapshotV1(
+                data: data,
+                sha256: KernelCanonicalHashV1.sha256(data)
+            )
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+
+    func decodeCompletedActivityV4(_ data: Data) throws -> CompletedActivitySnapshotV4 {
+        do { return try CompletedActivitySnapshotCanonicalCodecV4.decode(data) }
+        catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
     func encode(
         _ snapshot: RequirementAssuranceSnapshotV1
     ) throws -> EncodedReportSnapshotV1 {
@@ -200,6 +217,12 @@ struct ReportSnapshotEncoderV1: Sendable {
                   accountability.parties.allSatisfy({ $0.revision <= UInt64(Int.max) }),
                   accountability.roleEvents.allSatisfy({ $0.revision <= UInt64(Int.max) }),
                   accountability.signoffs.allSatisfy({ $0.subjectRevision <= UInt64(Int.max) }) else {
+                return false
+            }
+        }
+
+        if let assetSemantics = snapshot.assetSemantics {
+            guard (try? assetSemantics.validate()) != nil else {
                 return false
             }
         }
@@ -318,7 +341,37 @@ extension CanonicalJSONV1 {
         if let accountability = value.accountability {
             object["accountability"] = Self.accountability(accountability)
         }
+        if let assetSemantics = value.assetSemantics {
+            object["assetSemantics"] = Self.assetSemantics(assetSemantics)
+        }
         return .object(object)
+    }
+
+    /// C39 values are already validated and canonically encoded by their
+    /// domain codec. Converting that object into the report's canonical JSON
+    /// tree keeps report key ordering deterministic without duplicating the
+    /// semantic domain's wire schema here.
+    private static func assetSemantics(
+        _ value: CompletedAssetSemanticsSnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        guard let data = try? AssetSemanticCanonicalCodecV1.encode(value),
+              let object = try? JSONSerialization.jsonObject(with: data) else {
+            return .null
+        }
+        return canonicalValue(object)
+    }
+
+    private static func canonicalValue(_ value: Any) -> CanonicalJSONValueV1 {
+        switch value {
+        case let value as String: return .string(value)
+        case let value as Bool: return .bool(value)
+        case let value as NSNumber: return .integer(value.intValue)
+        case let value as [Any]: return .array(value.map(canonicalValue))
+        case let value as [String: Any]:
+            return .object(value.mapValues(canonicalValue))
+        case _ as NSNull: return .null
+        default: return .null
+        }
     }
 
     private static func accountability(

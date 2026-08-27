@@ -5,6 +5,20 @@ import XCTest
 
 @MainActor
 final class V9_11PackRegistryTests: XCTestCase {
+    func testV23P03C39BundledSemanticKindUsesExactReleasePolicy() throws {
+        let definition = try AssetKindDefinitionV1(
+            semanticID: "asset.kind.example",
+            displayNameLocalizationKey: "asset.semantic.sign.illuminated.name",
+            descriptionLocalizationKey: "asset.semantic.sign.illuminated.description",
+            capabilityIDs: [try AssetSemanticCapabilityIDV1("capability.inspect")],
+            compatibilityPolicy: .exactReleaseOnly,
+            definitionSHA256: String(repeating: "a", count: 64)
+        )
+        try definition.validate()
+        XCTAssertEqual(definition.compatibilityPolicy, .exactReleaseOnly)
+        XCTAssertEqual(definition.displayNameLocalizationKey, "asset.semantic.sign.illuminated.name")
+    }
+
     func testV9_11G01ShippingAdapterPreservesIlluminatedSignV1Parity() throws {
         let source = SignPack.illuminatedSignV1
         let package = try ShippingIlluminatedSignAdapterV1.inspectionPackage(from: source)

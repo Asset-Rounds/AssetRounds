@@ -81,9 +81,14 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "ActorSnapshotRow", "QualificationSnapshotRow", "ServicePartyRow",
         "SignoffSnapshotRow", "SitePartyRoleEventRow",
     ]
+    static let v10PersistentModelNames = [
+        "AssetKindBindingEventRow", "AssetLifecycleEventRow",
+        "AssetProductIdentityRow", "AssetSuccessorLinkRow",
+        "AssetWorkflowCapabilityBindingEventRow", "WorkSubjectScopeSnapshotRow",
+    ]
     static let activePersistentModelNames =
         (persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
-            + v8PersistentModelNames + v9PersistentModelNames).sorted()
+            + v8PersistentModelNames + v9PersistentModelNames + v10PersistentModelNames).sorted()
 
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
@@ -122,6 +127,14 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "ActorSnapshotV1",
         "QualificationSnapshotV1",
         "SignoffSnapshotV1",
+        "AssetSemanticCatalogReleaseV1",
+        "AssetKindDefinitionV1",
+        "AssetKindBindingEventV1",
+        "AssetWorkflowCapabilityBindingEventV1",
+        "AssetProductIdentityV1",
+        "AssetLifecycleEventV1",
+        "AssetSuccessorLinkV1",
+        "WorkSubjectScopeSnapshotV1",
     ]
 
     static let derivedIndexNames = [
@@ -143,6 +156,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "StoreSemanticEnvelopeV7",
         "StoreSemanticEnvelopeV8",
         "StoreSemanticEnvelopeV9",
+        "StoreSemanticEnvelopeV10",
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
@@ -612,6 +626,14 @@ private extension CurrentSyncClassificationCatalogV1 {
                 dependencies: try partyPersistentDependencies(for: name)
             ))
         }
+        for name in v10PersistentModelNames {
+            specs.append(AdditionalSpec(
+                category: .persistentModel,
+                name: name,
+                profile: .replicatedMutationHistory,
+                dependencies: try assetSemanticPersistentDependencies(for: name)
+            ))
+        }
 
         for name in portableContentProjectionNames {
             let profile: AdditionalProfile = name == "ReportSnapshotV1"
@@ -931,6 +953,20 @@ private extension CurrentSyncClassificationCatalogV1 {
             return [try subject(category: .persistentModel, name: "QualificationSnapshotRow")]
         case "SignoffSnapshotV1":
             return [try subject(category: .persistentModel, name: "SignoffSnapshotRow")]
+        case "AssetSemanticCatalogReleaseV1", "AssetKindDefinitionV1":
+            return []
+        case "AssetKindBindingEventV1":
+            return [try subject(category: .persistentModel, name: "AssetKindBindingEventRow")]
+        case "AssetWorkflowCapabilityBindingEventV1":
+            return [try subject(category: .persistentModel, name: "AssetWorkflowCapabilityBindingEventRow")]
+        case "AssetProductIdentityV1":
+            return [try subject(category: .persistentModel, name: "AssetProductIdentityRow")]
+        case "AssetLifecycleEventV1":
+            return [try subject(category: .persistentModel, name: "AssetLifecycleEventRow")]
+        case "AssetSuccessorLinkV1":
+            return [try subject(category: .persistentModel, name: "AssetSuccessorLinkRow")]
+        case "WorkSubjectScopeSnapshotV1":
+            return [try subject(category: .persistentModel, name: "WorkSubjectScopeSnapshotRow")]
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
@@ -969,6 +1005,10 @@ private extension CurrentSyncClassificationCatalogV1 {
             return try subjects(category: .persistentModel, names:
                 persistentModelNames + v6PersistentModelNames + v7PersistentModelNames + v8PersistentModelNames)
         case "StoreSemanticEnvelopeV9":
+            return try subjects(category: .persistentModel, names:
+                persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
+                    + v8PersistentModelNames + v9PersistentModelNames)
+        case "StoreSemanticEnvelopeV10":
             return try subjects(category: .persistentModel, names: activePersistentModelNames)
         default:
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
@@ -1015,6 +1055,23 @@ private extension CurrentSyncClassificationCatalogV1 {
         }
     }
 
+    static func assetSemanticPersistentDependencies(for name: String) throws -> [SyncSubjectIdentityV1] {
+        switch name {
+        case "AssetKindBindingEventRow", "AssetProductIdentityRow":
+            return [try subject(category: .persistentModel, name: "Asset")]
+        case "AssetWorkflowCapabilityBindingEventRow":
+            return try subjects(category: .persistentModel, names: ["Asset", "AssetKindBindingEventRow"])
+        case "AssetLifecycleEventRow":
+            return try subjects(category: .persistentModel, names: ["Asset", "AssetKindBindingEventRow", "AssetSuccessorLinkRow"])
+        case "AssetSuccessorLinkRow":
+            return [try subject(category: .persistentModel, name: "Asset")]
+        case "WorkSubjectScopeSnapshotRow":
+            return try subjects(category: .persistentModel, names: ["Asset", "LocationNodeRow", "Site"])
+        default:
+            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+        }
+    }
+
     static func validatePersistentModels() throws {
         let frozenV5: [any PersistentModel.Type] = [
             Site.self,
@@ -1046,8 +1103,14 @@ private extension CurrentSyncClassificationCatalogV1 {
             ActorSnapshotRow.self,
             QualificationSnapshotRow.self,
             SignoffSnapshotRow.self,
+            AssetKindBindingEventRow.self,
+            AssetWorkflowCapabilityBindingEventRow.self,
+            AssetProductIdentityRow.self,
+            AssetLifecycleEventRow.self,
+            AssetSuccessorLinkRow.self,
+            WorkSubjectScopeSnapshotRow.self,
         ]
-        let runtimeNames = PersistentSchemaV9.models.map { modelType in
+        let runtimeNames = PersistentSchemaV10.models.map { modelType in
             String(describing: modelType)
                 .split(separator: ".")
                 .last
@@ -1060,8 +1123,8 @@ private extension CurrentSyncClassificationCatalogV1 {
               Set(PersistentSchemaV5.models.map { ObjectIdentifier($0) })
                 == Set(frozenV5.map { ObjectIdentifier($0) }),
               frozenNames == persistentModelNames,
-              PersistentSchemaV9.models.count == expected.count,
-              Set(PersistentSchemaV9.models.map { ObjectIdentifier($0) })
+              PersistentSchemaV10.models.count == expected.count,
+              Set(PersistentSchemaV10.models.map { ObjectIdentifier($0) })
                 == Set(expected.map { ObjectIdentifier($0) }),
               runtimeNames.count == Set(runtimeNames).count,
               runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),

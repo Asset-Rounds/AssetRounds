@@ -221,6 +221,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c42 = TemporalOriginV1(card: "V23_P03_C09", ordinal: 42)
         let c44 = TemporalOriginV1(card: "V23_P03_C12", ordinal: 44)
         let c46 = TemporalOriginV1(card: "V23_P03_C38", ordinal: 46)
+        let c47 = TemporalOriginV1(card: "V23_P03_C39", ordinal: 47)
         let groups: [(TemporalOriginV1, [String])] = [
             (c16, [
                 "JOURNAL:CurrentGenerationPointerV2",
@@ -320,6 +321,23 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 "PROJECTION:SignoffSnapshotV1",
                 "PROJECTION:StoreSemanticEnvelopeV9",
             ]),
+            (c47, [
+                "PERSISTENT_MODEL:AssetKindBindingEventRow",
+                "PERSISTENT_MODEL:AssetWorkflowCapabilityBindingEventRow",
+                "PERSISTENT_MODEL:AssetProductIdentityRow",
+                "PERSISTENT_MODEL:AssetLifecycleEventRow",
+                "PERSISTENT_MODEL:AssetSuccessorLinkRow",
+                "PERSISTENT_MODEL:WorkSubjectScopeSnapshotRow",
+                "PROJECTION:AssetSemanticCatalogReleaseV1",
+                "PROJECTION:AssetKindDefinitionV1",
+                "PROJECTION:AssetKindBindingEventV1",
+                "PROJECTION:AssetWorkflowCapabilityBindingEventV1",
+                "PROJECTION:AssetProductIdentityV1",
+                "PROJECTION:AssetLifecycleEventV1",
+                "PROJECTION:AssetSuccessorLinkV1",
+                "PROJECTION:WorkSubjectScopeSnapshotV1",
+                "PROJECTION:StoreSemanticEnvelopeV10",
+            ]),
         ]
         return groups.reduce(into: [:]) { result, group in
             for kindID in group.1 {
@@ -355,12 +373,26 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             "PROJECTION:QualificationSnapshotV1", "PROJECTION:SignoffSnapshotV1",
             "PROJECTION:StoreSemanticEnvelopeV9",
         ])
-        guard kindIDs.count == 130,
+        let c39KindIDs = Set([
+            "PERSISTENT_MODEL:AssetKindBindingEventRow",
+            "PERSISTENT_MODEL:AssetWorkflowCapabilityBindingEventRow",
+            "PERSISTENT_MODEL:AssetProductIdentityRow",
+            "PERSISTENT_MODEL:AssetLifecycleEventRow",
+            "PERSISTENT_MODEL:AssetSuccessorLinkRow",
+            "PERSISTENT_MODEL:WorkSubjectScopeSnapshotRow",
+            "PROJECTION:AssetSemanticCatalogReleaseV1", "PROJECTION:AssetKindDefinitionV1",
+            "PROJECTION:AssetKindBindingEventV1", "PROJECTION:AssetWorkflowCapabilityBindingEventV1",
+            "PROJECTION:AssetProductIdentityV1", "PROJECTION:AssetLifecycleEventV1",
+            "PROJECTION:AssetSuccessorLinkV1", "PROJECTION:WorkSubjectScopeSnapshotV1",
+            "PROJECTION:StoreSemanticEnvelopeV10",
+        ])
+        guard kindIDs.count == 145,
               Set(kindIDs).count == kindIDs.count,
-              laterTemporalOrigins.count == 74,
+              laterTemporalOrigins.count == 89,
               c09KindIDs.isSubset(of: Set(kindIDs)),
               c12KindIDs.isSubset(of: Set(kindIDs)),
               c38KindIDs.isSubset(of: Set(kindIDs)),
+              c39KindIDs.isSubset(of: Set(kindIDs)),
               Set(laterTemporalOrigins.keys).isSubset(of: Set(kindIDs)) else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
@@ -369,11 +401,14 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 registration.subject
             ) ? registration.subject.canonicalKey : nil
         })
-        guard durableKindIDs.count == 84 else {
+        guard durableKindIDs.count == 90 else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
         let universeBytes = try CompatibilityCanonicalV1.encode(
-            kindIDs.filter { !c09KindIDs.contains($0) && !c12KindIDs.contains($0) && !c38KindIDs.contains($0) }
+            kindIDs.filter {
+                !c09KindIDs.contains($0) && !c12KindIDs.contains($0)
+                    && !c38KindIDs.contains($0) && !c39KindIDs.contains($0)
+            }
         )
         guard CompatibilityCanonicalV1.sha256(universeBytes)
                 == acceptedTemporalUniverseDigest else {

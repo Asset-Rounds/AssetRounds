@@ -128,6 +128,12 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
                   records.filter { $0.sourceKind == .party }.allSatisfy {
                       SearchAccountabilityPersistencePolicyV1.accepts(fieldID: $0.fieldID)
                   },
+                  records.filter {
+                      $0.sourceKind == .asset
+                          && SearchAssetSemanticsPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+                  }.allSatisfy {
+                      SearchAssetSemanticsPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+                  },
                   records.allSatisfy({
                       $0.workspaceID == source.workspaceID
                           && $0.sourceRevision <= source.commitRevision
@@ -323,6 +329,30 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
         let value = try projection(for: source, registry: registry)
         guard value.records.filter({ $0.sourceKind == .party }).allSatisfy({
             SearchAccountabilityPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+        }) else {
+            throw LocalSearchIndexStoreFailureV1.corruptStore
+        }
+        return value
+    }
+
+    /// Reads the additive C39 semantic projection through its explicit
+    /// allowlist. It remains disposable and source-revision bound.
+    func assetSemanticsProjection(
+        for source: SearchSourceRevisionV1,
+        registry: SearchableFieldRegistryV1
+    ) throws -> SearchIndexProjectionV1 {
+        guard registry.fields.contains(where: {
+            $0.sourceKind == .asset
+                && SearchAssetSemanticsPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+        }) else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        let value = try projection(for: source, registry: registry)
+        guard value.records.filter({
+            $0.sourceKind == .asset
+                && SearchAssetSemanticsPersistencePolicyV1.accepts(fieldID: $0.fieldID)
+        }).allSatisfy({
+            SearchAssetSemanticsPersistencePolicyV1.accepts(fieldID: $0.fieldID)
         }) else {
             throw LocalSearchIndexStoreFailureV1.corruptStore
         }

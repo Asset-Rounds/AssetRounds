@@ -29,6 +29,28 @@ enum SearchAccountabilityPersistencePolicyV1 {
     }
 }
 
+/// C39's privacy-safe semantic search projection. It stores stable semantic
+/// labels and recorded lifecycle/product states, never raw product identifier
+/// values or operational/safety/recall claims.
+enum SearchAssetSemanticsPersistencePolicyV1 {
+    static let semanticLabel = "ASSET_SEMANTICS_SEARCH_PROJECTION_V1"
+    static let sourceKind = "ASSET"
+    static let fieldIDs = [
+        "asset_semantic_kind",
+        "asset_semantic_capability",
+        "asset_lifecycle_event",
+        "asset_product_identity_state",
+        "work_subject_scope",
+    ]
+    static let excludesProductIdentifierValues = true
+    static let excludesOperationalDisposition = true
+    static let excludesSafetyAndRecallClaims = true
+
+    static func accepts(fieldID: String) -> Bool {
+        fieldIDs.contains(fieldID)
+    }
+}
+
 enum SearchPersistenceCodecV1 {
     static func encode<T: Encodable>(_ value: T) throws -> Data {
         let encoder = JSONEncoder()

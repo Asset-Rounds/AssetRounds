@@ -8,6 +8,9 @@ final class LocalChangeJournalV1 {
     static func partyAccountabilityCoverage() throws -> PartyAccountabilityJournalCoverageV1 {
         try PartyAccountabilityJournalCoverageV1()
     }
+    static func assetSemanticCoverage() throws -> AssetSemanticJournalCoverageV1 {
+        try AssetSemanticJournalCoverageV1()
+    }
     typealias ConflictPolicyResolver = (WorkspaceEntityIdentityV1, MutationPostImageV1) throws -> ConflictPolicyV1
     typealias ContentReferenceResolver = (String) throws -> ContentReferenceV1
     typealias ContentEntryResolver = (ContentReferenceV1) throws -> LocalContentStoreEntryV1
@@ -433,6 +436,7 @@ final class LocalChangeJournalV1 {
         }
         for (index, change) in batch.changes.enumerated() {
             try change.validate()
+            try Self.validateAssetSemanticChange(change)
             let disposition: MutationReplayDispositionV1
             if blocked {
                 disposition = try .init(mutationID: change.envelope.mutationID, disposition: .deferredGap, reasonCode: "PRIOR_CAUSAL_GAP")
@@ -1415,6 +1419,30 @@ final class LocalChangeJournalV1 {
     private static func isTombstone(_ value: MutationPostImageV1) -> Bool {
         if case .tombstone = value { return true }
         return false
+    }
+
+    private static func validateAssetSemanticChange(
+        _ change: JournalChangeV1
+    ) throws {
+        guard case let .applyAssetSemantics(mutation) = change.envelope.command else {
+            return
+        }
+        do {
+            try mutation.validate()
+            let identity = try mutation.affectedIdentity
+            let postImageIdentities = try change.receipt.postImages.map { try $0.identity }
+            guard change.envelope.commandKind == .applyAssetSemantics,
+                  change.envelope.mutationID == mutation.mutationID,
+                  change.receipt.mutationID == mutation.mutationID,
+                  postImageIdentities == [identity],
+                  change.entityChanges.map(\.identity) == [identity] else {
+                throw ChangeJournalFailureV1.tamperedBatch
+            }
+        } catch let failure as ChangeJournalFailureV1 {
+            throw failure
+        } catch {
+            throw ChangeJournalFailureV1.tamperedBatch
+        }
     }
 
     private static let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))

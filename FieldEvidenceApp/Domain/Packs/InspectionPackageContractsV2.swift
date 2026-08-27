@@ -513,6 +513,18 @@ enum InspectionPackageKernelDependencyBoundaryV2 {
     static let allowedFoundationDependency = "Foundation"
 }
 
+enum InspectionPackageAssetSemanticBoundaryV1 {
+    static let assetIdentityOwner = "ASSET_ID"
+    static let packageBindingChangesPhysicalIdentity = false
+    static let packageBindingChangesSite = false
+    static let packageBindingChangesPlacement = false
+    static let packageBindingChangesAssetKindImplicitly = false
+    static let multipleCompatiblePackageBindingsAllowed = true
+    static let userAuthoredSemanticKindsAllowed = false
+    static let structuralPolicyOwner = "V23-P03-C35"
+    static let functionalRelationshipPolicyOwner = "V23-P03-C41"
+}
+
 enum InspectionPackageValidationV2 {
     static func validIdentifier(_ value: String, maximumBytes: Int) -> Bool {
         value == value.lowercased()

@@ -569,7 +569,8 @@ private extension BackupPackageValidatorV1 {
             manifest.source.recordsSchemaVersion
         ) {
         case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
-             (4, 5, 4), (4, 6, 5), (4, 7, 6), (4, 8, 7), (4, 9, 8):
+             (4, 5, 4), (4, 6, 5), (4, 7, 6), (4, 8, 7), (4, 9, 8),
+             (4, 10, 9):
             schemaPairIsValid = true
         default:
             schemaPairIsValid = false
@@ -717,6 +718,7 @@ private extension BackupPackageValidatorV1 {
         try validateObservationAndTime(records)
         try validateLocationRecords(records, manifest: manifest)
         try validatePartyAccountability(records, manifest: manifest)
+        try validateAssetSemantics(records, manifest: manifest)
         let savedSmartViews: [SavedSmartViewDescriptorV1]
         do {
             savedSmartViews = try records.savedSmartViews.map { try $0.descriptor() }
@@ -727,7 +729,8 @@ private extension BackupPackageValidatorV1 {
                 ? savedSmartViews.isEmpty
                 : ((records.recordsSchemaVersion == 6
                         || records.recordsSchemaVersion == 7
-                        || records.recordsSchemaVersion == 8)
+                        || records.recordsSchemaVersion == 8
+                        || records.recordsSchemaVersion == 9)
                     && savedSmartViews.allSatisfy({
                         $0.workspaceID == manifest.source.workspaceID
                     }))) else {
@@ -777,7 +780,8 @@ private extension BackupPackageValidatorV1 {
               records.reports.allSatisfy({ $0.schemaVersion == 1 }),
               records.recordsSchemaVersion < 7
                 ? assuranceSnapshots.isEmpty
-                : ((records.recordsSchemaVersion == 7 || records.recordsSchemaVersion == 8)
+                : ((records.recordsSchemaVersion == 7 || records.recordsSchemaVersion == 8
+                        || records.recordsSchemaVersion == 9)
                     && assuranceSnapshots.allSatisfy({ snapshot in
                         snapshot.workspaceID == manifest.source.workspaceID
                             && workflow[snapshot.workflowRecordID] != nil
@@ -1068,7 +1072,7 @@ private extension BackupPackageValidatorV1 {
             }) else { throw invalid() }
             return
         }
-        guard (4...8).contains(records.recordsSchemaVersion) else { throw invalid() }
+        guard (4...9).contains(records.recordsSchemaVersion) else { throw invalid() }
         for record in records.workflowRecords {
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else {
@@ -1116,8 +1120,9 @@ private extension BackupPackageValidatorV1 {
             guard records.partyAccountability.isEmpty else { throw invalid() }
             return
         }
-        guard records.recordsSchemaVersion == 8,
-              manifest.source.persistentSchemaVersion == 9,
+        guard (8...9).contains(records.recordsSchemaVersion),
+              (manifest.source.persistentSchemaVersion == 9
+                || manifest.source.persistentSchemaVersion == 10),
               let workspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.partyAccountability.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
@@ -1189,6 +1194,208 @@ private extension BackupPackageValidatorV1 {
         } catch { throw invalid() }
     }
 
+    func validateAssetSemantics(
+        _ records: V4BackupRecordsV1,
+        manifest: V4BackupManifestV1
+    ) throws {
+        guard records.recordsSchemaVersion >= 9 else {
+            guard records.assetSemantics.isEmpty else { throw invalid() }
+            return
+        }
+        guard records.recordsSchemaVersion == 9,
+              manifest.source.persistentSchemaVersion == 10,
+              let sourceWorkspaceID = manifest.source.workspaceID else { throw invalid() }
+        let keys = records.assetSemantics.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
+        guard keys == keys.sorted(), Set(keys).count == keys.count,
+              records.assetSemantics.allSatisfy({
+                  $0.workspaceID == sourceWorkspaceID && $0.revision > 0
+                      && $0.revision <= UInt64(Int64.max) && !$0.canonicalData.isEmpty
+              }) else { throw invalid() }
+        do {
+            var kinds: [UUID: AssetKindBindingEventV1] = [:]
+            var workflowBindings: [UUID: AssetWorkflowCapabilityBindingEventV1] = [:]
+            var identities: [UUID: AssetProductIdentityV1] = [:]
+            var lifecycle: [UUID: AssetLifecycleEventV1] = [:]
+            var successors: [UUID: AssetSuccessorLinkV1] = [:]
+            var scopes: [UUID: WorkSubjectScopeSnapshotV1] = [:]
+            for row in records.assetSemantics {
+                switch row.kind {
+                case .kindBindingEvent:
+                    let value = try AssetSemanticCanonicalCodecV1.decode(
+                        AssetKindBindingEventV1.self, from: row.canonicalData
+                    )
+                    try value.validate()
+                    guard value.eventID == row.id,
+                          value.workspaceID.rawValue == row.workspaceID,
+                          value.revision == row.revision,
+                          kinds.updateValue(value, forKey: value.eventID) == nil else { throw invalid() }
+                case .workflowCapabilityBindingEvent:
+                    let value = try AssetSemanticCanonicalCodecV1.decode(
+                        AssetWorkflowCapabilityBindingEventV1.self, from: row.canonicalData
+                    )
+                    try value.validate()
+                    guard value.eventID == row.id,
+                          value.workspaceID.rawValue == row.workspaceID,
+                          value.revision == row.revision,
+                          workflowBindings.updateValue(value, forKey: value.eventID) == nil else { throw invalid() }
+                case .productIdentity:
+                    let value = try AssetSemanticCanonicalCodecV1.decode(
+                        AssetProductIdentityV1.self, from: row.canonicalData
+                    )
+                    try value.validate()
+                    guard value.identityID == row.id,
+                          value.workspaceID.rawValue == row.workspaceID,
+                          value.revision == row.revision,
+                          identities.updateValue(value, forKey: value.identityID) == nil else { throw invalid() }
+                case .lifecycleEvent:
+                    let value = try AssetSemanticCanonicalCodecV1.decode(
+                        AssetLifecycleEventV1.self, from: row.canonicalData
+                    )
+                    try value.validate()
+                    guard value.record.eventID == row.id,
+                          value.record.workspaceID.rawValue == row.workspaceID,
+                          value.record.revision == row.revision,
+                          lifecycle.updateValue(value, forKey: value.record.eventID) == nil else { throw invalid() }
+                case .successorLink:
+                    let value = try AssetSemanticCanonicalCodecV1.decode(
+                        AssetSuccessorLinkV1.self, from: row.canonicalData
+                    )
+                    try value.validate()
+                    guard value.linkID == row.id,
+                          value.workspaceID.rawValue == row.workspaceID,
+                          value.revision == row.revision,
+                          successors.updateValue(value, forKey: value.linkID) == nil else { throw invalid() }
+                case .workSubjectScopeSnapshot:
+                    let value = try AssetSemanticCanonicalCodecV1.decode(
+                        WorkSubjectScopeSnapshotV1.self, from: row.canonicalData
+                    )
+                    try value.validate()
+                    guard value.snapshotID == row.id,
+                          value.workspaceID.rawValue == row.workspaceID,
+                          value.workspaceRevision == row.revision,
+                          scopes.updateValue(value, forKey: value.snapshotID) == nil else { throw invalid() }
+                }
+            }
+            let deletionEntries = records.deletionLedger?.entries ?? []
+            let deletedAssetIDs = Set(deletionEntries.compactMap {
+                $0.identity.kind == .asset ? $0.identity.id : nil
+            })
+            let deletedSiteIDs = Set(deletionEntries.compactMap {
+                $0.identity.kind == .site ? $0.identity.id : nil
+            })
+            let assetIDs = Set(records.assets.map(\.id)).union(deletedAssetIDs)
+            let siteIDs = Set(records.sites.map(\.id)).union(deletedSiteIDs)
+            let locationIDs = Set(records.locationNodes.map(\.id))
+            let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+            let declaredReleases = Set(try manifest.packs.map {
+                try releaseIdentity(packageID: $0.id, schemaVersion: $0.schemaVersion,
+                                    contentVersion: $0.contentVersion)
+            })
+            guard kinds.values.allSatisfy({ value in
+                      assetIDs.contains(value.assetID)
+                        && declaredReleases.contains(value.catalogRelease.packageRelease)
+                        && (value.predecessorEventID.map { predecessorID in
+                            guard let predecessor = kinds[predecessorID] else { return false }
+                            return predecessor.assetID == value.assetID
+                                && predecessor.workspaceID == value.workspaceID
+                                && predecessor.revision < value.revision
+                        } ?? true)
+                  }),
+                  workflowBindings.values.allSatisfy({ value in
+                      guard assetIDs.contains(value.assetID),
+                            let kind = kinds[value.kindBindingEventID] else { return false }
+                      return kind.assetID == value.assetID
+                        && kind.workspaceID == value.workspaceID
+                        && kind.revision == value.kindBindingRevision
+                        && declaredReleases.contains(value.workflowPackageRelease)
+                        && (value.predecessorEventID.map { predecessorID in
+                            guard let predecessor = workflowBindings[predecessorID] else { return false }
+                            return predecessor.assetID == value.assetID
+                                && predecessor.workspaceID == value.workspaceID
+                                && predecessor.revision < value.revision
+                        } ?? true)
+                  }),
+                  identities.values.allSatisfy({ value in
+                      assetIDs.contains(value.assetID)
+                        && (value.predecessorIdentityID.map { predecessorID in
+                            guard let predecessor = identities[predecessorID] else { return false }
+                            return predecessor.assetID == value.assetID
+                                && predecessor.workspaceID == value.workspaceID
+                                && predecessor.revision < value.revision
+                        } ?? true)
+                  }),
+                  successors.values.allSatisfy({ value in
+                      assetIDs.contains(value.predecessorAssetID)
+                        && assetIDs.contains(value.successorAssetID)
+                        && (value.predecessorLinkID.map { predecessorID in
+                            guard let predecessor = successors[predecessorID] else { return false }
+                            return predecessor.workspaceID == value.workspaceID
+                                && predecessor.revision < value.revision
+                        } ?? true)
+                  }) else { throw invalid() }
+            try AssetSuccessorLinkV1.validateAcyclic(Array(successors.values))
+            for value in lifecycle.values {
+                let record = value.record
+                guard assetIDs.contains(record.assetID),
+                      record.predecessorEventID.map({ predecessorID in
+                          guard let predecessor = lifecycle[predecessorID] else { return false }
+                          return predecessor.record.assetID == record.assetID
+                            && predecessor.record.workspaceID == record.workspaceID
+                            && predecessor.record.revision < record.revision
+                      }) ?? true else { throw invalid() }
+                if value.kind == .classificationChangedRecorded {
+                    guard let id = record.kindBindingEventID, let kind = kinds[id] else { throw invalid() }
+                    try value.validateAtomicReference(kindBinding: kind)
+                } else if value.kind == .replacedRecorded {
+                    guard let id = record.successorLinkID, let link = successors[id] else { throw invalid() }
+                    try value.validateAtomicReference(successorLink: link)
+                }
+            }
+            for value in scopes.values {
+                guard siteIDs.contains(value.siteID), value.subjects.allSatisfy({ subject in
+                    switch subject.kind {
+                    case .site: return subject.subjectID == value.siteID && siteIDs.contains(subject.subjectID)
+                    case .locationNode: return locationIDs.contains(subject.subjectID)
+                    case .asset: return assetIDs.contains(subject.subjectID)
+                    case .compositionComponent:
+                        return subject.subjectID != zero
+                            && subject.ownerAssetID.map(assetIDs.contains) == true
+                    case .functionalRelationship:
+                        guard subject.ownerAssetID == nil,
+                              let relationship = subject.functionalRelationship,
+                              relationship.relationshipID == subject.subjectID,
+                              relationship.relationshipRevision == subject.revision,
+                              relationship.descriptorReleaseID != zero,
+                              relationship.descriptorReleaseRevision > 0,
+                              AssetSemanticValidationV1.validPackageRelease(
+                                  relationship.packageRelease
+                              ),
+                              AssetSemanticValidationV1.validPackageRelease(
+                                  relationship.semanticCatalogRelease.packageRelease
+                              ),
+                              (try? relationship.semanticCatalogRelease.validate()) != nil,
+                              AssetSemanticValidationV1.validIdentifier(
+                                  relationship.semanticID, maximumBytes: 160
+                              ),
+                              declaredReleases.contains(relationship.packageRelease),
+                              declaredReleases.contains(
+                                  relationship.semanticCatalogRelease.packageRelease
+                              ) else { return false }
+                        return true
+                    }
+                }), value.semanticBindings.allSatisfy({ binding in
+                    guard assetIDs.contains(binding.assetID),
+                          let kind = kinds[binding.kindBindingEventID] else { return false }
+                    return kind.assetID == binding.assetID
+                        && kind.revision == binding.kindBindingRevision
+                        && kind.catalogRelease == binding.catalogRelease
+                        && kind.semanticID == binding.semanticID
+                        && binding.workflowPackageReleases.allSatisfy(declaredReleases.contains)
+                }) else { throw invalid() }
+            }
+        } catch { throw invalid() }
+    }
+
     func validateLocationRecords(
         _ records: V4BackupRecordsV1,
         manifest: V4BackupManifestV1
@@ -1210,7 +1417,9 @@ private extension BackupPackageValidatorV1 {
                 || (records.recordsSchemaVersion == 7
                     && manifest.source.persistentSchemaVersion == 8)
                 || (records.recordsSchemaVersion == 8
-                    && manifest.source.persistentSchemaVersion == 9)),
+                    && manifest.source.persistentSchemaVersion == 9)
+                || (records.recordsSchemaVersion == 9
+                    && manifest.source.persistentSchemaVersion == 10)),
               let sourceWorkspaceID = manifest.source.workspaceID else {
             throw invalid()
         }
@@ -1373,7 +1582,9 @@ private extension BackupPackageValidatorV1 {
         case (2, let value?, nil):
             ledger = value
         case (3, let value?, let history?), (4, let value?, let history?),
-             (5, let value?, let history?), (6, let value?, let history?):
+             (5, let value?, let history?), (6, let value?, let history?),
+             (7, let value?, let history?), (8, let value?, let history?),
+             (9, let value?, let history?):
             ledger = value
             do { try MutationJournalStoreV1.validateImportedSnapshot(history) }
             catch { throw invalid() }

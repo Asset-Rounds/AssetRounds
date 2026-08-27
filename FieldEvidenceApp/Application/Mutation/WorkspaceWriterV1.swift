@@ -464,6 +464,24 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
                   value.mutationID.map({ $0 == request.mutationID }) ?? true else {
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
+        case .applyAssetSemantics(let value):
+            do {
+                try value.validate()
+                let target = try value.affectedIdentity
+                let expectedEntityRevision = request.expectedRevision.entityRevisions
+                    .first(where: { $0.identity == target })?.revision
+                guard value.workspaceID == identity.workspaceID,
+                      value.mutationID == request.mutationID,
+                      sourceKind == .importedHistory
+                          || occurredAtOverride != nil
+                          || expectedEntityRevision == value.expectedAssetRevision else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } catch let failure as WorkspaceMutationFailureV1 {
+                throw failure
+            } catch {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
         default:
             break
         }
@@ -1074,6 +1092,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1 {
                 id: value.snapshot.workflowRecordID
             )]
         case let .applyPartyAccountability(value):
+            try value.validate()
+            values = [try value.affectedIdentity]
+        case let .applyAssetSemantics(value):
             try value.validate()
             values = [try value.affectedIdentity]
         }

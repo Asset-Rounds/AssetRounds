@@ -737,7 +737,8 @@ struct StoreMigrationJournalV1: Codable, Equatable, Sendable {
                 || (sourceRelease == .v5 && targetRelease == .v6)
                 || (sourceRelease == .v6 && targetRelease == .v7)
                 || (sourceRelease == .v7 && targetRelease == .v8)
-                || (sourceRelease == .v8 && targetRelease == .v9)) else {
+                || (sourceRelease == .v8 && targetRelease == .v9)
+                || (sourceRelease == .v9 && targetRelease == .v10)) else {
             throw StoreMigrationFailure.invalidContract
         }
 

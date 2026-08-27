@@ -138,3 +138,42 @@ enum InspectionPackageRegistryPublisherV2 {
         return (registry, receipt)
     }
 }
+
+/// Admission only. Structural composition remains owned by P03-C35 and
+/// functional relationship policy remains owned by P03-C41.
+enum AssetSemanticPackageCompatibilityRegistryV1 {
+    static func validate(
+        kindBinding: AssetKindBindingEventV1,
+        catalog: AssetSemanticCatalogReleaseV1,
+        workflowBinding: AssetWorkflowCapabilityBindingEventV1
+    ) throws {
+        try kindBinding.validate(against: catalog)
+        try workflowBinding.validate()
+        let definition = try catalog.definition(semanticID: kindBinding.semanticID)
+        let compatibleReleases = Set(
+            [catalog.packageRelease] + definition.compatibleWorkflowPackageReleases
+        )
+        guard workflowBinding.workspaceID == kindBinding.workspaceID,
+              workflowBinding.assetID == kindBinding.assetID,
+              workflowBinding.kindBindingEventID == kindBinding.eventID,
+              workflowBinding.kindBindingRevision == kindBinding.revision,
+              compatibleReleases.contains(workflowBinding.workflowPackageRelease),
+              Set(workflowBinding.capabilityIDs).isSubset(of: Set(definition.capabilityIDs)) else {
+            throw AssetSemanticContractFailureV1.incompatibleRelease
+        }
+    }
+
+    static func validateMultiplePackageBindings(
+        _ bindings: [AssetWorkflowCapabilityBindingEventV1],
+        kindBinding: AssetKindBindingEventV1,
+        catalog: AssetSemanticCatalogReleaseV1
+    ) throws {
+        guard bindings.count <= InspectionPackageRegistrySchemaV2.maximumPackageCount,
+              Set(bindings.map(\.eventID)).count == bindings.count else {
+            throw AssetSemanticContractFailureV1.duplicateValue
+        }
+        try bindings.forEach {
+            try validate(kindBinding: kindBinding, catalog: catalog, workflowBinding: $0)
+        }
+    }
+}

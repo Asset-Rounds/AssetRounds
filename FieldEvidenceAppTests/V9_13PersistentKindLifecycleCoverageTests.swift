@@ -7,6 +7,33 @@ import XCTest
 final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
     private let candidateHead = "c5aaa2a6b6f4a1c900e5743648b66252d19f5ef7"
 
+    func testV23P03C39LifecycleKindUniverseIsClosedAndAppendOnly() throws {
+        XCTAssertEqual(
+            AssetLifecycleEventKindV1.allCases.map(\.rawValue),
+            [
+                "COMMISSIONING_NOT_RECORDED", "ACTIVE_RECORDED", "RETIRED_RECORDED",
+                "REPLACED_RECORDED", "CLASSIFICATION_CHANGED_RECORDED"
+            ]
+        )
+        let mutationID = try MutationIDV1(rawValue: UUID())
+        let event = AssetLifecycleEventV1.retiredRecorded(
+            AssetLifecycleEventRecordV1(
+                eventID: UUID(),
+                workspaceID: WorkspaceID(),
+                assetID: UUID(),
+                predecessorEventID: nil,
+                revision: 1,
+                mutationID: mutationID,
+                recordedAt: Date(timeIntervalSince1970: 1_735_689_600),
+                kindBindingEventID: nil,
+                successorLinkID: nil,
+                eventSHA256: String(repeating: "a", count: 64)
+            )
+        )
+        try event.validate()
+        XCTAssertEqual(event.kind, .retiredRecorded)
+    }
+
     func testV9_13G01ClosedUniverseAndCoverageManifestAreComplete() throws {
         let corpus = try Self.loadCorpus()
         let source = try CurrentSyncClassificationCatalogV1.current

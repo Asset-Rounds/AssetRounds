@@ -433,6 +433,108 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
         XCTAssertFalse(appSource.contains("accessibilityIdentifier(\"party.email\")"))
     }
 
+    func testV23P03C39TypedSemanticLocalizationAndAccessibilitySurfaceIsEnglishOnly() throws {
+        let registry = try BundledLocalizationCatalogV1.assetSemanticRegistry()
+        try registry.validate()
+
+        let expectedKeys = Set(AssetSemanticLocalizationKeyV1.allCases.map(\.rawValue))
+        let registeredKeys = Set(registry.definitions.map { $0.key.rawValue })
+        XCTAssertTrue(expectedKeys.isSubset(of: registeredKeys))
+        XCTAssertEqual(
+            Set(AssetSemanticLocalizationPolicyV1.keys),
+            expectedKeys
+        )
+        XCTAssertEqual(AssetSemanticLocalizationPolicyV1.sourceLocale, "en")
+        XCTAssertEqual(AssetSemanticLocalizationPolicyV1.shippingLocale, "en")
+        XCTAssertEqual(AssetSemanticLocalizationPolicyV1.metadataLocale, "en-US")
+        XCTAssertTrue(AssetSemanticLocalizationPolicyV1.excludesOperationalDisposition)
+        XCTAssertTrue(AssetSemanticLocalizationPolicyV1.excludesIdentityClaims)
+        XCTAssertTrue(AssetSemanticLocalizationPolicyV1.progressivelyDisclosedProductIdentity)
+        XCTAssertEqual(
+            Set(AssetSemanticLocalizationPolicyV1.testOnlyLocales),
+            Set(TestOnlyPseudoLocaleV1.allCases.map(\.rawValue))
+        )
+
+        let accessibility = try BundledLocalizationCatalogV1
+            .assetSemanticAccessibilityRegistry(localization: registry)
+        XCTAssertEqual(
+            Set(accessibility.entries.map(\.semanticID)),
+            Set(AssetSemanticAccessibilityIDV1.allCases.map(\.rawValue))
+        )
+        XCTAssertEqual(
+            Set(AssetSemanticLocalizationPolicyV1.semanticIDs),
+            Set(accessibility.entries.map(\.semanticID))
+        )
+        XCTAssertTrue(accessibility.entries.allSatisfy {
+            $0.dynamicSuffixPolicy == .none && $0.deprecatedAliases.isEmpty
+        })
+        XCTAssertTrue(accessibility.entries.contains {
+            $0.semanticID == AssetSemanticAccessibilityIDV1.unknownState.rawValue
+                && $0.role == .status
+        })
+        XCTAssertTrue(accessibility.entries.contains {
+            $0.semanticID == AssetSemanticAccessibilityIDV1.duplicateState.rawValue
+                && $0.role == .status
+        })
+        XCTAssertTrue(accessibility.entries.contains {
+            $0.semanticID == AssetSemanticAccessibilityIDV1.retiredState.rawValue
+                && $0.role == .status
+        })
+        XCTAssertTrue(accessibility.entries.contains {
+            $0.semanticID == AssetSemanticAccessibilityIDV1.replacedState.rawValue
+                && $0.role == .status
+        })
+        for semanticID in AssetSemanticAccessibilityIDV1.allCases {
+            XCTAssertEqual(
+                try accessibility.identifier(semanticID: semanticID.rawValue),
+                semanticID.rawValue
+            )
+        }
+
+        let source = try JSONSerialization.jsonObject(
+            with: sourceCatalogData()
+        ) as? [String: Any]
+        let strings = try XCTUnwrap(source?["strings"] as? [String: Any])
+        for key in AssetSemanticLocalizationKeyV1.allCases {
+            let entry = try XCTUnwrap(strings[key.rawValue] as? [String: Any])
+            XCTAssertFalse((entry["comment"] as? String ?? "").isEmpty)
+            let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            XCTAssertEqual(Set(localizations.keys), Set(["en"]))
+            let english = try XCTUnwrap(localizations["en"] as? [String: Any])
+            let unit = try XCTUnwrap(english["stringUnit"] as? [String: Any])
+            XCTAssertFalse((unit["value"] as? String ?? "").isEmpty)
+            let bundledKey = try XCTUnwrap(
+                BundledLocalizationKeyV1(rawValue: key.rawValue)
+            )
+            XCTAssertEqual(
+                BundledLocalizationCatalogV1.localized(bundledKey),
+                try XCTUnwrap(unit["value"] as? String)
+            )
+        }
+
+        let hostile = AccessibilityContractV1(
+            semanticID: AssetSemanticAccessibilityIDV1.heading.rawValue,
+            role: .heading,
+            reachability: .always,
+            labelKey: AssetSemanticLocalizationKeyV1.heading.localizationKey,
+            hintKey: nil,
+            valueKey: nil,
+            dynamicSuffixPolicy: .none,
+            deprecatedAliases: []
+        )
+        XCTAssertThrowsError(
+            try SemanticAccessibilityIDRegistryV1(
+                entries: accessibility.entries + [hostile],
+                localization: registry
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? LocalizationContractFailureV1,
+                .duplicateSemanticID
+            )
+        }
+    }
+
     private func corpus() throws -> Corpus {
         try JSONDecoder().decode(Corpus.self, from: Data(contentsOf: try fixtureURL()))
     }

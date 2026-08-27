@@ -4,6 +4,37 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V10_03ReplicationConflictRegistryTests: XCTestCase {
+    func testV23P03C39SuccessorConflictIsRejectedBeforeReplication() throws {
+        let workspaceID = WorkspaceID()
+        let mutationID = try MutationIDV1(rawValue: UUID())
+        let predecessor = UUID(uuidString: "00000000-0000-0000-0000-000000002201")!
+        let first = AssetSuccessorLinkV1(
+            linkID: UUID(uuidString: "00000000-0000-0000-0000-000000002202")!,
+            workspaceID: workspaceID,
+            predecessorAssetID: predecessor,
+            successorAssetID: UUID(uuidString: "00000000-0000-0000-0000-000000002203")!,
+            predecessorLinkID: nil,
+            revision: 1,
+            mutationID: mutationID,
+            recordedAt: Date(timeIntervalSince1970: 1_735_689_600),
+            linkSHA256: String(repeating: "a", count: 64)
+        )
+        let conflicting = AssetSuccessorLinkV1(
+            linkID: UUID(uuidString: "00000000-0000-0000-0000-000000002204")!,
+            workspaceID: workspaceID,
+            predecessorAssetID: predecessor,
+            successorAssetID: UUID(uuidString: "00000000-0000-0000-0000-000000002205")!,
+            predecessorLinkID: first.linkID,
+            revision: 2,
+            mutationID: mutationID,
+            recordedAt: Date(timeIntervalSince1970: 1_735_689_600),
+            linkSHA256: String(repeating: "a", count: 64)
+        )
+        XCTAssertThrowsError(try AssetSuccessorLinkV1.validateAcyclic([first, conflicting])) { error in
+            XCTAssertEqual(error as? AssetSemanticContractFailureV1, .duplicateValue)
+        }
+    }
+
     func testV10_03G01CatalogCompletenessAndLifecycleRouting() throws {
         let fixture = try Self.loadFixture()
         XCTAssertEqual(fixture.schemaVersion, 1)

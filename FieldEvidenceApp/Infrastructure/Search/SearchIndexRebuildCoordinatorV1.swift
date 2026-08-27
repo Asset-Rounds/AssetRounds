@@ -76,6 +76,13 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         /// Role history is intentionally a bounded, non-contact summary.  It
         /// is only populated for the additive C38 party projection.
         let roleSummary: String = ""
+        /// C39 fields contain stable semantic labels and recorded states only;
+        /// raw product identifier values never enter the disposable index.
+        let semanticKindSummary: String = ""
+        let semanticCapabilitySummary: String = ""
+        let lifecycleEventSummary: String = ""
+        let productIdentityStateSummary: String = ""
+        let workSubjectScopeSummary: String = ""
     }
 
     let registry: SearchableFieldRegistryV1
@@ -85,6 +92,7 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
     private let revisionProvider: @MainActor () throws -> SearchSourceRevisionV1
     private let operationalStatusProvider: (any SearchOperationalStatusProvidingV1)?
     private let includeAccountability: Bool
+    private let includeAssetSemantics: Bool
     private var snapshotRevision: SearchSourceRevisionV1?
     private var snapshotValues: [CanonicalValue]?
     private var snapshotBackupStaleIdentities: Set<SearchCanonicalRecordIdentityV1> = []
@@ -95,7 +103,8 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         generationID: UUID,
         revisionProvider: @escaping @MainActor () throws -> SearchSourceRevisionV1,
         operationalStatusProvider: (any SearchOperationalStatusProvidingV1)? = nil,
-        includeAccountability: Bool = false
+        includeAccountability: Bool = false,
+        includeAssetSemantics: Bool = false
     ) throws {
         guard workspaceID != SearchContractValidationV1.zeroUUID,
               generationID != SearchContractValidationV1.zeroUUID else {
@@ -107,7 +116,12 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchCanonicalProjectio
         self.revisionProvider = revisionProvider
         self.operationalStatusProvider = operationalStatusProvider
         self.includeAccountability = includeAccountability
-        if includeAccountability {
+        self.includeAssetSemantics = includeAssetSemantics
+        if includeAssetSemantics {
+            registry = try Self.makeAssetSemanticsRegistry(
+                includeAccountability: includeAccountability
+            )
+        } else if includeAccountability {
             registry = try Self.makeAccountabilityRegistry()
         } else {
             registry = try Self.makeRegistry()
@@ -185,10 +199,19 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
     func canonicalValues(at source: SearchSourceRevisionV1) async throws -> [CanonicalValue] {
         if snapshotRevision == source, let snapshotValues { return snapshotValues }
         var values: [CanonicalValue] = []
+        let semanticByAsset = includeAssetSemantics
+            ? try assetSemanticSearchValues()
+            : [:]
         values += try modelContext.fetch(FetchDescriptor<Asset>()).map {
-            CanonicalValue(kind: .asset, stableID: try stableKey(kind: .asset, id: $0.id),
+            let semantic = semanticByAsset[$0.id]
+            return CanonicalValue(kind: .asset, stableID: try stableKey(kind: .asset, id: $0.id),
                 display: $0.label, summary: $0.label, breadcrumb: [], status: "active",
-                dueAt: nil, timestamp: $0.updatedAt)
+                dueAt: nil, timestamp: $0.updatedAt,
+                semanticKindSummary: semantic?.kind ?? "",
+                semanticCapabilitySummary: semantic?.capability ?? "",
+                lifecycleEventSummary: semantic?.lifecycle ?? "",
+                productIdentityStateSummary: semantic?.productState ?? "",
+                workSubjectScopeSummary: semantic?.scope ?? "")
         }
         values += try modelContext.fetch(FetchDescriptor<Site>()).map {
             CanonicalValue(kind: .location, stableID: try stableKey(kind: .site, id: $0.id),
@@ -281,6 +304,69 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         return values
     }
 
+    private struct AssetSemanticSearchValue {
+        var kinds: Set<String> = []
+        var capabilities: Set<String> = []
+        var lifecycleEvents: Set<String> = []
+        var productStates: Set<String> = []
+        var scopes: Set<String> = []
+
+        var kind: String { kinds.sorted().joined(separator: " ") }
+        var capability: String { capabilities.sorted().joined(separator: " ") }
+        var lifecycle: String { lifecycleEvents.sorted().joined(separator: " ") }
+        var productState: String { productStates.sorted().joined(separator: " ") }
+        var scope: String { scopes.sorted().joined(separator: " ") }
+    }
+
+    func assetSemanticSearchValues() throws -> [UUID: AssetSemanticSearchValue] {
+        var result: [UUID: AssetSemanticSearchValue] = [:]
+        for row in try modelContext.fetch(FetchDescriptor<AssetKindBindingEventRow>())
+            where row.workspaceID == workspaceID {
+            let value = try row.value()
+            var entry = result[value.assetID] ?? AssetSemanticSearchValue()
+            entry.kinds.insert(value.semanticID)
+            result[value.assetID] = entry
+        }
+        for row in try modelContext.fetch(FetchDescriptor<AssetWorkflowCapabilityBindingEventRow>())
+            where row.workspaceID == workspaceID {
+            let value = try row.value()
+            var entry = result[value.assetID] ?? AssetSemanticSearchValue()
+            entry.capabilities.formUnion(value.capabilityIDs.map(\.rawValue))
+            result[value.assetID] = entry
+        }
+        for row in try modelContext.fetch(FetchDescriptor<AssetProductIdentityRow>())
+            where row.workspaceID == workspaceID {
+            let value = try row.value()
+            var entry = result[value.assetID] ?? AssetSemanticSearchValue()
+            entry.productStates.formUnion(value.identifiers.map { $0.reviewState.rawValue })
+            result[value.assetID] = entry
+        }
+        for row in try modelContext.fetch(FetchDescriptor<AssetLifecycleEventRow>())
+            where row.workspaceID == workspaceID {
+            let value = try row.value()
+            var entry = result[value.record.assetID] ?? AssetSemanticSearchValue()
+            entry.lifecycleEvents.insert(value.kind.rawValue)
+            result[value.record.assetID] = entry
+        }
+        for row in try modelContext.fetch(FetchDescriptor<WorkSubjectScopeSnapshotRow>())
+            where row.workspaceID == workspaceID {
+            let value = try row.value()
+            for subject in value.subjects {
+                let assetID = subject.kind == .asset ? subject.subjectID : subject.ownerAssetID
+                guard let assetID else { continue }
+                var entry = result[assetID] ?? AssetSemanticSearchValue()
+                entry.scopes.insert(subject.kind.rawValue)
+                result[assetID] = entry
+            }
+            for semanticBinding in value.semanticBindings {
+                var entry = result[semanticBinding.assetID] ?? AssetSemanticSearchValue()
+                entry.kinds.insert(semanticBinding.semanticID)
+                result[semanticBinding.assetID] = entry
+            }
+        }
+        return result
+    }
+
     func stableKey(kind: WorkspaceEntityKindV1, id: UUID) throws -> String {
         try WorkspaceEntityIdentityV1(kind: kind, id: id).stableKey
     }
@@ -289,11 +375,20 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
         _ value: CanonicalValue,
         source: SearchSourceRevisionV1
     ) throws -> [SearchIndexProjectionRecordV1] {
-        let fields: [(String, String)]
+        var fields: [(String, String)]
         switch value.kind {
         case .asset:
             fields = [("asset_identifier", value.stableID), ("asset_label", value.display),
                       ("status", value.status)]
+            if includeAssetSemantics {
+                fields += [
+                    ("asset_semantic_kind", value.semanticKindSummary),
+                    ("asset_semantic_capability", value.semanticCapabilitySummary),
+                    ("asset_lifecycle_event", value.lifecycleEventSummary),
+                    ("asset_product_identity_state", value.productIdentityStateSummary),
+                    ("work_subject_scope", value.workSubjectScopeSummary),
+                ].filter { !$0.1.isEmpty }
+            }
         case .location:
             fields = [("location_identifier", value.stableID), ("location_label", value.display),
                       ("location_breadcrumb", value.breadcrumb.joined(separator: " ")),
@@ -616,7 +711,8 @@ struct ProductionSearchServicesV1 {
         generationID: UUID,
         revisionProvider: @escaping @MainActor () throws -> SearchSourceRevisionV1,
         operationalStatusProvider: (any SearchOperationalStatusProvidingV1)? = nil,
-        includeAccountability: Bool = false
+        includeAccountability: Bool = false,
+        includeAssetSemantics: Bool = true
     ) throws {
         let source = try SwiftDataSearchCanonicalProjectionSourceV1(
             modelContext: modelContext,
@@ -624,7 +720,8 @@ struct ProductionSearchServicesV1 {
             generationID: generationID,
             revisionProvider: revisionProvider,
             operationalStatusProvider: operationalStatusProvider,
-            includeAccountability: includeAccountability
+            includeAccountability: includeAccountability,
+            includeAssetSemantics: includeAssetSemantics
         )
         self.source = source
         registry = source.registry

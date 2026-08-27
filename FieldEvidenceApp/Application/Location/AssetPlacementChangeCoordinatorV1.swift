@@ -127,6 +127,43 @@ final class AssetPlacementChangeCoordinatorV1 {
         guard let durable = try writer.durableReceipt(mutationID: plan.mutationID) else { throw WorkspaceMutationFailureV1.invalidReceipt }
         return durable
     }
+
+    /// Read-only cross-check used before a completed activity freezes its
+    /// subject scope. It never expands C35 composition policy or creates a
+    /// functional relationship owned by C41.
+    func validateFrozenWorkSubjectScope(
+        _ snapshot: WorkSubjectScopeSnapshotV1,
+        placementTips: [AssetPlacementEventV1],
+        activeCompositionEdges: [AssetCompositionEdgeV1]
+    ) throws {
+        try snapshot.validate()
+        try placementTips.forEach { try $0.validate() }
+        try activeCompositionEdges.forEach { try $0.validate() }
+        guard placementTips.allSatisfy({
+            $0.workspaceID == snapshot.workspaceID && $0.siteID == snapshot.siteID
+        }),
+        activeCompositionEdges.allSatisfy({
+            $0.workspaceID == snapshot.workspaceID && $0.isActive
+        }) else {
+            throw LocationContractFailureV1.invalidValue
+        }
+        let expectedAssetSubjects = try Set(placementTips.map {
+            try $0.frozenAssetWorkSubjectReference().subjectID
+        })
+        let observedAssetSubjects = Set(snapshot.subjects.filter {
+            $0.kind == .asset
+        }.map(\.subjectID))
+        let expectedComponentSubjects = try Set(activeCompositionEdges.map {
+            try $0.frozenWorkSubjectReference().subjectID
+        })
+        let observedComponentSubjects = Set(snapshot.subjects.filter {
+            $0.kind == .compositionComponent
+        }.map(\.subjectID))
+        guard observedAssetSubjects.isSubset(of: expectedAssetSubjects),
+              observedComponentSubjects.isSubset(of: expectedComponentSubjects) else {
+            throw LocationContractFailureV1.invalidValue
+        }
+    }
 }
 
 private extension WorkspaceExpectedRevisionV1 {

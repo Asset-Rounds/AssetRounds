@@ -6,6 +6,28 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
+    func testV23P03C39ReleaseReferenceCanonicalReceiptIsStable() throws {
+        let reference = AssetSemanticCatalogReleaseReferenceV1(
+            releaseID: UUID(uuidString: "00000000-0000-0000-0000-000000002101")!,
+            packageRelease: try PackageReleaseIdentityV1(
+                packageID: "com.field-evidence.c39",
+                schemaVersion: 1,
+                contentVersion: 1
+            ),
+            catalogSHA256: String(repeating: "a", count: 64)
+        )
+        try reference.validate()
+        let first = try AssetSemanticCanonicalCodecV1.encode(reference)
+        XCTAssertEqual(first, try AssetSemanticCanonicalCodecV1.encode(reference))
+        XCTAssertEqual(
+            try AssetSemanticCanonicalCodecV1.decode(
+                AssetSemanticCatalogReleaseReferenceV1.self,
+                from: first
+            ),
+            reference
+        )
+    }
+
     @MainActor
     func testV10_02G01CanonicalEnvelopeReceiptBytesAndAtomicCommit() throws {
         let corpus = try Self.loadCorpus()

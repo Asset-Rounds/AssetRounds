@@ -5,6 +5,31 @@ import XCTest
 
 @MainActor
 final class V9_03MigrationRecoveryTests: XCTestCase {
+    func testV23P03C39RecoveryRejectsNonCanonicalSemanticPayload() throws {
+        let source = try AssetSemanticCanonicalCodecV1.encode(
+            AssetSemanticCompatibilityPolicyV1.sameSemanticIDSuccessor
+        )
+        XCTAssertEqual(
+            try AssetSemanticCanonicalCodecV1.decode(
+                AssetSemanticCompatibilityPolicyV1.self,
+                from: source
+            ),
+            .sameSemanticIDSuccessor
+        )
+        var altered = source
+        altered.append(0x20)
+        XCTAssertThrowsError(
+            try AssetSemanticCanonicalCodecV1.decode(
+                AssetSemanticCompatibilityPolicyV1.self,
+                from: altered
+            )
+        ) { error in
+            XCTAssertEqual(error as? AssetSemanticContractFailureV1, .nonCanonicalData)
+        }
+        XCTAssertFalse(AssetSemanticValidationV1.validIdentifier("ASSET.KIND", maximumBytes: 160))
+        XCTAssertFalse(AssetSemanticValidationV1.validText("  unknown  ", maximumCharacters: 32))
+    }
+
     private let fileManager = FileManager.default
 
     private struct LegacyFixture {

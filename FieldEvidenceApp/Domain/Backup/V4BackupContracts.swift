@@ -116,6 +116,23 @@ struct V9BackupPartyAccountabilityRecordV1: Codable, Equatable, Sendable {
     let canonicalData: Data
 }
 
+struct V10BackupAssetSemanticRecordV1: Codable, Equatable, Sendable {
+    enum Kind: String, Codable, CaseIterable, Sendable {
+        case kindBindingEvent = "ASSET_KIND_BINDING_EVENT"
+        case workflowCapabilityBindingEvent = "ASSET_WORKFLOW_CAPABILITY_BINDING_EVENT"
+        case productIdentity = "ASSET_PRODUCT_IDENTITY"
+        case lifecycleEvent = "ASSET_LIFECYCLE_EVENT"
+        case successorLink = "ASSET_SUCCESSOR_LINK"
+        case workSubjectScopeSnapshot = "WORK_SUBJECT_SCOPE_SNAPSHOT"
+    }
+
+    let kind: Kind
+    let id: UUID
+    let workspaceID: UUID
+    let revision: UInt64
+    let canonicalData: Data
+}
+
 struct V4BackupSiteDTO: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     let schemaVersion: Int
@@ -278,6 +295,7 @@ struct V4BackupReportDTO: Codable, Equatable, Identifiable, Sendable {
 }
 
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
+    let assetSemantics: [V10BackupAssetSemanticRecordV1]
     let assetCompositionEdges: [V5BackupLocationRecordV1]
     let assetCompositionEvents: [V5BackupLocationRecordV1]
     let assetPlacementEvents: [V5BackupLocationRecordV1]
@@ -299,6 +317,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let workflowRecords: [V4BackupWorkflowRecordDTO]
 
     init(
+        assetSemantics: [V10BackupAssetSemanticRecordV1] = [],
         assetCompositionEdges: [V5BackupLocationRecordV1] = [],
         assetCompositionEvents: [V5BackupLocationRecordV1] = [],
         assetPlacementEvents: [V5BackupLocationRecordV1] = [],
@@ -319,6 +338,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         sites: [V4BackupSiteDTO],
         workflowRecords: [V4BackupWorkflowRecordDTO]
     ) {
+        self.assetSemantics = assetSemantics
         self.assetCompositionEdges = assetCompositionEdges
         self.assetCompositionEvents = assetCompositionEvents
         self.assetPlacementEvents = assetPlacementEvents
@@ -341,7 +361,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
+        case assetSemantics, assetCompositionEdges, assetCompositionEvents, assetPlacementEvents, assets
         case deletionLedger, evidenceFiles, issues, locationHierarchyEvents
         case locationMigrationReceipts, locationNodes, mutationHistory, packets, partyAccountability
         case recordsSchemaVersion, reports, requirementAssurance, savedSmartViews, sites
@@ -352,6 +372,9 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         let version = try values.decode(Int.self, forKey: .recordsSchemaVersion)
         self.init(
+            assetSemantics: try values.decodeIfPresent(
+                [V10BackupAssetSemanticRecordV1].self, forKey: .assetSemantics
+            ) ?? [],
             assetCompositionEdges: try values.decodeIfPresent([V5BackupLocationRecordV1].self, forKey: .assetCompositionEdges) ?? [],
             assetCompositionEvents: try values.decodeIfPresent([V5BackupLocationRecordV1].self, forKey: .assetCompositionEvents) ?? [],
             assetPlacementEvents: try values.decodeIfPresent([V5BackupLocationRecordV1].self, forKey: .assetPlacementEvents) ?? [],

@@ -1224,6 +1224,12 @@ private extension WholeSignDeletionService {
         let actorSnapshots: [ActorSnapshotRow]
         let qualificationSnapshots: [QualificationSnapshotRow]
         let signoffSnapshots: [SignoffSnapshotRow]
+        let assetKindBindingEvents: [AssetKindBindingEventRow]
+        let assetWorkflowCapabilityBindingEvents: [AssetWorkflowCapabilityBindingEventRow]
+        let assetProductIdentities: [AssetProductIdentityRow]
+        let assetLifecycleEvents: [AssetLifecycleEventRow]
+        let assetSuccessorLinks: [AssetSuccessorLinkRow]
+        let workSubjectScopeSnapshots: [WorkSubjectScopeSnapshotRow]
         let observationAndTime: [UUID: ObservationAndTimeRow]
         let recordPayloads: [WorkflowRecordPayloadV1]
         let evidence: [EvidenceFile]
@@ -1257,6 +1263,12 @@ private extension WholeSignDeletionService {
                 actorSnapshots: try boundedFetch(ActorSnapshotRow.self),
                 qualificationSnapshots: try boundedFetch(QualificationSnapshotRow.self),
                 signoffSnapshots: try boundedFetch(SignoffSnapshotRow.self),
+                assetKindBindingEvents: try boundedFetch(AssetKindBindingEventRow.self),
+                assetWorkflowCapabilityBindingEvents: try boundedFetch(AssetWorkflowCapabilityBindingEventRow.self),
+                assetProductIdentities: try boundedFetch(AssetProductIdentityRow.self),
+                assetLifecycleEvents: try boundedFetch(AssetLifecycleEventRow.self),
+                assetSuccessorLinks: try boundedFetch(AssetSuccessorLinkRow.self),
+                workSubjectScopeSnapshots: try boundedFetch(WorkSubjectScopeSnapshotRow.self),
                 observationAndTime: observationAndTime,
                 recordPayloads: recordPayloads,
                 evidence: try boundedFetch(EvidenceFile.self),
@@ -1697,11 +1709,23 @@ private extension WholeSignDeletionService {
               unique(rows.actorSnapshots.map(\.snapshotID)),
               unique(rows.qualificationSnapshots.map(\.snapshotID)),
               unique(rows.signoffSnapshots.map(\.snapshotID)),
+              unique(rows.assetKindBindingEvents.map(\.eventID)),
+              unique(rows.assetWorkflowCapabilityBindingEvents.map(\.eventID)),
+              unique(rows.assetProductIdentities.map(\.identityID)),
+              unique(rows.assetLifecycleEvents.map(\.eventID)),
+              unique(rows.assetSuccessorLinks.map(\.linkID)),
+              unique(rows.workSubjectScopeSnapshots.map(\.snapshotID)),
               rows.serviceParties.allSatisfy({ (try? $0.value()) != nil }),
               rows.sitePartyRoles.allSatisfy({ (try? $0.value()) != nil }),
               rows.actorSnapshots.allSatisfy({ (try? $0.value()) != nil }),
               rows.qualificationSnapshots.allSatisfy({ (try? $0.value()) != nil }),
               rows.signoffSnapshots.allSatisfy({ (try? $0.value()) != nil }),
+              rows.assetKindBindingEvents.allSatisfy({ (try? $0.value()) != nil }),
+              rows.assetWorkflowCapabilityBindingEvents.allSatisfy({ (try? $0.value()) != nil }),
+              rows.assetProductIdentities.allSatisfy({ (try? $0.value()) != nil }),
+              rows.assetLifecycleEvents.allSatisfy({ (try? $0.value()) != nil }),
+              rows.assetSuccessorLinks.allSatisfy({ (try? $0.value()) != nil }),
+              rows.workSubjectScopeSnapshots.allSatisfy({ (try? $0.value()) != nil }),
               rows.sites.allSatisfy({ $0.schemaVersion == 1 }),
               rows.assets.allSatisfy({ asset in
                   asset.schemaVersion == 1

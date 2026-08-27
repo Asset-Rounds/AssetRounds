@@ -34,6 +34,9 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// party/role/actor/qualification/signoff values and never asserts
     /// identity, authorization, legal effect, or external verification.
     var accountability: CompletedAccountabilitySnapshotV1? = nil
+    /// Optional C39 asset-semantic projection.  It is a frozen view of
+    /// canonical semantic/product/lifecycle/work-subject records only.
+    var assetSemantics: CompletedAssetSemanticsSnapshotV1? = nil
 }
 
 struct AcknowledgementSnapshotV1: Codable, Equatable, Sendable {

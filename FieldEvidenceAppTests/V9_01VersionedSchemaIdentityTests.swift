@@ -4,6 +4,31 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_01VersionedSchemaIdentityTests: XCTestCase {
+    func testV23P03C39SemanticSchemasAndReleaseReferencesStayVersioned() throws {
+        XCTAssertEqual(AssetSemanticCatalogReleaseV1.schemaVersion, 1)
+        XCTAssertEqual(AssetProductIdentityV1.schemaVersion, 1)
+        XCTAssertEqual(WorkSubjectScopeSnapshotV1.schemaVersion, 1)
+
+        let package = try PackageReleaseIdentityV1(
+            packageID: "com.field-evidence.c39",
+            schemaVersion: 1,
+            contentVersion: 1
+        )
+        let reference = AssetSemanticCatalogReleaseReferenceV1(
+            releaseID: UUID(uuidString: "00000000-0000-0000-0000-000000002001")!,
+            packageRelease: package,
+            catalogSHA256: String(repeating: "a", count: 64)
+        )
+        try reference.validate()
+        XCTAssertEqual(
+            try AssetSemanticCanonicalCodecV1.decode(
+                AssetSemanticCatalogReleaseReferenceV1.self,
+                from: AssetSemanticCanonicalCodecV1.encode(reference)
+            ),
+            reference
+        )
+    }
+
     private let fileManager = FileManager.default
 
     func testCatalogIsTheExactSevenModelOrderAndScalarReferencePolicy() throws {

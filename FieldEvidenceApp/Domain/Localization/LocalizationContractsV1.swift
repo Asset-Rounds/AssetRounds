@@ -389,3 +389,44 @@ enum LocalizationAccountabilityPolicyV1 {
         "accountability.signoff",
     ]
 }
+
+/// C39's semantic labels are a closed, typed English source surface.  The
+/// semantic catalog owns the facts; these keys only describe how those facts
+/// are presented to a local reader.  In particular, none of the state labels
+/// is allowed to imply operational disposition, verification, or identity.
+enum AssetSemanticLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case illuminatedSignName = "asset.semantic.sign.illuminated.name"
+    case illuminatedSignDescription = "asset.semantic.sign.illuminated.description"
+    case heading = "asset.semantic.heading"
+    case kind = "asset.semantic.kind"
+    case productIdentity = "asset.semantic.product_identity"
+    case workSubjectScope = "asset.semantic.work_subject_scope"
+    case lifecycle = "asset.semantic.lifecycle"
+    case state = "asset.semantic.state"
+    case unknownState = "asset.semantic.state.unknown"
+    case duplicateState = "asset.semantic.state.duplicate"
+    case retiredState = "asset.semantic.state.retired"
+    case replacedState = "asset.semantic.state.replaced"
+    case recordedState = "asset.semantic.state.recorded"
+
+    var localizationKey: LocalizationKeyV1 {
+        // Every enum case is a repository-owned, syntactically valid key.
+        // Construction is kept non-throwing for callers that already hold the
+        // closed type; registry construction remains the validation boundary.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum AssetSemanticLocalizationPolicyV1 {
+    static let semanticNamespace = "asset.semantic"
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let metadataLocale = "en-US"
+    static let testOnlyLocales = TestOnlyPseudoLocaleV1.allCases.map(\.rawValue).sorted()
+    static let keys = AssetSemanticLocalizationKeyV1.allCases.map(\.rawValue)
+    static let semanticIDs = AssetSemanticAccessibilityIDV1.allCases.map(\.rawValue)
+    static let excludesOperationalDisposition = true
+    static let excludesIdentityClaims = true
+    static let progressivelyDisclosedProductIdentity = true
+}

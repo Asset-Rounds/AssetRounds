@@ -3,6 +3,21 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V9_16SnapshotProjectionTests: XCTestCase {
+    func testV23P03C39WorkSubjectReferenceSnapshotIsCanonical() throws {
+        let reference = WorkSubjectReferenceV1(
+            kind: .asset,
+            subjectID: UUID(uuidString: "00000000-0000-0000-0000-000000002301")!,
+            revision: 1,
+            ownerAssetID: nil
+        )
+        try reference.validate()
+        let bytes = try AssetSemanticCanonicalCodecV1.encode(reference)
+        XCTAssertEqual(
+            try AssetSemanticCanonicalCodecV1.decode(WorkSubjectReferenceV1.self, from: bytes),
+            reference
+        )
+    }
+
     func testV9_16G01CanonicalSnapshotAndRepeatProjectionBytesAreStable() throws {
         let fixture = try makeFixture(snapshotRevision: 1)
         let registry = ReportProjectionRegistryV1()

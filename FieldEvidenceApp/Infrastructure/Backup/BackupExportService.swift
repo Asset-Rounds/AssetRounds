@@ -47,6 +47,12 @@ final class BackupExportService {
         let assetCompositionEdges: [AssetCompositionEdgeRow]
         let assetCompositionEvents: [AssetCompositionEventRow]
         let assetPlacementEvents: [AssetPlacementEventRow]
+        let assetKindBindingEvents: [AssetKindBindingEventRow]
+        let assetWorkflowCapabilityBindingEvents: [AssetWorkflowCapabilityBindingEventRow]
+        let assetProductIdentities: [AssetProductIdentityRow]
+        let assetLifecycleEvents: [AssetLifecycleEventRow]
+        let assetSuccessorLinks: [AssetSuccessorLinkRow]
+        let workSubjectScopeSnapshots: [WorkSubjectScopeSnapshotRow]
         let sites: [Site]
         let assets: [Asset]
         let records: [WorkflowRecord]
@@ -626,7 +632,6 @@ private extension BackupExportService {
         let rows = try fetchRows()
         try validateLifecycleScope(rows, operation: .backup)
         try validateLifecycleScope(rows, operation: .archive)
-        try validateGraph(rows)
         let deletionLedger: DeletionLedgerV2
         do {
             deletionLedger = try DeletionLedgerStore(context: modelContext).snapshot()
@@ -634,6 +639,7 @@ private extension BackupExportService {
         } catch {
             throw BackupExportServiceError.invalidAuthority
         }
+        try validateGraph(rows, deletionLedger: deletionLedger)
         let mutationHistory: MutationHistorySnapshotV1
         do {
             mutationHistory = try MutationJournalStoreV1(
@@ -654,6 +660,7 @@ private extension BackupExportService {
         do {
             recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
             let semanticRecords = V4BackupRecordsV1(
+                assetSemantics: records.assetSemantics,
                 assetCompositionEdges: records.assetCompositionEdges,
                 assetCompositionEvents: records.assetCompositionEvents,
                 assetPlacementEvents: records.assetPlacementEvents,
@@ -878,9 +885,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: 9,
+                persistentSchemaVersion: 10,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: 8,
+                recordsSchemaVersion: 9,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -964,7 +971,14 @@ private extension BackupExportService {
         let rows = try fetchRows()
         try validateLifecycleScope(rows, operation: .backup)
         try validateLifecycleScope(rows, operation: .archive)
-        try validateGraph(rows)
+        let deletionLedger: DeletionLedgerV2
+        do {
+            deletionLedger = try DeletionLedgerStore(context: modelContext).snapshot()
+            try validateDeletionLedger(deletionLedger, rows: rows)
+        } catch {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        try validateGraph(rows, deletionLedger: deletionLedger)
         let records = try makeRecords(rows)
         let recordsData: Data
         do {
@@ -1391,6 +1405,12 @@ private extension BackupExportService {
                 assetCompositionEdges: try modelContext.fetch(FetchDescriptor<AssetCompositionEdgeRow>()),
                 assetCompositionEvents: try modelContext.fetch(FetchDescriptor<AssetCompositionEventRow>()),
                 assetPlacementEvents: try modelContext.fetch(FetchDescriptor<AssetPlacementEventRow>()),
+                assetKindBindingEvents: try modelContext.fetch(FetchDescriptor<AssetKindBindingEventRow>()),
+                assetWorkflowCapabilityBindingEvents: try modelContext.fetch(FetchDescriptor<AssetWorkflowCapabilityBindingEventRow>()),
+                assetProductIdentities: try modelContext.fetch(FetchDescriptor<AssetProductIdentityRow>()),
+                assetLifecycleEvents: try modelContext.fetch(FetchDescriptor<AssetLifecycleEventRow>()),
+                assetSuccessorLinks: try modelContext.fetch(FetchDescriptor<AssetSuccessorLinkRow>()),
+                workSubjectScopeSnapshots: try modelContext.fetch(FetchDescriptor<WorkSubjectScopeSnapshotRow>()),
                 sites: try modelContext.fetch(FetchDescriptor<Site>()),
                 assets: try modelContext.fetch(FetchDescriptor<Asset>()),
                 records: try modelContext.fetch(FetchDescriptor<WorkflowRecord>()),
@@ -1419,7 +1439,10 @@ private extension BackupExportService {
         }
     }
 
-    private func validateGraph(_ rows: Rows) throws {
+    private func validateGraph(
+        _ rows: Rows,
+        deletionLedger: DeletionLedgerV2
+    ) throws {
         let sourceIdentity = try currentStreamingWorkspaceIdentity()
         do {
             try KernelBackupRestoreRegistryV4.validate()
@@ -1448,6 +1471,12 @@ private extension BackupExportService {
               unique(rows.actorSnapshots.map(\.snapshotID)),
               unique(rows.qualificationSnapshots.map(\.snapshotID)),
               unique(rows.signoffSnapshots.map(\.snapshotID)),
+              unique(rows.assetKindBindingEvents.map(\.eventID)),
+              unique(rows.assetWorkflowCapabilityBindingEvents.map(\.eventID)),
+              unique(rows.assetProductIdentities.map(\.identityID)),
+              unique(rows.assetLifecycleEvents.map(\.eventID)),
+              unique(rows.assetSuccessorLinks.map(\.linkID)),
+              unique(rows.workSubjectScopeSnapshots.map(\.snapshotID)),
               rows.sites.allSatisfy({ $0.schemaVersion == 1 }),
               rows.assets.allSatisfy({ $0.schemaVersion == 1 }),
               rows.records.allSatisfy({ $0.schemaVersion == 1 }),
@@ -1472,9 +1501,16 @@ private extension BackupExportService {
               rows.sitePartyRoleEvents.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }),
               rows.actorSnapshots.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }),
               rows.qualificationSnapshots.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }),
-              rows.signoffSnapshots.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }) else {
+              rows.signoffSnapshots.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }),
+              rows.assetKindBindingEvents.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }),
+              rows.assetWorkflowCapabilityBindingEvents.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }),
+              rows.assetProductIdentities.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }),
+              rows.assetLifecycleEvents.allSatisfy({ (try? $0.value())?.record.workspaceID == sourceIdentity.workspaceID }),
+              rows.assetSuccessorLinks.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }),
+              rows.workSubjectScopeSnapshots.allSatisfy({ (try? $0.value())?.workspaceID == sourceIdentity.workspaceID }) else {
             throw BackupExportServiceError.invalidAuthority
         }
+        try validateAssetSemanticRows(rows, deletionLedger: deletionLedger)
         let siteIDs = Set(rows.sites.map(\.id))
         let assetIDs = Set(rows.assets.map(\.id))
         let recordIDs = Set(rows.records.map(\.id))
@@ -1767,6 +1803,21 @@ private extension BackupExportService {
                     schemaVersion: $0.packSchemaVersion,
                     contentVersion: $0.packContentVersion
                 )
+            } + rows.assetKindBindingEvents.map {
+                try $0.value().catalogRelease.packageRelease
+            } + rows.assetWorkflowCapabilityBindingEvents.map {
+                try $0.value().workflowPackageRelease
+            } + rows.workSubjectScopeSnapshots.flatMap {
+                let value = try $0.value()
+                let bindingReleases = value.semanticBindings.flatMap {
+                    [$0.catalogRelease.packageRelease] + $0.workflowPackageReleases
+                }
+                let relationshipReleases = value.subjects.compactMap(
+                    \.functionalRelationship
+                ).flatMap {
+                    [$0.packageRelease, $0.semanticCatalogRelease.packageRelease]
+                }
+                return bindingReleases + relationshipReleases
             }
             return Set(releases).sorted().map {
                 V4BackupPackV1(
@@ -1819,7 +1870,9 @@ private extension BackupExportService {
             _ = try $0.value()
             return .init(id: $0.id, canonicalData: $0.canonicalData)
         }.sorted { $0.id.uuidString < $1.id.uuidString } }
+        let assetSemantics = mutationHistory == nil ? [] : try assetSemanticRecords(rows)
         return V4BackupRecordsV1(
+            assetSemantics: assetSemantics,
             assetCompositionEdges: assetCompositionEdges,
             assetCompositionEvents: assetCompositionEvents,
             assetPlacementEvents: assetPlacementEvents,
@@ -1868,7 +1921,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : 8,
+                : 9,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -1940,6 +1993,172 @@ private extension BackupExportService {
             let lhs = "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
             let rhs = "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             return lhs < rhs
+        }
+    }
+
+    private func assetSemanticRecords(
+        _ rows: Rows
+    ) throws -> [V10BackupAssetSemanticRecordV1] {
+        var result: [V10BackupAssetSemanticRecordV1] = []
+        result += try rows.assetKindBindingEvents.map {
+            let value = try $0.value()
+            return .init(kind: .kindBindingEvent, id: value.eventID,
+                         workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                         canonicalData: $0.canonicalData)
+        }
+        result += try rows.assetWorkflowCapabilityBindingEvents.map {
+            let value = try $0.value()
+            return .init(kind: .workflowCapabilityBindingEvent, id: value.eventID,
+                         workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                         canonicalData: $0.canonicalData)
+        }
+        result += try rows.assetProductIdentities.map {
+            let value = try $0.value()
+            return .init(kind: .productIdentity, id: value.identityID,
+                         workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                         canonicalData: $0.canonicalData)
+        }
+        result += try rows.assetLifecycleEvents.map {
+            let value = try $0.value()
+            return .init(kind: .lifecycleEvent, id: value.record.eventID,
+                         workspaceID: value.record.workspaceID.rawValue,
+                         revision: value.record.revision, canonicalData: $0.canonicalData)
+        }
+        result += try rows.assetSuccessorLinks.map {
+            let value = try $0.value()
+            return .init(kind: .successorLink, id: value.linkID,
+                         workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                         canonicalData: $0.canonicalData)
+        }
+        result += try rows.workSubjectScopeSnapshots.map {
+            let value = try $0.value()
+            return .init(kind: .workSubjectScopeSnapshot, id: value.snapshotID,
+                         workspaceID: value.workspaceID.rawValue, revision: value.workspaceRevision,
+                         canonicalData: $0.canonicalData)
+        }
+        return result.sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
+        }
+    }
+
+    private func validateAssetSemanticRows(
+        _ rows: Rows,
+        deletionLedger: DeletionLedgerV2
+    ) throws {
+        do {
+            let kinds = try Dictionary(uniqueKeysWithValues: rows.assetKindBindingEvents.map {
+                let value = try $0.value(); return (value.eventID, value)
+            })
+            let workflows = try Dictionary(uniqueKeysWithValues: rows.assetWorkflowCapabilityBindingEvents.map {
+                let value = try $0.value(); return (value.eventID, value)
+            })
+            let identities = try Dictionary(uniqueKeysWithValues: rows.assetProductIdentities.map {
+                let value = try $0.value(); return (value.identityID, value)
+            })
+            let lifecycle = try Dictionary(uniqueKeysWithValues: rows.assetLifecycleEvents.map {
+                let value = try $0.value(); return (value.record.eventID, value)
+            })
+            let successors = try Dictionary(uniqueKeysWithValues: rows.assetSuccessorLinks.map {
+                let value = try $0.value(); return (value.linkID, value)
+            })
+            let scopes = try rows.workSubjectScopeSnapshots.map { try $0.value() }
+            let deletedAssetIDs = Set(deletionLedger.entries.compactMap {
+                $0.identity.kind == .asset ? $0.identity.id : nil
+            })
+            let deletedSiteIDs = Set(deletionLedger.entries.compactMap {
+                $0.identity.kind == .site ? $0.identity.id : nil
+            })
+            let assetIDs = Set(rows.assets.map(\.id)).union(deletedAssetIDs)
+            let siteIDs = Set(rows.sites.map(\.id)).union(deletedSiteIDs)
+            let locationIDs = Set(rows.locationNodes.map(\.id))
+            guard kinds.values.allSatisfy({ value in
+                      assetIDs.contains(value.assetID)
+                        && (value.predecessorEventID.map { id in
+                            kinds[id].map { $0.assetID == value.assetID && $0.revision < value.revision } == true
+                        } ?? true)
+                  }), workflows.values.allSatisfy({ value in
+                      guard let kind = kinds[value.kindBindingEventID] else { return false }
+                      return assetIDs.contains(value.assetID) && kind.assetID == value.assetID
+                        && kind.revision == value.kindBindingRevision
+                        && (value.predecessorEventID.map { id in
+                            workflows[id].map { $0.assetID == value.assetID && $0.revision < value.revision } == true
+                        } ?? true)
+                  }), identities.values.allSatisfy({ value in
+                      assetIDs.contains(value.assetID)
+                        && (value.predecessorIdentityID.map { id in
+                            identities[id].map { $0.assetID == value.assetID && $0.revision < value.revision } == true
+                        } ?? true)
+                  }), successors.values.allSatisfy({ value in
+                      assetIDs.contains(value.predecessorAssetID)
+                        && assetIDs.contains(value.successorAssetID)
+                        && (value.predecessorLinkID.map { id in
+                            successors[id].map { $0.revision < value.revision } == true
+                        } ?? true)
+                  }) else { throw BackupExportServiceError.invalidAuthority }
+            try AssetSuccessorLinkV1.validateAcyclic(Array(successors.values))
+            for value in lifecycle.values {
+                guard assetIDs.contains(value.record.assetID),
+                      value.record.predecessorEventID.map({ id in
+                          lifecycle[id].map {
+                              $0.record.assetID == value.record.assetID
+                                && $0.record.revision < value.record.revision
+                          } == true
+                      }) ?? true else { throw BackupExportServiceError.invalidAuthority }
+                if value.kind == .classificationChangedRecorded {
+                    guard let id = value.record.kindBindingEventID, let kind = kinds[id] else {
+                        throw BackupExportServiceError.invalidAuthority
+                    }
+                    try value.validateAtomicReference(kindBinding: kind)
+                } else if value.kind == .replacedRecorded {
+                    guard let id = value.record.successorLinkID, let link = successors[id] else {
+                        throw BackupExportServiceError.invalidAuthority
+                    }
+                    try value.validateAtomicReference(successorLink: link)
+                }
+            }
+            let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+            guard scopes.allSatisfy({ value in
+                siteIDs.contains(value.siteID) && value.subjects.allSatisfy { subject in
+                    switch subject.kind {
+                    case .site: return subject.subjectID == value.siteID
+                    case .locationNode: return locationIDs.contains(subject.subjectID)
+                    case .asset: return assetIDs.contains(subject.subjectID)
+                    case .compositionComponent:
+                        return subject.subjectID != zero
+                            && subject.ownerAssetID.map(assetIDs.contains) == true
+                    case .functionalRelationship:
+                        guard subject.ownerAssetID == nil,
+                              let relationship = subject.functionalRelationship,
+                              relationship.relationshipID == subject.subjectID,
+                              relationship.relationshipRevision == subject.revision,
+                              relationship.descriptorReleaseID != zero,
+                              relationship.descriptorReleaseRevision > 0,
+                              AssetSemanticValidationV1.validPackageRelease(
+                                  relationship.packageRelease
+                              ),
+                              AssetSemanticValidationV1.validPackageRelease(
+                                  relationship.semanticCatalogRelease.packageRelease
+                              ),
+                              (try? relationship.semanticCatalogRelease.validate()) != nil,
+                              AssetSemanticValidationV1.validIdentifier(
+                                  relationship.semanticID, maximumBytes: 160
+                              ) else { return false }
+                        return true
+                    }
+                } && value.semanticBindings.allSatisfy { binding in
+                    kinds[binding.kindBindingEventID].map {
+                        $0.assetID == binding.assetID
+                            && $0.revision == binding.kindBindingRevision
+                            && $0.catalogRelease == binding.catalogRelease
+                            && $0.semanticID == binding.semanticID
+                    } == true
+                }
+            }) else { throw BackupExportServiceError.invalidAuthority }
+        } catch let error as BackupExportServiceError {
+            throw error
+        } catch {
+            throw BackupExportServiceError.invalidAuthority
         }
     }
 

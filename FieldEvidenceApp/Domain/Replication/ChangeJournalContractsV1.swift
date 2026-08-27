@@ -61,6 +61,47 @@ struct PartyAccountabilityJournalCoverageV1: Codable, Equatable, Sendable {
     }
 }
 
+/// Declares the C39 transport invariants.  Semantic rows use the existing
+/// Asset entity identity; paired lifecycle facts are carried by one accepted
+/// envelope and changed input remains subject to the journal quarantine.
+struct AssetSemanticJournalCoverageV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let entityKinds: [WorkspaceEntityKindV1]
+    let atomicLifecyclePairing: Bool
+    let changedInputQuarantine: Bool
+    let acceptedEnvelopeOnly: Bool
+    let historicSnapshotsImmutable: Bool
+
+    init(
+        schemaVersion: Int = Self.schemaVersion,
+        entityKinds: [WorkspaceEntityKindV1] = [.asset],
+        atomicLifecyclePairing: Bool = true,
+        changedInputQuarantine: Bool = true,
+        acceptedEnvelopeOnly: Bool = true,
+        historicSnapshotsImmutable: Bool = true
+    ) throws {
+        self.schemaVersion = schemaVersion
+        self.entityKinds = entityKinds.sorted { $0.rawValue < $1.rawValue }
+        self.atomicLifecyclePairing = atomicLifecyclePairing
+        self.changedInputQuarantine = changedInputQuarantine
+        self.acceptedEnvelopeOnly = acceptedEnvelopeOnly
+        self.historicSnapshotsImmutable = historicSnapshotsImmutable
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              entityKinds == [.asset],
+              atomicLifecyclePairing,
+              changedInputQuarantine,
+              acceptedEnvelopeOnly,
+              historicSnapshotsImmutable else {
+            throw ChangeJournalFailureV1.invalidValue
+        }
+    }
+}
+
 struct ChangeJournalLimitsV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     static let productionMaximumChangesPerBatch = 128

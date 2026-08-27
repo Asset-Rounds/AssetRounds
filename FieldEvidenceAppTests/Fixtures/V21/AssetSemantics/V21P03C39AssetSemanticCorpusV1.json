@@ -1,0 +1,371 @@
+{
+  "schema": "V21P03C39AssetSemanticCorpusV1",
+  "schemaVersion": 1,
+  "fixtureIdentity": "V21-P03-C39-ASSET-SEMANTIC-CORPUS-V1",
+  "cardID": "V23-P03-C39",
+  "workspaceID": "73900000-0000-4000-8000-000000000001",
+  "synthetic": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "persistence": {
+    "schemaRelease": "PERSISTENT_SCHEMA_V10_ASSET_SEMANTICS",
+    "predecessorSchemaVersion": 9,
+    "migration": "EXACT_V9_TO_V10_COPY_ON_WRITE",
+    "canonicalWriter": "V23-P02-C01",
+    "lifecycleOwner": "V23-P03-C39",
+    "searchRebuild": "ALLOWLISTED_ASSET_SEMANTIC_AND_PRODUCT_DISPLAY_FIELDS_ONLY",
+    "deleteDisposition": "EXPLICIT_ERASE_OR_TOMBSTONE_WITH_HISTORY_PRESERVED",
+    "exportDisposition": "CANONICAL_DOMAIN_BYTES_AND_FROZEN_SUBJECT_SNAPSHOTS",
+    "downgradeDisposition": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V10_WRITE"
+  },
+  "enumContracts": {
+    "catalogStates": ["RELEASED", "RETIRED"],
+    "lifecycleStates": ["COMMISSIONING_NOT_RECORDED", "ACTIVE_RECORDED", "RETIRED_RECORDED", "REPLACED_RECORDED", "CLASSIFICATION_CHANGED_RECORDED"],
+    "identifierReviewStates": ["UNKNOWN", "UNREVIEWED", "DUPLICATE", "REVIEWED"],
+    "provenanceKinds": ["LOCALLY_RECORDED", "IMPORTED_EXTERNAL_EVIDENCE", "MIGRATED_BASELINE"],
+    "subjectKinds": ["SITE", "LOCATION_NODE", "ASSET", "COMPOSITION_COMPONENT", "FUNCTIONAL_RELATIONSHIP"],
+    "capabilityTags": ["SIGN", "LIGHTING", "INSPECTABLE", "REPLACEABLE"]
+  },
+  "catalogReleases": [
+    {
+      "id": "73900000-0000-4000-8000-000000000010",
+      "packageID": "illuminatedSignV1",
+      "releaseVersion": "1.0.0",
+      "state": "RELEASED",
+      "semanticIDs": ["sign.illuminated"],
+      "localizedKeys": ["asset.kind.sign.illuminated"],
+      "capabilityTags": ["SIGN", "LIGHTING", "INSPECTABLE", "REPLACEABLE"],
+      "compatibilityPolicy": "COMPATIBLE_WITH_ILLUMINATED_SIGN_V1",
+      "releaseDigest": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "id": "73900000-0000-4000-8000-000000000011",
+      "packageID": "legacySignV1",
+      "releaseVersion": "0.9.0",
+      "state": "RETIRED",
+      "semanticIDs": ["sign.legacy"],
+      "localizedKeys": ["asset.kind.sign.legacy"],
+      "capabilityTags": ["SIGN"],
+      "compatibilityPolicy": "RETIRED_FOR_NEW_BINDINGS_OLD_SNAPSHOTS_REMAIN_READABLE",
+      "releaseDigest": "2222222222222222222222222222222222222222222222222222222222222222"
+    }
+  ],
+  "kindDefinitions": [
+    {
+      "semanticID": "sign.illuminated",
+      "catalogReleaseID": "73900000-0000-4000-8000-000000000010",
+      "localizedKey": "asset.kind.sign.illuminated",
+      "capabilityTags": ["SIGN", "LIGHTING", "INSPECTABLE", "REPLACEABLE"],
+      "structuralPolicyOwner": "V23-P03-C35",
+      "functionalRelationshipPolicyOwner": "V23-P03-C41"
+    }
+  ],
+  "bindingEvents": [
+    {
+      "id": "73900000-0000-4000-8000-000000000020",
+      "assetID": "73900000-0000-4000-8000-000000000100",
+      "semanticID": "sign.illuminated",
+      "catalogReleaseID": "73900000-0000-4000-8000-000000000010",
+      "packageReleaseID": "illuminatedSignV1@1.0.0",
+      "kind": "INITIAL_MIGRATION",
+      "provenance": "MIGRATED_BASELINE",
+      "revision": 1,
+      "mutationID": "73900000-0000-4000-8000-000000000200",
+      "recordedAt": "2026-08-27T19:00:00.000Z"
+    },
+    {
+      "id": "73900000-0000-4000-8000-000000000021",
+      "assetID": "73900000-0000-4000-8000-000000000100",
+      "semanticID": "sign.illuminated",
+      "catalogReleaseID": "73900000-0000-4000-8000-000000000010",
+      "packageReleaseID": "illuminatedSignV1@1.0.0",
+      "kind": "RECLASSIFICATION",
+      "provenance": "LOCALLY_RECORDED",
+      "revision": 2,
+      "supersedesEventID": "73900000-0000-4000-8000-000000000020",
+      "recordedAt": "2026-08-27T19:10:00.000Z",
+      "mutationID": "73900000-0000-4000-8000-000000000201"
+    }
+  ],
+  "workflowCapabilityBindings": [
+    {
+      "id": "73900000-0000-4000-8000-000000000030",
+      "assetID": "73900000-0000-4000-8000-000000000100",
+      "packageReleaseID": "illuminatedSignV1@1.0.0",
+      "capabilityTag": "INSPECTABLE",
+      "compatible": true,
+      "revision": 1,
+      "mutationID": "73900000-0000-4000-8000-000000000202"
+    },
+    {
+      "id": "73900000-0000-4000-8000-000000000031",
+      "assetID": "73900000-0000-4000-8000-000000000100",
+      "packageReleaseID": "legacySignV1@0.9.0",
+      "capabilityTag": "INSPECTABLE",
+      "compatible": false,
+      "revision": 1,
+      "rejection": "PACKAGE_SEMANTIC_RELEASE_INCOMPATIBLE"
+    }
+  ],
+  "productIdentities": [
+    {
+      "id": "73900000-0000-4000-8000-000000000040",
+      "assetID": "73900000-0000-4000-8000-000000000100",
+      "manufacturer": "Acme Signs",
+      "model": "LUX-200",
+      "serial": "AS-100",
+      "lot": "LOT-7",
+      "part": "P-200",
+      "externalCodeType": "GTIN",
+      "externalCode": "00012345678905",
+      "issuer": "LOCAL_RECORD",
+      "provenance": "MIGRATED_BASELINE",
+      "reviewState": "REVIEWED",
+      "effectiveFrom": "2026-08-27T19:00:00.000Z",
+      "effectiveUntil": null,
+      "normalizedComparisonValue": "acme signs|lux-200|as-100|00012345678905"
+    },
+    {
+      "id": "73900000-0000-4000-8000-000000000041",
+      "assetID": "73900000-0000-4000-8000-000000000101",
+      "manufacturer": "Acme Signs",
+      "model": "LUX-200",
+      "serial": "AS-100",
+      "lot": null,
+      "part": null,
+      "externalCodeType": "GTIN",
+      "externalCode": "00012345678905",
+      "issuer": "IMPORTED_FIXTURE_EVIDENCE",
+      "provenance": "IMPORTED_EXTERNAL_EVIDENCE",
+      "reviewState": "DUPLICATE",
+      "effectiveFrom": null,
+      "effectiveUntil": null,
+      "normalizedComparisonValue": "acme signs|lux-200|as-100|00012345678905"
+    },
+    {
+      "id": "73900000-0000-4000-8000-000000000042",
+      "assetID": "73900000-0000-4000-8000-000000000102",
+      "manufacturer": null,
+      "model": null,
+      "serial": null,
+      "lot": null,
+      "part": null,
+      "externalCodeType": null,
+      "externalCode": null,
+      "issuer": null,
+      "provenance": "MIGRATED_BASELINE",
+      "reviewState": "UNKNOWN",
+      "effectiveFrom": null,
+      "effectiveUntil": null,
+      "normalizedComparisonValue": null
+    }
+  ],
+  "successorLinks": [
+    {
+      "id": "73900000-0000-4000-8000-000000000050",
+      "predecessorAssetID": "73900000-0000-4000-8000-000000000100",
+      "successorAssetID": "73900000-0000-4000-8000-000000000103",
+      "reason": "REPLACEMENT",
+      "revision": 1,
+      "mutationID": "73900000-0000-4000-8000-000000000203",
+      "recordedAt": "2026-08-27T20:00:00.000Z"
+    }
+  ],
+  "lifecycleEvents": [
+    {
+      "id": "73900000-0000-4000-8000-000000000060",
+      "assetID": "73900000-0000-4000-8000-000000000100",
+      "state": "COMMISSIONING_NOT_RECORDED",
+      "mutationID": "73900000-0000-4000-8000-000000000204",
+      "recordedAt": "2026-08-27T19:00:00.000Z"
+    },
+    {
+      "id": "73900000-0000-4000-8000-000000000061",
+      "assetID": "73900000-0000-4000-8000-000000000100",
+      "state": "ACTIVE_RECORDED",
+      "mutationID": "73900000-0000-4000-8000-000000000205",
+      "recordedAt": "2026-08-27T19:05:00.000Z"
+    },
+    {
+      "id": "73900000-0000-4000-8000-000000000062",
+      "assetID": "73900000-0000-4000-8000-000000000100",
+      "state": "CLASSIFICATION_CHANGED_RECORDED",
+      "kindBindingEventID": "73900000-0000-4000-8000-000000000021",
+      "mutationID": "73900000-0000-4000-8000-000000000206",
+      "recordedAt": "2026-08-27T19:10:00.000Z"
+    },
+    {
+      "id": "73900000-0000-4000-8000-000000000063",
+      "assetID": "73900000-0000-4000-8000-000000000100",
+      "state": "REPLACED_RECORDED",
+      "successorLinkID": "73900000-0000-4000-8000-000000000050",
+      "mutationID": "73900000-0000-4000-8000-000000000207",
+      "recordedAt": "2026-08-27T20:00:00.000Z"
+    },
+    {
+      "id": "73900000-0000-4000-8000-000000000064",
+      "assetID": "73900000-0000-4000-8000-000000000100",
+      "state": "RETIRED_RECORDED",
+      "mutationID": "73900000-0000-4000-8000-000000000208",
+      "recordedAt": "2026-08-27T20:01:00.000Z"
+    }
+  ],
+  "subjectScopes": [
+    {
+      "id": "73900000-0000-4000-8000-000000000070",
+      "subjectKind": "SITE",
+      "siteID": "73900000-0000-4000-8000-000000000002",
+      "locationNodeID": null,
+      "assetID": null,
+      "compositionComponentID": null,
+      "functionalRelationshipID": null,
+      "packageReleaseID": "illuminatedSignV1@1.0.0",
+      "packageReleaseRevision": 1,
+      "semanticReleaseID": "73900000-0000-4000-8000-000000000010",
+      "semanticReleaseRevision": 1,
+      "snapshotRevision": 1
+    },
+    {
+      "id": "73900000-0000-4000-8000-000000000071",
+      "subjectKind": "LOCATION_NODE",
+      "siteID": "73900000-0000-4000-8000-000000000002",
+      "locationNodeID": "73900000-0000-4000-8000-000000000080",
+      "assetID": null,
+      "compositionComponentID": null,
+      "functionalRelationshipID": null,
+      "packageReleaseID": "illuminatedSignV1@1.0.0",
+      "packageReleaseRevision": 1,
+      "semanticReleaseID": "73900000-0000-4000-8000-000000000010",
+      "semanticReleaseRevision": 1,
+      "snapshotRevision": 1
+    },
+    {
+      "id": "73900000-0000-4000-8000-000000000072",
+      "subjectKind": "ASSET",
+      "siteID": "73900000-0000-4000-8000-000000000002",
+      "locationNodeID": "73900000-0000-4000-8000-000000000080",
+      "assetID": "73900000-0000-4000-8000-000000000100",
+      "compositionComponentID": null,
+      "functionalRelationshipID": null,
+      "packageReleaseID": "illuminatedSignV1@1.0.0",
+      "packageReleaseRevision": 1,
+      "semanticReleaseID": "73900000-0000-4000-8000-000000000010",
+      "semanticReleaseRevision": 2,
+      "snapshotRevision": 3
+    },
+    {
+      "id": "73900000-0000-4000-8000-000000000073",
+      "subjectKind": "COMPOSITION_COMPONENT",
+      "siteID": "73900000-0000-4000-8000-000000000002",
+      "locationNodeID": "73900000-0000-4000-8000-000000000080",
+      "assetID": "73900000-0000-4000-8000-000000000100",
+      "compositionComponentID": "73900000-0000-4000-8000-000000000081",
+      "functionalRelationshipID": null,
+      "packageReleaseID": "illuminatedSignV1@1.0.0",
+      "packageReleaseRevision": 1,
+      "semanticReleaseID": "73900000-0000-4000-8000-000000000010",
+      "semanticReleaseRevision": 2,
+      "snapshotRevision": 1
+    },
+    {
+      "id": "73900000-0000-4000-8000-000000000074",
+      "subjectKind": "FUNCTIONAL_RELATIONSHIP",
+      "siteID": "73900000-0000-4000-8000-000000000002",
+      "locationNodeID": null,
+      "assetID": "73900000-0000-4000-8000-000000000100",
+      "compositionComponentID": null,
+      "functionalRelationshipID": "73900000-0000-4000-8000-000000000082",
+      "packageReleaseID": "illuminatedSignV1@1.0.0",
+      "packageReleaseRevision": 1,
+      "semanticReleaseID": "73900000-0000-4000-8000-000000000010",
+      "semanticReleaseRevision": 2,
+      "snapshotRevision": 1
+    }
+  ],
+  "legacyMigration": {
+    "legacyAssetID": "73900000-0000-4000-8000-000000000100",
+    "preservedAssetID": true,
+    "preservedBackupBytes": true,
+    "preservedReportBytes": true,
+    "preservedPlacement": true,
+    "preservedExternalKeys": true,
+    "preservedHistoricPackBindings": true,
+    "inventedManufacturer": false,
+    "inventedModel": false,
+    "inventedSerial": false,
+    "inventedInstallation": false,
+    "inventedLifecycle": false,
+    "semanticDiff": "ONLY_ACCEPTED_SIGN_KIND_AND_EXISTING_LEGACY_PACK_BINDING_ADDED"
+  },
+  "searchProjection": {
+    "allowlistedFields": ["asset.displayCode", "asset.semanticID", "asset.productManufacturer", "asset.productModel", "asset.lifecycleState"],
+    "excludedFields": ["serial", "lot", "part", "externalCode", "credential", "networkIdentity", "recall", "safety"],
+    "rebuildIsRevisionBound": true
+  },
+  "reportProjection": {
+    "frozenDisplayFields": ["assetID", "semanticID", "packageReleaseID", "productManufacturer", "productModel", "lifecycleState"],
+    "historyIsImmutable": true,
+    "renamesDoNotRewriteSnapshots": true,
+    "customerSafeIdentifiersOmittedByDefault": true
+  },
+  "localizationAccessibility": {
+    "sourceLanguage": "en",
+    "shippingLocales": ["en"],
+    "pseudoLocalesTestOnly": ["en-XA", "en-XB", "ar-XB", "en-XL", "en-XT"],
+    "rtlRequired": true,
+    "dynamicTypeRequired": true,
+    "voiceOverRequired": true,
+    "voiceControlRequired": true,
+    "switchControlRequired": true,
+    "nonColorStateTextRequired": true,
+    "semanticIDs": ["asset.semantic", "asset.product-identity", "asset.lifecycle", "asset.replacement", "asset.subject-scope", "asset.unknown", "asset.duplicate"]
+  },
+  "claims": {
+    "identityVerified": false,
+    "operationalDisposition": false,
+    "condition": false,
+    "installation": false,
+    "warranty": false,
+    "recallConfirmed": false,
+    "safety": false,
+    "accountOrTenant": false,
+    "networkSync": false,
+    "telemetry": false,
+    "release": false
+  },
+  "goldenCases": [
+    {"id": "V23-P03-C39-G01-legacy-sign", "expectedResult": "PRESERVE_ASSET_ID_AND_BIND_ACCEPTED_SIGN_KIND", "reason": "Migration adds only accepted semantic and existing package values while preserving all legacy identity and artifacts."},
+    {"id": "V23-P03-C39-G01-compatible-packages", "expectedResult": "MULTI_PACKAGE_COMPATIBLE_BINDING", "reason": "One physical AssetID may bind to two compatible package releases without implicit identity or placement mutation."},
+    {"id": "V23-P03-C39-G01-subject-scope", "expectedResult": "FROZEN_EXACT_RELEASE_SNAPSHOT", "reason": "Every allowed subject kind records exact package, semantic release, and revision."}
+  ],
+  "alternateCases": [
+    {"id": "V23-P03-C39-A01-missing-identifier", "expectedResult": "EXPLICIT_UNKNOWN_ATTRIBUTE", "reason": "Missing manufacturer, model, serial, and code remain valid explicit unknown values."},
+    {"id": "V23-P03-C39-A01-duplicate-identifier", "expectedResult": "EXPLICIT_DUPLICATE_REVIEW_STATE", "reason": "A duplicate serial or code is review metadata and never replaces AssetID."},
+    {"id": "V23-P03-C39-A01-retired-history", "expectedResult": "RETAINED_IMMUTABLE_HISTORY", "reason": "Retired and replaced assets remain in reports, snapshots, backups, and replay history."}
+  ],
+  "hostileCases": [
+    {"id": "V23-P03-C39-H01-package-retired-mid-draft", "expectedResult": "OLD_DRAFT_RELEASE_PINNED", "reason": "A package retirement cannot rewrite an open work subject."},
+    {"id": "V23-P03-C39-H01-binding-change-open-work", "expectedResult": "REJECTED_STALE_BINDING", "reason": "A binding revision change during open work fails closed."},
+    {"id": "V23-P03-C39-H01-same-serial-across-sites", "expectedResult": "DUPLICATE_NOT_IDENTITY", "reason": "The same serial at two Sites is explicit duplicate review state."},
+    {"id": "V23-P03-C39-H01-model-treated-as-unique", "expectedResult": "REJECTED_IDENTITY_SUBSTITUTION", "reason": "Model and external codes cannot become canonical identity."},
+    {"id": "V23-P03-C39-H01-cyclic-successors", "expectedResult": "REJECTED_CYCLE", "reason": "Successor links are checked for cycles and atomic references."},
+    {"id": "V23-P03-C39-H01-relationship-endpoint-replacement", "expectedResult": "REJECTED_WRONG_OWNER", "reason": "C39 cannot replace a functional relationship endpoint owned by C41."},
+    {"id": "V23-P03-C39-H01-unknown-semantic-release", "expectedResult": "REJECTED_UNKNOWN_RELEASE", "reason": "Unknown semantic IDs and releases fail admission."},
+    {"id": "V23-P03-C39-H01-cross-workspace-subject", "expectedResult": "REJECTED_CROSS_WORKSPACE_REFERENCE", "reason": "Subject snapshots cannot cross workspace boundaries."},
+    {"id": "V23-P03-C39-H01-identifier-spoof-unicode", "expectedResult": "QUARANTINED_NORMALIZATION_COLLISION", "reason": "Spoofed or Unicode-colliding identifiers are reviewable attributes, never identity."},
+    {"id": "V23-P03-C39-H01-recall-presented-confirmed", "expectedResult": "REJECTED_UNSUPPORTED_CLAIM", "reason": "C39 never polls for or confirms recall, safety, condition, age, or warranty."}
+  ],
+  "interruptionCases": [
+    {"id": "V23-P03-C39-I01-migration-boundary", "expectedResult": "COPY_ON_WRITE_RETRY_CONVERGES", "reason": "A fault at each migration boundary retries to one schema-v10 result or no effect."},
+    {"id": "V23-P03-C39-I01-binding-boundary", "expectedResult": "EFFECT_BEFORE_RECEIPT_RECOVERY", "reason": "Binding event retry returns the original durable receipt without duplication."},
+    {"id": "V23-P03-C39-I01-lifecycle-boundary", "expectedResult": "ATOMIC_PAIR_OR_NO_EFFECT", "reason": "Lifecycle and exact successor or reclassification pair commit under one MutationID."},
+    {"id": "V23-P03-C39-I01-scope-boundary", "expectedResult": "FROZEN_SCOPE_OR_NO_EFFECT", "reason": "Interrupted subject snapshot creation cannot leave a partial canonical scope."},
+    {"id": "V23-P03-C39-I01-backup-boundary", "expectedResult": "RESUMABLE_BACKUP_WITH_RECEIPT", "reason": "Backup, restore, journal, and replay interruptions resume idempotently."}
+  ],
+  "recoveryCases": [
+    {"id": "V23-P03-C39-R01-backup-clone-fork", "expectedResult": "BYTE_STABLE_PORTABLE_HISTORY", "reason": "Backup clone and fork preserve AssetID, semantic snapshots, bindings, and lifecycle history."},
+    {"id": "V23-P03-C39-R01-search-report", "expectedResult": "REVISION_BOUND_PROJECTION", "reason": "Search rebuild and deterministic report/open JSON consume the same frozen semantic snapshot."},
+    {"id": "V23-P03-C39-R01-delete-erase", "expectedResult": "EXPLICIT_ERASE_NO_CASCADE", "reason": "Delete and Erase never cascade into Site, work, or released reports."},
+    {"id": "V23-P03-C39-R01-released-v1", "expectedResult": "FORWARD_COMPATIBLE_RELEASE", "reason": "Released schema-v10 data has explicit compatibility and forward-fix behavior."}
+  ]
+}

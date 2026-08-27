@@ -195,6 +195,24 @@ final class BackupRestoreService {
             ).isEmpty
             return try modelContext.fetchCount(FetchDescriptor<Site>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<Asset>()) == 0
+                && modelContext.fetchCount(
+                    FetchDescriptor<AssetKindBindingEventRow>()
+                ) == 0
+                && modelContext.fetchCount(
+                    FetchDescriptor<AssetWorkflowCapabilityBindingEventRow>()
+                ) == 0
+                && modelContext.fetchCount(
+                    FetchDescriptor<AssetProductIdentityRow>()
+                ) == 0
+                && modelContext.fetchCount(
+                    FetchDescriptor<AssetLifecycleEventRow>()
+                ) == 0
+                && modelContext.fetchCount(
+                    FetchDescriptor<AssetSuccessorLinkRow>()
+                ) == 0
+                && modelContext.fetchCount(
+                    FetchDescriptor<WorkSubjectScopeSnapshotRow>()
+                ) == 0
                 && modelContext.fetchCount(FetchDescriptor<WorkflowRecord>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<EvidenceFile>()) == 0
                 && modelContext.fetchCount(FetchDescriptor<Issue>()) == 0
@@ -1476,6 +1494,7 @@ private extension BackupRestoreService {
         with packets: [V4BackupPacketDTO]
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
             assetPlacementEvents: records.assetPlacementEvents,
@@ -1521,6 +1540,7 @@ private extension BackupRestoreService {
         with history: MutationHistorySnapshotV1
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
             assetPlacementEvents: records.assetPlacementEvents,
@@ -1624,6 +1644,7 @@ private extension BackupRestoreService {
             return try V8BackupRequirementAssuranceRecordV1(row)
         }.sorted { canonical($0.workflowRecordID) < canonical($1.workflowRecordID) }
         return V4BackupRecordsV1(
+            assetSemantics: records.assetSemantics,
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
             assetPlacementEvents: records.assetPlacementEvents,
@@ -1820,8 +1841,13 @@ private extension BackupRestoreService {
             records.partyAccountability,
             workspaceID: workspaceID
         )
+        let assetSemantics = try rebindingAssetSemantics(
+            records.assetSemantics,
+            workspaceID: workspaceID
+        )
         guard let archived = records.locationMigrationReceipts.first else {
             return V4BackupRecordsV1(
+                assetSemantics: assetSemantics,
                 assetCompositionEdges: reboundEdges.map(\.0),
                 assetCompositionEvents: compositionEvents,
                 assetPlacementEvents: placements,
@@ -1848,7 +1874,8 @@ private extension BackupRestoreService {
            reboundEdges.map(\.0) == records.assetCompositionEdges,
            compositionEvents == records.assetCompositionEvents,
            savedSmartViews == records.savedSmartViews,
-           partyAccountability == records.partyAccountability {
+           partyAccountability == records.partyAccountability,
+           assetSemantics == records.assetSemantics {
             return records
         }
         let rebound = try LocationMigrationReceiptV1(
@@ -1860,6 +1887,7 @@ private extension BackupRestoreService {
             bindings: receipt.bindings
         )
         return V4BackupRecordsV1(
+            assetSemantics: assetSemantics,
             assetCompositionEdges: reboundEdges.map(\.0),
             assetCompositionEvents: compositionEvents,
             assetPlacementEvents: placements,
@@ -2083,6 +2111,102 @@ private extension BackupRestoreService {
         }
     }
 
+    func rebindingAssetSemantics(
+        _ records: [V10BackupAssetSemanticRecordV1],
+        workspaceID: WorkspaceID
+    ) throws -> [V10BackupAssetSemanticRecordV1] {
+        do {
+            return try records.map { record in
+                let data: Data
+                switch record.kind {
+                case .kindBindingEvent:
+                    let source = try AssetSemanticCanonicalCodecV1.decode(
+                        AssetKindBindingEventV1.self, from: record.canonicalData
+                    )
+                    guard source.eventID == record.id,
+                          source.workspaceID.rawValue == record.workspaceID,
+                          source.revision == record.revision else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    data = try AssetSemanticCanonicalCodecV1.encode(
+                        source.workspaceID == workspaceID ? source : source.rebound(to: workspaceID)
+                    )
+                case .workflowCapabilityBindingEvent:
+                    let source = try AssetSemanticCanonicalCodecV1.decode(
+                        AssetWorkflowCapabilityBindingEventV1.self,
+                        from: record.canonicalData
+                    )
+                    guard source.eventID == record.id,
+                          source.workspaceID.rawValue == record.workspaceID,
+                          source.revision == record.revision else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    data = try AssetSemanticCanonicalCodecV1.encode(
+                        source.workspaceID == workspaceID ? source : source.rebound(to: workspaceID)
+                    )
+                case .productIdentity:
+                    let source = try AssetSemanticCanonicalCodecV1.decode(
+                        AssetProductIdentityV1.self, from: record.canonicalData
+                    )
+                    guard source.identityID == record.id,
+                          source.workspaceID.rawValue == record.workspaceID,
+                          source.revision == record.revision else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    data = try AssetSemanticCanonicalCodecV1.encode(
+                        source.workspaceID == workspaceID ? source : source.rebound(to: workspaceID)
+                    )
+                case .lifecycleEvent:
+                    let source = try AssetSemanticCanonicalCodecV1.decode(
+                        AssetLifecycleEventV1.self, from: record.canonicalData
+                    )
+                    guard source.record.eventID == record.id,
+                          source.record.workspaceID.rawValue == record.workspaceID,
+                          source.record.revision == record.revision else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    data = try AssetSemanticCanonicalCodecV1.encode(
+                        source.record.workspaceID == workspaceID
+                            ? source : source.rebound(to: workspaceID)
+                    )
+                case .successorLink:
+                    let source = try AssetSemanticCanonicalCodecV1.decode(
+                        AssetSuccessorLinkV1.self, from: record.canonicalData
+                    )
+                    guard source.linkID == record.id,
+                          source.workspaceID.rawValue == record.workspaceID,
+                          source.revision == record.revision else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    data = try AssetSemanticCanonicalCodecV1.encode(
+                        source.workspaceID == workspaceID ? source : source.rebound(to: workspaceID)
+                    )
+                case .workSubjectScopeSnapshot:
+                    let source = try AssetSemanticCanonicalCodecV1.decode(
+                        WorkSubjectScopeSnapshotV1.self, from: record.canonicalData
+                    )
+                    guard source.snapshotID == record.id,
+                          source.workspaceID.rawValue == record.workspaceID,
+                          source.workspaceRevision == record.revision else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    data = try AssetSemanticCanonicalCodecV1.encode(
+                        source.workspaceID == workspaceID ? source : source.rebound(to: workspaceID)
+                    )
+                }
+                return .init(
+                    kind: record.kind, id: record.id,
+                    workspaceID: workspaceID.rawValue,
+                    revision: record.revision, canonicalData: data
+                )
+            }
+        } catch let error as BackupRestoreServiceError {
+            throw error
+        } catch {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+    }
+
     func recordsWithObservationAndTime(
         _ records: V4BackupRecordsV1
     ) throws -> V4BackupRecordsV1 {
@@ -2098,6 +2222,7 @@ private extension BackupRestoreService {
             )
         }
         return V4BackupRecordsV1(
+            assetSemantics: [],
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
             assetPlacementEvents: records.assetPlacementEvents,
@@ -2265,7 +2390,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 5
                 || records.recordsSchemaVersion == 6
                 || records.recordsSchemaVersion == 7
-                || records.recordsSchemaVersion == 8)
+                || records.recordsSchemaVersion == 8
+                || records.recordsSchemaVersion == 9)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -2278,7 +2404,8 @@ private extension BackupRestoreService {
             break
         case (2, let ledger?, nil), (3, let ledger?, _), (4, let ledger?, _),
              (5, let ledger?, _), (6, let ledger?, _),
-             (7, let ledger?, _), (8, let ledger?, _):
+             (7, let ledger?, _), (8, let ledger?, _),
+             (9, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -2514,7 +2641,7 @@ private extension BackupRestoreService {
             ))
         }
         if records.recordsSchemaVersion == 6 || records.recordsSchemaVersion == 7
-            || records.recordsSchemaVersion == 8 {
+            || records.recordsSchemaVersion == 8 || records.recordsSchemaVersion == 9 {
             do {
                 for record in records.savedSmartViews {
                     let descriptor = try record.descriptor()
@@ -2540,7 +2667,7 @@ private extension BackupRestoreService {
                 }
             } catch { throw BackupRestoreServiceError.invalidPackage }
         }
-        if records.recordsSchemaVersion == 8 {
+        if records.recordsSchemaVersion >= 8 {
             do {
                 var roleValues: [UUID: SitePartyRoleEventV1] = [:]
                 var signoffValues: [UUID: SignoffSnapshotV1] = [:]
@@ -2585,13 +2712,59 @@ private extension BackupRestoreService {
                 }
             } catch { throw BackupRestoreServiceError.invalidPackage }
         }
+        if records.recordsSchemaVersion == 9 {
+            do {
+                for record in records.assetSemantics {
+                    switch record.kind {
+                    case .kindBindingEvent:
+                        context.insert(try AssetKindBindingEventRow(
+                            AssetSemanticCanonicalCodecV1.decode(
+                                AssetKindBindingEventV1.self, from: record.canonicalData
+                            )
+                        ))
+                    case .workflowCapabilityBindingEvent:
+                        context.insert(try AssetWorkflowCapabilityBindingEventRow(
+                            AssetSemanticCanonicalCodecV1.decode(
+                                AssetWorkflowCapabilityBindingEventV1.self,
+                                from: record.canonicalData
+                            )
+                        ))
+                    case .productIdentity:
+                        context.insert(try AssetProductIdentityRow(
+                            AssetSemanticCanonicalCodecV1.decode(
+                                AssetProductIdentityV1.self, from: record.canonicalData
+                            )
+                        ))
+                    case .lifecycleEvent:
+                        context.insert(try AssetLifecycleEventRow(
+                            AssetSemanticCanonicalCodecV1.decode(
+                                AssetLifecycleEventV1.self, from: record.canonicalData
+                            )
+                        ))
+                    case .successorLink:
+                        context.insert(try AssetSuccessorLinkRow(
+                            AssetSemanticCanonicalCodecV1.decode(
+                                AssetSuccessorLinkV1.self, from: record.canonicalData
+                            )
+                        ))
+                    case .workSubjectScopeSnapshot:
+                        context.insert(try WorkSubjectScopeSnapshotRow(
+                            AssetSemanticCanonicalCodecV1.decode(
+                                WorkSubjectScopeSnapshotV1.self, from: record.canonicalData
+                            )
+                        ))
+                    }
+                }
+            } catch { throw BackupRestoreServiceError.invalidPackage }
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
                     || records.recordsSchemaVersion == 5
                     || records.recordsSchemaVersion == 6
                     || records.recordsSchemaVersion == 7
-                    || records.recordsSchemaVersion == 8 else {
+                    || records.recordsSchemaVersion == 8
+                    || records.recordsSchemaVersion == 9 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -3659,8 +3832,8 @@ private extension BackupRestoreService {
     ) throws {
         let actual = try records(in: context)
         if actual == expected { return }
-        guard expected.recordsSchemaVersion < 8,
-              actual.recordsSchemaVersion == 8 else {
+        guard expected.recordsSchemaVersion < 9,
+              actual.recordsSchemaVersion == 9 else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
         if expected.recordsSchemaVersion == 5 || expected.recordsSchemaVersion == 6 {
@@ -3679,6 +3852,7 @@ private extension BackupRestoreService {
         schemaVersion: Int
     ) -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
+            assetSemantics: schemaVersion >= 9 ? records.assetSemantics : [],
             assetCompositionEdges: records.assetCompositionEdges,
             assetCompositionEvents: records.assetCompositionEvents,
             assetPlacementEvents: records.assetPlacementEvents,
@@ -3706,6 +3880,7 @@ private extension BackupRestoreService {
         expected: V4BackupRecordsV1
     ) throws -> Bool {
         let predecessor = V4BackupRecordsV1(
+            assetSemantics: expected.recordsSchemaVersion >= 9 ? expected.assetSemantics : [],
             assets: actual.assets,
             deletionLedger: actual.deletionLedger,
             evidenceFiles: actual.evidenceFiles,
@@ -3858,6 +4033,12 @@ private extension BackupRestoreService {
         let actorSnapshots = try context.fetch(FetchDescriptor<ActorSnapshotRow>())
         let qualificationSnapshots = try context.fetch(FetchDescriptor<QualificationSnapshotRow>())
         let signoffSnapshots = try context.fetch(FetchDescriptor<SignoffSnapshotRow>())
+        let assetKindBindingEvents = try context.fetch(FetchDescriptor<AssetKindBindingEventRow>())
+        let assetWorkflowCapabilityBindingEvents = try context.fetch(FetchDescriptor<AssetWorkflowCapabilityBindingEventRow>())
+        let assetProductIdentities = try context.fetch(FetchDescriptor<AssetProductIdentityRow>())
+        let assetLifecycleEvents = try context.fetch(FetchDescriptor<AssetLifecycleEventRow>())
+        let assetSuccessorLinks = try context.fetch(FetchDescriptor<AssetSuccessorLinkRow>())
+        let workSubjectScopeSnapshots = try context.fetch(FetchDescriptor<WorkSubjectScopeSnapshotRow>())
         let observationAndTime: [UUID: ObservationAndTimeRow]
         if includesObservationAndTime {
             observationAndTime = try ObservationAndTimeRowStoreV1.validatedIndex(
@@ -3876,6 +4057,42 @@ private extension BackupRestoreService {
             mutationHistory = nil
         }
         return V4BackupRecordsV1(
+            assetSemantics: try (
+                assetKindBindingEvents.map {
+                    let value = try $0.value()
+                    return .init(kind: .kindBindingEvent, id: value.eventID,
+                                 workspaceID: value.workspaceID.rawValue,
+                                 revision: value.revision, canonicalData: $0.canonicalData)
+                } + assetWorkflowCapabilityBindingEvents.map {
+                    let value = try $0.value()
+                    return .init(kind: .workflowCapabilityBindingEvent, id: value.eventID,
+                                 workspaceID: value.workspaceID.rawValue,
+                                 revision: value.revision, canonicalData: $0.canonicalData)
+                } + assetProductIdentities.map {
+                    let value = try $0.value()
+                    return .init(kind: .productIdentity, id: value.identityID,
+                                 workspaceID: value.workspaceID.rawValue,
+                                 revision: value.revision, canonicalData: $0.canonicalData)
+                } + assetLifecycleEvents.map {
+                    let value = try $0.value()
+                    return .init(kind: .lifecycleEvent, id: value.record.eventID,
+                                 workspaceID: value.record.workspaceID.rawValue,
+                                 revision: value.record.revision, canonicalData: $0.canonicalData)
+                } + assetSuccessorLinks.map {
+                    let value = try $0.value()
+                    return .init(kind: .successorLink, id: value.linkID,
+                                 workspaceID: value.workspaceID.rawValue,
+                                 revision: value.revision, canonicalData: $0.canonicalData)
+                } + workSubjectScopeSnapshots.map {
+                    let value = try $0.value()
+                    return .init(kind: .workSubjectScopeSnapshot, id: value.snapshotID,
+                                 workspaceID: value.workspaceID.rawValue,
+                                 revision: value.workspaceRevision, canonicalData: $0.canonicalData)
+                }
+            ).sorted {
+                "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
+                    < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
+            },
             assetCompositionEdges: assetCompositionEdges.map {
                 .init(id: $0.id, canonicalData: $0.canonicalData)
             }.sorted { canonical($0.id) < canonical($1.id) },
@@ -3974,7 +4191,7 @@ private extension BackupRestoreService {
             },
             recordsSchemaVersion: mutationHistory == nil
                 ? (includingDeletionLedger ? 2 : 1)
-                : 8,
+                : 9,
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,

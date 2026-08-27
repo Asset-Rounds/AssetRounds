@@ -1,6 +1,28 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "asset.semantic.sign.illuminated.name" : {
+      "comment" : "Localized name for the bundled illuminated-sign semantic kind.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Illuminated sign"
+          }
+        }
+      }
+    },
+    "asset.semantic.sign.illuminated.description" : {
+      "comment" : "Localized description for the bundled illuminated-sign semantic kind.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Illuminated sign semantic kind"
+          }
+        }
+      }
+    },
     "common.done" : {
       "comment" : "Completes and closes the current task.",
       "localizations" : {
@@ -196,6 +218,127 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Local response"
+          }
+        }
+      }
+    },
+    "asset.semantic.heading" : {
+      "comment" : "Heading for the local asset semantic and lifecycle projection.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asset semantics"
+          }
+        }
+      }
+    },
+    "asset.semantic.kind" : {
+      "comment" : "Localized label for an accepted asset semantic kind.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Semantic kind"
+          }
+        }
+      }
+    },
+    "asset.semantic.product_identity" : {
+      "comment" : "Localized label for progressively disclosed product identifier attributes.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Product identity"
+          }
+        }
+      }
+    },
+    "asset.semantic.work_subject_scope" : {
+      "comment" : "Localized label for the immutable subject scope captured by completed work.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Work subject scope"
+          }
+        }
+      }
+    },
+    "asset.semantic.lifecycle" : {
+      "comment" : "Localized label for a human-recorded asset lifecycle history.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lifecycle"
+          }
+        }
+      }
+    },
+    "asset.semantic.state" : {
+      "comment" : "Accessible label for an asset semantic state without operational claims.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recorded state"
+          }
+        }
+      }
+    },
+    "asset.semantic.state.unknown" : {
+      "comment" : "Accessible text for an unknown or not-recorded semantic value.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown"
+          }
+        }
+      }
+    },
+    "asset.semantic.state.duplicate" : {
+      "comment" : "Accessible text for a duplicate product identifier value.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplicate value"
+          }
+        }
+      }
+    },
+    "asset.semantic.state.retired" : {
+      "comment" : "Accessible text for a human-recorded retired lifecycle event.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retired"
+          }
+        }
+      }
+    },
+    "asset.semantic.state.replaced" : {
+      "comment" : "Accessible text for a human-recorded replaced lifecycle event.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replaced"
+          }
+        }
+      }
+    },
+    "asset.semantic.state.recorded" : {
+      "comment" : "Accessible text for a fact explicitly recorded by a local actor.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recorded"
           }
         }
       }

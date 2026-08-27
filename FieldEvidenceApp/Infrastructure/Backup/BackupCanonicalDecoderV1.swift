@@ -46,6 +46,7 @@ struct BackupCanonicalDecoderV1: Sendable {
         do {
             let value = try decoder().decode(V4BackupRecordsV1.self, from: data)
             try Self.validatePartyAccountability(value)
+            try Self.validateAssetSemantics(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -58,6 +59,57 @@ struct BackupCanonicalDecoderV1: Sendable {
 }
 
 private extension BackupCanonicalDecoderV1 {
+    static func validateAssetSemantics(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion >= 9 else {
+            guard records.assetSemantics.isEmpty else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+            return
+        }
+        for record in records.assetSemantics {
+            let identity: (UUID, WorkspaceID, UInt64)
+            switch record.kind {
+            case .kindBindingEvent:
+                let value = try AssetSemanticCanonicalCodecV1.decode(
+                    AssetKindBindingEventV1.self, from: record.canonicalData
+                )
+                try value.validate(); identity = (value.eventID, value.workspaceID, value.revision)
+            case .workflowCapabilityBindingEvent:
+                let value = try AssetSemanticCanonicalCodecV1.decode(
+                    AssetWorkflowCapabilityBindingEventV1.self, from: record.canonicalData
+                )
+                try value.validate(); identity = (value.eventID, value.workspaceID, value.revision)
+            case .productIdentity:
+                let value = try AssetSemanticCanonicalCodecV1.decode(
+                    AssetProductIdentityV1.self, from: record.canonicalData
+                )
+                try value.validate(); identity = (value.identityID, value.workspaceID, value.revision)
+            case .lifecycleEvent:
+                let value = try AssetSemanticCanonicalCodecV1.decode(
+                    AssetLifecycleEventV1.self, from: record.canonicalData
+                )
+                try value.validate()
+                identity = (value.record.eventID, value.record.workspaceID, value.record.revision)
+            case .successorLink:
+                let value = try AssetSemanticCanonicalCodecV1.decode(
+                    AssetSuccessorLinkV1.self, from: record.canonicalData
+                )
+                try value.validate(); identity = (value.linkID, value.workspaceID, value.revision)
+            case .workSubjectScopeSnapshot:
+                let value = try AssetSemanticCanonicalCodecV1.decode(
+                    WorkSubjectScopeSnapshotV1.self, from: record.canonicalData
+                )
+                try value.validate()
+                identity = (value.snapshotID, value.workspaceID, value.workspaceRevision)
+            }
+            guard identity.0 == record.id,
+                  identity.1.rawValue == record.workspaceID,
+                  identity.2 == record.revision else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+        }
+    }
+
     static func validatePartyAccountability(_ records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion >= 8 else {
             guard records.partyAccountability.isEmpty else {

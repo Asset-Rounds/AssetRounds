@@ -8,6 +8,26 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class S6_2BackupExportTests: XCTestCase {
+    func testV23P03C39BackupCodecEnforcesBoundedCanonicalInput() throws {
+        let value = AssetProductIdentifierReviewStateV1.unknownRecorded
+        let bytes = try AssetSemanticCanonicalCodecV1.encode(value)
+        XCTAssertEqual(
+            try AssetSemanticCanonicalCodecV1.decode(
+                AssetProductIdentifierReviewStateV1.self,
+                from: bytes
+            ),
+            value
+        )
+        XCTAssertThrowsError(
+            try AssetSemanticCanonicalCodecV1.decode(
+                AssetProductIdentifierReviewStateV1.self,
+                from: Data(repeating: 0, count: 8_388_609)
+            )
+        ) { error in
+            XCTAssertEqual(error as? AssetSemanticContractFailureV1, .invalidValue)
+        }
+    }
+
     private let fileManager = FileManager.default
 
     @MainActor

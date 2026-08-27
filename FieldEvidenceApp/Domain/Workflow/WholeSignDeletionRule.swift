@@ -104,6 +104,21 @@ struct PartyAccountabilityDeletionInventoryV1: Equatable, Sendable {
     }
 }
 
+struct AssetSemanticDeletionInventoryV1: Equatable, Sendable {
+    let kindBindingEventIDs: Set<UUID>
+    let workflowCapabilityBindingEventIDs: Set<UUID>
+    let productIdentityIDs: Set<UUID>
+    let lifecycleEventIDs: Set<UUID>
+    let successorLinkIDs: Set<UUID>
+    let workSubjectScopeSnapshotIDs: Set<UUID>
+
+    var isEmpty: Bool {
+        kindBindingEventIDs.isEmpty && workflowCapabilityBindingEventIDs.isEmpty
+            && productIdentityIDs.isEmpty && lifecycleEventIDs.isEmpty
+            && successorLinkIDs.isEmpty && workSubjectScopeSnapshotIDs.isEmpty
+    }
+}
+
 enum WholeSignDeletionRule {
     static func validatePartyAccountabilityLifecycle(
         authority: PartyAccountabilityDeletionAuthorityV1,
@@ -119,6 +134,19 @@ enum WholeSignDeletionRule {
             guard after.isEmpty else {
                 throw WholeSignDeletionRuleError.invalidGraph
             }
+        }
+    }
+
+    static func validateAssetSemanticLifecycle(
+        authority: PartyAccountabilityDeletionAuthorityV1,
+        before: AssetSemanticDeletionInventoryV1,
+        after: AssetSemanticDeletionInventoryV1
+    ) throws {
+        switch authority {
+        case .ordinaryAssetOrSiteDelete:
+            guard after == before else { throw WholeSignDeletionRuleError.invalidGraph }
+        case .workspaceErase:
+            guard after.isEmpty else { throw WholeSignDeletionRuleError.invalidGraph }
         }
     }
 

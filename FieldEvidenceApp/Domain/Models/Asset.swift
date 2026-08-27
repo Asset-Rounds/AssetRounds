@@ -34,3 +34,18 @@ final class Asset {
         self.updatedAt = updatedAt ?? createdAt
     }
 }
+
+extension Asset {
+    /// Existing values are the complete authority for the V9→V10 legacy
+    /// semantic migration. No product identifier, installation date, lifecycle
+    /// event, condition, recall, warranty, or operational disposition is
+    /// derivable from this row.
+    func legacyPackageReleaseIdentityForAssetSemanticMigration() throws
+        -> PackageReleaseIdentityV1 {
+        try PackageReleaseIdentityV1(
+            packageID: packID,
+            schemaVersion: packSchemaVersion,
+            contentVersion: packContentVersion
+        )
+    }
+}
