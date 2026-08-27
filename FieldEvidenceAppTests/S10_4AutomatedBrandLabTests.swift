@@ -3498,10 +3498,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     reportComparisonRouteStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 52_825)
+        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 58_691)
         XCTAssertEqual(
             Data(workValidationPositioningHelperSource.utf8).sha256,
-            "EB3B6B32CEB869C12A4516E731496E3FD6AC8147C9BDAB85150ADA4E3B08C343"
+            "0C04AB545D4E1036418C8FFB775CDFAD3E48A62CF4020C862E39309203419B3B"
         )
 
         let signDetailPositioningGate =
@@ -4314,11 +4314,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             k195WorkValidationRestorationIntervalDiagnosticSource.utf8.count,
-            11_504
+            17_370
         )
         XCTAssertEqual(
             Data(k195WorkValidationRestorationIntervalDiagnosticSource.utf8).sha256,
-            "74FFBAD6B13E3B6B0C2A6ACEA919BEAE5B16EE60DA2A59D5FFF9C6CAF804164B"
+            "545BC1766E1743586CEE358B0B87C9CFE96CEAAA3533A8C5DAAB90597AD8F397"
         )
         for exactContext in [
             "guard automationSegment == .segment2",
@@ -4429,20 +4429,64 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             k195WorkValidationRestorationIntervalDiagnosticSource.components(
                 separatedBy: "XCTAttachment("
             ).count - 1,
-            3
+            4
         )
         XCTAssertEqual(
             k195WorkValidationRestorationIntervalDiagnosticSource.components(
                 separatedBy: ".lifetime = .keepAlways"
             ).count - 1,
-            3
+            4
         )
         XCTAssertEqual(
             k195WorkValidationRestorationIntervalDiagnosticSource.components(
                 separatedBy: "add("
             ).count - 1,
-            3
+            4
         )
+        for exactAuditContract in [
+            #""remainingShiftNonzero""#,
+            #""remainingDistanceAtLeastMinimumGestureDistance""#,
+            "intervalRelations.count == 15",
+            "failedIntervalRelations == exactAuditFailedIntervalRelations",
+            "exactAuditFailedIntervalRelations.contains(relation.0)",
+            "remainingShift == 0",
+            "remainingDistance == 0",
+            "fieldLabelFrame.minY == targetFieldLabelMinY",
+            "stablePrePositionRouteRelations().allSatisfy({ $0.1 })",
+            "currentGeometryRelations.allSatisfy({ $0.1 })",
+            "noteFrame.maxY > safeBottom",
+            "noteFrame.maxY <= liveBottom",
+            "try app.performAccessibilityAudit(for: .contrast)",
+            "observedIssueCount += 1",
+            "auditedElementCount += 1",
+            "S10_4_AX_TEXT_WORK_VALIDATION_RESTORATION_INTERVAL_ISSUE_DIAGNOSTIC",
+            "S10_4_AX_TEXT_WORK_VALIDATION_RESTORATION_INTERVAL_COUNT_DIAGNOSTIC",
+            #""issueOrdinal": observedIssueCount"#,
+            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
+            #""compactDescription": issue.compactDescription"#,
+            #""detailedDescription": issue.detailedDescription"#,
+            #""elementExists": NSNull()"#,
+            #""elementEnabled": NSNull()"#,
+            #""elementHittable": NSNull()"#,
+            #""elementIdentifier": NSNull()"#,
+            #""elementLabel": NSNull()"#,
+            #""elementValue": NSNull()"#,
+            #""elementTypeRawValue": NSNull()"#,
+            #""elementTypeDescription": NSNull()"#,
+            #""elementFrame": NSNull()"#,
+            #""observedIssueCount": observedIssueCount"#,
+            #""auditedElementCount": auditedElementCount"#,
+            "S10.4 AX-text work-validation restoration-interval diagnostic audit failed:",
+            "return true",
+        ] {
+            XCTAssertEqual(
+                k195WorkValidationRestorationIntervalDiagnosticSource.components(
+                    separatedBy: exactAuditContract
+                ).count - 1,
+                1,
+                exactAuditContract
+            )
+        }
         var k195DiagnosticTail =
             k195WorkValidationRestorationIntervalDiagnosticSource[
                 k195WorkValidationRestorationIntervalDiagnosticSource.startIndex...
@@ -4454,6 +4498,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
             "let treeAttachment = XCTAttachment(string: app.debugDescription)",
             "let contextAttachment = XCTAttachment(string: contextText)",
+            "try app.performAccessibilityAudit(for: .contrast)",
+            "S10_4_AX_TEXT_WORK_VALIDATION_RESTORATION_INTERVAL_ISSUE_DIAGNOSTIC",
+            "let issueAttachment = XCTAttachment(",
+            "return true",
+            "S10_4_AX_TEXT_WORK_VALIDATION_RESTORATION_INTERVAL_COUNT_DIAGNOSTIC",
             "XCTFail(\n                \"S10.4 AX-text work-validation restoration-interval diagnostic is nonaccepting\"",
             "return false",
         ] {
@@ -4461,9 +4510,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             k195DiagnosticTail = k195DiagnosticTail[range.upperBound...]
         }
         for prohibitedDiagnosticForm in [
-            "performAccessibilityAudit", "captureBaseline(", "attachCandidate(",
+            "captureBaseline(", "attachCandidate(",
             "S10_MIGRATION_STATE", "S10_4_AX_STATE", "S10_4_CONTRAST",
             "S10_4_CANDIDATE", "S10_4_TASK", "S10_4_SHARD_RECEIPT",
+            "eligibleExceptions", "matchedExceptions",
+            "ContrastAuditExceptionSignature(", "tolerance", "epsilon",
             ".tap(", ".typeText(", "setToggle(", "navigateBack(",
             "waitForExistence", "waitForNonExistence", ".press(", ".swipe",
             "scroll(", "sleep(", "NotificationCenter", "migratedStateIDs.append",
