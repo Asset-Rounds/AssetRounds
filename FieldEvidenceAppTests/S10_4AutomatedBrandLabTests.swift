@@ -12996,7 +12996,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             availablePurchaseFunctionSource.components(
                 separatedBy: "return usedSettingsRetry"
             ).count - 1,
-            14
+            15
         )
         XCTAssertFalse(availablePurchaseFunctionSource.contains("\n            return\n"))
         XCTAssertFalse(availablePurchaseFunctionSource.contains("\n                    return\n"))
