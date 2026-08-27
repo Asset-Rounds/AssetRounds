@@ -9572,10 +9572,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_461)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_836)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "3CA42F8D3D5A4231652F7031E1A9334779B9E2FF48D3DE87FB7CD323A5670E35"
+            "1F4D0D344C033D7CC530902BE90E29726057D400A2E58DB58520B40E6E07D745"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
@@ -20281,7 +20281,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from:
                 "    @MainActor\n" +
                     "    private func diagnoseSegment2AXTextIssueResolvedNativeContrast(",
-            before: "\n\n    private func publicAuditSignatureObject("
+            before:
+                "\n\n    @MainActor\n" +
+                    "    private func diagnoseSegment3AXTextSettingsHubNativeContrast("
         )
         XCTAssertEqual(issueResolvedDiagnosticSource.utf8.count, 12_424)
         XCTAssertEqual(
@@ -20424,15 +20426,160 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(issueResolvedDiagnosticSource.contains(prohibited), prohibited)
         }
 
+        let settingsHubDiagnosticSource = try boundedSource(
+            uiSource,
+            from:
+                "    @MainActor\n" +
+                    "    private func diagnoseSegment3AXTextSettingsHubNativeContrast(",
+            before: "\n\n    private func publicAuditSignatureObject("
+        )
+        XCTAssertEqual(settingsHubDiagnosticSource.utf8.count, 11_968)
+        XCTAssertEqual(
+            Data(settingsHubDiagnosticSource.utf8).sha256,
+            "8AFF9F21E17A9BA3C545AE41BA1992BF2EB6776B092BEBD43AD60812E346B02D"
+        )
+        for exact in [
+            #"let stateID = "state.settings.hub""#,
+            #"Self.segmentedRouteStateIDs[50..<59]"#,
+            #"Self.segmentedRouteStateIDs[50..<58]"#,
+            #""state.report-correction.validation-error""#,
+            #"shard.shardID == "s10.4.current.ax-text""#,
+            #"automationSegment == .segment3"#,
+            #"automationSegment.replayCount == 22"#,
+            #"automationSegment.ownedStartOrdinal == 51"#,
+            #"automationSegment.ownedCount == 17"#,
+            #"automationSegment.finalOrdinal == 67"#,
+            #"Self.segmentedRouteStateIDs[58] == stateID"#,
+            #"segmentedRouteStateCursor == 59"#,
+            #"migratedStateIDs == expectedMigratedStateIDs"#,
+            #"automationAXTreeDigests.keys.sorted()"#,
+            #"automationContrastExceptions.keys.sorted()"#,
+            #"!automatedSegmentFinished"#,
+            #"app.state == .runningForeground"#,
+            #""stateOrdinal": 59"#,
+            #""predecessorStateID": "state.feedback.review-ready""#,
+            #""predecessorOrdinal": 58"#,
+            #""successorStateID": "state.backup.ready""#,
+            #""successorOrdinal": 60"#,
+            #""applicationStateRawValue": app.state.rawValue"#,
+            #""applicationForeground": app.state == .runningForeground"#,
+            #""applicationFrame": auditFrameObject(app.frame)"#,
+            #""application": diagnosticElementObject(app)"#,
+            #""queries": diagnosticQueryObjects"#,
+            #""exists": element.exists"#,
+            #""isEnabled": element.isEnabled"#,
+            #""isHittable": element.isHittable"#,
+            #""identifier": element.identifier"#,
+            #""label": element.label"#,
+            #""value": valueObject"#,
+            #""elementTypeRawValue": element.elementType.rawValue"#,
+            #""elementTypeDescription": String(describing: element.elementType)"#,
+            #""frame": self.auditFrameObject(element.frame)"#,
+            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
+            #""compactDescription": issue.compactDescription"#,
+            #""detailedDescription": issue.detailedDescription"#,
+            #""elementExists": NSNull()"#,
+            #""elementEnabled": NSNull()"#,
+            #""elementHittable": NSNull()"#,
+            #""elementIdentifier": NSNull()"#,
+            #""elementLabel": NSNull()"#,
+            #""elementValue": NSNull()"#,
+            #""elementTypeRawValue": NSNull()"#,
+            #""elementTypeDescription": NSNull()"#,
+            #""elementFrame": NSNull()"#,
+            #""observedIssueCount": observedIssueCount"#,
+            #""auditedElementCount": auditedElementCount"#,
+            #"options: [.prettyPrinted, .sortedKeys]"#,
+            #"try app.performAccessibilityAudit(for: .contrast)"#,
+            #"screenshot: auditedElement.screenshot()"#,
+            #"return true"#,
+            #"S10.4 AX-text settings-hub native contrast diagnostic completed nonaccepting"#,
+        ] {
+            XCTAssertTrue(settingsHubDiagnosticSource.contains(exact), exact)
+        }
+        var settingsHubQueryTail =
+            settingsHubDiagnosticSource[settingsHubDiagnosticSource.startIndex...]
+        for queryName in [
+            "settingsScreens", "settingsScrollViews", "backupEntries",
+            "diagnosticsEntries", "feedbackEntries", "restoreEntries",
+            "paywallEntries", "restorePurchaseEntries", "eraseEntries",
+            "navigationBars", "tabBars", "keyboards", "inputViews",
+        ] {
+            let token = "\"\(queryName)\""
+            let range = try XCTUnwrap(settingsHubQueryTail.range(of: token), queryName)
+            settingsHubQueryTail = settingsHubQueryTail[range.upperBound...]
+        }
+        for prefix in [
+            "S10_4_AX_TEXT_SETTINGS_HUB_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "S10_4_AX_TEXT_SETTINGS_HUB_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "S10_4_AX_TEXT_SETTINGS_HUB_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+        ] {
+            XCTAssertEqual(
+                settingsHubDiagnosticSource.components(separatedBy: prefix).count - 1,
+                1,
+                prefix
+            )
+        }
+        XCTAssertEqual(
+            settingsHubDiagnosticSource.components(
+                separatedBy: "performAccessibilityAudit(for: .contrast)"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            settingsHubDiagnosticSource.components(separatedBy: "return true").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            settingsHubDiagnosticSource.components(
+                separatedBy: ".lifetime = .keepAlways"
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            settingsHubDiagnosticSource.components(separatedBy: "add(").count - 1,
+            4
+        )
+        var settingsHubDiagnosticTail =
+            settingsHubDiagnosticSource[settingsHubDiagnosticSource.startIndex...]
+        for orderedToken in [
+            "let diagnosticContext: [String: Any] = [",
+            "S10_4_AX_TEXT_SETTINGS_HUB_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
+            "let contextAttachment = XCTAttachment(",
+            "try app.performAccessibilityAudit(for: .contrast)",
+            "S10_4_AX_TEXT_SETTINGS_HUB_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "screenshot: auditedElement.screenshot()",
+            "S10_4_AX_TEXT_SETTINGS_HUB_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+            "throw AutomationConfigurationError.invalid(",
+        ] {
+            let range = try XCTUnwrap(
+                settingsHubDiagnosticTail.range(of: orderedToken),
+                orderedToken
+            )
+            settingsHubDiagnosticTail = settingsHubDiagnosticTail[range.upperBound...]
+        }
+        for prohibited in [
+            "captureBaseline(", "S10_MIGRATION_STATE", "S10_4_AX_STATE",
+            "S10_4_CONTRAST\"", "S10_4_CANDIDATE", ".tap()", ".typeText(",
+            "setToggle(", "navigateBack(", "waitForExistence(", ".swipe",
+            "sleep(", "NotificationCenter", "migratedStateIDs.append",
+            "segmentedRouteStateCursor +=", "automatedSegmentFinished = true",
+            "ContrastAuditExceptionSignature(", "exceptionIssueID", "tolerance",
+        ] {
+            XCTAssertFalse(settingsHubDiagnosticSource.contains(prohibited), prohibited)
+        }
+
         let captureSource = try boundedSource(
             uiSource,
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 8_446)
+        XCTAssertEqual(captureSource.utf8.count, 8_821)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "EB987FE672AE2804733C3E0428CD68E7F072307531C415C550EB90D679919ABC"
+            "5267A6499930E4A3AD2D367EE265F26ADC0A0F114DC546D4E47767B7004C9437"
         )
         let captureReplayGateSource = try boundedSource(
             captureSource,
@@ -20455,12 +20602,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 of: "try diagnoseSegment2AXTextIssueResolvedNativeContrast(in: app)"
             )
         )
+        let normalMarker = try XCTUnwrap(
+            captureSource.range(of: "print(\"S10_MIGRATION_STATE state=\\(stateID)\")")
+        )
+        let settingsHubDiagnosticCall = try XCTUnwrap(
+            captureSource.range(
+                of: "try diagnoseSegment3AXTextSettingsHubNativeContrast(in: app)"
+            )
+        )
         let normalExceptionLookup = try XCTUnwrap(
             captureSource.range(of: "let eligibleExceptions =")
         )
         XCTAssertLessThan(replayCall.lowerBound, normalAppend.lowerBound)
         XCTAssertLessThan(issueResolvedDiagnosticCall.lowerBound, normalAppend.lowerBound)
         XCTAssertLessThan(issueResolvedDiagnosticCall.lowerBound, normalExceptionLookup.lowerBound)
+        XCTAssertLessThan(normalAppend.lowerBound, normalMarker.lowerBound)
+        XCTAssertLessThan(normalMarker.lowerBound, settingsHubDiagnosticCall.lowerBound)
+        XCTAssertLessThan(settingsHubDiagnosticCall.lowerBound, normalExceptionLookup.lowerBound)
         XCTAssertTrue(
             captureReplayGateSource.contains(
                 "automationShard?.shardID == \"s10.4.current.ax-text\""
