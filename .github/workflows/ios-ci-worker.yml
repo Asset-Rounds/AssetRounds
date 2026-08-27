@@ -3286,8 +3286,8 @@ jobs:
                         ($matchedAuthorities | length) <= 1
                         and ($matchedExceptionStateIDs | length) <= 1
                       elif $shard == "s10.4.current.ax-text" then
-                        ($matchedAuthorities | length) <= 14
-                        and ($matchedExceptionStateIDs | length) <= 11
+                        ($matchedAuthorities | length) <= 15
+                        and ($matchedExceptionStateIDs | length) <= 12
                       else
                         ($matchedAuthorities | length) == 0
                         and ($matchedExceptionStateIDs | length) == 0

@@ -121,7 +121,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             workflowPath,
             byteCount: 226_693,
-            sha256: "CDD62EFBC9E739535B6B9FEAEBD8D245C817A13969A9439A4BC821BE34C8CCE5"
+            sha256: "1FBE40A006DBF4F41C924DED69FC4A4E00A461BDF0FAF0FFCC2EA18D2FCE4517"
         )
         let workflowSource = try text(workflowPath)
         let workerCallHeader =
@@ -18388,6 +18388,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let recheckPreflightWorkflowTupleOrder =
             #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME""# + "\n" +
                 "              },\n" +
+                "              {\n" +
+                #"                shardID: "s10.4.current.ax-text","# + "\n" +
+                #"                stateID: "state.paywall.purchase-complete","# + "\n" +
+                #"                taskID: "one_handed_start","# + "\n" +
+                #"                exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PAYWALL-PURCHASE-COMPLETE-NO-SYNC""# + "\n" +
+                "              },\n" +
                 recheckCaptureWideReadyWorkflowTuple + "\n" +
                 recheckPreflightWorkflowTuple + "\n" +
                 "              {\n" +
@@ -19050,7 +19056,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 1"#,
             #"| select((.exceptionIssueID | IN("#,
             #")) | not)"#,
-            #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 16"#,
+            #"| (.ignoredAuditIssues[0] | tojson)] | unique | length) == 17"#,
             #"and (.exceptionOwner == "palatis3")"#,
             #"and (.exceptionExpiresAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"))"#,
             #"and ($today <= .exceptionExpiresAt)"#,
@@ -19662,8 +19668,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let axWorkflowDownstreamBound =
             #"                      elif $shard == "s10.4.current.ax-text" then"# + "\n" +
-                #"                        ($matchedAuthorities | length) <= 14"# + "\n" +
-                #"                        and ($matchedExceptionStateIDs | length) <= 11"#
+                #"                        ($matchedAuthorities | length) <= 15"# + "\n" +
+                #"                        and ($matchedExceptionStateIDs | length) <= 12"#
         XCTAssertEqual(
             workflowSource.components(separatedBy: axWorkflowDownstreamBound).count - 1,
             1
@@ -19771,15 +19777,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "AX aggregate limit expansion",
                 axWorkflowAggregateBound,
                 axWorkflowAggregateBound
-                    .replacingOccurrences(of: "> 14", with: "> 15")
-                    .replacingOccurrences(of: "> 11", with: "> 12")
+                    .replacingOccurrences(of: "> 15", with: "> 16")
+                    .replacingOccurrences(of: "> 12", with: "> 13")
             ),
             (
                 "AX downstream limit expansion",
                 axWorkflowDownstreamBound,
                 axWorkflowDownstreamBound
-                    .replacingOccurrences(of: "<= 14", with: "<= 15")
-                    .replacingOccurrences(of: "<= 11", with: "<= 12")
+                    .replacingOccurrences(of: "<= 15", with: "<= 16")
+                    .replacingOccurrences(of: "<= 12", with: "<= 13")
             ),
         ]
         for (label, canonicalBound, mutatedBound) in axWorkflowLimitMutations {
