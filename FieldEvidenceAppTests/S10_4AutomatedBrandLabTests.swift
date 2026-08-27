@@ -20630,10 +20630,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n    @MainActor\n" +
                     "    private func captureDifferentIssueStatesBeforeRecovery("
         )
-        XCTAssertEqual(alternativeRecheckSource.utf8.count, 8_265)
+        XCTAssertEqual(alternativeRecheckSource.utf8.count, 8_623)
         XCTAssertEqual(
             Data(alternativeRecheckSource.utf8).sha256,
-            "8DB985F14D144326276BC8A606351CD03AB778EFFDE6EEB42742592604330545"
+            "D5B4611B438A7AA5219203B98E8D42D6CBC6CEE7F255C403C4336C1FE55BA34B"
         )
         for exact in [
             "emitsEvidence: Bool = true",
@@ -20646,6 +20646,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "viewReportValues.count == 0",
             "return true",
             "return false",
+            "try diagnoseSegment2AXTextIssueOpenNativeContrast(in: app)",
+            "XCTFail(String(describing: error))",
         ] {
             XCTAssertTrue(alternativeRecheckSource.contains(exact), exact)
         }
@@ -21475,7 +21477,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     "    private func diagnoseSegment2AXTextIssueResolvedNativeContrast(",
             before:
                 "\n\n    @MainActor\n" +
-                    "    private func positionSettingsHubDiagnosticsEntryForAXText("
+                    "    private func diagnoseSegment2AXTextIssueOpenNativeContrast("
         )
         XCTAssertEqual(issueResolvedDiagnosticSource.utf8.count, 12_424)
         XCTAssertEqual(
@@ -21617,6 +21619,159 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertFalse(issueResolvedDiagnosticSource.contains(prohibited), prohibited)
         }
+
+        let issueOpenDiagnosticSource = try boundedSource(
+            uiSource,
+            from:
+                "    @MainActor\n" +
+                    "    private func diagnoseSegment2AXTextIssueOpenNativeContrast(",
+            before:
+                "\n\n    @MainActor\n" +
+                    "    private func positionSettingsHubDiagnosticsEntryForAXText("
+        )
+        XCTAssertEqual(issueOpenDiagnosticSource.utf8.count, 12_471)
+        XCTAssertEqual(
+            Data(issueOpenDiagnosticSource.utf8).sha256,
+            "80FFA051998EA3053084900BA282F9C1A70281593201EBC6D79ECB7558C7F636"
+        )
+        for exact in [
+            #"let stateID = "state.issue.open""#,
+            #"Self.segmentedRouteStateIDs[22..<46]"#,
+            #""state.issue.recheck-due""#,
+            #""state.issue.resolved""#,
+            #""state.paywall.purchase-complete""#,
+            #""state.recheck-capture.wide-ready""#,
+            #""state.recheck-preflight.ready""#,
+            #""state.work.validation-error""#,
+            #"shard.shardID == "s10.4.current.ax-text""#,
+            #"automationSegment == .segment2"#,
+            #"automationSegment.replayCount == 22"#,
+            #"automationSegment.ownedStartOrdinal == 23"#,
+            #"automationSegment.ownedCount == 28"#,
+            #"automationSegment.finalOrdinal == 50"#,
+            #"Self.segmentedRouteStateIDs[46] == stateID"#,
+            #"segmentedRouteStateCursor == 46"#,
+            #"migratedStateIDs == expectedMigratedStateIDs"#,
+            #"automationAXTreeDigests.keys.sorted()"#,
+            #"automationContrastExceptions.keys.sorted()"#,
+            #"!automatedSegmentFinished"#,
+            #"app.state == .runningForeground"#,
+            #""stateOrdinal": 47"#,
+            #""predecessorStateID": "state.recheck-review.issue-still-visible""#,
+            #""predecessorOrdinal": 46"#,
+            #""successorStateID": "state.recheck-outcome.different-issue""#,
+            #""successorOrdinal": 48"#,
+            #""applicationStateRawValue": app.state.rawValue"#,
+            #""applicationForeground": app.state == .runningForeground"#,
+            #""applicationFrame": auditFrameObject(app.frame)"#,
+            #""application": diagnosticElementObject(app)"#,
+            #""queries": diagnosticQueryObjects"#,
+            #""exists": element.exists"#,
+            #""isEnabled": element.isEnabled"#,
+            #""isHittable": element.isHittable"#,
+            #""identifier": element.identifier"#,
+            #""label": element.label"#,
+            #""value": valueObject"#,
+            #""elementTypeRawValue": element.elementType.rawValue"#,
+            #""elementTypeDescription": String(describing: element.elementType)"#,
+            #""frame": self.auditFrameObject(element.frame)"#,
+            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
+            #""compactDescription": issue.compactDescription"#,
+            #""detailedDescription": issue.detailedDescription"#,
+            #""elementExists": NSNull()"#,
+            #""elementEnabled": NSNull()"#,
+            #""elementHittable": NSNull()"#,
+            #""elementIdentifier": NSNull()"#,
+            #""elementLabel": NSNull()"#,
+            #""elementValue": NSNull()"#,
+            #""elementTypeRawValue": NSNull()"#,
+            #""elementTypeDescription": NSNull()"#,
+            #""elementFrame": NSNull()"#,
+            #""observedIssueCount": observedIssueCount"#,
+            #""auditedElementCount": auditedElementCount"#,
+            #"options: [.prettyPrinted, .sortedKeys]"#,
+            #"try app.performAccessibilityAudit(for: .contrast)"#,
+            #"screenshot: auditedElement.screenshot()"#,
+            #"return true"#,
+            #"S10.4 AX-text issue-open native contrast diagnostic completed nonaccepting"#,
+        ] {
+            XCTAssertTrue(issueOpenDiagnosticSource.contains(exact), exact)
+        }
+        var issueOpenQueryTail =
+            issueOpenDiagnosticSource[issueOpenDiagnosticSource.startIndex...]
+        for queryName in [
+            "issueScreens", "issueScrollViews", "issueHeaders", "issueStatuses",
+            "startRecheckControls", "workRecords", "workDates",
+            "workDescriptions", "workNotes", "workPhotos",
+            "descriptionValueTexts", "navigationBars", "tabBars", "keyboards",
+            "inputViews",
+        ] {
+            let token = "\"\(queryName)\""
+            let range = try XCTUnwrap(issueOpenQueryTail.range(of: token), queryName)
+            issueOpenQueryTail = issueOpenQueryTail[range.upperBound...]
+        }
+        for prefix in [
+            "S10_4_AX_TEXT_ISSUE_OPEN_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "S10_4_AX_TEXT_ISSUE_OPEN_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "S10_4_AX_TEXT_ISSUE_OPEN_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+        ] {
+            XCTAssertEqual(
+                issueOpenDiagnosticSource.components(separatedBy: prefix).count - 1,
+                1,
+                prefix
+            )
+        }
+        XCTAssertEqual(
+            issueOpenDiagnosticSource.components(
+                separatedBy: "performAccessibilityAudit(for: .contrast)"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            issueOpenDiagnosticSource.components(separatedBy: "return true").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            issueOpenDiagnosticSource.components(
+                separatedBy: ".lifetime = .keepAlways"
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            issueOpenDiagnosticSource.components(separatedBy: "add(").count - 1,
+            4
+        )
+        var issueOpenDiagnosticTail =
+            issueOpenDiagnosticSource[issueOpenDiagnosticSource.startIndex...]
+        for orderedToken in [
+            "let diagnosticContext: [String: Any] = [",
+            "S10_4_AX_TEXT_ISSUE_OPEN_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
+            "let contextAttachment = XCTAttachment(",
+            "try app.performAccessibilityAudit(for: .contrast)",
+            "S10_4_AX_TEXT_ISSUE_OPEN_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "screenshot: auditedElement.screenshot()",
+            "S10_4_AX_TEXT_ISSUE_OPEN_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+            "throw AutomationConfigurationError.invalid(",
+        ] {
+            let range = try XCTUnwrap(
+                issueOpenDiagnosticTail.range(of: orderedToken),
+                orderedToken
+            )
+            issueOpenDiagnosticTail = issueOpenDiagnosticTail[range.upperBound...]
+        }
+        for prohibited in [
+            "captureBaseline(", "S10_MIGRATION_STATE", "S10_4_AX_STATE",
+            "S10_4_CONTRAST\"", "S10_4_CANDIDATE", ".tap()", ".typeText(",
+            "setToggle(", "navigateBack(", "waitForExistence(", ".swipe",
+            "sleep(", "NotificationCenter", "migratedStateIDs.append",
+            "segmentedRouteStateCursor +=", "automatedSegmentFinished = true",
+            "ContrastAuditExceptionSignature(", "exceptionIssueID",
+        ] {
+            XCTAssertFalse(issueOpenDiagnosticSource.contains(prohibited), prohibited)
+        }
+
 
         let settingsHubPositioningSource = try boundedSource(
             uiSource,
